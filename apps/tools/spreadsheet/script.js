@@ -71,9 +71,8 @@
         init() {
             this.Sheets.loadSavedSheetsList();
             this.UI.initTheme();
-            this.Grid.render();
             this.UI.bindEvents();
-            
+
             // Auto-load last active state if it exists
             const autosave = localStorage.getItem('kk_sheet_autosave');
             if (autosave) {
@@ -1065,16 +1064,10 @@
                 const currentWidth = Math.max(50, startWidth + (moveEvent.clientX - startX));
                 th.style.width = currentWidth + 'px';
                 SpreadsheetApp.State.colsWidths[colLetter] = currentWidth;
-                
+
                 // Adjust all cell elements in this column dynamically
-                document.querySelectorAll(`#spreadsheet-grid td`).forEach(td => {
-                    const coord = td.getAttribute('data-coord');
-                    if (coord) {
-                        const match = coord.match(/^([A-Z]+)([0-9]+)$/);
-                        if (match && match[1] === colLetter) {
-                            td.style.width = currentWidth + 'px';
-                        }
-                    }
+                document.querySelectorAll(`#spreadsheet-grid td[data-coord^="${colLetter}"]`).forEach(td => {
+                    td.style.width = currentWidth + 'px';
                 });
             };
 
@@ -1855,23 +1848,25 @@
     SpreadsheetApp.Print = {
         printSheet(mode = 'selected') {
             const state = SpreadsheetApp.State;
-            
+
             // Add print mode class to body
             document.body.classList.remove('printing-selected', 'printing-all');
-            
+
             if (mode === 'selected') {
                 // Check if there's a selection
                 if (!state.activeCell) {
                     SpreadsheetApp.UI.showToast("No cell selected", "error");
                     return;
                 }
-                
+
                 // Check if there's a range selection
                 const start = state.selectionStart || state.activeCell;
                 const end = state.selectionEnd || state.activeCell;
-                
+
                 if (start !== end) {
                     document.body.classList.add('printing-selected');
+                    // Mark rows to hide for print
+                    this.markRowsForPrint();
                 } else {
                     // Single cell selected, print entire sheet
                     document.body.classList.add('printing-all');
@@ -1879,17 +1874,47 @@
             } else {
                 document.body.classList.add('printing-all');
             }
-            
+
             // Print the document
             window.print();
-            
+
             // Remove the class after print dialog closes
             setTimeout(() => {
                 document.body.classList.remove('printing-selected', 'printing-all');
+                this.clearPrintRowMarks();
             }, 1000);
-            
+
             // Close dropdown if open
             SpreadsheetApp.UI.toggleDropdown('print-dropdown', true);
+        },
+
+        markRowsForPrint() {
+            const grid = document.getElementById('spreadsheet-grid');
+            if (!grid) return;
+
+            const rows = grid.querySelectorAll('tr');
+            rows.forEach(row => {
+                const cells = row.querySelectorAll('td');
+                let hasSelected = false;
+                cells.forEach(cell => {
+                    if (cell.classList.contains('selected-cell') || cell.classList.contains('range-selected-bg')) {
+                        hasSelected = true;
+                    }
+                });
+                if (!hasSelected && cells.length > 0) {
+                    row.classList.add('print-hide-row');
+                }
+            });
+        },
+
+        clearPrintRowMarks() {
+            const grid = document.getElementById('spreadsheet-grid');
+            if (!grid) return;
+
+            const rows = grid.querySelectorAll('tr');
+            rows.forEach(row => {
+                row.classList.remove('print-hide-row');
+            });
         }
     };
 
@@ -1946,10 +1971,9 @@
                         state.data["C" + rowNum] = (15 - i).toString();
                         state.data["D" + rowNum] = (12 + (i * 3)).toString();
                         state.data["E" + rowNum] = `=SUM(B${rowNum}:D${rowNum})`;
-                        state.data["F" + rowNum] = `=COUNT(B${rowNum}:D${rowNum})`;
+                        state.data["F" + rowNum] = "";
 
                         state.formulas["E" + rowNum] = `=SUM(B${rowNum}:D${rowNum})`;
-                        state.formulas["F" + rowNum] = `=COUNT(B${rowNum}:D${rowNum})`;
 
                         // Set formatting
                         state.formatting["A" + rowNum] = { bold: true, align: 'left', bg: t.bg };
@@ -2186,8 +2210,8 @@
         showHelpModal() {
             const modal = document.getElementById('help-modal');
             if (!modal) return;
-            
-            modal.classList.remove('hidden');
+
+            modal.classList.remove('pointer-events-none');
             setTimeout(() => {
                 modal.classList.remove('opacity-0');
                 modal.classList.add('opacity-100');
@@ -2201,24 +2225,18 @@
             modal.classList.remove('opacity-100');
             modal.classList.add('opacity-0');
             setTimeout(() => {
-                modal.classList.add('hidden');
+                modal.classList.add('pointer-events-none');
             }, 300);
         },
 
         // Helper to trigger transient banner notifications
         showToast(message, type = 'info') {
             const container = document.getElementById('toast-container');
-            if (!container) {
-                // Create container if missing
-                const tCon = document.createElement('div');
-                tCon.id = 'toast-container';
-                tCon.className = 'fixed bottom-6 left-1/2 -translate-x-1/2 z-[9999] flex flex-col gap-2.5 pointer-events-none';
-                document.body.appendChild(tCon);
-            }
+            if (!container) return;
 
             const toast = document.createElement('div');
-            toast.className = `toast toast-${type} px-6 py-3 rounded-2xl bg-slate-900/95 dark:bg-slate-850/95 backdrop-blur-md text-white border-2 border-slate-700 shadow-xl flex items-center gap-2 pointer-events-auto transition-all`;
-            
+            toast.className = `toast toast-${type} px-6 py-3 rounded-2xl bg-slate-900/95 dark:bg-slate-800/95 backdrop-blur-md text-white border-2 border-slate-700 shadow-xl flex items-center gap-2 pointer-events-auto transition-all`;
+
             // Map types to icons
             let icon = 'info';
             if (type === 'success') icon = 'check-circle';
@@ -2226,8 +2244,8 @@
             else if (type === 'error') icon = 'x-circle';
 
             toast.innerHTML = `<i data-lucide="${icon}" class="w-4 h-4"></i><span class="text-xs font-bold font-heading uppercase tracking-wide">${message}</span>`;
-            document.getElementById('toast-container').appendChild(toast);
-            
+            container.appendChild(toast);
+
             if (window.lucide) window.lucide.createIcons();
 
             // Self cleanup after 3 seconds
