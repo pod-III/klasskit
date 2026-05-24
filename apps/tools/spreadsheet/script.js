@@ -68,22 +68,108 @@
         },
 
         // Initialize App on DOM Content Loaded
-        init() {
+        async init() {
+            // Require auth if not in sandbox mode
+            if (window.requireAuth) {
+                await requireAuth();
+            }
+
+            // Sync with cloud
+            if (!isSandbox() && window.db) {
+                await this.Sheets.loadFromCloud();
+            }
+
             this.Sheets.loadSavedSheetsList();
             this.UI.initTheme();
             this.UI.bindEvents();
 
+            // Setup debounced cloud save
+            this.Sheets.debouncedSaveToCloud = SpreadsheetApp.debounce(async () => {
+                if (isSandbox()) return;
+                const state = SpreadsheetApp.State;
+                if (!state.sheetId) return;
+
+                const user = await getUser();
+                if (!user) return;
+
+                const indicator = document.getElementById('save-status');
+                if (indicator) {
+                    indicator.textContent = 'Syncing...';
+                    indicator.className = 'text-blue-500 font-bold';
+                }
+
+                try {
+                    await db.from('spreadsheets').upsert({
+                        id: state.sheetId,
+                        user_id: user.id,
+                        title: state.sheetTitle,
+                        data: state.data,
+                        formulas: state.formulas,
+                        formatting: state.formatting,
+                        cols_widths: state.colsWidths,
+                        zoom: state.zoom,
+                        rows_count: state.rowsCount,
+                        cols_count: state.colsCount,
+                        updated_at: Date.now()
+                    }, { onConflict: 'id,user_id' });
+
+                    if (indicator) {
+                        indicator.textContent = 'Cloud Synced';
+                        indicator.className = 'text-green-500 font-bold';
+                        setTimeout(() => {
+                            if (indicator.textContent === 'Cloud Synced') {
+                                indicator.textContent = 'Saved to Cloud';
+                                indicator.className = 'text-slate-400 dark:text-slate-500 font-bold';
+                            }
+                        }, 2000);
+                    }
+                } catch (e) {
+                    console.warn('[Cloud Auto-Save] failed', e);
+                    if (indicator) {
+                        indicator.textContent = 'Sync Error';
+                        indicator.className = 'text-red-500 font-bold';
+                    }
+                }
+            }, 3000);
+
             // Auto-load last active state if it exists
+            let loaded = false;
             const autosave = localStorage.getItem('kk_sheet_autosave');
             if (autosave) {
                 try {
                     const parsed = JSON.parse(autosave);
                     this.Sheets.loadSheetData(parsed);
+                    if (parsed.sheetId) {
+                        this.State.sheetId = parsed.sheetId;
+                    }
+                    loaded = true;
                     this.UI.showToast("Last session loaded", "success");
                 } catch (e) {
-                    this.Templates.load('scoreboard', false);
+                    console.warn("Failed to load autosave:", e);
                 }
-            } else {
+            }
+
+            if (!loaded) {
+                // Try loading the most recent sheet from the saved list
+                const savedStr = localStorage.getItem('kk_sheet_saved_list');
+                if (savedStr) {
+                    try {
+                        const saved = JSON.parse(savedStr);
+                        if (saved.length > 0) {
+                            // Sort by timestamp descending
+                            saved.sort((a, b) => b.timestamp - a.timestamp);
+                            this.Sheets.loadSheetData(saved[0]);
+                            this.State.sheetId = saved[0].id;
+                            loaded = true;
+                            this.UI.showToast(`Loaded "${saved[0].title}"`, "success");
+                        }
+                    } catch (e) {
+                        console.warn("Failed to load from saved list:", e);
+                    }
+                }
+            }
+
+            if (!loaded) {
                 this.Templates.load('scoreboard', false);
             }
             
@@ -1494,7 +1580,8 @@
                 formatting: state.formatting,
                 colsWidths: JSON.parse(JSON.stringify(state.colsWidths)),
                 sheetTitle: state.sheetTitle,
-                zoom: state.zoom
+                zoom: state.zoom,
+                sheetId: state.sheetId
             };
             localStorage.setItem('kk_sheet_autosave', JSON.stringify(saveObj));
             
@@ -1503,9 +1590,16 @@
                 indicator.textContent = 'Auto-Saved';
                 indicator.className = 'text-green-500 font-bold';
                 setTimeout(() => {
-                    indicator.textContent = 'Saved Locally';
-                    indicator.className = 'text-slate-400 dark:text-slate-500 font-bold';
+                    if (indicator.textContent === 'Auto-Saved') {
+                        indicator.textContent = isSandbox() ? 'Saved Locally' : 'Saved to Cloud';
+                        indicator.className = 'text-slate-400 dark:text-slate-500 font-bold';
+                    }
                 }, 2000);
+            }
+
+            // Trigger debounced cloud save
+            if (this.debouncedSaveToCloud) {
+                this.debouncedSaveToCloud();
             }
         },
 
@@ -1532,15 +1626,17 @@
         },
 
         // Saves current state into sheets library
-        saveCurrentSheet() {
+        async saveCurrentSheet() {
             const state = SpreadsheetApp.State;
             const titleInput = document.getElementById('sheet-title');
             if (titleInput && titleInput.value.trim() !== '') {
                 state.sheetTitle = titleInput.value.trim();
             }
 
+            const sheetId = state.sheetId || 'sheet_' + Date.now();
+
             const sheetData = {
-                id: state.sheetId || 'sheet_' + Date.now(),
+                id: sheetId,
                 title: state.sheetTitle,
                 timestamp: Date.now(),
                 rowsCount: state.rowsCount,
@@ -1573,24 +1669,107 @@
 
             state.sheetId = sheetData.id;
             localStorage.setItem('kk_sheet_saved_list', JSON.stringify(saved));
-            
-            this.loadSavedSheetsList();
-            this.autosave();
+
+            // Sync to Supabase
+            if (!isSandbox() && window.db) {
+                const user = await getUser();
+                if (user) {
+                    const indicator = document.getElementById('save-status');
+                    if (indicator) {
+                        indicator.textContent = 'Syncing...';
+                        indicator.className = 'text-blue-500 font-bold';
+                    }
+                    try {
+                        const { error } = await db.from('spreadsheets').upsert({
+                            id: sheetData.id,
+                            user_id: user.id,
+                            title: sheetData.title,
+                            data: sheetData.data,
+                            formulas: sheetData.formulas,
+                            formatting: sheetData.formatting,
+                            cols_widths: sheetData.colsWidths,
+                            zoom: sheetData.zoom,
+                            rows_count: sheetData.rowsCount,
+                            cols_count: sheetData.colsCount,
+                            updated_at: sheetData.timestamp
+                        }, { onConflict: 'id,user_id' });
+
+                        if (error) throw error;
+
+                        if (indicator) {
+                            indicator.textContent = 'Cloud Synced';
+                            indicator.className = 'text-green-500 font-bold';
+                            setTimeout(() => {
+                                indicator.textContent = 'Saved to Cloud';
+                                indicator.className = 'text-slate-400 dark:text-slate-500 font-bold';
+                            }, 2000);
+                        }
+                    } catch (err) {
+                        console.error('[Cloud Save] Error:', err);
+                        if (indicator) {
+                            indicator.textContent = 'Sync Error';
+                            indicator.className = 'text-red-500 font-bold';
+                        }
+                        SpreadsheetApp.UI.showToast("Cloud sync failed, saved locally", "error");
+                    }
+                }
+            } else {
+                this.autosave();
+            }
+
+            await this.loadSavedSheetsList();
             SpreadsheetApp.UI.showToast("Sheet saved successfully!", "success");
         },
 
-        loadSavedSheetsList() {
+        async loadSavedSheetsList() {
             const listEl = document.getElementById('saved-sheets-list');
             if (!listEl) return;
 
             listEl.innerHTML = '';
             let saved = [];
-            const savedStr = localStorage.getItem('kk_sheet_saved_list');
-            if (savedStr) {
-                try {
-                    saved = JSON.parse(savedStr);
-                } catch (e) {
-                    saved = [];
+
+            if (isSandbox()) {
+                const savedStr = localStorage.getItem('kk_sheet_saved_list');
+                if (savedStr) {
+                    try {
+                        saved = JSON.parse(savedStr);
+                    } catch (e) {
+                        saved = [];
+                    }
+                }
+            } else if (window.db) {
+                const user = await getUser();
+                if (user) {
+                    try {
+                        const { data, error } = await db
+                            .from('spreadsheets')
+                            .select('*')
+                            .eq('user_id', user.id);
+
+                        if (error) throw error;
+
+                        if (data) {
+                            saved = data.map(row => ({
+                                id: row.id,
+                                title: row.title,
+                                timestamp: row.updated_at,
+                                rowsCount: row.rows_count,
+                                colsCount: row.cols_count,
+                                data: row.data,
+                                formulas: row.formulas,
+                                formatting: row.formatting,
+                                colsWidths: row.cols_widths,
+                                zoom: row.zoom
+                            }));
+                            localStorage.setItem('kk_sheet_saved_list', JSON.stringify(saved));
+                        }
+                    } catch (e) {
+                        console.error('[Cloud List] Error:', e);
+                        const savedStr = localStorage.getItem('kk_sheet_saved_list');
+                        if (savedStr) {
+                            try { saved = JSON.parse(savedStr); } catch (err) { saved = []; }
+                        }
+                    }
                 }
             }
 
@@ -1674,23 +1853,38 @@
             }
         },
 
-        deleteSheetById(id) {
-            const savedStr = localStorage.getItem('kk_sheet_saved_list');
-            if (!savedStr) return;
-
+        async deleteSheetById(id) {
             if (confirm("Are you sure you want to delete this sheet? This action cannot be undone.")) {
                 try {
-                    const saved = JSON.parse(savedStr);
-                    const filtered = saved.filter(s => s.id !== id);
-                    localStorage.setItem('kk_sheet_saved_list', JSON.stringify(filtered));
-                    
+                    if (!isSandbox() && window.db) {
+                        const user = await getUser();
+                        if (user) {
+                            const { error } = await db
+                                .from('spreadsheets')
+                                .delete()
+                                .eq('id', id)
+                                .eq('user_id', user.id);
+
+                            if (error) throw error;
+                        }
+                    }
+
+                    // Also remove from local list
+                    const savedStr = localStorage.getItem('kk_sheet_saved_list');
+                    if (savedStr) {
+                        const saved = JSON.parse(savedStr);
+                        const filtered = saved.filter(s => s.id !== id);
+                        localStorage.setItem('kk_sheet_saved_list', JSON.stringify(filtered));
+                    }
+
                     if (SpreadsheetApp.State.sheetId === id) {
                         SpreadsheetApp.State.sheetId = null;
                     }
 
-                    this.loadSavedSheetsList();
+                    await this.loadSavedSheetsList();
                     SpreadsheetApp.UI.showToast("Sheet deleted", "success");
                 } catch (e) {
+                    console.error('[Cloud Delete] Error:', e);
                     SpreadsheetApp.UI.showToast("Error deleting sheet", "error");
                 }
             }
@@ -1706,7 +1900,8 @@
             state.colsWidths = sheet.colsWidths || {};
             state.zoom = sheet.zoom || 100;
             state.sheetTitle = sheet.title || "Untitled Class Sheet";
-            
+            state.sheetId = sheet.id || null;
+
             document.getElementById('sheet-title').value = state.sheetTitle;
             document.getElementById('zoom-value').textContent = state.zoom + '%';
 
@@ -1716,6 +1911,39 @@
 
             SpreadsheetApp.Grid.render();
             SpreadsheetApp.Formulas.recalculateAll();
+        },
+
+        async loadFromCloud() {
+            if (isSandbox() || !window.db) return;
+            const user = await getUser();
+            if (!user) return;
+
+            try {
+                const { data: cloudSheets, error } = await db
+                    .from('spreadsheets')
+                    .select('*')
+                    .eq('user_id', user.id);
+
+                if (error) throw error;
+
+                if (cloudSheets) {
+                    const saved = cloudSheets.map(row => ({
+                        id: row.id,
+                        title: row.title,
+                        timestamp: row.updated_at,
+                        rowsCount: row.rows_count,
+                        colsCount: row.cols_count,
+                        data: row.data,
+                        formulas: row.formulas,
+                        formatting: row.formatting,
+                        colsWidths: row.cols_widths,
+                        zoom: row.zoom
+                    }));
+                    localStorage.setItem('kk_sheet_saved_list', JSON.stringify(saved));
+                }
+            } catch (e) {
+                console.error('[Cloud Load] Error loading from cloud:', e);
+            }
         }
     };
 
@@ -2328,6 +2556,11 @@
                 if (e.ctrlKey && e.key.toLowerCase() === 'v') {
                     e.preventDefault();
                     SpreadsheetApp.Grid.pasteClipboard();
+                    return;
+                }
+                if (e.ctrlKey && e.key.toLowerCase() === 's') {
+                    e.preventDefault();
+                    SpreadsheetApp.Sheets.saveCurrentSheet();
                     return;
                 }
 
