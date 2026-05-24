@@ -9,8 +9,8 @@
     // Global Namespace
     const SpreadsheetApp = {
         State: {
-            rowsCount: 25,
-            colsCount: 10,
+            rowsCount: 100,
+            colsCount: 26,
             data: {},          // Raw inputs keyed by coordinate, e.g., "A1": "Hello" or "B2": "=SUM(B1:B3)"
             evaluated: {},     // Processed values keyed by coordinate, e.g., "B2": "150"
             formulas: {},      // Cell formulas keyed by coordinate, e.g., "B2": "=SUM(B1:B3)"
@@ -21,7 +21,16 @@
             zoom: 100,         // Zoom percentage
             sheetTitle: "Untitled Class Sheet",
             sheetId: null,     // Current loaded saved sheet ID
-            savedSheets: []
+            savedSheets: [],
+            
+            // Excel-like Range Selection and Fill States
+            selectionStart: null,
+            selectionEnd: null,
+            isSelecting: false,
+            isFilling: false,
+            fillSource: null,
+            fillPreview: null,
+            clipboardBuffer: null
         },
 
         // Helper to convert Column index (0) to letter ("A")
@@ -84,6 +93,24 @@
             table.innerHTML = '';
             const state = SpreadsheetApp.State;
 
+            // Ensure fill handle exists in the DOM
+            let fillHandle = document.getElementById('fill-handle');
+            if (!fillHandle) {
+                fillHandle = document.createElement('div');
+                fillHandle.id = 'fill-handle';
+                fillHandle.className = 'absolute w-2.5 h-2.5 bg-brand-blue dark:bg-brand-orange border border-white dark:border-slate-800 cursor-crosshair z-20 hidden shadow-md';
+                
+                // Add handle fill mousedown event listener
+                fillHandle.addEventListener('mousedown', (e) => this.handleFillMouseDown(e));
+                
+                const wrapper = document.getElementById('grid-wrapper');
+                if (wrapper) {
+                    wrapper.appendChild(fillHandle);
+                }
+            } else {
+                fillHandle.classList.add('hidden'); // Hide until cell is selected
+            }
+
             // 1. Column Headers Row (A, B, C...)
             const headerRow = document.createElement('tr');
             
@@ -107,13 +134,17 @@
                 const handle = document.createElement('div');
                 handle.className = 'col-resize-handle';
                 handle.addEventListener('mousedown', (e) => this.initColResize(e, th, c));
+                handle.addEventListener('dblclick', (e) => {
+                    e.stopPropagation();
+                    this.autoFitColumn(c);
+                });
                 th.appendChild(handle);
 
-                // Apply custom width if saved
+                // Apply custom width if saved, otherwise use auto to fill width
                 if (state.colsWidths[colLetter]) {
                     th.style.width = state.colsWidths[colLetter] + 'px';
                 } else {
-                    th.style.width = '120px';
+                    th.style.width = 'auto';
                 }
 
                 headerRow.appendChild(th);
@@ -150,8 +181,9 @@
                     // Apply active formatting classes
                     this.applyCellStyles(td, coord);
 
-                    // Add cell click selection
-                    td.addEventListener('click', (e) => this.selectCell(coord, e.shiftKey));
+                    // Add cell click selection (range drag listeners)
+                    td.addEventListener('mousedown', (e) => this.handleMouseDown(e, coord));
+                    td.addEventListener('mouseover', (e) => this.handleMouseOver(e, coord));
                     td.addEventListener('dblclick', () => this.enterEditMode(coord));
 
                     tr.appendChild(td);
@@ -161,6 +193,11 @@
 
             document.getElementById('grid-dimensions').textContent = 
                 `Grid: ${state.colsCount} Columns x ${state.rowsCount} Rows`;
+
+            // Refresh selections if a cell is active
+            if (state.activeCell) {
+                this.updateSelectionVisuals();
+            }
         },
 
         applyCellStyles(tdElement, coord) {
@@ -195,36 +232,653 @@
                 this.commitEdit();
             }
 
-            // Remove highlighted header colors
-            const prevSelected = document.querySelector('.selected-cell');
-            if (prevSelected) prevSelected.classList.remove('selected-cell');
+            if (shiftKey && state.activeCell) {
+                state.selectionEnd = coord;
+            } else {
+                state.activeCell = coord;
+                state.selectionStart = coord;
+                state.selectionEnd = coord;
+            }
+            
+            this.updateSelectionVisuals();
+
+            // Update Formula Bar value
+            const formulaInput = document.getElementById('formula-input');
+            if (formulaInput) {
+                formulaInput.value = state.data[state.activeCell] || '';
+            }
+            
+            // Sync active formatting toolbar buttons
+            SpreadsheetApp.Formatting.syncToolbar(state.activeCell);
+        },
+
+        // Selection Visual Updater (Ranges & Header Highlights)
+        updateSelectionVisuals() {
+            const state = SpreadsheetApp.State;
+            
+            // Clear current highlights
+            document.querySelectorAll('#spreadsheet-grid td').forEach(td => {
+                td.classList.remove(
+                    'selected-cell',
+                    'range-selected-bg',
+                    'range-border-top',
+                    'range-border-bottom',
+                    'range-border-left',
+                    'range-border-right'
+                );
+            });
             
             document.querySelectorAll('th.header-highlight').forEach(el => {
                 el.classList.remove('header-highlight');
             });
 
-            state.activeCell = coord;
-            const cellElement = document.querySelector(`[data-coord="${coord}"]`);
-            if (cellElement) {
-                cellElement.classList.add('selected-cell');
-                
-                // Highlight row & col headers
-                const match = coord.match(/^([A-Z]+)([0-9]+)$/);
-                if (match) {
-                    const colHeader = document.querySelector(`th[data-col="${match[1]}"]`);
-                    const rowHeader = document.querySelector(`th[data-row="${match[2]}"]`);
-                    if (colHeader) colHeader.classList.add('header-highlight');
-                    if (rowHeader) rowHeader.classList.add('header-highlight');
+            if (!state.activeCell) {
+                const fillHandle = document.getElementById('fill-handle');
+                if (fillHandle) fillHandle.classList.add('hidden');
+                return;
+            }
+
+            const start = state.selectionStart || state.activeCell;
+            const end = state.selectionEnd || state.activeCell;
+
+            const startMatch = start.match(/^([A-Z]+)([0-9]+)$/);
+            const endMatch = end.match(/^([A-Z]+)([0-9]+)$/);
+            if (!startMatch || !endMatch) return;
+
+            const startCol = SpreadsheetApp.letterToCol(startMatch[1]);
+            const startRow = parseInt(startMatch[2]) - 1;
+            const endCol = SpreadsheetApp.letterToCol(endMatch[1]);
+            const endRow = parseInt(endMatch[2]) - 1;
+
+            const minCol = Math.min(startCol, endCol);
+            const maxCol = Math.max(startCol, endCol);
+            const minRow = Math.min(startRow, endRow);
+            const maxRow = Math.max(startRow, endRow);
+
+            const isMultiCell = (minCol !== maxCol) || (minRow !== maxRow);
+
+            // 1. Highlight Headers
+            for (let c = minCol; c <= maxCol; c++) {
+                const colLetter = SpreadsheetApp.colToLetter(c);
+                const colHeader = document.querySelector(`th[data-col="${colLetter}"]`);
+                if (colHeader) colHeader.classList.add('header-highlight');
+            }
+            for (let r = minRow; r <= maxRow; r++) {
+                const rowNum = r + 1;
+                const rowHeader = document.querySelector(`th[data-row="${rowNum}"]`);
+                if (rowHeader) rowHeader.classList.add('header-highlight');
+            }
+
+            // 2. Apply Selection Overlays & Borders
+            for (let r = minRow; r <= maxRow; r++) {
+                const rowNum = r + 1;
+                for (let c = minCol; c <= maxCol; c++) {
+                    const colLetter = SpreadsheetApp.colToLetter(c);
+                    const coord = colLetter + rowNum;
+                    const td = document.querySelector(`td[data-coord="${coord}"]`);
+                    if (!td) continue;
+
+                    if (isMultiCell) {
+                        // Background shading (active cell remains white/unshaded)
+                        if (coord !== state.activeCell) {
+                            td.classList.add('range-selected-bg');
+                        } else {
+                            td.classList.add('selected-cell');
+                        }
+
+                        // Outline bounding box
+                        if (r === minRow) td.classList.add('range-border-top');
+                        if (r === maxRow) td.classList.add('range-border-bottom');
+                        if (c === minCol) td.classList.add('range-border-left');
+                        if (c === maxCol) td.classList.add('range-border-right');
+                    } else {
+                        // Single cell highlight
+                        td.classList.add('selected-cell');
+                    }
                 }
             }
 
-            // Update Formula Bar
-            document.getElementById('active-cell-indicator').textContent = coord;
-            const rawVal = state.data[coord] || '';
-            document.getElementById('formula-input').value = rawVal;
+            // 3. Update Formula Indicator Address
+            const activeIndicator = document.getElementById('active-cell-indicator');
+            if (activeIndicator) {
+                if (isMultiCell) {
+                    const startLetter = SpreadsheetApp.colToLetter(minCol);
+                    const endLetter = SpreadsheetApp.colToLetter(maxCol);
+                    activeIndicator.textContent = `${startLetter}${minRow + 1}:${endLetter}${maxRow + 1}`;
+                } else {
+                    activeIndicator.textContent = state.activeCell;
+                }
+            }
+
+            // 4. Reposition Fill Handle
+            const brCoord = SpreadsheetApp.colToLetter(maxCol) + (maxRow + 1);
+            const brTd = document.querySelector(`td[data-coord="${brCoord}"]`);
+            const fillHandle = document.getElementById('fill-handle');
+            if (fillHandle && brTd) {
+                fillHandle.classList.remove('hidden');
+                // Align handle at bottom-right corner of cell
+                fillHandle.style.left = (brTd.offsetLeft + brTd.offsetWidth - 5) + 'px';
+                fillHandle.style.top = (brTd.offsetTop + brTd.offsetHeight - 5) + 'px';
+
+                // Synchronize color variables
+                if (document.documentElement.classList.contains('dark')) {
+                    fillHandle.style.backgroundColor = '#ff7e33';
+                } else {
+                    fillHandle.style.backgroundColor = '#1ea7fd';
+                }
+            }
+        },
+
+        // Range Mouse Drag Event Handlers
+        handleMouseDown(e, coord) {
+            if (e.button !== 0) return; // Left click only
+            const state = SpreadsheetApp.State;
+
+            // Commit active editor
+            if (state.isEditing && state.activeCell && state.activeCell !== coord) {
+                this.commitEdit();
+            }
+
+            state.isSelecting = true;
+
+            if (e.shiftKey && state.activeCell) {
+                state.selectionEnd = coord;
+            } else {
+                state.activeCell = coord;
+                state.selectionStart = coord;
+                state.selectionEnd = coord;
+            }
+
+            this.updateSelectionVisuals();
+
+            // Sync Formula Input
+            const formulaInput = document.getElementById('formula-input');
+            if (formulaInput) {
+                formulaInput.value = state.data[state.activeCell] || '';
+            }
+
+            // Sync Formatting Buttons
+            SpreadsheetApp.Formatting.syncToolbar(state.activeCell);
+        },
+
+        handleMouseOver(e, coord) {
+            const state = SpreadsheetApp.State;
+            if (!state.isSelecting) return;
+
+            state.selectionEnd = coord;
+            this.updateSelectionVisuals();
+        },
+
+        handleMouseUp(e) {
+            const state = SpreadsheetApp.State;
+            state.isSelecting = false;
+        },
+
+        // Autofill Handle Dragging Handlers
+        handleFillMouseDown(e) {
+            e.preventDefault();
+            e.stopPropagation();
+
+            const state = SpreadsheetApp.State;
+            if (!state.activeCell) return;
+
+            state.isFilling = true;
+
+            const start = state.selectionStart || state.activeCell;
+            const end = state.selectionEnd || state.activeCell;
+
+            const startMatch = start.match(/^([A-Z]+)([0-9]+)$/);
+            const endMatch = end.match(/^([A-Z]+)([0-9]+)$/);
+            if (!startMatch || !endMatch) return;
+
+            const startCol = SpreadsheetApp.letterToCol(startMatch[1]);
+            const startRow = parseInt(startMatch[2]) - 1;
+            const endCol = SpreadsheetApp.letterToCol(endMatch[1]);
+            const endRow = parseInt(endMatch[2]) - 1;
+
+            state.fillSource = {
+                minCol: Math.min(startCol, endCol),
+                maxCol: Math.max(startCol, endCol),
+                minRow: Math.min(startRow, endRow),
+                maxRow: Math.max(startRow, endRow)
+            };
+
+            state.fillPreview = null;
+        },
+
+        handleFillMouseMove(e) {
+            const state = SpreadsheetApp.State;
+            if (!state.isFilling || !state.fillSource) return;
+
+            const target = document.elementFromPoint(e.clientX, e.clientY);
+            if (!target) return;
+
+            const td = target.closest('td[data-coord]');
+            if (!td) return;
+
+            const coord = td.getAttribute('data-coord');
+            const match = coord.match(/^([A-Z]+)([0-9]+)$/);
+            if (!match) return;
+
+            const hoverCol = SpreadsheetApp.letterToCol(match[1]);
+            const hoverRow = parseInt(match[2]) - 1;
+
+            const src = state.fillSource;
+
+            // Determine if horizontal or vertical displacement is larger
+            const horizDist = Math.abs(hoverCol - src.maxCol);
+            const vertDist = Math.abs(hoverRow - src.maxRow);
+
+            let preview = {
+                minCol: src.minCol,
+                maxCol: src.maxCol,
+                minRow: src.minRow,
+                maxRow: src.maxRow
+            };
+
+            if (vertDist >= horizDist) {
+                // Dragging Vertically
+                if (hoverRow > src.maxRow) {
+                    preview.maxRow = hoverRow;
+                } else if (hoverRow < src.minRow) {
+                    preview.minRow = hoverRow;
+                }
+            } else {
+                // Dragging Horizontally
+                if (hoverCol > src.maxCol) {
+                    preview.maxCol = hoverCol;
+                } else if (hoverCol < src.minCol) {
+                    preview.minCol = hoverCol;
+                }
+            }
+
+            state.fillPreview = preview;
+            this.updateFillPreviewVisuals();
+        },
+
+        updateFillPreviewVisuals() {
+            const state = SpreadsheetApp.State;
             
-            // Sync active formatting toolbar buttons
-            SpreadsheetApp.Formatting.syncToolbar(coord);
+            // Clear current previews
+            document.querySelectorAll('#spreadsheet-grid td').forEach(td => {
+                td.classList.remove(
+                    'fill-preview-bg',
+                    'fill-preview-border-top',
+                    'fill-preview-border-bottom',
+                    'fill-preview-border-left',
+                    'fill-preview-border-right'
+                );
+            });
+
+            if (!state.isFilling || !state.fillPreview) return;
+
+            const p = state.fillPreview;
+            const src = state.fillSource;
+
+            for (let r = p.minRow; r <= p.maxRow; r++) {
+                const rowNum = r + 1;
+                for (let c = p.minCol; c <= p.maxCol; c++) {
+                    const colLetter = SpreadsheetApp.colToLetter(c);
+                    const coord = colLetter + rowNum;
+                    const td = document.querySelector(`td[data-coord="${coord}"]`);
+                    if (!td) continue;
+
+                    const isSource = (r >= src.minRow && r <= src.maxRow &&
+                                      c >= src.minCol && c <= src.maxCol);
+
+                    if (!isSource) {
+                        td.classList.add('fill-preview-bg');
+                    }
+
+                    // Outer border bounding outline
+                    if (r === p.minRow) td.classList.add('fill-preview-border-top');
+                    if (r === p.maxRow) td.classList.add('fill-preview-border-bottom');
+                    if (c === p.minCol) td.classList.add('fill-preview-border-left');
+                    if (c === p.maxCol) td.classList.add('fill-preview-border-right');
+                }
+            }
+        },
+
+        handleFillMouseUp(e) {
+            const state = SpreadsheetApp.State;
+            if (!state.isFilling) return;
+
+            state.isFilling = false;
+
+            // Clear preview styles
+            document.querySelectorAll('#spreadsheet-grid td').forEach(td => {
+                td.classList.remove(
+                    'fill-preview-bg',
+                    'fill-preview-border-top',
+                    'fill-preview-border-bottom',
+                    'fill-preview-border-left',
+                    'fill-preview-border-right'
+                );
+            });
+
+            if (!state.fillPreview || !state.fillSource) return;
+
+            const src = state.fillSource;
+            const p = state.fillPreview;
+
+            const srcWidth = src.maxCol - src.minCol + 1;
+            const srcHeight = src.maxRow - src.minRow + 1;
+
+            // Perform Copy/Shift operations
+            for (let r = p.minRow; r <= p.maxRow; r++) {
+                for (let c = p.minCol; c <= p.maxCol; c++) {
+                    // Skip copy if inside original source
+                    if (r >= src.minRow && r <= src.maxRow && c >= src.minCol && c <= src.maxCol) {
+                        continue;
+                    }
+
+                    let srcRowOffset, srcColOffset;
+                    if (r > src.maxRow) {
+                        srcRowOffset = (r - (src.maxRow + 1)) % srcHeight;
+                    } else if (r < src.minRow) {
+                        srcRowOffset = srcHeight - 1 - ((src.minRow - 1 - r) % srcHeight);
+                    } else {
+                        srcRowOffset = r - src.minRow;
+                    }
+
+                    if (c > src.maxCol) {
+                        srcColOffset = (c - (src.maxCol + 1)) % srcWidth;
+                    } else if (c < src.minCol) {
+                        srcColOffset = srcWidth - 1 - ((src.minCol - 1 - c) % srcWidth);
+                    } else {
+                        srcColOffset = c - src.minCol;
+                    }
+
+                    const srcRowIndex = src.minRow + srcRowOffset;
+                    const srcColIndex = src.minCol + srcColOffset;
+
+                    const srcCoord = SpreadsheetApp.colToLetter(srcColIndex) + (srcRowIndex + 1);
+                    const destCoord = SpreadsheetApp.colToLetter(c) + (r + 1);
+
+                    const val = state.data[srcCoord] || '';
+                    const rowOffset = r - srcRowIndex;
+                    const colOffset = c - srcColIndex;
+
+                    // Copy Formatting styles
+                    if (state.formatting[srcCoord]) {
+                        state.formatting[destCoord] = JSON.parse(JSON.stringify(state.formatting[srcCoord]));
+                    } else {
+                        delete state.formatting[destCoord];
+                    }
+
+                    if (val.startsWith('=')) {
+                        const shifted = this.shiftFormulaReferences(val, rowOffset, colOffset);
+                        state.data[destCoord] = shifted;
+                        state.formulas[destCoord] = shifted;
+                    } else {
+                        state.data[destCoord] = val;
+                        delete state.formulas[destCoord];
+                    }
+                }
+            }
+
+            // Adjust selection to expand over the entire filled area
+            state.selectionStart = SpreadsheetApp.colToLetter(p.minCol) + (p.minRow + 1);
+            state.selectionEnd = SpreadsheetApp.colToLetter(p.maxCol) + (p.maxRow + 1);
+
+            this.updateSelectionVisuals();
+            SpreadsheetApp.Formulas.recalculateAll();
+            SpreadsheetApp.Sheets.autosave();
+
+            state.fillSource = null;
+            state.fillPreview = null;
+        },
+
+        // Shifts formula references when copying/dragging relative positions
+        shiftFormulaReferences(formula, rowOffset, colOffset) {
+            if (!formula || !formula.startsWith('=')) return formula;
+            const cellRefPattern = /\b([A-Z]+)([0-9]+)\b/g;
+
+            return formula.replace(cellRefPattern, (match, colLetter, rowStr) => {
+                if (['SUM', 'AVERAGE', 'COUNT', 'MIN', 'MAX'].includes(colLetter)) {
+                    return match;
+                }
+
+                let colIndex = SpreadsheetApp.letterToCol(colLetter);
+                let rowIndex = parseInt(rowStr) - 1;
+
+                colIndex += colOffset;
+                rowIndex += rowOffset;
+
+                if (colIndex < 0) colIndex = 0;
+                if (rowIndex < 0) rowIndex = 0;
+
+                return SpreadsheetApp.colToLetter(colIndex) + (rowIndex + 1);
+            });
+        },
+
+        // Helper to retrieve list of coordinates inside selected range
+        getSelectedCells() {
+            const state = SpreadsheetApp.State;
+            if (!state.activeCell) return [];
+
+            const start = state.selectionStart || state.activeCell;
+            const end = state.selectionEnd || state.activeCell;
+
+            const startMatch = start.match(/^([A-Z]+)([0-9]+)$/);
+            const endMatch = end.match(/^([A-Z]+)([0-9]+)$/);
+            if (!startMatch || !endMatch) return [state.activeCell];
+
+            const startCol = SpreadsheetApp.letterToCol(startMatch[1]);
+            const startRow = parseInt(startMatch[2]) - 1;
+            const endCol = SpreadsheetApp.letterToCol(endMatch[1]);
+            const endRow = parseInt(endMatch[2]) - 1;
+
+            const minCol = Math.min(startCol, endCol);
+            const maxCol = Math.max(startCol, endCol);
+            const minRow = Math.min(startRow, endRow);
+            const maxRow = Math.max(startRow, endRow);
+
+            const cells = [];
+            for (let r = minRow; r <= maxRow; r++) {
+                for (let c = minCol; c <= maxCol; c++) {
+                    cells.push(SpreadsheetApp.colToLetter(c) + (r + 1));
+                }
+            }
+            return cells;
+        },
+
+        // Copy active selection range to internal/system buffer
+        copySelectedRange() {
+            const state = SpreadsheetApp.State;
+            const cells = this.getSelectedCells();
+            if (cells.length === 0) return;
+
+            const start = state.selectionStart || state.activeCell;
+            const end = state.selectionEnd || state.activeCell;
+
+            const startMatch = start.match(/^([A-Z]+)([0-9]+)$/);
+            const endMatch = end.match(/^([A-Z]+)([0-9]+)$/);
+            if (!startMatch || !endMatch) return;
+
+            const startCol = SpreadsheetApp.letterToCol(startMatch[1]);
+            const startRow = parseInt(startMatch[2]) - 1;
+            const endCol = SpreadsheetApp.letterToCol(endMatch[1]);
+            const endRow = parseInt(endMatch[2]) - 1;
+
+            const minCol = Math.min(startCol, endCol);
+            const maxCol = Math.max(startCol, endCol);
+            const minRow = Math.min(startRow, endRow);
+            const maxRow = Math.max(startRow, endRow);
+
+            const width = maxCol - minCol + 1;
+            const height = maxRow - minRow + 1;
+
+            const grid = [];
+            for (let r = 0; r < height; r++) {
+                const row = [];
+                for (let c = 0; c < width; c++) {
+                    const srcCoord = SpreadsheetApp.colToLetter(minCol + c) + (minRow + r + 1);
+                    row.push({
+                        data: state.data[srcCoord] || '',
+                        formatting: state.formatting[srcCoord] ? JSON.parse(JSON.stringify(state.formatting[srcCoord])) : null
+                    });
+                }
+                grid.push(row);
+            }
+
+            state.clipboardBuffer = { width, height, grid };
+
+            // Export as TSV structure to target external clipboard pasting
+            const textLines = grid.map(row => row.map(cell => cell.data).join('\t'));
+            navigator.clipboard.writeText(textLines.join('\n')).catch(() => {});
+            
+            SpreadsheetApp.UI.showToast("Copied range selection", "success");
+        },
+
+        // Paste clipboard contents starting at activeCell
+        pasteClipboard() {
+            const state = SpreadsheetApp.State;
+            if (!state.activeCell) return;
+
+            if (state.clipboardBuffer) {
+                const { width, height, grid } = state.clipboardBuffer;
+                
+                const activeMatch = state.activeCell.match(/^([A-Z]+)([0-9]+)$/);
+                const activeCol = SpreadsheetApp.letterToCol(activeMatch[1]);
+                const activeRow = parseInt(activeMatch[2]) - 1;
+
+                for (let r = 0; r < height; r++) {
+                    const targetRow = activeRow + r;
+                    if (targetRow >= state.rowsCount) continue;
+
+                    for (let c = 0; c < width; c++) {
+                        const targetCol = activeCol + c;
+                        if (targetCol >= state.colsCount) continue;
+
+                        const destCoord = SpreadsheetApp.colToLetter(targetCol) + (targetRow + 1);
+                        const cellData = grid[r][c];
+
+                        state.data[destCoord] = cellData.data;
+                        if (cellData.data.startsWith('=')) {
+                            state.formulas[destCoord] = cellData.data;
+                        } else {
+                            delete state.formulas[destCoord];
+                        }
+
+                        if (cellData.formatting) {
+                            state.formatting[destCoord] = JSON.parse(JSON.stringify(cellData.formatting));
+                        } else {
+                            delete state.formatting[destCoord];
+                        }
+                    }
+                }
+
+                // Adjust selection to pasted region
+                state.selectionStart = state.activeCell;
+                state.selectionEnd = SpreadsheetApp.colToLetter(Math.min(state.colsCount - 1, activeCol + width - 1)) + 
+                                     (Math.min(state.rowsCount, activeRow + height));
+                
+                this.updateSelectionVisuals();
+                SpreadsheetApp.Formulas.recalculateAll();
+                SpreadsheetApp.Sheets.autosave();
+                SpreadsheetApp.UI.showToast("Pasted range", "success");
+            } else {
+                // Read text/tsv fallback from clipboard
+                navigator.clipboard.readText().then(text => {
+                    if (!text) return;
+                    const rows = text.split(/\r?\n/);
+                    const grid = rows.map(r => r.split('\t'));
+                    
+                    const activeMatch = state.activeCell.match(/^([A-Z]+)([0-9]+)$/);
+                    const activeCol = SpreadsheetApp.letterToCol(activeMatch[1]);
+                    const activeRow = parseInt(activeMatch[2]) - 1;
+
+                    for (let r = 0; r < grid.length; r++) {
+                        const targetRow = activeRow + r;
+                        if (targetRow >= state.rowsCount) continue;
+
+                        for (let c = 0; c < grid[r].length; c++) {
+                            const targetCol = activeCol + c;
+                            if (targetCol >= state.colsCount) continue;
+
+                            const destCoord = SpreadsheetApp.colToLetter(targetCol) + (targetRow + 1);
+                            const val = grid[r][c];
+
+                            state.data[destCoord] = val;
+                            if (val.startsWith('=')) {
+                                state.formulas[destCoord] = val;
+                            } else {
+                                delete state.formulas[destCoord];
+                            }
+                        }
+                    }
+                    
+                    state.selectionStart = state.activeCell;
+                    state.selectionEnd = SpreadsheetApp.colToLetter(Math.min(state.colsCount - 1, activeCol + grid[0].length - 1)) + 
+                                         (Math.min(state.rowsCount, activeRow + grid.length));
+
+                    this.updateSelectionVisuals();
+                    SpreadsheetApp.Formulas.recalculateAll();
+                    SpreadsheetApp.Sheets.autosave();
+                    SpreadsheetApp.UI.showToast("Pasted range", "success");
+                }).catch(() => {});
+            }
+        },
+
+        // Automatically fits column width to longest text width inside
+        autoFitColumn(colIndex) {
+            const colLetter = SpreadsheetApp.colToLetter(colIndex);
+            const state = SpreadsheetApp.State;
+            
+            const span = document.createElement('span');
+            span.style.fontFamily = 'Nunito, sans-serif';
+            span.style.fontSize = '14px';
+            span.style.fontWeight = 'bold';
+            span.style.position = 'absolute';
+            span.style.visibility = 'hidden';
+            span.style.whiteSpace = 'nowrap';
+            document.body.appendChild(span);
+            
+            let maxWidth = 80; // Minimum column width threshold
+            
+            // Add column header label measurement
+            span.textContent = colLetter;
+            maxWidth = Math.max(maxWidth, span.offsetWidth + 30);
+            
+            for (let r = 0; r < state.rowsCount; r++) {
+                const coord = colLetter + (r + 1);
+                const val = state.evaluated[coord] || '';
+                span.textContent = val;
+                
+                const format = state.formatting[coord] || {};
+                if (format.bold) {
+                    span.style.fontWeight = '800';
+                } else {
+                    span.style.fontWeight = '400';
+                }
+                
+                const cellWidth = span.offsetWidth + 20; 
+                if (cellWidth > maxWidth) {
+                    maxWidth = cellWidth;
+                }
+            }
+            
+            document.body.removeChild(span);
+            
+            const th = document.querySelector(`th[data-col="${colLetter}"]`);
+            if (th) {
+                th.style.width = maxWidth + 'px';
+            }
+            state.colsWidths[colLetter] = maxWidth;
+            
+            // Update column cell elements
+            document.querySelectorAll(`#spreadsheet-grid td`).forEach(td => {
+                const coord = td.getAttribute('data-coord');
+                if (coord) {
+                    const match = coord.match(/^([A-Z]+)([0-9]+)$/);
+                    if (match && match[1] === colLetter) {
+                        td.style.width = maxWidth + 'px';
+                    }
+                }
+            });
+            
+            SpreadsheetApp.Sheets.autosave();
         },
 
         // Double-click to Edit Cell
@@ -304,6 +958,9 @@
 
                 // Recalculate
                 SpreadsheetApp.Formulas.recalculateAll();
+
+                // Refresh visual outlines
+                this.updateSelectionVisuals();
 
                 // Save status
                 SpreadsheetApp.Sheets.autosave();
@@ -394,10 +1051,13 @@
                 SpreadsheetApp.State.colsWidths[colLetter] = currentWidth;
                 
                 // Adjust all cell elements in this column dynamically
-                document.querySelectorAll(`#spreadsheet-grid td[data-coord^="${colLetter}"]`).forEach(td => {
-                    const match = td.getAttribute('data-coord').match(/^([A-Z]+)([0-9]+)$/);
-                    if (match && match[1] === colLetter) {
-                        td.style.width = currentWidth + 'px';
+                document.querySelectorAll(`#spreadsheet-grid td`).forEach(td => {
+                    const coord = td.getAttribute('data-coord');
+                    if (coord) {
+                        const match = coord.match(/^([A-Z]+)([0-9]+)$/);
+                        if (match && match[1] === colLetter) {
+                            td.style.width = currentWidth + 'px';
+                        }
                     }
                 });
             };
@@ -405,6 +1065,8 @@
             const onMouseUp = () => {
                 document.removeEventListener('mousemove', onMouseMove);
                 document.removeEventListener('mouseup', onMouseUp);
+                // Reposition fill handle after resize
+                this.updateSelectionVisuals();
                 SpreadsheetApp.Sheets.autosave();
             };
 
@@ -511,61 +1173,78 @@
         },
 
         toggleBold() {
-            const coord = SpreadsheetApp.State.activeCell;
-            if (!coord) return;
+            const cells = SpreadsheetApp.Grid.getSelectedCells();
+            if (cells.length === 0) return;
 
-            if (!SpreadsheetApp.State.formatting[coord]) {
-                SpreadsheetApp.State.formatting[coord] = {};
-            }
-            SpreadsheetApp.State.formatting[coord].bold = !SpreadsheetApp.State.formatting[coord].bold;
-            
-            const td = document.querySelector(`[data-coord="${coord}"]`);
-            if (td) SpreadsheetApp.Grid.applyCellStyles(td, coord);
-            this.syncToolbar(coord);
+            const activeCoord = SpreadsheetApp.State.activeCell;
+            const activeFormat = SpreadsheetApp.State.formatting[activeCoord] || {};
+            const makeBold = !activeFormat.bold;
+
+            cells.forEach(coord => {
+                if (!SpreadsheetApp.State.formatting[coord]) {
+                    SpreadsheetApp.State.formatting[coord] = {};
+                }
+                SpreadsheetApp.State.formatting[coord].bold = makeBold;
+                
+                const td = document.querySelector(`[data-coord="${coord}"]`);
+                if (td) SpreadsheetApp.Grid.applyCellStyles(td, coord);
+            });
+            this.syncToolbar(activeCoord);
             SpreadsheetApp.Sheets.autosave();
         },
 
         toggleItalic() {
-            const coord = SpreadsheetApp.State.activeCell;
-            if (!coord) return;
+            const cells = SpreadsheetApp.Grid.getSelectedCells();
+            if (cells.length === 0) return;
 
-            if (!SpreadsheetApp.State.formatting[coord]) {
-                SpreadsheetApp.State.formatting[coord] = {};
-            }
-            SpreadsheetApp.State.formatting[coord].italic = !SpreadsheetApp.State.formatting[coord].italic;
-            
-            const td = document.querySelector(`[data-coord="${coord}"]`);
-            if (td) SpreadsheetApp.Grid.applyCellStyles(td, coord);
-            this.syncToolbar(coord);
+            const activeCoord = SpreadsheetApp.State.activeCell;
+            const activeFormat = SpreadsheetApp.State.formatting[activeCoord] || {};
+            const makeItalic = !activeFormat.italic;
+
+            cells.forEach(coord => {
+                if (!SpreadsheetApp.State.formatting[coord]) {
+                    SpreadsheetApp.State.formatting[coord] = {};
+                }
+                SpreadsheetApp.State.formatting[coord].italic = makeItalic;
+                
+                const td = document.querySelector(`[data-coord="${coord}"]`);
+                if (td) SpreadsheetApp.Grid.applyCellStyles(td, coord);
+            });
+            this.syncToolbar(activeCoord);
             SpreadsheetApp.Sheets.autosave();
         },
 
         setAlign(alignType) {
-            const coord = SpreadsheetApp.State.activeCell;
-            if (!coord) return;
+            const cells = SpreadsheetApp.Grid.getSelectedCells();
+            if (cells.length === 0) return;
 
-            if (!SpreadsheetApp.State.formatting[coord]) {
-                SpreadsheetApp.State.formatting[coord] = {};
-            }
-            SpreadsheetApp.State.formatting[coord].align = alignType;
-            
-            const td = document.querySelector(`[data-coord="${coord}"]`);
-            if (td) SpreadsheetApp.Grid.applyCellStyles(td, coord);
-            this.syncToolbar(coord);
+            cells.forEach(coord => {
+                if (!SpreadsheetApp.State.formatting[coord]) {
+                    SpreadsheetApp.State.formatting[coord] = {};
+                }
+                SpreadsheetApp.State.formatting[coord].align = alignType;
+                
+                const td = document.querySelector(`[data-coord="${coord}"]`);
+                if (td) SpreadsheetApp.Grid.applyCellStyles(td, coord);
+            });
+            const activeCoord = SpreadsheetApp.State.activeCell;
+            this.syncToolbar(activeCoord);
             SpreadsheetApp.Sheets.autosave();
         },
 
         setBackground(bgColorClass) {
-            const coord = SpreadsheetApp.State.activeCell;
-            if (!coord) return;
+            const cells = SpreadsheetApp.Grid.getSelectedCells();
+            if (cells.length === 0) return;
 
-            if (!SpreadsheetApp.State.formatting[coord]) {
-                SpreadsheetApp.State.formatting[coord] = {};
-            }
-            SpreadsheetApp.State.formatting[coord].bg = bgColorClass;
-            
-            const td = document.querySelector(`[data-coord="${coord}"]`);
-            if (td) SpreadsheetApp.Grid.applyCellStyles(td, coord);
+            cells.forEach(coord => {
+                if (!SpreadsheetApp.State.formatting[coord]) {
+                    SpreadsheetApp.State.formatting[coord] = {};
+                }
+                SpreadsheetApp.State.formatting[coord].bg = bgColorClass;
+                
+                const td = document.querySelector(`[data-coord="${coord}"]`);
+                if (td) SpreadsheetApp.Grid.applyCellStyles(td, coord);
+            });
             SpreadsheetApp.Sheets.autosave();
         },
 
@@ -1140,7 +1819,25 @@
     };
 
     /* =========================================================================
-       6. EDUCATIONAL WORKBOOK TEMPLATES
+       6. PRINT MODULE
+       ========================================================================= */
+    SpreadsheetApp.Print = {
+        printSheet() {
+            // Add a class to body to trigger print styles
+            document.body.classList.add('printing');
+            
+            // Print the document
+            window.print();
+            
+            // Remove the class after print dialog closes
+            setTimeout(() => {
+                document.body.classList.remove('printing');
+            }, 1000);
+        }
+    };
+
+    /* =========================================================================
+       7. EDUCATIONAL WORKBOOK TEMPLATES
        ========================================================================= */
     SpreadsheetApp.Templates = {
         load(templateName, triggerConfirm = true) {
@@ -1161,8 +1858,8 @@
             switch (templateName) {
                 case 'scoreboard':
                     state.sheetTitle = "Class Scoreboard";
-                    state.colsCount = 6;
-                    state.rowsCount = 10;
+                    state.colsCount = 26;
+                    state.rowsCount = 100;
                     
                     // Column Headers
                     state.data["A1"] = "Team Name";
@@ -1540,6 +2237,18 @@
 
                 if (!state.activeCell) return;
 
+                // Handle Ctrl+C & Ctrl+V Copy/Paste Shortcuts
+                if (e.ctrlKey && e.key.toLowerCase() === 'c') {
+                    e.preventDefault();
+                    SpreadsheetApp.Grid.copySelectedRange();
+                    return;
+                }
+                if (e.ctrlKey && e.key.toLowerCase() === 'v') {
+                    e.preventDefault();
+                    SpreadsheetApp.Grid.pasteClipboard();
+                    return;
+                }
+
                 switch (e.key) {
                     case 'ArrowUp':
                         e.preventDefault();
@@ -1573,11 +2282,16 @@
                     case 'Backspace':
                     case 'Delete':
                         e.preventDefault();
-                        state.data[state.activeCell] = '';
-                        delete state.formulas[state.activeCell];
+                        const cellsToClear = SpreadsheetApp.Grid.getSelectedCells();
+                        cellsToClear.forEach(coord => {
+                            state.data[coord] = '';
+                            delete state.formulas[coord];
+                        });
                         
                         // Update Formula bar
-                        formulaInput.value = '';
+                        if (formulaInput) {
+                            formulaInput.value = state.data[state.activeCell] || '';
+                        }
                         
                         SpreadsheetApp.Formulas.recalculateAll();
                         SpreadsheetApp.Sheets.autosave();
@@ -1591,6 +2305,22 @@
                     document.querySelectorAll('[id$="-dropdown"]').forEach(drop => {
                         drop.classList.add('hidden');
                     });
+                }
+            });
+
+            // Selection & Fill Drag Listeners on Document
+            document.addEventListener('mousemove', (e) => {
+                if (state.isFilling) {
+                    SpreadsheetApp.Grid.handleFillMouseMove(e);
+                }
+            });
+
+            document.addEventListener('mouseup', (e) => {
+                if (state.isSelecting) {
+                    SpreadsheetApp.Grid.handleMouseUp(e);
+                }
+                if (state.isFilling) {
+                    SpreadsheetApp.Grid.handleFillMouseUp(e);
                 }
             });
 
