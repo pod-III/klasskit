@@ -8,6 +8,19 @@
 
     // Global Namespace
     const SpreadsheetApp = {
+        // Debounce utility function
+        debounce(func, wait) {
+            let timeout;
+            return function executedFunction(...args) {
+                const later = () => {
+                    clearTimeout(timeout);
+                    func(...args);
+                };
+                clearTimeout(timeout);
+                timeout = setTimeout(later, wait);
+            };
+        },
+
         State: {
             rowsCount: 100,
             colsCount: 26,
@@ -784,7 +797,10 @@
                     if (!text) return;
                     const rows = text.split(/\r?\n/);
                     const grid = rows.map(r => r.split('\t'));
-                    
+
+                    // Guard against empty grid
+                    if (grid.length === 0 || !grid[0]) return;
+
                     const activeMatch = state.activeCell.match(/^([A-Z]+)([0-9]+)$/);
                     const activeCol = SpreadsheetApp.letterToCol(activeMatch[1]);
                     const activeRow = parseInt(activeMatch[2]) - 1;
@@ -1088,8 +1104,9 @@
                 SpreadsheetApp.State.rowsCount--;
                 // Clear any data in the deleted row
                 const rowStr = (SpreadsheetApp.State.rowsCount + 1).toString();
+                const rowRegex = new RegExp(`^[A-Z]+${rowStr}$`);
                 Object.keys(SpreadsheetApp.State.data).forEach(key => {
-                    if (key.endsWith(rowStr)) {
+                    if (rowRegex.test(key)) {
                         delete SpreadsheetApp.State.data[key];
                         delete SpreadsheetApp.State.evaluated[key];
                         delete SpreadsheetApp.State.formulas[key];
@@ -1116,8 +1133,9 @@
                 SpreadsheetApp.State.colsCount--;
                 const colLetter = SpreadsheetApp.colToLetter(SpreadsheetApp.State.colsCount);
                 // Clear data
+                const colRegex = new RegExp(`^${colLetter}[0-9]+$`);
                 Object.keys(SpreadsheetApp.State.data).forEach(key => {
-                    if (key.startsWith(colLetter)) {
+                    if (colRegex.test(key)) {
                         delete SpreadsheetApp.State.data[key];
                         delete SpreadsheetApp.State.evaluated[key];
                         delete SpreadsheetApp.State.formulas[key];
@@ -1256,12 +1274,25 @@
             // Apply zoom style rules to grid table
             const grid = document.getElementById('spreadsheet-grid');
             if (grid) {
-                grid.style.transform = `scale(${state.zoom / 100})`;
+                const scale = state.zoom / 100;
+                grid.style.transform = `scale(${scale})`;
                 grid.style.transformOrigin = 'top left';
-                
+
                 // Adjust container size to account for scaled content
                 const wrap = document.getElementById('grid-wrapper');
-                // Calculate dynamic padding or size adjustments if needed
+                if (wrap) {
+                    // Get the original dimensions
+                    const originalWidth = grid.offsetWidth;
+                    const originalHeight = grid.offsetHeight;
+
+                    // Calculate scaled dimensions
+                    const scaledWidth = originalWidth * scale;
+                    const scaledHeight = originalHeight * scale;
+
+                    // Set wrapper dimensions to accommodate scaled content
+                    wrap.style.width = `${Math.max(wrap.clientWidth, scaledWidth)}px`;
+                    wrap.style.height = `${Math.max(wrap.clientHeight, scaledHeight)}px`;
+                }
             }
         }
     };
@@ -1345,7 +1376,7 @@
                     case 'COUNT':
                         // Counts numeric values only
                         return cells.filter(coord => {
-                            const val = SpreadsheetApp.State.data[coord] || '';
+                            const val = SpreadsheetApp.State.evaluated[coord] || '';
                             return val !== '' && !isNaN(parseFloat(val));
                         }).length;
                     case 'MIN':
@@ -1468,7 +1499,7 @@
                 data: state.data,
                 formulas: state.formulas,
                 formatting: state.formatting,
-                colsWidths: state.colsWidths,
+                colsWidths: JSON.parse(JSON.stringify(state.colsWidths)),
                 sheetTitle: state.sheetTitle,
                 zoom: state.zoom
             };
@@ -2132,18 +2163,20 @@
             }
         },
 
-        toggleDropdown(dropdownId) {
+        toggleDropdown(dropdownId, forceClose = false) {
             const el = document.getElementById(dropdownId);
             if (!el) return;
 
             const isHidden = el.classList.contains('hidden');
-            
+
             // Close other dropdowns
             document.querySelectorAll('[id$="-dropdown"]').forEach(drop => {
                 if (drop.id !== dropdownId) drop.classList.add('hidden');
             });
 
-            if (isHidden) {
+            if (forceClose) {
+                el.classList.add('hidden');
+            } else if (isHidden) {
                 el.classList.remove('hidden');
             } else {
                 el.classList.add('hidden');
@@ -2226,18 +2259,23 @@
             // Formula Bar input changes
             const formulaInput = document.getElementById('formula-input');
             if (formulaInput) {
+                const debouncedRecalculate = SpreadsheetApp.debounce(() => {
+                    SpreadsheetApp.Formulas.recalculateAll();
+                    SpreadsheetApp.Sheets.autosave();
+                }, 300);
+
                 formulaInput.addEventListener('input', () => {
                     if (state.activeCell) {
                         const val = formulaInput.value;
                         state.data[state.activeCell] = val;
-                        
+
                         if (val.startsWith('=')) {
                             state.formulas[state.activeCell] = val;
                         } else {
                             delete state.formulas[state.activeCell];
                         }
-                        
-                        SpreadsheetApp.Formulas.recalculateAll();
+
+                        debouncedRecalculate();
                     }
                 });
 
@@ -2369,11 +2407,10 @@
                 const onMouseLeave = () => {
                     tooltip.style.opacity = '0';
                     target.removeEventListener('mousemove', onMouseMove);
-                    target.removeEventListener('mouseleave', onMouseLeave);
                 };
 
                 target.addEventListener('mousemove', onMouseMove);
-                target.addEventListener('mouseleave', onMouseLeave);
+                target.addEventListener('mouseleave', onMouseLeave, { once: true });
             });
         }
     };
