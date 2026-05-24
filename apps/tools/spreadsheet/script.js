@@ -1822,17 +1822,43 @@
        6. PRINT MODULE
        ========================================================================= */
     SpreadsheetApp.Print = {
-        printSheet() {
-            // Add a class to body to trigger print styles
-            document.body.classList.add('printing');
+        printSheet(mode = 'selected') {
+            const state = SpreadsheetApp.State;
+            
+            // Add print mode class to body
+            document.body.classList.remove('printing-selected', 'printing-all');
+            
+            if (mode === 'selected') {
+                // Check if there's a selection
+                if (!state.activeCell) {
+                    SpreadsheetApp.UI.showToast("No cell selected", "error");
+                    return;
+                }
+                
+                // Check if there's a range selection
+                const start = state.selectionStart || state.activeCell;
+                const end = state.selectionEnd || state.activeCell;
+                
+                if (start !== end) {
+                    document.body.classList.add('printing-selected');
+                } else {
+                    // Single cell selected, print entire sheet
+                    document.body.classList.add('printing-all');
+                }
+            } else {
+                document.body.classList.add('printing-all');
+            }
             
             // Print the document
             window.print();
             
             // Remove the class after print dialog closes
             setTimeout(() => {
-                document.body.classList.remove('printing');
+                document.body.classList.remove('printing-selected', 'printing-all');
             }, 1000);
+            
+            // Close dropdown if open
+            SpreadsheetApp.UI.toggleDropdown('print-dropdown', true);
         }
     };
 
