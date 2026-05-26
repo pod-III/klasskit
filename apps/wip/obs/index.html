@@ -14,7 +14,7 @@
         href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Nunito:wght@400;600;700&display=swap"
         rel="stylesheet">
 
-    <script src="https://unpkg.com/lucide@1.16.0"></script>
+    <script src="https://cdn.jsdelivr.net/npm/lucide@0.344.0/dist/umd/lucide.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.105.4"></script>
     <script src="/supabase.js"></script>
 
@@ -145,6 +145,17 @@
                 border: none !important;
             }
 
+            td .time-display {
+                display: block !important;
+                font-size: 10pt !important;
+                color: black !important;
+                font-weight: bold !important;
+            }
+
+            .delete-row-btn {
+                display: none !important;
+            }
+
             .grid-cols-1.md\:grid-cols-3 {
                 display: flex !important;
                 flex-direction: row !important;
@@ -264,10 +275,7 @@
                     <label class="w-24 font-fredoka font-bold text-lg text-right print:text-left print:text-base print:w-20">Observer:</label>
                     <input type="text" id="observer_name" class="flex-1 border-b-3 border-dark bg-transparent p-2 font-bold focus:border-kkpink outline-none transition-colors print:p-0 print:text-sm">
                 </div>
-                <div class="flex items-center gap-4">
-                    <label class="w-24 font-fredoka font-bold text-lg text-right print:text-left print:text-base print:w-20">Students:</label>
-                    <input type="text" id="students_info" class="flex-1 border-b-3 border-dark bg-transparent p-2 font-bold focus:border-kkpink outline-none transition-colors print:p-0 print:text-sm">
-                </div>
+
             </div>
 
             <div
@@ -296,12 +304,10 @@
                 <table class="w-full text-left border-collapse" id="observationTable">
                     <thead class="bg-dark text-white print:bg-gray-200 print:text-black">
                         <tr>
-                            <th
-                                class="p-3 font-fredoka border-r-2 border-slate-600 w-20 text-center print:border-black print:w-16">
+                            <th class="p-3 font-fredoka border-r-2 border-slate-600 text-center print:border-black" style="width:110px">
                                 Time</th>
-                            <th class="p-3 font-fredoka border-r-2 border-slate-600 w-1/4 print:border-black">Stage /
-                                Interaction</th>
-                            <th class="p-3 font-fredoka border-r-2 border-slate-600 print:border-black">Procedures</th>
+                            <th class="p-3 font-fredoka border-r-2 border-slate-600 print:border-black" style="width:20%">Stage / Interaction</th>
+                            <th class="p-3 font-fredoka border-r-2 border-slate-600 print:border-black" style="width:40%">Procedures</th>
                             <th class="p-3 font-fredoka print:border-black">Comments</th>
                         </tr>
                     </thead>
@@ -311,9 +317,15 @@
                 </table>
             </div>
 
-            <button onclick="addRow()" class="mt-4 w-full bg-kkgreen/20 border-dashed border-3 border-dark text-dark dark:text-white font-fredoka font-bold py-3 rounded-xl hover:bg-kkgreen/40 transition-all flex justify-center items-center gap-2 no-print">
-                <i data-lucide="plus-circle" class="w-5 h-5"></i> Add Row
-            </button>
+            <div class="mt-4 flex items-center gap-3 no-print">
+                <button onclick="addRow()" class="flex-1 bg-kkgreen/20 border-dashed border-3 border-dark text-dark dark:text-white font-fredoka font-bold py-3 rounded-xl hover:bg-kkgreen/40 transition-all flex justify-center items-center gap-2">
+                    <i data-lucide="plus-circle" class="w-5 h-5"></i> Add Row
+                </button>
+                <div class="bg-dark text-white font-fredoka font-bold px-5 py-3 rounded-xl border-3 border-dark shadow-hard-sm flex items-center gap-2 text-sm whitespace-nowrap">
+                    <i data-lucide="clock" class="w-4 h-4"></i>
+                    Total: <span id="totalMinutes">0</span> min
+                </div>
+            </div>
         </div>
 
         <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8 print:gap-4 print:mb-4">
@@ -401,73 +413,166 @@
         const d = new Date();
         document.getElementById('printDate').innerText = d.toLocaleDateString();
 
-        // Auto-expand textarea function
+        // Auto-expand textarea
         const autoExpand = (field) => {
-            field.style.height = 'inherit';
-            const computed = window.getComputedStyle(field);
-            const height = parseInt(computed.getPropertyValue('border-top-width'), 10)
-                         + parseInt(computed.getPropertyValue('padding-top'), 10)
-                         + field.scrollHeight
-                         + parseInt(computed.getPropertyValue('padding-bottom'), 10)
-                         + parseInt(computed.getPropertyValue('border-bottom-width'), 10);
-            field.style.height = height + 'px';
+            field.style.height = 'auto';
+            field.style.height = field.scrollHeight + 'px';
         };
 
-        // --- 2. DYNAMIC TABLE LOGIC ---
-        
+        // --- 2. TIME CALCULATION ---
+
+        // Get the start time from the date_time field (returns total minutes from midnight)
+        function getStartMinutes() {
+            const dt = document.getElementById('date_time').value;
+            if (!dt) return null;
+            const parts = dt.split('T');
+            if (parts.length < 2) return null;
+            const [hStr, mStr] = parts[1].split(':');
+            return parseInt(hStr, 10) * 60 + parseInt(mStr, 10);
+        }
+
+        // Format minutes-from-midnight to "HH:MM"
+        function formatTime(totalMins) {
+            const h = Math.floor(totalMins / 60) % 24;
+            const m = totalMins % 60;
+            return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
+        }
+
+        // Detect legacy "HH:MM" format vs new plain-minutes format
+        function isLegacyTimeValue(val) {
+            if (!val && val !== 0) return false;
+            return !/^\d+$/.test(String(val).trim());
+        }
+
+        // Recalculate all row time displays and update total counter.
+        // Backward-compatible: legacy HH:MM values show as-is, excluded
+        // from running clock calculation.
+        function updateAllTimes() {
+            const startMins = getStartMinutes();
+            let running = startMins !== null ? startMins : null;
+            let totalMins = 0;
+
+            document.querySelectorAll('#tableBody tr').forEach(tr => {
+                const input = tr.querySelector('.time-minutes-input');
+                const display = tr.querySelector('.time-display');
+                if (!input || !display) return;
+
+                const rawVal = input.value.trim();
+
+                if (isLegacyTimeValue(rawVal)) {
+                    // Legacy row: show stored value as-is, don't advance running clock
+                    display.textContent = rawVal || '\u2014';
+                    return;
+                }
+
+                const duration = parseInt(rawVal, 10) || 0;
+                totalMins += duration;
+
+                if (running !== null) {
+                    const end = running + duration;
+                    display.textContent = duration > 0
+                        ? `${formatTime(running)} \u2013 ${formatTime(end)}`
+                        : formatTime(running);
+                    running = end;
+                } else {
+                    display.textContent = duration > 0 ? `${duration} min` : '\u2014';
+                }
+            });
+
+            document.getElementById('totalMinutes').textContent = totalMins;
+        }
+
+        // --- 3. DYNAMIC TABLE LOGIC ---
+
         function createRowHTML(values = {}) {
+            const safeStage = (values.stage || '').replace(/</g,'&lt;');
+            const safeProc  = (values.proc  || '').replace(/</g,'&lt;');
+            const safeComm  = (values.comm  || '').replace(/</g,'&lt;');
             return `
-                <td class="border-r-2 border-dark p-0 print:border-black"><input value="${values.time || ''}" class="row-input w-full h-full p-3 text-center bg-transparent outline-none focus:bg-kkblue/10 print:p-1 print:text-sm" placeholder="00:00" data-key="time"></td>
-                <td class="border-r-2 border-dark p-0 print:border-black"><textarea class="row-input w-full h-full p-3 bg-transparent outline-none focus:bg-kkblue/10 auto-expand print:p-1 print:text-sm" rows="2" data-key="stage">${values.stage || ''}</textarea></td>
-                <td class="border-r-2 border-dark p-0 print:border-black"><textarea class="row-input w-full h-full p-3 bg-transparent outline-none focus:bg-kkblue/10 auto-expand print:p-1 print:text-sm" rows="2" data-key="proc">${values.proc || ''}</textarea></td>
-                <td class="p-0"><textarea class="row-input w-full h-full p-3 bg-transparent outline-none focus:bg-kkblue/10 auto-expand print:p-1 print:text-sm" rows="2" data-key="comm">${values.comm || ''}</textarea></td>
+                <td class="border-r-2 border-dark p-0 print:border-black" style="width:110px">
+                    <div class="flex flex-col items-center gap-1 p-2">
+                        <span class="time-display font-fredoka text-xs font-bold text-center text-kkblue dark:text-kkblue leading-tight print:text-black">—</span>
+                        <input
+                            type="text"
+                            inputmode="numeric"
+                            value="${values.time || ''}"
+                            class="time-minutes-input row-input w-full text-center bg-kkblue/10 dark:bg-kkblue/20 border-2 border-dark/20 rounded-lg p-1 text-sm font-bold outline-none focus:border-kkblue focus:bg-kkblue/20 transition-colors print:hidden"
+                            placeholder="min"
+                            data-key="time">
+                        <span class="hidden print:inline text-xs text-gray-500 row-print-duration">${values.time || ''}</span>
+                    </div>
+                </td>
+                <td class="border-r-2 border-dark p-0 print:border-black">
+                    <textarea class="row-input w-full p-3 bg-transparent outline-none focus:bg-kkblue/10 transition-colors print:p-1 print:text-sm" style="resize:none;overflow:hidden;min-height:54px" data-key="stage">${safeStage}</textarea>
+                </td>
+                <td class="border-r-2 border-dark p-0 print:border-black">
+                    <textarea class="row-input w-full p-3 bg-transparent outline-none focus:bg-kkblue/10 transition-colors print:p-1 print:text-sm" style="resize:none;overflow:hidden;min-height:54px" data-key="proc">${safeProc}</textarea>
+                </td>
+                <td class="p-0 relative">
+                    <textarea class="row-input w-full p-3 bg-transparent outline-none focus:bg-kkblue/10 transition-colors print:p-1 print:text-sm" style="resize:none;overflow:hidden;min-height:54px" data-key="comm">${safeComm}</textarea>
+                    <button onclick="deleteRow(this)" title="Delete row"
+                        class="delete-row-btn absolute top-1 right-1 w-6 h-6 rounded-md bg-kkpink/20 hover:bg-kkpink text-kkpink hover:text-white border border-kkpink/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all no-print text-xs font-bold leading-none">
+                        ✕
+                    </button>
+                </td>
             `;
+        }
+
+        function deleteRow(btn) {
+            const tr = btn.closest('tr');
+            if (document.querySelectorAll('#tableBody tr').length <= 1) return; // keep at least 1
+            tr.remove();
+            updateAllTimes();
+            saveData();
         }
 
         function addRow(values = {}) {
             const tbody = document.getElementById('tableBody');
             const tr = document.createElement('tr');
-            tr.className = "group";
+            tr.className = "group border-b-2 border-dark/10 dark:border-slate-600 last:border-b-0";
             tr.innerHTML = createRowHTML(values);
             tbody.appendChild(tr);
-            
-            // Re-attach listeners to new inputs
-            const newInputs = tr.querySelectorAll('input, textarea');
-            newInputs.forEach(input => {
-                input.addEventListener('input', () => {
-                    if(input.tagName === 'TEXTAREA') autoExpand(input);
-                    saveData();
-                });
-                if(input.tagName === 'TEXTAREA') autoExpand(input);
+
+            // Listeners for textareas and time input
+            tr.querySelectorAll('textarea').forEach(ta => {
+                ta.addEventListener('input', () => { autoExpand(ta); saveData(); });
+                autoExpand(ta);
             });
+
+            const timeInput = tr.querySelector('.time-minutes-input');
+            timeInput.addEventListener('input', () => {
+                updateAllTimes();
+                saveData();
+            });
+
+            lucide.createIcons({ el: tr });
+            updateAllTimes();
         }
 
-        // --- 3. SAVE/LOAD SYSTEM ---
+        // --- 4. SAVE/LOAD SYSTEM ---
 
         function getDataObject() {
-            // Helper to build data object from current DOM
             const staticFields = {};
-            ['teacher_name', 'observer_name', 'students_info', 'date_time', 'class_name', 'keep_doing', 'start_doing', 'avoid_doing', 'action_plan'].forEach(id => {
-                staticFields[id] = document.getElementById(id).value;
+            ['teacher_name', 'observer_name', 'date_time', 'class_name', 'keep_doing', 'start_doing', 'avoid_doing', 'action_plan'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) staticFields[id] = el.value;
             });
 
             const rows = [];
             document.querySelectorAll('#tableBody tr').forEach(tr => {
                 const rowData = {};
                 tr.querySelectorAll('.row-input').forEach(input => {
-                    rowData[input.dataset.key] = input.value;
+                    rowData[input.dataset.key] = input.tagName === 'TEXTAREA' ? input.value : input.value;
                 });
                 rows.push(rowData);
             });
-            
+
             return { staticFields, rows };
         }
 
         function saveData() {
             const fullData = getDataObject();
             localStorage.setItem('obsFormV3', JSON.stringify(fullData));
-
-            // Visual Feedback
             statusSpan.innerText = "Saved";
             statusSpan.classList.add('text-kkgreen');
             setTimeout(() => statusSpan.classList.remove('text-kkgreen'), 1000);
@@ -477,72 +582,51 @@
             const saved = JSON.parse(localStorage.getItem('obsFormV3'));
 
             if (saved) {
-                // 1. Load Static Fields
-                for (const [key, value] of Object.entries(saved.staticFields)) {
+                for (const [key, value] of Object.entries(saved.staticFields || {})) {
                     const el = document.getElementById(key);
                     if (el) el.value = value;
                 }
-
-                // 2. Load Table Rows
                 if (saved.rows && saved.rows.length > 0) {
                     saved.rows.forEach(rowData => addRow(rowData));
                 } else {
                     addRow(); addRow(); addRow();
                 }
             } else {
-                // Fresh start: 5 empty rows
                 addRow(); addRow(); addRow(); addRow(); addRow();
             }
-            
+
             setTimeout(() => {
                 document.querySelectorAll('textarea').forEach(autoExpand);
+                updateAllTimes();
             }, 100);
         }
 
-        // --- 4. EXPORT / IMPORT LOGIC ---
+        // --- 5. EXPORT / IMPORT LOGIC ---
 
         function exportData() {
             const data = localStorage.getItem('obsFormV3');
             if (!data) { alert('No data to export!'); return; }
-            
-            // Create filename based on teacher/date if available
             const teacher = document.getElementById('teacher_name').value || 'observation';
             const date = new Date().toISOString().slice(0,10);
             const filename = `${teacher.replace(/\s+/g, '_')}_${date}.json`;
-
             const blob = new Blob([data], {type: 'application/json'});
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
-            a.href = url;
-            a.download = filename;
-            a.click();
+            a.href = url; a.download = filename; a.click();
             URL.revokeObjectURL(url);
         }
 
         function handleFileImport(input) {
             const file = input.files[0];
             if (!file) return;
-
             const reader = new FileReader();
             reader.onload = function(e) {
                 try {
                     const data = JSON.parse(e.target.result);
-                    
-                    // Simple Validation
-                    if (!data.staticFields || !data.rows) {
-                        throw new Error("Invalid file format. Missing fields.");
-                    }
-
-                    // Confirm overwrite
-                    if(!confirm("Importing will overwrite current data. Continue?")) {
-                        input.value = ''; // Reset input
-                        return;
-                    }
-
-                    // Save to local storage and reload
+                    if (!data.staticFields || !data.rows) throw new Error("Invalid file format.");
+                    if (!confirm("Importing will overwrite current data. Continue?")) { input.value = ''; return; }
                     localStorage.setItem('obsFormV3', JSON.stringify(data));
                     location.reload();
-
                 } catch (err) {
                     alert("Error importing file: " + err.message);
                 }
@@ -550,22 +634,23 @@
             reader.readAsText(file);
         }
 
-        // --- 5. INITIALIZATION ---
+        // --- 6. INITIALIZATION ---
 
-        // Attach listeners to static fields
-        ['teacher_name', 'observer_name', 'students_info', 'date_time', 'class_name', 'keep_doing', 'start_doing', 'avoid_doing', 'action_plan'].forEach(id => {
-            document.getElementById(id).addEventListener('input', saveData);
+        ['teacher_name', 'observer_name', 'date_time', 'class_name', 'keep_doing', 'start_doing', 'avoid_doing', 'action_plan'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.addEventListener('input', () => {
+                if (id === 'date_time') updateAllTimes();
+                saveData();
+            });
         });
 
-        // Clear Button
         document.getElementById('resetBtn').addEventListener('click', () => {
-            if(confirm("Clear all data? This cannot be undone.")) {
+            if (confirm("Clear all data? This cannot be undone.")) {
                 localStorage.removeItem('obsFormV3');
-                location.reload(); 
+                location.reload();
             }
         });
 
-        // Load everything
         window.onload = async () => {
             await requireAuth();
             loadData();
