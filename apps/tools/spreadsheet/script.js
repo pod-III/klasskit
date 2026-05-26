@@ -1728,16 +1728,18 @@
             listEl.innerHTML = '';
             let saved = [];
 
-            if (isSandbox()) {
-                const savedStr = localStorage.getItem('kk_sheet_saved_list');
-                if (savedStr) {
-                    try {
-                        saved = JSON.parse(savedStr);
-                    } catch (e) {
-                        saved = [];
-                    }
+            // Always load from localStorage first to ensure UI shows latest save
+            const savedStr = localStorage.getItem('kk_sheet_saved_list');
+            if (savedStr) {
+                try {
+                    saved = JSON.parse(savedStr);
+                } catch (e) {
+                    saved = [];
                 }
-            } else if (window.db) {
+            }
+
+            // Then sync from cloud if available (in background)
+            if (!isSandbox() && window.db) {
                 const user = await getUser();
                 if (user) {
                     try {
@@ -1765,10 +1767,7 @@
                         }
                     } catch (e) {
                         console.error('[Cloud List] Error:', e);
-                        const savedStr = localStorage.getItem('kk_sheet_saved_list');
-                        if (savedStr) {
-                            try { saved = JSON.parse(savedStr); } catch (err) { saved = []; }
-                        }
+                        // Fall back to localStorage data already loaded above
                     }
                 }
             }
