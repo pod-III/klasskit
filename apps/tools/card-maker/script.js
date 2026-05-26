@@ -14,6 +14,8 @@ let state = {
     imgHeight: 50,
     fontSize: 2,
     autoFit: false,
+    textAlign: "center",
+    pictureOutline: "none",
     pages: [[]], // Array of pages, each containing array of card objects
 };
 
@@ -439,6 +441,8 @@ async function loadState() {
     setOrientation(state.orientation, false);
     setImageSize(state.imgHeight ?? 50, false);
     setFontSize(state.fontSize || 2, false);
+    setTextAlign(state.textAlign || "center", false);
+    setPictureOutline(state.pictureOutline || "none", false);
     updateToggleUI();
     renderAllPages();
 
@@ -453,6 +457,8 @@ async function loadState() {
             setOrientation(state.orientation, false);
             setImageSize(state.imgHeight ?? 50, false);
             setFontSize(state.fontSize || 2, false);
+            setTextAlign(state.textAlign || "center", false);
+            setPictureOutline(state.pictureOutline || "none", false);
             updateToggleUI();
             renderAllPages();
         }
@@ -906,6 +912,7 @@ function updateCardDisplay() {
             "[contenteditable]:not(.card-label-input)",
         )
         .forEach((t) => {
+            t.style.textAlign = state.textAlign || "center";
             if (state.autoFit) {
                 autoFitText(t);
             } else {
@@ -922,7 +929,37 @@ function updateCardDisplay() {
         img.classList.remove("cover");
         img.classList.add("contain");
         img.style.padding = isFullImg ? "0" : "4px";
+        if (state.pictureOutline === 'thick') {
+            img.style.border = "4px solid var(--border-primary)";
+            img.style.borderRadius = "8px";
+        } else if (state.pictureOutline === 'thin') {
+            img.style.border = "2px solid var(--border-primary)";
+            img.style.borderRadius = "8px";
+        } else {
+            img.style.border = "none";
+            img.style.borderRadius = "0";
+        }
     });
+}
+
+function setTextAlign(align, shouldSave = true) {
+    state.textAlign = align;
+    ['left', 'center', 'right', 'justify'].forEach(a => {
+        const btn = document.getElementById(`align-${a}`);
+        if (btn) btn.classList.toggle('active', a === align);
+    });
+    updateCardDisplay();
+    if (shouldSave) saveState();
+}
+
+function setPictureOutline(style, shouldSave = true) {
+    state.pictureOutline = style;
+    ['none', 'thin', 'thick'].forEach(s => {
+        const btn = document.getElementById(`outline-${s}`);
+        if (btn) btn.classList.toggle('active', s === style);
+    });
+    updateCardDisplay();
+    if (shouldSave) saveState();
 }
 
 function setOrientation(type, shouldSave = true) {
