@@ -72,12 +72,45 @@
             min-height: 50px;
         }
 
+        /* --- TABLE COLUMN RESIZE --- */
+        #observationTable {
+            table-layout: fixed;
+            border-collapse: separate;
+            border-spacing: 0;
+        }
+
+        .col-resize-handle {
+            position: absolute; right: -4px; top: 0;
+            height: 100%; width: 10px;
+            cursor: col-resize; z-index: 20;
+            display: flex; align-items: center; justify-content: center;
+            transition: background .15s;
+        }
+        .col-resize-handle::after {
+            content: '';
+            display: block;
+            width: 3px; height: 50%;
+            background: rgba(255,255,255,0.25);
+            border-radius: 2px;
+            transition: background .15s, height .15s;
+        }
+        .col-resize-handle:hover::after,
+        .col-resize-handle.dragging::after {
+            background: rgba(41,121,255,0.9);
+            height: 80%;
+        }
+        .col-resize-handle:hover,
+        .col-resize-handle.dragging {
+            background: rgba(41,121,255,0.15);
+        }
+
+        /* Orientation badge in toolbar */
+        #orientLabel { font-size: 11px; font-weight: 700; line-height: 1; }
+
         /* --- PRINT STYLES --- */
+        /* @page size injected dynamically by JS for orientation toggle */
         @media print {
-            @page {
-                margin: 0.75cm;
-                size: A4 portrait;
-            }
+            @page { margin: 0.75cm; }
 
             body {
                 background: white !important;
@@ -230,6 +263,14 @@
             </button>
         </div>
 
+        <button id="orientBtn" onclick="toggleOrientation()" title="Toggle page orientation"
+            class="bg-chalk dark:bg-slate-700 text-dark dark:text-white px-3 py-2 rounded-xl border-3 border-dark shadow-hard hover:translate-y-1 hover:shadow-hard-sm transition-all font-fredoka font-bold flex items-center gap-2">
+            <i id="orientIcon" data-lucide="rectangle-vertical" class="w-5 h-5"></i>
+            <span id="orientLabel" class="hidden md:flex flex-col items-start leading-none">
+                <span class="text-xs opacity-60">Page</span>
+                <span id="orientText">Portrait</span>
+            </span>
+        </button>
         <button onclick="window.print()" class="bg-kkblue text-white px-4 py-2 rounded-xl border-3 border-dark shadow-hard hover:translate-y-1 hover:shadow-hard-sm transition-all font-fredoka font-bold flex items-center gap-2">
             <i data-lucide="printer" class="w-5 h-5"></i> <span class="hidden md:inline">Print</span>
         </button>
@@ -301,7 +342,7 @@
 
             <div
                 class="border-3 border-dark rounded-xl overflow-hidden shadow-hard-sm print:border-none print:shadow-none print:rounded-none">
-                <table class="w-full text-left border-collapse" id="observationTable">
+                <table class="w-full text-left" id="observationTable">
                     <thead class="bg-dark text-white print:bg-gray-200 print:text-black">
                         <tr>
                             <th class="p-3 font-fredoka border-r-2 border-slate-600 text-center print:border-black" style="width:110px">
@@ -409,19 +450,119 @@
         lucide.createIcons();
         const statusSpan = document.getElementById('saveStatus');
 
-        // Set Print Date
         const d = new Date();
         document.getElementById('printDate').innerText = d.toLocaleDateString();
 
-        // Auto-expand textarea
         const autoExpand = (field) => {
             field.style.height = 'auto';
             field.style.height = field.scrollHeight + 'px';
         };
 
-        // --- 2. TIME CALCULATION ---
+        // --- 2. ORIENTATION ---
 
-        // Get the start time from the date_time field (returns total minutes from midnight)
+        let currentOrientation = localStorage.getItem('obsOrientation') || 'portrait';
+
+        // Inject / update the @page size rule dynamically
+        function applyOrientationStyle(mode) {
+            let el = document.getElementById('_orientStyle');
+            if (!el) {
+                el = document.createElement('style');
+                el.id = '_orientStyle';
+                document.head.appendChild(el);
+            }
+            el.textContent = `@media print { @page { size: A4 ${mode}; margin: 0.75cm; } }`;
+        }
+
+        function setOrientation(mode, save = true) {
+            currentOrientation = mode;
+            applyOrientationStyle(mode);
+
+            // Screen: widen or narrow the main container
+            const mainEl = document.querySelector('main');
+            if (mode === 'landscape') {
+                mainEl.classList.remove('max-w-5xl');
+                mainEl.classList.add('max-w-7xl');
+            } else {
+                mainEl.classList.remove('max-w-7xl');
+                mainEl.classList.add('max-w-5xl');
+            }
+
+            // Update toolbar button appearance
+            const iconEl = document.getElementById('orientIcon');
+            const textEl = document.getElementById('orientText');
+            if (iconEl) {
+                iconEl.setAttribute('data-lucide', mode === 'landscape' ? 'rectangle-horizontal' : 'rectangle-vertical');
+                lucide.createIcons({ nodes: [iconEl] });
+            }
+            if (textEl) textEl.textContent = mode === 'landscape' ? 'Landscape' : 'Portrait';
+
+            if (save) localStorage.setItem('obsOrientation', mode);
+        }
+
+        function toggleOrientation() {
+            setOrientation(currentOrientation === 'portrait' ? 'landscape' : 'portrait');
+        }
+
+        // --- 3. COLUMN RESIZE ---
+
+        let _resizeTh = null, _resizeStartX = 0, _resizeStartW = 0, _resizeHandle = null;
+
+        function initColumnResize() {
+            const ths = document.querySelectorAll('#observationTable thead th');
+            ths.forEach((th, i) => {
+                if (i === ths.length - 1) return; // no handle on last col
+                th.style.position = 'relative';
+                const handle = document.createElement('div');
+                handle.className = 'col-resize-handle no-print';
+                handle.title = 'Drag to resize column';
+                th.appendChild(handle);
+
+                handle.addEventListener('mousedown', e => {
+                    _resizeTh = th;
+                    _resizeHandle = handle;
+                    _resizeStartX = e.clientX;
+                    _resizeStartW = th.offsetWidth;
+                    handle.classList.add('dragging');
+                    document.body.style.userSelect = 'none';
+                    document.body.style.cursor = 'col-resize';
+                    e.preventDefault();
+                });
+            });
+
+            document.addEventListener('mousemove', e => {
+                if (!_resizeTh) return;
+                const newW = Math.max(60, _resizeStartW + (e.clientX - _resizeStartX));
+                _resizeTh.style.width = newW + 'px';
+            });
+
+            document.addEventListener('mouseup', () => {
+                if (!_resizeTh) return;
+                _resizeHandle && _resizeHandle.classList.remove('dragging');
+                _resizeTh = null; _resizeHandle = null;
+                document.body.style.userSelect = '';
+                document.body.style.cursor = '';
+                saveColumnWidths();
+            });
+        }
+
+        function saveColumnWidths() {
+            const widths = [];
+            document.querySelectorAll('#observationTable thead th').forEach(th => {
+                widths.push(th.offsetWidth);
+            });
+            localStorage.setItem('obsColWidths', JSON.stringify(widths));
+        }
+
+        function loadColumnWidths() {
+            const saved = JSON.parse(localStorage.getItem('obsColWidths') || 'null');
+            if (!saved) return;
+            document.querySelectorAll('#observationTable thead th').forEach((th, i) => {
+                if (saved[i]) th.style.width = saved[i] + 'px';
+            });
+        }
+
+        // --- 4. TIME CALCULATION ---
+
         function getStartMinutes() {
             const dt = document.getElementById('date_time').value;
             if (!dt) return null;
@@ -431,22 +572,17 @@
             return parseInt(hStr, 10) * 60 + parseInt(mStr, 10);
         }
 
-        // Format minutes-from-midnight to "HH:MM"
         function formatTime(totalMins) {
             const h = Math.floor(totalMins / 60) % 24;
             const m = totalMins % 60;
             return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
         }
 
-        // Detect legacy "HH:MM" format vs new plain-minutes format
         function isLegacyTimeValue(val) {
             if (!val && val !== 0) return false;
             return !/^\d+$/.test(String(val).trim());
         }
 
-        // Recalculate all row time displays and update total counter.
-        // Backward-compatible: legacy HH:MM values show as-is, excluded
-        // from running clock calculation.
         function updateAllTimes() {
             const startMins = getStartMinutes();
             let running = startMins !== null ? startMins : null;
@@ -460,8 +596,7 @@
                 const rawVal = input.value.trim();
 
                 if (isLegacyTimeValue(rawVal)) {
-                    // Legacy row: show stored value as-is, don't advance running clock
-                    display.textContent = rawVal || '\u2014';
+                    display.textContent = rawVal || '—';
                     return;
                 }
 
@@ -471,25 +606,25 @@
                 if (running !== null) {
                     const end = running + duration;
                     display.textContent = duration > 0
-                        ? `${formatTime(running)} \u2013 ${formatTime(end)}`
+                        ? `${formatTime(running)} – ${formatTime(end)}`
                         : formatTime(running);
                     running = end;
                 } else {
-                    display.textContent = duration > 0 ? `${duration} min` : '\u2014';
+                    display.textContent = duration > 0 ? `${duration} min` : '—';
                 }
             });
 
             document.getElementById('totalMinutes').textContent = totalMins;
         }
 
-        // --- 3. DYNAMIC TABLE LOGIC ---
+        // --- 5. DYNAMIC TABLE LOGIC ---
 
         function createRowHTML(values = {}) {
             const safeStage = (values.stage || '').replace(/</g,'&lt;');
             const safeProc  = (values.proc  || '').replace(/</g,'&lt;');
             const safeComm  = (values.comm  || '').replace(/</g,'&lt;');
             return `
-                <td class="border-r-2 border-dark p-0 print:border-black" style="width:110px">
+                <td class="border-r-2 border-dark p-0 print:border-black">
                     <div class="flex flex-col items-center gap-1 p-2">
                         <span class="time-display font-fredoka text-xs font-bold text-center text-kkblue dark:text-kkblue leading-tight print:text-black">—</span>
                         <input
@@ -499,7 +634,7 @@
                             class="time-minutes-input row-input w-full text-center bg-kkblue/10 dark:bg-kkblue/20 border-2 border-dark/20 rounded-lg p-1 text-sm font-bold outline-none focus:border-kkblue focus:bg-kkblue/20 transition-colors print:hidden"
                             placeholder="min"
                             data-key="time">
-                        <span class="hidden print:inline text-xs text-gray-500 row-print-duration">${values.time || ''}</span>
+                        <span class="hidden print:inline text-xs text-gray-500">${values.time || ''}</span>
                     </div>
                 </td>
                 <td class="border-r-2 border-dark p-0 print:border-black">
@@ -520,7 +655,7 @@
 
         function deleteRow(btn) {
             const tr = btn.closest('tr');
-            if (document.querySelectorAll('#tableBody tr').length <= 1) return; // keep at least 1
+            if (document.querySelectorAll('#tableBody tr').length <= 1) return;
             tr.remove();
             updateAllTimes();
             saveData();
@@ -533,23 +668,19 @@
             tr.innerHTML = createRowHTML(values);
             tbody.appendChild(tr);
 
-            // Listeners for textareas and time input
             tr.querySelectorAll('textarea').forEach(ta => {
                 ta.addEventListener('input', () => { autoExpand(ta); saveData(); });
                 autoExpand(ta);
             });
 
             const timeInput = tr.querySelector('.time-minutes-input');
-            timeInput.addEventListener('input', () => {
-                updateAllTimes();
-                saveData();
-            });
+            timeInput.addEventListener('input', () => { updateAllTimes(); saveData(); });
 
-            lucide.createIcons({ el: tr });
+            lucide.createIcons({ nodes: [...tr.querySelectorAll('[data-lucide]')] });
             updateAllTimes();
         }
 
-        // --- 4. SAVE/LOAD SYSTEM ---
+        // --- 6. SAVE / LOAD ---
 
         function getDataObject() {
             const staticFields = {};
@@ -557,22 +688,19 @@
                 const el = document.getElementById(id);
                 if (el) staticFields[id] = el.value;
             });
-
             const rows = [];
             document.querySelectorAll('#tableBody tr').forEach(tr => {
                 const rowData = {};
                 tr.querySelectorAll('.row-input').forEach(input => {
-                    rowData[input.dataset.key] = input.tagName === 'TEXTAREA' ? input.value : input.value;
+                    rowData[input.dataset.key] = input.value;
                 });
                 rows.push(rowData);
             });
-
             return { staticFields, rows };
         }
 
         function saveData() {
-            const fullData = getDataObject();
-            localStorage.setItem('obsFormV3', JSON.stringify(fullData));
+            localStorage.setItem('obsFormV3', JSON.stringify(getDataObject()));
             statusSpan.innerText = "Saved";
             statusSpan.classList.add('text-kkgreen');
             setTimeout(() => statusSpan.classList.remove('text-kkgreen'), 1000);
@@ -580,7 +708,6 @@
 
         function loadData() {
             const saved = JSON.parse(localStorage.getItem('obsFormV3'));
-
             if (saved) {
                 for (const [key, value] of Object.entries(saved.staticFields || {})) {
                     const el = document.getElementById(key);
@@ -594,47 +721,68 @@
             } else {
                 addRow(); addRow(); addRow(); addRow(); addRow();
             }
-
             setTimeout(() => {
                 document.querySelectorAll('textarea').forEach(autoExpand);
                 updateAllTimes();
             }, 100);
         }
 
-        // --- 5. EXPORT / IMPORT LOGIC ---
+        // --- 7. EXPORT / IMPORT ---
 
         function exportData() {
-            const data = localStorage.getItem('obsFormV3');
-            if (!data) { alert('No data to export!'); return; }
+            // Build fresh from live DOM so export always reflects current state
+            const dataObj = getDataObject();
+            const hasData = dataObj.rows.length && dataObj.rows.some(r => Object.values(r).some(v => v));
+            if (!hasData && !Object.values(dataObj.staticFields).some(v => v)) {
+                alert('Nothing to export yet. Fill in some data first!');
+                return;
+            }
             const teacher = document.getElementById('teacher_name').value || 'observation';
-            const date = new Date().toISOString().slice(0,10);
-            const filename = `${teacher.replace(/\s+/g, '_')}_${date}.json`;
-            const blob = new Blob([data], {type: 'application/json'});
+            const date = new Date().toISOString().slice(0, 10);
+            const filename = (teacher.replace(/\s+/g, '_') || 'observation') + '_' + date + '.json';
+            const blob = new Blob([JSON.stringify(dataObj, null, 2)], { type: 'application/json' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
-            a.href = url; a.download = filename; a.click();
-            URL.revokeObjectURL(url);
+            a.href = url;
+            a.download = filename;
+            a.style.display = 'none';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            setTimeout(function() { URL.revokeObjectURL(url); }, 1000);
         }
 
         function handleFileImport(input) {
             const file = input.files[0];
             if (!file) return;
+
+            // Confirm BEFORE async read — avoids browser security blocks on confirm() in callbacks
+            if (!confirm('Importing will overwrite current data. Continue?')) {
+                input.value = '';
+                return;
+            }
+
             const reader = new FileReader();
             reader.onload = function(e) {
                 try {
                     const data = JSON.parse(e.target.result);
-                    if (!data.staticFields || !data.rows) throw new Error("Invalid file format.");
-                    if (!confirm("Importing will overwrite current data. Continue?")) { input.value = ''; return; }
+                    if (!data || typeof data !== 'object') throw new Error('Not a valid JSON file.');
+                    // Normalise: ensure both keys exist
+                    if (!data.staticFields) data.staticFields = {};
+                    if (!data.rows) data.rows = [];
                     localStorage.setItem('obsFormV3', JSON.stringify(data));
+                    input.value = '';
                     location.reload();
                 } catch (err) {
-                    alert("Error importing file: " + err.message);
+                    alert('Import failed: ' + err.message);
+                    input.value = '';
                 }
             };
+            reader.onerror = function() { alert('Could not read the file.'); input.value = ''; };
             reader.readAsText(file);
         }
 
-        // --- 6. INITIALIZATION ---
+        // --- 8. INITIALIZATION ---
 
         ['teacher_name', 'observer_name', 'date_time', 'class_name', 'keep_doing', 'start_doing', 'avoid_doing', 'action_plan'].forEach(id => {
             const el = document.getElementById(id);
@@ -653,7 +801,11 @@
 
         window.onload = async () => {
             await requireAuth();
+            // Apply saved orientation (also injects the @page style)
+            setOrientation(currentOrientation, false);
             loadData();
+            loadColumnWidths();
+            initColumnResize();
         };
 
     </script>
