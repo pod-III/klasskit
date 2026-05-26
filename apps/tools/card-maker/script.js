@@ -836,7 +836,7 @@ function setImageSize(size, shouldSave = true) {
 
 function setFontSize(size, shouldSave = true) {
     state.fontSize = size;
-    const sizes = [1.2, 2, 3.5, 5];
+    const sizes = [0.8, 1.2, 2, 3.5, 5, 7];
     sizes.forEach((s) => {
         const btn = document.getElementById(`font-${s}`);
         if (btn)
