@@ -172,6 +172,7 @@
                 border-collapse: collapse;
                 border: 2px solid black;
                 margin-bottom: 0.5cm;
+                page-break-inside: avoid;
             }
 
             thead {
@@ -530,6 +531,30 @@
             field.style.height = field.scrollHeight + 'px';
         };
 
+        window.addEventListener('beforeprint', () => {
+            document.querySelectorAll('textarea').forEach(ta => {
+                const div = document.createElement('div');
+                div.className = 'print-textarea-mirror';
+                div.textContent = ta.value || (ta.placeholder ? `[${ta.placeholder}]` : '');
+                
+                div.style.whiteSpace = 'pre-wrap';
+                div.style.wordBreak = 'break-word';
+                div.style.padding = '2px 4px';
+                if (!ta.value) {
+                    div.style.color = '#999';
+                    div.style.fontStyle = 'italic';
+                }
+                
+                ta.style.display = 'none';
+                ta.parentNode.insertBefore(div, ta);
+            });
+        });
+
+        window.addEventListener('afterprint', () => {
+            document.querySelectorAll('.print-textarea-mirror').forEach(div => div.remove());
+            document.querySelectorAll('textarea').forEach(ta => ta.style.display = '');
+        });
+
         // --- 2. ORIENTATION ---
 
         let currentOrientation = localStorage.getItem('obsOrientation') || 'portrait';
@@ -578,6 +603,7 @@
         // --- 3. COLUMN RESIZE ---
 
         let _resizeTh = null, _resizeStartX = 0, _resizeStartW = 0, _resizeHandle = null;
+        let _isResizingCol = false;
 
         function initColumnResize() {
             const ths = document.querySelectorAll('#observationTable thead th');
@@ -605,6 +631,19 @@
                 if (!_resizeTh) return;
                 const newW = Math.max(60, _resizeStartW + (e.clientX - _resizeStartX));
                 _resizeTh.style.width = newW + 'px';
+
+                if (!_isResizingCol) {
+                    _isResizingCol = true;
+                    requestAnimationFrame(() => {
+                        if (_resizeTh) {
+                            const colIndex = Array.from(_resizeTh.parentNode.children).indexOf(_resizeTh);
+                            document.querySelectorAll(`#tableBody tr td:nth-child(${colIndex + 1}) textarea`).forEach(autoExpand);
+                            // Also adjust following columns due to table-layout: fixed behavior
+                            document.querySelectorAll('#tableBody textarea').forEach(autoExpand);
+                        }
+                        _isResizingCol = false;
+                    });
+                }
             });
 
             document.addEventListener('mouseup', () => {
@@ -614,6 +653,7 @@
                 document.body.style.userSelect = '';
                 document.body.style.cursor = '';
                 saveColumnWidths();
+                document.querySelectorAll('#observationTable textarea').forEach(autoExpand);
             });
         }
 
