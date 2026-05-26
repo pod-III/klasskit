@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <!-- Supabase Auth -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.105.4"></script>
+    <script src="https://cdn.jsdelivr.net/npm/browser-image-compression@2.0.2/dist/browser-image-compression.js"></script>
+    <script src="/supabase.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Class Sheet - KlassKit</title>
+    
+    <link rel="icon" type="image/x-icon" href="../../../media/icon.ico" />
+    <link rel="icon" type="image/webp" href="../../../media/icon.webp" />
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Nunito:wght@400;600;800&display=swap" rel="stylesheet">
+
+    <!-- CSS Framework and Icons -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@0.344.0"></script>
+
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            pink: '#ff4785',
+                            orange: '#ff7e33',
+                            green: '#00d063',
+                            blue: '#1ea7fd',
+                            yellow: '#fde047',
+                        },
+                        dark: {
+                            bg: '#020617',
+                            surface: '#0f172a',
+                            border: '#334155',
+                        }
+                    },
+                    fontFamily: {
+                        heading: ['Fredoka', 'sans-serif'],
+                        body: ['Nunito', 'sans-serif'],
+                    },
+                    boxShadow: {
+                        'hard': '4px 4px 0px 0px #111827',
+                        'hard-dark': '4px 4px 0px 0px #334155',
+                        'chunky-hover': '6px 6px 0px 0px #111827',
+                        'chunky-hover-dark': '6px 6px 0px 0px #334155',
+                    },
+                    borderWidth: {
+                        '3': '3px',
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- Global Stylesheets -->
+    <link rel="stylesheet" href="../../../css/base.css">
+    <link rel="stylesheet" href="../../../css/components.css">
+    
+    <!-- Local Stylesheet -->
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body class="min-h-screen flex flex-col font-body bg-[#f8fafc] dark:bg-[#020617] text-slate-800 dark:text-slate-200 transition-colors duration-300">
+    <!-- TOOL TIP -->
+    <div id="tooltip" class="fixed z-[9999] pointer-events-none opacity-0 transition-opacity duration-200 bg-slate-900/90 dark:bg-white/90 backdrop-blur-md text-white dark:text-slate-900 px-2.5 py-1 rounded-lg text-xs font-heading font-semibold border border-white/20 dark:border-black/10 shadow-xl uppercase tracking-wider"></div>
+
+    <!-- TOAST CONTAINER -->
+    <div id="toast-container" class="fixed bottom-6 left-1/2 -translate-x-1/2 z-[9999] flex flex-col gap-2.5 pointer-events-none"></div>
+
+    <!-- HEADER -->
+    <header class="glass-panel sticky top-0 z-40 px-4 py-3 border-b-4 border-slate-900 dark:border-slate-700 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md">
+        <div class="max-w-[98%] mx-auto flex flex-col md:flex-row items-center justify-between gap-3">
+            
+            <!-- Left Header: Title and Back button -->
+            <div class="flex items-center gap-3 w-full md:w-auto justify-between">
+                <div class="flex items-center gap-3">
+                    <div class="flex items-center gap-2.5 group">
+                        <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-blue to-brand-green flex items-center justify-center text-white border-3 border-slate-900 dark:border-slate-600 shadow-hard shadow-slate-900/10 transform -rotate-3 transition-transform group-hover:rotate-6">
+                            <i data-lucide="table" class="w-5 h-5"></i>
+                        </div>
+                        <div class="flex flex-col">
+                            <input id="sheet-title" type="text" value="Untitled Class Sheet" class="bg-transparent border-b-2 border-transparent hover:border-slate-300 dark:hover:border-slate-700 focus:border-brand-blue focus:outline-none text-lg md:text-xl font-heading font-black uppercase tracking-tight text-slate-800 dark:text-white max-w-[200px] md:max-w-[300px] py-0 px-1 truncate" data-tooltip="Click to rename spreadsheet">
+                            <span class="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest leading-none mt-0.5">Spreadsheet Tool</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Theme / Sidebar toggles on mobile -->
+                <div class="flex items-center gap-2 md:hidden">
+                    <button onclick="SpreadsheetApp.UI.toggleTheme()" class="w-9 h-9 flex items-center justify-center rounded-xl bg-white dark:bg-slate-800 border-2 border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300 shadow-sm">
+                        <i data-lucide="moon" class="w-4 h-4 dark:hidden"></i>
+                        <i data-lucide="sun" class="w-4 h-4 hidden dark:block"></i>
+                    </button>
+                    <button onclick="SpreadsheetApp.UI.toggleSavedSheetsPanel()" class="w-9 h-9 flex items-center justify-center rounded-xl bg-white dark:bg-slate-800 border-2 border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300 shadow-sm">
+                        <i data-lucide="folder-open" class="w-4 h-4"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Right Header: Global Actions -->
+            <div class="hidden md:flex items-center gap-3">
+                <!-- Preset Templates Dropdown -->
+                <div class="relative">
+                    <button onclick="SpreadsheetApp.UI.toggleDropdown('templates-dropdown')" class="btn-chunky flex items-center gap-2 px-4 py-2 bg-brand-green text-white rounded-xl border-3 border-slate-900 dark:border-slate-600 shadow-hard" data-tooltip="Load pre-made classroom templates">
+                        <i data-lucide="layout-template" class="w-4 h-4"></i>
+                        <span class="font-heading font-bold text-xs uppercase tracking-wider">Templates</span>
+                        <i data-lucide="chevron-down" class="w-3 h-3"></i>
+                    </button>
+                    <div id="templates-dropdown" class="absolute right-0 top-12 w-64 bg-white dark:bg-slate-800 border-3 border-slate-900 dark:border-slate-600 rounded-2xl shadow-hard hidden z-50 overflow-hidden">
+                        <div class="p-2 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50">
+                            <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-2">Classroom Layouts</span>
+                        </div>
+                        <button onclick="SpreadsheetApp.Templates.load('scoreboard')" class="w-full text-left px-4 py-3 hover:bg-brand-blue/10 dark:hover:bg-slate-700 flex items-center gap-3 transition-colors">
+                            <div class="w-8 h-8 rounded-lg bg-brand-orange/15 text-brand-orange flex items-center justify-center"><i data-lucide="trophy" class="w-4 h-4"></i></div>
+                            <div class="flex flex-col"><span class="text-xs font-bold text-slate-800 dark:text-slate-200">Class Scoreboard</span><span class="text-[9px] text-slate-400">Track scores across rounds</span></div>
+                        </button>
+                        <button onclick="SpreadsheetApp.Templates.load('grades')" class="w-full text-left px-4 py-3 hover:bg-brand-blue/10 dark:hover:bg-slate-700 flex items-center gap-3 transition-colors">
+                            <div class="w-8 h-8 rounded-lg bg-brand-pink/15 text-brand-pink flex items-center justify-center"><i data-lucide="graduation-cap" class="w-4 h-4"></i></div>
+                            <div class="flex flex-col"><span class="text-xs font-bold text-slate-800 dark:text-slate-200">Student Grades Tracker</span><span class="text-[9px] text-slate-400">Class rosters, scores & averages</span></div>
+                        </button>
+                        <button onclick="SpreadsheetApp.Templates.load('attendance')" class="w-full text-left px-4 py-3 hover:bg-brand-blue/10 dark:hover:bg-slate-700 flex items-center gap-3 transition-colors">
+                            <div class="w-8 h-8 rounded-lg bg-brand-blue/15 text-brand-blue flex items-center justify-center"><i data-lucide="clipboard-check" class="w-4 h-4"></i></div>
+                            <div class="flex flex-col"><span class="text-xs font-bold text-slate-800 dark:text-slate-200">Attendance Log</span><span class="text-[9px] text-slate-400">Mark Present/Absent with percentage</span></div>
+                        </button>
+                        <button onclick="SpreadsheetApp.Templates.load('vocab')" class="w-full text-left px-4 py-3 hover:bg-brand-blue/10 dark:hover:bg-slate-700 flex items-center gap-3 transition-colors">
+                            <div class="w-8 h-8 rounded-lg bg-brand-green/15 text-brand-green flex items-center justify-center"><i data-lucide="book-open" class="w-4 h-4"></i></div>
+                            <div class="flex flex-col"><span class="text-xs font-bold text-slate-800 dark:text-slate-200">Vocab Bingo Board</span><span class="text-[9px] text-slate-400">A styled 5x5 vocabulary grid</span></div>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Open Sheets Panel -->
+                <button onclick="SpreadsheetApp.UI.toggleSavedSheetsPanel()" class="btn-chunky flex items-center gap-2 px-4 py-2 bg-brand-blue text-white rounded-xl border-3 border-slate-900 dark:border-slate-600 shadow-hard" data-tooltip="Manage saved worksheets">
+                    <i data-lucide="folder-open" class="w-4 h-4"></i>
+                    <span class="font-heading font-bold text-xs uppercase tracking-wider">Saved Sheets</span>
+                    <span id="saved-sheets-badge" class="bg-white text-brand-blue text-[10px] font-black px-1.5 py-0.5 rounded-full border border-slate-900">0</span>
+                </button>
+
+                <div class="h-8 w-[2px] bg-slate-200 dark:bg-slate-800 mx-1"></div>
+
+                <!-- Theme switch -->
+                <button onclick="SpreadsheetApp.UI.toggleTheme()" class="btn-chunky w-10 h-10 bg-white dark:bg-slate-800 hover:bg-slate-50 text-slate-600 dark:text-slate-300 rounded-xl border-3 border-slate-900 dark:border-slate-600 shadow-hard active:translate-y-1 active:shadow-none" data-tooltip="Toggle Dark/Light Mode">
+                    <i data-lucide="moon" class="w-5 h-5 dark:hidden"></i>
+                    <i data-lucide="sun" class="w-5 h-5 hidden dark:block"></i>
+                </button>
+
+                <!-- Help Info -->
+                <button onclick="SpreadsheetApp.UI.showHelpModal()" class="btn-chunky w-10 h-10 bg-white dark:bg-slate-800 hover:bg-slate-50 text-slate-600 dark:text-slate-300 rounded-xl border-3 border-slate-900 dark:border-slate-600 shadow-hard active:translate-y-1 active:shadow-none" data-tooltip="Shortcuts & Formula Reference">
+                    <i data-lucide="help-circle" class="w-5 h-5"></i>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- WORKSPACE -->
+    <main class="flex-1 flex overflow-hidden relative">
+
+        <!-- SPREADSHEET EDITOR AREA -->
+        <div class="flex-1 flex flex-col overflow-hidden p-3 md:p-4 workspace-container">
+            
+            <!-- TOOLBAR: FORMATTING & CONTEXT ACTIONS -->
+            <div class="flex flex-wrap items-center gap-3 bg-white/70 dark:bg-slate-900/50 backdrop-blur-sm border-3 border-slate-900 dark:border-slate-600 rounded-2xl p-2.5 mb-3 shadow-md toolbar-layer">
+                
+                <!-- Group 1: File Actions (New/Save/Import/Export) -->
+                <div class="flex items-center gap-1.5 p-1 bg-slate-100/80 dark:bg-slate-800/80 rounded-xl border-2 border-slate-200 dark:border-slate-700 shrink-0">
+                    <button onclick="SpreadsheetApp.Sheets.createNewSheet()" class="p-2 hover:bg-white dark:hover:bg-slate-700 hover:text-brand-orange text-slate-500 rounded-lg transition-all" data-tooltip="Create Empty Sheet">
+                        <i data-lucide="file-plus" class="w-4 h-4"></i>
+                    </button>
+                    <button onclick="SpreadsheetApp.Sheets.saveCurrentSheet()" class="p-2 hover:bg-white dark:hover:bg-slate-700 hover:text-brand-blue text-slate-500 rounded-lg transition-all" data-tooltip="Save Sheet State">
+                        <i data-lucide="save" class="w-4 h-4"></i>
+                    </button>
+                    
+                    <div class="h-5 w-[1.5px] bg-slate-300 dark:bg-slate-600 mx-1"></div>
+
+                    <!-- Import CSV -->
+                    <button onclick="document.getElementById('csv-import-file').click()" class="p-2 hover:bg-white dark:hover:bg-slate-700 hover:text-brand-green text-slate-500 rounded-lg transition-all" data-tooltip="Import CSV File">
+                        <i data-lucide="file-down" class="w-4 h-4"></i>
+                    </button>
+                    <input type="file" id="csv-import-file" class="hidden" accept=".csv" onchange="SpreadsheetApp.CSV.import(event)">
+
+                    <!-- Export CSV -->
+                    <button onclick="SpreadsheetApp.CSV.export()" class="p-2 hover:bg-white dark:hover:bg-slate-700 hover:text-brand-pink text-slate-500 rounded-lg transition-all" data-tooltip="Export Grid to CSV">
+                        <i data-lucide="file-up" class="w-4 h-4"></i>
+                    </button>
+
+                    <!-- Print Sheet -->
+                    <div class="relative">
+                        <button onclick="SpreadsheetApp.UI.toggleDropdown('print-dropdown')" class="p-2 hover:bg-white dark:hover:bg-slate-700 hover:text-brand-blue text-slate-500 rounded-lg transition-all" data-tooltip="Print Sheet">
+                            <i data-lucide="printer" class="w-4 h-4"></i>
+                        </button>
+                        <div id="print-dropdown" class="absolute right-0 top-10 w-56 bg-white dark:bg-slate-800 border-3 border-slate-900 dark:border-slate-600 rounded-2xl shadow-hard hidden z-50 overflow-hidden">
+                            <button onclick="SpreadsheetApp.Print.printSheet('selected')" class="w-full text-left px-4 py-3 hover:bg-brand-blue/10 dark:hover:bg-slate-700 flex items-center gap-3 transition-colors">
+                                <div class="w-8 h-8 rounded-lg bg-brand-blue/15 text-brand-blue flex items-center justify-center"><i data-lucide="mouse-pointer-2" class="w-4 h-4"></i></div>
+                                <div class="flex flex-col"><span class="text-xs font-bold text-slate-800 dark:text-slate-200">Print Selected Cells</span><span class="text-[9px] text-slate-400">Print only selected range</span></div>
+                            </button>
+                            <button onclick="SpreadsheetApp.Print.printSheet('all')" class="w-full text-left px-4 py-3 hover:bg-brand-blue/10 dark:hover:bg-slate-700 flex items-center gap-3 transition-colors">
+                                <div class="w-8 h-8 rounded-lg bg-brand-green/15 text-brand-green flex items-center justify-center"><i data-lucide="table" class="w-4 h-4"></i></div>
+                                <div class="flex flex-col"><span class="text-xs font-bold text-slate-800 dark:text-slate-200">Print Entire Sheet</span><span class="text-[9px] text-slate-400">Print full spreadsheet</span></div>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Group 2: Cell Formatting Toolbar -->
+                <div class="flex items-center gap-1.5 p-1 bg-slate-100/80 dark:bg-slate-800/80 rounded-xl border-2 border-slate-200 dark:border-slate-700 shrink-0">
+                    <!-- Bold -->
+                    <button id="btn-format-bold" onclick="SpreadsheetApp.Formatting.toggleBold()" class="p-2 hover:bg-white dark:hover:bg-slate-700 text-slate-500 rounded-lg transition-all" data-tooltip="Toggle Bold font">
+                        <i data-lucide="bold" class="w-4 h-4"></i>
+                    </button>
+                    <!-- Italic -->
+                    <button id="btn-format-italic" onclick="SpreadsheetApp.Formatting.toggleItalic()" class="p-2 hover:bg-white dark:hover:bg-slate-700 text-slate-500 rounded-lg transition-all" data-tooltip="Toggle Italic font">
+                        <i data-lucide="italic" class="w-4 h-4"></i>
+                    </button>
+                    
+                    <div class="h-5 w-[1.5px] bg-slate-300 dark:bg-slate-600 mx-1"></div>
+
+                    <!-- Alignment -->
+                    <button id="btn-align-left" onclick="SpreadsheetApp.Formatting.setAlign('left')" class="p-2 hover:bg-white dark:hover:bg-slate-700 text-slate-500 rounded-lg transition-all" data-tooltip="Align Left">
+                        <i data-lucide="align-left" class="w-4 h-4"></i>
+                    </button>
+                    <button id="btn-align-center" onclick="SpreadsheetApp.Formatting.setAlign('center')" class="p-2 hover:bg-white dark:hover:bg-slate-700 text-slate-500 rounded-lg transition-all animate-none" data-tooltip="Align Center">
+                        <i data-lucide="align-center" class="w-4 h-4"></i>
+                    </button>
+                    <button id="btn-align-right" onclick="SpreadsheetApp.Formatting.setAlign('right')" class="p-2 hover:bg-white dark:hover:bg-slate-700 text-slate-500 rounded-lg transition-all animate-none" data-tooltip="Align Right">
+                        <i data-lucide="align-right" class="w-4 h-4"></i>
+                    </button>
+                    
+                    <div class="h-5 w-[1.5px] bg-slate-300 dark:bg-slate-600 mx-1"></div>
+
+                    <!-- Font size zoom -->
+                    <button onclick="SpreadsheetApp.Formatting.adjustZoom(-1)" class="p-2 hover:bg-white dark:hover:bg-slate-700 text-slate-500 rounded-lg transition-all" data-tooltip="Shrink Text Size">
+                        <i data-lucide="minus-circle" class="w-4 h-4"></i>
+                    </button>
+                    <span id="zoom-value" class="text-xs font-bold text-slate-600 dark:text-slate-300 px-1 uppercase tracking-tight">100%</span>
+                    <button onclick="SpreadsheetApp.Formatting.adjustZoom(1)" class="p-2 hover:bg-white dark:hover:bg-slate-700 text-slate-500 rounded-lg transition-all" data-tooltip="Grow Text Size">
+                        <i data-lucide="plus-circle" class="w-4 h-4"></i>
+                    </button>
+                </div>
+
+                <!-- Group 3: Cell Background Colors -->
+                <div class="flex items-center gap-1.5 p-1.5 bg-slate-100/80 dark:bg-slate-800/80 rounded-xl border-2 border-slate-200 dark:border-slate-700 shrink-0">
+                    <span class="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Color:</span>
+                    <!-- Colors Palette -->
+                    <div class="flex gap-1.5">
+                        <button onclick="SpreadsheetApp.Formatting.setBackground('')" class="w-5 h-5 rounded-full border border-slate-400 dark:border-slate-500 bg-white relative overflow-hidden" data-tooltip="Clear Highlight">
+                            <div class="absolute inset-0 bg-transparent flex items-center justify-center text-red-500 select-none">/</div>
+                        </button>
+                        <button onclick="SpreadsheetApp.Formatting.setBackground('bg-brand-pink/25')" class="w-5 h-5 rounded-full bg-brand-pink/30 border border-brand-pink hover:scale-110 transition-transform" data-tooltip="Highlight Pink"></button>
+                        <button onclick="SpreadsheetApp.Formatting.setBackground('bg-brand-orange/25')" class="w-5 h-5 rounded-full bg-brand-orange/30 border border-brand-orange hover:scale-110 transition-transform" data-tooltip="Highlight Orange"></button>
+                        <button onclick="SpreadsheetApp.Formatting.setBackground('bg-brand-green/25')" class="w-5 h-5 rounded-full bg-brand-green/30 border border-brand-green hover:scale-110 transition-transform" data-tooltip="Highlight Green"></button>
+                        <button onclick="SpreadsheetApp.Formatting.setBackground('bg-brand-blue/25')" class="w-5 h-5 rounded-full bg-brand-blue/30 border border-brand-blue hover:scale-110 transition-transform" data-tooltip="Highlight Blue"></button>
+                        <button onclick="SpreadsheetApp.Formatting.setBackground('bg-brand-yellow/30')" class="w-5 h-5 rounded-full bg-brand-yellow border border-brand-yellow/70 dark:border-brand-yellow hover:scale-110 transition-transform" data-tooltip="Highlight Yellow"></button>
+                    </div>
+                </div>
+
+                <!-- Group 4: Grid Row/Col Operations -->
+                <div class="flex items-center gap-1.5 p-1 bg-slate-100/80 dark:bg-slate-800/80 rounded-xl border-2 border-slate-200 dark:border-slate-700 shrink-0">
+                    <button onclick="SpreadsheetApp.Grid.addRow()" class="px-2.5 py-1.5 hover:bg-white dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg text-xs font-bold transition-all flex items-center gap-1" data-tooltip="Add row to bottom">
+                        <i data-lucide="rows" class="w-3.5 h-3.5"></i>
+                        <span>+ Row</span>
+                    </button>
+                    <button onclick="SpreadsheetApp.Grid.deleteRow()" class="px-2.5 py-1.5 hover:bg-white dark:hover:bg-slate-700 text-slate-400 hover:text-red-500 rounded-lg text-xs font-bold transition-all flex items-center gap-1" data-tooltip="Remove last row">
+                        <i data-lucide="minus" class="w-3.5 h-3.5"></i>
+                    </button>
+                    
+                    <div class="h-5 w-[1.5px] bg-slate-300 dark:bg-slate-600 mx-1"></div>
+
+                    <button onclick="SpreadsheetApp.Grid.addColumn()" class="px-2.5 py-1.5 hover:bg-white dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg text-xs font-bold transition-all flex items-center gap-1" data-tooltip="Add column to right">
+                        <i data-lucide="columns" class="w-3.5 h-3.5"></i>
+                        <span>+ Col</span>
+                    </button>
+                    <button onclick="SpreadsheetApp.Grid.deleteColumn()" class="px-2.5 py-1.5 hover:bg-white dark:hover:bg-slate-700 text-slate-400 hover:text-red-500 rounded-lg text-xs font-bold transition-all flex items-center gap-1" data-tooltip="Remove last column">
+                        <i data-lucide="minus" class="w-3.5 h-3.5"></i>
+                    </button>
+                </div>
+
+                <!-- Template Selector for mobile (hidden on md+) -->
+                <div class="flex md:hidden items-center gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl border border-slate-200 dark:border-slate-700 w-full justify-between">
+                    <span class="text-xs font-black text-slate-400 uppercase tracking-widest pl-2">Layouts:</span>
+                    <select onchange="SpreadsheetApp.Templates.load(this.value); this.value='';" class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-bold py-1 px-3 outline-none text-slate-700 dark:text-slate-300 cursor-pointer">
+                        <option value="">-- Choose Template --</option>
+                        <option value="scoreboard">Scoreboard</option>
+                        <option value="grades">Grade Tracker</option>
+                        <option value="attendance">Attendance Log</option>
+                        <option value="vocab">Vocab Grid</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- FORMULA BAR -->
+            <div class="flex items-center gap-2 bg-white dark:bg-slate-900 border-3 border-slate-900 dark:border-slate-600 rounded-2xl p-2 mb-3 shadow-sm select-none formula-bar-layer">
+                <!-- Selected cell indicator -->
+                <div id="active-cell-indicator" class="flex items-center justify-center bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-heading font-black text-sm uppercase tracking-wide border-2 border-slate-300 dark:border-slate-700 rounded-xl w-14 h-9">
+                    A1
+                </div>
+                
+                <!-- Function icon -->
+                <div class="text-slate-400 dark:text-slate-500 px-1 font-bold text-sm italic font-serif select-none" data-tooltip="Cell contents or formulas beginning with '='">
+                    fx
+                </div>
+
+                <!-- Formula Input -->
+                <input type="text" id="formula-input" placeholder="Type text, number or formula starting with '=' (e.g. =SUM(A1:A5))" class="flex-1 bg-slate-50/50 dark:bg-slate-950/50 text-slate-800 dark:text-slate-200 px-4 py-1.5 rounded-xl border-2 border-slate-200 dark:border-slate-800 focus:border-brand-blue focus:bg-white dark:focus:bg-slate-900 focus:outline-none text-sm transition-all" />
+            </div>
+
+            <!-- THE SPREADSHEET GRID WRAPPER -->
+            <div id="grid-wrapper" class="flex-grow bg-white dark:bg-slate-950 border-4 border-slate-900 dark:border-slate-700 rounded-[2rem] shadow-hard dark:shadow-hard-dark overflow-auto custom-scrollbar select-none relative">
+                <!-- GRID RENDERING TARGET -->
+                <table id="spreadsheet-grid" class="w-full h-full border-collapse text-sm text-slate-700 dark:text-slate-300">
+                    <!-- Column sizing, headers, rows are dynamically injected by JavaScript -->
+                </table>
+            </div>
+
+            <!-- STATUS BAR -->
+            <div class="flex flex-col sm:flex-row items-center justify-between mt-3 text-[10px] md:text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest px-2 gap-1.5 select-none">
+                <div class="flex items-center gap-4">
+                    <span id="grid-dimensions">Grid: 10 Columns x 25 Rows</span>
+                    <span id="formula-quick-help" class="hidden sm:inline text-slate-300 dark:text-slate-700">| Try =SUM(A1:C1) or =AVERAGE(B1:B10)</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <span class="w-2 h-2 rounded-full bg-brand-green animate-pulse"></span>
+                    <span id="save-status">Saved Locally</span>
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <!-- RIGHT SIDEBAR: SAVED WORKBOOKS -->
+    <aside id="saved-sheets-panel" class="fixed top-[72px] right-0 bottom-0 w-80 max-w-full bg-white/95 dark:bg-slate-900/95 border-l-4 border-slate-900 dark:border-slate-700 flex flex-col shadow-2xl z-40 transform translate-x-full transition-transform duration-300 ease-out select-none">
+        <!-- Sidebar Header -->
+        <div class="p-5 border-b-2 border-slate-200 dark:border-slate-700 flex items-center justify-between bg-slate-50/50 dark:bg-slate-800/30">
+            <div class="flex items-center gap-2">
+                <i data-lucide="folder-heart" class="w-5 h-5 text-brand-blue"></i>
+                <h3 class="text-sm font-heading font-black uppercase tracking-wider text-slate-800 dark:text-white">Workbook Manager</h3>
+            </div>
+            <button onclick="SpreadsheetApp.UI.toggleSavedSheetsPanel()" class="p-1 text-slate-400 hover:text-slate-700 dark:hover:text-white transition-colors" data-tooltip="Close Panel">
+                <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+        </div>
+
+        <!-- Sheets List -->
+        <div id="saved-sheets-list" class="flex-grow p-4 overflow-y-auto custom-scrollbar flex flex-col gap-2.5">
+            <!-- Injected via script.js -->
+            <div class="flex flex-col items-center justify-center py-12 text-slate-300 dark:text-slate-700 text-center">
+                <i data-lucide="folder-closed" class="w-12 h-12 mb-3 opacity-45"></i>
+                <p class="text-xs font-bold leading-normal uppercase">No saved sheets yet</p>
+                <span class="text-[9px] mt-1 normal-case font-medium">Auto-saved content is cached, click 'Save' to preserve versions.</span>
+            </div>
+        </div>
+
+        <!-- Sidebar Footer Actions -->
+        <div class="p-4 border-t-2 border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/30 flex gap-2">
+            <button onclick="SpreadsheetApp.Sheets.createNewSheet()" class="btn-chunky flex-1 py-2.5 bg-brand-orange text-white rounded-xl border-3 border-slate-900 dark:border-slate-600 shadow-hard text-xs font-heading font-bold uppercase tracking-wider">
+                New Sheet
+            </button>
+            <button onclick="SpreadsheetApp.Sheets.saveCurrentSheet()" class="btn-chunky flex-1 py-2.5 bg-brand-blue text-white rounded-xl border-3 border-slate-900 dark:border-slate-600 shadow-hard text-xs font-heading font-bold uppercase tracking-wider">
+                Save Current
+            </button>
+        </div>
+    </aside>
+
+    <!-- BACKDROP BLUR FOR SIDEBAR ON MOBILE -->
+    <div id="sidebar-backdrop" onclick="SpreadsheetApp.UI.toggleSavedSheetsPanel()" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-30 opacity-0 pointer-events-none transition-opacity duration-300"></div>
+
+    <!-- FORMULA AND SHORTCUTS REFERENCE MODAL -->
+    <div id="help-modal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-md z-[100] flex items-center justify-center p-4 transition-opacity duration-300 opacity-0 pointer-events-none">
+        <div class="bg-white dark:bg-slate-800 w-full max-w-2xl rounded-[2rem] border-4 border-slate-900 dark:border-slate-600 shadow-2xl animate-pop-in flex flex-col max-h-[85vh] overflow-hidden">
+            
+            <!-- Modal Header -->
+            <div class="px-6 py-4 border-b-2 border-slate-200 dark:border-slate-700 flex justify-between items-center bg-slate-50 dark:bg-slate-900/50 select-none">
+                <div class="flex items-center gap-2">
+                    <i data-lucide="help-circle" class="w-5 h-5 text-brand-orange"></i>
+                    <h3 class="text-lg font-heading font-black text-slate-800 dark:text-white uppercase tracking-tight">Cheat Sheet & Shortcuts</h3>
+                </div>
+                <button onclick="SpreadsheetApp.UI.hideHelpModal()" class="w-8 h-8 flex items-center justify-center rounded-full bg-slate-100 dark:bg-slate-700 text-slate-400 hover:text-slate-700 dark:hover:text-white transition-colors">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
+            </div>
+            
+            <!-- Modal Content (Scrollable) -->
+            <div class="overflow-y-auto p-6 custom-scrollbar bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 space-y-6 text-sm">
+                <!-- Section 1: Formulas -->
+                <div>
+                    <h4 class="font-heading font-black text-xs text-brand-blue uppercase tracking-wider mb-2 select-none">Supported Formulas</h4>
+                    <p class="mb-3 text-xs leading-relaxed">Start cell input with <code class="bg-slate-100 dark:bg-slate-900 px-1 py-0.5 rounded text-brand-pink font-mono">=</code> to create calculations. Case insensitive. Ranges use colon <code class="bg-slate-100 dark:bg-slate-900 px-1 py-0.5 rounded text-brand-pink font-mono">:</code>.</p>
+                    <div class="grid sm:grid-cols-2 gap-3">
+                        <div class="bg-slate-50 dark:bg-slate-900/50 p-3 rounded-xl border border-slate-200 dark:border-slate-700">
+                            <span class="font-mono text-xs font-bold text-brand-green block mb-1">=SUM(A1:B3)</span>
+                            <span class="text-xs">Adds all values in cells A1 through B3.</span>
+                        </div>
+                        <div class="bg-slate-50 dark:bg-slate-900/50 p-3 rounded-xl border border-slate-200 dark:border-slate-700">
+                            <span class="font-mono text-xs font-bold text-brand-green block mb-1">=AVERAGE(C1:C10)</span>
+                            <span class="text-xs">Calculates mathematical average of the column range.</span>
+                        </div>
+                        <div class="bg-slate-50 dark:bg-slate-900/50 p-3 rounded-xl border border-slate-200 dark:border-slate-700">
+                            <span class="font-mono text-xs font-bold text-brand-green block mb-1">=COUNT(A1:D1)</span>
+                            <span class="text-xs">Counts numeric entries in the specified row range.</span>
+                        </div>
+                        <div class="bg-slate-50 dark:bg-slate-900/50 p-3 rounded-xl border border-slate-200 dark:border-slate-700">
+                            <span class="font-mono text-xs font-bold text-brand-green block mb-1">=MIN(B1:B5) / =MAX(B1:B5)</span>
+                            <span class="text-xs">Finds the minimum or maximum value in the range.</span>
+                        </div>
+                        <div class="bg-slate-50 dark:bg-slate-900/50 p-3 rounded-xl border border-slate-200 dark:border-slate-700 sm:col-span-2">
+                            <span class="font-mono text-xs font-bold text-brand-green block mb-1">Basic Math: =A1+B2*3 - C4/2</span>
+                            <span class="text-xs">Performs cell arithmetic operations supporting addition (+), subtraction (-), multiplication (*), division (/), and numbers.</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Section 2: Shortcuts -->
+                <div>
+                    <h4 class="font-heading font-black text-xs text-brand-orange uppercase tracking-wider mb-2 select-none">Keyboard Navigation</h4>
+                    <div class="grid sm:grid-cols-2 gap-3 text-xs">
+                        <div class="flex items-center justify-between p-2.5 bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-slate-100 dark:border-slate-800">
+                            <span class="font-bold">Navigate cells</span>
+                            <span class="bg-white dark:bg-slate-800 border border-slate-300 px-2 py-0.5 rounded shadow-sm font-mono text-[10px]">Arrow Keys</span>
+                        </div>
+                        <div class="flex items-center justify-between p-2.5 bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-slate-100 dark:border-slate-800">
+                            <span class="font-bold">Edit selected cell</span>
+                            <span class="bg-white dark:bg-slate-800 border border-slate-300 px-2 py-0.5 rounded shadow-sm font-mono text-[10px]">Double-Click / Enter / F2</span>
+                        </div>
+                        <div class="flex items-center justify-between p-2.5 bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-slate-100 dark:border-slate-800">
+                            <span class="font-bold">Save active edit</span>
+                            <span class="bg-white dark:bg-slate-800 border border-slate-300 px-2 py-0.5 rounded shadow-sm font-mono text-[10px]">Enter</span>
+                        </div>
+                        <div class="flex items-center justify-between p-2.5 bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-slate-100 dark:border-slate-800">
+                            <span class="font-bold">Cancel active edit</span>
+                            <span class="bg-white dark:bg-slate-800 border border-slate-300 px-2 py-0.5 rounded shadow-sm font-mono text-[10px]">Escape</span>
+                        </div>
+                        <div class="flex items-center justify-between p-2.5 bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-slate-100 dark:border-slate-800">
+                            <span class="font-bold">Move selection right</span>
+                            <span class="bg-white dark:bg-slate-800 border border-slate-300 px-2 py-0.5 rounded shadow-sm font-mono text-[10px]">Tab</span>
+                        </div>
+                        <div class="flex items-center justify-between p-2.5 bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-slate-100 dark:border-slate-800">
+                            <span class="font-bold">Move selection left</span>
+                            <span class="bg-white dark:bg-slate-800 border border-slate-300 px-2 py-0.5 rounded shadow-sm font-mono text-[10px]">Shift + Tab</span>
+                        </div>
+                        <div class="flex items-center justify-between p-2.5 bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-slate-100 dark:border-slate-800 sm:col-span-2">
+                            <span class="font-bold">Clear selected cell value</span>
+                            <span class="bg-white dark:bg-slate-800 border border-slate-300 px-2 py-0.5 rounded shadow-sm font-mono text-[10px]">Delete / Backspace</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Section 3: Class tips -->
+                <div class="bg-brand-blue/5 border border-brand-blue/15 p-4 rounded-2xl">
+                    <h5 class="font-heading font-bold text-xs text-brand-blue uppercase tracking-wider mb-1 select-none flex items-center gap-1.5">
+                        <i data-lucide="sparkles" class="w-3.5 h-3.5"></i>
+                        Classroom Tips
+                    </h5>
+                    <p class="text-xs leading-normal">Double-click headers (A, B, C or 1, 2, 3) to resize column widths or row heights if your vocabulary or titles are extra long. Pressing F11 makes the spreadsheet go full-screen on your classroom projector.</p>
+                </div>
+            </div>
+
+            <!-- Modal Footer -->
+            <div class="p-4 border-t-2 border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 flex justify-end">
+                <button onclick="SpreadsheetApp.UI.hideHelpModal()" class="btn-chunky px-6 py-2 bg-brand-blue text-white rounded-xl border-3 border-slate-900 dark:border-slate-600 shadow-hard font-heading text-xs font-bold uppercase tracking-wider">
+                    Got it!
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- LOCAL SCRIPTS -->
+    <script src="script.js"></script>
+</body>
+
+</html>
