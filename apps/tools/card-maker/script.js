@@ -114,8 +114,37 @@ async function dbGet(key) {
 
 // Card Sets CRUD
 async function saveCardSetToDB(name, stateData, existingId = null) {
-    const db = await initDB();
-    const tx = db.transaction(SETS_STORE, 'readwrite');
+    if (!isSandbox()) {
+        const { data: { user } } = await db.auth.getUser();
+        if (!user) return null;
+        
+        const set = {
+            user_id: user.id,
+            name,
+            state_data: sanitizeCloudPayload(stateData),
+            last_used: new Date().toISOString()
+        };
+
+        if (existingId) {
+            // Update
+            const { data, error } = await db.from('tools_cardmaker')
+                .update({ name, state_data: set.state_data, last_used: set.last_used })
+                .eq('id', existingId)
+                .select('id').single();
+            if (error) { console.error(error); return null; }
+            return data.id;
+        } else {
+            // Insert
+            const { data, error } = await db.from('tools_cardmaker')
+                .insert([set])
+                .select('id').single();
+            if (error) { console.error(error); return null; }
+            return data.id;
+        }
+    }
+
+    const localDb = await initDB();
+    const tx = localDb.transaction(SETS_STORE, 'readwrite');
     const store = tx.objectStore(SETS_STORE);
     
     const set = { 
@@ -150,8 +179,22 @@ async function saveCardSetToDB(name, stateData, existingId = null) {
 }
 
 async function updateLibraryItem(id, data) {
-    const db = await initDB();
-    const tx = db.transaction(SETS_STORE, 'readwrite');
+    if (!isSandbox()) {
+        const updateData = {};
+        if (data.usageCount !== undefined) {
+            // We fetch current usage count and increment, but for simplicity let's just do a direct call or rely on an RPC. 
+            // In lieu of RPC, we fetch and update if needed, but for 'lastUsed' we can just update it.
+            updateData.last_used = new Date().toISOString();
+        }
+        if (data.stateData) updateData.state_data = sanitizeCloudPayload(data.stateData);
+        if (data.name) updateData.name = data.name;
+
+        await db.from('tools_cardmaker').update(updateData).eq('id', id);
+        return;
+    }
+
+    const localDb = await initDB();
+    const tx = localDb.transaction(SETS_STORE, 'readwrite');
     const store = tx.objectStore(SETS_STORE);
     
     return new Promise((resolve) => {
@@ -168,10 +211,25 @@ async function updateLibraryItem(id, data) {
 }
 
 async function getAllCardSets() {
+    if (!isSandbox()) {
+        const { data, error } = await db.from('tools_cardmaker')
+            .select('*')
+            .order('last_used', { ascending: false });
+        if (error) { console.error(error); return []; }
+        return data.map(d => ({
+            id: d.id,
+            name: d.name,
+            stateData: d.state_data,
+            usageCount: d.usage_count || 0,
+            lastUsed: new Date(d.last_used).getTime(),
+            createdAt: new Date(d.created_at).getTime()
+        }));
+    }
+
     try {
-        const db = await initDB();
+        const localDb = await initDB();
         return new Promise((res) => { 
-            const r = db.transaction(SETS_STORE, 'readonly').objectStore(SETS_STORE).getAll(); 
+            const r = localDb.transaction(SETS_STORE, 'readonly').objectStore(SETS_STORE).getAll(); 
             r.onsuccess = () => {
                 let sets = r.result || [];
                 // Backwards Compatibility
@@ -186,14 +244,17 @@ async function getAllCardSets() {
     } catch(e) { return []; }
 }
 async function deleteCardSet(id) {
-    // Cloud Cleanup
-    const { data: { user } } = await db.auth.getUser();
-    if (!isSandbox() && user) {
-        deleteFolder(`${user.id}/card_maker/${id}`).catch(e => console.warn("Cloud folder delete failed", e));
+    if (!isSandbox()) {
+        const { data: { user } } = await db.auth.getUser();
+        if (user) {
+            deleteFolder(`${user.id}/card_maker/${id}`).catch(e => console.warn("Cloud folder delete failed", e));
+            await db.from('tools_cardmaker').delete().eq('id', id);
+        }
+        return;
     }
 
-    const db = await initDB();
-    const tx = db.transaction(SETS_STORE, 'readwrite');
+    const localDb = await initDB();
+    const tx = localDb.transaction(SETS_STORE, 'readwrite');
     tx.objectStore(SETS_STORE).delete(id);
     return new Promise(r => { tx.oncomplete = r; });
 }
@@ -219,7 +280,7 @@ async function renderCardSets() {
         const cardCount = set.stateData?.pages?.reduce((a, p) => a + p.length, 0) || 0;
         
         item.innerHTML = `
-            <div class="flex-1 min-w-0 cursor-pointer" onclick="loadCardSetFromList(${set.id})">
+            <div class="flex-1 min-w-0 cursor-pointer" onclick="loadCardSetFromList(${typeof set.id === 'string' ? `'${set.id}'` : set.id})">
                 <div class="flex items-center gap-1.5">
                     <p class="text-xs font-bold text-brand-dark dark:text-white truncate">${set.name}</p>
                     ${isActive ? '<span class="px-1 py-0.5 rounded bg-brand-blue text-white text-[7px] font-bold uppercase shrink-0">Active</span>' : ''}
@@ -249,8 +310,18 @@ async function renderCardSets() {
 }
 
 async function loadCardSetFromList(id) {
-    const db = await initDB();
-    const tx = db.transaction(SETS_STORE, 'readonly');
+    if (!isSandbox()) {
+        const { data, error } = await db.from('tools_cardmaker').select('*').eq('id', id).single();
+        if (data) {
+            await updateLibraryItem(id, { usageCount: 1 }); // Just to update lastUsed
+            loadCardSet(data.state_data, id, data.name);
+            showToast(`Loaded "${data.name}"`, "success");
+        }
+        return;
+    }
+
+    const localDb = await initDB();
+    const tx = localDb.transaction(SETS_STORE, 'readonly');
     const store = tx.objectStore(SETS_STORE);
     const req = store.get(id);
     req.onsuccess = async () => {
@@ -288,16 +359,13 @@ async function saveCurrentSet() {
     saveState(); // Harvest DOM into state
     const clone = JSON.parse(JSON.stringify(state));
     
-    const newId = await saveCardSetToDB(name, clone);
+    const newId = await saveCardSetToDB(name, clone, state.activeId);
     state.activeId = newId;
     nameInput.value = '';
     
     updateActiveIndicator(name);
     renderCardSets();
     showToast(`Set "${name}" saved`, "success");
-
-    // Sync Sets to Cloud
-    await syncSetsToCloud();
 }
 
 function updateActiveIndicator(name) {
@@ -332,13 +400,7 @@ function changeSetsSort() {
 }
 
 async function syncSetsToCloud() {
-    try {
-        const sets = await getAllCardSets();
-        await saveProgress('card_maker_sets', sets);
-        console.log("✅ Card Sets synced to cloud");
-    } catch (e) {
-        console.error("Cloud sync failed", e);
-    }
+    // No-op: Sets are now saved directly to the database tools_cardmaker table
 }
 
 async function syncStateToCloud() {
@@ -395,14 +457,30 @@ async function loadState() {
             renderAllPages();
         }
 
-        const cloudSets = await loadProgress('card_maker_sets');
-        if (cloudSets && cloudSets.length > 0) {
-            // Merge cloud sets into local DB
-            for (const s of cloudSets) {
-                await saveCardSetToDB(s.name, s.stateData);
+        if (!isSandbox()) {
+            // Migration script: if old sets exist in user_progress, move them to tools_cardmaker
+            const cloudSetsOld = await loadProgress('card_maker_sets');
+            if (cloudSetsOld && cloudSetsOld.length > 0) {
+                const { data: { user } } = await db.auth.getUser();
+                if (user) {
+                    for (const s of cloudSetsOld) {
+                        await db.from('tools_cardmaker').insert({
+                            user_id: user.id,
+                            name: s.name,
+                            state_data: sanitizeCloudPayload(s.stateData)
+                        });
+                    }
+                    // Clear old progress to avoid migrating twice
+                    localStorage.removeItem('prog_card_maker_sets');
+                    await db.from('user_progress').delete().eq('user_id', user.id).eq('tool_key', 'card_maker_sets');
+                    console.log("✅ Migrated old card sets to tools_cardmaker");
+                }
             }
-            renderCardSets();
         }
+        
+        // Render sets library
+        renderCardSets();
+
     } catch (e) {
         console.error("Cloud load failed:", e);
     }
