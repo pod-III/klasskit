@@ -1325,22 +1325,27 @@ const PinnedGames = {
 
     if (pinnedIds.length === 0) return;
 
+    const categoryLabels = { tool: 'Tool', game: 'Game', workshop: 'Workshop', myspace: 'My Space', 'under-construction': 'WIP' };
+
     container.innerHTML = pinnedIds.map(id => {
       const game = State.getGameById(id);
       if (!game) return '';
+      const catLabel = categoryLabels[game.category] || game.category;
       return `
-        <article class="pinned-pill bg-white dark:bg-slate-800 flex items-center gap-2 px-2 py-1 rounded-xl shrink-0 min-w-[130px] group hover:bg-slate-50 dark:hover:bg-slate-700 border-2 border-dark dark:border-slate-500 shadow-hard-sm cursor-pointer animate-pop-in"
+        <article class="pinned-card group relative bg-white dark:bg-slate-800 rounded-2xl border-3 border-dark dark:border-slate-500 shadow-hard-sm hover:shadow-hard hover:-translate-y-1 active:translate-y-[2px] active:shadow-none cursor-pointer transition-all duration-200 animate-pop-in overflow-hidden"
           data-action="openGame" data-param="${game.id}">
-          <div class="w-7 h-7 rounded-lg ${Utils.getColorClass(game.color)} flex items-center justify-center text-white border-2 border-dark dark:border-slate-300 shadow-sm relative shrink-0">
-             <i data-lucide="${game.icon}" class="w-3.5 h-3.5"></i>
+          <div class="flex items-center gap-3 p-3">
+            <div class="w-10 h-10 rounded-xl ${Utils.getColorClass(game.color)} flex items-center justify-center text-white border-2 border-dark dark:border-slate-300 shadow-sm shrink-0">
+              <i data-lucide="${game.icon}" class="w-5 h-5"></i>
+            </div>
+            <div class="flex-1 min-w-0">
+              <div class="text-sm font-black text-dark dark:text-white truncate leading-tight">${game.title}</div>
+              <div class="text-[10px] text-slate-400 font-bold uppercase tracking-wider truncate">${catLabel}</div>
+            </div>
+            <button data-action="togglePin" data-param="${game.id}" class="p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/30 hover:text-red-500 text-slate-300 dark:text-slate-500 transition-all opacity-0 group-hover:opacity-100 shrink-0" title="Unpin">
+              <i data-lucide="pin-off" class="w-3.5 h-3.5"></i>
+            </button>
           </div>
-          <div class="text-left flex-1 min-w-0">
-            <div class="text-[11px] font-black text-dark dark:text-white truncate leading-tight">${game.title}</div>
-            <div class="text-[8px] text-slate-400 font-black uppercase tracking-tighter truncate">${game.category}</div>
-          </div>
-          <button data-action="togglePin" data-param="${game.id}" class="p-1 hover:text-red-500 text-slate-400 transition-colors shrink-0" title="Unpin">
-            <i data-lucide="pin-off" class="w-3 h-3"></i>
-          </button>
         </article>
       `;
     }).join('');
@@ -1524,6 +1529,7 @@ const ViewMode = {
 
   init() {
     this.current = Storage.get(CONFIG.storageKeys.viewMode, 'cards') || 'cards';
+    this.apply();
     this.updateToggleUI();
   },
 
@@ -1619,7 +1625,6 @@ const ViewManager = {
     } else if (viewId === 'library-all') {
       requestAnimationFrame(() => {
         if (typeof PinnedGames !== 'undefined') PinnedGames.render();
-        if (typeof RecentGames !== 'undefined') RecentGames.render();
       });
     }
 
@@ -1743,27 +1748,8 @@ const ViewManager = {
             <span id="pinned-count-badge" class="section-header-badge">0</span>
           </div>
         </div>
-        <div id="pinned-list" class="flex gap-4 overflow-x-auto pb-4 custom-scrollbar mask-gradient">
+        <div id="pinned-list" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
           <!-- Pinned items injected here -->
-        </div>
-      </section>
-
-      <!-- Recent Activities -->
-      <section id="recent-section" class="mb-10 hidden">
-        <div class="flex items-center justify-between mb-4 px-2">
-          <div class="flex items-center gap-3">
-            <div class="w-10 h-10 bg-orange text-white rounded-xl border-2 border-dark flex items-center justify-center shadow-hard-sm">
-              <i data-lucide="history" class="w-5 h-5"></i>
-            </div>
-            <h3 class="text-2xl font-heading font-black text-dark dark:text-white uppercase tracking-tight">Recent</h3>
-            <button id="recent-toggle-btn" data-action="toggleRecentCollapse" class="p-1 text-slate-400 hover:text-dark dark:hover:text-white transition-colors">
-              <i data-lucide="chevron-up" class="w-5 h-5"></i>
-            </button>
-          </div>
-          <button data-action="clearRecent" class="text-xs font-black text-slate-400 hover:text-red-500 uppercase tracking-widest transition-colors">Clear All</button>
-        </div>
-        <div id="recent-list" class="flex gap-4 overflow-x-auto pb-4 custom-scrollbar mask-gradient">
-          <!-- Recent items injected here -->
         </div>
       </section>
       ` : ''}
@@ -1787,9 +1773,8 @@ const ViewManager = {
     if (category === 'all') {
       Hero.updateStats();
       Hero.updateContinueBtn();
-      // Ensure pinned and recent are rendered after template injection
+      // Ensure pinned is rendered after template injection
       if (typeof PinnedGames !== 'undefined') PinnedGames.render();
-      if (typeof RecentGames !== 'undefined') RecentGames.render();
     }
   },
 
@@ -3771,19 +3756,23 @@ const GameModal = {
 const Search = {
   setup() {
     const input = document.getElementById('search-input');
+    const clearBtn = document.getElementById('clear-search-btn');
     if (input) {
       input.addEventListener('input', (e) => {
         Filters.setSearch(e.target.value);
+        if (clearBtn) clearBtn.classList.toggle('hidden', e.target.value.length === 0);
       });
     }
   },
 
   clear() {
     const input = document.getElementById('search-input');
+    const clearBtn = document.getElementById('clear-search-btn');
     if (input) {
       input.value = '';
       input.focus();
     }
+    if (clearBtn) clearBtn.classList.add('hidden');
     Filters.setSearch('');
   }
 };
@@ -3905,15 +3894,14 @@ const App = {
       // Store top-level metadata for footer
       if (data.version) State.metadata = { ...(State.metadata || {}), version: data.version, lastUpdated: data.lastUpdated };
 
+      ViewMode.init();
       GameGrid.render();
       PinnedGames.render();
-      RecentGames.render();
       Hero.init();
       Footer.render();
       Search.setup();
       const activity = await (typeof checkUserActivity === 'function' ? checkUserActivity() : Promise.resolve(null));
       LandingPage.init(activity);
-      ViewMode.init();
 
       document.body.addEventListener('click', () => AudioEngine.init(), { once: true });
 
