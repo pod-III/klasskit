@@ -349,10 +349,10 @@
             display: none;
         }
 
-        /* Player View */
+        /* Player View Custom Styles */
         #view-player {
-            height: calc(100vh - 48px);
-            padding: 1rem;
+            min-height: calc(100vh - 48px);
+            padding: 2rem 1rem;
             box-sizing: border-box;
         }
 
@@ -360,24 +360,34 @@
             display: flex;
             align-items: center;
             gap: 1rem;
-            margin-bottom: 1rem;
-        }
-
-        .player-container {
-            width: 100%;
-            max-width: 1350px;
-            height: calc(100% - 60px);
-            background: #000;
-            border: var(--border-width-thick) solid var(--border-primary);
-            border-radius: var(--radius-2xl);
-            box-shadow: var(--shadow-xl);
-            overflow: hidden;
-            margin: 0 auto;
+            margin-bottom: 1.5rem;
         }
 
         #player {
             width: 100%;
             height: 100%;
+        }
+
+        /* Playlists Sidebar Mobile Overlay */
+        @media (max-width: 1023px) {
+            #playlists-sidebar {
+                position: fixed;
+                top: 48px;
+                left: -100%;
+                width: 300px;
+                height: calc(100vh - 48px);
+                z-index: 40;
+                background: var(--surface-overlay);
+                backdrop-filter: blur(16px);
+                -webkit-backdrop-filter: blur(16px);
+                border-right: var(--border-width-thick) solid var(--border-primary);
+                margin: 0;
+                padding: 1.5rem;
+                box-shadow: var(--shadow-xl);
+            }
+            #playlists-sidebar.active {
+                left: 0;
+            }
         }
 
         /* Modal / Add View */
@@ -575,112 +585,165 @@
             </div>
         </div>
 
-        <!-- Search, Filter, Sort, View Controls -->
-        <div class="glass-panel border-[var(--border-width-thick)] border-[var(--border-primary)] rounded-3xl p-4 mb-6 shadow-neo-sm bg-white dark:bg-slate-900/40">
-            <div class="flex flex-col lg:flex-row gap-4 items-start lg:items-center justify-between">
-                <!-- Search -->
-                <div class="relative flex-1 max-w-md w-full">
-                    <i data-lucide="search" class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4"></i>
-                    <input type="text" id="search-input" oninput="handleSearch(this.value)" placeholder="Search videos..." class="w-full pl-10 pr-4 py-2.5 border-[var(--border-width-medium)] border-[var(--border-primary)] rounded-xl bg-[var(--bg-secondary)] dark:bg-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-blue/30 text-slate-700 dark:text-white">
-                </div>
+        <!-- Sidebar + Content Wrapper -->
+        <div class="flex flex-col lg:flex-row gap-6 items-start w-full relative">
+            <!-- Sidebar Backdrop for Mobile/Tablet -->
+            <div id="sidebar-backdrop" onclick="togglePlaylistsSidebar(false)" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-30 hidden opacity-0 transition-opacity duration-300 lg:hidden"></div>
 
-                <div class="flex flex-wrap gap-3 items-center">
-                    <!-- Filter by Category -->
-                    <div class="relative">
-                        <select id="category-filter" onchange="handleFilter(this.value)" class="appearance-none pl-10 pr-8 py-2.5 border-[var(--border-width-medium)] border-[var(--border-primary)] rounded-xl bg-[var(--bg-secondary)] dark:bg-slate-800 text-sm font-heading font-bold text-slate-700 dark:text-slate-200 cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue/30">
-                            <option value="all">All Categories</option>
-                        </select>
-                        <i data-lucide="filter" class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4 pointer-events-none"></i>
-                        <i data-lucide="chevron-down" class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4 pointer-events-none"></i>
-                    </div>
-
-                    <!-- Favorites Filter -->
-                    <button onclick="toggleFavoritesFilter()" id="favorites-filter-btn" class="btn-chunky bg-slate-200 dark:bg-slate-700 text-dark dark:text-white px-4 py-2.5 rounded-xl flex items-center gap-2 text-xs">
-                        <i data-lucide="star" class="w-4 h-4"></i>
-                        <span class="hidden sm:inline">Favorites</span>
-                    </button>
-
-                    <!-- Manage Categories Button -->
-                    <button onclick="toggleCategoryModal(true)" class="btn-chunky bg-slate-200 dark:bg-slate-700 text-dark dark:text-white px-4 py-2.5 rounded-xl flex items-center gap-2 text-xs">
-                        <i data-lucide="settings" class="w-4 h-4"></i>
-                        <span class="hidden sm:inline">Categories</span>
-                    </button>
-
-                    <!-- Sort -->
-                    <div class="relative">
-                        <select id="sort-select" onchange="handleSort(this.value)" class="appearance-none pl-10 pr-8 py-2.5 border-[var(--border-width-medium)] border-[var(--border-primary)] rounded-xl bg-[var(--bg-secondary)] dark:bg-slate-800 text-sm font-heading font-bold text-slate-700 dark:text-slate-200 cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue/30">
-                            <option value="date-desc">Newest First</option>
-                            <option value="date-asc">Oldest First</option>
-                            <option value="title-asc">Title A-Z</option>
-                            <option value="title-desc">Title Z-A</option>
-                            <option value="category">Category</option>
-                        </select>
-                        <i data-lucide="arrow-up-down" class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4 pointer-events-none"></i>
-                        <i data-lucide="chevron-down" class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4 pointer-events-none"></i>
-                    </div>
-
-                    <!-- View Toggle -->
-                    <div class="flex border-[var(--border-width-medium)] border-[var(--border-primary)] rounded-xl overflow-hidden">
-                        <button onclick="setViewMode('grid')" id="view-grid-btn" class="p-2.5 bg-blue text-white transition-colors">
-                            <i data-lucide="layout-grid" class="w-4 h-4"></i>
-                        </button>
-                        <button onclick="setViewMode('list')" id="view-list-btn" class="p-2.5 bg-[var(--bg-secondary)] dark:bg-slate-800 text-slate-600 dark:text-slate-400 transition-colors">
-                            <i data-lucide="list" class="w-4 h-4"></i>
+            <!-- Playlists Sidebar -->
+            <aside id="playlists-sidebar" class="w-full lg:w-72 flex-shrink-0 flex flex-col gap-4 lg:sticky lg:top-20 z-40 transition-all duration-300">
+                <div class="glass-panel border-[var(--border-width-thick)] border-[var(--border-primary)] rounded-3xl p-5 shadow-neo bg-white dark:bg-slate-900/40 w-full">
+                    <div class="flex justify-between items-center mb-4 pb-2 border-b border-slate-200 dark:border-slate-800">
+                        <h3 class="font-heading text-lg font-black text-pink uppercase tracking-wider flex items-center gap-2">
+                            <i data-lucide="list-video" class="w-5 h-5 text-pink"></i>
+                            Playlists
+                        </h3>
+                        <button onclick="togglePlaylistModal(true)" class="btn-chunky bg-green text-white p-2 rounded-xl text-xs" title="Create Playlist">
+                            <i data-lucide="plus" class="w-4 h-4"></i>
                         </button>
                     </div>
-
-                    <!-- Bulk Actions -->
-                    <button onclick="toggleBulkMode()" id="bulk-mode-btn" class="btn-chunky bg-slate-200 dark:bg-slate-700 text-dark dark:text-white px-4 py-2.5 rounded-xl flex items-center gap-2 text-xs">
-                        <i data-lucide="check-square" class="w-4 h-4"></i>
-                        <span class="hidden sm:inline">Select</span>
-                    </button>
-                </div>
-            </div>
-
-            <!-- Bulk Actions Bar (Hidden by default) -->
-            <div id="bulk-actions-bar" class="hidden mt-4 pt-4 border-t-[2px] border-[var(--border-primary)] flex items-center justify-between">
-                <span class="text-sm font-bold text-slate-600 dark:text-slate-400">
-                    <span id="selected-count">0</span> videos selected
-                </span>
-                <div class="flex gap-2">
-                    <button onclick="selectAllVideos()" class="btn-chunky bg-blue text-white px-4 py-2 rounded-xl text-xs">Select All</button>
-                    <button onclick="clearSelection()" class="btn-chunky bg-slate-200 dark:bg-slate-700 text-dark dark:text-white px-4 py-2 rounded-xl text-xs">Clear</button>
-                    <button onclick="deleteSelected()" class="btn-chunky bg-red-500 text-white px-4 py-2 rounded-xl text-xs">Delete Selected</button>
-                </div>
-            </div>
-        </div>
-
-        <!-- Library Statistics -->
-        <div id="library-stats" class="glass-panel border-[var(--border-width-thick)] border-[var(--border-primary)] rounded-3xl p-4 mb-6 shadow-neo-sm bg-white dark:bg-slate-900/40">
-            <div class="flex flex-wrap gap-4 items-center justify-between">
-                <div class="flex flex-wrap gap-6">
-                    <div class="flex items-center gap-2">
-                        <i data-lucide="video" class="w-5 h-5 text-blue"></i>
-                        <span class="text-sm font-bold text-slate-600 dark:text-slate-400">
-                            <span id="total-videos" class="text-lg font-black text-dark dark:text-white">0</span> Videos
-                        </span>
-                    </div>
-                    <div class="flex items-center gap-2">
-                        <i data-lucide="star" class="w-5 h-5 text-yellow-500"></i>
-                        <span class="text-sm font-bold text-slate-600 dark:text-slate-400">
-                            <span id="total-favorites" class="text-lg font-black text-dark dark:text-white">0</span> Favorites
-                        </span>
-                    </div>
-                    <div class="flex items-center gap-2">
-                        <i data-lucide="folder" class="w-5 h-5 text-pink"></i>
-                        <span class="text-sm font-bold text-slate-600 dark:text-slate-400">
-                            <span id="total-categories" class="text-lg font-black text-dark dark:text-white">0</span> Categories
-                        </span>
+                    <div id="playlists-list" class="flex flex-col gap-3 max-h-96 overflow-y-auto pr-1">
+                        <!-- Playlists injected here -->
                     </div>
                 </div>
-                <div class="text-xs font-bold text-slate-400 uppercase tracking-wider">
-                    Library Stats
+            </aside>
+
+            <!-- Main Library Content -->
+            <div class="flex-1 w-full min-w-0">
+                <!-- Search, Filter, Sort, View Controls -->
+                <div class="glass-panel border-[var(--border-width-thick)] border-[var(--border-primary)] rounded-3xl p-4 mb-6 shadow-neo bg-white dark:bg-slate-900/40">
+                    <div class="flex flex-col lg:flex-row gap-4 items-start lg:items-center justify-between">
+                        <!-- Search -->
+                        <div class="relative flex-1 max-w-md w-full">
+                            <i data-lucide="search" class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4"></i>
+                            <input type="text" id="search-input" oninput="handleSearch(this.value)" placeholder="Search videos..." class="w-full pl-10 pr-4 py-2.5 border-[var(--border-width-medium)] border-[var(--border-primary)] rounded-xl bg-[var(--bg-secondary)] dark:bg-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-blue/30 text-slate-700 dark:text-white">
+                        </div>
+
+                        <div class="flex flex-wrap gap-3 items-center">
+                            <!-- Playlists Toggle (Mobile Only) -->
+                            <button onclick="togglePlaylistsSidebar(true)" id="mobile-playlists-btn" class="lg:hidden btn-chunky bg-slate-200 dark:bg-slate-700 text-dark dark:text-white px-4 py-2.5 rounded-xl flex items-center gap-2 text-xs">
+                                <i data-lucide="list-video" class="w-4 h-4"></i>
+                                <span>Playlists</span>
+                            </button>
+
+                            <!-- Filter by Category -->
+                            <div class="relative">
+                                <select id="category-filter" onchange="handleFilter(this.value)" class="appearance-none pl-10 pr-8 py-2.5 border-[var(--border-width-medium)] border-[var(--border-primary)] rounded-xl bg-[var(--bg-secondary)] dark:bg-slate-800 text-sm font-heading font-bold text-slate-700 dark:text-slate-200 cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue/30">
+                                    <option value="all">All Categories</option>
+                                </select>
+                                <i data-lucide="filter" class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4 pointer-events-none"></i>
+                                <i data-lucide="chevron-down" class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4 pointer-events-none"></i>
+                            </div>
+
+                            <!-- Favorites Filter -->
+                            <button onclick="toggleFavoritesFilter()" id="favorites-filter-btn" class="btn-chunky bg-slate-200 dark:bg-slate-700 text-dark dark:text-white px-4 py-2.5 rounded-xl flex items-center gap-2 text-xs">
+                                <i data-lucide="star" class="w-4 h-4"></i>
+                                <span class="hidden sm:inline">Favorites</span>
+                            </button>
+
+                            <!-- Manage Categories Button -->
+                            <button onclick="toggleCategoryModal(true)" class="btn-chunky bg-slate-200 dark:bg-slate-700 text-dark dark:text-white px-4 py-2.5 rounded-xl flex items-center gap-2 text-xs">
+                                <i data-lucide="settings" class="w-4 h-4"></i>
+                                <span class="hidden sm:inline">Categories</span>
+                            </button>
+
+                            <!-- Sort -->
+                            <div class="relative">
+                                <select id="sort-select" onchange="handleSort(this.value)" class="appearance-none pl-10 pr-8 py-2.5 border-[var(--border-width-medium)] border-[var(--border-primary)] rounded-xl bg-[var(--bg-secondary)] dark:bg-slate-800 text-sm font-heading font-bold text-slate-700 dark:text-slate-200 cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue/30">
+                                    <option value="date-desc">Newest First</option>
+                                    <option value="date-asc">Oldest First</option>
+                                    <option value="title-asc">Title A-Z</option>
+                                    <option value="title-desc">Title Z-A</option>
+                                    <option value="category">Category</option>
+                                </select>
+                                <i data-lucide="arrow-up-down" class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4 pointer-events-none"></i>
+                                <i data-lucide="chevron-down" class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4 pointer-events-none"></i>
+                            </div>
+
+                            <!-- View Toggle -->
+                            <div class="flex border-[var(--border-width-medium)] border-[var(--border-primary)] rounded-xl overflow-hidden">
+                                <button onclick="setViewMode('grid')" id="view-grid-btn" class="p-2.5 bg-blue text-white transition-colors">
+                                    <i data-lucide="layout-grid" class="w-4 h-4"></i>
+                                </button>
+                                <button onclick="setViewMode('list')" id="view-list-btn" class="p-2.5 bg-[var(--bg-secondary)] dark:bg-slate-800 text-slate-600 dark:text-slate-400 transition-colors">
+                                    <i data-lucide="list" class="w-4 h-4"></i>
+                                </button>
+                            </div>
+
+                            <!-- Bulk Actions -->
+                            <button onclick="toggleBulkMode()" id="bulk-mode-btn" class="btn-chunky bg-slate-200 dark:bg-slate-700 text-dark dark:text-white px-4 py-2.5 rounded-xl flex items-center gap-2 text-xs">
+                                <i data-lucide="check-square" class="w-4 h-4"></i>
+                                <span class="hidden sm:inline">Select</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Bulk Actions Bar (Hidden by default) -->
+                    <div id="bulk-actions-bar" class="hidden mt-4 pt-4 border-t-[2px] border-[var(--border-primary)] flex items-center justify-between">
+                        <span class="text-sm font-bold text-slate-600 dark:text-slate-400">
+                            <span id="selected-count">0</span> videos selected
+                        </span>
+                        <div class="flex gap-2">
+                            <button onclick="selectAllVideos()" class="btn-chunky bg-blue text-white px-4 py-2 rounded-xl text-xs">Select All</button>
+                            <button onclick="clearSelection()" class="btn-chunky bg-slate-200 dark:bg-slate-700 text-dark dark:text-white px-4 py-2 rounded-xl text-xs">Clear</button>
+                            <button onclick="deleteSelected()" class="btn-chunky bg-red-500 text-white px-4 py-2 rounded-xl text-xs">Delete Selected</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Playlist Active Banner -->
+                <div id="playlist-banner" class="hidden glass-panel border-[var(--border-width-thick)] border-[var(--border-primary)] rounded-3xl p-5 mb-6 shadow-neo bg-white dark:bg-slate-900/40">
+                    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                        <div class="flex items-center gap-4">
+                            <div id="playlist-banner-color" class="w-12 h-12 rounded-2xl border-[3px] border-[var(--border-primary)] flex items-center justify-center text-white shadow-neo-sm bg-pink">
+                                <i data-lucide="list-video" class="w-6 h-6"></i>
+                            </div>
+                            <div>
+                                <h2 id="playlist-banner-title" class="font-heading text-2xl font-black text-dark dark:text-white uppercase tracking-wider">Playlist Name</h2>
+                                <p id="playlist-banner-desc" class="text-xs font-bold text-slate-400 mt-1">0 videos</p>
+                            </div>
+                        </div>
+                        <button onclick="playActivePlaylist()" class="btn-chunky bg-blue text-white px-6 py-3 rounded-xl flex items-center gap-2">
+                            <i data-lucide="play" class="fill-current w-4 h-4"></i>
+                            <span>Play All</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Library Statistics -->
+                <div id="library-stats" class="glass-panel border-[var(--border-width-thick)] border-[var(--border-primary)] rounded-3xl p-4 mb-6 shadow-neo-sm bg-white dark:bg-slate-900/40">
+                    <div class="flex flex-wrap gap-4 items-center justify-between">
+                        <div class="flex flex-wrap gap-6">
+                            <div class="flex items-center gap-2">
+                                <i data-lucide="video" class="w-5 h-5 text-blue"></i>
+                                <span class="text-sm font-bold text-slate-600 dark:text-slate-400">
+                                    <span id="total-videos" class="text-lg font-black text-dark dark:text-white">0</span> Videos
+                                </span>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <i data-lucide="star" class="w-5 h-5 text-yellow-500"></i>
+                                <span class="text-sm font-bold text-slate-600 dark:text-slate-400">
+                                    <span id="total-favorites" class="text-lg font-black text-dark dark:text-white">0</span> Favorites
+                                </span>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <i data-lucide="folder" class="w-5 h-5 text-pink"></i>
+                                <span class="text-sm font-bold text-slate-600 dark:text-slate-400">
+                                    <span id="total-categories" class="text-lg font-black text-dark dark:text-white">0</span> Categories
+                                </span>
+                            </div>
+                        </div>
+                        <div class="text-xs font-bold text-slate-400 uppercase tracking-wider">
+                            Library Stats
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Video Grid -->
+                <div id="video-grid" class="video-grid">
+                    <!-- Videos injected here -->
                 </div>
             </div>
-        </div>
-
-        <div id="video-grid" class="video-grid">
-            <!-- Videos injected here -->
         </div>
     </div>
 
@@ -695,8 +758,56 @@
             </div>
         </div>
 
-        <div class="player-container">
-            <div id="player"></div>
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 max-w-[1350px] mx-auto w-full">
+            <!-- Left Column: Video Player & Metadata -->
+            <div class="lg:col-span-2 flex flex-col gap-4">
+                <div class="w-full aspect-video bg-black border-[3px] border-[var(--border-primary)] rounded-3xl shadow-neo overflow-hidden relative">
+                    <div id="player"></div>
+                </div>
+                <!-- Video Controls & Metadata Card -->
+                <div class="glass-panel border-[var(--border-width-thick)] border-[var(--border-primary)] rounded-3xl p-5 shadow-neo-sm bg-white dark:bg-slate-900/40">
+                    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                        <div>
+                            <h3 id="player-video-title" class="font-heading text-xl font-bold text-dark dark:text-white">Video Title</h3>
+                            <div class="flex flex-wrap items-center gap-2.5 mt-2">
+                                <span id="player-video-category" class="category-badge">Category</span>
+                                <span id="player-video-date" class="text-xs font-bold text-slate-400">Added Date</span>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <!-- Prev Button -->
+                            <button id="player-prev-btn" onclick="playPrevVideo()" class="btn-chunky bg-white dark:bg-slate-800 p-2.5 rounded-lg text-xs" title="Previous Video">
+                                <i data-lucide="skip-back" class="w-4 h-4"></i>
+                            </button>
+                            <!-- Next Button -->
+                            <button id="player-next-btn" onclick="playNextVideo()" class="btn-chunky bg-white dark:bg-slate-800 p-2.5 rounded-lg text-xs" title="Next Video">
+                                <i data-lucide="skip-forward" class="w-4 h-4"></i>
+                            </button>
+                            <!-- Favorite Button -->
+                            <button id="player-fav-btn" onclick="togglePlayerFavorite()" class="btn-chunky bg-white dark:bg-slate-800 p-2.5 rounded-lg text-xs text-yellow-500" title="Favorite">
+                                <i data-lucide="star" class="w-4 h-4"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Column: Playlist Queue & Recommendations -->
+            <div class="flex flex-col gap-4">
+                <div class="glass-panel border-[var(--border-width-thick)] border-[var(--border-primary)] rounded-3xl p-5 shadow-neo bg-white dark:bg-slate-900/40 flex flex-col h-full min-h-[400px]">
+                    <div class="flex justify-between items-center mb-4 border-b-2 border-[var(--border-primary)] pb-3">
+                        <h3 id="recommendations-title" class="font-heading text-lg font-black text-pink uppercase tracking-wider flex items-center gap-2">
+                            <i data-lucide="sparkles" class="w-5 h-5 text-orange"></i>
+                            Up Next
+                        </h3>
+                        <span id="recommendations-count" class="text-xs font-bold text-slate-400">0 videos</span>
+                    </div>
+                    <!-- Recommendation List -->
+                    <div id="recommendations-list" class="flex flex-col gap-3 overflow-y-auto max-h-[400px] lg:max-h-[500px] pr-1">
+                        <!-- Items injected here -->
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -724,6 +835,13 @@
             <div class="form-group">
                 <label class="form-label">Category (Optional)</label>
                 <input type="text" id="video-category" class="input-chunky" placeholder="e.g. Grammar, Vocabulary, Listening...">
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Add to Playlist (Optional)</label>
+                <select id="video-playlist-select" class="input-chunky appearance-none bg-[var(--bg-secondary)] dark:bg-slate-800 text-slate-700 dark:text-white border-[var(--border-width-medium)] border-[var(--border-primary)] rounded-xl py-2.5 px-4 focus:outline-none focus:ring-2 focus:ring-blue/30 cursor-pointer">
+                    <option value="">-- None --</option>
+                </select>
             </div>
 
             <div class="action-group" style="margin-top: 1rem;">
@@ -794,10 +912,70 @@
         </div>
     </div>
 
-    <script>
+    <!-- 6. PLAYLIST MODAL -->
+    <div id="playlist-modal" class="modal">
+        <div class="modal-content">
+            <div class="form-group">
+                <h3 id="playlist-modal-title" class="font-heading text-2xl font-black text-pink uppercase flex items-center gap-2">
+                    <i data-lucide="list-video" class="w-6 h-6"></i>
+                    New Playlist
+                </h3>
+                <p class="font-bold opacity-60 text-sm">Create a playlist to group your learning videos.</p>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Playlist Name</label>
+                <input type="text" id="playlist-name" class="input-chunky" placeholder="E.g. Grammar Unit 1" autofocus>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Color Theme</label>
+                <div class="flex gap-2.5 flex-wrap">
+                    <input type="color" id="playlist-color" class="w-12 h-12 rounded-lg border-[var(--border-width-medium)] border-[var(--border-primary)] cursor-pointer" value="#ff4785">
+                    <div class="flex gap-2">
+                        <!-- Quick palette selectors -->
+                        <button type="button" onclick="setPlaylistColorPalette('#ff4785')" class="w-8 h-8 rounded-lg border border-[var(--border-primary)]" style="background-color: #ff4785"></button>
+                        <button type="button" onclick="setPlaylistColorPalette('#ff7e33')" class="w-8 h-8 rounded-lg border border-[var(--border-primary)]" style="background-color: #ff7e33"></button>
+                        <button type="button" onclick="setPlaylistColorPalette('#00d063')" class="w-8 h-8 rounded-lg border border-[var(--border-primary)]" style="background-color: #00d063"></button>
+                        <button type="button" onclick="setPlaylistColorPalette('#1ea7fd')" class="w-8 h-8 rounded-lg border border-[var(--border-primary)]" style="background-color: #1ea7fd"></button>
+                        <button type="button" onclick="setPlaylistColorPalette('#8b5cf6')" class="w-8 h-8 rounded-lg border border-[var(--border-primary)]" style="background-color: #8b5cf6"></button>
+                        <button type="button" onclick="setPlaylistColorPalette('#ec4899')" class="w-8 h-8 rounded-lg border border-[var(--border-primary)]" style="background-color: #ec4899"></button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="action-group mt-4">
+                <button onclick="togglePlaylistModal(false)" class="btn-chunky bg-slate-200 dark:bg-slate-700 text-dark dark:text-white flex-1 py-3 rounded-xl border-[var(--border-width-medium)] border-[var(--border-primary)]">Cancel</button>
+                <button onclick="savePlaylist()" class="btn-chunky bg-blue text-white flex-2 py-3 rounded-xl border-[var(--border-width-medium)] border(--border-primary)">Save Playlist</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 7. VIDEO PLAYLISTS MODAL -->
+    <div id="video-playlists-modal" class="modal">
+        <div class="modal-content">
+            <div class="form-group">
+                <h3 class="font-heading text-2xl font-black text-pink uppercase flex items-center gap-2">
+                    <i data-lucide="list-plus" class="w-6 h-6"></i>
+                    Add to Playlist
+                </h3>
+                <p class="font-bold opacity-60 text-sm">Select which playlists contain this video.</p>
+            </div>
+            
+            <div id="video-playlists-list" class="flex flex-col gap-2 max-h-60 overflow-y-auto pr-1">
+                <!-- Checkbox list of playlists -->
+            </div>
+            
+            <div class="action-group mt-4">
+                <button onclick="toggleVideoPlaylistsModal(false)" class="btn-chunky bg-slate-200 dark:bg-slate-700 text-dark dark:text-white flex-1 py-3 rounded-xl border-[var(--border-width-medium)] border-[var(--border-primary)]">Close</button>
+            </div>
+        </div>
+    </div>    <script>
         // --- CONSTANTS ---
         const TOOL_KEY = 'youtube-library';
         const CATEGORIES_KEY = 'youtube-categories';
+        const PLAYLISTS_KEY = 'youtube-playlists';
+
         let library = [];
         let categories = [
             { id: 'uncategorized', name: 'Uncategorized', color: '#94a3b8' },
@@ -808,6 +986,9 @@
             { id: 'reading', name: 'Reading', color: '#8b5cf6' },
             { id: 'writing', name: 'Writing', color: '#ec4899' }
         ];
+        let playlists = [];
+        let activePlaylistId = null; // null means all videos
+        
         let player = null;
         let currentUser = null;
         let apiReady = false;
@@ -820,6 +1001,11 @@
         let selectedVideos = new Set();
         let favoritesOnly = false;
         let editingVideoId = null;
+
+        // Player Queue State
+        let currentQueue = [];
+        let currentQueueIndex = -1;
+        let managingPlaylistsVideoId = null;
 
         // --- THEME MANAGER ---
         const Theme = {
@@ -845,14 +1031,21 @@
                 if (savedCategories && savedCategories.length > 0) {
                     categories = savedCategories;
                 }
+
+                // Load Playlists
+                playlists = await loadProgress(PLAYLISTS_KEY) || [];
+                playlists = playlists.filter(p => p && p.id && p.name);
                 
                 // 3. Populate category dropdowns
                 populateCategoryDropdowns();
                 
-                // 4. Render library
+                // 4. Render Sidebar Playlists
+                renderPlaylists();
+
+                // 5. Render library
                 renderLibrary();
                 
-                // 5. Setup Icons
+                // 6. Setup Icons
                 lucide.createIcons();
             } catch (err) {
                 console.error('Init Error:', err);
@@ -919,6 +1112,8 @@
                 modal.classList.remove('active');
                 document.getElementById('video-url').value = '';
                 document.getElementById('video-title').value = '';
+                document.getElementById('video-category').value = '';
+                document.getElementById('video-playlist-select').value = '';
             }
         }
 
@@ -928,21 +1123,7 @@
             grid.innerHTML = '';
 
             // Filter, search, and sort
-            let filteredLibrary = [...library];
-            
-            // Apply search
-            if (searchQuery) {
-                const query = searchQuery.toLowerCase();
-                filteredLibrary = filteredLibrary.filter(v => 
-                    v.title.toLowerCase().includes(query) || 
-                    v.id.toLowerCase().includes(query)
-                );
-            }
-            
-            // Apply category filter
-            if (currentFilter !== 'all') {
-                filteredLibrary = filteredLibrary.filter(v => v.category === currentFilter);
-            }
+            let filteredLibrary = getFilteredLibrary();
             
             // Apply favorites filter
             if (favoritesOnly) {
@@ -1002,7 +1183,7 @@
                 card.dataset.videoId = video.id;
                 card.onclick = (e) => {
                     if (!e.target.closest('.action-btn') && !e.target.closest('.checkbox-select')) {
-                        playVideo(video.id, video.title);
+                        playVideo(video.id);
                     }
                 };
 
@@ -1025,11 +1206,14 @@
                         <div class="card-title">${video.title}</div>
                         <div class="card-meta">
                             <span class="category-badge" style="background-color: ${category.color}">${category.name}</span>
-                            <span class="ml-2">${new Date(video.added).toLocaleDateString()}</span>
+                            <span class="ml-2 text-slate-400">${new Date(video.added).toLocaleDateString()}</span>
                         </div>
                         <div class="card-actions">
                             <button class="action-btn btn-favorite ${isFavorite ? 'active' : ''}" onclick="event.stopPropagation(); toggleFavorite('${video.id}')" title="Favorite">
-                                <i data-lucide="${isFavorite ? 'star' : 'star'}" class="${isFavorite ? 'fill-current' : ''}"></i>
+                                <i data-lucide="star" class="${isFavorite ? 'fill-current' : ''}"></i>
+                            </button>
+                            <button class="action-btn" onclick="event.stopPropagation(); openVideoPlaylistsModal('${video.id}')" title="Playlists">
+                                <i data-lucide="list-plus"></i>
                             </button>
                             <button class="action-btn" onclick="event.stopPropagation(); openEditModal('${video.id}')" title="Edit">
                                 <i data-lucide="pencil"></i>
@@ -1164,6 +1348,14 @@
             if (currentFilter !== 'all') {
                 filtered = filtered.filter(v => v.category === currentFilter);
             }
+            if (activePlaylistId) {
+                const playlist = playlists.find(p => p.id === activePlaylistId);
+                if (playlist) {
+                    filtered = filtered.filter(v => playlist.videos.includes(v.id));
+                } else {
+                    filtered = [];
+                }
+            }
             return filtered;
         }
 
@@ -1172,10 +1364,17 @@
             if (!confirm(`Delete ${selectedVideos.size} selected videos?`)) return;
             
             library = library.filter(v => !selectedVideos.has(v.id));
+            
+            // Remove from playlists
+            playlists.forEach(pl => {
+                pl.videos = pl.videos.filter(vId => !selectedVideos.has(vId));
+            });
+
             selectedVideos.clear();
             updateSelectedCount();
             await sync();
             renderLibrary();
+            renderPlaylists();
         }
 
         // --- FAVORITES ---
@@ -1352,10 +1551,12 @@
             const urlInput = document.getElementById('video-url');
             const titleInput = document.getElementById('video-title');
             const categoryInput = document.getElementById('video-category');
+            const playlistSelect = document.getElementById('video-playlist-select');
             
             const id = extractVideoId(urlInput.value.trim());
             const title = titleInput.value.trim() || `Untitled Video (${id})`;
             const categoryName = categoryInput.value.trim();
+            const playlistId = playlistSelect.value;
 
             if (!id) {
                 alert('Please enter a valid YouTube URL or ID.');
@@ -1372,22 +1573,39 @@
 
             const video = { id, title, category: category.id, added: new Date().toISOString(), favorite: false };
             library.unshift(video);
+
+            // Add to selected playlist if set
+            if (playlistId) {
+                const pl = playlists.find(p => p.id === playlistId);
+                if (pl && !pl.videos.includes(id)) {
+                    pl.videos.push(id);
+                }
+            }
             
             await sync();
             renderLibrary();
+            renderPlaylists();
             toggleModal(false);
         }
 
         async function deleteVideo(id) {
             if (!confirm('Remove this video from your library?')) return;
             library = library.filter(v => v.id !== id);
+            
+            // Remove from playlists
+            playlists.forEach(pl => {
+                pl.videos = pl.videos.filter(vId => vId !== id);
+            });
+
             await sync();
             renderLibrary();
+            renderPlaylists();
         }
 
         async function sync() {
             updateSyncStatus('Syncing...', 'refresh-cw', true);
             await saveProgress(TOOL_KEY, library);
+            await saveProgress(PLAYLISTS_KEY, playlists);
             updateSyncStatus('Synced', 'cloud');
         }
 
@@ -1411,6 +1629,276 @@
             lucide.createIcons();
         }
 
+        // --- PLAYLISTS LOGIC ---
+        function togglePlaylistsSidebar(show) {
+            const sidebar = document.getElementById('playlists-sidebar');
+            const backdrop = document.getElementById('sidebar-backdrop');
+            if (!sidebar || !backdrop) return;
+            
+            if (show) {
+                sidebar.classList.add('active');
+                backdrop.classList.remove('hidden');
+                setTimeout(() => {
+                    backdrop.classList.add('opacity-100');
+                }, 10);
+            } else {
+                sidebar.classList.remove('active');
+                backdrop.classList.remove('opacity-100');
+                setTimeout(() => {
+                    backdrop.classList.add('hidden');
+                }, 300);
+            }
+        }
+
+        function selectPlaylist(playlistId) {
+            activePlaylistId = playlistId;
+            renderPlaylists();
+            renderLibrary();
+            
+            const banner = document.getElementById('playlist-banner');
+            if (playlistId) {
+                const pl = playlists.find(p => p.id === playlistId);
+                if (pl) {
+                    banner.classList.remove('hidden');
+                    document.getElementById('playlist-banner-title').textContent = pl.name;
+                    document.getElementById('playlist-banner-desc').textContent = `${pl.videos.length} videos`;
+                    document.getElementById('playlist-banner-color').style.backgroundColor = pl.color;
+                } else {
+                    banner.classList.add('hidden');
+                }
+            } else {
+                banner.classList.add('hidden');
+            }
+
+            // Close mobile sidebar if open
+            togglePlaylistsSidebar(false);
+        }
+
+        function renderPlaylists() {
+            const list = document.getElementById('playlists-list');
+            if (!list) return;
+            list.innerHTML = '';
+
+            // "All Videos" item
+            const allActive = activePlaylistId === null;
+            const allItem = document.createElement('div');
+            allItem.className = `flex items-center justify-between p-2.5 rounded-xl border-[2px] transition-all cursor-pointer ${
+                allActive 
+                    ? 'border-[var(--border-primary)] shadow-neo-sm bg-white dark:bg-slate-800' 
+                    : 'border-transparent bg-slate-50/50 dark:bg-slate-800/20'
+            }`;
+            allItem.onclick = () => selectPlaylist(null);
+            allItem.innerHTML = `
+                <div class="flex items-center gap-3">
+                    <div class="w-4 h-4 rounded-full border border-black/20 flex items-center justify-center bg-blue text-white">
+                        <i data-lucide="video" class="w-2.5 h-2.5"></i>
+                    </div>
+                    <span class="font-heading font-bold text-sm text-slate-700 dark:text-slate-200">All Videos</span>
+                </div>
+                <span class="text-xs font-bold text-slate-400">${library.length}</span>
+            `;
+            list.appendChild(allItem);
+
+            // Playlists
+            playlists.forEach(pl => {
+                const isActive = activePlaylistId === pl.id;
+                const item = document.createElement('div');
+                item.className = `flex items-center justify-between group p-2.5 rounded-xl border-[2px] transition-all cursor-pointer ${
+                    isActive 
+                        ? 'border-[var(--border-primary)] shadow-neo-sm bg-white dark:bg-slate-800' 
+                        : 'border-transparent bg-slate-50/50 dark:bg-slate-800/20 hover:border-[var(--border-primary)]'
+                }`;
+                item.onclick = () => selectPlaylist(pl.id);
+                item.innerHTML = `
+                    <div class="flex items-center gap-3 min-w-0 flex-1">
+                        <div class="w-4 h-4 rounded-full border border-black/20 flex-shrink-0" style="background-color: ${pl.color || '#ff4785'}"></div>
+                        <span class="font-heading font-bold text-sm text-slate-700 dark:text-slate-200 truncate">${pl.name}</span>
+                    </div>
+                    <div class="flex items-center gap-1.5 ml-2">
+                        <span class="text-xs font-bold text-slate-400 group-hover:hidden">${pl.videos.length}</span>
+                        <div class="hidden group-hover:flex items-center gap-1">
+                            <button onclick="event.stopPropagation(); togglePlaylistModal(true, '${pl.id}')" class="p-1 text-slate-400 hover:text-blue transition-colors" title="Edit Playlist">
+                                <i data-lucide="pencil" class="w-3.5 h-3.5"></i>
+                            </button>
+                            <button onclick="event.stopPropagation(); deletePlaylist('${pl.id}')" class="p-1 text-slate-400 hover:text-red-500 transition-colors" title="Delete Playlist">
+                                <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                            </button>
+                        </div>
+                    </div>
+                `;
+                list.appendChild(item);
+            });
+
+            lucide.createIcons();
+            populatePlaylistSelect();
+        }
+
+        function populatePlaylistSelect() {
+            const select = document.getElementById('video-playlist-select');
+            if (!select) return;
+            select.innerHTML = '<option value="">-- None --</option>';
+            playlists.forEach(pl => {
+                select.innerHTML += `<option value="${pl.id}">${pl.name}</option>`;
+            });
+        }
+
+        async function deletePlaylist(playlistId) {
+            const pl = playlists.find(p => p.id === playlistId);
+            if (!pl) return;
+            if (!confirm(`Are you sure you want to delete the playlist "${pl.name}"? The videos themselves will not be deleted.`)) return;
+
+            playlists = playlists.filter(p => p.id !== playlistId);
+            if (activePlaylistId === playlistId) {
+                activePlaylistId = null;
+            }
+            await sync();
+            renderPlaylists();
+            renderLibrary();
+            selectPlaylist(activePlaylistId);
+        }
+
+        let editingPlaylistId = null;
+
+        function togglePlaylistModal(show, playlistId = null) {
+            const modal = document.getElementById('playlist-modal');
+            if (!modal) return;
+            
+            if (show) {
+                modal.classList.add('active');
+                if (playlistId) {
+                    editingPlaylistId = playlistId;
+                    const pl = playlists.find(p => p.id === playlistId);
+                    document.getElementById('playlist-modal-title').innerHTML = '<i data-lucide="pencil" class="w-6 h-6"></i> Edit Playlist';
+                    document.getElementById('playlist-name').value = pl ? pl.name : '';
+                    document.getElementById('playlist-color').value = pl ? pl.color : '#ff4785';
+                } else {
+                    editingPlaylistId = null;
+                    document.getElementById('playlist-modal-title').innerHTML = '<i data-lucide="list-video" class="w-6 h-6"></i> New Playlist';
+                    document.getElementById('playlist-name').value = '';
+                    document.getElementById('playlist-color').value = '#ff4785';
+                }
+                document.getElementById('playlist-name').focus();
+            } else {
+                modal.classList.remove('active');
+                editingPlaylistId = null;
+            }
+            lucide.createIcons();
+        }
+
+        function setPlaylistColorPalette(color) {
+            document.getElementById('playlist-color').value = color;
+        }
+
+        async function savePlaylist() {
+            const nameInput = document.getElementById('playlist-name');
+            const colorInput = document.getElementById('playlist-color');
+            const name = nameInput.value.trim();
+            const color = colorInput.value;
+
+            if (!name) {
+                alert('Please enter a playlist name.');
+                return;
+            }
+
+            if (editingPlaylistId) {
+                const pl = playlists.find(p => p.id === editingPlaylistId);
+                if (pl) {
+                    pl.name = name;
+                    pl.color = color;
+                }
+            } else {
+                const newPl = {
+                    id: 'pl-' + Date.now(),
+                    name: name,
+                    color: color,
+                    videos: []
+                };
+                playlists.push(newPl);
+            }
+
+            await sync();
+            renderPlaylists();
+            if (activePlaylistId === editingPlaylistId) {
+                selectPlaylist(activePlaylistId);
+            }
+            togglePlaylistModal(false);
+        }
+
+        // --- ASSIGN VIDEO TO PLAYLISTS MODAL ---
+        function openVideoPlaylistsModal(videoId) {
+            const video = library.find(v => v.id === videoId);
+            if (!video) return;
+
+            managingPlaylistsVideoId = videoId;
+            const list = document.getElementById('video-playlists-list');
+            if (!list) return;
+            list.innerHTML = '';
+
+            if (playlists.length === 0) {
+                list.innerHTML = `
+                    <div class="text-center p-4 opacity-60">
+                        <p class="text-sm font-bold">No playlists created yet.</p>
+                        <button onclick="toggleVideoPlaylistsModal(false); togglePlaylistModal(true);" class="btn-chunky bg-blue text-white px-4 py-2 rounded-xl mt-2 text-xs">
+                            Create a Playlist
+                        </button>
+                    </div>
+                `;
+                toggleVideoPlaylistsModal(true);
+                return;
+            }
+
+            playlists.forEach(pl => {
+                const inPlaylist = pl.videos.includes(videoId);
+                const item = document.createElement('div');
+                item.className = 'flex items-center gap-3 p-3 bg-[var(--bg-secondary)] dark:bg-slate-800 rounded-xl border-[var(--border-width-medium)] border-[var(--border-primary)] cursor-pointer';
+                item.onclick = (e) => {
+                    if (e.target.tagName === 'INPUT') return;
+                    const cb = item.querySelector('input');
+                    cb.checked = !cb.checked;
+                    toggleVideoInPlaylist(pl.id, cb.checked);
+                };
+                item.innerHTML = `
+                    <input type="checkbox" class="w-4 h-4 rounded border-[var(--border-width-medium)] border-[var(--border-primary)] text-blue focus:ring-blue cursor-pointer" 
+                        ${inPlaylist ? 'checked' : ''} 
+                        onchange="toggleVideoInPlaylist('${pl.id}', this.checked)">
+                    <span class="font-heading font-bold text-sm text-slate-700 dark:text-slate-200 flex-1">${pl.name}</span>
+                    <div class="w-4 h-4 rounded-full border border-black/20" style="background-color: ${pl.color}"></div>
+                `;
+                list.appendChild(item);
+            });
+
+            toggleVideoPlaylistsModal(true);
+        }
+
+        function toggleVideoPlaylistsModal(show) {
+            const modal = document.getElementById('video-playlists-modal');
+            if (!modal) return;
+            if (show) {
+                modal.classList.add('active');
+            } else {
+                modal.classList.remove('active');
+                managingPlaylistsVideoId = null;
+            }
+        }
+
+        async function toggleVideoInPlaylist(playlistId, checked) {
+            if (!managingPlaylistsVideoId) return;
+            const pl = playlists.find(p => p.id === playlistId);
+            if (!pl) return;
+
+            if (checked) {
+                if (!pl.videos.includes(managingPlaylistsVideoId)) {
+                    pl.videos.push(managingPlaylistsVideoId);
+                }
+            } else {
+                pl.videos = pl.videos.filter(id => id !== managingPlaylistsVideoId);
+            }
+
+            await sync();
+            renderPlaylists();
+            renderLibrary();
+        }
+
         // --- PLAYER LOGIC ---
         var tag = document.createElement('script');
         tag.src = "https://www.youtube.com/iframe_api";
@@ -1422,12 +1910,34 @@
             console.log('YouTube API Ready');
         }
 
-        function playVideo(id, title) {
+        function playVideo(id) {
             if (!apiReady) {
                 alert('YouTube Player is still loading. Please try again in a moment.');
                 return;
             }
-            document.getElementById('current-title').textContent = title;
+            const video = library.find(v => v.id === id);
+            if (!video) return;
+
+            // Initialize or update queue if playing a standalone video
+            if (currentQueue.length === 0 || !currentQueue.find(v => v.id === id)) {
+                currentQueue = getFilteredLibrary();
+                currentQueueIndex = currentQueue.findIndex(v => v.id === id);
+                if (currentQueueIndex === -1) {
+                    currentQueue = [video];
+                    currentQueueIndex = 0;
+                }
+            } else if (currentQueue[currentQueueIndex]?.id !== id) {
+                // Find matching index inside the current queue
+                const idx = currentQueue.findIndex(v => v.id === id);
+                if (idx !== -1) {
+                    currentQueueIndex = idx;
+                } else {
+                    currentQueue = [video];
+                    currentQueueIndex = 0;
+                }
+            }
+
+            document.getElementById('current-title').textContent = video.title;
             switchView('player');
 
             if (!player) {
@@ -1440,16 +1950,212 @@
                         'autoplay': 1,
                         'modestbranding': 1,
                         'rel': 0
+                    },
+                    events: {
+                        'onStateChange': onPlayerStateChange
                     }
                 });
             } else {
                 player.loadVideoById(id);
             }
+
+            // Update Metadata Card
+            document.getElementById('player-video-title').textContent = video.title;
+            const cat = categories.find(c => c.id === video.category) || categories[0];
+            const catBadge = document.getElementById('player-video-category');
+            catBadge.textContent = cat.name;
+            catBadge.style.backgroundColor = cat.color;
+            document.getElementById('player-video-date').textContent = 'Added: ' + new Date(video.added).toLocaleDateString();
+
+            // Nav buttons & Favorite indicator
+            updatePlayerFavBtn(video.favorite);
+            updatePlayerNavButtons();
+
+            // Render right side Recommendations & Queue list
+            renderRecommendations();
+        }
+
+        function playActivePlaylist() {
+            if (!activePlaylistId) return;
+            const playlist = playlists.find(p => p.id === activePlaylistId);
+            if (!playlist || playlist.videos.length === 0) {
+                alert('This playlist is empty.');
+                return;
+            }
+            
+            const queue = playlist.videos
+                .map(id => library.find(v => v.id === id))
+                .filter(v => !!v);
+                
+            if (queue.length === 0) {
+                alert('No videos in this playlist are present in the library.');
+                return;
+            }
+            
+            currentQueue = queue;
+            currentQueueIndex = 0;
+            playVideo(currentQueue[0].id);
+        }
+
+        function playVideoFromQueue(idx) {
+            if (idx >= 0 && idx < currentQueue.length) {
+                currentQueueIndex = idx;
+                playVideo(currentQueue[currentQueueIndex].id);
+            }
+        }
+
+        function playPrevVideo() {
+            if (currentQueueIndex > 0) {
+                currentQueueIndex--;
+                playVideo(currentQueue[currentQueueIndex].id);
+            }
+        }
+
+        function playNextVideo() {
+            if (currentQueueIndex < currentQueue.length - 1) {
+                currentQueueIndex++;
+                playVideo(currentQueue[currentQueueIndex].id);
+            }
+        }
+
+        function onPlayerStateChange(event) {
+            if (event.data === YT.PlayerState.ENDED) {
+                if (currentQueueIndex < currentQueue.length - 1) {
+                    playNextVideo();
+                }
+            }
+        }
+
+        function updatePlayerFavBtn(isFavorite) {
+            const btn = document.getElementById('player-fav-btn');
+            if (!btn) return;
+            if (isFavorite) {
+                btn.classList.add('bg-yellow-500', 'text-white');
+                btn.classList.remove('bg-white', 'dark:bg-slate-800');
+                btn.innerHTML = '<i data-lucide="star" class="w-4 h-4 fill-current"></i>';
+            } else {
+                btn.classList.remove('bg-yellow-500', 'text-white');
+                btn.classList.add('bg-white', 'dark:bg-slate-800');
+                btn.innerHTML = '<i data-lucide="star" class="w-4 h-4"></i>';
+            }
+            lucide.createIcons();
+        }
+
+        function togglePlayerFavorite() {
+            if (currentQueueIndex === -1 || !currentQueue[currentQueueIndex]) return;
+            const videoId = currentQueue[currentQueueIndex].id;
+            const video = library.find(v => v.id === videoId);
+            if (video) {
+                video.favorite = !video.favorite;
+                sync();
+                renderLibrary();
+                updatePlayerFavBtn(video.favorite);
+            }
+        }
+
+        function updatePlayerNavButtons() {
+            const prevBtn = document.getElementById('player-prev-btn');
+            const nextBtn = document.getElementById('player-next-btn');
+
+            if (currentQueueIndex > 0) {
+                prevBtn.removeAttribute('disabled');
+                prevBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+            } else {
+                prevBtn.setAttribute('disabled', 'true');
+                prevBtn.classList.add('opacity-50', 'cursor-not-allowed');
+            }
+
+            if (currentQueueIndex < currentQueue.length - 1) {
+                nextBtn.removeAttribute('disabled');
+                nextBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+            } else {
+                nextBtn.setAttribute('disabled', 'true');
+                nextBtn.classList.add('opacity-50', 'cursor-not-allowed');
+            }
+        }
+
+        function renderRecommendations() {
+            const list = document.getElementById('recommendations-list');
+            const title = document.getElementById('recommendations-title');
+            const count = document.getElementById('recommendations-count');
+            list.innerHTML = '';
+
+            const currentVideo = currentQueue[currentQueueIndex];
+            if (!currentVideo) return;
+
+            let items = [];
+            let isQueue = false;
+
+            if (currentQueueIndex < currentQueue.length - 1) {
+                // Show remaining items in the queue
+                isQueue = true;
+                title.innerHTML = '<i data-lucide="list-video" class="w-5 h-5 text-orange"></i> Up Next';
+                for (let i = currentQueueIndex + 1; i < currentQueue.length; i++) {
+                    items.push({ video: currentQueue[i], index: i });
+                }
+                count.textContent = `${items.length} left`;
+            } else {
+                // Show recommended videos
+                isQueue = false;
+                title.innerHTML = '<i data-lucide="sparkles" class="w-5 h-5 text-yellow-500"></i> Recommended';
+                
+                // Find other videos in the same category
+                let recs = library.filter(v => v.id !== currentVideo.id && v.category === currentVideo.category);
+                // If not enough, add other videos
+                if (recs.length < 5) {
+                    const otherRecs = library.filter(v => v.id !== currentVideo.id && v.category !== currentVideo.category);
+                    recs = [...recs, ...otherRecs];
+                }
+                // Limit to 10 recommendations
+                recs = recs.slice(0, 10);
+                items = recs.map(v => ({ video: v, index: -1 }));
+                count.textContent = `${items.length} suggestions`;
+            }
+
+            if (items.length === 0) {
+                list.innerHTML = `
+                    <div class="flex flex-col items-center justify-center p-8 text-center opacity-65">
+                        <i data-lucide="video-off" class="w-8 h-8 text-slate-400 mb-2"></i>
+                        <p class="text-xs font-bold">No other videos available</p>
+                    </div>
+                `;
+                lucide.createIcons();
+                return;
+            }
+
+            items.forEach(item => {
+                const video = item.video;
+                const index = item.index;
+                const thumbUrl = `https://img.youtube.com/vi/${video.id}/mqdefault.jpg`;
+                const cat = categories.find(c => c.id === video.category) || categories[0];
+                
+                const card = document.createElement('div');
+                card.className = 'flex items-center gap-3 p-2.5 rounded-2xl border-[2px] border-[var(--border-primary)] hover:scale-[1.02] active:scale-[0.98] bg-white dark:bg-slate-800 transition-all cursor-pointer shadow-neo-sm';
+                
+                if (isQueue) {
+                    card.onclick = () => playVideoFromQueue(index);
+                } else {
+                    card.onclick = () => {
+                        currentQueue = []; // reset queue to general visibility
+                        playVideo(video.id);
+                    };
+                }
+
+                card.innerHTML = `
+                    <img class="w-20 aspect-video rounded-xl object-cover border border-black/20 flex-shrink-0" src="${thumbUrl}" alt="${video.title}" loading="lazy" />
+                    <div class="flex-1 min-w-0">
+                        <h4 class="font-heading text-xs font-bold truncate text-slate-800 dark:text-white">${video.title}</h4>
+                        <span class="category-badge text-[9px] px-1.5 py-0.5 mt-1 inline-block" style="background-color: ${cat.color}">${cat.name}</span>
+                    </div>
+                `;
+                list.appendChild(card);
+            });
+
+            lucide.createIcons();
         }
 
         // Start
         window.addEventListener('load', init);
-
     </script>
 </body>
 </html>
