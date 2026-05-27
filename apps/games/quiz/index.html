@@ -848,6 +848,7 @@ X: B" oninput="updateImportPreview()"></textarea>
         let currentStep = 0;
         let score = 0;
         let isSetupMode = false;
+        let syncTimeout = null;
 
         function initTheme() {
             const saved = localStorage.getItem('theme_hub');
@@ -1011,30 +1012,53 @@ X: B" oninput="updateImportPreview()"></textarea>
         function updateOption(qIdx, oIdx, val) { currentQuestions[qIdx].o[oIdx] = val; saveData(); }
 
         async function saveData() {
-            localStorage.setItem('quiz_maker_collections', JSON.stringify(collections));
-            localStorage.setItem('quiz_maker_last_id', currentCollectionId);
+            const payload = { collections, lastId: currentCollectionId, updatedAt: Date.now() };
+            localStorage.setItem('prog_quiz_maker', JSON.stringify(payload));
             if (syncTimeout) clearTimeout(syncTimeout);
-            syncTimeout = setTimeout(async () => { try { await saveProgress('quiz_maker', { collections, lastId: currentCollectionId }); } catch (e) { } }, 2000);
+            syncTimeout = setTimeout(async () => {
+                try { await saveProgress('quiz_maker', payload); } catch (e) { console.warn('[Quiz] Cloud save failed:', e); }
+            }, 2000);
         }
 
         async function loadData() {
-            const local = localStorage.getItem('quiz_maker_collections');
-            const lastId = localStorage.getItem('quiz_maker_last_id');
-            if (local) {
-                collections = JSON.parse(local);
-                currentCollectionId = lastId || (collections[0] ? collections[0].id : null);
-                if (currentCollectionId) { currentQuestions = collections.find(c => c.id === currentCollectionId)?.questions || []; }
+            // Migrate old localStorage keys to the standard prog_ key
+            const legacyLocal = localStorage.getItem('quiz_maker_collections');
+            if (legacyLocal) {
+                const legacyId = localStorage.getItem('quiz_maker_last_id');
+                const migrated = { collections: JSON.parse(legacyLocal), lastId: legacyId, updatedAt: 0 };
+                localStorage.setItem('prog_quiz_maker', JSON.stringify(migrated));
+                localStorage.removeItem('quiz_maker_collections');
+                localStorage.removeItem('quiz_maker_last_id');
             }
+
+            let localData = null;
+            const localRaw = localStorage.getItem('prog_quiz_maker');
+            if (localRaw) {
+                try { localData = JSON.parse(localRaw); } catch (e) { }
+            }
+
+            if (localData && localData.collections) {
+                collections = localData.collections;
+                currentCollectionId = localData.lastId || (collections[0] ? collections[0].id : null);
+                const active = collections.find(c => c.id === currentCollectionId);
+                currentQuestions = active ? active.questions : [];
+            }
+
             try {
                 const cloud = await loadProgress('quiz_maker');
-                if (cloud && cloud.collections) {
-                    collections = cloud.collections;
-                    currentCollectionId = cloud.lastId || collections[0].id;
-                    currentQuestions = collections.find(c => c.id === currentCollectionId).questions;
-                    localStorage.setItem('quiz_maker_collections', JSON.stringify(collections));
-                    if (isSetupMode) { renderCollections(); renderEditor(); }
+                if (cloud && cloud.collections && cloud.collections.length > 0) {
+                    const cloudTime = cloud.updatedAt || 0;
+                    const localTime = localData?.updatedAt || 0;
+                    if (cloudTime >= localTime || collections.length === 0) {
+                        collections = cloud.collections;
+                        currentCollectionId = cloud.lastId || collections[0].id;
+                        const active = collections.find(c => c.id === currentCollectionId);
+                        currentQuestions = active ? active.questions : (collections[0] ? collections[0].questions : []);
+                        localStorage.setItem('prog_quiz_maker', JSON.stringify(cloud));
+                        if (isSetupMode) { renderCollections(); renderEditor(); }
+                    }
                 }
-            } catch (e) { }
+            } catch (e) { console.warn('[Quiz] Cloud load failed:', e); }
             if (collections.length === 0) createNewCollection();
         }
 
