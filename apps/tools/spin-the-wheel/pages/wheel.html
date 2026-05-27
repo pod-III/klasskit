@@ -943,6 +943,7 @@
         };
 
         const STORAGE_KEY = "multispin_library_v2";
+        const SESSION_KEY = "multispin_session_state";
         const PALETTE = ["#FF6B95", "#FF8C42", "#00E676", "#2979FF", "#7C4DFF", "#FFD700", "#00BCD4", "#E91E63"];
 
         // State for rendering
@@ -967,7 +968,10 @@
 
         function saveLibrary(library) {
             localStorage.setItem(STORAGE_KEY, JSON.stringify(library));
-            saveProgress(STORAGE_KEY, library).catch(console.error);
+            saveProgress(STORAGE_KEY, library).catch(err => {
+                console.error('[Cloud Sync] Failed to save library:', err);
+                showToast('Cloud sync failed - data saved locally', 'warning');
+            });
         }
 
         function onContentChange() {
@@ -992,8 +996,17 @@
         }
 
         function updateSessionPersistence() {
+            const sessionState = {
+                data: appState.data,
+                activeId: appState.activeId,
+                spinDuration: spinDuration,
+                isMuted: isMuted
+            };
             localStorage.setItem('multispin_session', JSON.stringify(appState.data));
             localStorage.setItem('multispin_activeId', appState.activeId);
+            saveProgress(SESSION_KEY, sessionState).catch(err => {
+                console.error('[Cloud Sync] Failed to save session:', err);
+            });
         }
 
         // Lifecycle Workflows
@@ -1504,6 +1517,8 @@
 
         function updateDuration(val) {
             spinDuration = parseFloat(val);
+            localStorage.setItem('multispin_spinDuration', spinDuration);
+            updateSessionPersistence();
             const el = document.getElementById("duration-display");
             if (el) el.textContent = spinDuration + "s";
         }
@@ -1559,64 +1574,6 @@
         }
         function clearHistory() { if (!confirm("Clear history?")) return; appState.data.history = []; appState.data.totalSpins = 0; onContentChange(); updateHistoryDisplay(); updateStats(); }
 
-        // Migration
-        async function migrateLegacyData() {
-            const MIGRATED_KEY = 'multispin_migrated_v2';
-            if (localStorage.getItem(MIGRATED_KEY)) return;
-
-            // Local Migration
-            try {
-                const raw = localStorage.getItem('multispin-data');
-                if (raw) {
-                    const data = JSON.parse(raw);
-                    if (data && data.wheels) {
-                        const library = getLibrary();
-                        const name = "Legacy Multi-Spin";
-                        if (!library.some(l => l.name === name)) {
-                            library.push({
-                                id: Date.now(),
-                                name: name,
-                                wheels: data.wheels,
-                                activeWheelCount: data.wheelCount || 2,
-                                history: [],
-                                totalSpins: 0,
-                                createdAt: Date.now(),
-                                lastUsed: Date.now(),
-                                usageCount: 1
-                            });
-                            saveLibrary(library);
-                            renderLibrary();
-                        }
-                    }
-                }
-            } catch (e) {}
-
-            // Cloud Migration
-            try {
-                const cloudData = await loadProgress('multispin_wheel_data');
-                if (cloudData && cloudData.wheels) {
-                    const library = getLibrary();
-                    const name = "Cloud Legacy Multi-Spin";
-                    if (!library.some(l => l.name === name)) {
-                        library.push({
-                            id: Date.now() + 1,
-                            name: name,
-                            wheels: cloudData.wheels,
-                            activeWheelCount: cloudData.wheelCount || 2,
-                            history: [],
-                            totalSpins: 0,
-                            createdAt: Date.now(),
-                            lastUsed: Date.now(),
-                            usageCount: 1
-                        });
-                        saveLibrary(library);
-                        renderLibrary();
-                    }
-                }
-            } catch (e) {}
-
-            localStorage.setItem(MIGRATED_KEY, 'true');
-        }
 
         // Init
         async function init() {
@@ -1631,7 +1588,25 @@
                 }
             }
 
-            await migrateLegacyData();
+            // Load session state from cloud
+            const cloudSession = await loadProgress(SESSION_KEY);
+            if (cloudSession) {
+                if (cloudSession.spinDuration) {
+                    spinDuration = cloudSession.spinDuration;
+                    localStorage.setItem('multispin_spinDuration', spinDuration);
+                }
+                if (cloudSession.isMuted !== undefined) {
+                    isMuted = cloudSession.isMuted;
+                    localStorage.setItem('multispin_isMuted', isMuted);
+                }
+                if (cloudSession.activeId) {
+                    localStorage.setItem('multispin_activeId', cloudSession.activeId);
+                }
+                if (cloudSession.data) {
+                    localStorage.setItem('multispin_session', JSON.stringify(cloudSession.data));
+                }
+            }
+
             const savedActiveId = localStorage.getItem('multispin_activeId');
             if (savedActiveId && savedActiveId !== "null") loadSet(parseInt(savedActiveId));
             else {
@@ -1640,8 +1615,33 @@
                 else newSet();
             }
             renderLibrary();
+            const savedDuration = localStorage.getItem('multispin_spinDuration');
+            if (savedDuration) {
+                spinDuration = parseFloat(savedDuration);
+                const el = document.getElementById("duration-display");
+                if (el) el.textContent = spinDuration + "s";
+                const slider = document.getElementById("duration-slider");
+                if (slider) slider.value = spinDuration;
+            }
+
+            const savedMuted = localStorage.getItem('multispin_isMuted');
+            if (savedMuted) {
+                isMuted = savedMuted === 'true';
+                const st = document.getElementById("sound-toggle");
+                if (st) st.checked = !isMuted;
+            } else {
+                const st = document.getElementById("sound-toggle");
+                if (st) st.checked = true;
+                isMuted = false;
+            }
+
             const st = document.getElementById("sound-toggle");
-            if (st) st.addEventListener("change", (e) => { isMuted = !e.target.checked; if (!isMuted && !audioInitialized) initAudio(); });
+            if (st) st.addEventListener("change", (e) => { 
+                isMuted = !e.target.checked; 
+                localStorage.setItem('multispin_isMuted', isMuted);
+                updateSessionPersistence();
+                if (!isMuted && !audioInitialized) initAudio(); 
+            });
             window.addEventListener("resize", () => { for (let i = 0; i < 3; i++) drawWheel(i); });
         }
 

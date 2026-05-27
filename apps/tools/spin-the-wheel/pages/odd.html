@@ -822,6 +822,7 @@
         };
 
         const STORAGE_KEY = "weighted_odds_library_v2";
+        const SESSION_KEY = "weighted_odds_session_state";
         let isSpinning = false;
         let audioInitialized = false;
         let synth, winSynth;
@@ -837,7 +838,10 @@
 
         function saveLibrary(library) {
             localStorage.setItem(STORAGE_KEY, JSON.stringify(library));
-            saveProgress(STORAGE_KEY, library).catch(console.error);
+            saveProgress(STORAGE_KEY, library).catch(err => {
+                console.error('[Cloud Sync] Failed to save library:', err);
+                showToast('Cloud sync failed - data saved locally', 'warning');
+            });
         }
 
         function onContentChange() {
@@ -859,8 +863,15 @@
         }
 
         function updateSessionPersistence() {
+            const sessionState = {
+                data: appState.data,
+                activeId: appState.activeId
+            };
             localStorage.setItem('weighted_odds_session', JSON.stringify(appState.data));
             localStorage.setItem('weighted_odds_activeId', appState.activeId);
+            saveProgress(SESSION_KEY, sessionState).catch(err => {
+                console.error('[Cloud Sync] Failed to save session:', err);
+            });
         }
 
         // Lifecycle Workflows
@@ -1337,80 +1348,6 @@
         }
 
         // Migration
-        async function migrateLegacyData() {
-            const MIGRATED_KEY = 'weighted_odds_migrated_v2';
-            if (localStorage.getItem(MIGRATED_KEY)) return;
-
-            const DB_NAME = "SpinOddsDB";
-            const STORE_NAME = "sets";
-
-            // Local Migration
-            try {
-                const request = indexedDB.open(DB_NAME);
-                request.onsuccess = (event) => {
-                    const db = event.target.result;
-                    if (!db.objectStoreNames.contains(STORE_NAME)) {
-                        db.close();
-                        checkCloudMigration();
-                        return;
-                    }
-
-                    const transaction = db.transaction(STORE_NAME, 'readonly');
-                    const store = transaction.objectStore(STORE_NAME);
-                    const getAll = store.getAll();
-
-                    getAll.onsuccess = () => {
-                        const legacyData = getAll.result;
-                        if (legacyData && legacyData.length > 0) {
-                            const library = getLibrary();
-                            legacyData.forEach(item => {
-                                if (!library.some(l => l.name === item.name)) {
-                                    library.push({
-                                        id: Date.now() + Math.random(),
-                                        name: item.name || 'Legacy Set',
-                                        players: item.players || [],
-                                        createdAt: item.updatedAt || Date.now(),
-                                        lastUsed: item.updatedAt || Date.now(),
-                                        usageCount: 1
-                                    });
-                                }
-                            });
-                            saveLibrary(library);
-                            renderLibrary();
-                        }
-                        db.close();
-                        checkCloudMigration();
-                    };
-                };
-                request.onerror = () => checkCloudMigration();
-            } catch (e) {
-                checkCloudMigration();
-            }
-
-            async function checkCloudMigration() {
-                try {
-                    const cloudData = await loadProgress('spin_odds_data');
-                    if (cloudData && Array.isArray(cloudData.sets)) {
-                        const library = getLibrary();
-                        cloudData.sets.forEach(item => {
-                            if (!library.some(l => l.name === item.name)) {
-                                library.push({
-                                    id: Date.now() + Math.random(),
-                                    name: item.name || 'Cloud Set',
-                                    players: item.players || [],
-                                    createdAt: item.updatedAt || Date.now(),
-                                    lastUsed: item.updatedAt || Date.now(),
-                                    usageCount: 1
-                                });
-                            }
-                        });
-                        saveLibrary(library);
-                        renderLibrary();
-                    }
-                } catch (e) {}
-                localStorage.setItem(MIGRATED_KEY, 'true');
-            }
-        }
 
         // Init
         async function init() {
@@ -1425,7 +1362,17 @@
                 }
             }
 
-            await migrateLegacyData();
+            // Load session state from cloud
+            const cloudSession = await loadProgress(SESSION_KEY);
+            if (cloudSession) {
+                if (cloudSession.activeId) {
+                    localStorage.setItem('weighted_odds_activeId', cloudSession.activeId);
+                }
+                if (cloudSession.data) {
+                    localStorage.setItem('weighted_odds_session', JSON.stringify(cloudSession.data));
+                }
+            }
+
             const savedActiveId = localStorage.getItem('weighted_odds_activeId');
             if (savedActiveId && savedActiveId !== "null") loadSet(parseInt(savedActiveId));
             else {

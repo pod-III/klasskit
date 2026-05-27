@@ -822,6 +822,7 @@
         };
 
         const STORAGE_KEY = "class_spinner_library_v2";
+        const SESSION_KEY = "class_spinner_session_state";
 
         // Persistence Helpers
         function getLibrary() {
@@ -831,7 +832,10 @@
 
         function saveLibrary(library) {
             localStorage.setItem(STORAGE_KEY, JSON.stringify(library));
-            saveProgress(STORAGE_KEY, library).catch(console.error);
+            saveProgress(STORAGE_KEY, library).catch(err => {
+                console.error('[Cloud Sync] Failed to save library:', err);
+                showToast('Cloud sync failed - data saved locally', 'warning');
+            });
         }
 
         function onContentChange() {
@@ -856,8 +860,17 @@
         }
 
         function updateSessionPersistence() {
+            const sessionState = {
+                data: appState.data,
+                activeId: appState.activeId,
+                spinnerType: localStorage.getItem('class_spinner_type') || 'pencil',
+                spinDuration: spinDuration
+            };
             localStorage.setItem('class_spinner_session', JSON.stringify(appState.data));
             localStorage.setItem('class_spinner_activeId', appState.activeId);
+            saveProgress(SESSION_KEY, sessionState).catch(err => {
+                console.error('[Cloud Sync] Failed to save session:', err);
+            });
         }
 
         // Lifecycle Workflows
@@ -1205,6 +1218,7 @@
                 .classList.add("active");
 
             localStorage.setItem("class_spinner_type", type);
+            updateSessionPersistence();
         }
 
         // Game State
@@ -1233,7 +1247,22 @@
                 }
             }
 
-            await migrateLegacyData();
+            // Load session state from cloud
+            const cloudSession = await loadProgress(SESSION_KEY);
+            if (cloudSession) {
+                if (cloudSession.spinnerType) {
+                    localStorage.setItem('class_spinner_type', cloudSession.spinnerType);
+                }
+                if (cloudSession.spinDuration) {
+                    spinDuration = cloudSession.spinDuration;
+                }
+                if (cloudSession.activeId) {
+                    localStorage.setItem('class_spinner_activeId', cloudSession.activeId);
+                }
+                if (cloudSession.data) {
+                    localStorage.setItem('class_spinner_session', JSON.stringify(cloudSession.data));
+                }
+            }
 
             // Load saved spinner type
             const savedType = localStorage.getItem("class_spinner_type") || "pencil";
@@ -1649,85 +1678,6 @@
             }, 100);
         });
 
-        // Migration
-        async function migrateLegacyData() {
-            const MIGRATED_KEY = 'class_spinner_migrated_v2';
-            if (localStorage.getItem(MIGRATED_KEY)) return;
-
-            const DB_NAME = "ClassSpinnerDB";
-            const STORE_NAME = "classes";
-
-            // Local Migration
-            try {
-                const request = indexedDB.open(DB_NAME);
-                request.onsuccess = (event) => {
-                    const db = event.target.result;
-                    if (!db.objectStoreNames.contains(STORE_NAME)) {
-                        db.close();
-                        checkCloudMigration();
-                        return;
-                    }
-
-                    const transaction = db.transaction(STORE_NAME, 'readonly');
-                    const store = transaction.objectStore(STORE_NAME);
-                    const getAll = store.getAll();
-
-                    getAll.onsuccess = () => {
-                        const legacyData = getAll.result;
-                        if (legacyData && legacyData.length > 0) {
-                            const library = getLibrary();
-                            legacyData.forEach(item => {
-                                if (!library.some(l => l.name === item.name)) {
-                                    library.push({
-                                        id: Date.now() + Math.random(),
-                                        name: item.name || 'Legacy Class',
-                                        players: item.players || [],
-                                        history: [],
-                                        totalSpins: 0,
-                                        createdAt: item.updatedAt || Date.now(),
-                                        lastUsed: item.updatedAt || Date.now(),
-                                        usageCount: 1
-                                    });
-                                }
-                            });
-                            saveLibrary(library);
-                            renderLibrary();
-                        }
-                        db.close();
-                        checkCloudMigration();
-                    };
-                };
-                request.onerror = () => checkCloudMigration();
-            } catch (e) {
-                checkCloudMigration();
-            }
-
-            async function checkCloudMigration() {
-                try {
-                    const cloudData = await loadProgress('pencil_spinner_data');
-                    if (cloudData && Array.isArray(cloudData.classes)) {
-                        const library = getLibrary();
-                        cloudData.classes.forEach(item => {
-                            if (!library.some(l => l.name === item.name)) {
-                                library.push({
-                                    id: Date.now() + Math.random(),
-                                    name: item.name || 'Cloud Class',
-                                    players: item.players || [],
-                                    history: [],
-                                    totalSpins: 0,
-                                    createdAt: item.updatedAt || Date.now(),
-                                    lastUsed: item.updatedAt || Date.now(),
-                                    usageCount: 1
-                                });
-                            }
-                        });
-                        saveLibrary(library);
-                        renderLibrary();
-                    }
-                } catch (e) {}
-                localStorage.setItem(MIGRATED_KEY, 'true');
-            }
-        }
 
         // Initialization
         window.onload = init;

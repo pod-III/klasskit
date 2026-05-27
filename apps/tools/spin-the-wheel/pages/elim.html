@@ -725,6 +725,7 @@
         };
 
         const STORAGE_KEY = "elimgrid_library_v2";
+        const SESSION_KEY = "elimgrid_session_state";
         let isAnimating = false;
         let isMuted = false;
         let audioInitialized = false;
@@ -739,7 +740,10 @@
 
         function saveLibrary(library) {
             localStorage.setItem(STORAGE_KEY, JSON.stringify(library));
-            saveProgress(STORAGE_KEY, library).catch(console.error);
+            saveProgress(STORAGE_KEY, library).catch(err => {
+                console.error('[Cloud Sync] Failed to save library:', err);
+                showToast('Cloud sync failed - data saved locally', 'warning');
+            });
         }
 
         function onContentChange() {
@@ -761,8 +765,16 @@
         }
 
         function updateSessionPersistence() {
+            const sessionState = {
+                data: appState.data,
+                activeId: appState.activeId,
+                isMuted: isMuted
+            };
             localStorage.setItem('elimgrid_session', JSON.stringify(appState.data));
             localStorage.setItem('elimgrid_activeId', appState.activeId);
+            saveProgress(SESSION_KEY, sessionState).catch(err => {
+                console.error('[Cloud Sync] Failed to save session:', err);
+            });
         }
 
         // Lifecycle Workflows
@@ -1280,7 +1292,20 @@
                 }
             }
 
-            await migrateLegacyData();
+            // Load session state from cloud
+            const cloudSession = await loadProgress(SESSION_KEY);
+            if (cloudSession) {
+                if (cloudSession.isMuted !== undefined) {
+                    isMuted = cloudSession.isMuted;
+                }
+                if (cloudSession.activeId) {
+                    localStorage.setItem('elimgrid_activeId', cloudSession.activeId);
+                }
+                if (cloudSession.data) {
+                    localStorage.setItem('elimgrid_session', JSON.stringify(cloudSession.data));
+                }
+            }
+
             const savedActiveId = localStorage.getItem('elimgrid_activeId');
             if (savedActiveId && savedActiveId !== "null") loadSet(parseInt(savedActiveId));
             else {
