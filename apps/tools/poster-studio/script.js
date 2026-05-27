@@ -34,7 +34,13 @@ const ModuleRegistry = {
         icon: 'list', color: 'green', label: 'Vocab',
         default: { list: 'Apple\nBanana\nCherry' },
         inputs: (id, d) => `<label class="l">Items</label><textarea class="inp-area h-32" oninput="Store.updateMod('${id}','data.list',this.value)">${d.list || ''}</textarea>`,
-        render: (d, c, fs) => `<ul class="p-6 h-full flex flex-col justify-center" style="background: var(--surface-card)">${(d.list || '').split('\n').map(x => `<li class="flex items-center gap-4 mb-2"><div class="w-4 h-4 bg-brand-${c} shrink-0" style="border: 1px solid var(--border-primary); box-shadow: 1px 1px 0 0 var(--border-primary)"></div><span class="font-body font-bold ${CONFIG.sizes.vocab[fs] || CONFIG.sizes.vocab.md}" style="color: var(--text-primary)">${x}</span></li>`).join('')}</ul>`
+        render: (d, c, fs) => {
+            const bulletClasses = { xs: 'w-2.5 h-2.5', sm: 'w-3 h-3', md: 'w-4 h-4', lg: 'w-6 h-6', xl: 'w-8 h-8', '2xl': 'w-10 h-10', '3xl': 'w-12 h-12' };
+            const mbClasses = { xs: 'mb-1 gap-2', sm: 'mb-1.5 gap-2.5', md: 'mb-2 gap-4', lg: 'mb-3 gap-5', xl: 'mb-4 gap-6', '2xl': 'mb-5 gap-7', '3xl': 'mb-6 gap-8' };
+            const bCls = bulletClasses[fs] || bulletClasses.md;
+            const itemCls = mbClasses[fs] || mbClasses.md;
+            return `<ul class="p-6 h-full flex flex-col justify-center" style="background: var(--surface-card)">${(d.list || '').split('\n').map(x => `<li class="flex items-center ${itemCls}"><div class="${bCls} bg-brand-${c} shrink-0" style="border: 1px solid var(--border-primary); box-shadow: 1px 1px 0 0 var(--border-primary)"></div><span class="font-body font-bold ${CONFIG.sizes.vocab[fs] || CONFIG.sizes.vocab.md}" style="color: var(--text-primary)">${x}</span></li>`).join('')}</ul>`;
+        }
     },
     dodont: {
         icon: 'shield-alert', color: 'red', label: "Do's/Don'ts",
@@ -49,17 +55,21 @@ const ModuleRegistry = {
             const fontClasses = {
                 xs: 'text-lg', sm: 'text-xl', md: 'text-3xl', lg: 'text-5xl', xl: 'text-6xl', '2xl': 'text-7xl', '3xl': 'text-8xl'
             };
+            const headerFontClasses = {
+                xs: 'text-[10px]', sm: 'text-[11px]', md: 'text-xs', lg: 'text-sm', xl: 'text-base', '2xl': 'text-lg', '3xl': 'text-xl'
+            };
             const fCls = fontClasses[fs] || fontClasses.md;
+            const hCls = headerFontClasses[fs] || headerFontClasses.md;
             return `
             <div class="h-full flex flex-col">
                 <div class="flex-1 p-4 flex flex-col justify-center items-center text-center relative" style="background-color: var(--bg-brand-red-tint); border-bottom: 2px solid var(--border-primary)">
                     <div class="absolute top-2 left-2 p-1 bg-red-500 text-white rounded shadow-sm"><i data-lucide="x" class="w-4 h-4"></i></div>
-                    <p class="font-heading font-black text-brand-red opacity-50 text-xs uppercase tracking-widest mb-1">DON'T SAY</p>
+                    <p class="font-heading font-black text-brand-red opacity-50 ${hCls} uppercase tracking-widest mb-1">DON'T SAY</p>
                     <p class="font-hand ${fCls} line-through decoration-brand-red decoration-4" style="color: var(--text-primary)">${d.wrong || ''}</p>
                 </div>
                 <div class="flex-1 p-4 flex flex-col justify-center items-center text-center relative" style="background-color: var(--bg-brand-green-tint)">
                     <div class="absolute top-2 left-2 p-1 bg-brand-green text-brand-dark rounded shadow-sm"><i data-lucide="check" class="w-4 h-4"></i></div>
-                    <p class="font-heading font-black text-brand-green opacity-50 text-xs uppercase tracking-widest mb-1">DO SAY</p>
+                    <p class="font-heading font-black text-brand-green opacity-50 ${hCls} uppercase tracking-widest mb-1">DO SAY</p>
                     <p class="font-hand ${fCls}" style="color: var(--text-primary)">${d.correct || ''}</p>
                 </div>
             </div>`;
@@ -89,7 +99,11 @@ const ModuleRegistry = {
             const fontClasses = {
                 xs: 'text-sm', sm: 'text-lg', md: 'text-xl', lg: 'text-2xl', xl: 'text-3xl', '2xl': 'text-4xl', '3xl': 'text-5xl'
             };
+            const bubbleClasses = {
+                xs: 'w-4 h-4 text-[9px]', sm: 'w-5 h-5 text-[10px]', md: 'w-6 h-6 text-xs', lg: 'w-8 h-8 text-sm', xl: 'w-10 h-10 text-base', '2xl': 'w-12 h-12 text-lg', '3xl': 'w-14 h-14 text-xl'
+            };
             const fCls = fontClasses[fs] || fontClasses.md;
+            const bCls = bubbleClasses[fs] || bubbleClasses.md;
             const mkP = (n) => {
                 const imgId = d[`img${n}`];
                 const src = Store.imgCache.get(imgId);
@@ -97,7 +111,7 @@ const ModuleRegistry = {
                 <div class="flex-1 flex flex-col gap-2 min-w-[50px]">
                     <div class="aspect-square border-4 rounded-xl overflow-hidden relative shadow-sm" style="background-color: var(--bg-slate-tint); border-color: var(--border-primary)">
                         ${imgId ? `<img data-idb-id="${imgId}" src="${src || ''}" class="w-full h-full object-cover">` : ''}
-                        <div class="absolute top-2 left-2 bg-brand-dark text-white font-black text-xs w-6 h-6 flex items-center justify-center rounded-full">${n}</div>
+                        <div class="absolute top-2 left-2 bg-brand-dark text-white font-black flex items-center justify-center rounded-full ${bCls}">${n}</div>
                     </div>
                     <div class="border-2 rounded-xl p-3 shadow-neo-sm min-h-[4rem] flex items-center justify-center text-center" style="background: var(--surface-card); border-color: var(--border-primary)">
                         <p class="font-hand font-bold ${fCls} leading-tight" style="color: var(--text-primary)">${d[`cap${n}`] || ''}</p>
@@ -111,7 +125,13 @@ const ModuleRegistry = {
         icon: 'layers', color: 'blue', label: 'Formula',
         default: { formula: 'S + V + O', example: 'I eat apples.' },
         inputs: (id, d) => `<label class="l">Formula</label><input class="inp font-heading font-black text-xl mb-2" value="${d.formula || ''}" oninput="Store.updateMod('${id}','data.formula',this.value)"><label class="l">Example</label><textarea class="inp-area font-hand text-xl h-24" oninput="Store.updateMod('${id}','data.example',this.value)">${d.example || ''}</textarea>`,
-        render: (d, c, fs) => `<div class="p-8 text-center h-full flex flex-col justify-center" style="background: var(--surface-card)"><div class="mb-4 font-heading font-black text-brand-${c} px-6 py-4 rounded-xl border-2 border-brand-${c} border-dashed ${CONFIG.sizes.formula[fs] || CONFIG.sizes.formula.md}" style="background-color: var(--bg-brand-${c}-tint)">${d.formula || ''}</div><p class="font-hand opacity-80 ${fs === 'xs' ? 'text-lg' : (fs === 'sm' ? 'text-xl' : (fs === 'md' ? 'text-3xl' : 'text-5xl'))}" style="color: var(--text-secondary)">"${d.example || ''}"</p></div>`
+        render: (d, c, fs) => {
+            const exampleClasses = {
+                xs: 'text-base', sm: 'text-lg', md: 'text-2xl', lg: 'text-4xl', xl: 'text-5xl', '2xl': 'text-6xl', '3xl': 'text-7xl'
+            };
+            const exCls = exampleClasses[fs] || exampleClasses.md;
+            return `<div class="p-8 text-center h-full flex flex-col justify-center" style="background: var(--surface-card)"><div class="mb-4 font-heading font-black text-brand-${c} px-6 py-4 rounded-xl border-2 border-brand-${c} border-dashed ${CONFIG.sizes.formula[fs] || CONFIG.sizes.formula.md}" style="background-color: var(--bg-brand-${c}-tint)">${d.formula || ''}</div><p class="font-hand opacity-80 ${exCls}" style="color: var(--text-secondary)">"${d.example || ''}"</p></div>`;
+        }
     },
     text: {
         icon: 'message-square', color: 'orange', label: 'Text',
@@ -139,15 +159,75 @@ const ModuleRegistry = {
     table: {
         icon: 'grid-3x3', color: 'purple', label: 'Table',
         default: { content: 'Head | Head\nCell | Cell' },
-        inputs: (id, d) => `<label class="l">Data (use | for cols)</label><textarea class="inp-area font-mono text-xs h-32" oninput="Store.updateMod('${id}','data.content',this.value)">${d.content || ''}</textarea>`,
+        inputs: (id, d) => {
+            if (!d.rows) {
+                if (d.content) {
+                    d.rows = d.content.split('\n').filter(r => r.trim()).map(r => r.split('|').map(c => c.trim()));
+                } else {
+                    d.rows = [['Header 1', 'Header 2'], ['Row 1 Col 1', 'Row 1 Col 2']];
+                }
+            }
+            const numCols = d.rows[0] ? d.rows[0].length : 0;
+            
+            let tableHtml = `<div class="overflow-x-auto w-full border-2 border-slate-200 rounded-xl p-2 mb-3 bg-slate-50 dark:bg-slate-800/50">`;
+            tableHtml += `<table class="w-full border-collapse">`;
+            
+            d.rows.forEach((row, rIdx) => {
+                tableHtml += `<tr>`;
+                row.forEach((cell, cIdx) => {
+                    const isHeader = rIdx === 0;
+                    const inputClass = isHeader 
+                        ? "w-full p-1.5 text-xs font-black uppercase text-center border-2 border-slate-300 bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-white rounded-lg outline-none focus:border-brand-blue" 
+                        : "w-full p-1.5 text-xs text-left border bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 rounded-lg outline-none focus:border-brand-blue";
+                    tableHtml += `<td class="p-1 min-w-[100px]">
+                        <input type="text" value="${cell.replace(/"/g, '&quot;')}" 
+                            class="${inputClass}" 
+                            oninput="TableEditor.updateCell('${id}', ${rIdx}, ${cIdx}, this.value)"
+                        >
+                    </td>`;
+                });
+                tableHtml += `</tr>`;
+            });
+            
+            tableHtml += `</table></div>`;
+            
+            const controlsHtml = `
+                <div class="flex flex-wrap gap-2 justify-between items-center text-xs mt-2">
+                    <div class="flex gap-2">
+                        <button onclick="TableEditor.addRow('${id}')" class="neo-btn px-3 py-1.5 bg-brand-green text-white text-[10px] uppercase font-black flex items-center gap-1 shadow-neo-sm"><i data-lucide="plus" class="w-3.5 h-3.5"></i> Row</button>
+                        <button onclick="TableEditor.addCol('${id}')" class="neo-btn px-3 py-1.5 bg-brand-blue text-white text-[10px] uppercase font-black flex items-center gap-1 shadow-neo-sm"><i data-lucide="plus" class="w-3.5 h-3.5"></i> Col</button>
+                    </div>
+                    <div class="flex gap-2">
+                        <button onclick="TableEditor.deleteRow('${id}')" class="neo-btn px-3 py-1.5 bg-red-100 dark:bg-red-500/20 text-brand-red text-[10px] uppercase font-black flex items-center gap-1 shadow-neo-sm" ${d.rows.length <= 1 ? 'disabled style="opacity: 0.5; pointer-events: none;"' : ''}><i data-lucide="trash-2" class="w-3.5 h-3.5"></i> Row</button>
+                        <button onclick="TableEditor.deleteCol('${id}')" class="neo-btn px-3 py-1.5 bg-red-100 dark:bg-red-500/20 text-brand-red text-[10px] uppercase font-black flex items-center gap-1 shadow-neo-sm" ${numCols <= 1 ? 'disabled style="opacity: 0.5; pointer-events: none;"' : ''}><i data-lucide="trash-2" class="w-3.5 h-3.5"></i> Col</button>
+                    </div>
+                </div>
+            `;
+            
+            return `
+                <div class="table-editor-container">
+                    <label class="lbl mb-2">Interactive Table Editor</label>
+                    ${tableHtml}
+                    ${controlsHtml}
+                </div>
+            `;
+        },
         render: (d, c, fs) => {
-            const rows = (d.content || '').split('\n').filter(r => r.trim());
-            const trs = rows.map((r, i) => {
-                const cols = r.split('|');
-                if (i === 0) return `<tr class="bg-brand-${c} text-white">${cols.map(x => `<td class="p-2 font-heading font-black uppercase ${fs === 'xl' || fs === '2xl' || fs === '3xl' ? 'text-2xl' : 'text-sm'}" style="border-bottom: 4px solid var(--border-primary)">${x}</td>`).join('')}</tr>`;
-                return `<tr class="" style="background-color: ${i % 2 === 0 ? 'transparent' : `var(--bg-brand-${c}-tint)`}">${cols.map(x => `<td class="p-2 border font-bold border-brand-dark ${CONFIG.sizes.table[fs] || CONFIG.sizes.table.md}" style="color: var(--text-secondary); border-color: var(--border-primary)">${x}</td>`).join('')}</tr>`;
+            if (!d.rows) {
+                if (d.content) {
+                    d.rows = d.content.split('\n').filter(r => r.trim()).map(r => r.split('|').map(c => c.trim()));
+                } else {
+                    d.rows = [['Header 1', 'Header 2'], ['Row 1 Col 1', 'Row 1 Col 2']];
+                }
+            }
+            const tableHeaderClasses = { xs: 'text-[11px]', sm: 'text-xs', md: 'text-sm', lg: 'text-lg', xl: 'text-xl', '2xl': 'text-2xl', '3xl': 'text-3xl' };
+            const thCls = tableHeaderClasses[fs] || tableHeaderClasses.md;
+            
+            const trs = d.rows.map((row, i) => {
+                if (i === 0) return `<tr class="bg-brand-${c} text-white">${row.map(x => `<th class="p-3 font-heading font-black uppercase text-center ${thCls}" style="border-bottom: 4px solid var(--border-primary); color: white;">${x}</th>`).join('')}</tr>`;
+                return `<tr class="" style="background-color: ${i % 2 === 0 ? 'transparent' : `var(--bg-brand-${c}-tint)`}">${row.map(x => `<td class="p-3 border font-bold border-brand-dark ${CONFIG.sizes.table[fs] || CONFIG.sizes.table.md}" style="color: var(--text-secondary); border-color: var(--border-primary)">${x}</td>`).join('')}</tr>`;
             }).join('');
-            return `<div class="h-full overflow-hidden" style="background: var(--surface-card)"><table class="w-full text-left border-collapse">${trs}</table></div>`;
+            return `<div class="h-full overflow-auto custom-scrollbar" style="background: var(--surface-card)"><table class="w-full text-left border-collapse">${trs}</table></div>`;
         }
     },
     note: {
@@ -182,6 +262,64 @@ const ModuleRegistry = {
             }
             return `<div class="w-full h-full flex items-center justify-center overflow-hidden" style="background-color: var(--bg-slate-tint)"><img src="${d.url}" class="w-full h-full object-cover" onerror="this.src='https://via.placeholder.com/400?text=Select+Image'"></div>`;
         }
+    }
+};
+
+// --- INTERACTIVE TABLE EDITOR ASSISTANT ---
+const TableEditor = {
+    updateCell(id, r, c, val) {
+        const m = Store.current.modules.find(x => x.id === id);
+        if (!m || !m.data.rows) return;
+        m.data.rows[r][c] = val;
+        m.data.content = m.data.rows.map(row => row.join(' | ')).join('\n');
+        Renderer.renderPoster();
+        Store.triggerSave();
+    },
+    addRow(id) {
+        const m = Store.current.modules.find(x => x.id === id);
+        if (!m) return;
+        if (!m.data.rows) {
+            m.data.rows = [['Header 1', 'Header 2'], ['Row 1 Col 1', 'Row 1 Col 2']];
+        }
+        const numCols = m.data.rows[0].length;
+        const newRow = Array(numCols).fill('New Cell');
+        m.data.rows.push(newRow);
+        m.data.content = m.data.rows.map(row => row.join(' | ')).join('\n');
+        Editor.render(id);
+        Renderer.renderPoster();
+        Store.triggerSave();
+    },
+    addCol(id) {
+        const m = Store.current.modules.find(x => x.id === id);
+        if (!m) return;
+        if (!m.data.rows) {
+            m.data.rows = [['Header 1', 'Header 2'], ['Row 1 Col 1', 'Row 1 Col 2']];
+        }
+        m.data.rows.forEach((row, idx) => {
+            row.push(idx === 0 ? `Header ${row.length + 1}` : 'New Cell');
+        });
+        m.data.content = m.data.rows.map(row => row.join(' | ')).join('\n');
+        Editor.render(id);
+        Renderer.renderPoster();
+        Store.triggerSave();
+    },
+    deleteRow(id) {
+        const m = Store.current.modules.find(x => x.id === id);
+        if (!m || !m.data.rows || m.data.rows.length <= 1) return;
+        m.data.rows.pop();
+        m.data.content = m.data.rows.map(row => row.join(' | ')).join('\n');
+        Editor.render(id);
+        Renderer.renderPoster();
+        Store.triggerSave();
+    },
+    deleteCol(id) {
+        const m = Store.current.modules.find(x => x.id === id);
+        if (!m || !m.data.rows || m.data.rows[0].length <= 1) return;
+        m.data.rows.forEach(row => row.pop());
+        m.data.content = m.data.rows.map(row => row.join(' | ')).join('\n');
+        Editor.render(id);
+        Renderer.renderPoster();
+        Store.triggerSave();
     }
 };
 
@@ -431,6 +569,15 @@ const App = {
                 Store.triggerSave();
             });
         });
+        ['layout', 'pattern'].forEach(k => {
+            document.getElementById(`global_${k}`).addEventListener('change', e => {
+                Store.updateGlobal(k, e.target.value);
+                if (k === 'layout') {
+                    App.fitToScreen();
+                }
+                Store.triggerSave();
+            });
+        });
 
         // Keyboard Shortcuts
         document.addEventListener('keydown', (e) => {
@@ -454,9 +601,11 @@ const App = {
 
     updateUI() {
         const g = Store.current.global;
-        document.getElementById('global_title').value = g.title;
-        document.getElementById('global_subtitle').value = g.subtitle;
-        document.getElementById('global_badge').value = g.badge;
+        document.getElementById('global_title').value = g.title || '';
+        document.getElementById('global_subtitle').value = g.subtitle || '';
+        document.getElementById('global_badge').value = g.badge || '';
+        document.getElementById('global_layout').value = g.layout || 'landscape';
+        document.getElementById('global_pattern').value = g.pattern || 'graph';
 
         const sel = document.getElementById('project-select');
         sel.innerHTML = Store.state.posters.map(p => `<option value="${p.id}" ${p.id === Store.current.id ? 'selected' : ''}>${p.global.title}</option>`).join('');
@@ -582,7 +731,7 @@ const App = {
     deleteImageAsset(id) { if (confirm('Delete image?')) Store.deleteImage(id).then(App.refreshImageLibrary); },
     switchPoster(id) { Store.state.currentId = id; Store.loadCurrent(); App.updateUI(); Renderer.renderPoster(); App.fitToScreen(); },
     createNewPoster() {
-        const newP = { id: crypto.randomUUID(), lastModified: Date.now(), zoom: 0.5, global: { title: 'UNTITLED', subtitle: 'New Project', badge: '1' }, modules: [] };
+        const newP = { id: crypto.randomUUID(), lastModified: Date.now(), zoom: 0.5, global: { title: 'UNTITLED', subtitle: 'New Project', badge: '1', layout: 'landscape', pattern: 'graph' }, modules: [] };
         Store.state.posters.push(newP); App.switchPoster(newP.id);
     },
     cyclePoster(dir) {
@@ -602,22 +751,68 @@ const App = {
     fitToScreen() {
         const vp = document.getElementById('poster-viewport');
         if (!vp) return;
-        const scale = Math.min((vp.clientWidth - 60) / 2560, (vp.clientHeight - 60) / 1440);
+        const g = Store.current.global;
+        const layout = g.layout || 'landscape';
+        let width = 2560;
+        let height = 1440;
+        if (layout === 'portrait') {
+            width = 1440;
+            height = 2560;
+        } else if (layout === 'square') {
+            width = 1920;
+            height = 1920;
+        }
+        const scale = Math.min((vp.clientWidth - 60) / width, (vp.clientHeight - 60) / height);
         Store.current.zoom = scale; Renderer.applyZoom();
     },
     openLibrary() {
         const list = document.getElementById('library-list');
-        list.innerHTML = Store.state.posters.sort((a, b) => b.lastModified - a.lastModified).map(p => `
-            <div class="p-3 border-2 ${p.id === Store.current.id ? 'border-brand-blue bg-blue-50' : 'border-slate-200 bg-white hover:border-slate-400'} rounded-xl flex justify-between items-center cursor-pointer" onclick="App.switchPoster('${p.id}'); document.getElementById('library-modal').classList.add('hidden')">
+        list.innerHTML = Store.state.posters.sort((a, b) => b.lastModified - a.lastModified).map(p => {
+            const isActive = p.id === Store.current.id;
+            return `
+            <div class="p-4 border-3 ${isActive ? 'border-brand-blue bg-blue-50/50 dark:bg-blue-950/20' : 'border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 hover:border-slate-400'} rounded-2xl flex justify-between items-center cursor-pointer transition-all" onclick="App.switchPoster('${p.id}'); document.getElementById('library-modal').classList.add('hidden')">
                 <div class="flex items-center gap-3">
-                    <div class="w-10 h-10 rounded-lg bg-brand-dark text-white font-black flex items-center justify-center">${p.global.badge}</div>
-                    <div><h4 class="font-heading font-bold text-sm text-brand-dark">${p.global.title}</h4><span class="text-xs text-slate-500">${p.modules.length} modules</span></div>
+                    <div class="w-10 h-10 rounded-xl bg-brand-dark text-white font-heading font-black flex items-center justify-center shadow-neo-sm">${p.global.badge || '1'}</div>
+                    <div>
+                        <h4 class="font-heading font-bold text-base text-brand-dark dark:text-white leading-tight">${p.global.title}</h4>
+                        <span class="text-xs text-slate-500 dark:text-slate-400 font-bold">${p.modules ? p.modules.length : 0} layers • ${p.global.layout || 'landscape'}</span>
+                    </div>
                 </div>
-                ${Store.state.posters.length > 1 ? `<button onclick="event.stopPropagation(); App.deletePoster('${p.id}')" class="p-2 text-slate-300 hover:text-red-500"><i data-lucide="trash-2" class="w-4 h-4"></i></button>` : ''}
+                <div class="flex gap-1 items-center" onclick="event.stopPropagation()">
+                    <button onclick="App.renamePoster('${p.id}')" class="p-2 text-slate-400 hover:text-brand-orange transition-colors" title="Rename"><i data-lucide="edit-2" class="w-4 h-4"></i></button>
+                    <button onclick="App.duplicatePoster('${p.id}')" class="p-2 text-slate-400 hover:text-brand-blue transition-colors" title="Duplicate/Clone"><i data-lucide="copy" class="w-4 h-4"></i></button>
+                    ${Store.state.posters.length > 1 ? `<button onclick="App.deletePoster('${p.id}')" class="p-2 text-slate-400 hover:text-brand-red transition-colors" title="Delete"><i data-lucide="trash-2" class="w-4 h-4"></i></button>` : ''}
+                </div>
             </div>
-        `).join('');
+            `;
+        }).join('');
         lucide.createIcons();
         document.getElementById('library-modal').classList.remove('hidden');
+    },
+    renamePoster(id) {
+        const p = Store.state.posters.find(x => x.id === id);
+        if (!p) return;
+        const newTitle = prompt("Rename Project Title:", p.global.title);
+        if (newTitle && newTitle.trim()) {
+            p.global.title = newTitle.trim();
+            p.lastModified = Date.now();
+            Store.save();
+            App.updateUI();
+            Renderer.renderPoster();
+            App.openLibrary(); // refresh list
+        }
+    },
+    duplicatePoster(id) {
+        const p = Store.state.posters.find(x => x.id === id);
+        if (!p) return;
+        const copy = JSON.parse(JSON.stringify(p));
+        copy.id = crypto.randomUUID();
+        copy.global.title = `${copy.global.title} (Copy)`;
+        copy.lastModified = Date.now();
+        Store.state.posters.push(copy);
+        Store.save();
+        App.updateUI();
+        App.openLibrary(); // refresh list
     },
     async deletePoster(id) { 
         App.showConfirm('Delete Project?', async () => { 
@@ -628,8 +823,13 @@ const App = {
             }
 
             Store.state.posters = Store.state.posters.filter(p => p.id !== id); 
-            if (id === Store.current.id) App.switchPoster(Store.state.posters[0].id); 
-            else { Store.save(); App.openLibrary(); } 
+            if (id === Store.current.id) {
+                App.switchPoster(Store.state.posters[0].id); 
+            } else {
+                Store.save();
+                App.updateUI();
+            }
+            App.openLibrary();
         }); 
     },
     exportPoster() { const a = document.createElement('a'); a.href = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(Store.current)); a.download = `Poster_${Store.current.global.title}.json`; a.click(); },
@@ -674,6 +874,26 @@ const Renderer = {
         const g = Store.current.global;
         const area = document.getElementById('poster-area');
         if (!area) return;
+
+        // Apply Layout and Pattern
+        const layout = g.layout || 'landscape';
+        const pattern = g.pattern || 'graph';
+        let width = 2560;
+        let height = 1440;
+        if (layout === 'portrait') {
+            width = 1440;
+            height = 2560;
+        } else if (layout === 'square') {
+            width = 1920;
+            height = 1920;
+        }
+        area.style.width = `${width}px`;
+        area.style.height = `${height}px`;
+
+        // Update background pattern
+        area.classList.remove('bg-graph-paper', 'bg-dots', 'bg-chalkboard', 'bg-plain');
+        const patternClass = pattern === 'graph' ? 'bg-graph-paper' : `bg-${pattern}`;
+        area.classList.add(patternClass);
 
         const header = `
             <div class="col-span-12 row-span-2 flex items-start justify-between pb-4 pointer-events-none" style="border-bottom: 4px solid var(--border-primary)">
