@@ -2324,8 +2324,7 @@ const TabManager = {
     this.saveGroupsToStorage();
     const el = document.getElementById(groupId);
     if (el) el.classList.toggle('collapsed', group.collapsed);
-    const chevron = el?.querySelector('.tab-group-chevron i');
-    if (chevron) chevron.setAttribute('data-lucide', group.collapsed ? 'chevron-right' : 'chevron-down');
+    // CSS handles chevron rotation; keep icon as chevron-down always
     Utils.refreshIcons();
     AudioEngine.click();
   },
@@ -2368,17 +2367,17 @@ const TabManager = {
       groupEl.className = `tab-group${group.collapsed ? ' collapsed' : ''}`;
       groupEl.dataset.groupId = group.id;
       groupEl.draggable = true;
+      groupEl.style.setProperty('--group-color', colorHex);
 
       const header = document.createElement('button');
       header.className = 'tab-group-header';
       header.type = 'button';
       header.setAttribute('data-title', group.name);
-      header.style.borderColor = colorHex;
-      header.style.background = `${colorHex}18`;
       header.innerHTML = `
         <span class="tab-group-color-dot" style="background:${colorHex}"></span>
-        <span class="tab-group-chevron"><i data-lucide="${group.collapsed ? 'chevron-right' : 'chevron-down'}"></i></span>
-        <span class="tab-group-count" style="background:${colorHex}">${this.tabs.filter(t => t.groupId === group.id).length}</span>
+        <span class="tab-group-name">${this.escapeHtml(group.name)}</span>
+        <span class="tab-group-chevron"><i data-lucide="chevron-down"></i></span>
+        <span class="tab-group-count">${this.tabs.filter(t => t.groupId === group.id).length}</span>
       `;
       header.addEventListener('click', () => this.toggleGroupCollapsed(group.id));
 
@@ -2432,7 +2431,6 @@ const TabManager = {
 
       const tabsContainer = document.createElement('div');
       tabsContainer.className = 'tab-group-tabs';
-      tabsContainer.style.borderLeftColor = colorHex;
 
       const groupTabs = this.tabs.filter(t => t.groupId === group.id);
       groupTabs.forEach(tab => {
