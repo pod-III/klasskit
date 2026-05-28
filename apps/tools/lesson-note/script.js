@@ -241,6 +241,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     await migrateFromLocalStorage();
     await initDarkMode();
     initQuill();
+    initTableToolbar();
 
     notes = await getAllNotes();
     folders = (await getSetting('folders')) || [];
@@ -507,6 +508,79 @@ function insertTable(rows, cols) {
         range = quill.getSelection();
     }
     tableModule.insertTable(rows, cols);
+}
+
+function tableAction(action) {
+    const tableModule = quill.getModule('table');
+    if (!tableModule) return;
+    try {
+        switch (action) {
+            case 'insertRowAbove': tableModule.insertRowAbove(); break;
+            case 'insertRowBelow': tableModule.insertRowBelow(); break;
+            case 'insertColumnLeft': tableModule.insertColumnLeft(); break;
+            case 'insertColumnRight': tableModule.insertColumnRight(); break;
+            case 'deleteRow': tableModule.deleteRow(); break;
+            case 'deleteColumn': tableModule.deleteColumn(); break;
+            case 'deleteTable': tableModule.deleteTable(); break;
+        }
+    } catch (e) {
+        console.warn('Table action failed:', action, e);
+    }
+}
+
+// Floating table toolbar positioning
+let tableToolbarEl = null;
+
+function initTableToolbar() {
+    tableToolbarEl = document.getElementById('table-toolbar');
+    if (!tableToolbarEl || !quill) return;
+    lucide.createIcons({ scope: tableToolbarEl });
+
+    quill.on('selection-change', (range) => {
+        if (!range) {
+            tableToolbarEl.classList.add('hidden');
+            return;
+        }
+        // Check if selection is inside a table cell
+        const [line] = quill.getLine(range.index);
+        const cell = line?.domNode?.closest?.('td');
+        if (cell) {
+            positionTableToolbar(cell);
+        } else {
+            tableToolbarEl.classList.add('hidden');
+        }
+    });
+
+    // Also hide on scroll
+    document.getElementById('editor-container')?.addEventListener('scroll', () => {
+        tableToolbarEl.classList.add('hidden');
+    });
+
+    // Hide when clicking outside table area
+    document.addEventListener('click', (e) => {
+        if (!tableToolbarEl) return;
+        const editor = document.getElementById('editor-container');
+        if (editor && !editor.contains(e.target) && !tableToolbarEl.contains(e.target)) {
+            tableToolbarEl.classList.add('hidden');
+        }
+    });
+}
+
+function positionTableToolbar(cell) {
+    if (!tableToolbarEl) return;
+    const cellRect = cell.getBoundingClientRect();
+    const toolbarWidth = tableToolbarEl.offsetWidth || 280;
+    // Position toolbar above the cell, right-aligned to cell (viewport coords for fixed)
+    let top = cellRect.top - 44;
+    let left = cellRect.right - toolbarWidth;
+    // If too close to top, show below cell instead
+    if (top < 10) top = cellRect.bottom + 8;
+    // Clamp within viewport
+    if (left < 10) left = 10;
+    if (left + toolbarWidth > window.innerWidth - 10) left = window.innerWidth - toolbarWidth - 10;
+    tableToolbarEl.style.top = `${top}px`;
+    tableToolbarEl.style.left = `${left}px`;
+    tableToolbarEl.classList.remove('hidden');
 }
 
 // ===== OUTLINE =====
