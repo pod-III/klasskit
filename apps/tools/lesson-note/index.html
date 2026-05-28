@@ -15,9 +15,7 @@
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link
-        href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Nunito:wght@400;600;700;800&display=swap"
-        rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@1.16.0"></script>
@@ -41,8 +39,7 @@
                         border: 'rgba(203, 213, 225, 0.6)',
                     },
                     fontFamily: {
-                        heading: ['Fredoka', 'sans-serif'],
-                        body: ['Nunito', 'sans-serif'],
+                        sans: ['Inter', 'system-ui', 'sans-serif'],
                     },
                     boxShadow: {
                         'neo': '4px 4px 0px 0px rgba(51, 65, 85, 0.15)',
@@ -80,18 +77,7 @@
         }
     </script>
     <style>
-        .bg-float-icon {
-            color: rgba(203, 213, 225, 0.4);
-            opacity: 0.3;
-            position: fixed;
-            z-index: 0;
-            pointer-events: none;
-        }
-
-        .dark .bg-float-icon {
-            opacity: 0.15;
-            color: white;
-        }
+        body { font-family: 'Inter', system-ui, sans-serif; }
     </style>
 
     <link rel="stylesheet" href="styles.css">
@@ -102,70 +88,40 @@
 
 <body class="h-screen flex flex-col text-dark relative bg-chalk">
 
-    <!-- Floating Background Layer -->
-    <div class="absolute inset-0 overflow-hidden pointer-events-none z-0">
-        <i data-lucide="sparkles" class="bg-float-icon w-32 h-32 top-[10%] left-[15%]"></i>
-        <i data-lucide="book-open" class="bg-float-icon w-40 h-40 top-[60%] left-[5%]"></i>
-        <i data-lucide="pen-tool" class="bg-float-icon w-48 h-48 top-[20%] right-[10%]"></i>
-        <i data-lucide="edit-3" class="bg-float-icon w-24 h-24 top-[70%] right-[20%]"
-            style="animation-direction: reverse;"></i>
-    </div>
-
     <input type="file" id="importInput" accept=".json" class="hidden" onchange="processImport(this)">
     <input type="file" id="imageInput" accept="image/*" class="hidden" onchange="processImageInput(this)">
 
-    <header
-        class="bg-white/80 backdrop-blur-xl border-b-[1px] border-slate-200/60 dark:border-white/10 dark:bg-slate-900/80 z-40 flex-none sticky top-0 relative">
-        <div class="w-full mx-auto px-6 h-12 flex items-center justify-between">
-            <div class="flex items-center gap-3">
-                <div
-                    class="w-8 h-8 bg-orange rounded-lg border-[1px] border-white/40 flex items-center justify-center text-white shadow-neo-sm">
-                    <i data-lucide="book-open" class="w-5 h-5 stroke-[2.5px]"></i>
-                </div>
-                <div>
-                    <h1 class="font-heading text-xl md:text-3xl tracking-wide text-brand-dark dark:text-white">Notes</h1>
-                    <p class="text-[8px] text-gray-400 font-extrabold tracking-widest uppercase">KlassKit
-                    </p>
-                </div>
+    <header class="bg-white dark:bg-[#0f172a] border-b border-slate-200 dark:border-slate-800 z-40 flex-none h-12 flex items-center px-4">
+        <div class="flex items-center justify-between w-full">
+            <!-- Left: breadcrumbs / nav -->
+            <div class="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
+                <button onclick="toggleSidebar()" class="md:hidden p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-md transition-colors" title="Toggle sidebar">
+                    <i data-lucide="panel-left" class="w-4 h-4"></i>
+                </button>
+                <span class="font-medium text-slate-700 dark:text-slate-300 hidden sm:inline">Notes</span>
+                <span class="hidden sm:inline text-slate-300">/</span>
+                <span id="headerNoteTitle" class="truncate max-w-[200px] md:max-w-xs text-slate-900 dark:text-slate-100 font-medium">Untitled</span>
             </div>
-
-            <div class="flex items-center gap-2">
-                <button onclick="toggleDarkMode()"
-                    class="neo-btn-sm bg-white text-dark px-2 py-1.5 rounded-lg text-xs flex items-center gap-2"
-                    title="Toggle Dark Mode">
-                    <i id="darkModeIcon" data-lucide="moon" class="w-3.5 h-3.5"></i>
-                    <span id="darkModeText" class="hidden xl:inline">Dark</span>
+            <!-- Right: icon-only actions -->
+            <div class="flex items-center gap-1">
+                <button onclick="toggleDarkMode()" class="p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-md transition-colors" title="Toggle theme">
+                    <i id="darkModeIcon" data-lucide="moon" class="w-4 h-4"></i>
                 </button>
-                <button onclick="toggleZenMode()"
-                    class="neo-btn-sm bg-white text-dark px-2 py-1.5 rounded-lg text-xs flex items-center gap-2"
-                    title="Toggle Zen Mode">
-                    <i id="zenModeIcon" data-lucide="maximize-2" class="w-3.5 h-3.5"></i>
-                    <span id="zenModeText" class="hidden xl:inline">Zen</span>
+                <button onclick="toggleZenMode()" class="p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-md transition-colors" title="Zen mode">
+                    <i id="zenModeIcon" data-lucide="maximize-2" class="w-4 h-4"></i>
                 </button>
-                <button onclick="toggleOutline()"
-                    class="neo-btn-sm bg-white text-dark px-2 py-1.5 rounded-lg text-xs flex items-center gap-2"
-                    title="Toggle Outline">
-                    <i data-lucide="list-tree" class="w-3.5 h-3.5"></i>
-                    <span class="hidden xl:inline">Outline</span>
+                <button onclick="toggleOutline()" class="p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-md transition-colors" title="Outline">
+                    <i data-lucide="list-tree" class="w-4 h-4"></i>
                 </button>
-
-                <button onclick="exportJSON()"
-                    class="neo-btn-sm bg-blue text-white px-2 py-1.5 rounded-lg text-xs flex items-center gap-2"
-                    title="Backup Notes">
-                    <i data-lucide="save" class="w-3.5 h-3.5"></i>
-                    <span class="hidden lg:inline">Backup</span>
+                <div class="w-px h-4 bg-slate-200 dark:bg-slate-700 mx-1"></div>
+                <button onclick="exportJSON()" class="p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-md transition-colors" title="Backup">
+                    <i data-lucide="save" class="w-4 h-4"></i>
                 </button>
-                <button onclick="triggerImport()"
-                    class="neo-btn-sm bg-orange text-white px-2 py-1.5 rounded-lg text-xs flex items-center gap-2"
-                    title="Restore Notes">
-                    <i data-lucide="upload-cloud" class="w-3.5 h-3.5"></i>
-                    <span class="hidden lg:inline">Restore</span>
+                <button onclick="triggerImport()" class="p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-md transition-colors" title="Restore">
+                    <i data-lucide="upload-cloud" class="w-4 h-4"></i>
                 </button>
-
-                <button onclick="exportPDF()"
-                    class="neo-btn-sm bg-pink text-white px-2 py-1.5 rounded-lg text-xs flex items-center gap-2">
-                    <i data-lucide="download" class="w-3.5 h-3.5"></i>
-                    <span class="hidden lg:inline">PDF</span>
+                <button onclick="exportPDF()" class="p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-md transition-colors" title="Export PDF">
+                    <i data-lucide="download" class="w-4 h-4"></i>
                 </button>
             </div>
         </div>
@@ -174,150 +130,130 @@
     <div class="flex-grow flex overflow-hidden w-full mx-auto relative z-10">
 
         <aside id="sidebar"
-            class="w-80 bg-white/60 dark:bg-slate-900/60 backdrop-blur-md border-r-[1px] border-slate-200/60 dark:border-white/10 flex flex-col transition-all duration-300 absolute z-30 h-full md:relative transform md:transform-none -translate-x-full md:translate-x-0 overflow-hidden">
+            class="w-72 bg-[#fbfbfa] dark:bg-[#0f172a] border-r border-slate-200 dark:border-slate-800 flex flex-col transition-all duration-200 absolute z-30 h-full md:relative transform md:transform-none -translate-x-full md:translate-x-0 overflow-hidden">
 
-            <div class="min-w-[20rem] h-full flex flex-col">
-                <div class="p-5 border-b-[1px] border-slate-200/60 dark:border-white/10 bg-white/40 dark:bg-slate-800/40"
-                    id="sidebarHeader">
-                    <div class="flex gap-2 mb-4">
-                        <button id="newNoteBtn" onclick="createNewNote()"
-                            class="flex-grow neo-btn bg-blue text-white py-3 rounded-xl font-heading text-lg flex items-center justify-center gap-2 shadow-neo-sm hover:shadow-neo border-[1px] border-white/40">
-                            <i data-lucide="plus" class="w-5 h-5"></i>
-                            NEW NOTE
-                        </button>
-                        <button onclick="createFolder()"
-                            class="w-14 neo-btn bg-white/80 dark:bg-slate-800/80 text-dark py-3 rounded-xl flex items-center justify-center transition-colors shadow-neo-sm hover:shadow-neo border-[1px] border-slate-200 dark:border-slate-700"
-                            title="New Folder">
-                            <i data-lucide="folder-plus" class="w-5 h-5"></i>
-                        </button>
-                        <button id="trashToggleBtn" onclick="toggleTrashMode()"
-                            class="w-14 neo-btn bg-white/80 dark:bg-slate-800/80 text-dark py-3 rounded-xl flex items-center justify-center transition-colors shadow-neo-sm hover:shadow-neo border-[1px] border-slate-200 dark:border-slate-700"
-                            title="View Trash">
-                            <i data-lucide="trash" class="w-5 h-5"></i>
-                        </button>
-                    </div>
+            <div class="min-w-[18rem] h-full flex flex-col">
+                <div class="px-3 py-3 flex items-center gap-2 border-b border-slate-100 dark:border-slate-800">
+                    <button id="newNoteBtn" onclick="createNewNote()"
+                        class="flex-1 flex items-center justify-center gap-1.5 bg-blue hover:bg-blue-600 text-white py-1.5 px-3 rounded-md text-sm font-medium transition-colors">
+                        <i data-lucide="plus" class="w-3.5 h-3.5"></i>
+                        New page
+                    </button>
+                    <button onclick="createFolder()"
+                        class="p-1.5 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-md transition-colors"
+                        title="New folder">
+                        <i data-lucide="folder-plus" class="w-4 h-4"></i>
+                    </button>
+                    <button id="trashToggleBtn" onclick="toggleTrashMode()"
+                        class="p-1.5 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-md transition-colors"
+                        title="Trash">
+                        <i data-lucide="trash" class="w-4 h-4"></i>
+                    </button>
+                </div>
 
-                    <div class="relative group flex gap-2">
+                <div class="px-3 py-2">
+                    <div class="relative flex items-center gap-2">
                         <div class="relative flex-1">
-                            <i data-lucide="search"
-                                class="absolute left-3 top-1/2 transform -translate-y-1/2 text-dark w-4 h-4"></i>
-                            <input type="text" id="searchInput" placeholder="Search notes..."
-                                class="neo-input w-full pl-10 pr-4 py-2 text-sm font-bold text-dark bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm border-[1px] border-slate-200 dark:border-slate-700 focus:shadow-neo focus:border-blue">
+                            <i data-lucide="search" class="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 w-3.5 h-3.5"></i>
+                            <input type="text" id="searchInput" placeholder="Search or jump to..."
+                                class="w-full pl-8 pr-3 py-1.5 text-sm bg-slate-100 dark:bg-slate-800 border border-transparent rounded-md text-slate-700 dark:text-slate-200 placeholder-slate-400 focus:outline-none focus:bg-white dark:focus:bg-slate-900 focus:ring-1 focus:ring-blue-500/30 transition-all">
                         </div>
-                        <div class="relative">
-                            <button id="sortBtn" onclick="toggleSortDropdown()"
-                                class="neo-btn-sm bg-white/80 dark:bg-slate-800/80 text-dark dark:text-slate-200 p-2 rounded-xl border-[1px] border-slate-200 dark:border-slate-700 flex items-center justify-center"
-                                title="Sort Notes">
-                                <i data-lucide="arrow-up-down" class="w-4 h-4"></i>
+                        <button id="sortBtn" onclick="toggleSortDropdown()"
+                            class="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-md transition-colors"
+                            title="Sort">
+                            <i data-lucide="arrow-up-down" class="w-3.5 h-3.5"></i>
+                        </button>
+                        <div id="sortDropdown" class="sort-dropdown hidden">
+                            <button onclick="setSortMode('date-desc')" data-sort="date-desc" class="text-dark dark:text-slate-200">
+                                <i data-lucide="clock" class="w-3.5 h-3.5 flex-none"></i> Newest First
                             </button>
-                            <div id="sortDropdown" class="sort-dropdown hidden">
-                                <button onclick="setSortMode('date-desc')" data-sort="date-desc" class="text-dark dark:text-slate-200">
-                                    <i data-lucide="clock" class="w-3.5 h-3.5 flex-none"></i> Newest First
-                                </button>
-                                <button onclick="setSortMode('date-asc')" data-sort="date-asc" class="text-dark dark:text-slate-200">
-                                    <i data-lucide="history" class="w-3.5 h-3.5 flex-none"></i> Oldest First
-                                </button>
-                                <button onclick="setSortMode('title-asc')" data-sort="title-asc" class="text-dark dark:text-slate-200">
-                                    <i data-lucide="arrow-down-a-z" class="w-3.5 h-3.5 flex-none"></i> Title A → Z
-                                </button>
-                                <button onclick="setSortMode('title-desc')" data-sort="title-desc" class="text-dark dark:text-slate-200">
-                                    <i data-lucide="arrow-up-z-a" class="w-3.5 h-3.5 flex-none"></i> Title Z → A
-                                </button>
-                                <button onclick="setSortMode('manual')" data-sort="manual" class="text-dark dark:text-slate-200">
-                                    <i data-lucide="hand" class="w-3.5 h-3.5 flex-none"></i> Manual Order
-                                </button>
-                            </div>
+                            <button onclick="setSortMode('date-asc')" data-sort="date-asc" class="text-dark dark:text-slate-200">
+                                <i data-lucide="history" class="w-3.5 h-3.5 flex-none"></i> Oldest First
+                            </button>
+                            <button onclick="setSortMode('title-asc')" data-sort="title-asc" class="text-dark dark:text-slate-200">
+                                <i data-lucide="arrow-down-a-z" class="w-3.5 h-3.5 flex-none"></i> Title A → Z
+                            </button>
+                            <button onclick="setSortMode('title-desc')" data-sort="title-desc" class="text-dark dark:text-slate-200">
+                                <i data-lucide="arrow-up-z-a" class="w-3.5 h-3.5 flex-none"></i> Title Z → A
+                            </button>
+                            <button onclick="setSortMode('manual')" data-sort="manual" class="text-dark dark:text-slate-200">
+                                <i data-lucide="hand" class="w-3.5 h-3.5 flex-none"></i> Manual Order
+                            </button>
                         </div>
                     </div>
                 </div>
 
                 <div id="trashHeader"
-                    class="hidden bg-pink text-white p-3 font-heading font-bold text-sm border-b-[1px] border-pink/30 flex items-center justify-between gap-2 px-5">
-                    <div class="flex items-center gap-2">
-                        <i data-lucide="trash-2" class="w-4 h-4"></i> TRASH BIN
+                    class="hidden bg-pink/10 text-pink dark:text-pink-400 px-3 py-2 text-xs font-semibold border-b border-pink/10 flex items-center justify-between">
+                    <div class="flex items-center gap-1.5">
+                        <i data-lucide="trash-2" class="w-3.5 h-3.5"></i> Trash
                     </div>
                     <button onclick="emptyTrash()"
-                        class="neo-btn-sm bg-white/20 hover:bg-white/30 text-white px-3 py-1 rounded-lg text-xs font-bold flex items-center gap-1 border border-white/30 transition-colors"
-                        title="Permanently delete all trashed notes">
-                        <i data-lucide="flame" class="w-3 h-3"></i> Empty Trash
+                        class="text-pink/70 hover:text-pink text-xs font-medium transition-colors"
+                        title="Empty trash">
+                        Empty
                     </button>
                 </div>
 
-                <div id="notesList" class="flex-grow overflow-y-auto p-4 space-y-3 custom-scrollbar">
+                <div id="notesList" class="flex-grow overflow-y-auto py-1 custom-scrollbar">
                 </div>
             </div>
         </aside>
 
-        <main class="flex-grow p-4 md:p-8 overflow-y-auto relative flex flex-col items-center custom-scrollbar">
-
-            <button onclick="toggleSidebar()"
-                class="md:hidden absolute left-4 top-4 neo-btn-sm bg-white p-2 rounded-lg z-20">
-                <i data-lucide="menu" class="w-6 h-6"></i>
-            </button>
-
-            <div class="w-full max-w-5xl flex-grow flex flex-col overflow-hidden neo-card relative z-10 bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl">
-                
-                <!-- External Quill Toolbar -->
-                <div id="toolbar-container" class="flex-none border-b-[1px] border-slate-200 dark:border-white/10 bg-slate-50/50 dark:bg-slate-800/50 backdrop-blur-md p-2 flex items-center justify-between sticky top-0 z-30">
-                    <div id="note-toolbar" class="flex-grow !border-none !bg-transparent">
-                        <!-- Quill will inject toolbar here -->
-                    </div>
-                    
-                    <div id="actionButtons" class="flex items-center gap-2 px-4 border-l border-slate-200 dark:border-white/10">
-                        <button id="softDeleteBtn" onclick="softDeleteCurrentNote()"
-                            class="text-gray-400 hover:text-pink transition-colors p-2" title="Move to Trash">
-                            <i data-lucide="trash-2" class="w-5 h-5"></i>
+        <main class="flex-grow overflow-y-auto relative custom-scrollbar bg-white dark:bg-[#0f172a]">
+            <!-- Toolbar & Actions -->
+            <div id="toolbar-container" class="sticky top-0 z-30 bg-white/95 dark:bg-[#0f172a]/95 backdrop-blur-sm border-b border-slate-100 dark:border-slate-800 px-4 py-2 flex items-center justify-between">
+                <div id="note-toolbar" class="flex-grow !border-none !bg-transparent"></div>
+                <div id="actionButtons" class="flex items-center gap-1 pl-3 border-l border-slate-100 dark:border-slate-800">
+                    <button id="softDeleteBtn" onclick="softDeleteCurrentNote()"
+                        class="p-2 text-slate-400 hover:text-red-500 transition-colors rounded-md hover:bg-slate-100 dark:hover:bg-slate-800" title="Move to trash">
+                        <i data-lucide="trash-2" class="w-4 h-4"></i>
+                    </button>
+                    <div id="trashButtons" class="hidden flex gap-1">
+                        <button onclick="restoreCurrentNote()"
+                            class="px-2.5 py-1.5 text-xs font-medium text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-900/20 hover:bg-green-100 dark:hover:bg-green-900/30 rounded-md transition-colors flex items-center gap-1"
+                            title="Restore">
+                            <i data-lucide="refresh-ccw" class="w-3 h-3"></i> Restore
                         </button>
-
-                        <div id="trashButtons" class="hidden flex gap-2">
-                            <button onclick="restoreCurrentNote()"
-                                class="neo-btn-sm bg-green text-dark px-3 py-1 rounded-lg text-xs font-bold flex items-center gap-1"
-                                title="Restore Note">
-                                <i data-lucide="refresh-ccw" class="w-3 h-3"></i> Restore
-                            </button>
-                            <button onclick="permanentDeleteCurrentNote()"
-                                class="neo-btn-sm bg-pink text-white px-3 py-1 rounded-lg text-xs font-bold flex items-center gap-1"
-                                title="Delete Forever">
-                                <i data-lucide="x" class="w-3 h-3"></i> Delete
-                            </button>
-                        </div>
+                        <button onclick="permanentDeleteCurrentNote()"
+                            class="px-2.5 py-1.5 text-xs font-medium text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-md transition-colors flex items-center gap-1"
+                            title="Delete forever">
+                            <i data-lucide="x" class="w-3 h-3"></i> Delete
+                        </button>
                     </div>
                 </div>
+            </div>
 
-                <!-- Seamless Document Area -->
-                <div class="flex-grow overflow-y-auto custom-scrollbar relative p-6 md:p-8 lg:p-12">
-                    <div class="w-full max-w-4xl mx-auto">
-                        <input type="text" id="noteTitle" placeholder="Untitled Lesson"
-                            class="w-full bg-transparent text-4xl font-heading font-bold text-dark mb-8 focus:outline-none placeholder-gray-200 dark:placeholder-slate-800 transition-all border-b-2 border-slate-100 dark:border-white/5 focus:border-blue/20 pb-4">
-                        
-                        <div id="editor-container" class="!border-none !p-0"></div>
-                    </div>
+            <!-- Document Area -->
+            <div class="p-8 md:p-12 lg:p-16">
+                <div class="w-full max-w-[900px] mx-auto">
+                    <input type="text" id="noteTitle" placeholder="Untitled"
+                        class="w-full bg-transparent text-[40px] font-bold text-slate-900 dark:text-slate-100 mb-4 focus:outline-none placeholder-slate-300 dark:placeholder-slate-700 leading-tight">
+                    <div id="editor-container" class="!border-none !p-0 min-h-[60vh]"></div>
                 </div>
+            </div>
 
-                <!-- Footer Status -->
-                <div class="flex items-center justify-center gap-2 py-3 px-6 bg-slate-50/30 dark:bg-slate-800/30 border-t border-slate-100 dark:border-white/5 opacity-60 flex-none">
-                    <div id="statusIndicator" class="w-2.5 h-2.5 rounded-full bg-green border-[1px] border-slate-300 dark:border-white/10"></div>
-                    <span id="statusText"
-                        class="text-[10px] text-dark font-bold tracking-widest uppercase">Auto-saved</span>
-                </div>
+            <!-- Footer Status -->
+            <div class="flex items-center justify-center gap-1.5 py-2 border-t border-slate-100 dark:border-slate-800 text-slate-400 text-[11px]">
+                <div id="statusIndicator" class="w-1.5 h-1.5 rounded-full bg-green-500"></div>
+                <span id="statusText" class="font-medium">Auto-saved</span>
             </div>
         </main>
 
         <aside id="outlineSidebar"
-            class="w-0 opacity-0 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-l-[1px] border-slate-200/60 dark:border-slate-700 flex flex-col transition-all duration-300 overflow-hidden relative z-30">
-            <div class="min-w-[18rem] h-full flex flex-col">
-                <div
-                    class="p-6 border-b-[1px] border-slate-200/60 dark:border-slate-700 flex items-center justify-between bg-white/40 dark:bg-slate-800/40">
-                    <h3 class="font-heading font-bold text-xl text-dark flex items-center gap-2">
-                        <i data-lucide="compass" class="w-6 h-6 text-orange"></i> Outline
+            class="w-0 opacity-0 bg-[#fbfbfa] dark:bg-[#0f172a] border-l border-slate-200 dark:border-slate-800 flex flex-col transition-all duration-200 overflow-hidden relative z-30">
+            <div class="min-w-[16rem] h-full flex flex-col">
+                <div class="px-4 py-3 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                    <h3 class="font-semibold text-sm text-slate-700 dark:text-slate-200 flex items-center gap-2">
+                        <i data-lucide="list-tree" class="w-4 h-4 text-slate-400"></i> Outline
                     </h3>
-                    <button onclick="toggleOutline()" class="text-dark hover:bg-gray-200 p-1 rounded transition-colors">
-                        <i data-lucide="x" class="w-6 h-6"></i>
+                    <button onclick="toggleOutline()" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 p-1 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+                        <i data-lucide="x" class="w-4 h-4"></i>
                     </button>
                 </div>
-                <div id="outlineList" class="flex-grow overflow-y-auto p-4 space-y-2 custom-scrollbar">
-                    <div class="flex flex-col items-center justify-center h-40 text-center px-6">
-                        <p class="text-gray-400 text-sm font-bold">Use H1 or H2 headings to generate an outline.</p>
+                <div id="outlineList" class="flex-grow overflow-y-auto p-2 custom-scrollbar">
+                    <div class="flex flex-col items-center justify-center h-32 text-center px-4">
+                        <p class="text-slate-400 text-xs font-medium">Use headings to generate an outline.</p>
                     </div>
                 </div>
             </div>
@@ -333,21 +269,18 @@
     </div>
 
     <div id="customModal"
-        class="hidden fixed inset-0 z-[500] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm animate-pop">
-        <div
-            class="neo-card max-w-md w-full p-8 flex flex-col items-center text-center border-[1px] border-pink/50 glass-panel shadow-neo-lg bg-white/95 dark:bg-slate-900/95">
-            <div
-                class="w-20 h-20 rounded-full flex items-center justify-center mb-6 bg-pink/20 text-pink border-[1px] border-pink/40">
-                <i id="modalIcon" data-lucide="trash-2" class="w-10 h-10"></i>
+        class="hidden fixed inset-0 z-[500] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-pop">
+        <div class="max-w-md w-full p-6 flex flex-col items-center text-center bg-white dark:bg-[#1e293b] rounded-lg border border-slate-200 dark:border-slate-700 shadow-lg">
+            <div class="w-12 h-12 rounded-full flex items-center justify-center mb-4 bg-pink/10 text-pink">
+                <i id="modalIcon" data-lucide="trash-2" class="w-6 h-6"></i>
             </div>
-            <h3 id="modalTitle" class="text-3xl font-heading font-bold text-dark mb-2">Move to Trash?</h3>
-            <p id="modalDesc" class="text-gray-600 font-bold mb-8">You can restore this note later from the Trash bin.
-            </p>
-            <div class="flex gap-4 w-full">
-                <button id="modalCancel" class="flex-1 neo-btn bg-white text-dark py-3 rounded-xl text-lg">
+            <h3 id="modalTitle" class="text-xl font-bold text-slate-900 dark:text-slate-100 mb-1">Move to Trash?</h3>
+            <p id="modalDesc" class="text-slate-500 dark:text-slate-400 text-sm mb-6">You can restore this note later from the Trash bin.</p>
+            <div class="flex gap-3 w-full">
+                <button id="modalCancel" class="flex-1 py-2.5 rounded-md text-sm font-medium bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">
                     Cancel
                 </button>
-                <button id="modalConfirm" class="flex-1 neo-btn bg-pink text-white py-3 rounded-xl text-lg">
+                <button id="modalConfirm" class="flex-1 py-2.5 rounded-md text-sm font-medium bg-pink text-white hover:bg-pink-600 transition-colors">
                     Trash It
                 </button>
             </div>
@@ -355,21 +288,19 @@
     </div>
 
     <!-- Custom Prompt Modal -->
-    <div id="promptModal" class="hidden fixed inset-0 z-[500] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-md animate-pop">
-        <div class="neo-card max-w-sm w-full p-8 flex flex-col items-center border-[1px] border-blue/50 glass-panel shadow-neo-lg bg-white/95 dark:bg-slate-900/95">
-            <div class="w-16 h-16 rounded-2xl bg-blue/10 flex items-center justify-center border-[3px] border-blue/40 mb-6">
-                <i id="promptIcon" data-lucide="folder-plus" class="w-8 h-8 text-blue"></i>
+    <div id="promptModal" class="hidden fixed inset-0 z-[500] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-pop">
+        <div class="max-w-sm w-full p-6 flex flex-col items-center bg-white dark:bg-[#1e293b] rounded-lg border border-slate-200 dark:border-slate-700 shadow-lg">
+            <div class="w-10 h-10 rounded-lg bg-blue/10 flex items-center justify-center mb-4">
+                <i id="promptIcon" data-lucide="folder-plus" class="w-5 h-5 text-blue"></i>
             </div>
-            <h3 id="promptTitle" class="text-2xl font-heading font-bold text-dark mb-2">Folder Name</h3>
-            <p id="promptDesc" class="text-sm text-slate-500 font-bold mb-6">Enter a name for your workspace</p>
-            
-            <input type="text" id="promptInput" class="w-full neo-input px-4 py-3 mb-8 text-center text-lg font-bold" placeholder="Type here...">
-
-            <div class="flex gap-4 w-full">
-                <button id="promptCancel" class="flex-1 neo-btn bg-white text-dark py-3 rounded-xl">
+            <h3 id="promptTitle" class="text-lg font-bold text-slate-900 dark:text-slate-100 mb-1">Folder Name</h3>
+            <p id="promptDesc" class="text-sm text-slate-500 dark:text-slate-400 mb-4">Enter a name for your workspace</p>
+            <input type="text" id="promptInput" class="w-full px-3 py-2 mb-6 text-center text-sm font-medium bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:border-blue-400 transition-colors" placeholder="Type here...">
+            <div class="flex gap-3 w-full">
+                <button id="promptCancel" class="flex-1 py-2 rounded-md text-sm font-medium bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">
                     Cancel
                 </button>
-                <button id="promptConfirm" class="flex-1 neo-btn bg-blue text-white py-3 rounded-xl">
+                <button id="promptConfirm" class="flex-1 py-2 rounded-md text-sm font-medium bg-blue text-white hover:bg-blue-600 transition-colors">
                     Confirm
                 </button>
             </div>
@@ -378,29 +309,27 @@
 
     <!-- Table Insert Dialog -->
     <div id="tableDialog"
-        class="hidden fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm animate-pop">
-        <div
-            class="neo-card max-w-sm w-full p-8 flex flex-col items-center text-center border-[1px] border-blue/50 glass-panel shadow-neo-lg bg-white/95 dark:bg-slate-900/95">
-            <div
-                class="w-16 h-16 rounded-full flex items-center justify-center mb-5 bg-blue/20 text-blue border-[1px] border-blue/40">
-                <i data-lucide="table" class="w-8 h-8"></i>
+        class="hidden fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-pop">
+        <div class="max-w-sm w-full p-6 flex flex-col items-center text-center bg-white dark:bg-[#1e293b] rounded-lg border border-slate-200 dark:border-slate-700 shadow-lg">
+            <div class="w-10 h-10 rounded-lg flex items-center justify-center mb-4 bg-blue/10 text-blue">
+                <i data-lucide="table" class="w-5 h-5"></i>
             </div>
-            <h3 class="text-2xl font-heading font-bold text-dark mb-5">Insert Table</h3>
-            <div class="flex gap-6 mb-6">
+            <h3 class="text-lg font-bold text-slate-900 dark:text-slate-100 mb-4">Insert Table</h3>
+            <div class="flex gap-4 mb-5">
                 <div class="text-center">
-                    <label class="block text-xs font-bold text-gray-500 mb-2 uppercase tracking-wider">Rows</label>
+                    <label class="block text-[11px] font-medium text-slate-500 mb-1.5 uppercase tracking-wide">Rows</label>
                     <input type="number" id="tableRows" value="3" min="1" max="20" class="table-dialog-input">
                 </div>
                 <div class="text-center">
-                    <label class="block text-xs font-bold text-gray-500 mb-2 uppercase tracking-wider">Columns</label>
+                    <label class="block text-[11px] font-medium text-slate-500 mb-1.5 uppercase tracking-wide">Columns</label>
                     <input type="number" id="tableCols" value="3" min="1" max="10" class="table-dialog-input">
                 </div>
             </div>
-            <div class="flex gap-4 w-full">
+            <div class="flex gap-3 w-full">
                 <button onclick="closeTableDialog()"
-                    class="flex-1 neo-btn bg-white text-dark py-3 rounded-xl text-lg">Cancel</button>
+                    class="flex-1 py-2 rounded-md text-sm font-medium bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">Cancel</button>
                 <button onclick="confirmInsertTable()"
-                    class="flex-1 neo-btn bg-blue text-white py-3 rounded-xl text-lg">Insert</button>
+                    class="flex-1 py-2 rounded-md text-sm font-medium bg-blue text-white hover:bg-blue-600 transition-colors">Insert</button>
             </div>
         </div>
     </div>

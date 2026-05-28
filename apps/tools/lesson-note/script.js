@@ -539,7 +539,7 @@ function updateOutline() {
         const type = heading.tagName.toLowerCase();
         heading.id = `heading-${index}`;
         const item = document.createElement('div');
-        item.className = `outline-link py-2 px-3 rounded-lg cursor-pointer mb-1 ${type === 'h1' ? 'font-heading font-bold text-sm text-dark' : 'font-body font-bold text-xs text-gray-500 pl-6'}`;
+        item.className = `outline-link cursor-pointer mb-0.5 ${type === 'h1' ? 'font-semibold text-[13px] text-slate-700 dark:text-slate-200' : 'font-medium text-[12px] text-slate-500 dark:text-slate-400 pl-4'}`;
         item.innerText = text;
         item.onclick = () => {
             heading.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -664,6 +664,7 @@ function toggleTrashMode() {
         else {
             currentNoteId = null;
             document.getElementById('noteTitle').value = "";
+            document.getElementById('headerNoteTitle').textContent = 'Trash';
             quill.root.innerHTML = "<p>Trash is empty.</p>";
             quill.disable();
             renderNotesList();
@@ -722,6 +723,7 @@ async function loadNote(id) {
     if (!note) return;
 
     document.getElementById('noteTitle').value = note.title;
+    document.getElementById('headerNoteTitle').textContent = note.title || 'Untitled';
 
     // Resolve idb:// image URLs
     const resolvedHtml = await resolveImagesInHtml(note.content);
@@ -740,7 +742,8 @@ async function saveCurrentNote() {
         note.title = document.getElementById('noteTitle').value;
         note.content = getContentForSave();
         note.updatedAt = Date.now();
-        
+        document.getElementById('headerNoteTitle').textContent = note.title || 'Untitled';
+
         // Update cache
         strippedContentCache.set(note.id, fastStripHtml(note.content).toLowerCase());
         
@@ -802,6 +805,7 @@ async function permanentDeleteCurrentNote() {
         } else {
             currentNoteId = null;
             document.getElementById('noteTitle').value = "";
+            document.getElementById('headerNoteTitle').textContent = 'Trash';
             quill.root.innerHTML = "<p>Trash is empty.</p>";
             renderNotesList();
         }
@@ -829,6 +833,7 @@ async function emptyTrash() {
 
     currentNoteId = null;
     document.getElementById('noteTitle').value = "";
+    document.getElementById('headerNoteTitle').textContent = 'Trash';
     quill.root.innerHTML = "<p>Trash is empty.</p>";
     renderNotesList();
 }
@@ -1181,18 +1186,15 @@ function renderNotesList() {
         const folderIcon = folder.collapsed ? 'folder' : 'folder-open';
 
         const headerDiv = document.createElement('div');
-        headerDiv.className = `folder-header flex items-center gap-2.5 px-3 py-3 rounded-xl cursor-pointer select-none group transition-all ${isActive ? 'bg-blue/10 border border-blue/30' : 'border border-transparent hover:bg-slate-100/80 dark:hover:bg-slate-800/60'}`;
-        headerDiv.style.borderLeftColor = folder.color;
+        headerDiv.className = `folder-header flex items-center gap-2 px-2 py-1.5 rounded-md cursor-pointer select-none group transition-colors ${isActive ? 'bg-slate-100 dark:bg-slate-800' : 'hover:bg-slate-50 dark:hover:bg-slate-800/50'}`;
         headerDiv.dataset.folderId = folder.id;
         headerDiv.innerHTML = `
-            <div class="folder-icon-wrap" style="background: ${folder.color}20; border: 2px solid ${folder.color}50;">
-                <i data-lucide="${folderIcon}" class="w-4 h-4" style="color: ${folder.color}"></i>
-            </div>
-            <i data-lucide="${chevron}" class="w-3 h-3 text-gray-400 flex-none"></i>
-            <span class="font-heading font-bold text-sm text-dark dark:text-slate-200 truncate flex-1">${folder.name}</span>
-            <span class="text-[10px] font-bold px-2 py-0.5 rounded-lg" style="background: ${folder.color}15; color: ${folder.color}; border: 1px solid ${folder.color}30;">${folderNotes.length}</span>
-            <button class="folder-menu-btn opacity-0 group-hover:opacity-100 text-gray-400 hover:text-dark dark:hover:text-white p-1 rounded-lg hover:bg-gray-200 dark:hover:bg-slate-700 transition-all" onclick="event.stopPropagation(); showFolderMenu(event, '${folder.id}')">
-                <i data-lucide="more-horizontal" class="w-3.5 h-3.5 pointer-events-none"></i>
+            <i data-lucide="${chevron}" class="w-3 h-3 text-slate-400 flex-none"></i>
+            <i data-lucide="${folderIcon}" class="w-3.5 h-3.5 flex-none" style="color: ${folder.color}"></i>
+            <span class="font-medium text-[13px] text-slate-700 dark:text-slate-200 truncate flex-1">${folder.name}</span>
+            <span class="text-[10px] font-medium text-slate-400 dark:text-slate-500 flex-none">${folderNotes.length}</span>
+            <button class="folder-menu-btn opacity-0 group-hover:opacity-100 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 p-1 rounded transition-all" onclick="event.stopPropagation(); showFolderMenu(event, '${folder.id}')">
+                <i data-lucide="more-horizontal" class="w-3 h-3 pointer-events-none"></i>
             </button>
         `;
 
@@ -1215,15 +1217,14 @@ function renderNotesList() {
 
         if (!folder.collapsed && folderNotes.length > 0) {
             const notesContainer = document.createElement('div');
-            notesContainer.className = 'folder-notes-container pl-4 border-l-2 ml-5 mt-1 mb-2';
-            notesContainer.style.borderColor = folder.color + '30';
+            notesContainer.className = 'pl-5 border-l border-slate-200 dark:border-slate-700 ml-3 mt-0.5 mb-1';
             folderNotes.forEach(note => notesContainer.appendChild(buildNoteItem(note, folderNotes)));
             section.appendChild(notesContainer);
         }
 
         if (!folder.collapsed && folderNotes.length === 0) {
             const emptyHint = document.createElement('div');
-            emptyHint.className = 'text-[11px] text-gray-300 dark:text-slate-600 font-bold pl-12 py-2 italic';
+            emptyHint.className = 'text-[11px] text-slate-300 dark:text-slate-600 font-medium pl-10 py-1.5 italic';
             emptyHint.textContent = 'Drop notes here';
             section.appendChild(emptyHint);
         }
@@ -1236,13 +1237,11 @@ function renderNotesList() {
     if (unfiledNotes.length > 0 || folders.length > 0) {
         if (folders.length > 0) {
             const unfiledHeader = document.createElement('div');
-            unfiledHeader.className = 'flex items-center gap-2.5 px-3 py-2.5 mt-3 mb-1 rounded-xl border border-transparent transition-all';
+            unfiledHeader.className = 'flex items-center gap-2 px-2 py-1.5 mt-2 mb-0.5 rounded-md transition-colors';
             unfiledHeader.innerHTML = `
-                <div class="folder-icon-wrap" style="background: rgba(148,163,184,0.1); border: 2px solid rgba(148,163,184,0.25);">
-                    <i data-lucide="inbox" class="w-4 h-4 text-gray-400"></i>
-                </div>
-                <span class="text-xs font-heading font-bold text-gray-400 uppercase tracking-wider flex-1">Unfiled</span>
-                <span class="text-[10px] font-bold bg-gray-100 dark:bg-slate-800 text-gray-400 px-2 py-0.5 rounded-lg">${unfiledNotes.length}</span>
+                <i data-lucide="inbox" class="w-3.5 h-3.5 text-slate-400 flex-none"></i>
+                <span class="text-[13px] font-medium text-slate-500 dark:text-slate-400 flex-1">Unfiled</span>
+                <span class="text-[10px] font-medium text-slate-400 dark:text-slate-500">${unfiledNotes.length}</span>
             `;
             setupUnfiledDropTarget(unfiledHeader);
             fragment.appendChild(unfiledHeader);
@@ -1251,7 +1250,7 @@ function renderNotesList() {
     }
 
     if (modeFiltered.length === 0) {
-        list.innerHTML = `<div class="text-center py-8 text-gray-400 font-bold text-sm">No notes yet.</div>`;
+        list.innerHTML = `<div class="text-center py-8 text-slate-400 text-sm font-medium">No notes yet.</div>`;
         return;
     }
 
@@ -1261,10 +1260,10 @@ function renderNotesList() {
 
 function buildNoteItem(note, groupNotes) {
     const el = document.createElement('div');
-    const title = note.title || 'Untitled Lesson';
+    const title = note.title || 'Untitled';
     const date = new Date(note.updatedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     const isActive = note.id === currentNoteId;
-    let baseClasses = "note-item p-4 rounded-xl cursor-pointer mb-2 relative overflow-hidden group/note";
+    let baseClasses = "note-item cursor-pointer relative group/note";
     if (isActive) baseClasses += isTrashMode ? " active-trash" : " active";
     el.className = baseClasses;
     el.dataset.noteId = note.id;
@@ -1287,23 +1286,22 @@ function buildNoteItem(note, groupNotes) {
         strippedContentCache.set(note.id, fastStripHtml(note.content).toLowerCase());
     }
     const rawText = strippedContentCache.get(note.id) || "";
-    const titleColor = isActive ? (isTrashMode ? 'text-pink text-lg' : 'text-blue text-lg') : 'text-dark text-base';
-    const badgeColor = isActive ? (isTrashMode ? 'bg-pink text-white border-[1px] border-white/20' : 'bg-blue text-white border-[1px] border-white/20') : 'bg-gray-200 text-gray-500';
+    const titleColor = isActive ? (isTrashMode ? 'text-pink-500' : 'text-slate-900 dark:text-white') : 'text-slate-700 dark:text-slate-300';
 
     el.innerHTML = `
-        <div class="flex justify-between items-start mb-1.5 relative z-10">
-            <div class="flex items-center gap-1.5 min-w-0 flex-1">
-                ${!isTrashMode ? '<i data-lucide="grip-vertical" class="drag-handle w-3.5 h-3.5 flex-none"></i>' : ''}
-                <h4 class="font-heading font-bold truncate pr-2 ${titleColor}">${title}</h4>
+        <div class="flex items-center gap-1.5 min-w-0">
+            ${!isTrashMode ? '<i data-lucide="grip-vertical" class="drag-handle w-3 h-3 flex-none text-slate-300 dark:text-slate-600 opacity-0 group-hover/note:opacity-100"></i>' : '<span class="w-3 flex-none"></span>'}
+            <div class="flex-1 min-w-0">
+                <div class="flex items-center justify-between gap-2">
+                    <h4 class="font-medium text-[13px] truncate ${titleColor}">${title}</h4>
+                    <span class="text-[10px] text-slate-400 dark:text-slate-500 flex-none">${date}</span>
+                </div>
+                <p class="text-[11px] ${isActive ? 'text-slate-500 dark:text-slate-400' : 'text-slate-400 dark:text-slate-600'} truncate mt-0.5">${rawText.substring(0, 50) || 'Empty note...'}</p>
             </div>
-            <div class="flex items-center gap-1 flex-none">
-                <span class="text-[10px] font-bold ${badgeColor} px-2 py-1 rounded-md">${date}</span>
-                ${!isTrashMode ? `<button class="note-ctx-trigger opacity-0 group-hover/note:opacity-100 text-gray-400 hover:text-dark dark:hover:text-white p-1 rounded-lg hover:bg-gray-200 dark:hover:bg-slate-700 transition-all" onclick="event.stopPropagation(); showNoteContextMenu(event, '${note.id}')">
-                    <i data-lucide="more-vertical" class="w-3.5 h-3.5 pointer-events-none"></i>
-                </button>` : ''}
-            </div>
-        </div>
-        <p class="text-xs ${isActive ? 'text-dark' : 'text-gray-400'} truncate font-bold relative z-10 ${!isTrashMode ? 'pl-5' : ''}">${rawText.substring(0, 60) || 'Empty note...'}</p>`;
+            ${!isTrashMode ? `<button class="note-ctx-trigger opacity-0 group-hover/note:opacity-100 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 p-1 rounded transition-all flex-none" onclick="event.stopPropagation(); showNoteContextMenu(event, '${note.id}')">
+                <i data-lucide="more-vertical" class="w-3 h-3 pointer-events-none"></i>
+            </button>` : ''}
+        </div>`;
     return el;
 }
 
@@ -1586,10 +1584,10 @@ function showToast(message, type = "success") {
 
     const toast = document.createElement("div");
     const colors = {
-        success: "bg-green text-dark border-dark",
-        error: "bg-pink text-white border-dark",
-        info: "bg-blue text-white border-dark",
-        folder: "bg-orange text-dark border-dark",
+        success: "bg-green-50 text-green-800 dark:bg-green-900/30 dark:text-green-300 border-green-200 dark:border-green-800",
+        error: "bg-red-50 text-red-800 dark:bg-red-900/30 dark:text-red-300 border-red-200 dark:border-red-800",
+        info: "bg-blue-50 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300 border-blue-200 dark:border-blue-800",
+        folder: "bg-orange-50 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300 border-orange-200 dark:border-orange-800",
     };
 
     const icons = {
@@ -1599,16 +1597,16 @@ function showToast(message, type = "success") {
         folder: "folder",
     };
 
-    toast.className = `${colors[type] || colors.success} px-6 py-3 rounded-2xl shadow-neo border-2 border-dark font-bold text-sm flex items-center gap-2 pointer-events-auto animate-pop`;
-    toast.innerHTML = `<i data-lucide="${icons[type] || icons.success}" class="w-4 h-4"></i> ${message}`;
+    toast.className = `${colors[type] || colors.success} px-4 py-2.5 rounded-lg border shadow-sm text-sm font-medium flex items-center gap-2 pointer-events-auto animate-pop`;
+    toast.innerHTML = `<i data-lucide="${icons[type] || icons.success}" class="w-4 h-4 flex-none"></i> ${message}`;
 
     container.appendChild(toast);
     lucide.createIcons({ scope: toast });
 
     setTimeout(() => {
         toast.style.opacity = "0";
-        toast.style.transform = "translateY(20px)";
-        toast.style.transition = "all 0.4s ease";
-        setTimeout(() => toast.remove(), 400);
+        toast.style.transform = "translateY(10px)";
+        toast.style.transition = "all 0.3s ease";
+        setTimeout(() => toast.remove(), 300);
     }, 3000);
 }
