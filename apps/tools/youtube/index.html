@@ -390,6 +390,13 @@
             }
         }
 
+        /* Ensure consistency with Tailwind's lg breakpoint (1024px) */
+        @media (min-width: 1024px) {
+            #mobile-playlists-btn {
+                display: none;
+            }
+        }
+
         /* Modal / Add View */
         .modal {
             position: fixed;
@@ -558,7 +565,7 @@
                 <i data-lucide="cloud" class="w-3 h-3"></i>
                 <span id="sync-text">Checking...</span>
             </div>
-            <button onclick="Theme.toggle()" class="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors" title="Toggle Theme">
+            <button onclick="Theme.toggle()" class="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors" title="Toggle Theme" aria-label="Toggle dark/light theme">
                 <i data-lucide="sun" class="w-3.5 h-3.5 dark:hidden text-slate-500"></i>
                 <i data-lucide="moon" class="w-3.5 h-3.5 hidden dark:block text-slate-400"></i>
             </button>
@@ -776,15 +783,15 @@
                         </div>
                         <div class="flex items-center gap-2">
                             <!-- Prev Button -->
-                            <button id="player-prev-btn" onclick="playPrevVideo()" class="btn-chunky bg-white dark:bg-slate-800 p-2.5 rounded-lg text-xs" title="Previous Video">
+                            <button id="player-prev-btn" onclick="playPrevVideo()" class="btn-chunky bg-white dark:bg-slate-800 p-2.5 rounded-lg text-xs" title="Previous Video" aria-label="Play previous video">
                                 <i data-lucide="skip-back" class="w-4 h-4"></i>
                             </button>
                             <!-- Next Button -->
-                            <button id="player-next-btn" onclick="playNextVideo()" class="btn-chunky bg-white dark:bg-slate-800 p-2.5 rounded-lg text-xs" title="Next Video">
+                            <button id="player-next-btn" onclick="playNextVideo()" class="btn-chunky bg-white dark:bg-slate-800 p-2.5 rounded-lg text-xs" title="Next Video" aria-label="Play next video">
                                 <i data-lucide="skip-forward" class="w-4 h-4"></i>
                             </button>
                             <!-- Favorite Button -->
-                            <button id="player-fav-btn" onclick="togglePlayerFavorite()" class="btn-chunky bg-white dark:bg-slate-800 p-2.5 rounded-lg text-xs text-yellow-500" title="Favorite">
+                            <button id="player-fav-btn" onclick="togglePlayerFavorite()" class="btn-chunky bg-white dark:bg-slate-800 p-2.5 rounded-lg text-xs text-yellow-500" title="Favorite" aria-label="Toggle favorite for current video">
                                 <i data-lucide="star" class="w-4 h-4"></i>
                             </button>
                         </div>
@@ -946,7 +953,7 @@
 
             <div class="action-group mt-4">
                 <button onclick="togglePlaylistModal(false)" class="btn-chunky bg-slate-200 dark:bg-slate-700 text-dark dark:text-white flex-1 py-3 rounded-xl border-[var(--border-width-medium)] border-[var(--border-primary)]">Cancel</button>
-                <button onclick="savePlaylist()" class="btn-chunky bg-blue text-white flex-2 py-3 rounded-xl border-[var(--border-width-medium)] border(--border-primary)">Save Playlist</button>
+                <button onclick="savePlaylist()" class="btn-chunky bg-blue text-white flex-2 py-3 rounded-xl border-[var(--border-width-medium)] border-[var(--border-primary)]">Save Playlist</button>
             </div>
         </div>
     </div>
@@ -1001,6 +1008,7 @@
         let selectedVideos = new Set();
         let favoritesOnly = false;
         let editingVideoId = null;
+        let bulkMode = false;
 
         // Player Queue State
         let currentQueue = [];
@@ -1209,16 +1217,16 @@
                             <span class="ml-2 text-slate-400">${new Date(video.added).toLocaleDateString()}</span>
                         </div>
                         <div class="card-actions">
-                            <button class="action-btn btn-favorite ${isFavorite ? 'active' : ''}" onclick="event.stopPropagation(); toggleFavorite('${video.id}')" title="Favorite">
+                            <button class="action-btn btn-favorite ${isFavorite ? 'active' : ''}" onclick="event.stopPropagation(); toggleFavorite('${video.id}')" title="Favorite" aria-label="Toggle favorite for ${video.title}">
                                 <i data-lucide="star" class="${isFavorite ? 'fill-current' : ''}"></i>
                             </button>
-                            <button class="action-btn" onclick="event.stopPropagation(); openVideoPlaylistsModal('${video.id}')" title="Playlists">
+                            <button class="action-btn" onclick="event.stopPropagation(); openVideoPlaylistsModal('${video.id}')" title="Playlists" aria-label="Manage playlists for ${video.title}">
                                 <i data-lucide="list-plus"></i>
                             </button>
-                            <button class="action-btn" onclick="event.stopPropagation(); openEditModal('${video.id}')" title="Edit">
+                            <button class="action-btn" onclick="event.stopPropagation(); openEditModal('${video.id}')" title="Edit" aria-label="Edit ${video.title}">
                                 <i data-lucide="pencil"></i>
                             </button>
-                            <button class="action-btn btn-delete" onclick="event.stopPropagation(); deleteVideo('${video.id}')" title="Remove">
+                            <button class="action-btn btn-delete" onclick="event.stopPropagation(); deleteVideo('${video.id}')" title="Remove" aria-label="Remove ${video.title} from library">
                                 <i data-lucide="trash-2"></i>
                             </button>
                         </div>
@@ -1266,8 +1274,6 @@
         }
 
         // --- VIEW MODE ---
-        let bulkMode = false;
-
         function setViewMode(mode) {
             currentView = mode;
             const grid = document.getElementById('video-grid');
@@ -1904,6 +1910,19 @@
         tag.src = "https://www.youtube.com/iframe_api";
         var firstScriptTag = document.getElementsByTagName('script')[0];
         firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+
+        // Add error handling for YouTube API loading
+        tag.onerror = function() {
+            console.error('Failed to load YouTube API');
+            apiReady = false;
+        };
+
+        // Set a timeout for API loading
+        setTimeout(function() {
+            if (!apiReady) {
+                console.warn('YouTube API loading timeout - may be blocked or slow');
+            }
+        }, 10000); // 10 second timeout
 
         function onYouTubeIframeAPIReady() {
             apiReady = true;
