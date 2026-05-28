@@ -1014,6 +1014,7 @@
         let currentQueue = [];
         let currentQueueIndex = -1;
         let managingPlaylistsVideoId = null;
+        let isPlayingFromPlaylist = false;
 
         // --- THEME MANAGER ---
         const Theme = {
@@ -1658,9 +1659,10 @@
 
         function selectPlaylist(playlistId) {
             activePlaylistId = playlistId;
+            isPlayingFromPlaylist = false; // Reset playlist mode when switching playlists
             renderPlaylists();
             renderLibrary();
-            
+
             const banner = document.getElementById('playlist-banner');
             if (playlistId) {
                 const pl = playlists.find(p => p.id === playlistId);
@@ -1937,22 +1939,41 @@
             const video = library.find(v => v.id === id);
             if (!video) return;
 
-            // Initialize or update queue if playing a standalone video
-            if (currentQueue.length === 0 || !currentQueue.find(v => v.id === id)) {
-                currentQueue = getFilteredLibrary();
-                currentQueueIndex = currentQueue.findIndex(v => v.id === id);
-                if (currentQueueIndex === -1) {
-                    currentQueue = [video];
-                    currentQueueIndex = 0;
-                }
-            } else if (currentQueue[currentQueueIndex]?.id !== id) {
-                // Find matching index inside the current queue
-                const idx = currentQueue.findIndex(v => v.id === id);
-                if (idx !== -1) {
-                    currentQueueIndex = idx;
+            // Check if we're in playlist mode
+            if (activePlaylistId) {
+                const playlist = playlists.find(p => p.id === activePlaylistId);
+                if (playlist && playlist.videos.includes(id)) {
+                    // Set queue to playlist videos only
+                    currentQueue = playlist.videos
+                        .map(vid => library.find(v => v.id === vid))
+                        .filter(v => !!v);
+                    currentQueueIndex = currentQueue.findIndex(v => v.id === id);
+                    isPlayingFromPlaylist = true;
                 } else {
-                    currentQueue = [video];
-                    currentQueueIndex = 0;
+                    // Video not in current playlist, fall back to filtered library
+                    currentQueue = getFilteredLibrary();
+                    currentQueueIndex = currentQueue.findIndex(v => v.id === id);
+                    isPlayingFromPlaylist = false;
+                }
+            } else {
+                // Not in playlist mode, use filtered library
+                isPlayingFromPlaylist = false;
+                if (currentQueue.length === 0 || !currentQueue.find(v => v.id === id)) {
+                    currentQueue = getFilteredLibrary();
+                    currentQueueIndex = currentQueue.findIndex(v => v.id === id);
+                    if (currentQueueIndex === -1) {
+                        currentQueue = [video];
+                        currentQueueIndex = 0;
+                    }
+                } else if (currentQueue[currentQueueIndex]?.id !== id) {
+                    // Find matching index inside the current queue
+                    const idx = currentQueue.findIndex(v => v.id === id);
+                    if (idx !== -1) {
+                        currentQueueIndex = idx;
+                    } else {
+                        currentQueue = [video];
+                        currentQueueIndex = 0;
+                    }
                 }
             }
 
@@ -2001,18 +2022,19 @@
                 alert('This playlist is empty.');
                 return;
             }
-            
+
             const queue = playlist.videos
                 .map(id => library.find(v => v.id === id))
                 .filter(v => !!v);
-                
+
             if (queue.length === 0) {
                 alert('No videos in this playlist are present in the library.');
                 return;
             }
-            
+
             currentQueue = queue;
             currentQueueIndex = 0;
+            isPlayingFromPlaylist = true;
             playVideo(currentQueue[0].id);
         }
 
@@ -2031,17 +2053,23 @@
         }
 
         function playNextVideo() {
-            if (currentQueueIndex < currentQueue.length - 1) {
-                currentQueueIndex++;
-                playVideo(currentQueue[currentQueueIndex].id);
-            }
+            if (currentQueue.length <= 1) return;
+
+            // Move current video to end of queue (circular behavior)
+            const currentVideo = currentQueue[currentQueueIndex];
+            currentQueue.splice(currentQueueIndex, 1); // Remove from current position
+            currentQueue.push(currentVideo); // Add to end
+            currentQueueIndex = currentQueue.length - 1; // Now at the end
+
+            // Play the next video (which is now at index 0 after the shift)
+            currentQueueIndex = 0;
+            playVideo(currentQueue[currentQueueIndex].id);
         }
 
         function onPlayerStateChange(event) {
             if (event.data === YT.PlayerState.ENDED) {
-                if (currentQueueIndex < currentQueue.length - 1) {
-                    playNextVideo();
-                }
+                // Always play next video - playNextVideo handles circular behavior
+                playNextVideo();
             }
         }
 
@@ -2105,19 +2133,31 @@
             let items = [];
             let isQueue = false;
 
-            if (currentQueueIndex < currentQueue.length - 1) {
-                // Show remaining items in the queue
+            if (currentQueue.length > 1) {
+                // Show upcoming items in the queue (circular behavior)
                 isQueue = true;
                 title.innerHTML = '<i data-lucide="list-video" class="w-5 h-5 text-orange"></i> Up Next';
-                for (let i = currentQueueIndex + 1; i < currentQueue.length; i++) {
-                    items.push({ video: currentQueue[i], index: i });
+                // Show next videos in queue (after current, wrapping around if needed)
+                for (let i = 1; i < currentQueue.length; i++) {
+                    const idx = (currentQueueIndex + i) % currentQueue.length;
+                    items.push({ video: currentQueue[idx], index: idx });
                 }
-                count.textContent = `${items.length} left`;
+                count.textContent = `${items.length} in queue`;
+            } else if (isPlayingFromPlaylist) {
+                // Only one video in playlist
+                list.innerHTML = `
+                    <div class="flex flex-col items-center justify-center p-8 text-center opacity-65">
+                        <i data-lucide="check-circle" class="w-8 h-8 text-green-500 mb-2"></i>
+                        <p class="text-xs font-bold">Only 1 video in playlist</p>
+                    </div>
+                `;
+                lucide.createIcons();
+                return;
             } else {
-                // Show recommended videos
+                // Show recommended videos (only when not in playlist mode)
                 isQueue = false;
                 title.innerHTML = '<i data-lucide="sparkles" class="w-5 h-5 text-yellow-500"></i> Recommended';
-                
+
                 // Find other videos in the same category
                 let recs = library.filter(v => v.id !== currentVideo.id && v.category === currentVideo.category);
                 // If not enough, add other videos
