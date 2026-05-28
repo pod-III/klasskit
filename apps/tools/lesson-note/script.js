@@ -1560,18 +1560,20 @@ async function exportPDF() {
 
     try {
         const printEl = document.getElementById('print-container');
-        document.getElementById('print-title').textContent = note.title || 'Untitled Lesson';
-        document.getElementById('print-date').textContent = new Date().toLocaleDateString();
+        const printBody = document.getElementById('print-body');
+        document.getElementById('print-title').textContent = note.title || 'Untitled';
+        document.getElementById('print-date').textContent = new Date(note.updatedAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
 
         // Resolve all images to base64 for PDF reliability
         const resolvedHtml = await resolveImagesToBase64(note.content);
-        document.getElementById('print-body').innerHTML = resolvedHtml;
+        printBody.innerHTML = resolvedHtml;
+        printBody.className = 'print-body';
 
         printEl.classList.remove('hidden');
 
         const opt = {
-            margin: 0.5,
-            filename: `${(note.title || 'lesson-note').replace(/\s+/g, '_')}.pdf`,
+            margin: [0.6, 0.6, 0.6, 0.6],
+            filename: `${(note.title || 'note').replace(/\s+/g, '_')}.pdf`,
             image: { type: 'jpeg', quality: 0.98 },
             html2canvas: { scale: 2, useCORS: true, logging: false },
             jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' }
@@ -1579,11 +1581,140 @@ async function exportPDF() {
 
         await html2pdf().set(opt).from(printEl).save();
         printEl.classList.add('hidden');
-        showToast('PDF Exported', 'success');
+        showToast('PDF exported', 'success');
     } catch (err) {
         console.error('PDF Export Error:', err);
-        showToast('PDF Export Failed', 'error');
-        if (status) status.textContent = 'PDF Failed';
+        showToast('PDF export failed', 'error');
+        if (status) status.textContent = 'PDF failed';
+    }
+}
+
+// ===== MARKDOWN EXPORT =====
+function htmlToMarkdown(html) {
+    const temp = document.createElement('div');
+    temp.innerHTML = html;
+
+    function walk(node, depth = 0) {
+        if (!node) return '';
+
+        // Text node
+        if (node.nodeType === Node.TEXT_NODE) {
+            return node.textContent;
+        }
+
+        if (node.nodeType !== Node.ELEMENT_NODE) return '';
+
+        const tag = node.tagName.toLowerCase();
+        const children = Array.from(node.childNodes).map(c => walk(c, depth)).join('');
+
+        switch (tag) {
+            case 'h1': return `\n# ${children.trim()}\n\n`;
+            case 'h2': return `\n## ${children.trim()}\n\n`;
+            case 'h3': return `\n### ${children.trim()}\n\n`;
+            case 'h4': return `\n#### ${children.trim()}\n\n`;
+            case 'h5': return `\n##### ${children.trim()}\n\n`;
+            case 'h6': return `\n###### ${children.trim()}\n\n`;
+            case 'p': {
+                // Check for data-list attribute (Quill checklists)
+                if (node.hasAttribute('data-list')) {
+                    const checked = node.getAttribute('data-list') === 'checked';
+                    return `- [${checked ? 'x' : ' '}] ${children.trim()}\n`;
+                }
+                return `${children.trim()}\n\n`;
+            }
+            case 'br': return '\n';
+            case 'strong':
+            case 'b': return `**${children}**`;
+            case 'em':
+            case 'i': return `*${children}*`;
+            case 'u': return `<u>${children}</u>`;
+            case 's':
+            case 'strike':
+            case 'del': return `~~${children}~~`;
+            case 'a': {
+                const href = node.getAttribute('href') || '';
+                return `[${children}](${href})`;
+            }
+            case 'img': {
+                const src = node.getAttribute('src') || '';
+                const alt = node.getAttribute('alt') || '';
+                return `\n![${alt}](${src})\n\n`;
+            }
+            case 'blockquote': return `\n> ${children.trim().split('\n').join('\n> ')}\n\n`;
+            case 'code': return `\`${children}\``;
+            case 'pre': return `\n\`\`\`\n${children.trim()}\n\`\`\`\n\n`;
+            case 'hr': return '\n---\n\n';
+            case 'ul': {
+                const items = Array.from(node.children).map(li => {
+                    const inner = walk(li, depth + 1).trim();
+                    return `\n- ${inner}`;
+                }).join('');
+                return `${items}\n\n`;
+            }
+            case 'ol': {
+                let idx = 1;
+                const items = Array.from(node.children).map(li => {
+                    const inner = walk(li, depth + 1).trim();
+                    return `\n${idx++}. ${inner}`;
+                }).join('');
+                return `${items}\n\n`;
+            }
+            case 'li': {
+                // Already handled by ul/ol wrapper
+                return children;
+            }
+            case 'table': {
+                const rows = Array.from(node.querySelectorAll('tr'));
+                if (rows.length === 0) return '';
+                const cells = rows.map(tr => Array.from(tr.querySelectorAll('td, th')).map(td => walk(td).trim().replace(/\|/g, '\\|')));
+                if (cells.length === 0 || cells[0].length === 0) return '';
+                const widths = cells[0].map((_, i) => Math.max(...cells.map(r => r[i]?.length || 0), 3));
+                const pad = (s, w) => (s || '').padEnd(w, ' ');
+                const makeRow = (row) => '| ' + row.map((c, i) => pad(c, widths[i])).join(' | ') + ' |';
+                const separator = '| ' + widths.map(w => '-'.repeat(w)).join(' | ') + ' |';
+                let result = '\n' + makeRow(cells[0]) + '\n' + separator;
+                for (let i = 1; i < cells.length; i++) {
+                    result += '\n' + makeRow(cells[i]);
+                }
+                return result + '\n\n';
+            }
+            case 'td':
+            case 'th':
+                // Handled by table wrapper; return raw children
+                return children;
+            case 'div':
+            case 'span':
+                return children;
+            default:
+                return children;
+        }
+    }
+
+    return walk(temp).trim();
+}
+
+async function exportMarkdown() {
+    const note = notes.find(n => n.id === currentNoteId);
+    if (!note) return;
+
+    try {
+        // Resolve images to base64 data URIs so markdown has embedded images
+        const resolvedHtml = await resolveImagesToBase64(note.content);
+        const md = htmlToMarkdown(resolvedHtml);
+        const frontmatter = `---\ntitle: ${note.title || 'Untitled'}\ndate: ${new Date(note.updatedAt).toISOString()}\n---\n\n`;
+        const fullMd = frontmatter + md;
+
+        const blob = new Blob([fullMd], { type: 'text/markdown' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `${(note.title || 'note').replace(/\s+/g, '_')}.md`;
+        link.click();
+        URL.revokeObjectURL(url);
+        showToast('Markdown exported', 'success');
+    } catch (err) {
+        console.error('Markdown Export Error:', err);
+        showToast('Markdown export failed', 'error');
     }
 }
 
