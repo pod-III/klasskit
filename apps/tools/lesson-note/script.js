@@ -271,6 +271,62 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     });
 
+    // Keyboard shortcuts
+    document.addEventListener('keydown', (e) => {
+        const isMeta = e.ctrlKey || e.metaKey;
+        const activeEl = document.activeElement;
+        const isTyping = activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA' || activeEl.isContentEditable);
+
+        // New note (avoid when typing in editor or title)
+        if (isMeta && e.key === 'n' && !e.shiftKey) {
+            e.preventDefault();
+            if (!isTyping || activeEl.id === 'searchInput') createNewNote();
+        }
+
+        // Dark mode
+        if (isMeta && e.shiftKey && e.key === 'L') {
+            e.preventDefault();
+            toggleDarkMode();
+        }
+
+        // Zen mode
+        if (isMeta && e.shiftKey && e.key === 'Z') {
+            e.preventDefault();
+            toggleZenMode();
+        }
+
+        // Toggle outline
+        if (isMeta && e.shiftKey && e.key === 'O') {
+            e.preventDefault();
+            toggleOutline();
+        }
+
+        // Move to trash
+        if (isMeta && e.shiftKey && e.key === 'Delete') {
+            e.preventDefault();
+            softDeleteCurrentNote();
+        }
+
+        // Focus search
+        if (isMeta && e.key === 'k' && !e.shiftKey) {
+            e.preventDefault();
+            document.getElementById('searchInput')?.focus();
+        }
+
+        // Escape: close sidebar on mobile, close modals/dropdowns
+        if (e.key === 'Escape') {
+            document.querySelectorAll('.note-ctx-menu').forEach(m => m.remove());
+            document.getElementById('sortDropdown')?.classList.add('hidden');
+            const sidebar = document.getElementById('sidebar');
+            if (window.innerWidth < 768 && sidebar && !sidebar.classList.contains('-translate-x-full')) {
+                toggleSidebar();
+            }
+        }
+    });
+
+    // Cursor-following tooltip system
+    initCursorTooltips();
+
     document.getElementById('noteTitle').addEventListener('input', () => {
         saveCurrentNote();
         renderNotesList();
@@ -326,6 +382,89 @@ function initQuill() {
     toolbar.addHandler('table', function () {
         openTableDialog();
     });
+
+    // Add tooltips to Quill toolbar buttons
+    addQuillToolbarTooltips();
+}
+
+function addQuillToolbarTooltips() {
+    const toolbar = document.getElementById('note-toolbar');
+    if (!toolbar) return;
+
+    const tooltipMap = {
+        'ql-bold': 'Bold',
+        'ql-italic': 'Italic',
+        'ql-underline': 'Underline',
+        'ql-strike': 'Strikethrough',
+        'ql-link': 'Link',
+        'ql-image': 'Image',
+        'ql-table': 'Table',
+        'ql-video': 'Video',
+        'ql-clean': 'Remove formatting',
+    };
+
+    Object.entries(tooltipMap).forEach(([cls, label]) => {
+        const btn = toolbar.querySelector('.' + cls);
+        if (btn) btn.setAttribute('data-tooltip', label);
+    });
+
+    // List buttons (ordered, bullet, check)
+    toolbar.querySelectorAll('.ql-list').forEach(btn => {
+        const val = btn.getAttribute('value');
+        const labels = { ordered: 'Ordered list', bullet: 'Bullet list', check: 'Checklist' };
+        if (val && labels[val]) btn.setAttribute('data-tooltip', labels[val]);
+    });
+
+    // Header picker
+    const headerPicker = toolbar.querySelector('.ql-header');
+    if (headerPicker) headerPicker.setAttribute('data-tooltip', 'Heading style');
+
+    // Color pickers
+    const colorPicker = toolbar.querySelector('.ql-color');
+    if (colorPicker) colorPicker.setAttribute('data-tooltip', 'Text color');
+    const bgPicker = toolbar.querySelector('.ql-background');
+    if (bgPicker) bgPicker.setAttribute('data-tooltip', 'Highlight color');
+}
+
+// ===== CURSOR TOOLTIPS =====
+function initCursorTooltips() {
+    const tooltip = document.getElementById('tooltip');
+    if (!tooltip) return;
+
+    let currentTarget = null;
+
+    document.addEventListener('mouseover', (e) => {
+        const el = e.target.closest('[data-tooltip]');
+        if (!el) {
+            tooltip.classList.remove('visible');
+            currentTarget = null;
+            return;
+        }
+        currentTarget = el;
+        let text = el.getAttribute('data-tooltip');
+        const shortcut = el.getAttribute('data-tooltip-shortcut');
+        if (shortcut) text += '  ' + shortcut;
+        tooltip.textContent = text;
+        tooltip.classList.add('visible');
+    });
+
+    document.addEventListener('mousemove', (e) => {
+        if (!currentTarget) return;
+        const x = e.clientX + 14;
+        const y = e.clientY;
+        // Clamp within viewport
+        const maxX = window.innerWidth - tooltip.offsetWidth - 8;
+        const maxY = window.innerHeight - tooltip.offsetHeight - 8;
+        tooltip.style.left = Math.min(x, maxX) + 'px';
+        tooltip.style.top = Math.min(y, maxY) + 'px';
+    });
+
+    document.addEventListener('mouseleave', (e) => {
+        if (currentTarget && !currentTarget.contains(e.relatedTarget)) {
+            tooltip.classList.remove('visible');
+            currentTarget = null;
+        }
+    }, true);
 }
 
 // ===== IMAGE HANDLING =====
@@ -739,7 +878,7 @@ function toggleTrashMode() {
             currentNoteId = null;
             document.getElementById('noteTitle').value = "";
             document.getElementById('headerNoteTitle').textContent = 'Trash';
-            quill.root.innerHTML = "<p>Trash is empty.</p>";
+            quill.root.innerHTML = '<p style="text-align:center;color:#94a3b8;margin-top:20vh;">Trash is empty</p>';
             quill.disable();
             renderNotesList();
         }
@@ -880,7 +1019,7 @@ async function permanentDeleteCurrentNote() {
             currentNoteId = null;
             document.getElementById('noteTitle').value = "";
             document.getElementById('headerNoteTitle').textContent = 'Trash';
-            quill.root.innerHTML = "<p>Trash is empty.</p>";
+            quill.root.innerHTML = '<p style="text-align:center;color:#94a3b8;margin-top:20vh;">Trash is empty</p>';
             renderNotesList();
         }
     }
@@ -1235,7 +1374,13 @@ function renderNotesList() {
             return titleMatch || contentMatch;
         });
         if (filtered.length === 0) {
-            list.innerHTML = `<div class="text-center py-8 text-gray-400 font-bold text-sm">${isTrashMode ? 'Trash is empty.' : 'No notes found.'}</div>`;
+            const emptyMsg = isTrashMode
+                ? `<div class="flex flex-col items-center justify-center py-10 text-center"><i data-lucide="trash-2" class="w-8 h-8 text-slate-300 dark:text-slate-600 mb-2"></i><p class="text-sm text-slate-400 dark:text-slate-500 font-medium">Trash is empty</p></div>`
+                : (search
+                    ? `<div class="flex flex-col items-center justify-center py-10 text-center"><i data-lucide="search" class="w-8 h-8 text-slate-300 dark:text-slate-600 mb-2"></i><p class="text-sm text-slate-400 dark:text-slate-500 font-medium">No notes found</p><p class="text-xs text-slate-400 dark:text-slate-600 mt-1">Try a different search</p></div>`
+                    : `<div class="flex flex-col items-center justify-center py-10 text-center"><i data-lucide="pen-tool" class="w-8 h-8 text-slate-300 dark:text-slate-600 mb-2"></i><p class="text-sm text-slate-400 dark:text-slate-500 font-medium">No notes yet</p><p class="text-xs text-slate-400 dark:text-slate-600 mt-1">Click "New page" to get started</p></div>`);
+            list.innerHTML = emptyMsg;
+            lucide.createIcons({ scope: list });
             return;
         }
         const sortedFiltered = sortNotes(filtered);
@@ -1324,7 +1469,8 @@ function renderNotesList() {
     }
 
     if (modeFiltered.length === 0) {
-        list.innerHTML = `<div class="text-center py-8 text-slate-400 text-sm font-medium">No notes yet.</div>`;
+        list.innerHTML = `<div class="flex flex-col items-center justify-center py-10 text-center"><i data-lucide="pen-tool" class="w-8 h-8 text-slate-300 dark:text-slate-600 mb-2"></i><p class="text-sm text-slate-400 dark:text-slate-500 font-medium">No notes yet</p><p class="text-xs text-slate-400 dark:text-slate-600 mt-1">Click "New page" to get started</p></div>`;
+        lucide.createIcons({ scope: list });
         return;
     }
 
@@ -1449,64 +1595,79 @@ async function moveNoteToFolder(noteId, folderId) {
 function showNoteContextMenu(e, noteId) {
     document.querySelectorAll('.note-ctx-menu').forEach(m => m.remove());
     const menu = document.createElement('div');
-    menu.className = 'note-ctx-menu absolute z-50 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-lg p-2 min-w-[180px] animate-pop';
+    menu.className = 'note-ctx-menu fixed z-50 bg-white dark:bg-[#1e293b] border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg py-1 min-w-[180px] animate-pop';
 
     let items = '';
-    // Move to folder options
     if (folders.length > 0) {
-        items += `<div class="text-[10px] font-bold text-gray-400 uppercase tracking-wider px-3 py-1">Move to</div>`;
+        items += `<div class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider px-3 py-1">Move to</div>`;
         folders.forEach(f => {
-            items += `<button class="w-full text-left px-3 py-2 text-sm font-bold text-dark dark:text-slate-200 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-2 transition-colors" onclick="moveNoteToFolder('${noteId}', '${f.id}'); this.closest('.note-ctx-menu').remove()">
-                <div class="w-2.5 h-2.5 rounded-full flex-none" style="background:${f.color}"></div>
-                ${f.name}
+            items += `<button class="w-full text-left px-3 py-1.5 text-[13px] font-medium text-slate-700 dark:text-slate-200 rounded-md hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-2 transition-colors mx-1" onclick="moveNoteToFolder('${noteId}', '${f.id}'); this.closest('.note-ctx-menu').remove()">
+                <div class="w-2 h-2 rounded-full flex-none" style="background:${f.color}"></div>
+                <span class="truncate">${escapeHtml(f.name)}</span>
             </button>`;
         });
-        // Unfiled option
-        items += `<button class="w-full text-left px-3 py-2 text-sm font-bold text-gray-400 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-2 transition-colors" onclick="moveNoteToFolder('${noteId}', null); this.closest('.note-ctx-menu').remove()">
-            <i data-lucide="inbox" class="w-3 h-3 pointer-events-none"></i> Unfiled
+        items += `<button class="w-full text-left px-3 py-1.5 text-[13px] font-medium text-slate-500 dark:text-slate-400 rounded-md hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-2 transition-colors mx-1" onclick="moveNoteToFolder('${noteId}', null); this.closest('.note-ctx-menu').remove()">
+            <i data-lucide="inbox" class="w-3 h-3 pointer-events-none flex-none"></i> Unfiled
         </button>`;
-        items += `<div class="border-t border-slate-100 dark:border-slate-700 my-1"></div>`;
+        items += `<div class="border-t border-slate-100 dark:border-slate-700 my-1 mx-2"></div>`;
     }
-    items += `<button class="w-full text-left px-3 py-2 text-sm font-bold text-pink rounded-lg hover:bg-pink/10 flex items-center gap-2 transition-colors" onclick="document.querySelectorAll('.note-ctx-menu').forEach(m=>m.remove()); softDeleteNote('${noteId}')">
-        <i data-lucide="trash-2" class="w-3.5 h-3.5 pointer-events-none"></i> Move to Trash
+    items += `<button class="w-full text-left px-3 py-1.5 text-[13px] font-medium text-red-600 dark:text-red-400 rounded-md hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-2 transition-colors mx-1" onclick="document.querySelectorAll('.note-ctx-menu').forEach(m=>m.remove()); softDeleteNote('${noteId}')">
+        <i data-lucide="trash-2" class="w-3.5 h-3.5 pointer-events-none flex-none"></i> Move to Trash
     </button>`;
 
     menu.innerHTML = items;
 
-    // Position near the button
     const rect = e.target.closest('.note-ctx-trigger').getBoundingClientRect();
-    const sidebar = document.getElementById('notesList');
-    const sidebarRect = sidebar.getBoundingClientRect();
-    menu.style.position = 'fixed';
+    const sidebarRect = document.getElementById('notesList').getBoundingClientRect();
     menu.style.top = Math.min(rect.bottom + 4, window.innerHeight - 250) + 'px';
     menu.style.left = Math.min(rect.left - 140, sidebarRect.right - 200) + 'px';
 
     document.body.appendChild(menu);
     lucide.createIcons({ scope: menu });
+
+    // Close on outside click
+    requestAnimationFrame(() => {
+        const closeHandler = (ev) => {
+            if (!menu.contains(ev.target)) {
+                menu.remove();
+                document.removeEventListener('click', closeHandler);
+            }
+        };
+        document.addEventListener('click', closeHandler);
+    });
 }
 
 function showFolderMenu(e, folderId) {
     document.querySelectorAll('.note-ctx-menu').forEach(m => m.remove());
     const menu = document.createElement('div');
-    menu.className = 'note-ctx-menu absolute z-50 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-lg p-2 min-w-[160px] animate-pop';
+    menu.className = 'note-ctx-menu fixed z-50 bg-white dark:bg-[#1e293b] border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg py-1 min-w-[160px] animate-pop';
     menu.innerHTML = `
-        <button class="w-full text-left px-3 py-2 text-sm font-bold text-dark dark:text-slate-200 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-2 transition-colors" onclick="this.closest('.note-ctx-menu').remove(); renameFolder('${folderId}')">
-            <i data-lucide="pencil" class="w-3.5 h-3.5 pointer-events-none"></i> Rename
+        <button class="w-full text-left px-3 py-1.5 text-[13px] font-medium text-slate-700 dark:text-slate-200 rounded-md hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-2 transition-colors mx-1" onclick="this.closest('.note-ctx-menu').remove(); renameFolder('${folderId}')">
+            <i data-lucide="pencil" class="w-3.5 h-3.5 pointer-events-none flex-none"></i> Rename
         </button>
-        <button class="w-full text-left px-3 py-2 text-sm font-bold text-dark dark:text-slate-200 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-2 transition-colors" onclick="this.closest('.note-ctx-menu').remove(); changeFolderColor('${folderId}')">
-            <i data-lucide="palette" class="w-3.5 h-3.5 pointer-events-none"></i> Change Color
+        <button class="w-full text-left px-3 py-1.5 text-[13px] font-medium text-slate-700 dark:text-slate-200 rounded-md hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-2 transition-colors mx-1" onclick="this.closest('.note-ctx-menu').remove(); changeFolderColor('${folderId}')">
+            <i data-lucide="palette" class="w-3.5 h-3.5 pointer-events-none flex-none"></i> Change Color
         </button>
-        <div class="border-t border-slate-100 dark:border-slate-700 my-1"></div>
-        <button class="w-full text-left px-3 py-2 text-sm font-bold text-pink rounded-lg hover:bg-pink/10 flex items-center gap-2 transition-colors" onclick="this.closest('.note-ctx-menu').remove(); deleteFolder('${folderId}')">
-            <i data-lucide="trash-2" class="w-3.5 h-3.5 pointer-events-none"></i> Delete Folder
+        <div class="border-t border-slate-100 dark:border-slate-700 my-1 mx-2"></div>
+        <button class="w-full text-left px-3 py-1.5 text-[13px] font-medium text-red-600 dark:text-red-400 rounded-md hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-2 transition-colors mx-1" onclick="this.closest('.note-ctx-menu').remove(); deleteFolder('${folderId}')">
+            <i data-lucide="trash-2" class="w-3.5 h-3.5 pointer-events-none flex-none"></i> Delete Folder
         </button>
     `;
     const rect = e.target.closest('.folder-menu-btn').getBoundingClientRect();
-    menu.style.position = 'fixed';
     menu.style.top = rect.bottom + 4 + 'px';
     menu.style.left = Math.max(rect.left - 120, 8) + 'px';
     document.body.appendChild(menu);
     lucide.createIcons({ scope: menu });
+
+    requestAnimationFrame(() => {
+        const closeHandler = (ev) => {
+            if (!menu.contains(ev.target)) {
+                menu.remove();
+                document.removeEventListener('click', closeHandler);
+            }
+        };
+        document.addEventListener('click', closeHandler);
+    });
 }
 
 async function softDeleteNote(noteId) {
@@ -1529,6 +1690,12 @@ async function softDeleteNote(noteId) {
 
 // ===== UTILITY =====
 function stripHtml(html) { const t = document.createElement("DIV"); t.innerHTML = html; return t.textContent || t.innerText || ""; }
+function escapeHtml(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
 function toggleSidebar() { document.getElementById('sidebar').classList.toggle('-translate-x-full'); }
 
 function toggleZenMode() {
