@@ -90,7 +90,7 @@
         </div>
     </header>
 
-    <main id="app" class="flex-grow container mx-auto px-4 py-8 flex flex-col items-center justify-start max-w-4xl"></main>
+    <main id="app" class="flex-grow container mx-auto px-4 py-8 flex flex-col items-center justify-start max-w-6xl"></main>
 
     <div id="teacherModal" class="fixed inset-0 z-[60] hidden flex-col items-center justify-center bg-slate-800/90 backdrop-blur-md p-4">
         <div class="bg-white border-4 border-slate-800 dark:border-slate-500 rounded-3xl shadow-lg max-w-2xl w-full flex flex-col max-h-[90vh]">
@@ -119,6 +119,79 @@
     </div>
 
     <script>
+        // IndexedDB Setup for Library Management
+        let dataBase = null;
+        const DB_NAME = 'UndercoverLibrary';
+        const DB_VERSION = 1;
+        const STORE_NAME = 'sets';
+
+        async function initDB() {
+            return new Promise((resolve, reject) => {
+                const request = indexedDB.open(DB_NAME, DB_VERSION);
+                
+                request.onerror = () => reject(request.error);
+                request.onsuccess = () => {
+                    dataBase = request.result;
+                    resolve(dataBase);
+                };
+                
+                request.onupgradeneeded = (event) => {
+                    const database = event.target.result;
+                    if (!database.objectStoreNames.contains(STORE_NAME)) {
+                        const store = database.createObjectStore(STORE_NAME, { keyPath: 'id', autoIncrement: true });
+                        store.createIndex('name', 'name', { unique: false });
+                        store.createIndex('lastUsed', 'lastUsed', { unique: false });
+                        store.createIndex('usageCount', 'usageCount', { unique: false });
+                    }
+                };
+            });
+        }
+
+        async function dataBaseAdd(storeName, data) {
+            return new Promise((resolve, reject) => {
+                const transaction = dataBase.transaction(storeName, 'readwrite');
+                const store = transaction.objectStore(storeName);
+                const request = store.add(data);
+                request.onsuccess = () => resolve(request.result);
+                request.onerror = () => reject(request.error);
+            });
+        }
+
+        async function dataBaseUpdate(storeName, id, data) {
+            return new Promise((resolve, reject) => {
+                const transaction = dataBase.transaction(storeName, 'readwrite');
+                const store = transaction.objectStore(storeName);
+                const request = store.get(id);
+                request.onsuccess = () => {
+                    const updated = { ...request.result, ...data };
+                    const updateRequest = store.put(updated);
+                    updateRequest.onsuccess = () => resolve(updateRequest.result);
+                    updateRequest.onerror = () => reject(updateRequest.error);
+                };
+                request.onerror = () => reject(request.error);
+            });
+        }
+
+        async function dataBaseGetAll(storeName) {
+            return new Promise((resolve, reject) => {
+                const transaction = dataBase.transaction(storeName, 'readonly');
+                const store = transaction.objectStore(storeName);
+                const request = store.getAll();
+                request.onsuccess = () => resolve(request.result);
+                request.onerror = () => reject(request.error);
+            });
+        }
+
+        async function dataBaseDelete(storeName, id) {
+            return new Promise((resolve, reject) => {
+                const transaction = dataBase.transaction(storeName, 'readwrite');
+                const store = transaction.objectStore(storeName);
+                const request = store.delete(id);
+                request.onsuccess = () => resolve();
+                request.onerror = () => reject(request.error);
+            });
+        }
+
         const WORD_PAIRS = [
             // School & Education
             ["School", "University"], ["Teacher", "Professor"], ["Student", "Pupil"],
@@ -200,16 +273,45 @@
                 spyWord: '',
                 eliminatedPlayer: null,
                 winner: ''
-            }
+            },
+            // Library Management State
+            appState: {
+                data: {
+                    playerNames: parsedConfig.playerNames || [],
+                    spies: parsedConfig.spies || 1,
+                    mrWhite: parsedConfig.mrWhite || 0,
+                    wordMode: parsedConfig.wordMode || 'random',
+                    customWord1: parsedConfig.customWord1 || '',
+                    customWord2: parsedConfig.customWord2 || '',
+                    multiCivWords: parsedConfig.multiCivWords || '',
+                    multiSpyWord: parsedConfig.multiSpyWord || ''
+                },
+                activeId: null
+            },
+            library: [],
+            librarySort: 'recent' // 'recent', 'alpha', 'popular'
         };
 
         async function initGame() {
             await requireAuth();
             
+            // Initialize IndexedDB
+            await initDB();
+            
+            // Load library from IndexedDB
+            state.library = await dataBaseGetAll(STORE_NAME);
+            
+            // Apply backward compatibility for old data
+            state.library.forEach(set => {
+                if (!set.lastUsed) set.lastUsed = set.createdAt || Date.now();
+                if (!set.usageCount) set.usageCount = 0;
+            });
+            
             // Load Cloud Config
             const cloudConfig = await loadProgress('undercover');
             if (cloudConfig) {
                 state.config = { ...state.config, ...cloudConfig };
+                state.appState.data = { ...state.appState.data, ...cloudConfig };
                 
                 // Keep localStorage in sync for fast loading/fallback
                 localStorage.setItem('undercoverConfig', JSON.stringify(state.config));
@@ -412,7 +514,7 @@
 
             const wrapper = document.createElement('div');
             const isTransition = state.screen !== state.lastScreen;
-            wrapper.className = `w-full ${isTransition ? 'animate-slide-up' : ''} flex flex-col items-center`;
+            wrapper.className = `w-full ${isTransition ? 'animate-slide-up' : ''} flex flex-col`;
 
             if (state.screen === 'instructions') wrapper.innerHTML = getInstructionsHTML();
             else if (state.screen === 'setup') wrapper.innerHTML = getSetupHTML();
@@ -504,11 +606,71 @@
                 }
             }
 
+            // Active indicator
+            const activeIndicator = state.appState.activeId ? `
+                <div class="bg-green/10 border-3 border-green text-green px-4 py-2 rounded-xl font-bold text-sm flex items-center gap-2 mb-4">
+                    <i data-lucide="check-circle" class="w-4 h-4"></i>
+                    Editing: <span class="underline">${state.library.find(s => s.id === state.appState.activeId)?.name || 'Saved Set'}</span>
+                    <span class="ml-auto text-xs opacity-70">Auto-Saving</span>
+                </div>
+            ` : '';
+
+            // Library panel
+            const sortedLibrary = getSortedLibrary();
+            const libraryItems = sortedLibrary.map(set => {
+                const isActive = set.id === state.appState.activeId;
+                const activeClass = isActive ? 'border-green dark:border-green bg-green/5 dark:bg-green/10' : 'border-slate-800 dark:border-slate-500 hover:border-blue dark:hover:border-blue';
+                const activeBadge = isActive ? '<span class="bg-green text-white text-xs px-2 py-1 rounded font-bold">Active</span>' : '';
+                return `
+                    <div class="bg-white dark:bg-slate-700 border-3 ${activeClass} rounded-xl p-3 shadow-sm cursor-pointer transition-all hover:scale-105" onclick="loadSet(${set.id})">
+                        <div class="flex justify-between items-start mb-2">
+                            <span class="font-bold text-slate-800 dark:text-white text-sm truncate flex-1">${set.name}</span>
+                            ${activeBadge}
+                        </div>
+                        <div class="flex justify-between items-center text-xs text-slate-500 dark:text-slate-400">
+                            <span>${set.playerNames?.length || 0} players</span>
+                            <button onclick="event.stopPropagation(); deleteSet(${set.id})" class="text-pink hover:text-red-500 font-bold">Delete</button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            const libraryPanel = state.library.length > 0 ? `
+                <div class="bg-slate-50 dark:bg-slate-900 border-4 border-slate-800 dark:border-slate-500 rounded-3xl p-6 mb-8">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="font-fredoka text-xl font-bold flex items-center gap-2 text-blue uppercase tracking-[0.05em]">
+                            <i data-lucide="folder" class="w-6 h-6"></i> Saved Sets
+                        </h3>
+                        <select onchange="state.librarySort = this.value; render();" class="bg-white dark:bg-slate-800 border-2 border-slate-800 dark:border-slate-500 rounded-lg px-3 py-1 font-bold text-sm">
+                            <option value="recent" ${state.librarySort === 'recent' ? 'selected' : ''}>Recent</option>
+                            <option value="alpha" ${state.librarySort === 'alpha' ? 'selected' : ''}>Alpha</option>
+                            <option value="popular" ${state.librarySort === 'popular' ? 'selected' : ''}>Popular</option>
+                        </select>
+                    </div>
+                    <div class="grid grid-cols-2 sm:grid-cols-3 gap-3 max-h-48 overflow-y-auto custom-scrollbar">
+                        ${libraryItems}
+                    </div>
+                </div>
+            ` : '';
+
             return `
                 <div class="text-center mb-8">
                     <h1 class="font-fredoka text-5xl font-black text-slate-800 dark:text-white mb-2 uppercase tracking-[0.05em]">Class Setup</h1>
                     <p class="text-slate-500 dark:text-slate-400 font-bold">Add students and choose words</p>
                 </div>
+                
+                ${activeIndicator}
+                
+                <div class="grid grid-cols-2 gap-4 mb-8">
+                    <button onclick="newSet()" class="bg-slate-800 dark:bg-slate-700 text-white font-fredoka font-bold py-4 rounded-2xl border-4 border-slate-800 dark:border-slate-500 shadow-md btn-chunky flex justify-center items-center gap-2 uppercase tracking-[0.05em] hover:bg-slate-700 dark:hover:bg-slate-600 transition-colors">
+                        <i data-lucide="plus" class="w-6 h-6"></i> NEW
+                    </button>
+                    <button onclick="saveAsNew()" class="bg-blue text-white font-fredoka font-bold py-4 rounded-2xl border-4 border-slate-800 dark:border-slate-500 shadow-md btn-chunky flex justify-center items-center gap-2 uppercase tracking-[0.05em] hover:bg-blue/90 transition-colors">
+                        <i data-lucide="save" class="w-6 h-6"></i> SAVE AS
+                    </button>
+                </div>
+                
+                ${libraryPanel}
                 
                 <div class="bg-white dark:bg-slate-800 w-full border-4 border-slate-800 dark:border-slate-500 rounded-3xl shadow-md p-8 relative mb-8">
                     <div class="mb-10">
@@ -791,10 +953,181 @@
         function saveConfig() {
             localStorage.setItem('undercoverConfig', JSON.stringify(state.config));
             
+            // Sync appState.data with config
+            state.appState.data = {
+                playerNames: state.config.playerNames,
+                spies: state.config.spies,
+                mrWhite: state.config.mrWhite,
+                wordMode: state.config.wordMode,
+                customWord1: state.config.customWord1,
+                customWord2: state.config.customWord2,
+                multiCivWords: state.config.multiCivWords,
+                multiSpyWord: state.config.multiSpyWord
+            };
+            
+            // Auto-save to library if activeId exists
+            if (state.appState.activeId) {
+                autoSaveToLibrary();
+            }
+            
             if (saveConfigTimeout) clearTimeout(saveConfigTimeout);
             saveConfigTimeout = setTimeout(() => {
                 saveProgress('undercover', state.config);
             }, 1000);
+        }
+
+        // Library Sorting Helper
+        function getSortedLibrary() {
+            const sorted = [...state.library];
+            if (state.librarySort === 'recent') {
+                sorted.sort((a, b) => (b.lastUsed || 0) - (a.lastUsed || 0));
+            } else if (state.librarySort === 'alpha') {
+                sorted.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+            } else if (state.librarySort === 'popular') {
+                sorted.sort((a, b) => (b.usageCount || 0) - (a.usageCount || 0));
+            }
+            return sorted;
+        }
+
+        // Auto-Save Workflow
+        async function autoSaveToLibrary() {
+            if (!state.appState.activeId) return;
+            
+            try {
+                await dataBaseUpdate(STORE_NAME, state.appState.activeId, {
+                    playerNames: state.config.playerNames,
+                    spies: state.config.spies,
+                    mrWhite: state.config.mrWhite,
+                    wordMode: state.config.wordMode,
+                    customWord1: state.config.customWord1,
+                    customWord2: state.config.customWord2,
+                    multiCivWords: state.config.multiCivWords,
+                    multiSpyWord: state.config.multiSpyWord,
+                    lastUsed: Date.now()
+                });
+                
+                // Update local library cache
+                const idx = state.library.findIndex(s => s.id === state.appState.activeId);
+                if (idx !== -1) {
+                    state.library[idx] = {
+                        ...state.library[idx],
+                        playerNames: state.config.playerNames,
+                        spies: state.config.spies,
+                        mrWhite: state.config.mrWhite,
+                        wordMode: state.config.wordMode,
+                        customWord1: state.config.customWord1,
+                        customWord2: state.config.customWord2,
+                        multiCivWords: state.config.multiCivWords,
+                        multiSpyWord: state.config.multiSpyWord,
+                        lastUsed: Date.now()
+                    };
+                }
+            } catch (error) {
+                console.error('Auto-save failed:', error);
+            }
+        }
+
+        // Save As New Workflow
+        async function saveAsNew() {
+            const name = prompt('Enter a name for this set:');
+            if (!name || !name.trim()) return;
+            
+            const newSet = {
+                name: name.trim(),
+                playerNames: state.config.playerNames,
+                spies: state.config.spies,
+                mrWhite: state.config.mrWhite,
+                wordMode: state.config.wordMode,
+                customWord1: state.config.customWord1,
+                customWord2: state.config.customWord2,
+                multiCivWords: state.config.multiCivWords,
+                multiSpyWord: state.config.multiSpyWord,
+                createdAt: Date.now(),
+                lastUsed: Date.now(),
+                usageCount: 0
+            };
+            
+            try {
+                const id = await dataBaseAdd(STORE_NAME, newSet);
+                newSet.id = id;
+                state.library.push(newSet);
+                state.appState.activeId = id;
+                render();
+            } catch (error) {
+                console.error('Save failed:', error);
+                alert('Failed to save set');
+            }
+        }
+
+        // Load Workflow
+        async function loadSet(id) {
+            const set = state.library.find(s => s.id === id);
+            if (!set) return;
+            
+            // Update config with loaded data
+            state.config.playerNames = set.playerNames || [];
+            state.config.spies = set.spies || 1;
+            state.config.mrWhite = set.mrWhite || 0;
+            state.config.wordMode = set.wordMode || 'random';
+            state.config.customWord1 = set.customWord1 || '';
+            state.config.customWord2 = set.customWord2 || '';
+            state.config.multiCivWords = set.multiCivWords || '';
+            state.config.multiSpyWord = set.multiSpyWord || '';
+            
+            // Update metadata
+            state.appState.activeId = id;
+            set.usageCount = (set.usageCount || 0) + 1;
+            set.lastUsed = Date.now();
+            
+            // Persist metadata update
+            try {
+                await dataBaseUpdate(STORE_NAME, id, {
+                    usageCount: set.usageCount,
+                    lastUsed: set.lastUsed
+                });
+            } catch (error) {
+                console.error('Failed to update metadata:', error);
+            }
+            
+            // Sync to localStorage
+            localStorage.setItem('undercoverConfig', JSON.stringify(state.config));
+            
+            render();
+        }
+
+        // New Workflow
+        function newSet() {
+            state.config.playerNames = [];
+            state.config.spies = 1;
+            state.config.mrWhite = 0;
+            state.config.wordMode = 'random';
+            state.config.customWord1 = '';
+            state.config.customWord2 = '';
+            state.config.multiCivWords = '';
+            state.config.multiSpyWord = '';
+            state.appState.activeId = null;
+            
+            localStorage.setItem('undercoverConfig', JSON.stringify(state.config));
+            render();
+        }
+
+        // Delete Workflow
+        async function deleteSet(id) {
+            if (!confirm('Are you sure you want to delete this set?')) return;
+            
+            try {
+                await dataBaseDelete(STORE_NAME, id);
+                state.library = state.library.filter(s => s.id !== id);
+                
+                if (state.appState.activeId === id) {
+                    state.appState.activeId = null;
+                }
+                
+                render();
+            } catch (error) {
+                console.error('Delete failed:', error);
+                alert('Failed to delete set');
+            }
         }
 
         function addName() {
