@@ -206,11 +206,25 @@
         </div>
     </div>
 
-    <!-- Toast -->
-    <div id="toast" class="fixed bottom-8 left-1/2 -translate-x-1/2 z-50 transform translate-y-32 opacity-0 transition-all duration-300">
-        <div class="bg-brand-dark text-white neo-border rounded-2xl px-8 py-4 neo-shadow font-bold flex items-center gap-4">
-            <i data-lucide="check-circle" class="text-brand-green"></i>
-            <span id="toastMsg">Saved!</span>
+    <div id="toast-container" class="fixed bottom-8 left-1/2 -translate-x-1/2 z-[400] flex flex-col gap-3 pointer-events-none"></div>
+
+    <div id="confirmModal" class="hidden fixed inset-0 bg-brand-dark/60 backdrop-blur-md z-[500] items-center justify-center p-4">
+        <div class="bg-white dark:bg-slate-800 w-full max-w-sm rounded-[2rem] border-4 border-brand-dark dark:border-slate-500 shadow-neo animate-pop-in overflow-hidden">
+            <div class="p-6 text-center">
+                <div class="w-16 h-16 rounded-2xl bg-brand-pink/10 flex items-center justify-center border-[3px] border-brand-dark mx-auto mb-4">
+                    <i data-lucide="alert-triangle" class="w-8 h-8 text-brand-pink"></i>
+                </div>
+                <h3 id="confirmTitle" class="text-xl font-heading font-bold text-brand-dark dark:text-white mb-2">Are you sure?</h3>
+                <p id="confirmMessage" class="text-sm text-slate-500 dark:text-slate-400 mb-6">This action cannot be undone.</p>
+                <div class="flex gap-3">
+                    <button id="confirmBtnYes" class="flex-1 btn-chunky bg-brand-pink text-white py-3 rounded-2xl font-bold">
+                        Yes, Delete
+                    </button>
+                    <button id="confirmBtnNo" class="flex-1 btn-chunky bg-white dark:bg-slate-700 dark:text-white py-3 rounded-2xl font-bold">
+                        Cancel
+                    </button>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -251,14 +265,14 @@
                         }
                     }
                     throw new Error("Damaged JSON");
-                } catch (err) { console.error(err); showToast("Invalid JSON File!", true); }
+                } catch (err) { console.error(err); showToast("Invalid JSON File!", "error"); }
                 e.target.value = '';
             };
             reader.readAsText(file);
         });
 
         function exportJson() {
-            if (library.length === 0) return showToast("Nothing to export!", true);
+            if (library.length === 0) return showToast("Nothing to export!", "error");
             const output = { library: library };
             const blob = new Blob([JSON.stringify(output, null, 2)], { type: "application/json" });
             const url = URL.createObjectURL(blob);
@@ -407,25 +421,16 @@
             updateWordList();
         }
 
-        function deleteWord(idx) {
-            if (!confirm("Remove this word?")) return;
+        async function deleteWord(idx) {
+            const confirmed = await showConfirm("Remove this word?", "This action cannot be undone.");
+            if (!confirmed) return;
             const cat = library.find(c => c.id === activeCatId);
             cat.words.splice(idx, 1);
             updateWordList();
-            showToast("Word Removed.", true);
+            showToast("Word Removed.", "error");
         }
 
         function closeWordModal() { document.getElementById('wordModal').classList.add('hidden'); }
-
-        function showToast(msg, isError = false) {
-            const t = document.getElementById('toast');
-            document.getElementById('toastMsg').innerText = msg;
-            t.classList.remove('translate-y-32', 'opacity-0');
-            const inner = t.querySelector('div');
-            inner.classList.toggle('border-brand-dark', !isError);
-            inner.classList.toggle('border-red-500', isError);
-            setTimeout(() => t.classList.add('translate-y-32', 'opacity-0'), 3000);
-        }
 
         window.onload = async () => {
             await requireAdmin();
@@ -436,5 +441,6 @@
             updateCategoryList();
         };
     </script>
+    <script src="../../../js/modal-toast.js"></script>
 </body>
 </html>

@@ -613,15 +613,25 @@
             </div>
         </dialog>
 
-        <div
-            id="toast"
-            class="fixed bottom-8 left-1/2 -translate-x-1/2 z-50 transform translate-y-32 opacity-0 transition-all duration-300"
-        >
-            <div
-                class="bg-brand-dark text-white neo-border rounded-2xl px-8 py-4 neo-shadow font-bold text-lg flex items-center gap-4"
-            >
-                <i data-lucide="check-circle" class="text-brand-green"></i>
-                <span id="toastMsg">Activity Saved!</span>
+        <div id="toast-container" class="fixed bottom-8 left-1/2 -translate-x-1/2 z-[400] flex flex-col gap-3 pointer-events-none"></div>
+
+        <div id="confirmModal" class="hidden fixed inset-0 bg-brand-dark/60 backdrop-blur-md z-[500] items-center justify-center p-4">
+            <div class="bg-white dark:bg-slate-800 w-full max-w-sm rounded-[2rem] border-4 border-brand-dark dark:border-slate-500 shadow-neo animate-pop-in overflow-hidden">
+                <div class="p-6 text-center">
+                    <div class="w-16 h-16 rounded-2xl bg-brand-pink/10 flex items-center justify-center border-[3px] border-brand-dark mx-auto mb-4">
+                        <i data-lucide="alert-triangle" class="w-8 h-8 text-brand-pink"></i>
+                    </div>
+                    <h3 id="confirmTitle" class="text-xl font-heading font-bold text-brand-dark dark:text-white mb-2">Are you sure?</h3>
+                    <p id="confirmMessage" class="text-sm text-slate-500 dark:text-slate-400 mb-6">This action cannot be undone.</p>
+                    <div class="flex gap-3">
+                        <button id="confirmBtnYes" class="flex-1 btn-chunky bg-brand-pink text-white py-3 rounded-2xl font-bold">
+                            Yes, Delete
+                        </button>
+                        <button id="confirmBtnNo" class="flex-1 btn-chunky bg-white dark:bg-slate-700 dark:text-white py-3 rounded-2xl font-bold">
+                            Cancel
+                        </button>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -704,7 +714,7 @@
                             setNextAvailableId();
                             showToast("Data Imported Successfully!");
                         } catch (err) {
-                            showToast("Error: Invalid JSON format!", true);
+                            showToast("Error: Invalid JSON format!", "error");
                         }
                     };
                     reader.readAsText(file);
@@ -712,7 +722,7 @@
 
             function exportJson() {
                 if (activities.length === 0)
-                    return showToast("Nothing to export!", true);
+                    return showToast("Nothing to export!", "error");
                 const blob = new Blob([JSON.stringify(activities, null, 2)], {
                     type: "application/json",
                 });
@@ -727,7 +737,7 @@
 
             async function copyJson() {
                 if (activities.length === 0)
-                    return showToast("Nothing to copy!", true);
+                    return showToast("Nothing to copy!", "error");
                 const jsonString = JSON.stringify(activities, null, 2);
                 try {
                     await navigator.clipboard.writeText(jsonString);
@@ -748,7 +758,7 @@
             function processPastedJson() {
                 const raw = document.getElementById("pasteArea").value.trim();
                 if (!raw)
-                    return showToast("Please paste some JSON first!", true);
+                    return showToast("Please paste some JSON first!", "error");
 
                 try {
                     let parsed = JSON.parse(raw);
@@ -790,10 +800,10 @@
                             `Successfully added ${addedCount} activities!`,
                         );
                     } else {
-                        showToast("No valid activity objects found.", true);
+                        showToast("No valid activity objects found.", "error");
                     }
                 } catch (err) {
-                    showToast("Invalid JSON format!", true);
+                    showToast("Invalid JSON format!", "error");
                 }
             }
 
@@ -902,14 +912,14 @@
                     document.getElementById("activityId").value,
                 );
                 if (isNaN(inputId))
-                    return showToast("ID must be a number!", true);
+                    return showToast("ID must be a number!", "error");
 
                 // ID Duplication check
                 const isDuplicate = activities.some(
                     (a) => a.id === inputId && a.id !== originalEditingId,
                 );
                 if (isDuplicate)
-                    return showToast(`ID #${inputId} is already in use!`, true);
+                    return showToast(`ID #${inputId} is already in use!`, "error");
 
                 const stepInputs = document.querySelectorAll(
                     '#stepsContainer input[type="text"]',
@@ -918,7 +928,7 @@
                     .map((i) => i.value.trim())
                     .filter((val) => val !== "");
                 if (steps.length === 0)
-                    return showToast("Add at least one step!", true);
+                    return showToast("Add at least one step!", "error");
 
                 const checkedAges = Array.from(
                     document.querySelectorAll(
@@ -928,7 +938,7 @@
                 if (checkedAges.length === 0)
                     return showToast(
                         "Select at least one Target Age group!",
-                        true,
+                        "error",
                     );
 
                 const data = {
@@ -1035,18 +1045,19 @@
                 lucide.createIcons();
             }
 
-            function deleteActivity(id) {
-                if (!confirm("Remove this activity forever?")) return;
+            async function deleteActivity(id) {
+                const confirmed = await showConfirm("Remove this activity forever?", "This action cannot be undone.");
+                if (!confirmed) return;
                 activities = activities.filter((a) => a.id !== id);
                 if (originalEditingId === id) resetForm();
                 updateActivityList();
                 saveToCloud();
-                showToast(`Activity #${id} Deleted.`, true);
+                showToast(`Activity #${id} Deleted.`, "error");
             }
 
             function reindexIds() {
                 if (activities.length === 0)
-                    return showToast("No activities to re-index!", true);
+                    return showToast("No activities to re-index!", "error");
 
                 // Sort activities by their current ID first to maintain logical order
                 activities.sort((a, b) => a.id - b.id);
@@ -1125,33 +1136,6 @@
                 document.getElementById("iconModal").close();
             }
 
-            // --- TOAST UI ---
-            function showToast(msg, isError = false) {
-                const toast = document.getElementById("toast");
-                document.getElementById("toastMsg").innerText = msg;
-
-                const icon = toast.querySelector("i");
-                if (isError) {
-                    icon.classList.replace(
-                        "text-brand-green",
-                        "text-brand-pink",
-                    );
-                    icon.setAttribute("data-lucide", "alert-triangle");
-                } else {
-                    icon.classList.replace(
-                        "text-brand-pink",
-                        "text-brand-green",
-                    );
-                    icon.setAttribute("data-lucide", "check-circle");
-                }
-                lucide.createIcons();
-
-                toast.classList.remove("translate-y-32", "opacity-0");
-                setTimeout(() => {
-                    toast.classList.add("translate-y-32", "opacity-0");
-                }, 3000);
-            }
-
             window.onload = async () => {
                 await requireAuth();
                 await loadFromCloud();
@@ -1160,5 +1144,6 @@
                 updateActivityList();
             };
         </script>
+        <script src="../../../../js/modal-toast.js"></script>
     </body>
 </html>

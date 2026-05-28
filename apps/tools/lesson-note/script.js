@@ -1580,35 +1580,3 @@ function showPrompt(title, desc, iconName, defaultValue = '') {
     });
 }
 
-function showToast(message, type = "success") {
-    const container = document.getElementById("toastContainer");
-    if (!container) return;
-
-    const toast = document.createElement("div");
-    const colors = {
-        success: "bg-green text-dark border-dark",
-        error: "bg-pink text-white border-dark",
-        info: "bg-blue text-white border-dark",
-        folder: "bg-orange text-dark border-dark",
-    };
-
-    const icons = {
-        success: "check-circle",
-        error: "alert-circle",
-        info: "info",
-        folder: "folder",
-    };
-
-    toast.className = `${colors[type] || colors.success} px-6 py-3 rounded-2xl shadow-neo border-2 border-dark font-bold text-sm flex items-center gap-2 pointer-events-auto animate-pop`;
-    toast.innerHTML = `<i data-lucide="${icons[type] || icons.success}" class="w-4 h-4"></i> ${message}`;
-
-    container.appendChild(toast);
-    lucide.createIcons({ scope: toast });
-
-    setTimeout(() => {
-        toast.style.opacity = "0";
-        toast.style.transform = "translateY(20px)";
-        toast.style.transition = "all 0.4s ease";
-        setTimeout(() => toast.remove(), 400);
-    }, 3000);
-}

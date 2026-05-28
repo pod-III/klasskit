@@ -1,18 +1,3 @@
-function showToast(message, type = 'success') {
-    const container = document.getElementById('toast-container');
-    if (!container) return;
-    const toast = document.createElement('div');
-    toast.className = `toast toast-${type}`;
-    const icon = type === 'success' ? 'check-circle' : type === 'warning' ? 'alert-circle' : 'x-circle';
-    toast.innerHTML = `<i data-lucide="${icon}" class="w-4 h-4"></i><span>${message}</span>`;
-    container.appendChild(toast);
-    lucide.createIcons();
-    setTimeout(() => {
-        toast.style.animation = 'toast-out 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards';
-        setTimeout(() => toast.remove(), 400);
-    }, 3000);
-}
-
 const ClassTallyApp = (function () {
     let modalCallback = null;
     let timerInterval = null;

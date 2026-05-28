@@ -19,60 +19,6 @@ let state = {
     pages: [[]], // Array of pages, each containing array of card objects
 };
 
-// --- UI Feedback ---
-function showToast(message, type = "info") {
-    const container = document.getElementById("toast-container");
-    const toast = document.createElement("div");
-
-    const colors = {
-        success: "bg-brand-green text-brand-dark border-brand-dark",
-        error: "bg-brand-pink text-white border-brand-dark",
-        info: "bg-brand-blue text-white border-brand-dark",
-        warning: "bg-brand-orange text-brand-dark border-brand-dark",
-    };
-
-    toast.className = `${colors[type]} px-6 py-3 rounded-2xl shadow-neo border-2 border-dark font-bold text-sm flex items-center gap-2 pointer-events-auto animate-pop-in`;
-    toast.innerHTML = `<i data-lucide="${type === "success" ? "check-circle" : type === "error" ? "alert-circle" : "info"}" class="w-4 h-4"></i> ${message}`;
-
-    container.appendChild(toast);
-    lucide.createIcons();
-
-    setTimeout(() => {
-        toast.style.opacity = "0";
-        toast.style.transform = "translateY(20px)";
-        toast.style.transition = "all 0.4s ease";
-        setTimeout(() => toast.remove(), 400);
-    }, 3000);
-}
-
-function showConfirm(title, message) {
-    return new Promise((resolve) => {
-        const modal = document.getElementById('confirmModal');
-        const titleEl = document.getElementById('confirmTitle');
-        const msgEl = document.getElementById('confirmMessage');
-        const yesBtn = document.getElementById('confirmBtnYes');
-        const noBtn = document.getElementById('confirmBtnNo');
-
-        titleEl.textContent = title;
-        msgEl.textContent = message;
-        modal.classList.remove('hidden');
-        modal.classList.add('flex');
-        lucide.createIcons();
-
-        const cleanup = (value) => {
-            modal.classList.add('hidden');
-            modal.classList.remove('flex');
-            yesBtn.onclick = null;
-            noBtn.onclick = null;
-            resolve(value);
-        };
-
-        yesBtn.onclick = () => cleanup(true);
-        noBtn.onclick = () => cleanup(false);
-        modal.onclick = (e) => { if(e.target === modal) cleanup(false); };
-    });
-}
-
 // --- Core Functions ---
 
 function toggleTheme() {

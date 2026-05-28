@@ -485,32 +485,26 @@
         </div>
     </div>
 
-    <!-- Confirm Modal -->
-    <div id="confirmModal"
-        class="fixed inset-0 z-[110] flex items-center justify-center glass-panel hidden opacity-0 transition-opacity duration-300">
-        <div class="hub-card bg-white dark:bg-slate-800 p-8 max-w-sm w-full text-center transform scale-95 transition-transform duration-300 m-4"
-            id="confirmModalContent">
-            <div
-                class="w-20 h-20 bg-brand-pink rounded-full border-4 border-brand-dark mx-auto mb-4 flex items-center justify-center shadow-neo-sm">
-                <i data-lucide="trash-2" class="w-10 h-10 text-white"></i>
-            </div>
-            <h3 class="font-heading text-2xl font-black mb-2 text-brand-dark dark:text-white">Delete Preset?</h3>
-            <p class="font-body font-bold text-slate-500 mb-6">Are you sure you want to delete this preset? This cannot
-                be undone.</p>
-            <div class="flex gap-4">
-                <button onclick="closeConfirmModal(false)"
-                    class="btn-chunky flex-1 py-3 bg-slate-200 dark:bg-slate-700 text-brand-dark dark:text-white rounded-xl">Cancel</button>
-                <button onclick="closeConfirmModal(true)"
-                    class="btn-chunky flex-1 py-3 bg-brand-pink text-white rounded-xl">Delete</button>
+    <div id="toast-container" class="fixed bottom-8 left-1/2 -translate-x-1/2 z-[400] flex flex-col gap-3 pointer-events-none"></div>
+
+    <div id="confirmModal" class="hidden fixed inset-0 bg-brand-dark/60 backdrop-blur-md z-[500] items-center justify-center p-4">
+        <div class="bg-white dark:bg-slate-800 w-full max-w-sm rounded-[2rem] border-4 border-brand-dark dark:border-slate-500 shadow-neo animate-pop-in overflow-hidden">
+            <div class="p-6 text-center">
+                <div class="w-16 h-16 rounded-2xl bg-brand-pink/10 flex items-center justify-center border-[3px] border-brand-dark mx-auto mb-4">
+                    <i data-lucide="alert-triangle" class="w-8 h-8 text-brand-pink"></i>
+                </div>
+                <h3 id="confirmTitle" class="text-xl font-heading font-bold text-brand-dark dark:text-white mb-2">Are you sure?</h3>
+                <p id="confirmMessage" class="text-sm text-slate-500 dark:text-slate-400 mb-6">This action cannot be undone.</p>
+                <div class="flex gap-3">
+                    <button id="confirmBtnYes" class="flex-1 btn-chunky bg-brand-pink text-white py-3 rounded-2xl font-bold">
+                        Yes, Delete
+                    </button>
+                    <button id="confirmBtnNo" class="flex-1 btn-chunky bg-white dark:bg-slate-700 dark:text-white py-3 rounded-2xl font-bold">
+                        Cancel
+                    </button>
+                </div>
             </div>
         </div>
-    </div>
-
-    <!-- Toast Notification -->
-    <div id="toast"
-        class="fixed bottom-4 left-1/2 transform -translate-x-1/2 z-[200] flex items-center gap-3 px-6 py-3 bg-brand-dark text-white rounded-2xl shadow-neo font-body font-bold transition-all duration-300 translate-y-20 opacity-0 pointer-events-none">
-        <i data-lucide="info" id="toastIcon" class="w-5 h-5 text-brand-blue"></i>
-        <span id="toastMsg">Notification</span>
     </div>
 
     <script>
@@ -659,51 +653,19 @@
             showToast("New preset created!", "success");
         }
 
-        let presetToDeleteCallback = null;
-
-        function showConfirmModal(callback) {
-            presetToDeleteCallback = callback;
-            const modal = document.getElementById('confirmModal');
-            const content = document.getElementById('confirmModalContent');
-            modal.classList.remove('hidden');
-            // small delay to allow display:block to apply before transition
-            requestAnimationFrame(() => {
-                modal.classList.remove('opacity-0');
-                content.classList.add('scale-100');
-                content.classList.remove('scale-95');
-            });
-        }
-
-        function closeConfirmModal(confirmed) {
-            const modal = document.getElementById('confirmModal');
-            const content = document.getElementById('confirmModalContent');
-            modal.classList.add('opacity-0');
-            content.classList.remove('scale-100');
-            content.classList.add('scale-95');
-            setTimeout(() => {
-                modal.classList.add('hidden');
-            }, 300);
-
-            if (confirmed && presetToDeleteCallback) {
-                presetToDeleteCallback();
-            }
-            presetToDeleteCallback = null;
-        }
-
-        async function executeDeletePreset() {
-            await deletePresetFromDB(state.activePresetId);
-            state.presetsList = state.presetsList.filter(p => p.id !== state.activePresetId);
-            await loadPreset(state.presetsList[0].id);
-            renderPresetDropdown();
-            showToast("Preset deleted", "success");
-        }
-
         async function deleteCurrentPreset() {
             if (state.presetsList.length <= 1) {
                 showModal("Cannot Delete", "You must have at least one preset.", "alert-circle");
                 return;
             }
-            showConfirmModal(executeDeletePreset);
+            const confirmed = await showConfirm("Delete Preset?", "Are you sure you want to delete this preset? This cannot be undone.");
+            if (confirmed) {
+                await deletePresetFromDB(state.activePresetId);
+                state.presetsList = state.presetsList.filter(p => p.id !== state.activePresetId);
+                await loadPreset(state.presetsList[0].id);
+                renderPresetDropdown();
+                showToast("Preset deleted", "success");
+            }
         }
 
         function renderPresetDropdown() {
@@ -1112,30 +1074,6 @@
             }, 300);
         }
 
-        function showToast(msg, type = 'info') {
-            const toast = document.getElementById('toast');
-            document.getElementById('toastMsg').textContent = msg;
-            const icon = document.getElementById('toastIcon');
-
-            if (type === 'success') {
-                icon.setAttribute('data-lucide', 'check-circle');
-                icon.className = 'w-5 h-5 text-brand-green';
-            } else if (type === 'error') {
-                icon.setAttribute('data-lucide', 'alert-circle');
-                icon.className = 'w-5 h-5 text-brand-pink';
-            } else {
-                icon.setAttribute('data-lucide', 'info');
-                icon.className = 'w-5 h-5 text-brand-blue';
-            }
-            lucide.createIcons();
-
-            toast.classList.remove('pointer-events-none'); // Optional, but usually toasts are pass-through
-            toast.classList.remove('translate-y-20', 'opacity-0');
-            setTimeout(() => {
-                toast.classList.add('translate-y-20', 'opacity-0');
-            }, 3000);
-        }
-
         function toggleTheme() {
             document.documentElement.classList.toggle('dark');
         }
@@ -1156,6 +1094,7 @@
         `;
         document.head.appendChild(style);
     </script>
+    <script src="../../../js/modal-toast.js"></script>
 </body>
 
 </html>
