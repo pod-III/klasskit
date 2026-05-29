@@ -292,9 +292,13 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (e.key === 'Enter') {
                 e.preventDefault();
                 const first = picker.querySelector('.link-picker-item');
-                if (first) insertPageLink(first.dataset.id, first.dataset.title);
+                if (first) insertPageLink(first.dataset.id, first.dataset.title, first.dataset.icon);
                 return;
             }
+        }
+        
+        if (e.key === 'Escape') {
+            document.getElementById('emojiPicker')?.remove();
         }
 
         const isMeta = e.ctrlKey || e.metaKey;
@@ -356,17 +360,18 @@ document.addEventListener('DOMContentLoaded', async () => {
         renderNotesList();
     });
 
-    // Click on page-link embeds navigates to the note
+    // Click on page-link embeds navigates to the note (using capture phase to bypass Quill's interception)
     document.getElementById('editor-container').addEventListener('click', (e) => {
         const link = e.target.closest('.page-link');
         if (link) {
             const noteId = link.getAttribute('data-note-id');
             if (noteId) {
                 e.preventDefault();
+                e.stopPropagation();
                 loadNote(noteId);
             }
         }
-    });
+    }, true);
 
     quill.on('text-change', (delta, oldDelta, source) => {
         if (source === 'user') {
@@ -438,12 +443,22 @@ function registerPageLinkBlot() {
             const node = super.create();
             node.setAttribute('data-note-id', value.id);
             node.setAttribute('contenteditable', 'false');
+            if (value.icon) {
+                node.setAttribute('data-note-icon', value.icon);
+            }
             node.className = 'page-link';
-            node.innerHTML = `<span class="page-link-inner" contenteditable="false"><i data-lucide="file-text" class="w-3 h-3"></i><span class="page-link-title" contenteditable="false">${escapeHtml(value.title || 'Untitled')}</span></span>`;
+            const iconHtml = value.icon 
+                ? `<span class="page-link-emoji mr-0.5" contenteditable="false">${value.icon}</span>` 
+                : `<i data-lucide="file-text" class="w-3 h-3 flex-none"></i>`;
+            node.innerHTML = `<span class="page-link-inner" contenteditable="false">${iconHtml}<span class="page-link-title" contenteditable="false">${escapeHtml(value.title || 'Untitled')}</span></span>`;
             return node;
         }
         static value(node) {
-            return { id: node.getAttribute('data-note-id'), title: node.querySelector('.page-link-title')?.textContent || 'Untitled' };
+            return { 
+                id: node.getAttribute('data-note-id'), 
+                title: node.querySelector('.page-link-title')?.textContent || 'Untitled',
+                icon: node.getAttribute('data-note-icon') || null
+            };
         }
     }
     PageLinkBlot.blotName = 'page-link';
@@ -479,12 +494,17 @@ function showLinkPicker(candidates, range) {
     if (candidates.length === 0) {
         picker.innerHTML = `<div class="px-3 py-2 text-[13px] text-slate-400 dark:text-slate-500">No notes found</div>`;
     } else {
-        picker.innerHTML = candidates.map((n, i) => `
-            <button class="link-picker-item w-full text-left px-3 py-1.5 text-[13px] font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-2 transition-colors" data-index="${i}" data-id="${n.id}" data-title="${escapeHtml(n.title || 'Untitled')}">
-                <i data-lucide="file-text" class="w-3.5 h-3.5 text-slate-400 flex-none"></i>
-                <span class="truncate">${escapeHtml(n.title || 'Untitled')}</span>
-            </button>
-        `).join('');
+        picker.innerHTML = candidates.map((n, i) => {
+            const iconHtml = n.icon 
+                ? `<span class="text-base flex-none select-none">${n.icon}</span>` 
+                : `<i data-lucide="file-text" class="w-3.5 h-3.5 text-slate-400 flex-none"></i>`;
+            return `
+                <button class="link-picker-item w-full text-left px-3 py-1.5 text-[13px] font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-2 transition-colors" data-index="${i}" data-id="${n.id}" data-title="${escapeHtml(n.title || 'Untitled')}" data-icon="${escapeHtml(n.icon || '')}">
+                    ${iconHtml}
+                    <span class="truncate">${escapeHtml(n.title || 'Untitled')}</span>
+                </button>
+            `;
+        }).join('');
     }
     const bounds = quill.getBounds(range.index);
     const editorRect = document.getElementById('editor-container').getBoundingClientRect();
@@ -494,18 +514,18 @@ function showLinkPicker(candidates, range) {
 
     // Keyboard navigation
     picker.querySelectorAll('.link-picker-item').forEach(btn => {
-        btn.addEventListener('click', () => insertPageLink(btn.dataset.id, btn.dataset.title));
+        btn.addEventListener('click', () => insertPageLink(btn.dataset.id, btn.dataset.title, btn.dataset.icon));
     });
 }
 
-function insertPageLink(noteId, title) {
+function insertPageLink(noteId, title, icon = '') {
     document.getElementById('linkPicker')?.remove();
     if (!linkPickerRange) return;
     const text = quill.getText(0, linkPickerRange.index);
     const startIdx = text.lastIndexOf('[[');
     if (startIdx === -1) return;
     quill.deleteText(startIdx, linkPickerRange.index - startIdx);
-    quill.insertEmbed(startIdx, 'page-link', { id: noteId, title });
+    quill.insertEmbed(startIdx, 'page-link', { id: noteId, title, icon });
     quill.setSelection(startIdx + 1);
     lucide.createIcons();
     linkPickerRange = null;
@@ -513,14 +533,18 @@ function insertPageLink(noteId, title) {
     renderNotesList();
 }
 
-// Close link picker on outside click or editor scroll
+// Close pickers on outside click or editor scroll
 document.addEventListener('click', (e) => {
     if (!e.target.closest('#linkPicker')) {
         document.getElementById('linkPicker')?.remove();
     }
+    if (!e.target.closest('#emojiPicker')) {
+        document.getElementById('emojiPicker')?.remove();
+    }
 });
 document.getElementById('editor-container')?.addEventListener('scroll', () => {
     document.getElementById('linkPicker')?.remove();
+    document.getElementById('emojiPicker')?.remove();
 });
 
 function addQuillToolbarTooltips() {
@@ -1038,17 +1062,17 @@ function updateUIState() {
     const statusIndicator = document.getElementById('statusIndicator');
     const statusText = document.getElementById('statusText');
     if (isTrashMode) {
-        softDelBtn.classList.add('hidden');
-        trashButtons.classList.remove('hidden');
-        statusIndicator.className = "w-3 h-3 rounded-full bg-pink border-[1px] border-slate-300 dark:border-white/10";
-        statusText.innerText = "Deleted Note";
+        softDelBtn?.classList.add('hidden');
+        trashButtons?.classList.remove('hidden');
+        if (statusIndicator) statusIndicator.className = "w-3 h-3 rounded-full bg-pink border-[1px] border-slate-300 dark:border-white/10";
+        if (statusText) statusText.innerText = "Deleted Note";
         document.getElementById('noteTitle').disabled = true;
         quill.disable();
     } else {
-        softDelBtn.classList.remove('hidden');
-        trashButtons.classList.add('hidden');
-        statusIndicator.className = "w-3 h-3 rounded-full bg-green border-[1px] border-slate-300 dark:border-white/10";
-        statusText.innerText = "Auto-saved";
+        softDelBtn?.classList.remove('hidden');
+        trashButtons?.classList.add('hidden');
+        if (statusIndicator) statusIndicator.className = "w-3 h-3 rounded-full bg-green border-[1px] border-slate-300 dark:border-white/10";
+        if (statusText) statusText.innerText = "Auto-saved";
         document.getElementById('noteTitle').disabled = false;
         quill.enable();
     }
@@ -1073,11 +1097,13 @@ async function loadNote(id) {
 
     document.getElementById('noteTitle').value = note.title;
     document.getElementById('headerNoteTitle').textContent = note.title || 'Untitled';
+    renderNoteIcon(note);
 
     // Resolve idb:// image URLs
     const resolvedHtml = await resolveImagesInHtml(note.content);
     quill.root.innerHTML = resolvedHtml;
     lucide.createIcons();
+    refreshPageLinksInEditor();
 
     // Auto-expand parents so current note is visible in sidebar
     let parent = note.parentId ? notes.find(n => n.id === note.parentId) : null;
@@ -1099,6 +1125,47 @@ async function loadNote(id) {
     updateUIState();
 }
 
+function refreshPageLinksInEditor() {
+    document.querySelectorAll('.page-link').forEach(el => {
+        const noteId = el.getAttribute('data-note-id');
+        const note = notes.find(n => n.id === noteId);
+        if (note) {
+            const titleEl = el.querySelector('.page-link-title');
+            if (titleEl) titleEl.textContent = note.title || 'Untitled';
+
+            // Update emoji/icon in page-link too!
+            const inner = el.querySelector('.page-link-inner');
+            if (inner) {
+                const emojiEl = inner.querySelector('.page-link-emoji');
+                const lucideIcon = inner.querySelector('[data-lucide]');
+                if (note.icon) {
+                    el.setAttribute('data-note-icon', note.icon);
+                    if (emojiEl) {
+                        emojiEl.textContent = note.icon;
+                    } else {
+                        if (lucideIcon) lucideIcon.remove();
+                        const newEmoji = document.createElement('span');
+                        newEmoji.className = 'page-link-emoji mr-0.5';
+                        newEmoji.setAttribute('contenteditable', 'false');
+                        newEmoji.textContent = note.icon;
+                        inner.insertBefore(newEmoji, titleEl);
+                    }
+                } else {
+                    el.removeAttribute('data-note-icon');
+                    if (emojiEl) emojiEl.remove();
+                    if (!lucideIcon && !inner.querySelector('[data-lucide]')) {
+                        const newIcon = document.createElement('i');
+                        newIcon.setAttribute('data-lucide', 'file-text');
+                        newIcon.className = 'w-3 h-3';
+                        inner.insertBefore(newIcon, titleEl);
+                        lucide.createIcons({ scope: inner });
+                    }
+                }
+            }
+        }
+    });
+}
+
 function updateBreadcrumbs() {
     const container = document.getElementById('breadcrumbs');
     const divider = document.getElementById('breadcrumbDivider');
@@ -1111,9 +1178,10 @@ function updateBreadcrumbs() {
     }
     if (divider) divider.classList.remove('hidden');
     // Show parent chain (exclude current note)
-    const crumbs = path.slice(0, -1).map(n => `
-        <button onclick="loadNote('${n.id}')" class="hover:text-slate-900 dark:hover:text-slate-100 transition-colors truncate max-w-[80px]" title="${escapeHtml(n.title || 'Untitled')}">${escapeHtml(n.title || 'Untitled')}</button>
-    `).join('<span class="text-slate-300">/</span>');
+    const crumbs = path.slice(0, -1).map(n => {
+        const emojiPrefix = n.icon ? `<span class="mr-1 select-none flex-none">${n.icon}</span>` : '';
+        return `<button onclick="loadNote('${n.id}')" class="hover:text-slate-900 dark:hover:text-slate-100 transition-colors truncate max-w-[120px] flex items-center inline-flex" title="${escapeHtml(n.title || 'Untitled')}">${emojiPrefix}${escapeHtml(n.title || 'Untitled')}</button>`;
+    }).join('<span class="text-slate-300">/</span>');
     container.innerHTML = crumbs + '<span class="text-slate-300">/</span>';
 }
 
@@ -1275,15 +1343,18 @@ async function saveToCloud() {
         // Save only the current note, not all notes
         const note = notes.find(n => n.id === currentNoteId);
         if (note) {
-            await db.from('notes').upsert({
+            // User's schema uses folder_id (not parent_id) and has no icon column
+            const payload = {
                 id: note.id,
                 user_id: user.id,
                 title: note.title || '',
                 content: note.content || '',
-                parent_id: note.parentId || null,
+                folder_id: note.parentId || null,
                 deleted: note.deleted || false,
                 updated_at: note.updatedAt
-            }, { onConflict: 'id,user_id' });
+            };
+            const { error } = await db.from('notes').upsert(payload, { onConflict: 'id,user_id' });
+            if (error) throw error;
         }
 
         if (statusText) statusText.innerText = 'Cloud Synced';
@@ -1319,7 +1390,7 @@ async function loadFromCloud() {
                         id: cn.id,
                         title: cn.title,
                         content: cn.content,
-                        parentId: cn.parent_id,
+                        parentId: cn.folder_id || null,
                         deleted: cn.deleted,
                         updatedAt: cn.updated_at
                     };
@@ -1641,12 +1712,15 @@ function buildNoteItem(note, groupNotes, depth = 0, hasChildren = false, isExpan
         <div class="flex items-center gap-1 min-w-0">
             ${toggleBtn}
             ${!isTrashMode ? '<i data-lucide="grip-vertical" class="drag-handle w-3 h-3 flex-none text-slate-300 dark:text-slate-600 opacity-0 group-hover/note:opacity-100"></i>' : '<span class="w-3 flex-none"></span>'}
-            <div class="flex-1 min-w-0">
-                <div class="flex items-center justify-between gap-2">
-                    <h4 class="font-medium text-[13px] truncate ${titleColor}">${title}</h4>
-                    <span class="text-[10px] text-slate-400 dark:text-slate-500 flex-none">${date}</span>
+            <div class="flex-grow flex items-start gap-1.5 min-w-0">
+                ${note.icon ? `<span class="text-base flex-none select-none mt-0.5">${note.icon}</span>` : '<i data-lucide="file-text" class="w-3.5 h-3.5 flex-none text-slate-400 dark:text-slate-500 mt-0.5"></i>'}
+                <div class="flex-1 min-w-0">
+                    <div class="flex items-center justify-between gap-2">
+                        <h4 class="font-medium text-[13px] truncate ${titleColor}">${title}</h4>
+                        <span class="text-[10px] text-slate-400 dark:text-slate-500 flex-none">${date}</span>
+                    </div>
+                    <p class="text-[11px] ${isActive ? 'text-slate-500 dark:text-slate-400' : 'text-slate-400 dark:text-slate-600'} truncate mt-0.5">${rawText.substring(0, 50) || 'Empty note...'}</p>
                 </div>
-                <p class="text-[11px] ${isActive ? 'text-slate-500 dark:text-slate-400' : 'text-slate-400 dark:text-slate-600'} truncate mt-0.5">${rawText.substring(0, 50) || 'Empty note...'}</p>
             </div>
             ${!isTrashMode ? `<button class="note-ctx-trigger opacity-0 group-hover/note:opacity-100 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 p-1 rounded transition-all flex-none" onclick="event.stopPropagation(); showNoteContextMenu(event, '${note.id}')">
                 <i data-lucide="more-vertical" class="w-3 h-3 pointer-events-none"></i>
@@ -1669,7 +1743,17 @@ async function toggleNoteExpanded(noteId) {
 async function createChildNote() {
     if (isTrashMode || !currentNoteId) return;
     const parentId = currentNoteId;
-    const newNote = { id: Date.now().toString(), title: '', content: '', updatedAt: Date.now(), deleted: false, parentId };
+    const newNoteId = Date.now().toString();
+
+    // Insert a link to the new child in the parent's editor
+    const range = quill.getSelection(true);
+    const insertIndex = range ? range.index : quill.getLength();
+    quill.insertEmbed(insertIndex, 'page-link', { id: newNoteId, title: 'Untitled' });
+    quill.setSelection(insertIndex + 1);
+    lucide.createIcons();
+    await saveCurrentNote();
+
+    const newNote = { id: newNoteId, title: '', content: '', updatedAt: Date.now(), deleted: false, parentId };
     notes.unshift(newNote);
     await saveNoteToDB(newNote);
     expandedNoteIds.add(parentId);
@@ -2063,4 +2147,244 @@ function showToast(message, type = "success") {
         toast.style.transition = "all 0.3s ease";
         setTimeout(() => toast.remove(), 300);
     }, 3000);
+}
+
+// ===== NOTION-STYLE EMOJI ICONS =====
+function renderNoteIcon(note) {
+    const container = document.getElementById('noteIconContainer');
+    if (!container) return;
+    container.innerHTML = '';
+
+    if (isTrashMode) {
+        if (note.icon) {
+            container.innerHTML = `<span class="text-4xl select-none mr-2">${note.icon}</span>`;
+        }
+        return;
+    }
+
+    if (note.icon) {
+        // Render large emoji with remove button on hover
+        container.innerHTML = `
+            <div class="relative group/emoji inline-block cursor-pointer" onclick="showEmojiPicker(event, '${note.id}')">
+                <span class="text-4xl hover:opacity-80 transition-opacity select-none">${note.icon}</span>
+                <button class="absolute -top-1 -right-1 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-500 rounded-full p-1 opacity-0 group-hover/emoji:opacity-100 transition-opacity shadow-sm border border-slate-200/50 dark:border-slate-600 flex items-center justify-center w-5 h-5" onclick="event.stopPropagation(); removeNoteIcon('${note.id}')" title="Remove icon">
+                    <i data-lucide="x" class="w-2.5 h-2.5"></i>
+                </button>
+            </div>
+        `;
+    } else {
+        // Render "Add icon" hover button
+        container.innerHTML = `
+            <button class="text-xs font-medium text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300 flex items-center gap-1.5 px-2 py-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800 transition-all opacity-0 group-hover/icon-area:opacity-100 md:opacity-0 md:group-hover/icon-area:opacity-100 group-focus-within/icon-area:opacity-100 cursor-pointer" onclick="showEmojiPicker(event, '${note.id}')">
+                <i data-lucide="smile" class="w-4 h-4"></i> Add icon
+            </button>
+        `;
+    }
+    lucide.createIcons({ scope: container });
+}
+
+async function removeNoteIcon(noteId) {
+    const note = notes.find(n => n.id === noteId);
+    if (!note) return;
+    delete note.icon;
+    note.updatedAt = Date.now();
+    await saveNoteToDB(note);
+    saveToCloud();
+    renderNoteIcon(note);
+    renderNotesList();
+    updateBreadcrumbs();
+}
+
+async function setNoteIcon(noteId, emoji) {
+    const note = notes.find(n => n.id === noteId);
+    if (!note) return;
+    note.icon = emoji;
+    note.updatedAt = Date.now();
+    await saveNoteToDB(note);
+    saveToCloud();
+    renderNoteIcon(note);
+    renderNotesList();
+    updateBreadcrumbs();
+}
+
+// ===== EMOJI DATA =====
+const EMOJI_CATEGORIES = {
+    'Recent': [], // populated from localStorage
+    'Smileys': ['😀','😃','😄','😁','😆','😅','🤣','😂','🙂','🙃','😉','😊','😇','🥰','😍','🤩','😘','😗','☺️','😚','😙','🥲','😋','😛','😜','🤪','😝','🤑','🤗','🤭','🤫','🤔','🤐','🤨','😐','😑','😶','😏','😒','🙄','😬','🤥','😌','😔','😪','🤤','😴','😷','🤒','🤕','🤢','🤮','🤧','🥵','🥶','🥴','😵','🤯','🤠','🥳','🥸','😎','🤓','🧐','😕','😟','🙁','☹️','😮','😯','😲','😳','🥺','😦','😧','😨','😰','😥','😢','😭','😱','😖','😣','😞','😓','😩','😫','🥱','😤','😡','😠','🤬','😈','👿','💀','☠️','💩','🤡','👹','👺','👻','👽','👾','🤖','😺','😸','😹','😻','😼','😽','🙀','😿','😾'],
+    'People': ['👋','🤚','🖐️','✋','🖖','👌','🤌','🤏','✌️','🤞','🤟','🤘','🤙','👈','👉','👆','🖕','👇','☝️','👍','👎','✊','👊','🤛','🤜','👏','🙌','👐','🤲','🤝','🙏','✍️','💅','🤳','💪','🦾','🦿','🦵','🦶','👂','🦻','👃','🧠','🫀','🫁','🦷','🦴','👀','👁️','👅','👄','👶','🧒','👦','👧','🧑','👱','👨','🧔','👩','🧓','👴','👵','🙍','🙎','🙅','🙆','💁','🙋','🧏','🙇','🤦','🤷','👮','🕵️','💂','🥷','👷','🤴','👸','👳','👲','🧕','🤵','👰','🤰','🤱','👼','🎅','🤶','🦸','🦹','🧙','🧚','🧛','🧜','🧝','🧞','🧟','💆','💇','🚶','🧍','🧎','🏃','💃','🕺','🕴️','👯','🧖','🧗','🤺','🏇','⛷️','🏂','🏌️','🏄','🚣','🏊','⛹️','🏋️','🚴','🚵','🤸','🤼','🤽','🤾','🤹','🧘','🛀','🛌'],
+    'Animals': ['🐵','🐒','🦍','🦧','🐶','🐕','🦮','🐩','🐺','🦊','🦝','🐱','🐈','🐈‍⬛','🦁','🐯','🐅','🐆','🐴','🐎','🦄','🦓','🦌','🦬','🐮','🐂','🐃','🐄','🐷','🐖','🐗','🐽','🐏','🐑','🦙','🐐','🦌','🐪','🐫','🦙','🦒','🐘','🦣','🦏','🦛','🐭','🐁','🐀','🐹','🐰','🐇','🐿️','🦫','🦔','🦇','🐻','🐨','🐼','🦥','🦦','🦨','🦘','🦡','🐾','🦃','🐔','🐓','🐣','🐤','🐥','🐦','🐧','🕊️','🦅','🦆','🦉','🦤','🦩','🦚','🦜','🐸','🐊','🐢','🦎','🐍','🐲','🐉','🦕','🦖','🐳','🐋','🐬','🦭','🐟','🐠','🐡','🦈','🐙','🐚','🐌','🦋','🐛','🐜','🐝','🪲','🐞','🦗','🪳','🕷️','🕸️','🦂','🦟','🪰','🪱','🦠','💐','🌸','💮','🏵️','🌹','🥀','🌺','🌻','🌼','🌷','🌱','🪴','🌲','🌳','🌴','🌵','🌾','🌿','☘️','🍀','🍁','🍂','🍃','🍄'],
+    'Food': ['🍇','🍈','🍉','🍊','🍋','🍌','🍍','🥭','🍎','🍏','🍐','🍑','🍒','🍓','🫐','🥝','🍅','🫒','🥥','🥑','🍆','🥔','🥕','🌽','🌶️','🫑','🥒','🥬','🥦','🧄','🧅','🍄','🥜','🌰','🍞','🥐','🥖','🫓','🥨','🥯','🥞','🧇','🧀','🍖','🍗','🥩','🥓','🍔','🍟','🍕','🌭','🥪','🌮','🌯','🫔','🥙','🧆','🥚','🍳','🥘','🍲','🫕','🥣','🥗','🍿','🧈','🧂','🥫','🍱','🍘','🍙','🍚','🍛','🍜','🍝','🍠','🍢','🍣','🍤','🍥','🥮','🍡','🥟','🥠','🥡','🦀','🦞','🦐','🦑','🦪','🍦','🍧','🍨','🍩','🍪','🎂','🍰','🧁','🥧','🍫','🍬','🍭','🍮','🍯','🍼','🥛','☕','🫖','🍵','🍶','🍾','🍷','🍸','🍹','🍺','🍻','🥂','🥃','🥤','🧋','🧃','🧉','🧊'],
+    'Travel': ['🚗','🚕','🚙','🚌','🚎','🏎️','🚓','🚑','🚒','🚐','🛻','🚚','🚛','🚜','🦯','🦽','🦼','🛴','🚲','🛵','🏍️','🛺','🚨','🚔','🚍','🚘','🚖','🚡','🚠','🚟','🚃','🚋','🚞','🚝','🚄','🚅','🚈','🚂','🚆','🚇','🚊','🚉','✈️','🛫','🛬','🛩️','💺','🛰️','🚀','🛸','🚁','🛶','⛵','🚤','🛳️','⛴️','🚢','⚓','⛽','🚨','🚥','🚦','🛑','🚧','⚓','⛵','🚤','🛳️','⛴️','🚢','✈️','🛩️','🛫','🛬','💺','🚁','🚟','🚠','🚡','🚀','🛸','🛰️','🌑','🌒','🌓','🌔','🌕','🌖','🌗','🌘','🌙','🌚','🌛','🌜','🌡️','☀️','🌝','🌞','🪐','⭐','🌟','🌠','🌌','☁️','⛅','⛈️','🌤️','🌥️','🌦️','🌧️','🌨️','❄️','🌬️','💨','💧','💦','☔','☂️','🌊','🌫️'],
+    'Objects': ['⌚','⏰','⏱️','⏲️','🕰️','🕛','🕧','🕐','🕜','🕑','🕝','🕒','🕞','🕓','🕟','🕔','🕠','🕕','🕡','🕖','🕢','🕗','🕣','🕘','🕤','🕙','🕥','🕚','🕦','🌑','🌒','🌓','🌔','🌕','🌖','🌗','🌘','🌙','🌚','🌛','🌜','🌡️','☀️','🌝','🌞','⭐','🌟','🌠','☁️','⛅','⛈️','🌤️','🌥️','🌦️','🌧️','🌨️','❄️','🌬️','💨','💧','💦','☔','☂️','🌊','🌫️','🎃','🎄','🎆','🎇','🧨','✨','🎈','🎉','🎊','🎋','🎍','🎎','🎏','🎐','🎑','🧧','🎀','🎁','🎗️','🎟️','🎫','🎖️','🏆','🏅','🥇','🥈','🥉','⚽','⚾','🥎','🏀','🏐','🏈','🏉','🎾','🥏','🎳','🏏','🏑','🏒','🥍','🏓','🏸','🥊','🥋','🥅','⛳','⛸️','🎣','🤿','🎽','🎿','🛷','🥌','🎯','🪀','🪁','🎱','🎰','🎲','🎳','🎮','🎰','🎲','🧩','🧸','🪅','🪆','🪀','♠️','♥️','♦️','♣️','🃏','🀄','🎴','🎭','🖼️','🎨','🧵','🪡','🧶','🪢','👓','🕶️','🥽','🥼','🦺','👔','👕','👖','🧣','🧤','🧥','🧦','👗','👘','🥻','🩱','🩲','🩳','👙','👚','👛','👜','👝','🛍️','🎒','🩴','👞','👟','🥾','🥿','👠','👡','🩰','👢','👑','👒','🎩','🎓','🧢','🪖','⛑️','📿','💄','💍','💎','🔇','🔈','🔉','🔊','📢','📣','📯','🔔','🔕','🎼','🎵','🎶','🎙️','🎚️','🎛️','🎤','🎧','📻','🎷','🎸','🎹','🎺','🎻','🪕','🥁','🪘','📱','📲','☎️','📞','📟','📠','🔋','🔌','💻','🖥️','🖨️','⌨️','🖱️','🖲️','💽','💾','💿','📀','🧮','🎥','🎞️','📽️','🎬','📺','📷','📸','📹','📼','🔍','🔎','🕯️','💡','🔦','🏮','🪔','📔','📕','📖','📗','📘','📙','📚','📓','📒','📃','📜','📄','📰','🗞️','📑','🔖','🏷️','💰','🪙','💴','💵','💶','💷','💸','💳','🧾','💹','✉️','📧','📨','📩','📤','📥','📦','📫','📪','📬','📭','📮','🗳️','✏️','✒️','🖋️','🖊️','🖌️','🖍️','📝','💼','📁','📂','🗂️','📅','📆','🗒️','🗓️','📇','📈','📉','📊','📋','📌','📍','📎','🖇️','📏','📐','✂️','🗃️','🗄️','🗑️','🔒','🔓','🔏','🔐','🔑','🗝️','🔨','🪓','⛏️','⚒️','🛠️','🗡️','⚔️','🔫','🏹','🛡️','🔧','🪛','🔩','⚙️','🗜️','⚖️','🦯','🔗','⛓️','🪝','🧰','🧲','🧪','🧫','🧬','🔬','🔭','📡','💉','🩸','💊','🩹','🩺','🌡️','🚪','🛗','🪞','🪟','🛏️','🛋️','🪑','🚽','🪠','🚿','🛁','🪤','🪒','🧴','🧷','🧹','🧺','🧻','🪣','🧼','🪥','🧽','🧯','🛒','🚬','⚰️','🪦','⚱️','🗿','🪧','🚰'],
+    'Symbols': ['🏧','🚮','🚰','♿','🚹','🚺','🚻','🚼','🚾','🛂','🛃','🛄','🛅','⚠️','🚸','⛔','🚫','🚳','🚭','🚯','🚱','🚷','📵','🔞','☢️','☣️','⬆️','↗️','➡️','↘️','⬇️','↙️','⬅️','↖️','↕️','↔️','↩️','↪️','⤴️','⤵️','🔃','🔄','🔙','🔚','🔛','🔜','🔝','🛐','⚛️','🕉️','✡️','☸️','☯️','✝️','☦️','☪️','☮️','🕎','🔯','♈','♉','♊','♋','♌','♍','♎','♏','♐','♑','♒','♓','⛎','🔀','🔁','🔂','▶️','⏩','⏭️','⏯️','◀️','⏪','⏮️','🔼','⏫','🔽','⏬','⏸️','⏹️','⏺️','⏏️','🎦','🔅','🔆','📶','📳','📴','♀️','♂️','⚧️','✖️','➕','➖','➗','♾️','‼️','⁉️','❓','❔','❕','❗','〰️','💱','💲','⚕️','♻️','⚜️','🔱','📛','🔰','⭕','✅','☑️','✔️','❌','❎','➰','➿','〽️','✳️','✴️','❇️','©️','®️','™️','#️⃣','*️⃣','0️⃣','1️⃣','2️⃣','3️⃣','4️⃣','5️⃣','6️⃣','7️⃣','8️⃣','9️⃣','🔟','🔠','🔡','🔢','🔣','🔤','🅰️','🅱️','🆎','🆑','🅾️','🆘','🆚','🈁','🈶','🈯','🉐','🈹','🈚','🈲','🉑','🈸','🈴','🈳','㊗️','㊙️','🈺','🈵','🔴','🟠','🟡','🟢','🔵','🟣','🟤','⚫','⚪','🟥','🟧','🟨','🟩','🟦','🟪','🟫','⬛','⬜','◼️','◻️','◾','◽','▪️','▫️','🔶','🔷','🔸','🔹','🔺','🔻','💠','🔘','🔳','🔲'],
+    'Flags': ['🏳️','🏴','🏴‍☠️','🏁','🚩','🏳️‍🌈','🏳️‍⚧️','🇺🇳','🇦🇫','🇦🇽','🇦🇱','🇩🇿','🇦🇸','🇦🇩','🇦🇴','🇦🇮','🇦🇶','🇦🇬','🇦🇷','🇦🇲','🇦🇼','🇦🇺','🇦🇹','🇦🇿','🇧🇸','🇧🇭','🇧🇩','🇧🇧','🇧🇾','🇧🇪','🇧🇿','🇧🇯','🇧🇲','🇧🇹','🇧🇴','🇧🇦','🇧🇼','🇧🇷','🇮🇴','🇻🇬','🇧🇳','🇧🇬','🇧🇫','🇧🇮','🇰🇭','🇨🇲','🇨🇦','🇮🇨','🇨🇻','🇧🇶','🇰🇾','🇨🇫','🇹🇩','🇨🇱','🇨🇳','🇨🇽','🇨🇨','🇨🇴','🇰🇲','🇨🇬','🇨🇩','🇨🇰','🇨🇷','🇨🇮','🇭🇷','🇨🇺','🇨🇼','🇨🇾','🇨🇿','🇩🇰','🇩🇯','🇩🇲','🇩🇴','🇪🇨','🇪🇬','🇸🇻','🇬🇶','🇪🇷','🇪🇪','🇸🇿','🇪🇹','🇪🇺','🇫🇰','🇫🇴','🇫🇯','🇫🇮','🇫🇷','🇬🇫','🇵🇫','🇹🇫','🇬🇦','🇬🇲','🇬🇪','🇩🇪','🇬🇭','🇬🇮','🇬🇷','🇬🇱','🇬🇩','🇬🇵','🇬🇺','🇬🇹','🇬🇬','🇬🇳','🇬🇼','🇬🇾','🇭🇹','🇭🇲','🇭🇳','🇭🇰','🇭🇺','🇮🇸','🇮🇳','🇮🇩','🇮🇷','🇮🇶','🇮🇪','🇮🇲','🇮🇱','🇮🇹','🇯🇲','🇯🇵','🎌','🇯🇪','🇯🇴','🇰🇿','🇰🇪','🇰🇮','🇰🇵','🇰🇷','🇰🇼','🇰🇬','🇱🇦','🇱🇻','🇱🇧','🇱🇸','🇱🇷','🇱🇾','🇱🇮','🇱🇹','🇱🇺','🇲🇴','🇲🇬','🇲🇼','🇲🇾','🇲🇻','🇲🇱','🇲🇹','🇲🇭','🇲🇶','🇲🇷','🇲🇺','🇾🇹','🇲🇽','🇫🇲','🇲🇩','🇲🇨','🇲🇳','🇲🇪','🇲🇸','🇲🇦','🇲🇿','🇲🇲','🇳🇦','🇳🇷','🇳🇵','🇳🇱','🇳🇨','🇳🇿','🇳🇮','🇳🇪','🇳🇬','🇳🇺','🇳🇫','🇲🇰','🇲🇵','🇳🇴','🇴🇲','🇵🇰','🇵🇼','🇵🇸','🇵🇦','🇵🇬','🇵🇾','🇵🇪','🇵🇭','🇵🇳','🇵🇱','🇵🇹','🇵🇷','🇶🇦','🇷🇪','🇷🇴','🇷🇺','🇷🇼','🇼🇸','🇸🇲','🇸🇹','🇸🇦','🇸🇳','🇷🇸','🇸🇨','🇸🇱','🇸🇬','🇸🇽','🇸🇰','🇸🇮','🇸🇧','🇸🇴','🇿🇦','🇬🇸','🇸🇸','🇪🇸','🇱🇰','🇧🇱','🇸🇭','🇰🇳','🇱🇨','🇵🇲','🇻🇨','🇸🇩','🇸🇷','🇸🇯','🇸🇪','🇨🇭','🇸🇾','🇹🇼','🇹🇯','🇹🇿','🇹🇭','🇹🇱','🇹🇬','🇹🇰','🇹🇴','🇹🇹','🇹🇳','🇹🇷','🇹🇲','🇹🇨','🇹🇻','🇻🇬','🇺🇬','🇺🇦','🇦🇪','🇬🇧','🏴󠁧󠁢󠁥󠁮󠁧󠁿','🏴󠁧󠁢󠁳󠁣󠁴󠁿','🏴󠁧󠁢󠁷󠁬󠁳󠁿','🇺🇸','🇺🇾','🇺🇿','🇻🇺','🇻🇦','🇻🇪','🇻🇳','🇼🇫','🇪🇭','🇾🇪','🇿🇲','🇿🇼']
+};
+
+function getRecentEmojis() {
+    try {
+        const raw = localStorage.getItem('lessonnote_recent_emojis');
+        return raw ? JSON.parse(raw) : [];
+    } catch { return []; }
+}
+
+function addRecentEmoji(emoji) {
+    const recent = getRecentEmojis();
+    const filtered = recent.filter(e => e !== emoji);
+    filtered.unshift(emoji);
+    const trimmed = filtered.slice(0, 18);
+    localStorage.setItem('lessonnote_recent_emojis', JSON.stringify(trimmed));
+}
+
+function showEmojiPicker(event, noteId) {
+    event.stopPropagation();
+    document.getElementById('emojiPicker')?.remove();
+    document.getElementById('linkPicker')?.remove();
+
+    const picker = document.createElement('div');
+    picker.id = 'emojiPicker';
+    picker.className = 'fixed z-[60] bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-2xl w-[340px] flex flex-col overflow-hidden';
+    picker.style.maxHeight = '420px';
+
+    const recent = getRecentEmojis();
+    const categories = { ...EMOJI_CATEGORIES };
+    if (recent.length > 0) {
+        categories['Recent'] = recent;
+    }
+
+    let currentCategory = recent.length > 0 ? 'Recent' : 'Smileys';
+    let searchQuery = '';
+
+    function buildContent() {
+        let html = '';
+        if (searchQuery) {
+            const allEmojis = Object.values(categories).flat();
+            const filtered = [...new Set(allEmojis)].filter(e => {
+                // Simple name matching via a basic lookup - for now just check if emoji contains query (not perfect but works for symbols)
+                return e.includes(searchQuery) || e === searchQuery; // fallback: direct match
+            }).slice(0, 60);
+            if (filtered.length === 0) {
+                html += `<div class="px-4 py-8 text-center text-sm text-slate-400 dark:text-slate-500">No emojis found</div>`;
+            } else {
+                html += `<div class="grid grid-cols-8 gap-1 p-3">`;
+                filtered.forEach(emoji => {
+                    html += `<button class="emoji-btn text-2xl p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors cursor-pointer flex items-center justify-center aspect-square" data-emoji="${emoji}">${emoji}</button>`;
+                });
+                html += `</div>`;
+            }
+        } else {
+            Object.entries(categories).forEach(([cat, emojis]) => {
+                if (emojis.length === 0) return;
+                html += `<div id="cat-${cat}" class="px-3 pt-3 pb-1">
+                    <h4 class="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1.5">${cat}</h4>
+                    <div class="grid grid-cols-8 gap-1">`;
+                emojis.forEach(emoji => {
+                    html += `<button class="emoji-btn text-2xl p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors cursor-pointer flex items-center justify-center aspect-square" data-emoji="${emoji}">${emoji}</button>`;
+                });
+                html += `</div></div>`;
+            });
+        }
+        return html;
+    }
+
+    picker.innerHTML = `
+        <div class="flex items-center gap-2 px-3 py-2.5 border-b border-slate-100 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/50">
+            <i data-lucide="search" class="w-4 h-4 text-slate-400 flex-none"></i>
+            <input type="text" id="emojiSearch" placeholder="Search emoji..." class="flex-1 bg-transparent text-sm text-slate-700 dark:text-slate-200 placeholder-slate-400 outline-none" autocomplete="off">
+            <button id="emojiRandom" class="text-[11px] font-medium text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 px-2 py-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">Random</button>
+            <button id="emojiRemove" class="text-[11px] font-medium text-red-500 hover:text-red-700 px-2 py-1 rounded hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">Remove</button>
+        </div>
+        ${searchQuery === '' ? `
+        <div class="flex gap-0 border-b border-slate-100 dark:border-slate-700 overflow-x-auto scrollbar-hide px-1">
+            ${Object.keys(categories).map(cat => `
+                <button class="emoji-cat-btn flex-none px-2.5 py-2 text-[11px] font-medium text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors border-b-2 border-transparent ${cat === currentCategory ? 'text-blue-600 dark:text-blue-400 border-blue-500 bg-blue-50/50 dark:bg-blue-900/10' : ''}" data-cat="${cat}">${cat}</button>
+            `).join('')}
+        </div>
+        ` : ''}
+        <div id="emojiScrollArea" class="overflow-y-auto custom-scrollbar flex-1" style="max-height: 320px;">
+            ${buildContent()}
+        </div>
+        <div class="px-3 py-2 border-t border-slate-100 dark:border-slate-700 text-[10px] text-slate-400 dark:text-slate-500 text-center bg-slate-50/30 dark:bg-slate-800/30">
+            Press <kbd class="px-1 py-0.5 rounded bg-slate-200 dark:bg-slate-700 font-sans">Esc</kbd> to close
+        </div>
+    `;
+
+    document.body.appendChild(picker);
+    lucide.createIcons({ scope: picker });
+
+    // Wire up search
+    const searchInput = picker.querySelector('#emojiSearch');
+    searchInput?.addEventListener('input', (e) => {
+        searchQuery = e.target.value.trim().toLowerCase();
+        const scrollArea = picker.querySelector('#emojiScrollArea');
+        if (scrollArea) scrollArea.innerHTML = buildContent();
+        rebindEmojiButtons();
+    });
+    searchInput?.focus();
+
+    // Wire up category tabs
+    picker.querySelectorAll('.emoji-cat-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            currentCategory = btn.dataset.cat;
+            const scrollArea = picker.querySelector('#emojiScrollArea');
+            const target = picker.querySelector(`#cat-${CSS.escape(currentCategory)}`);
+            if (target && scrollArea) {
+                scrollArea.scrollTo({ top: target.offsetTop - scrollArea.offsetTop - 8, behavior: 'smooth' });
+            }
+            // Update active tab styling
+            picker.querySelectorAll('.emoji-cat-btn').forEach(b => b.classList.remove('text-blue-600','dark:text-blue-400','border-blue-500','bg-blue-50/50','dark:bg-blue-900/10'));
+            btn.classList.add('text-blue-600','dark:text-blue-400','border-blue-500','bg-blue-50/50','dark:bg-blue-900/10');
+        });
+    });
+
+    // Wire up random/remove
+    picker.querySelector('#emojiRandom')?.addEventListener('click', () => {
+        setRandomEmoji(noteId);
+        picker.remove();
+    });
+    picker.querySelector('#emojiRemove')?.addEventListener('click', () => {
+        removeNoteIcon(noteId);
+        picker.remove();
+    });
+
+    function rebindEmojiButtons() {
+        picker.querySelectorAll('.emoji-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const emoji = btn.dataset.emoji;
+                addRecentEmoji(emoji);
+                setNoteIcon(noteId, emoji);
+                picker.remove();
+            });
+        });
+    }
+    rebindEmojiButtons();
+
+    // Position
+    const rect = event.currentTarget.getBoundingClientRect();
+    let top = rect.bottom + window.scrollY + 8;
+    let left = rect.left + window.scrollX;
+    const pickerHeight = 420;
+    const pickerWidth = 340;
+    if (top + pickerHeight > window.innerHeight + window.scrollY) {
+        top = rect.top + window.scrollY - pickerHeight - 8;
+    }
+    if (left + pickerWidth > window.innerWidth + window.scrollX) {
+        left = window.innerWidth + window.scrollX - pickerWidth - 12;
+    }
+    picker.style.top = `${top}px`;
+    picker.style.left = `${left}px`;
+
+    // Keyboard handling inside picker
+    picker.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            e.stopPropagation();
+            picker.remove();
+        }
+    });
+}
+
+function setRandomEmoji(noteId) {
+    const all = Object.values(EMOJI_CATEGORIES).flat();
+    const randomEmoji = all[Math.floor(Math.random() * all.length)];
+    addRecentEmoji(randomEmoji);
+    setNoteIcon(noteId, randomEmoji);
 }
