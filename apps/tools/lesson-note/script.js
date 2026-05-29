@@ -15,6 +15,9 @@ let searchCache = null;
 let strippedContentCache = new Map();
 let sortMode = 'date-desc';
 let draggedNoteId = null;
+let noteLinkSearchActive = false;
+let noteLinkTriggerIndex = -1;
+let noteLinkActiveIndex = 0;
 
 const FOLDER_COLORS = [
     { name: 'Blue', hex: '#2979FF' },
@@ -259,15 +262,18 @@ document.addEventListener('DOMContentLoaded', async () => {
         await createNewNote();
     }
 
-    renderNotesList();
+        renderNotesList();
 
-    // Close context menus and sort dropdown on outside click
+    // Close context menus, sort dropdown, and note link suggestions on outside click
     document.addEventListener('click', (e) => {
         if (!e.target.closest('.note-ctx-menu') && !e.target.closest('.note-ctx-trigger')) {
             document.querySelectorAll('.note-ctx-menu').forEach(m => m.remove());
         }
         if (!e.target.closest('#sortDropdown') && !e.target.closest('#sortBtn')) {
             document.getElementById('sortDropdown')?.classList.add('hidden');
+        }
+        if (!e.target.closest('#noteLinkSuggestions')) {
+            closeNoteLinkSuggestions();
         }
     });
 
@@ -327,6 +333,76 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Cursor-following tooltip system
     initCursorTooltips();
 
+    // Create note link suggestions popup element
+    const suggestionsEl = document.createElement('div');
+    suggestionsEl.id = 'noteLinkSuggestions';
+    suggestionsEl.className = 'hidden absolute z-50 bg-white dark:bg-[#1e293b] border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg py-1 min-w-[240px] max-h-[200px] overflow-y-auto custom-scrollbar animate-pop';
+    document.body.appendChild(suggestionsEl);
+
+    // Capture keyboard navigation for note links in Quill
+    quill.root.addEventListener('keydown', (e) => {
+        if (!noteLinkSearchActive) return;
+
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            e.stopPropagation();
+            const list = notes.filter(n => !n.deleted && n.id !== currentNoteId);
+            const query = getNoteLinkQuery();
+            const filtered = list.filter(n => (n.title || 'Untitled').toLowerCase().includes(query.toLowerCase()));
+            if (filtered.length > 0) {
+                noteLinkActiveIndex = (noteLinkActiveIndex + 1) % filtered.length;
+                updateNoteLinkSuggestions(query);
+            }
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            e.stopPropagation();
+            const list = notes.filter(n => !n.deleted && n.id !== currentNoteId);
+            const query = getNoteLinkQuery();
+            const filtered = list.filter(n => (n.title || 'Untitled').toLowerCase().includes(query.toLowerCase()));
+            if (filtered.length > 0) {
+                noteLinkActiveIndex = (noteLinkActiveIndex - 1 + filtered.length) % filtered.length;
+                updateNoteLinkSuggestions(query);
+            }
+        } else if (e.key === 'Enter') {
+            e.preventDefault();
+            e.stopPropagation();
+            const list = notes.filter(n => !n.deleted && n.id !== currentNoteId);
+            const query = getNoteLinkQuery();
+            const filtered = list.filter(n => (n.title || 'Untitled').toLowerCase().includes(query.toLowerCase()));
+            if (filtered.length > 0 && filtered[noteLinkActiveIndex]) {
+                insertNoteLink(filtered[noteLinkActiveIndex]);
+            } else {
+                closeNoteLinkSuggestions();
+            }
+        } else if (e.key === 'Escape') {
+            e.preventDefault();
+            e.stopPropagation();
+            closeNoteLinkSuggestions();
+        }
+    }, true);
+
+    // Handle clicks on note links in the editor
+    quill.root.addEventListener('click', (e) => {
+        const linkEl = e.target.closest('a');
+        if (linkEl) {
+            const href = linkEl.getAttribute('href');
+            if (href && href.startsWith('#note-')) {
+                e.preventDefault();
+                e.stopPropagation();
+                const noteId = href.replace('#note-', '');
+                loadNote(noteId);
+            }
+        }
+    });
+
+    quill.on('selection-change', (range) => {
+        if (range) {
+            checkNoteLinkTrigger();
+        } else {
+            closeNoteLinkSuggestions();
+        }
+    });
+
     document.getElementById('noteTitle').addEventListener('input', () => {
         saveCurrentNote();
         renderNotesList();
@@ -340,6 +416,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             debouncedSave();
             debouncedOutline();
             debouncedRenderList();
+
+            checkNoteLinkTrigger();
         }
     });
 
@@ -861,7 +939,7 @@ async function processImport(inputElement) {
 }
 
 // ===== TRASH MODE =====
-function toggleTrashMode() {
+function toggleTrashMode(targetNoteId = null) {
     isTrashMode = !isTrashMode;
     const trashBtn = document.getElementById('trashToggleBtn');
     const trashHeader = document.getElementById('trashHeader');
@@ -872,8 +950,8 @@ function toggleTrashMode() {
         trashBtn.classList.replace('text-dark', 'text-white');
         trashHeader.classList.remove('hidden');
         newNoteBtn.classList.add('opacity-50', 'pointer-events-none');
-        const firstTrash = notes.find(n => n.deleted);
-        if (firstTrash) { loadNote(firstTrash.id); }
+        const firstTrash = targetNoteId || notes.find(n => n.deleted)?.id;
+        if (firstTrash) { loadNote(firstTrash); }
         else {
             currentNoteId = null;
             document.getElementById('noteTitle').value = "";
@@ -888,8 +966,8 @@ function toggleTrashMode() {
         trashHeader.classList.add('hidden');
         newNoteBtn.classList.remove('opacity-50', 'pointer-events-none');
         quill.enable();
-        const firstActive = notes.find(n => !n.deleted);
-        if (firstActive) loadNote(firstActive.id);
+        const activeId = targetNoteId || notes.find(n => !n.deleted)?.id;
+        if (activeId) loadNote(activeId);
         else createNewNote();
     }
     renderNotesList();
@@ -930,10 +1008,29 @@ async function createNewNote() {
 }
 
 async function loadNote(id) {
+    const note = notes.find(n => n.id === id);
+    if (!note) {
+        showToast('Note not found', 'error');
+        return;
+    }
+
+    if (note.deleted && !isTrashMode) {
+        const confirmed = await showModal('Restore Note?', 'This note is in the Trash. Would you like to restore it to view?', 'Restore Note');
+        if (confirmed) {
+            note.deleted = false;
+            note.updatedAt = Date.now();
+            await saveNoteToDB(note);
+            saveToCloud();
+        } else {
+            return;
+        }
+    } else if (!note.deleted && isTrashMode) {
+        toggleTrashMode(id);
+        return;
+    }
+
     currentNoteId = id;
     if (!isTrashMode) await saveSetting('lastActiveNoteId', id);
-    const note = notes.find(n => n.id === id);
-    if (!note) return;
 
     document.getElementById('noteTitle').value = note.title;
     document.getElementById('headerNoteTitle').textContent = note.title || 'Untitled';
@@ -1981,4 +2078,131 @@ function showToast(message, type = "success") {
         toast.style.transition = "all 0.3s ease";
         setTimeout(() => toast.remove(), 300);
     }, 3000);
+}
+
+// ===== NOTE LINKING FUNCTIONALITY =====
+function checkNoteLinkTrigger() {
+    const range = quill.getSelection();
+    if (!range || range.length > 0) {
+        closeNoteLinkSuggestions();
+        return;
+    }
+
+    const index = range.index;
+    const textBefore = quill.getText(0, index);
+    
+    if (!noteLinkSearchActive) {
+        if (textBefore.endsWith('[[')) {
+            noteLinkSearchActive = true;
+            noteLinkTriggerIndex = index - 2;
+            noteLinkActiveIndex = 0;
+            showNoteLinkSuggestions();
+        }
+    } else {
+        if (index < noteLinkTriggerIndex + 2) {
+            closeNoteLinkSuggestions();
+            return;
+        }
+        
+        const queryText = textBefore.substring(noteLinkTriggerIndex + 2);
+        if (queryText.includes('\n')) {
+            closeNoteLinkSuggestions();
+            return;
+        }
+
+        updateNoteLinkSuggestions(queryText);
+    }
+}
+
+function getNoteLinkQuery() {
+    const range = quill.getSelection();
+    if (!range) return '';
+    const textBefore = quill.getText(0, range.index);
+    return textBefore.substring(noteLinkTriggerIndex + 2);
+}
+
+function showNoteLinkSuggestions() {
+    const range = quill.getSelection();
+    if (!range) return;
+    
+    const editorRect = quill.container.getBoundingClientRect();
+    const bounds = quill.getBounds(range.index);
+    const suggestionsEl = document.getElementById('noteLinkSuggestions');
+    
+    if (suggestionsEl) {
+        // Position it below the cursor
+        suggestionsEl.style.top = (editorRect.top + bounds.bottom + window.scrollY) + 'px';
+        suggestionsEl.style.left = (editorRect.left + bounds.left + window.scrollX) + 'px';
+        suggestionsEl.classList.remove('hidden');
+        
+        updateNoteLinkSuggestions('');
+    }
+}
+
+function closeNoteLinkSuggestions() {
+    noteLinkSearchActive = false;
+    noteLinkTriggerIndex = -1;
+    noteLinkActiveIndex = 0;
+    const suggestionsEl = document.getElementById('noteLinkSuggestions');
+    if (suggestionsEl) {
+        suggestionsEl.classList.add('hidden');
+    }
+}
+
+function updateNoteLinkSuggestions(query = '') {
+    const list = notes.filter(n => !n.deleted && n.id !== currentNoteId);
+    const filtered = list.filter(n => {
+        const title = (n.title || 'Untitled').toLowerCase();
+        return title.includes(query.toLowerCase());
+    });
+
+    const suggestionsEl = document.getElementById('noteLinkSuggestions');
+    if (!suggestionsEl) return filtered;
+
+    if (filtered.length === 0) {
+        suggestionsEl.innerHTML = `
+            <div class="px-3 py-2 text-xs text-slate-400 dark:text-slate-500 italic">No notes found</div>
+        `;
+        return filtered;
+    }
+
+    suggestionsEl.innerHTML = '';
+    filtered.forEach((note, index) => {
+        const item = document.createElement('button');
+        item.type = 'button';
+        const isSelected = index === noteLinkActiveIndex;
+        item.className = `w-full text-left px-3 py-1.5 text-[13px] font-medium rounded-md flex items-center gap-2 transition-colors mx-1 ${
+            isSelected 
+                ? 'bg-blue text-white' 
+                : 'text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800'
+        }`;
+        item.innerHTML = `
+            <i data-lucide="file-text" class="w-3.5 h-3.5 flex-none ${isSelected ? 'text-white' : 'text-slate-400'}"></i>
+            <span class="truncate">${escapeHtml(note.title || 'Untitled')}</span>
+        `;
+        item.onclick = (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            insertNoteLink(note);
+        };
+        suggestionsEl.appendChild(item);
+    });
+    lucide.createIcons({ scope: suggestionsEl });
+    return filtered;
+}
+
+function insertNoteLink(note) {
+    const range = quill.getSelection();
+    if (!range) return;
+    
+    const currentCursorIndex = range.index;
+    
+    quill.deleteText(noteLinkTriggerIndex, currentCursorIndex - noteLinkTriggerIndex);
+    
+    const linkText = `Note: ${note.title || 'Untitled'}`;
+    quill.insertText(noteLinkTriggerIndex, linkText, 'link', '#note-' + note.id);
+    quill.insertText(noteLinkTriggerIndex + linkText.length, ' ');
+    quill.setSelection(noteLinkTriggerIndex + linkText.length + 1, 0);
+    
+    closeNoteLinkSuggestions();
 }
