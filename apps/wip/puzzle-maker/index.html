@@ -1,799 +1,316 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
-    <head>
-        <meta charset="UTF-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>Puzzle Maker Pro - KlassKit</title>
-    <link rel="icon" type="image/x-icon" href="../../../media/icon.ico" />
-    <link rel="icon" type="image/webp" href="../../../media/icon.webp" />
-  <script>if(localStorage.getItem("theme_puzzle-maker")==="dark"||(!localStorage.getItem("theme_puzzle-maker")&&window.matchMedia("(prefers-color-scheme:dark)").matches)){document.documentElement.classList.add("dark")}</script>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Puzzle Line Maker</title>
+<link rel="icon" type="image/x-icon" href="../../../media/icon.ico" />
+<link rel="icon" type="image/webp" href="../../../media/icon.webp" />
 
-        <!-- External Libraries -->
-        <script src="https://unpkg.com/lucide@1.16.0"></script>
-        <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.105.4"></script>
-        <script src="/supabase.js"></script>
-        <script src="https://cdn.tailwindcss.com"></script>
+<!-- Supabase Auth -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.105.4"></script>
+<script src="https://cdn.jsdelivr.net/npm/browser-image-compression@2.0.2/dist/browser-image-compression.js"></script>
+<script src="/supabase.js"></script>
 
-        <!-- Fonts -->
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-        <link
-            href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Nunito:wght@400;600;700;800&display=swap"
-            rel="stylesheet"
-        />
+<script src="https://cdn.tailwindcss.com"></script>
 
-        <script>
-            tailwind.config = {
-                darkMode: "class",
-                theme: {
-                    extend: {
-                        colors: {
-                            pink: "#FF6B95",
-                            orange: "#FF8C42",
-                            green: "#00E676",
-                            blue: "#2979FF",
-                            dark: "#1e293b",
-                            chalk: "#f8fafc",
-                        },
-                        fontFamily: {
-                            heading: ["Fredoka", "sans-serif"],
-                            body: ["Nunito", "sans-serif"],
-                        },
-                    },
-                },
-            };
-        </script>
+<!-- Base styles -->
+<link rel="stylesheet" href="../../../css/base.css" />
+<link rel="stylesheet" href="../../../css/components.css" />
+<script>
+tailwind.config = {
+  darkMode: 'class',
+  theme: {
+    extend: {
+      colors: {
+        pink:   '#FF6B95',
+        orange: '#FF8C42',
+        green:  '#00E676',
+        blue:   '#2979FF',
+        dark:   '#1e293b',
+        chalk:  '#f8fafc',
+        brand: {
+          pink: '#FF6B95',
+          orange: '#FF8C42',
+          green: '#00E676',
+          blue: '#2979FF',
+          dark: '#1e293b',
+          chalk: '#f8fafc',
+        }
+      },
+      fontFamily: {
+        fredoka: ['"Fredoka"','sans-serif'],
+        nunito:  ['"Nunito"','sans-serif'],
+        heading: ['"Fredoka"','sans-serif'],
+        body:  ['"Nunito"','sans-serif'],
+      },
+      boxShadow: {
+        'hard-sm': '2px 2px 0px 0px rgba(30, 41, 59, 1)',
+        'hard': '4px 4px 0px 0px rgba(30, 41, 59, 1)',
+      }
+    }
+  }
+}
+</script>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Nunito:wght@400;600;700&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+<style>
+*{box-sizing:border-box}
+body{font-family:'Nunito',sans-serif;background:#f8fafc;margin:0}
+.dark body{background:#0f172a}
 
-        <style type="text/tailwindcss">
-            /* ============================================
-           BASE STYLES
-           ============================================ */
-            :root {
-                --color-pink: #ff6b95;
-                --color-orange: #ff8c42;
-                --color-green: #00e676;
-                --color-blue: #2979ff;
-                --color-dark: #1e293b;
-                --color-chalk: #f8fafc;
-                --bg-primary: #f8fafc;
-                --bg-secondary: #ffffff;
-                --text-primary: #1e293b;
-                --border-primary: #1e293b;
-                --border-width-medium: 4px;
-                --border-width-thick: 6px;
-                --grid-color: #e2e8f0;
-                --grid-size: 24px;
-                --transition-fast: 0.15s cubic-bezier(0.4, 0, 0.2, 1);
-                --transition-bounce: 0.3s
-                    cubic-bezier(0.175, 0.885, 0.32, 1.275);
-            }
+.card-sh{box-shadow:4px 4px 0 #1e293b}
+.dark .card-sh{box-shadow:4px 4px 0 #94a3b8}
 
-            body {
-                font-family: "Nunito", sans-serif;
-                background-color: var(--bg-primary);
-                background-image:
-                    linear-gradient(var(--grid-color) 1px, transparent 1px),
-                    linear-gradient(
-                        90deg,
-                        var(--grid-color) 1px,
-                        transparent 1px
-                    );
-                background-size: var(--grid-size) var(--grid-size);
-                color: var(--text-primary);
-                overflow: hidden;
-            }
+.btn{box-shadow:4px 4px 0 #1e293b;transition:transform .1s,box-shadow .1s;cursor:pointer}
+.dark .btn{box-shadow:4px 4px 0 #94a3b8}
+.btn:hover{transform:translate(-1px,-1px);box-shadow:5px 5px 0 #1e293b}
+.dark .btn:hover{box-shadow:5px 5px 0 #94a3b8}
+.btn:active{transform:translate(2px,2px);box-shadow:2px 2px 0 #1e293b}
+.dark .btn:active{box-shadow:2px 2px 0 #94a3b8}
 
-            /* --- Chunky Buttons --- */
-            .btn-chunky {
-                position: relative;
-                display: inline-flex;
-                align-items: center;
-                justify-content: center;
-                font-family: "Fredoka", sans-serif;
-                font-weight: 700;
-                text-transform: uppercase;
-                letter-spacing: 0.05em;
-                border: var(--border-width-medium) solid var(--border-primary);
-                box-shadow: 0 4px 0 var(--border-primary);
-                cursor: pointer;
-                user-select: none;
-                transition: all var(--transition-fast);
-                transform: translateY(0);
-                @apply rounded-xl px-4 py-3;
-            }
+input[type=range]{-webkit-appearance:none;appearance:none;height:8px;border-radius:4px;background:#e2e8f0;border:2px solid #1e293b;outline:none;width:100%}
+.dark input[type=range]{background:#334155;border-color:#64748b}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:22px;height:22px;border-radius:50%;background:#FF6B95;border:3px solid #1e293b;cursor:pointer}
+.dark input[type=range]::-webkit-slider-thumb{border-color:#f1f5f9}
 
-            .btn-chunky:hover:not(:disabled) {
-                transform: translateY(-2px);
-                box-shadow: 0 6px 0 var(--border-primary);
-            }
+.drop-zone.over{background:rgba(41,121,255,.12);border-color:#2979FF}
 
-            .btn-chunky:active:not(:disabled) {
-                transform: translateY(4px);
-                box-shadow: 0 0 0 var(--border-primary);
-            }
+.style-btn{background:#f8fafc;border:2px solid #1e293b;border-radius:12px;padding:8px 10px;display:flex;align-items:center;gap:8px;cursor:pointer;font-family:'Fredoka',sans-serif;font-size:14px;font-weight:600;color:#1e293b;box-shadow:3px 3px 0 #1e293b;transition:transform .1s,box-shadow .1s}
+.dark .style-btn{background:#1e293b;color:#f1f5f9;border-color:#64748b;box-shadow:3px 3px 0 #64748b}
+.style-btn:hover{transform:translate(-1px,-1px);box-shadow:4px 4px 0 #1e293b}
+.dark .style-btn:hover{box-shadow:4px 4px 0 #64748b}
+.style-btn:active{transform:translate(2px,2px);box-shadow:1px 1px 0 #1e293b}
+.style-btn.active{background:#2979FF;color:#fff;border-color:#1e293b;box-shadow:3px 3px 0 #1e293b}
+.dark .style-btn.active{background:#2979FF;border-color:#64748b}
 
-            .btn-chunky:disabled {
-                opacity: 0.5;
-                cursor: not-allowed;
-                box-shadow: 0 2px 0 var(--border-primary);
-                background-color: #e2e8f0;
-                color: #94a3b8;
-            }
+.swatch{width:26px;height:26px;border-radius:8px;border:2px solid #1e293b;cursor:pointer;box-shadow:2px 2px 0 #1e293b;transition:transform .1s}
+.swatch:hover{transform:scale(1.1)}
+.swatch.sel{outline:3px solid #2979FF;outline-offset:2px}
 
-            /* --- Round/Page List Items --- */
-            .round-item {
-                @apply flex items-center gap-3 p-2 rounded-xl border-2 border-transparent cursor-pointer transition-all hover:bg-slate-50;
-            }
-            .round-item.active {
-                @apply border-blue bg-blue/5;
-            }
-            .round-item img {
-                @apply w-12 h-12 rounded-lg object-cover border-2 border-slate-200;
-            }
-            .round-item.active img {
-                @apply border-blue;
-            }
-
-            .sidebar {
-                width: 380px;
-                background: var(--bg-secondary);
-                border-right: var(--border-width-thick) solid
-                    var(--border-primary);
-                padding: 1.5rem;
-                height: 100vh;
-                z-index: 50;
-                display: flex;
-                flex-direction: column;
-                box-shadow: 4px 0 0 rgba(30, 41, 59, 0.05);
-                transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            }
-
-            .sidebar.hidden-panel {
-                margin-left: -380px;
-            }
-
-            .main-area {
-                flex: 1;
-                height: 100vh;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                padding: 40px;
-                overflow: auto;
-                position: relative;
-            }
-
-            /* Fullscreen Toggle Button */
-            #fullscreenToggle {
-                @apply absolute top-6 left-6 z-40 bg-white border-4 border-dark rounded-xl p-2 cursor-pointer transition-transform hover:scale-105 active:scale-95 text-dark;
-                box-shadow: 4px 4px 0 var(--border-primary);
-            }
-
-            #game-container {
-                position: relative;
-                box-shadow: 12px 12px 0px rgba(30, 41, 59, 0.1);
-                border: var(--border-width-thick) solid var(--border-primary);
-                border-radius: 28px;
-                background: #fff;
-                display: none;
-                overflow: hidden;
-                transition: transform var(--transition-bounce);
-            }
-
-            canvas {
-                display: block;
-                cursor: pointer;
-            }
-
-            .input-label {
-                @apply text-[11px] font-black text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2;
-            }
-
-            .toggle-btn {
-                @apply flex items-center justify-between p-4 rounded-xl border-4 border-dark bg-white transition-all cursor-pointer;
-                box-shadow: 4px 4px 0 var(--border-primary);
-            }
-            .toggle-btn:hover {
-                @apply bg-slate-50;
-            }
-            .toggle-btn:active {
-                transform: translate(2px, 2px);
-                box-shadow: 0px 0px 0 var(--border-primary);
-            }
-            .toggle-btn.active {
-                @apply bg-blue text-white border-blue;
-                box-shadow: 4px 4px 0 var(--color-dark);
-            }
-            .toggle-btn .toggle-icon {
-                @apply transition-transform duration-300;
-            }
-            .toggle-btn.active .toggle-icon {
-                @apply scale-110;
-            }
-
-            @keyframes pop-in {
-                0% {
-                    opacity: 0;
-                    transform: scale(0.9) translateY(10px);
-                }
-                100% {
-                    opacity: 1;
-                    transform: scale(1) translateY(0);
-                }
-            }
-
-            .modal-overlay {
-                @apply fixed inset-0 flex items-center justify-center z-[100] opacity-0 pointer-events-none transition-opacity duration-300;
-                background: rgba(30, 41, 59, 0.6);
-                backdrop-filter: blur(8px);
-            }
-            .modal-overlay.active {
-                @apply opacity-100 pointer-events-auto;
-            }
-
-            .modal-content {
-                @apply bg-white p-10 rounded-[32px] border-4 border-dark w-[90%] max-w-[440px] text-center;
-                box-shadow: 12px 12px 0px rgba(0, 0, 0, 0.2);
-            }
-
-            .modal-overlay.active .modal-content {
-                animation: pop-in 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275)
-                    forwards;
-            }
-
-            #thumb-preview {
-                @apply absolute top-6 right-6 w-32 border-4 border-dark rounded-xl z-10 hidden bg-white p-1;
-                box-shadow: 8px 8px 0px rgba(0, 0, 0, 0.1);
-            }
-
-            #toast {
-                @apply fixed top-6 left-1/2 -translate-x-1/2 bg-dark text-white px-6 py-3 rounded-full shadow-xl transform -translate-y-24 transition-transform duration-300 z-[200] flex items-center gap-3 font-bold;
-            }
-            #toast.active {
-                @apply translate-y-0;
-            }
-
-            /* --- PRINT STYLES --- */
-            #print-area {
-                display: none;
-            }
-
-            @media print {
-                @page {
-                    size: A4;
-                    margin: 0;
-                }
-                body,
-                html {
-                    margin: 0;
-                    padding: 0;
-                    width: 100%;
-                    height: 100%;
-                    background: white;
-                    overflow: visible;
-                }
-
-                .sidebar,
-                .main-area,
-                .modal-overlay,
-                #thumb-preview,
-                #liveStats,
-                #toast,
-                #fullscreenToggle {
-                    display: none !important;
-                }
-
-                #print-area {
-                    display: block !important;
-                    width: 100%;
-                    height: 100%;
-                }
-
-                .print-page {
-                    width: 210mm;
-                    height: 297mm;
-                    page-break-after: always;
-                    position: relative;
-                    padding: 0;
-                    margin: 0;
-                    display: flex;
-                    flex-direction: column;
-                    align-items: center;
-                    justify-content: center;
-                    box-sizing: border-box;
-                    overflow: hidden;
-                }
-
-                .print-page::after {
-                    content: attr(data-page-num);
-                    position: absolute;
-                    bottom: 10mm;
-                    right: 10mm;
-                    font-size: 10pt;
-                    color: #999;
-                    font-family: sans-serif;
-                }
-
-                .print-page:last-child {
-                    page-break-after: auto;
-                }
-
-                .print-full-img {
-                    width: 100%;
-                    height: 100%;
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    padding: 0;
-                    margin: 0;
-                }
-
-                .print-full-img img {
-                    width: 100%;
-                    height: 100%;
-                    object-fit: contain;
-                    border: none;
-                }
-
-                .print-page-ref {
-                    padding: 10mm;
-                    justify-content: flex-start;
-                }
-
-                .print-header {
-                    width: 100%;
-                    display: flex;
-                    justify-content: space-between;
-                    align-items: flex-end;
-                    border-bottom: 3px solid #000;
-                    padding-bottom: 20px;
-                    margin-bottom: 40px;
-                }
-            }
-        
-            .a4-preview {
-                width: 210mm;
-                min-height: 297mm;
-                background: white;
-                box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
-                padding: 15mm;
-                position: relative;
-                flex-shrink: 0;
-            }
-            @media (max-width: 1024px) {
-                .a4-preview {
-                    transform: scale(0.8);
-                    transform-origin: top center;
-                    margin-bottom: -60mm; /* adjust for scaled height */
-                }
-            }
-            @media (max-width: 768px) {
-                .a4-preview {
-                    transform: scale(0.5);
-                    transform-origin: top center;
-                    margin-bottom: -150mm;
-                }
-            }
+#controls{max-height:calc(100vh - 80px);overflow-y:auto;scrollbar-width:thin}
+#canvas{max-width:100%;max-height:calc(100vh - 180px);display:block}
 </style>
-        <link rel="stylesheet" href="../../../css/base.css" />
-    <link rel="stylesheet" href="../../../css/components.css" />
-  
 </head>
-    <body class="flex min-h-screen overflow-hidden">
-        <!-- Toast -->
-        <div id="toast">
-            <i data-lucide="save" class="w-4 h-4 text-green"></i>
-            <span>Game Saved</span>
+<body class="min-h-screen bg-chalk dark:bg-slate-900">
+
+<!-- HEADER -->
+<header class="bg-white dark:bg-slate-800 border-b-4 border-dark sticky top-0 z-50">
+  <div class="max-w-screen-xl mx-auto px-4 py-3 flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <a href="../../../hub.html" class="w-10 h-10 rounded-xl border-2 border-dark bg-white dark:bg-slate-700 flex items-center justify-center btn flex-shrink-0">
+        <i data-lucide="arrow-left" class="w-5 h-5 text-dark dark:text-white"></i>
+      </a>
+      <div class="w-10 h-10 rounded-xl border-2 border-dark bg-pink flex items-center justify-center btn flex-shrink-0" style="cursor:default">
+        <i data-lucide="scissors" class="w-5 h-5 text-white"></i>
+      </div>
+      <div>
+        <h1 class="font-fredoka font-bold text-xl text-dark dark:text-white leading-tight">Puzzle Line Maker</h1>
+        <p class="text-xs text-slate-500 dark:text-slate-400 hidden sm:block">Upload → Style → Download</p>
+      </div>
+    </div>
+    <button id="darkToggle" class="btn w-10 h-10 rounded-xl border-2 border-dark bg-white dark:bg-slate-700 flex items-center justify-center">
+      <i data-lucide="moon" id="darkIcon" class="w-5 h-5 text-dark dark:text-white"></i>
+    </button>
+  </div>
+</header>
+
+<div class="max-w-screen-xl mx-auto p-4 flex gap-4">
+
+  <!-- ── LEFT PANEL ───────────────────────────────── -->
+  <aside id="controls" class="w-72 flex-shrink-0 space-y-3 pb-6">
+
+    <!-- Upload -->
+    <div class="bg-white dark:bg-slate-800 border-2 border-dark rounded-2xl p-4 card-sh">
+      <h2 class="font-fredoka font-semibold text-dark dark:text-white flex items-center gap-2 mb-3">
+        <i data-lucide="image-plus" class="w-4 h-4 text-pink"></i> Upload Image
+      </h2>
+      <div id="dropZone" class="drop-zone border-2 border-dashed border-dark dark:border-slate-500 rounded-xl p-5 text-center cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">
+        <i data-lucide="upload-cloud" class="w-8 h-8 text-blue mx-auto mb-2"></i>
+        <p class="text-sm text-slate-500 dark:text-slate-400"><span class="text-pink font-semibold">Click</span> or drag image here</p>
+        <p class="text-xs text-slate-400 mt-1">PNG · JPG · GIF · WebP</p>
+        <input type="file" id="fileIn" accept="image/*" class="hidden">
+      </div>
+      <p id="imgInfo" class="mt-2 text-xs text-slate-400 truncate hidden"></p>
+    </div>
+
+    <!-- Grid Size -->
+    <div class="bg-white dark:bg-slate-800 border-2 border-dark rounded-2xl p-4 card-sh">
+      <h2 class="font-fredoka font-semibold text-dark dark:text-white flex items-center gap-2 mb-3">
+        <i data-lucide="grid-3x3" class="w-4 h-4 text-blue"></i> Grid Size
+      </h2>
+      <div class="space-y-3">
+        <div>
+          <div class="flex justify-between mb-1">
+            <span class="text-sm font-semibold text-dark dark:text-slate-200">Rows</span>
+            <span id="rowsLbl" class="font-fredoka text-sm font-bold text-pink">4</span>
+          </div>
+          <input type="range" id="rowsR" min="2" max="20" value="4">
+        </div>
+        <div>
+          <div class="flex justify-between mb-1">
+            <span class="text-sm font-semibold text-dark dark:text-slate-200">Columns</span>
+            <span id="colsLbl" class="font-fredoka text-sm font-bold text-pink">4</span>
+          </div>
+          <input type="range" id="colsR" min="2" max="20" value="4">
+        </div>
+      </div>
+    </div>
+
+    <!-- Cut Style -->
+    <div class="bg-white dark:bg-slate-800 border-2 border-dark rounded-2xl p-4 card-sh">
+      <h2 class="font-fredoka font-semibold text-dark dark:text-white flex items-center gap-2 mb-3">
+        <i data-lucide="pen-tool" class="w-4 h-4 text-orange"></i> Cut Style
+      </h2>
+      <div class="space-y-2">
+
+        <button class="style-btn active w-full" data-style="straight">
+          <svg width="44" height="18" viewBox="0 0 44 18" fill="none">
+            <line x1="2" y1="9" x2="42" y2="9" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+          Straight
+        </button>
+
+        <button class="style-btn w-full" data-style="jigsaw">
+          <svg width="44" height="18" viewBox="0 0 44 18" fill="none">
+            <path d="M2,9 L14,9 Q15,5 17,4 Q19,3 22,4 Q25,5 26,9 L42,9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          Jigsaw
+        </button>
+
+        <button class="style-btn w-full" data-style="jagged">
+          <svg width="44" height="18" viewBox="0 0 44 18" fill="none">
+            <path d="M2,9 L8,3 L14,15 L20,3 L26,15 L32,3 L38,15 L42,9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          Jagged / Zigzag
+        </button>
+
+        <button class="style-btn w-full" data-style="wavy">
+          <svg width="44" height="18" viewBox="0 0 44 18" fill="none">
+            <path d="M2,9 C8,2 14,16 22,9 C30,2 36,16 42,9" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+          Wavy
+        </button>
+
+        <button class="style-btn w-full" data-style="curved">
+          <svg width="44" height="18" viewBox="0 0 44 18" fill="none">
+            <path d="M2,9 C14,1 30,17 42,9" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+          S-Curve
+        </button>
+
+        <button class="style-btn w-full" data-style="bumpy">
+          <svg width="44" height="18" viewBox="0 0 44 18" fill="none">
+            <path d="M2,9 Q7,4 11,9 Q16,14 20,9 Q25,4 29,9 Q34,14 38,9 L42,9" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+          Bumpy
+        </button>
+
+      </div>
+    </div>
+
+    <!-- Line Appearance -->
+    <div class="bg-white dark:bg-slate-800 border-2 border-dark rounded-2xl p-4 card-sh">
+      <h2 class="font-fredoka font-semibold text-dark dark:text-white flex items-center gap-2 mb-3">
+        <i data-lucide="palette" class="w-4 h-4 text-green"></i> Line Appearance
+      </h2>
+      <div class="space-y-3">
+
+        <!-- Color swatches -->
+        <div>
+          <p class="text-sm font-semibold text-dark dark:text-slate-200 mb-2">Color</p>
+          <div class="flex flex-wrap gap-2 items-center">
+            <div class="swatch sel" style="background:#ffffff" data-color="#ffffff" title="White"></div>
+            <div class="swatch" style="background:#000000" data-color="#000000" title="Black"></div>
+            <div class="swatch" style="background:#FF6B95" data-color="#FF6B95" title="Pink"></div>
+            <div class="swatch" style="background:#2979FF" data-color="#2979FF" title="Blue"></div>
+            <div class="swatch" style="background:#00E676" data-color="#00E676" title="Green"></div>
+            <div class="swatch" style="background:#FF8C42" data-color="#FF8C42" title="Orange"></div>
+            <div class="swatch" style="background:#FFEB3B" data-color="#FFEB3B" title="Yellow"></div>
+            <input type="color" id="colorPick" value="#ffffff" class="swatch" style="padding:2px" title="Custom">
+          </div>
         </div>
 
-        <!-- Modal: Win -->
-        <div id="winnerModal" class="modal-overlay">
-            <div class="modal-content">
-                <div
-                    class="w-24 h-24 bg-green/10 rounded-full flex items-center justify-center mx-auto mb-6 border-4 border-green animate-bounce"
-                >
-                    <i data-lucide="trophy" class="text-green w-12 h-12"></i>
-                </div>
-                <h3 class="font-heading text-4xl mb-2 text-dark">AMAZING!</h3>
-                <p class="text-slate-500 mb-8 font-body text-lg">
-                    You finished this page!
-                </p>
-
-                <div class="flex gap-4 mb-8">
-                    <div
-                        class="flex-1 bg-slate-50 p-4 rounded-2xl border-2 border-dark"
-                    >
-                        <span
-                            class="block text-[10px] font-black text-slate-400 uppercase"
-                            >Time</span
-                        >
-                        <span
-                            id="finalTime"
-                            class="text-2xl font-heading text-dark"
-                            >00:00</span
-                        >
-                    </div>
-                    <div
-                        class="flex-1 bg-slate-50 p-4 rounded-2xl border-2 border-dark"
-                    >
-                        <span
-                            class="block text-[10px] font-black text-slate-400 uppercase"
-                            >Moves</span
-                        >
-                        <span
-                            id="finalMoves"
-                            class="text-2xl font-heading text-dark"
-                            >0</span
-                        >
-                    </div>
-                </div>
-
-                <div class="flex gap-4">
-                    <button
-                        onclick="nextRound()"
-                        id="modalNextBtn"
-                        class="flex-1 btn-chunky bg-blue text-white"
-                        style="display: none"
-                    >
-                        NEXT ROUND
-                        <i data-lucide="arrow-right" class="w-4 h-4 ml-2"></i>
-                    </button>
-                    <button
-                        onclick="scramblePuzzle()"
-                        class="flex-1 btn-chunky bg-orange text-white"
-                    >
-                        <i data-lucide="rotate-ccw" class="w-4 h-4 mr-2"></i>
-                        REPLAY
-                    </button>
-                </div>
-                <button
-                    onclick="closeModal('winnerModal')"
-                    class="mt-4 text-xs font-bold text-slate-400 hover:text-dark uppercase"
-                >
-                    Close & Stay Here
-                </button>
-            </div>
+        <!-- Width -->
+        <div>
+          <div class="flex justify-between mb-1">
+            <span class="text-sm font-semibold text-dark dark:text-slate-200">Line Width</span>
+            <span id="widthLbl" class="font-fredoka text-sm font-bold text-orange">2px</span>
+          </div>
+          <input type="range" id="widthR" min="1" max="12" value="2">
         </div>
 
-        <!-- Sidebar -->
-        <aside class="sidebar no-print" id="sidebar">
-            <header class="mb-6">
-                <div class="inline-flex items-center gap-4">
-                    <div
-                        class="w-14 h-14 bg-pink border-4 border-dark rounded-2xl flex items-center justify-center text-white"
-                        style="box-shadow: 4px 4px 0 var(--color-dark)"
-                    >
-                        <i data-lucide="puzzle" class="w-7 h-7"></i>
-                    </div>
-                    <div class="text-left">
-                        <h1
-                            class="text-2xl font-heading font-bold text-dark leading-none mb-1"
-                        >
-                            Puzzle<span class="text-blue">Maker</span>
-                        </h1>
-                        <p
-                            class="text-[10px] text-slate-400 font-black uppercase tracking-[0.2em]"
-                        >
-                            KlassKit Hub
-                        </p>
-                    </div>
-                </div>
-            </header>
+        <!-- Opacity -->
+        <div>
+          <div class="flex justify-between mb-1">
+            <span class="text-sm font-semibold text-dark dark:text-slate-200">Opacity</span>
+            <span id="opacLbl" class="font-fredoka text-sm font-bold text-orange">100%</span>
+          </div>
+          <input type="range" id="opacR" min="5" max="100" value="100">
+        </div>
 
-            <div class="flex-1 space-y-6 overflow-y-auto pr-2 custom-scrollbar">
-                <!-- Step 1: Manage Pages (New) -->
-                <section>
-                    <div class="flex items-center justify-between mb-3">
-                        <label class="input-label mb-0"
-                            ><i data-lucide="layers" class="w-3 h-3"></i> 1.
-                            Pages / Rounds</label
-                        >
-                        <button
-                            onclick="
-                                document.getElementById('fileInput').click()
-                            "
-                            class="text-[10px] font-black text-blue uppercase bg-blue/10 px-2 py-1 rounded hover:bg-blue/20 transition-colors"
-                        >
-                            + Add Page
-                        </button>
-                    </div>
+        <!-- Cut Depth -->
+        <div>
+          <div class="flex justify-between mb-1">
+            <span class="text-sm font-semibold text-dark dark:text-slate-200">Cut Depth</span>
+            <span id="depthLbl" class="font-fredoka text-sm font-bold text-orange">50%</span>
+          </div>
+          <input type="range" id="depthR" min="10" max="100" value="50">
+        </div>
 
-                    <div id="roundsList" class="space-y-2 mb-2">
-                        <!-- Rounds injected here -->
-                    </div>
+        <!-- Wave Frequency (shown only for wavy/bumpy) -->
+        <div id="freqRow">
+          <div class="flex justify-between mb-1">
+            <span class="text-sm font-semibold text-dark dark:text-slate-200">Frequency</span>
+            <span id="freqLbl" class="font-fredoka text-sm font-bold text-orange">3</span>
+          </div>
+          <input type="range" id="freqR" min="1" max="8" value="3">
+        </div>
 
-                    <div class="relative group mt-2" id="uploadBtnContainer">
-                        <button
-                            onclick="
-                                document.getElementById('fileInput').click()
-                            "
-                            class="w-full btn-chunky bg-slate-100 text-slate-400 border-slate-300 h-12 text-sm shadow-none hover:bg-white hover:text-blue hover:border-blue"
-                        >
-                            <i data-lucide="plus" class="w-4 h-4 mr-2"></i>
-                            <span>Add New Image</span>
-                        </button>
-                    </div>
-                    <input
-                        type="file"
-                        id="fileInput"
-                        class="hidden"
-                        accept="image/*"
-                        onchange="handleImageUpload(event)"
-                    />
-                </section>
+      </div>
+    </div>
 
-                <!-- Step 2: Grid -->
-                <section class="space-y-4">
-                    <label class="input-label"
-                        ><i data-lucide="grid" class="w-3 h-3"></i> 2. Grid
-                        Size</label
-                    >
-                    <div class="grid grid-cols-2 gap-4">
-                        <div class="space-y-2">
-                            <span
-                                class="text-[10px] font-bold text-slate-500 uppercase ml-1"
-                                >Cols</span
-                            >
-                            <div
-                                class="flex items-center border-2 border-dark rounded-xl bg-white overflow-hidden shadow-[2px_2px_0px_#1e293b]"
-                            >
-                                <button
-                                    onclick="adjustGrid('cols', -1)"
-                                    class="w-10 h-10 hover:bg-slate-100 font-bold border-r-2 border-slate-100 transition-colors"
-                                >
-                                    -
-                                </button>
-                                <span
-                                    id="displayCols"
-                                    class="flex-1 text-center font-heading font-bold text-lg text-dark"
-                                    >3</span
-                                >
-                                <button
-                                    onclick="adjustGrid('cols', 1)"
-                                    class="w-10 h-10 hover:bg-slate-100 font-bold border-l-2 border-slate-100 transition-colors"
-                                >
-                                    +
-                                </button>
-                            </div>
-                        </div>
-                        <div class="space-y-2">
-                            <span
-                                class="text-[10px] font-bold text-slate-500 uppercase ml-1"
-                                >Rows</span
-                            >
-                            <div
-                                class="flex items-center border-2 border-dark rounded-xl bg-white overflow-hidden shadow-[2px_2px_0px_#1e293b]"
-                            >
-                                <button
-                                    onclick="adjustGrid('rows', -1)"
-                                    class="w-10 h-10 hover:bg-slate-100 font-bold border-r-2 border-slate-100 transition-colors"
-                                >
-                                    -
-                                </button>
-                                <span
-                                    id="displayRows"
-                                    class="number-display flex-1 text-center font-heading font-bold text-lg text-dark"
-                                    >3</span
-                                >
-                                <button
-                                    onclick="adjustGrid('rows', 1)"
-                                    class="w-10 h-10 hover:bg-slate-100 font-bold border-l-2 border-slate-100 transition-colors"
-                                >
-                                    +
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="grid grid-cols-3 gap-2">
-                        <button
-                            onclick="setPreset(2)"
-                            class="text-[10px] font-black border-2 border-dark rounded-lg py-2 bg-white shadow-[2px_2px_0_#1e293b] text-dark hover:bg-slate-50"
-                        >
-                            EASY
-                        </button>
-                        <button
-                            onclick="setPreset(4)"
-                            class="text-[10px] font-black border-2 border-dark rounded-lg py-2 bg-white shadow-[2px_2px_0_#1e293b] text-dark hover:bg-slate-50"
-                        >
-                            MID
-                        </button>
-                        <button
-                            onclick="setPreset(6)"
-                            class="text-[10px] font-black border-2 border-dark rounded-lg py-2 bg-white shadow-[2px_2px_0_#1e293b] text-dark hover:bg-slate-50"
-                        >
-                            HARD
-                        </button>
-                    </div>
-                </section>
+    <!-- Actions -->
+    <div class="space-y-2">
+      <button id="shuffleBtn" class="btn w-full font-fredoka font-semibold text-base bg-orange text-white border-2 border-dark rounded-xl py-3 flex items-center justify-center gap-2">
+        <i data-lucide="shuffle" class="w-5 h-5"></i> Shuffle Tabs
+      </button>
+      <button id="downloadBtn" class="btn w-full font-fredoka font-semibold text-base bg-green text-dark border-2 border-dark rounded-xl py-3 flex items-center justify-center gap-2">
+        <i data-lucide="download" class="w-5 h-5"></i> Download PNG
+      </button>
+    </div>
 
-                <!-- Step 3: Options -->
-                <section class="space-y-4">
-                    <label class="input-label"
-                        ><i data-lucide="sliders" class="w-3 h-3"></i> 3. Style
-                        Options</label
-                    >
-                    <div
-                        onclick="togglePuzzleStyle()"
-                        class="toggle-btn"
-                        id="styleToggleBtn"
-                    >
-                        <span
-                            class="text-xs font-black uppercase tracking-wider"
-                            >Jigsaw Edges</span
-                        >
-                        <i
-                            data-lucide="puzzle"
-                            class="w-6 h-6 toggle-icon"
-                            id="styleIcon"
-                        ></i>
-                    </div>
-                    <div
-                        onclick="toggleHints()"
-                        class="toggle-btn"
-                        id="hintToggleBtn"
-                    >
-                        <span
-                            class="text-xs font-black uppercase tracking-wider"
-                            >Number Hints</span
-                        >
-                        <i
-                            data-lucide="circle-dot"
-                            class="w-6 h-6 toggle-icon"
-                            id="hintIcon"
-                        ></i>
-                    </div>
-                </section>
+  </aside>
 
-                <!-- Step 4: Print Setup (New) -->
-                <section class="space-y-4" id="printSetupSection" style="display: none;">
-                    <label class="input-label"><i data-lucide="type" class="w-3 h-3"></i> 4. Worksheet Details</label>
-                    <div class="space-y-3">
-                        <div>
-                            <input type="text" id="wsTitleInput" placeholder="Worksheet Title" oninput="updateWorksheetPreview()" class="w-full border-2 border-dark rounded-xl p-3 text-sm font-bold font-heading shadow-[2px_2px_0_#1e293b]" />
-                        </div>
-                        <div>
-                            <input type="text" id="wsDescInput" placeholder="Instructions (Optional)" oninput="updateWorksheetPreview()" class="w-full border-2 border-slate-300 rounded-xl p-3 text-sm font-bold shadow-sm" />
-                        </div>
-                    </div>
-                </section>
+  <!-- ── RIGHT: CANVAS ──────────────────────────────── -->
+  <main class="flex-1 min-w-0">
+    <div class="bg-white dark:bg-slate-800 border-2 border-dark rounded-2xl p-4 card-sh" style="min-height:420px">
+      <div class="flex items-center justify-between mb-3">
+        <h2 class="font-fredoka font-semibold text-dark dark:text-white flex items-center gap-2">
+          <i data-lucide="eye" class="w-4 h-4 text-blue"></i> Preview
+        </h2>
+        <span id="sizeLbl" class="text-xs text-slate-400 font-nunito"></span>
+      </div>
 
-                <!-- Step 5: Play or Print Action -->
-<!-- Step 5: Play or Print Action -->
-                <section class="space-y-3 pt-6 border-t-2 border-slate-100" id="playActions">
-                    <button onclick="scramblePuzzle()" id="btnScramble" class="w-full btn-chunky bg-orange text-white h-12" disabled>
-                        <i data-lucide="shuffle" class="w-4 h-4 mr-2"></i> SCRAMBLE & PLAY
-                    </button>
-                    <button onclick="toggleSolve()" id="btnSolve" class="w-full btn-chunky bg-white text-dark h-12" disabled>
-                        <i data-lucide="eye" class="w-4 h-4 mr-2"></i> REVEAL HINT
-                    </button>
-                </section>
-                
-                <section class="space-y-3 pt-6 border-t-2 border-slate-100 hidden" id="printActions">
-                    <button onclick="executeWorksheetPrint()" id="btnPrintWorksheet" class="w-full btn-chunky bg-green text-dark h-12" disabled>
-                        <i data-lucide="printer" class="w-4 h-4 mr-2"></i> PRINT WORKSHEET
-                    </button>
-                </section>
+      <!-- Empty -->
+      <div id="empty" class="flex flex-col items-center justify-center text-slate-300 dark:text-slate-600" style="height:340px">
+        <div class="w-20 h-20 rounded-2xl border-2 border-current flex items-center justify-center mb-4">
+          <i data-lucide="image" class="w-10 h-10"></i>
+        </div>
+        <p class="font-fredoka text-xl font-semibold">Upload an image to begin!</p>
+        <p class="text-sm mt-1 text-slate-400 dark:text-slate-600">Your puzzle template will appear here</p>
+      </div>
 
-            </div>
+      <!-- Canvas -->
+      <div id="canvasWrap" class="hidden justify-center">
+        <canvas id="canvas" class="border-2 border-dark rounded-xl"></canvas>
+      </div>
+    </div>
+  </main>
 
-            <button
-                onclick="clearStorage()"
-                class="mt-8 py-3 text-[11px] font-black text-slate-300 hover:text-pink uppercase flex items-center justify-center gap-2 border-t-2 border-dashed border-slate-200 w-full"
-            >
-                <i data-lucide="trash-2" class="w-3 h-3"></i> RESET APP
-            </button>
-        </aside>
+</div>
 
-        <!-- Main Area -->
-        <main class="main-area !flex-col !justify-start !pt-8 !items-center flex-1 w-full bg-slate-50 relative custom-scrollbar">
-            <!-- Mode Switcher -->
-            <div id="modeSwitcher" class="bg-white p-2 rounded-2xl border-4 border-dark flex gap-2 mb-4 shrink-0 no-print z-40 transition-all duration-300" style="box-shadow: 4px 4px 0 var(--color-dark)">
-                <button onclick="setAppMode('play')" id="modePlayBtn" class="px-6 py-3 rounded-xl font-heading font-bold text-sm tracking-wider uppercase transition-colors bg-blue text-white">
-                    <i data-lucide="monitor" class="w-4 h-4 inline-block mr-2 -mt-1"></i>Play Online
-                </button>
-                <button onclick="setAppMode('print')" id="modePrintBtn" class="px-6 py-3 rounded-xl font-heading font-bold text-sm tracking-wider uppercase transition-colors text-slate-500 hover:bg-slate-100">
-                    <i data-lucide="printer" class="w-4 h-4 inline-block mr-2 -mt-1"></i>Worksheet
-                </button>
-            </div>
-            
-            <div id="mainContentContainer" class="relative w-full flex-1 flex flex-col items-center justify-center min-h-0">
-
-            <!-- Fullscreen Toggle Button -->
-            <button id="fullscreenToggle" onclick="toggleSidebar()">
-                <i data-lucide="maximize-2" id="fsIcon" class="w-6 h-6"></i>
-            </button>
-
-            <div
-                id="placeholder"
-                class="text-center p-16 bg-white border-4 border-dark rounded-[48px] max-w-sm"
-                style="box-shadow: 16px 16px 0 rgba(30, 41, 59, 0.1)"
-            >
-                <div
-                    class="w-24 h-24 bg-orange/10 border-4 border-orange rounded-3xl flex items-center justify-center mx-auto mb-8 -rotate-6"
-                    style="box-shadow: 4px 4px 0 var(--color-orange)"
-                >
-                    <i data-lucide="image" class="text-orange w-12 h-12"></i>
-                </div>
-                <h2 class="font-heading text-3xl font-bold text-dark mb-4">
-                    Start Here
-                </h2>
-                <p class="text-slate-500 font-body mb-10 text-lg">
-                    Add your first puzzle page using the sidebar button!
-                </p>
-                <button
-                    onclick="document.getElementById('fileInput').click()"
-                    class="btn-chunky bg-blue text-white mx-auto text-lg px-8"
-                >
-                    SELECT IMAGE
-                </button>
-            </div>
-
-            <!-- Hint Overlay -->
-            <img id="thumb-preview" src="" alt="Hint" />
-
-            <!-- Print Preview Area (Hidden by default) -->
-            <div id="printPreviewContainer" class="hidden w-full h-full pb-12 overflow-y-auto custom-scrollbar flex-col items-center gap-8 no-print pt-4">
-                <!-- Javascript will inject the A4 page preview here -->
-                <div id="worksheetPreviewPages" class="w-full flex flex-col items-center gap-8"></div>
-            </div>
-            <div id="game-container" class="shrink-0 max-h-full">
-                <canvas id="puzzleCanvas"></canvas>
-            </div>
-
-            <div
-                id="liveStats"
-                class="hidden fixed bottom-10 left-1/2 -translate-x-1/2 flex items-stretch gap-3 no-print z-40"
-            >
-                <!-- Give Up Button -->
-                <button
-                    onclick="giveUp()"
-                    class="bg-white border-4 border-dark px-4 rounded-2xl flex items-center justify-center shadow-[4px_4px_0_rgba(0,0,0,0.2)] hover:bg-pink hover:text-white hover:border-pink transition-colors group"
-                    title="Give Up"
-                >
-                    <i
-                        data-lucide="flag"
-                        class="w-6 h-6 text-pink group-hover:text-white"
-                    ></i>
-                </button>
-
-                <!-- Stats -->
-                <div
-                    class="bg-white border-4 border-dark px-6 py-3 rounded-2xl flex items-center gap-3 shadow-[6px_6px_0_rgba(0,0,0,0.2)]"
-                >
-                    <i data-lucide="timer" class="text-blue w-6 h-6"></i>
-                    <span
-                        id="timerDisplay"
-                        class="font-heading font-bold text-2xl text-dark"
-                        >00:00</span
-                    >
-                </div>
-                <div
-                    class="bg-white border-4 border-dark px-6 py-3 rounded-2xl flex items-center gap-3 shadow-[6px_6px_0_rgba(0,0,0,0.2)]"
-                >
-                    <i
-                        data-lucide="mouse-pointer-2"
-                        class="text-orange w-6 h-6"
-                    ></i>
-                    <span
-                        id="movesDisplay"
-                        class="font-heading font-bold text-2xl text-dark"
-                        >0</span
-                    >
-                </div>
-
-                <!-- Next Button (Hidden unless next exists) -->
-                <button
-                    id="liveNextBtn"
-                    onclick="nextRound()"
-                    class="bg-blue border-4 border-blue px-4 rounded-2xl flex items-center justify-center shadow-[4px_4px_0_rgba(0,0,0,0.2)] text-white hover:-translate-y-1 transition-transform hidden"
-                >
-                    <i data-lucide="arrow-right" class="w-6 h-6"></i>
-                </button>
-            </div>
-                    </div>
-        </main>
-
-        <div id="print-area"></div>
-        <script src="./script.js"></script>
-    </body>
+<script src="./script.js">
+</script>
+</body>
 </html>
