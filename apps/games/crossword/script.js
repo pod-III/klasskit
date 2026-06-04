@@ -653,25 +653,44 @@ function preparePrintVersion() {
     const printContainer = document.getElementById('print-grid-container');
     if (!printContainer) return;
     printContainer.innerHTML = '';
+    
     const printGrid = els.grid.cloneNode(true);
     printGrid.id = "print-grid-clone";
     printGrid.className = "print-grid";
+    
+    // Calculate optimal cell size in mm to fit within a 170x140mm bounding box
+    const maxW = 170;
+    const maxH = 140;
+    const cellSize = Math.min(maxW / GRID_COLS, maxH / GRID_ROWS);
+    
     printGrid.style.gridTemplateColumns = `repeat(${GRID_COLS}, 1fr)`;
     printGrid.style.gridTemplateRows = `repeat(${GRID_ROWS}, 1fr)`;
+    
+    // Explicitly set the total grid dimensions
+    printGrid.style.width = `${cellSize * GRID_COLS}mm`;
+    printGrid.style.height = `${cellSize * GRID_ROWS}mm`;
+
     printGrid.querySelectorAll('.cw-cell').forEach(cell => {
         cell.classList.remove('cell-focused', 'word-highlight', 'locked', 'error');
-        cell.style.width = ''; cell.style.height = '';
+        cell.style.width = ''; 
+        cell.style.height = '';
         const input = cell.querySelector('input');
         if (input) input.value = '';
     });
+
     printContainer.appendChild(printGrid);
+    
     const pa = document.getElementById('print-clues-across');
     const pd = document.getElementById('print-clues-down');
     pa.innerHTML = '<h3 class="font-bold border-b border-black mb-2 uppercase">Across</h3>';
     pd.innerHTML = '<h3 class="font-bold border-b border-black mb-2 uppercase">Down</h3>';
+    
     words.forEach(w => {
-        const div = document.createElement('div'); div.className = 'print-clue'; div.innerHTML = `<strong>${w.num}.</strong> ${w.clue}`;
-        if (w.dir === 'across') pa.appendChild(div); else pd.appendChild(div);
+        const div = document.createElement('div'); 
+        div.className = 'print-clue'; 
+        div.innerHTML = `<strong>${w.num}.</strong> ${w.clue}`;
+        if (w.dir === 'across') pa.appendChild(div); 
+        else pd.appendChild(div);
     });
 }
 
