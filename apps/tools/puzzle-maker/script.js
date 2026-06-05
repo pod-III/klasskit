@@ -1,8 +1,4 @@
-// ── Auth Guard ───────────────────────────────────────────────────────────
-(async () => {
-  await requireAuth();
-})();
-
+// ── Init ────────────────────────────────────────────────────────────────────
 lucide.createIcons();
 
 // ── State ──────────────────────────────────────────────────────────────────
@@ -13,13 +9,18 @@ let seed = Math.random() * 9e5;
 let S = { rows:4, cols:4, style:'straight', color:'#ffffff', width:2, opacity:1, depth:.5, freq:3 };
 
 // ── Dark mode ──────────────────────────────────────────────────────────────
-let dark = false;
 document.getElementById('darkToggle').addEventListener('click', () => {
-  dark = !dark;
-  document.documentElement.classList.toggle('dark', dark);
-  document.getElementById('darkIcon').setAttribute('data-lucide', dark ? 'sun' : 'moon');
+  document.documentElement.classList.toggle('dark');
+  const isDark = document.documentElement.classList.contains('dark');
+  localStorage.setItem('theme_puzzle-maker', isDark ? 'dark' : 'light');
+  document.getElementById('darkIcon').setAttribute('data-lucide', isDark ? 'sun' : 'moon');
   lucide.createIcons();
 });
+// Set initial icon
+if (document.documentElement.classList.contains('dark')) {
+  document.getElementById('darkIcon').setAttribute('data-lucide', 'sun');
+  lucide.createIcons();
+}
 
 // ── Upload & Page Management ────────────────────────────────────────────────
 const dz = document.getElementById('dropZone');
@@ -52,7 +53,6 @@ function load(f) {
       document.getElementById('canvasWrap').classList.remove('hidden');
       document.getElementById('canvasWrap').classList.add('flex');
       document.getElementById('pagesSection').classList.remove('hidden');
-      document.getElementById('pagesSection').classList.add('flex');
       
       selectPage(pages.length - 1);
     };
@@ -85,7 +85,6 @@ function deletePage(index) {
     document.getElementById('canvasWrap').classList.add('hidden');
     document.getElementById('canvasWrap').classList.remove('flex');
     document.getElementById('pagesSection').classList.add('hidden');
-    document.getElementById('pagesSection').classList.remove('flex');
     document.getElementById('imgInfo').classList.add('hidden');
   } else {
     if (activePageIndex >= pages.length) {
@@ -103,10 +102,10 @@ function renderPagesList() {
   pages.forEach((p, index) => {
     const isActive = index === activePageIndex;
     const btn = document.createElement('div');
-    btn.className = `flex items-center gap-2 border-2 border-dark rounded-xl px-3 py-1 cursor-pointer select-none font-fredoka font-bold text-xs transition-all ${
+    btn.className = `flex items-center gap-1.5 border-2 border-dark dark:border-slate-600 rounded-xl px-2.5 py-1 cursor-pointer select-none font-heading font-bold text-[11px] uppercase tracking-wide transition-all ${
       isActive 
-        ? 'bg-blue text-white shadow-[2px_2px_0_#1e293b]' 
-        : 'bg-white text-dark hover:bg-slate-50 dark:bg-slate-800 dark:text-white dark:hover:bg-slate-700'
+        ? 'bg-blue text-white shadow-[2px_2px_0_#111827] dark:shadow-[2px_2px_0_rgba(148,163,184,.5)]' 
+        : 'bg-white dark:bg-slate-700 text-dark dark:text-white hover:bg-slate-50 dark:hover:bg-slate-600'
     }`;
     
     btn.addEventListener('click', (e) => {
@@ -115,12 +114,12 @@ function renderPagesList() {
     });
     
     const title = document.createElement('span');
-    title.textContent = `Page ${index + 1}`;
+    title.textContent = `P${index + 1}`;
     btn.appendChild(title);
     
     const delBtn = document.createElement('button');
-    delBtn.className = 'delete-page-btn text-red-500 hover:text-red-700 ml-1 transition-colors flex items-center justify-center';
-    delBtn.innerHTML = '<i data-lucide="trash-2" class="w-3.5 h-3.5"></i>';
+    delBtn.className = 'delete-page-btn text-red-400 hover:text-red-600 transition-colors flex items-center';
+    delBtn.innerHTML = '<i data-lucide="x" class="w-3 h-3"></i>';
     delBtn.addEventListener('click', (e) => {
       e.stopPropagation();
       deletePage(index);
