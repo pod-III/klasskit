@@ -3,10 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>E1B Media Studio</title>
+<title>KlassKit Media Studio</title>
 <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Nunito:wght@400;600;700&display=swap" rel="stylesheet">
 <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
 <script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="../../../css/base.css">
+<link rel="stylesheet" href="../../../css/components.css">
 <script>
 tailwind.config = {
   darkMode:'class',
@@ -19,11 +21,21 @@ tailwind.config = {
 <script>
   // Theme sync: check tool-specific key first, then hub key, then system preference
   (function() {
-    const toolTheme = localStorage.getItem('theme_media-player');
-    const hubTheme = localStorage.getItem('theme_hub');
-    if (toolTheme === 'dark' || (!toolTheme && hubTheme === 'dark') || (!toolTheme && !hubTheme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-      document.documentElement.classList.add('dark');
+    function sync() {
+      const toolTheme = localStorage.getItem('theme_media-player');
+      const hubTheme = localStorage.getItem('theme_hub');
+      if (toolTheme === 'dark' || (!toolTheme && hubTheme === 'dark') || (!toolTheme && !hubTheme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+        document.documentElement.classList.add('dark');
+      } else {
+        document.documentElement.classList.remove('dark');
+      }
     }
+    sync();
+    window.addEventListener('storage', (e) => {
+      if (e.key === 'theme_hub' || e.key === 'theme_media-player') {
+        sync();
+      }
+    });
   })();
 </script>
 <style>
@@ -31,20 +43,17 @@ tailwind.config = {
 html,body{height:100%;overflow:hidden;font-family:'Nunito',sans-serif}
 
 /* ─── App layout ─────────────────────────────────────── */
-#app{height:100vh;display:grid;grid-template-rows:58px 1fr auto;overflow:hidden;background:#f8fafc;transition:background .3s}
-.dark #app{background:#0f172a}
+#app{height:100vh;display:grid;grid-template-rows:58px 1fr auto;overflow:hidden;background:var(--bg-primary);background-image:linear-gradient(var(--grid-color) 1px,transparent 1px),linear-gradient(90deg,var(--grid-color) 1px,transparent 1px);background-size:var(--grid-size) var(--grid-size);transition:background .3s}
 
 /* ─── Header ─────────────────────────────────────────── */
-#hdr{display:flex;align-items:center;padding:0 14px;gap:10px;border-bottom:3px solid #1e293b;background:#fff;z-index:20;flex-shrink:0}
-.dark #hdr{background:#1e293b;border-color:rgba(148,163,184,.5)}
+#hdr{display:flex;align-items:center;padding:0 14px;gap:10px;border-bottom:var(--border-width-thick) solid var(--border-primary);background:var(--bg-secondary);backdrop-filter:blur(16px);z-index:20;flex-shrink:0}
 
 /* ─── Main ───────────────────────────────────────────── */
 #main{display:grid;grid-template-columns:272px 1fr;overflow:hidden;transition:grid-template-columns .3s ease;min-height:0}
 #main.lib-off{grid-template-columns:0px 1fr}
 
 /* ─── Library ────────────────────────────────────────── */
-#library{display:flex;flex-direction:column;overflow:hidden;border-right:3px solid #1e293b;background:#fff;min-width:0;transition:border .3s}
-.dark #library{background:#1e293b;border-color:rgba(148,163,184,.5)}
+#library{display:flex;flex-direction:column;overflow:hidden;border-right:var(--border-width-thick) solid var(--border-primary);background:var(--bg-secondary);backdrop-filter:blur(16px);min-width:0;transition:border .3s}
 #libScroll{flex:1;overflow-y:auto;overflow-x:hidden;min-height:0;padding:6px}
 #libScroll::-webkit-scrollbar{width:4px}
 #libScroll::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:2px}
@@ -55,27 +64,22 @@ html,body{height:100%;overflow:hidden;font-family:'Nunito',sans-serif}
 #player{position:relative;overflow:hidden;display:flex;align-items:center;justify-content:center;background:#0f172a;min-width:0}
 
 /* ─── Controls ───────────────────────────────────────── */
-#controls{border-top:3px solid #1e293b;background:#f8fafc;padding:6px 12px 8px;flex-shrink:0}
-.dark #controls{background:#1e293b;border-color:rgba(148,163,184,.5)}
+#controls{border-top:var(--border-width-thick) solid var(--border-primary);background:var(--bg-secondary);backdrop-filter:blur(16px);padding:6px 12px 8px;flex-shrink:0}
 
 /* ─── Shadows ────────────────────────────────────────── */
-.hs   {box-shadow:4px 4px 0 #1e293b}
-.hs-sm{box-shadow:2px 2px 0 #1e293b}
-.dark .hs   {box-shadow:4px 4px 0 rgba(148,163,184,.65)}
-.dark .hs-sm{box-shadow:2px 2px 0 rgba(148,163,184,.65)}
+.hs   {box-shadow:var(--shadow-md)}
+.hs-sm{box-shadow:var(--shadow-sm)}
 
 /* ─── Buttons ────────────────────────────────────────── */
-.btn{display:inline-flex;align-items:center;justify-content:center;cursor:pointer;transition:transform .08s,box-shadow .08s;font-family:'Fredoka',sans-serif;border:2px solid #1e293b;outline:none}
+.btn{display:inline-flex;align-items:center;justify-content:center;cursor:pointer;transition:transform .08s,box-shadow .08s;font-family:'Fredoka',sans-serif;border:var(--border-width-medium) solid var(--border-primary);outline:none}
 .btn:hover{transform:translate(-1px,-1px)}
 .btn:active{transform:translate(2px,2px) !important;box-shadow:0 0 0 !important}
-.dark .btn{border-color:rgba(148,163,184,.6)}
 
 /* ─── Range ──────────────────────────────────────────── */
 input[type=range]{-webkit-appearance:none;appearance:none;height:6px;border-radius:3px;outline:none;cursor:pointer}
-input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;border-radius:50%;border:2px solid #1e293b;cursor:pointer}
-.dark input[type=range]::-webkit-slider-thumb{border-color:rgba(148,163,184,.6)}
-#seekBar::-webkit-slider-thumb{background:#2979FF}
-#volBar::-webkit-slider-thumb{background:#FF6B95}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;border-radius:50%;border:var(--border-width-medium) solid var(--border-primary);cursor:pointer}
+#seekBar::-webkit-slider-thumb{background:#1ea7fd}
+#volBar::-webkit-slider-thumb{background:#ff4785}
 
 /* ─── Visualizer ─────────────────────────────────────── */
 .vbar{width:5px;border-radius:3px 3px 0 0;min-height:3px;align-self:flex-end;transition:height .07s ease}
@@ -96,7 +100,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;heigh
 
 /* ─── Library rows ───────────────────────────────────── */
 .lib-row{display:flex;align-items:center;gap:8px;padding:7px 8px;border-radius:12px;cursor:pointer;border:2px solid transparent;margin-bottom:4px;transition:background .12s,border-color .12s}
-.lib-row:hover{background:rgba(41,121,255,.07)}
+.lib-row:hover{background:rgba(30,167,253,.07)}
 .dark .lib-row:hover{background:rgba(148,163,184,.1)}
 .lib-row.active{border-width:2px}
 .lib-icon{width:42px;height:42px;border-radius:8px;display:flex;align-items:center;justify-content:center;border:2px solid #1e293b;flex-shrink:0;overflow:hidden}
@@ -127,7 +131,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;heigh
 #settingsRow.open{max-height:52px;opacity:1;margin-bottom:7px}
 
 /* ─── Drop highlight ─────────────────────────────────── */
-#player.drop-over::after{content:'';position:absolute;inset:6px;border:4px dashed #2979FF;border-radius:12px;background:rgba(41,121,255,.08);pointer-events:none;z-index:9}
+#player.drop-over::after{content:'';position:absolute;inset:6px;border:4px dashed #1ea7fd;border-radius:12px;background:rgba(30,167,253,.08);pointer-events:none;z-index:9}
 
 /* ─── Mode tab active ────────────────────────────────── */
 .mode-tab{position:relative}
@@ -151,12 +155,12 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;heigh
 <!-- ════════ HEADER ════════ -->
 <header id="hdr">
   <span class="font-fredoka text-xl font-bold text-dark dark:text-white flex-shrink-0 mr-2">
-    <span class="text-[#2979FF]">E1B</span> Studio
+    <span class="text-[#1ea7fd]">KlassKit</span> Studio
   </span>
 
   <div class="flex gap-1 flex-1 justify-center">
     <button id="tab-video"   onclick="setMode('video')"
-      class="mode-tab active btn hs-sm rounded-xl px-4 py-1.5 font-fredoka text-sm gap-1.5" style="color:#2979FF;background:rgba(41,121,255,.12)">
+      class="mode-tab active btn hs-sm rounded-xl px-4 py-1.5 font-fredoka text-sm gap-1.5" style="color:#1ea7fd;background:rgba(30,167,253,.12)">
       <i data-lucide="film" class="w-4 h-4"></i> Video
     </button>
     <button id="tab-picture" onclick="setMode('picture')"
@@ -171,7 +175,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;heigh
 
   <div class="flex gap-1.5 flex-shrink-0">
     <button onclick="openAdd()" id="headerAdd"
-      class="btn hs-sm rounded-xl px-3 py-1.5 text-white font-fredoka text-sm gap-1.5" style="background:#2979FF">
+      class="btn hs-sm rounded-xl px-3 py-1.5 text-white font-fredoka text-sm gap-1.5" style="background:#1ea7fd">
       <i data-lucide="plus" class="w-4 h-4"></i> Add
     </button>
     <button onclick="toggleLib()"
@@ -199,7 +203,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;heigh
       </div>
       <div class="flex gap-1 flex-shrink-0">
         <button onclick="openAdd()" id="libAddBtn"
-          class="btn hs-sm rounded-xl px-2 py-1 text-xs font-fredoka text-white gap-1" style="background:#2979FF">
+          class="btn hs-sm rounded-xl px-2 py-1 text-xs font-fredoka text-white gap-1" style="background:#1ea7fd">
           <i data-lucide="plus" class="w-3 h-3"></i> File
         </button>
         <!-- YouTube button — video mode only -->
@@ -237,8 +241,8 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;heigh
 
     <div id="libScroll"></div>
     <div id="libEmpty">
-      <div id="libEmptyIcon" class="w-14 h-14 rounded-2xl flex items-center justify-center border-2 border-dark dark:border-slate-500" style="background:rgba(41,121,255,.1)">
-        <i data-lucide="film" class="w-7 h-7 text-[#2979FF]"></i>
+      <div id="libEmptyIcon" class="w-14 h-14 rounded-2xl flex items-center justify-center border-2 border-dark dark:border-slate-500" style="background:rgba(30,167,253,.1)">
+        <i data-lucide="film" class="w-7 h-7 text-[#1ea7fd]"></i>
       </div>
       <p class="font-fredoka text-base text-dark dark:text-white">No media yet</p>
       <p class="font-nunito text-xs text-slate-400">Add local files or YouTube links</p>
@@ -262,7 +266,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;heigh
       </div>
       <div class="flex gap-2">
         <button onclick="openAdd()" id="emptyBtn"
-          class="btn hs rounded-2xl px-5 py-2.5 font-fredoka text-base text-white gap-2" style="background:#2979FF;border-color:rgba(255,255,255,.2)">
+          class="btn hs rounded-2xl px-5 py-2.5 font-fredoka text-base text-white gap-2" style="background:#1ea7fd;border-color:rgba(255,255,255,.2)">
           <i data-lucide="plus-circle" class="w-5 h-5"></i>
           <span id="emptyBtnLbl">Add Videos</span>
         </button>
@@ -291,7 +295,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;heigh
     <div id="audioViz" class="hidden absolute inset-0 flex flex-col items-center justify-center gap-4"
          style="background:linear-gradient(135deg,#06080f,#141028)">
       <div id="albumArt" class="w-36 h-36 rounded-2xl border-4 border-white/20 flex items-center justify-center spinning"
-           style="background:linear-gradient(135deg,rgba(41,121,255,.4),rgba(255,107,149,.3))">
+           style="background:linear-gradient(135deg,rgba(30,167,253,.4),rgba(255,71,133,.3))">
         <i data-lucide="music-2" class="w-16 h-16 text-white/40"></i>
       </div>
       <div class="text-center px-6">
@@ -317,7 +321,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;heigh
         <span class="font-fredoka text-xs text-dark dark:text-white">Speed</span>
         <div class="flex gap-1">
           <button onclick="setSpeed(0.5)" data-s="0.5" class="spd btn hs-sm rounded-lg px-1.5 py-0.5 text-xs bg-white dark:bg-slate-600 text-dark dark:text-white">0.5×</button>
-          <button onclick="setSpeed(1)"   data-s="1"   class="spd btn hs-sm rounded-lg px-1.5 py-0.5 text-xs text-white" style="background:#2979FF">1×</button>
+          <button onclick="setSpeed(1)"   data-s="1"   class="spd btn hs-sm rounded-lg px-1.5 py-0.5 text-xs text-white" style="background:#1ea7fd">1×</button>
           <button onclick="setSpeed(1.5)" data-s="1.5" class="spd btn hs-sm rounded-lg px-1.5 py-0.5 text-xs bg-white dark:bg-slate-600 text-dark dark:text-white">1.5×</button>
           <button onclick="setSpeed(2)"   data-s="2"   class="spd btn hs-sm rounded-lg px-1.5 py-0.5 text-xs bg-white dark:bg-slate-600 text-dark dark:text-white">2×</button>
         </div>
@@ -334,7 +338,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;heigh
       <div class="flex items-center gap-1.5">
         <span class="font-fredoka text-xs text-dark dark:text-white">Fit</span>
         <div class="flex gap-1">
-          <button onclick="setFit('contain')" class="fit btn hs-sm rounded-lg px-1.5 py-0.5 text-xs text-white" style="background:#FF8C42">Contain</button>
+          <button onclick="setFit('contain')" class="fit btn hs-sm rounded-lg px-1.5 py-0.5 text-xs text-white" style="background:#ff7e33">Contain</button>
           <button onclick="setFit('cover')"   class="fit btn hs-sm rounded-lg px-1.5 py-0.5 text-xs bg-white dark:bg-slate-600 text-dark dark:text-white">Cover</button>
           <button onclick="setFit('fill')"    class="fit btn hs-sm rounded-lg px-1.5 py-0.5 text-xs bg-white dark:bg-slate-600 text-dark dark:text-white">Fill</button>
         </div>
@@ -344,7 +348,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;heigh
         <div class="flex gap-1">
           <button onclick="setBg('#000')"    class="btn hs-sm rounded-lg w-6 h-6" style="background:#000;border:2px solid #1e293b"></button>
           <button onclick="setBg('#fff')"    class="btn hs-sm rounded-lg w-6 h-6" style="background:#fff;border:2px solid #1e293b"></button>
-          <button onclick="setBg('#2979FF')" class="btn hs-sm rounded-lg w-6 h-6" style="background:#2979FF;border:2px solid #1e293b"></button>
+          <button onclick="setBg('#1ea7fd')" class="btn hs-sm rounded-lg w-6 h-6" style="background:#1ea7fd;border:2px solid #1e293b"></button>
           <button onclick="setBg('checker')" class="btn hs-sm rounded-lg w-6 h-6" style="background-image:linear-gradient(45deg,#aaa 25%,transparent 25%),linear-gradient(-45deg,#aaa 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#aaa 75%),linear-gradient(-45deg,transparent 75%,#aaa 75%);background-size:6px 6px;background-position:0 0,0 3px,3px -3px,-3px 0;background-color:#fff;border:2px solid #1e293b"></button>
         </div>
       </div>
@@ -369,7 +373,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;heigh
       </button>
       <button onclick="skipSec(-10)" class="btn hs-sm rounded-xl px-2 py-1.5 text-xs font-fredoka bg-white dark:bg-slate-600 text-dark dark:text-white">−10s</button>
       <button id="playBtn" onclick="togglePlay()"
-        class="btn hs rounded-xl px-5 py-2 text-white font-fredoka text-lg gap-1" style="background:#2979FF">
+        class="btn hs rounded-xl px-5 py-2 text-white font-fredoka text-lg gap-1" style="background:#1ea7fd">
         <i data-lucide="play" class="w-5 h-5" id="playIcon"></i>
       </button>
       <button onclick="skipSec(10)" class="btn hs-sm rounded-xl px-2 py-1.5 text-xs font-fredoka bg-white dark:bg-slate-600 text-dark dark:text-white">+10s</button>
@@ -397,18 +401,18 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;heigh
         </button>
         <input type="range" id="volBar" class="w-16" min="0" max="1" step="0.01" value="1"
           oninput="setVol(this.value)"
-          style="background:linear-gradient(to right,#FF6B95 100%,#cbd5e1 100%)">
+          style="background:linear-gradient(to right,#ff4785 100%,#cbd5e1 100%)">
       </div>
       <button id="cfgBtn" onclick="toggleCfg()"
         class="btn hs-sm rounded-xl p-2 bg-white dark:bg-slate-600 text-dark dark:text-white" title="Settings">
         <i data-lucide="sliders-horizontal" class="w-4 h-4"></i>
       </button>
       <button onclick="openAdd()"
-        class="btn hs-sm rounded-xl p-2 text-white" style="background:#FF8C42" title="Add files">
+        class="btn hs-sm rounded-xl p-2 text-white" style="background:#ff7e33" title="Add files">
         <i data-lucide="plus" class="w-4 h-4"></i>
       </button>
       <button onclick="goFullscreen()"
-        class="btn hs rounded-xl p-2 text-white" style="background:#FF6B95" title="Fullscreen">
+        class="btn hs rounded-xl p-2 text-white" style="background:#ff4785" title="Fullscreen">
         <i data-lucide="maximize" class="w-4 h-4" id="fsIcon"></i>
       </button>
     </div>
@@ -428,9 +432,9 @@ const $ = id => document.getElementById(id)
 //  CONSTANTS
 // ════════════════════════════════════════════════════════
 const CFG = {
-  video:   { color:'#2979FF', bg:'rgba(41,121,255,.12)',  icon:'film',   accept:'video/*', emptyMsg:'Add videos to get started',  emptyBtn:'Add Videos', libTitle:'Video Library'  },
-  picture: { color:'#FF8C42', bg:'rgba(255,140,66,.12)',  icon:'image',  accept:'image/*', emptyMsg:'Add images to get started',  emptyBtn:'Add Images', libTitle:'Picture Library' },
-  audio:   { color:'#FF6B95', bg:'rgba(255,107,149,.12)', icon:'music',  accept:'audio/*', emptyMsg:'Add audio to get started',   emptyBtn:'Add Audio',  libTitle:'Audio Library'  },
+  video:   { color:'#1ea7fd', bg:'rgba(30,167,253,.12)',  icon:'film',   accept:'video/*', emptyMsg:'Add videos to get started',  emptyBtn:'Add Videos', libTitle:'Video Library'  },
+  picture: { color:'#ff7e33', bg:'rgba(255,126,51,.12)',  icon:'image',  accept:'image/*', emptyMsg:'Add images to get started',  emptyBtn:'Add Images', libTitle:'Picture Library' },
+  audio:   { color:'#ff4785', bg:'rgba(255,71,133,.12)', icon:'music',  accept:'audio/*', emptyMsg:'Add audio to get started',   emptyBtn:'Add Audio',  libTitle:'Audio Library'  },
 }
 
 // ════════════════════════════════════════════════════════
@@ -580,7 +584,7 @@ async function addYt () {
   const id = extractYtId(raw)
   if (!id) {
     $('ytStatus').textContent = '⚠️ Invalid URL or ID'
-    $('ytStatus').style.color = '#FF6B95'
+    $('ytStatus').style.color = '#ff4785'
     return
   }
 
@@ -929,7 +933,7 @@ function doSeek (v) {
 
 function updateSeekGrad (pct) {
   const dark = document.documentElement.classList.contains('dark')
-  $('seekBar').style.background = `linear-gradient(to right,#2979FF ${pct}%,${dark?'#475569':'#cbd5e1'} ${pct}%)`
+  $('seekBar').style.background = `linear-gradient(to right,#1ea7fd ${pct}%,${dark?'#475569':'#cbd5e1'} ${pct}%)`
 }
 
 function fmtT (s) {
@@ -945,7 +949,7 @@ function setVol (v) {
   video.volume = v; audioEl.volume = v
   if (ytPlayer && typeof ytPlayer.setVolume==='function') try{ytPlayer.setVolume(v*100)}catch(_){}
   const p = v*100, dark = document.documentElement.classList.contains('dark')
-  $('volBar').style.background = `linear-gradient(to right,#FF6B95 ${p}%,${dark?'#475569':'#cbd5e1'} ${p}%)`
+  $('volBar').style.background = `linear-gradient(to right,#ff4785 ${p}%,${dark?'#475569':'#cbd5e1'} ${p}%)`
   $('volIcon').setAttribute('data-lucide', (muted||v===0)?'volume-x':v<.5?'volume-1':'volume-2')
   lucide.createIcons()
 }
@@ -975,7 +979,7 @@ function setSpeed (s) {
 function toggleLoop () {
   looping=!looping
   const b=$('loopBtn')
-  b.style.background=looping?'#00E676':''; b.style.color=looping?'#1e293b':''
+  b.style.background=looping?'#00d063':''; b.style.color=looping?'#1e293b':''
   b.innerHTML=`<i data-lucide="repeat" class="w-3 h-3"></i> ${looping?'On':'Off'}`
   lucide.createIcons()
 }

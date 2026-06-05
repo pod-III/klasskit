@@ -9,18 +9,29 @@ let seed = Math.random() * 9e5;
 let S = { rows:4, cols:4, style:'straight', color:'#ffffff', width:2, opacity:1, depth:.5, freq:3 };
 
 // ── Dark mode ──────────────────────────────────────────────────────────────
+function updateDarkIcon() {
+  const isDark = document.documentElement.classList.contains('dark');
+  const icon = document.getElementById('darkIcon');
+  if (icon) {
+    icon.setAttribute('data-lucide', isDark ? 'sun' : 'moon');
+    lucide.createIcons();
+  }
+}
+
 document.getElementById('darkToggle').addEventListener('click', () => {
   document.documentElement.classList.toggle('dark');
   const isDark = document.documentElement.classList.contains('dark');
   localStorage.setItem('theme_puzzle-maker', isDark ? 'dark' : 'light');
-  document.getElementById('darkIcon').setAttribute('data-lucide', isDark ? 'sun' : 'moon');
-  lucide.createIcons();
+  updateDarkIcon();
 });
-// Set initial icon
-if (document.documentElement.classList.contains('dark')) {
-  document.getElementById('darkIcon').setAttribute('data-lucide', 'sun');
-  lucide.createIcons();
-}
+
+window.addEventListener('storage', (e) => {
+  if (e.key === 'theme_hub' || e.key === 'theme_puzzle-maker') {
+    setTimeout(updateDarkIcon, 50);
+  }
+});
+
+updateDarkIcon();
 
 // ── Upload & Page Management ────────────────────────────────────────────────
 const dz = document.getElementById('dropZone');

@@ -12,8 +12,8 @@
 <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Nunito:wght@400;600;800&display=swap" rel="stylesheet">
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
-<link rel="stylesheet" href="../../css/base.css" />
-<link rel="stylesheet" href="../../css/components.css" />
+<link rel="stylesheet" href="../../../css/base.css" />
+<link rel="stylesheet" href="../../../css/components.css" />
 <script>
 tailwind.config = {
   darkMode: 'class',
@@ -44,11 +44,21 @@ tailwind.config = {
 <script>
   // Theme sync: tool-specific → hub → system
   (function() {
-    const t = localStorage.getItem('theme_puzzle-maker');
-    const h = localStorage.getItem('theme_hub');
-    if (t === 'dark' || (!t && h === 'dark') || (!t && !h && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-      document.documentElement.classList.add('dark');
+    function sync() {
+      const t = localStorage.getItem('theme_puzzle-maker');
+      const h = localStorage.getItem('theme_hub');
+      if (t === 'dark' || (!t && h === 'dark') || (!t && !h && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+        document.documentElement.classList.add('dark');
+      } else {
+        document.documentElement.classList.remove('dark');
+      }
     }
+    sync();
+    window.addEventListener('storage', (e) => {
+      if (e.key === 'theme_hub' || e.key === 'theme_puzzle-maker') {
+        sync();
+      }
+    });
   })();
 </script>
 <style>
@@ -100,8 +110,8 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:20px;heigh
 .swatch.sel{outline:3px solid #1ea7fd;outline-offset:2px}
 
 /* Section card */
-.ctrl-card{background:#fff;border:2px solid #111827;border-radius:16px;padding:12px;box-shadow:3px 3px 0 #111827;margin-bottom:10px}
-.dark .ctrl-card{background:#1e293b;border-color:rgba(148,163,184,.5);box-shadow:3px 3px 0 rgba(148,163,184,.5)}
+.ctrl-card{background:var(--surface-card);border:var(--border-width-medium) solid var(--border-primary);border-radius:16px;padding:12px;box-shadow:var(--shadow-hard-sm);margin-bottom:10px;transition:background .3s,border-color .3s}
+.dark .ctrl-card{box-shadow:var(--shadow-hard-sm)}
 .ctrl-label{font-family:'Fredoka',sans-serif;font-weight:700;font-size:13px;display:flex;align-items:center;gap:6px;margin-bottom:8px;text-transform:uppercase;letter-spacing:.04em}
 
 /* Drop zone */
@@ -117,7 +127,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:20px;heigh
 }
 </style>
 </head>
-<body class="bg-chalk dark:bg-[#020617] text-dark dark:text-white font-body">
+<body class="text-dark dark:text-white font-body">
 
 <div id="app-shell">
 
@@ -144,7 +154,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:20px;heigh
 <div id="main-area">
 
   <!-- LEFT: CONTROLS -->
-  <aside id="controls" class="bg-white dark:bg-slate-800 space-y-0 no-print">
+  <aside id="controls" class="bg-[var(--bg-secondary)] backdrop-blur-md space-y-0 no-print">
 
     <!-- Upload -->
     <div class="ctrl-card">
