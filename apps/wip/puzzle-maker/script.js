@@ -6,9 +6,11 @@
 lucide.createIcons();
 
 // ── State ──────────────────────────────────────────────────────────────────
+let pages = [];
+let activePageIndex = -1;
 let src = null;
 let seed = Math.random() * 9e5;
-const S = { rows:4, cols:4, style:'straight', color:'#ffffff', width:2, opacity:1, depth:.5, freq:3 };
+let S = { rows:4, cols:4, style:'straight', color:'#ffffff', width:2, opacity:1, depth:.5, freq:3 };
 
 // ── Dark mode ──────────────────────────────────────────────────────────────
 let dark = false;
@@ -19,14 +21,17 @@ document.getElementById('darkToggle').addEventListener('click', () => {
   lucide.createIcons();
 });
 
-// ── Upload ─────────────────────────────────────────────────────────────────
+// ── Upload & Page Management ────────────────────────────────────────────────
 const dz = document.getElementById('dropZone');
 const fi = document.getElementById('fileIn');
+const addPageBtn = document.getElementById('addPageBtn');
+
 dz.addEventListener('click', () => fi.click());
 dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('over'); });
 dz.addEventListener('dragleave', () => dz.classList.remove('over'));
 dz.addEventListener('drop', e => { e.preventDefault(); dz.classList.remove('over'); load(e.dataTransfer.files[0]); });
 fi.addEventListener('change', e => load(e.target.files[0]));
+addPageBtn.addEventListener('click', () => fi.click());
 
 function load(f) {
   if (!f || !f.type.startsWith('image/')) return;
@@ -34,17 +39,128 @@ function load(f) {
   r.onload = e => {
     const im = new Image();
     im.onload = () => {
-      src = im;
+      const newPage = {
+        id: Date.now() + Math.random(),
+        im: im,
+        name: f.name,
+        seed: Math.random() * 9e5,
+        S: { ...S }
+      };
+      pages.push(newPage);
+      
       document.getElementById('empty').classList.add('hidden');
       document.getElementById('canvasWrap').classList.remove('hidden');
       document.getElementById('canvasWrap').classList.add('flex');
-      document.getElementById('imgInfo').textContent = `📷 ${f.name}  (${im.width} × ${im.height})`;
-      document.getElementById('imgInfo').classList.remove('hidden');
-      redraw();
+      document.getElementById('pagesSection').classList.remove('hidden');
+      document.getElementById('pagesSection').classList.add('flex');
+      
+      selectPage(pages.length - 1);
     };
     im.src = e.target.result;
   };
   r.readAsDataURL(f);
+}
+
+function selectPage(index) {
+  if (index < 0 || index >= pages.length) return;
+  activePageIndex = index;
+  S = pages[index].S;
+  src = pages[index].im;
+  seed = pages[index].seed;
+  
+  document.getElementById('imgInfo').textContent = `📷 ${pages[index].name}  (${src.width} × ${src.height})`;
+  document.getElementById('imgInfo').classList.remove('hidden');
+  
+  updateControlsUI();
+  renderPagesList();
+  redraw();
+}
+
+function deletePage(index) {
+  pages.splice(index, 1);
+  if (pages.length === 0) {
+    activePageIndex = -1;
+    src = null;
+    document.getElementById('empty').classList.remove('hidden');
+    document.getElementById('canvasWrap').classList.add('hidden');
+    document.getElementById('canvasWrap').classList.remove('flex');
+    document.getElementById('pagesSection').classList.add('hidden');
+    document.getElementById('pagesSection').classList.remove('flex');
+    document.getElementById('imgInfo').classList.add('hidden');
+  } else {
+    if (activePageIndex >= pages.length) {
+      activePageIndex = pages.length - 1;
+    }
+    selectPage(activePageIndex);
+  }
+  renderPagesList();
+}
+
+function renderPagesList() {
+  const container = document.getElementById('pagesList');
+  container.innerHTML = '';
+  
+  pages.forEach((p, index) => {
+    const isActive = index === activePageIndex;
+    const btn = document.createElement('div');
+    btn.className = `flex items-center gap-2 border-2 border-dark rounded-xl px-3 py-1 cursor-pointer select-none font-fredoka font-bold text-xs transition-all ${
+      isActive 
+        ? 'bg-blue text-white shadow-[2px_2px_0_#1e293b]' 
+        : 'bg-white text-dark hover:bg-slate-50 dark:bg-slate-800 dark:text-white dark:hover:bg-slate-700'
+    }`;
+    
+    btn.addEventListener('click', (e) => {
+      if (e.target.closest('.delete-page-btn')) return;
+      selectPage(index);
+    });
+    
+    const title = document.createElement('span');
+    title.textContent = `Page ${index + 1}`;
+    btn.appendChild(title);
+    
+    const delBtn = document.createElement('button');
+    delBtn.className = 'delete-page-btn text-red-500 hover:text-red-700 ml-1 transition-colors flex items-center justify-center';
+    delBtn.innerHTML = '<i data-lucide="trash-2" class="w-3.5 h-3.5"></i>';
+    delBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      deletePage(index);
+    });
+    
+    btn.appendChild(delBtn);
+    container.appendChild(btn);
+  });
+  
+  lucide.createIcons();
+}
+
+function updateControlsUI() {
+  document.getElementById('rowsR').value = S.rows;
+  document.getElementById('rowsLbl').textContent = S.rows;
+  
+  document.getElementById('colsR').value = S.cols;
+  document.getElementById('colsLbl').textContent = S.cols;
+  
+  document.getElementById('widthR').value = S.width;
+  document.getElementById('widthLbl').textContent = S.width + 'px';
+  
+  document.getElementById('opacR').value = Math.round(S.opacity * 100);
+  document.getElementById('opacLbl').textContent = Math.round(S.opacity * 100) + '%';
+  
+  document.getElementById('depthR').value = Math.round(S.depth * 100);
+  document.getElementById('depthLbl').textContent = Math.round(S.depth * 100) + '%';
+  
+  document.getElementById('freqR').value = S.freq;
+  document.getElementById('freqLbl').textContent = S.freq;
+  
+  document.querySelectorAll('.style-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.style === S.style);
+  });
+  showFreq();
+  
+  document.querySelectorAll('.swatch').forEach(sw => {
+    sw.classList.toggle('sel', sw.dataset.color === S.color);
+  });
+  document.getElementById('colorPick').value = S.color;
 }
 
 // ── Sliders ────────────────────────────────────────────────────────────────
@@ -100,17 +216,74 @@ document.getElementById('colorPick').addEventListener('input', function() {
 });
 
 // ── Actions ────────────────────────────────────────────────────────────────
-document.getElementById('shuffleBtn').addEventListener('click', () => { seed = Math.random()*9e5; redraw(); });
+document.getElementById('shuffleBtn').addEventListener('click', () => { 
+  seed = Math.random()*9e5; 
+  if (activePageIndex !== -1) {
+    pages[activePageIndex].seed = seed;
+  }
+  redraw(); 
+});
+
 document.getElementById('downloadBtn').addEventListener('click', () => {
+  if (!src) return;
   const c = document.getElementById('canvas');
   const a = document.createElement('a');
-  a.download = 'puzzle-template.png';
+  a.download = `puzzle-page-${activePageIndex + 1}.png`;
   a.href = c.toDataURL('image/png');
   a.click();
 });
 
+document.getElementById('printBtn').addEventListener('click', () => {
+  if (pages.length === 0) return;
+  
+  // Create or retrieve print container
+  let printArea = document.getElementById('printArea');
+  if (!printArea) {
+    printArea = document.createElement('div');
+    printArea.id = 'printArea';
+    printArea.className = 'hidden';
+    document.body.appendChild(printArea);
+  }
+  printArea.innerHTML = '';
+  
+  // Render each page into a temporary canvas and convert to image for printing
+  pages.forEach((p, index) => {
+    const tempCanvas = document.createElement('canvas');
+    const tempCtx = tempCanvas.getContext('2d');
+    
+    // Calculate aspect-ratio fitted dimensions
+    const MAX = 1400;
+    let W = p.im.width, H = p.im.height;
+    if (W > MAX) { H = H * MAX / W; W = MAX; }
+    if (H > MAX) { W = W * MAX / H; H = MAX; }
+    tempCanvas.width = Math.round(W);
+    tempCanvas.height = Math.round(H);
+    
+    // Draw page image
+    tempCtx.drawImage(p.im, 0, 0, tempCanvas.width, tempCanvas.height);
+    
+    // Draw the puzzle line grid onto the temporary canvas using this page's settings
+    drawGridWithSettings(tempCtx, tempCanvas.width, tempCanvas.height, p.S, p.seed);
+    
+    // Wrap inside standard A4 container for CSS formatting
+    const pageDiv = document.createElement('div');
+    pageDiv.className = 'print-page';
+    
+    const img = document.createElement('img');
+    img.src = tempCanvas.toDataURL('image/png');
+    img.className = 'print-img';
+    
+    pageDiv.appendChild(img);
+    printArea.appendChild(pageDiv);
+  });
+  
+  // Trigger system print dialog
+  window.print();
+});
+
 // ── RNG ────────────────────────────────────────────────────────────────────
-function rng(s) { const x = Math.sin(s + seed)*1e5; return x - Math.floor(x); }
+function rngWithSeed(s, pSeed) { const x = Math.sin(s + pSeed)*1e5; return x - Math.floor(x); }
+function rng(s) { return rngWithSeed(s, seed); }
 
 // ── Draw ───────────────────────────────────────────────────────────────────
 function redraw() {
@@ -128,8 +301,8 @@ function redraw() {
   drawGrid(ctx, canvas.width, canvas.height);
 }
 
-function drawGrid(ctx, W, H) {
-  const {rows, cols, style, color, width, opacity, depth, freq} = S;
+function drawGridWithSettings(ctx, W, H, settings, pSeed) {
+  const {rows, cols, style, color, width, opacity, depth, freq} = settings;
   const cW = W/cols, cH = H/rows;
   ctx.save();
   ctx.strokeStyle = color;
@@ -142,7 +315,7 @@ function drawGrid(ctx, W, H) {
   for (let r = 1; r < rows; r++) {
     for (let c = 0; c < cols; c++) {
       const x0=c*cW, x1=(c+1)*cW, y=r*cH;
-      const d = rng(r*1e3+c) > .5 ? 1 : -1;
+      const d = rngWithSeed(r*1e3+c, pSeed) > .5 ? 1 : -1;
       ctx.beginPath();
       seg(ctx, x0,y, x1,y, true, cW,cH, style,d,depth,freq);
       ctx.stroke();
@@ -152,13 +325,17 @@ function drawGrid(ctx, W, H) {
   for (let c = 1; c < cols; c++) {
     for (let r = 0; r < rows; r++) {
       const y0=r*cH, y1=(r+1)*cH, x=c*cW;
-      const d = rng(c*1e3+r+5e4) > .5 ? 1 : -1;
+      const d = rngWithSeed(c*1e3+r+5e4, pSeed) > .5 ? 1 : -1;
       ctx.beginPath();
       seg(ctx, x,y0, x,y1, false, cW,cH, style,d,depth,freq);
       ctx.stroke();
     }
   }
   ctx.restore();
+}
+
+function drawGrid(ctx, W, H) {
+  drawGridWithSettings(ctx, W, H, S, seed);
 }
 
 function seg(ctx, x0,y0,x1,y1, hz, cW,cH, style,dir,depth,freq) {
