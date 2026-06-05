@@ -8,6 +8,151 @@ let src = null;
 let seed = Math.random() * 9e5;
 let S = { rows:4, cols:4, style:'straight', color:'#ffffff', width:2, opacity:1, depth:.5, freq:3 };
 
+// ── IndexedDB for Puzzle Images ──────────────────────────────────────────────
+const DB_NAME = 'klasskit_puzzle_db';
+const DB_VERSION = 1;
+const STORE_NAME = 'puzzle_images';
+let dbInstance = null;
+
+function initDB() {
+  return new Promise((resolve, reject) => {
+    if (dbInstance) return resolve(dbInstance);
+    const request = indexedDB.open(DB_NAME, DB_VERSION);
+    request.onupgradeneeded = (e) => {
+      const db = e.target.result;
+      if (!db.objectStoreNames.contains(STORE_NAME)) {
+        db.createObjectStore(STORE_NAME);
+      }
+    };
+    request.onsuccess = (e) => {
+      dbInstance = e.target.result;
+      resolve(dbInstance);
+    };
+    request.onerror = (e) => reject(e.target.error);
+  });
+}
+
+async function saveImageToDB(id, dataUrl) {
+  try {
+    const db = await initDB();
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction(STORE_NAME, 'readwrite');
+      const store = transaction.objectStore(STORE_NAME);
+      const request = store.put(dataUrl, id);
+      request.onsuccess = () => resolve();
+      request.onerror = (e) => reject(e.target.error);
+    });
+  } catch (err) {
+    console.error('saveImageToDB error:', err);
+  }
+}
+
+async function loadImageFromDB(id) {
+  try {
+    const db = await initDB();
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction(STORE_NAME, 'readonly');
+      const store = transaction.objectStore(STORE_NAME);
+      const request = store.get(id);
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = (e) => reject(e.target.error);
+    });
+  } catch (err) {
+    console.error('loadImageFromDB error:', err);
+    return null;
+  }
+}
+
+async function deleteImageFromDB(id) {
+  try {
+    const db = await initDB();
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction(STORE_NAME, 'readwrite');
+      const store = transaction.objectStore(STORE_NAME);
+      const request = store.delete(id);
+      request.onsuccess = () => resolve();
+      request.onerror = (e) => reject(e.target.error);
+    });
+  } catch (err) {
+    console.error('deleteImageFromDB error:', err);
+  }
+}
+
+let saveTimeout = null;
+function saveState() {
+  const stateToSave = {
+    activePageIndex,
+    pages: pages.map(p => ({
+      id: p.id,
+      name: p.name,
+      seed: p.seed,
+      S: p.S
+    }))
+  };
+
+  localStorage.setItem('prog_puzzle-maker', JSON.stringify(stateToSave));
+
+  clearTimeout(saveTimeout);
+  saveTimeout = setTimeout(() => {
+    if (typeof saveProgress === 'function') {
+      saveProgress('puzzle-maker', stateToSave).catch(err => {
+        console.error('[Cloud Save] Error:', err);
+      });
+    }
+  }, 1000);
+}
+
+async function loadState() {
+  let saved = null;
+  if (typeof loadProgress === 'function') {
+    saved = await loadProgress('puzzle-maker');
+  }
+  if (!saved) {
+    const local = localStorage.getItem('prog_puzzle-maker');
+    if (local) {
+      try {
+        saved = JSON.parse(local);
+      } catch (e) {}
+    }
+  }
+
+  if (saved && saved.pages && saved.pages.length > 0) {
+    pages = [];
+    activePageIndex = saved.activePageIndex !== undefined ? saved.activePageIndex : -1;
+    
+    for (const p of saved.pages) {
+      const dataUrl = await loadImageFromDB(p.id);
+      if (dataUrl) {
+        const im = new Image();
+        await new Promise((resolve) => {
+          im.onload = resolve;
+          im.onerror = resolve;
+          im.src = dataUrl;
+        });
+        pages.push({
+          id: p.id,
+          im: im,
+          name: p.name,
+          seed: p.seed,
+          S: p.S
+        });
+      }
+    }
+    
+    if (pages.length > 0) {
+      document.getElementById('empty').classList.add('hidden');
+      document.getElementById('canvasWrap').classList.remove('hidden');
+      document.getElementById('canvasWrap').classList.add('flex');
+      document.getElementById('pagesSection').classList.remove('hidden');
+      
+      if (activePageIndex < 0 || activePageIndex >= pages.length) {
+        activePageIndex = 0;
+      }
+      selectPage(activePageIndex);
+    }
+  }
+}
+
 // ── Dark mode ──────────────────────────────────────────────────────────────
 function updateDarkIcon() {
   const isDark = document.documentElement.classList.contains('dark');
@@ -51,14 +196,18 @@ function load(f) {
   r.onload = e => {
     const im = new Image();
     im.onload = () => {
+      const pageId = Date.now() + Math.random();
       const newPage = {
-        id: Date.now() + Math.random(),
+        id: pageId,
         im: im,
         name: f.name,
         seed: Math.random() * 9e5,
         S: { ...S }
       };
       pages.push(newPage);
+      saveImageToDB(pageId, e.target.result).then(() => {
+        saveState();
+      });
       
       document.getElementById('empty').classList.add('hidden');
       document.getElementById('canvasWrap').classList.remove('hidden');
@@ -85,9 +234,12 @@ function selectPage(index) {
   updateControlsUI();
   renderPagesList();
   redraw();
+  saveState();
 }
 
 function deletePage(index) {
+  const pageId = pages[index].id;
+  deleteImageFromDB(pageId);
   pages.splice(index, 1);
   if (pages.length === 0) {
     activePageIndex = -1;
@@ -97,6 +249,7 @@ function deletePage(index) {
     document.getElementById('canvasWrap').classList.remove('flex');
     document.getElementById('pagesSection').classList.add('hidden');
     document.getElementById('imgInfo').classList.add('hidden');
+    saveState();
   } else {
     if (activePageIndex >= pages.length) {
       activePageIndex = pages.length - 1;
@@ -182,6 +335,7 @@ function bind(id, lbl, key, fmt, conv) {
     S[key] = conv ? conv(v) : v;
     lb.textContent = fmt(v);
     redraw();
+    saveState();
   });
 }
 bind('rowsR',  'rowsLbl',  'rows',  v => Math.round(v), v => Math.round(v));
@@ -205,6 +359,7 @@ document.querySelectorAll('.style-btn').forEach(b => {
     S.style = b.dataset.style;
     showFreq();
     redraw();
+    saveState();
   });
 });
 
@@ -216,6 +371,7 @@ document.querySelectorAll('.swatch[data-color]').forEach(sw => {
     S.color = sw.dataset.color;
     document.getElementById('colorPick').value = sw.dataset.color;
     redraw();
+    saveState();
   });
 });
 document.getElementById('colorPick').addEventListener('input', function() {
@@ -223,6 +379,7 @@ document.getElementById('colorPick').addEventListener('input', function() {
   this.classList.add('sel');
   S.color = this.value;
   redraw();
+  saveState();
 });
 
 // ── Actions ────────────────────────────────────────────────────────────────
@@ -232,6 +389,7 @@ document.getElementById('shuffleBtn').addEventListener('click', () => {
     pages[activePageIndex].seed = seed;
   }
   redraw(); 
+  saveState();
 });
 
 document.getElementById('downloadBtn').addEventListener('click', () => {
@@ -423,3 +581,6 @@ function doBumpy(ctx,x0,y0,x1,y1,hz,cW,cH,depth,freq) {
     }
   }
 }
+
+// ── Init State ──────────────────────────────────────────────────────────────
+loadState();

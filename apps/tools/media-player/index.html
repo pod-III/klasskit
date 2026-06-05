@@ -9,6 +9,8 @@
 <script src="https://cdn.tailwindcss.com"></script>
 <link rel="stylesheet" href="../../../css/base.css">
 <link rel="stylesheet" href="../../../css/components.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.105.4"></script>
+<script src="/supabase.js"></script>
 <script>
 tailwind.config = {
   darkMode:'class',
@@ -428,6 +430,160 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;heigh
 // ════════════════════════════════════════════════════════
 const $ = id => document.getElementById(id)
 
+// ── IndexedDB for Local Media Files ──────────────────────────────────────────
+const DB_NAME = 'klasskit_mediaplayer_db';
+const DB_VERSION = 1;
+const STORE_NAME = 'media_blobs';
+let dbInstance = null;
+
+function initDB() {
+  return new Promise((resolve, reject) => {
+    if (dbInstance) return resolve(dbInstance);
+    const request = indexedDB.open(DB_NAME, DB_VERSION);
+    request.onupgradeneeded = (e) => {
+      const db = e.target.result;
+      if (!db.objectStoreNames.contains(STORE_NAME)) {
+        db.createObjectStore(STORE_NAME);
+      }
+    };
+    request.onsuccess = (e) => {
+      dbInstance = e.target.result;
+      resolve(dbInstance);
+    };
+    request.onerror = (e) => reject(e.target.error);
+  });
+}
+
+async function saveFileToDB(id, blob) {
+  try {
+    const db = await initDB();
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction(STORE_NAME, 'readwrite');
+      const store = transaction.objectStore(STORE_NAME);
+      const request = store.put(blob, id);
+      request.onsuccess = () => resolve();
+      request.onerror = (e) => reject(e.target.error);
+    });
+  } catch (err) {
+    console.error('saveFileToDB error:', err);
+  }
+}
+
+async function loadFileFromDB(id) {
+  try {
+    const db = await initDB();
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction(STORE_NAME, 'readonly');
+      const store = transaction.objectStore(STORE_NAME);
+      const request = store.get(id);
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = (e) => reject(e.target.error);
+    });
+  } catch (err) {
+    console.error('loadFileFromDB error:', err);
+    return null;
+  }
+}
+
+async function deleteFileFromDB(id) {
+  try {
+    const db = await initDB();
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction(STORE_NAME, 'readwrite');
+      const store = transaction.objectStore(STORE_NAME);
+      const request = store.delete(id);
+      request.onsuccess = () => resolve();
+      request.onerror = (e) => reject(e.target.error);
+    });
+  } catch (err) {
+    console.error('deleteFileFromDB error:', err);
+  }
+}
+
+let saveTimeout = null;
+function saveState() {
+  const stateToSave = {
+    mode,
+    active,
+    looping,
+    muted,
+    volume: parseFloat($('volBar').value) || 0.8,
+    libs: {
+      video: libs.video.map(item => ({ id: item.id, type: item.type, videoId: item.videoId, name: item.name, meta: item.meta, thumb: item.thumb })),
+      picture: libs.picture.map(item => ({ id: item.id, type: item.type, name: item.name, meta: item.meta })),
+      audio: libs.audio.map(item => ({ id: item.id, type: item.type, name: item.name, meta: item.meta }))
+    }
+  };
+
+  localStorage.setItem('prog_media-player', JSON.stringify(stateToSave));
+
+  clearTimeout(saveTimeout);
+  saveTimeout = setTimeout(() => {
+    if (typeof saveProgress === 'function') {
+      saveProgress('media-player', stateToSave).catch(err => {
+        console.error('[Cloud Save] Error:', err);
+      });
+    }
+  }, 1000);
+}
+
+async function loadState() {
+  let saved = null;
+  if (typeof loadProgress === 'function') {
+    saved = await loadProgress('media-player');
+  }
+  if (!saved) {
+    const local = localStorage.getItem('prog_media-player');
+    if (local) {
+      try {
+        saved = JSON.parse(local);
+      } catch (e) {}
+    }
+  }
+
+  if (saved) {
+    if (saved.mode) mode = saved.mode;
+    if (saved.active) {
+      active.video = saved.active.video !== undefined ? saved.active.video : -1;
+      active.picture = saved.active.picture !== undefined ? saved.active.picture : -1;
+      active.audio = saved.active.audio !== undefined ? saved.active.audio : -1;
+    }
+    looping = !!saved.looping;
+    muted = !!saved.muted;
+    
+    if (saved.volume !== undefined) {
+      $('volBar').value = saved.volume;
+      updateVolGrad(saved.volume * 100);
+      video.volume = saved.volume;
+      audioEl.volume = saved.volume;
+    }
+
+    $('loopBtn').classList.toggle('bg-orange', looping);
+    $('loopBtn').classList.toggle('text-white', looping);
+    $('muteBtn').classList.toggle('bg-orange', muted);
+    $('muteBtn').classList.toggle('text-white', muted);
+    video.muted = muted;
+    audioEl.muted = muted;
+
+    for (const m of ['video', 'picture', 'audio']) {
+      libs[m] = [];
+      if (saved.libs && saved.libs[m]) {
+        for (const item of saved.libs[m]) {
+          if (item.type === 'youtube') {
+            libs[m].push(item);
+          } else if (item.type === 'local') {
+            const blob = await loadFileFromDB(item.id);
+            if (blob) {
+              const url = URL.createObjectURL(blob);
+              libs[m].push({ ...item, url });
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
 // ════════════════════════════════════════════════════════
 //  CONSTANTS
 // ════════════════════════════════════════════════════════
@@ -596,6 +752,7 @@ async function addYt () {
   const item  = { id: Date.now()+Math.random(), type:'youtube', videoId:id, name:`YouTube: ${id}`, meta:'YouTube', thumb }
   libs[mode].push(item)
   renderLib()
+  saveState()
 
   if (libs[mode].length === 1) { active[mode] = 0; loadItem(0) }
 
@@ -609,6 +766,7 @@ async function addYt () {
       const d = await r.json()
       item.name = d.title
       renderLib()
+      saveState()
     }
   } catch (_) {}
 }
@@ -710,34 +868,46 @@ function dropFiles (files) {
 }
 
 function addFile (file) {
-  const url  = URL.createObjectURL(file)
-  const item = { id:Date.now()+Math.random(), type:'local', url, name:file.name, meta:'' }
-  libs[mode].push(item)
+  const id = Date.now()+Math.random();
+  saveFileToDB(id, file).then(() => {
+    const url  = URL.createObjectURL(file)
+    const item = { id, type:'local', url, name:file.name, meta:'' }
+    libs[mode].push(item)
 
-  if (mode === 'video' || mode === 'audio') {
-    const el = document.createElement(mode==='video'?'video':'audio')
-    el.src = url
-    el.onloadedmetadata = () => { item.meta = fmtT(el.duration); renderLib() }
-  } else {
-    const img = new Image()
-    img.onload = () => { item.meta = `${img.naturalWidth}×${img.naturalHeight}`; renderLib() }
-    img.src = url
-  }
+    if (mode === 'video' || mode === 'audio') {
+      const el = document.createElement(mode==='video'?'video':'audio')
+      el.src = url
+      el.onloadedmetadata = () => { item.meta = fmtT(el.duration); renderLib(); saveState() }
+    } else {
+      const img = new Image()
+      img.onload = () => { item.meta = `${img.naturalWidth}×${img.naturalHeight}`; renderLib(); saveState() }
+      img.src = url
+    }
 
-  renderLib()
-  if (libs[mode].length === 1) { active[mode]=0; loadItem(0) }
+    renderLib()
+    if (libs[mode].length === 1) { active[mode]=0; loadItem(0) }
+    saveState()
+  });
 }
 
 function clearLib () {
+  libs[mode].forEach(item => {
+    if (item.type === 'local') deleteFileFromDB(item.id);
+  });
   libs[mode]=[]; active[mode]=-1
   pauseAll(); ytActive=false; stopYtTick()
   video.classList.add('hidden'); $('vidOverlay').classList.add('hidden')
   $('audioViz').classList.add('hidden'); $('imgWrap').classList.add('hidden')
   $('ytWrap').style.display='none'
   showEmpty(true); renderLib()
+  saveState()
 }
 
 function removeItem (i) {
+  const item = libs[mode][i];
+  if (item && item.type === 'local') {
+    deleteFileFromDB(item.id);
+  }
   libs[mode].splice(i,1)
   if (active[mode]===i) {
     active[mode]=-1; pauseAll(); ytActive=false; stopYtTick()
@@ -747,6 +917,7 @@ function removeItem (i) {
     libs[mode].length ? loadItem(Math.min(i,libs[mode].length-1)) : showEmpty(true)
   } else if (active[mode]>i) active[mode]--
   renderLib()
+  saveState()
 }
 
 // ════════════════════════════════════════════════════════
@@ -807,6 +978,7 @@ function loadItem (i) {
   const item = libs[mode][i]
   if (!item) return
   active[mode] = i
+  saveState()
   showEmpty(false)
 
   // Stop everything
@@ -952,12 +1124,14 @@ function setVol (v) {
   $('volBar').style.background = `linear-gradient(to right,#ff4785 ${p}%,${dark?'#475569':'#cbd5e1'} ${p}%)`
   $('volIcon').setAttribute('data-lucide', (muted||v===0)?'volume-x':v<.5?'volume-1':'volume-2')
   lucide.createIcons()
+  saveState()
 }
 
 function toggleMute () {
   muted=!muted; video.muted=muted; audioEl.muted=muted
   if (ytPlayer) try{ muted ? ytPlayer.mute() : ytPlayer.unMute() }catch(_){}
   setVol(muted ? 0 : parseFloat($('volBar').value))
+  saveState()
 }
 
 // ════════════════════════════════════════════════════════
@@ -982,6 +1156,7 @@ function toggleLoop () {
   b.style.background=looping?'#00d063':''; b.style.color=looping?'#1e293b':''
   b.innerHTML=`<i data-lucide="repeat" class="w-3 h-3"></i> ${looping?'On':'Off'}`
   lucide.createIcons()
+  saveState()
 }
 
 function toggleCfg () {
@@ -1090,7 +1265,9 @@ document.addEventListener('keydown', e => {
 // ════════════════════════════════════════════════════════
 //  INIT
 // ════════════════════════════════════════════════════════
-setMode('video')
+loadState().then(() => {
+  setMode(mode);
+});
 </script>
 </body>
 </html>

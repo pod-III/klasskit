@@ -11,6 +11,8 @@
   <script src="https://unpkg.com/lucide@latest"></script>
   <link rel="stylesheet" href="../../../css/base.css">
   <link rel="stylesheet" href="../../../css/components.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.105.4"></script>
+  <script src="/supabase.js"></script>
   <script>
     tailwind.config = {
       darkMode: 'class',
@@ -113,18 +115,33 @@
       }
     };
 
-    const STORAGE_KEY = 'worksheet-maker_state';
+    let saveTimeout = null;
     function saveState() {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-    }
-    function loadState() {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        try {
-          state = JSON.parse(saved);
-        } catch (e) {
-          console.error("Error loading saved state:", e);
+      localStorage.setItem('prog_worksheet-maker', JSON.stringify(state));
+      clearTimeout(saveTimeout);
+      saveTimeout = setTimeout(() => {
+        if (typeof saveProgress === 'function') {
+          saveProgress('worksheet-maker', state).catch(err => {
+            console.error('[Cloud Save] Error:', err);
+          });
         }
+      }, 1000);
+    }
+    async function loadState() {
+      let saved = null;
+      if (typeof loadProgress === 'function') {
+        saved = await loadProgress('worksheet-maker');
+      }
+      if (!saved) {
+        const local = localStorage.getItem('prog_worksheet-maker') || localStorage.getItem('worksheet-maker_state');
+        if (local) {
+          try {
+            saved = JSON.parse(local);
+          } catch (e) {}
+        }
+      }
+      if (saved) {
+        state = saved;
       }
     }
 
@@ -778,8 +795,9 @@
     });
 
     // --- Init ---
-    loadState();
-    render();
+    loadState().then(() => {
+      render();
+    });
   </script>
 </body>
 </html>
