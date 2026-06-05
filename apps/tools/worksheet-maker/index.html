@@ -1,0 +1,777 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Worksheet Maker - Universal Worksheet Maker</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@600;700&family=Nunito:wght@400;600;800&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <link rel="stylesheet" href="../../css/base.css">
+  <link rel="stylesheet" href="../../css/components.css">
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            pink: '#ff4785',
+            orange: '#ff7e33',
+            green: '#00d063',
+            blue: '#1ea7fd',
+            dark: '#111827',
+          },
+          fontFamily: {
+            heading: ['Fredoka', 'sans-serif'],
+            body: ['Nunito', 'sans-serif'],
+          },
+          boxShadow: {
+            'hard': '4px 4px 0px 0px #111827',
+            'hard-sm': '2px 2px 0px 0px #111827',
+          }
+        }
+      }
+    }
+  </script>
+  <script>
+    // Theme sync with system/localStorage
+    const savedTheme = localStorage.getItem('theme_hub');
+    if (savedTheme === 'dark' || (!savedTheme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  </script>
+  <style>
+    @media print {
+      body { background: white !important; margin: 0; padding: 0; }
+      .no-print { display: none !important; }
+      .print-container { 
+        width: 100% !important; 
+        max-width: 100% !important;
+        margin: 0 !important; 
+        padding: 0 !important; 
+        box-shadow: none !important; 
+        background: transparent !important;
+      }
+      .print-block {
+        break-inside: avoid;
+        page-break-inside: avoid;
+      }
+      @page { size: auto; margin: 15mm; }
+    }
+    
+    /* Smooth fade in */
+    .fade-in {
+      animation: fadeIn 0.3s ease-in-out;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+  </style>
+</head>
+<body class="bg-slate-50 dark:bg-[#020617] text-slate-900 dark:text-white font-body min-h-screen transition-colors">
+
+  <div id="app"></div>
+
+  <script>
+    // --- State & Config ---
+    const generateId = () => Math.random().toString(36).substr(2, 9);
+    
+    // Simple HTML escaper to prevent breakage in strings
+    const esc = str => (str || '').toString().replace(/[&<>'"]/g, 
+      tag => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'}[tag] || tag)
+    );
+
+    const QUESTION_TYPES = {
+      MCQ: { id: 'mcq', label: 'Multiple Choice', icon: 'check-square' },
+      FIB: { id: 'fib', label: 'Fill in the Blank', icon: 'type' },
+      SA: { id: 'sa', label: 'Short Answer', icon: 'align-left' },
+      TF: { id: 'tf', label: 'True / False', icon: 'check-circle' },
+      MATCHING: { id: 'matching', label: 'Matching', icon: 'split-square-horizontal' },
+      ESSAY: { id: 'essay', label: 'Essay / Long Answer', icon: 'file-edit' },
+    };
+
+    let state = {
+      viewMode: 'edit', // 'edit' | 'preview'
+      showAnswers: false,
+      worksheet: {
+        title: 'Untitled Worksheet',
+        instructions: 'Please read each question carefully and provide the best possible answer.',
+        questions: []
+      }
+    };
+
+    const STORAGE_KEY = 'worksheet-maker_state';
+    function saveState() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    }
+    function loadState() {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        try {
+          state = JSON.parse(saved);
+        } catch (e) {
+          console.error("Error loading saved state:", e);
+        }
+      }
+    }
+
+    const createDefaultQuestion = (type) => {
+      const base = { id: generateId(), type, text: '', points: 1 };
+      switch (type) {
+        case 'mcq': return { ...base, options: [{ id: generateId(), text: '', isCorrect: true }, { id: generateId(), text: '', isCorrect: false }] };
+        case 'fib': return { ...base, text: 'The capital of Japan is ___ .', answer: 'Tokyo' };
+        case 'sa': return { ...base, answer: '' };
+        case 'tf': return { ...base, isTrue: true };
+        case 'matching': return { ...base, pairs: [{ id: generateId(), left: '', right: '' }, { id: generateId(), left: '', right: '' }] };
+        case 'essay': return { ...base, lines: 5, answer: '' };
+        default: return base;
+      }
+    };
+
+    // --- Actions ---
+    function addQuestion(type) {
+      state.worksheet.questions.push(createDefaultQuestion(type));
+      saveState();
+      render(true); // pass true to scroll to bottom
+    }
+
+    function moveQuestion(id, dir) {
+      const idx = state.worksheet.questions.findIndex(q => q.id === id);
+      const qList = state.worksheet.questions;
+      if (dir === 'up' && idx > 0) {
+        [qList[idx - 1], qList[idx]] = [qList[idx], qList[idx - 1]];
+        saveState();
+        render();
+      } else if (dir === 'down' && idx < qList.length - 1) {
+        [qList[idx + 1], qList[idx]] = [qList[idx], qList[idx + 1]];
+        saveState();
+        render();
+      }
+    }
+
+    // --- HTML Generators (Editor) ---
+    function getEditorInput(label, value, placeholder, action, dataAttrs, type="text", cls="") {
+      return `
+        <div class="flex flex-col gap-1.5 ${cls}">
+          ${label ? `<label class="text-xs font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest font-heading">${label}</label>` : ''}
+          <input type="${type}" data-action="${action}" ${dataAttrs} class="bg-slate-50 dark:bg-slate-900 border-2 border-dark dark:border-slate-600 rounded-xl px-4.5 py-2.5 text-sm font-bold text-dark dark:text-white focus:outline-none focus:border-blue transition-all" value="${esc(value)}" placeholder="${placeholder || ''}" />
+        </div>
+      `;
+    }
+
+    function getEditorTextarea(label, value, placeholder, action, dataAttrs, rows=3) {
+      return `
+        <div class="flex flex-col gap-1.5 w-full">
+          ${label ? `<label class="text-xs font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest font-heading">${label}</label>` : ''}
+          <textarea data-action="${action}" ${dataAttrs} class="bg-slate-50 dark:bg-slate-900 border-2 border-dark dark:border-slate-600 rounded-xl px-4.5 py-2.5 text-sm font-bold text-dark dark:text-white focus:outline-none focus:border-blue transition-all resize-y" rows="${rows}" placeholder="${placeholder || ''}">${esc(value)}</textarea>
+        </div>
+      `;
+    }
+
+    function getMCQEditor(q) {
+      return `
+        <div class="space-y-4">
+          ${getEditorTextarea('Question Text', q.text, 'What is the powerhouse of the cell?', 'update-q-text', `data-qid="${q.id}"`)}
+          <div class="space-y-3">
+            <label class="text-xs font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest font-heading">Options (Check the correct one)</label>
+            ${q.options.map((opt, idx) => `
+              <div class="flex items-center gap-3">
+                <input type="radio" name="mcq-${q.id}" ${opt.isCorrect ? 'checked' : ''} data-action="set-mcq-correct" data-qid="${q.id}" data-optid="${opt.id}" class="w-5 h-5 text-blue dark:bg-slate-900 border-2 border-dark focus:ring-0">
+                <input type="text" class="flex-1 bg-slate-50 dark:bg-slate-900 border-2 border-dark dark:border-slate-600 rounded-xl px-3 py-2 text-sm font-semibold text-dark dark:text-white focus:border-blue outline-none" value="${esc(opt.text)}" data-action="update-mcq-text" data-qid="${q.id}" data-optid="${opt.id}" placeholder="Option ${idx + 1}">
+                <button data-action="delete-mcq-opt" data-qid="${q.id}" data-optid="${opt.id}" class="text-slate-400 hover:text-red-500 dark:hover:text-red-400 p-1.5 transition-colors"><i data-lucide="trash-2" class="w-[18px] h-[18px]"></i></button>
+              </div>
+            `).join('')}
+            <button data-action="add-mcq-opt" data-qid="${q.id}" class="text-xs text-blue hover:text-blue/80 font-heading font-black uppercase tracking-wider flex items-center gap-1.5 mt-2">
+              <i data-lucide="plus" class="w-4 h-4"></i> Add Option
+            </button>
+          </div>
+        </div>
+      `;
+    }
+
+    function getFIBEditor(q) {
+      return `
+        <div class="space-y-4">
+          <div class="bg-blue/10 dark:bg-blue/5 border-2 border-blue/20 text-blue dark:text-blue-400 p-4 rounded-xl text-sm mb-4 font-semibold">
+            <strong>Tip:</strong> Use three underscores (<code>___</code>) in your question text where you want the blank to appear.
+          </div>
+          ${getEditorTextarea('Question Text', q.text, '', 'update-q-text', `data-qid="${q.id}"`)}
+          ${getEditorInput('Correct Answer (For Key)', q.answer, 'e.g. Mitochondria', 'update-q-ans', `data-qid="${q.id}"`)}
+        </div>
+      `;
+    }
+
+    function getSAEditor(q) {
+      return `
+        <div class="space-y-4">
+          ${getEditorTextarea('Question Text', q.text, '', 'update-q-text', `data-qid="${q.id}"`)}
+          ${getEditorTextarea('Correct Answer / Expected Points (For Key)', q.answer, '', 'update-q-ans', `data-qid="${q.id}"`, 2)}
+        </div>
+      `;
+    }
+
+    function getTFEditor(q) {
+      return `
+        <div class="space-y-4">
+          ${getEditorTextarea('Question Text', q.text, '', 'update-q-text', `data-qid="${q.id}"`)}
+          <div>
+            <label class="text-xs font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest font-heading block mb-2.5">Correct Answer</label>
+            <div class="flex gap-6">
+              <label class="flex items-center gap-2 cursor-pointer text-sm font-bold">
+                <input type="radio" name="tf-${q.id}" ${q.isTrue ? 'checked' : ''} data-action="set-tf" data-val="true" data-qid="${q.id}" class="w-5 h-5 text-blue dark:bg-slate-900 border-2 border-dark focus:ring-0" />
+                <span>True</span>
+              </label>
+              <label class="flex items-center gap-2 cursor-pointer text-sm font-bold">
+                <input type="radio" name="tf-${q.id}" ${!q.isTrue ? 'checked' : ''} data-action="set-tf" data-val="false" data-qid="${q.id}" class="w-5 h-5 text-blue dark:bg-slate-900 border-2 border-dark focus:ring-0" />
+                <span>False</span>
+              </label>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function getMatchingEditor(q) {
+      return `
+        <div class="space-y-4">
+          ${getEditorTextarea('Instructions / Context', q.text, 'Match the items...', 'update-q-text', `data-qid="${q.id}"`)}
+          <div class="space-y-3">
+            <label class="text-xs font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest font-heading flex justify-between">
+              <span>Left Side (Prompts)</span>
+              <span>Right Side (Matches)</span>
+            </label>
+            ${q.pairs.map((pair, idx) => `
+              <div class="flex items-center gap-3">
+                <input class="flex-1 bg-slate-50 dark:bg-slate-900 border-2 border-dark dark:border-slate-600 rounded-xl px-3 py-2 text-sm font-semibold text-dark dark:text-white focus:border-blue outline-none" value="${esc(pair.left)}" data-action="update-match-left" data-qid="${q.id}" data-pairid="${pair.id}" placeholder="e.g. France" />
+                <span class="text-slate-400 font-bold">→</span>
+                <input class="flex-1 bg-slate-50 dark:bg-slate-900 border-2 border-dark dark:border-slate-600 rounded-xl px-3 py-2 text-sm font-semibold text-dark dark:text-white focus:border-blue outline-none" value="${esc(pair.right)}" data-action="update-match-right" data-qid="${q.id}" data-pairid="${pair.id}" placeholder="e.g. Paris" />
+                <button data-action="delete-match-pair" data-qid="${q.id}" data-pairid="${pair.id}" class="text-slate-400 hover:text-red-500 dark:hover:text-red-400 p-1.5 transition-colors"><i data-lucide="trash-2" class="w-[18px] h-[18px]"></i></button>
+              </div>
+            `).join('')}
+            <button data-action="add-match-pair" data-qid="${q.id}" class="text-xs text-blue hover:text-blue/80 font-heading font-black uppercase tracking-wider flex items-center gap-1.5 mt-2">
+              <i data-lucide="plus" class="w-4 h-4"></i> Add Pair
+            </button>
+          </div>
+        </div>
+      `;
+    }
+
+    function getEssayEditor(q) {
+      return `
+        <div class="space-y-4">
+          ${getEditorTextarea('Question Text', q.text, '', 'update-q-text', `data-qid="${q.id}"`)}
+          <div class="flex gap-4">
+            ${getEditorInput('Blank Lines to Provide', q.lines, '', 'update-q-lines', `data-qid="${q.id}"`, 'number', 'w-32')}
+          </div>
+          ${getEditorTextarea('Grading Rubric (For Key)', q.answer, 'Key points the student must mention...', 'update-q-ans', `data-qid="${q.id}"`, 4)}
+        </div>
+      `;
+    }
+
+    // --- HTML Generators (Preview) ---
+    function getQuestionText(text) {
+      return `<div class="text-base font-medium mb-3 whitespace-pre-wrap">${esc(text)}</div>`;
+    }
+
+    const fmtPreviewScore = (pts) => `(${pts} pt${pts !== 1 ? 's' : ''})`;
+
+    function getMCQPreview(q, index) {
+      return `
+        <div class="print-block mb-8">
+          <div class="flex gap-2">
+            <span class="font-bold">${index}.</span>
+            <div class="flex-1">
+              <div class="flex justify-between items-baseline gap-4">
+                ${getQuestionText(q.text)}
+                <span class="text-sm font-semibold text-gray-500 shrink-0 print:text-black">${fmtPreviewScore(q.points)}</span>
+              </div>
+              <div class="flex flex-col gap-2 pl-2">
+                ${q.options.map((opt, idx) => {
+                  const letter = String.fromCharCode(65 + idx);
+                  const isCorrect = state.showAnswers && opt.isCorrect;
+                  const circleCls = isCorrect ? 'border-blue-600 text-blue-600 bg-blue-50' : 'border-slate-400 text-slate-600';
+                  const textCls = isCorrect ? 'text-blue-800 font-semibold' : 'text-slate-800';
+                  return `
+                    <div class="flex items-start gap-3">
+                      <span class="flex-shrink-0 w-6 h-6 rounded-full border flex items-center justify-center text-sm font-medium ${circleCls}">${letter}</span>
+                      <span class="pt-0.5 ${textCls}">${esc(opt.text) || '...'}</span>
+                    </div>
+                  `;
+                }).join('')}
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function getFIBPreview(q, index) {
+      let displayHtml = esc(q.text);
+      if (state.showAnswers && q.text.includes('___')) {
+        displayHtml = displayHtml.replace(/___/g, `<strong class="text-blue-600 font-bold border-b-2 border-blue-600 px-2">${esc(q.answer) || 'Answer'}</strong>`);
+      } else if (q.text.includes('___')) {
+        displayHtml = displayHtml.replace(/___/g, `_________________`);
+      }
+      
+      const extraLine = !q.text.includes('___') ? `
+        <div class="mt-4 border-b border-black w-64 h-6">
+          ${state.showAnswers ? `<span class="text-blue-600 font-bold">${esc(q.answer)}</span>` : ''}
+        </div>
+      ` : '';
+
+      return `
+        <div class="print-block mb-8">
+          <div class="flex gap-2">
+            <span class="font-bold">${index}.</span>
+            <div class="flex-1">
+              <div class="flex justify-between items-baseline gap-4">
+                <div class="text-base font-medium leading-relaxed">${displayHtml}</div>
+                <span class="text-sm font-semibold text-gray-500 shrink-0 print:text-black">${fmtPreviewScore(q.points)}</span>
+              </div>
+              ${extraLine}
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function getSAPreview(q, index) {
+      const answerArea = state.showAnswers ? 
+        `<div class="mt-2 text-blue-600 font-medium italic">Answer: ${esc(q.answer) || 'No answer key provided.'}</div>` :
+        `<div class="mt-6 flex flex-col gap-8">
+          <div class="w-full border-b border-slate-400"></div>
+          <div class="w-full border-b border-slate-400"></div>
+          <div class="w-full border-b border-slate-400"></div>
+         </div>`;
+
+      return `
+        <div class="print-block mb-8">
+          <div class="flex gap-2">
+            <span class="font-bold">${index}.</span>
+            <div class="flex-1 w-full">
+              <div class="flex justify-between items-baseline gap-4">
+                ${getQuestionText(q.text)}
+                <span class="text-sm font-semibold text-gray-500 shrink-0 print:text-black">${fmtPreviewScore(q.points)}</span>
+              </div>
+              ${answerArea}
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function getTFPreview(q, index) {
+      const trueCls = (state.showAnswers && q.isTrue) ? 'border-blue-600 text-blue-700 bg-blue-50' : 'border-transparent';
+      const falseCls = (state.showAnswers && !q.isTrue) ? 'border-blue-600 text-blue-700 bg-blue-50' : 'border-transparent';
+
+      return `
+        <div class="print-block mb-8">
+          <div class="flex gap-2">
+            <span class="font-bold">${index}.</span>
+            <div class="flex-1">
+              <div class="flex justify-between items-baseline gap-4">
+                ${getQuestionText(q.text)}
+                <span class="text-sm font-semibold text-gray-500 shrink-0 print:text-black">${fmtPreviewScore(q.points)}</span>
+              </div>
+              <div class="flex gap-6 mt-3 font-semibold text-slate-700">
+                <span class="px-3 py-1 rounded-full border-2 ${trueCls}">True</span>
+                <span class="px-3 py-1 rounded-full border-2 ${falseCls}">False</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function getMatchingPreview(q, index) {
+      // Stable shuffle right items based on ID
+      const rightItems = [...q.pairs].sort((a,b) => a.id.localeCompare(b.id));
+      const labels = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
+      const rightItemsWithLabels = rightItems.map((item, i) => ({ ...item, label: labels[i % labels.length] }));
+
+      return `
+        <div class="print-block mb-8">
+          <div class="flex gap-2">
+            <span class="font-bold">${index}.</span>
+            <div class="flex-1 w-full">
+              <div class="flex justify-between items-baseline gap-4">
+                ${getQuestionText(q.text || 'Match the following items:')}
+                <span class="text-sm font-semibold text-gray-500 shrink-0 print:text-black">${fmtPreviewScore(q.points)}</span>
+              </div>
+              <div class="flex gap-8 w-full mt-4">
+                <div class="flex-1 flex flex-col gap-4 border-r border-slate-200 pr-4">
+                  ${q.pairs.map((pair, idx) => {
+                    const correctRight = rightItemsWithLabels.find(r => r.id === pair.id);
+                    return `
+                      <div class="flex items-center justify-between">
+                        <span>${idx + 1}. ${esc(pair.left)}</span>
+                        <span class="w-10 border-b border-slate-800 text-center inline-block ml-4 h-6 relative top-1">
+                          ${state.showAnswers ? `<span class="text-blue-600 font-bold leading-none">${correctRight?.label || ''}</span>` : ''}
+                        </span>
+                      </div>
+                    `;
+                  }).join('')}
+                </div>
+                <div class="flex-1 flex flex-col gap-4">
+                  ${rightItemsWithLabels.map(item => `
+                    <div class="flex gap-2">
+                      <span class="font-semibold">${item.label}.</span>
+                      <span>${esc(item.right)}</span>
+                    </div>
+                  `).join('')}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function getEssayPreview(q, index) {
+      const lineHtml = `<div class="w-full border-b border-slate-400"></div>`.repeat(Math.max(1, q.lines));
+      const answerArea = state.showAnswers ? `
+        <div class="mt-4 border border-blue-200 bg-blue-50 text-blue-800 p-4 rounded-md text-sm whitespace-pre-wrap">
+          <strong class="block mb-2 text-blue-900 uppercase text-xs tracking-wider">Teacher Rubric / Expected Elements:</strong>
+          ${esc(q.answer) || 'No rubric provided.'}
+        </div>
+      ` : `<div class="mt-8 flex flex-col gap-8 w-full">${lineHtml}</div>`;
+
+      return `
+        <div class="print-block mb-8">
+          <div class="flex gap-2">
+            <span class="font-bold">${index}.</span>
+            <div class="flex-1 w-full">
+              <div class="flex justify-between items-baseline gap-4">
+                ${getQuestionText(q.text)}
+                <span class="text-sm font-semibold text-gray-500 shrink-0 print:text-black">${fmtPreviewScore(q.points)}</span>
+              </div>
+              ${answerArea}
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    // --- Main Rendering ---
+    function getEditModeHTML() {
+      const qHtml = state.worksheet.questions.map((q, index) => {
+        const typeInfo = Object.values(QUESTION_TYPES).find(t => t.id === q.type);
+        let editorHtml = '';
+        if (q.type === 'mcq') editorHtml = getMCQEditor(q);
+        if (q.type === 'fib') editorHtml = getFIBEditor(q);
+        if (q.type === 'sa') editorHtml = getSAEditor(q);
+        if (q.type === 'tf') editorHtml = getTFEditor(q);
+        if (q.type === 'matching') editorHtml = getMatchingEditor(q);
+        if (q.type === 'essay') editorHtml = getEssayEditor(q);
+
+        return `
+          <div class="bg-white dark:bg-slate-800 rounded-2xl border-3 border-dark dark:border-slate-700 shadow-hard dark:shadow-none overflow-hidden group mb-6 animate-pop-in">
+            <div class="bg-slate-50 dark:bg-slate-900 px-5 py-3 flex items-center justify-between border-b-3 border-dark dark:border-slate-700">
+              <div class="flex items-center gap-2 text-slate-600 dark:text-slate-400 font-bold text-sm font-heading uppercase tracking-wide">
+                <i data-lucide="grip-vertical" class="w-4 h-4 text-slate-400"></i>
+                <span class="bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 px-2 py-0.5 rounded text-xs">${index + 1}</span>
+                <i data-lucide="${typeInfo.icon}" class="w-4 h-4 ml-2 text-blue"></i>
+                ${typeInfo.label}
+              </div>
+              <div class="flex items-center gap-1">
+                <div class="flex items-center mr-4 border-2 border-dark dark:border-slate-600 rounded-lg overflow-hidden bg-white dark:bg-slate-800">
+                  <span class="px-2 text-xs text-slate-500 dark:text-slate-400 border-r-2 border-dark dark:border-slate-600 bg-slate-50 dark:bg-slate-900 font-black">Pts</span>
+                  <input type="number" min="0" data-action="update-q-pts" data-qid="${q.id}" value="${q.points}" class="w-12 px-2 py-1 text-sm font-bold outline-none bg-transparent text-dark dark:text-white" />
+                </div>
+                <button data-action="move-up" data-qid="${q.id}" ${index === 0 ? 'disabled' : ''} class="p-1.5 text-slate-500 hover:text-dark dark:text-slate-400 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg disabled:opacity-30 transition-all"><i data-lucide="chevron-up" class="w-[18px] h-[18px]"></i></button>
+                <button data-action="move-down" data-qid="${q.id}" ${index === state.worksheet.questions.length - 1 ? 'disabled' : ''} class="p-1.5 text-slate-500 hover:text-dark dark:text-slate-400 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg disabled:opacity-30 transition-all"><i data-lucide="chevron-down" class="w-[18px] h-[18px]"></i></button>
+                <div class="w-0.5 h-5 bg-slate-300 dark:bg-slate-700 mx-1.5 rounded-full"></div>
+                <button data-action="delete-question" data-qid="${q.id}" class="p-1.5 text-slate-400 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg transition-all"><i data-lucide="trash-2" class="w-[18px] h-[18px]"></i></button>
+              </div>
+            </div>
+            <div class="p-5">${editorHtml}</div>
+          </div>
+        `;
+      }).join('');
+
+      const emptyStateHtml = state.worksheet.questions.length === 0 ? `
+        <div class="text-center py-16 text-slate-500 dark:text-slate-400 border-3 border-dashed border-dark dark:border-slate-700 rounded-2xl bg-white dark:bg-slate-800 shadow-hard dark:shadow-none mb-6 animate-pop-in">
+          <i data-lucide="file-edit" class="w-12 h-12 mx-auto mb-4 text-slate-400 dark:text-slate-500"></i>
+          <p class="text-xl font-bold font-heading text-dark dark:text-white uppercase tracking-wide">Your worksheet is empty</p>
+          <p class="text-sm mt-2 font-medium">Add your first question using the menu below.</p>
+        </div>
+      ` : '';
+
+      return `
+        <div class="bg-slate-900 border-b-4 border-dark dark:border-slate-700 text-white p-5 sticky top-0 z-50 no-print flex justify-between items-center">
+          <div class="flex items-center gap-3.5">
+            <div class="bg-blue p-2.5 rounded-xl border-2 border-white/20"><i data-lucide="file-text" class="w-6 h-6 text-white"></i></div>
+            <div>
+              <h1 class="font-heading font-bold text-2xl uppercase tracking-tight leading-none">Worksheet Maker</h1>
+              <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Universal Worksheet Creator</p>
+            </div>
+          </div>
+          <div class="flex items-center gap-4">
+            <div class="text-xs font-black text-slate-400 bg-slate-800/80 px-3.5 py-1.5 rounded-xl border-2 border-slate-700 uppercase tracking-widest font-mono">
+              ${state.worksheet.questions.length} Qs
+            </div>
+            <button data-action="set-view-preview" class="btn-chunky bg-blue text-white hover:brightness-105 px-5 py-2.5 rounded-xl border-2 border-dark dark:border-slate-500 shadow-hard-sm dark:shadow-none text-xs font-heading flex items-center gap-2">
+              <i data-lucide="eye" class="w-4 h-4"></i> Preview & Print
+            </button>
+          </div>
+        </div>
+
+        <div class="max-w-4xl mx-auto p-4 pb-32 fade-in">
+          <div class="bg-white dark:bg-slate-800 rounded-2xl border-3 border-dark dark:border-slate-700 shadow-hard dark:shadow-none p-6 mb-6">
+            <h2 class="text-lg font-bold text-slate-800 dark:text-white mb-4 flex items-center gap-2 font-heading uppercase tracking-wider">
+              <i data-lucide="settings" class="w-5 h-5 text-slate-400 dark:text-slate-500"></i> Worksheet Details
+            </h2>
+            <div class="space-y-4">
+              ${getEditorInput('Worksheet Title', state.worksheet.title, '', 'update-ws-title', '', 'text', 'text-xl font-bold')}
+              ${getEditorTextarea('Instructions', state.worksheet.instructions, '', 'update-ws-inst')}
+            </div>
+          </div>
+          
+          <div class="space-y-4">${qHtml}</div>
+          ${emptyStateHtml}
+
+          <!-- Floating Menu -->
+          <div class="fixed bottom-0 left-0 right-0 p-5 bg-white/80 dark:bg-slate-800/80 backdrop-blur-[16px] border-t-2 border-dark/20 dark:border-white/10 flex justify-center z-40 no-print">
+            <div class="flex flex-wrap justify-center gap-3 max-w-4xl w-full">
+              ${Object.values(QUESTION_TYPES).map(t => `
+                <button data-action="add-question" data-type="${t.id}" class="btn-chunky bg-white dark:bg-slate-700 hover:bg-slate-50 dark:hover:bg-slate-600 text-dark dark:text-white px-4 py-2.5 rounded-xl border-2 border-dark dark:border-slate-500 shadow-hard-sm dark:shadow-none font-heading text-xs flex items-center gap-2">
+                  <i data-lucide="${t.icon}" class="w-4 h-4 text-blue"></i>
+                  <span>${t.label}</span>
+                </button>
+              `).join('')}
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function getPreviewModeHTML() {
+      const qHtml = state.worksheet.questions.map((q, i) => {
+        if (q.type === 'mcq') return getMCQPreview(q, i + 1);
+        if (q.type === 'fib') return getFIBPreview(q, i + 1);
+        if (q.type === 'sa') return getSAPreview(q, i + 1);
+        if (q.type === 'tf') return getTFPreview(q, i + 1);
+        if (q.type === 'matching') return getMatchingPreview(q, i + 1);
+        if (q.type === 'essay') return getEssayPreview(q, i + 1);
+        return '';
+      }).join('');
+
+      return `
+        <div class="min-h-screen bg-slate-200 dark:bg-slate-900 py-8 fade-in">
+          <div class="fixed top-0 left-0 right-0 bg-slate-900 border-b-4 border-dark text-white p-5 shadow-lg z-50 flex justify-between items-center no-print">
+            <div class="flex items-center gap-4">
+              <button data-action="set-view-edit" class="btn-chunky bg-slate-800 text-white hover:bg-slate-700 px-4 py-2.5 rounded-xl border-2 border-dark shadow-hard-sm text-xs font-heading flex items-center gap-2">
+                <i data-lucide="edit-3" class="w-4 h-4"></i> Back to Editor
+              </button>
+              <div class="w-1.5 h-6 bg-slate-700 rounded-full"></div>
+              <span class="font-heading text-xs font-black uppercase tracking-widest text-slate-400">
+                Mode: ${state.showAnswers ? '<span class="text-blue">Answer Key</span>' : '<span class="text-green">Student Worksheet</span>'}
+              </span>
+            </div>
+            <div class="flex items-center gap-4">
+              <label class="flex items-center gap-2 cursor-pointer bg-slate-800/80 px-4 py-2.5 rounded-xl border-2 border-slate-700 transition-colors">
+                <input type="checkbox" data-action="toggle-answers" ${state.showAnswers ? 'checked' : ''} class="w-4 h-4 rounded text-blue border-slate-600 focus:ring-0">
+                <span class="font-heading text-xs font-black uppercase tracking-widest text-slate-300">Show Answer Key</span>
+              </label>
+              <button data-action="print" class="btn-chunky bg-green text-dark hover:brightness-105 px-5 py-2.5 rounded-xl border-2 border-dark shadow-hard-sm text-xs font-heading flex items-center gap-2">
+                <i data-lucide="printer" class="w-4 h-4"></i> Print Now
+              </button>
+            </div>
+          </div>
+
+          <div class="print-container mt-16 max-w-[210mm] min-h-[297mm] mx-auto bg-white shadow-2xl p-[20mm] text-black relative">
+            <div class="border-b-2 border-black pb-4 mb-6">
+              <h1 class="text-3xl font-extrabold text-center mb-6 font-serif">${esc(state.worksheet.title) || 'Untitled Worksheet'}</h1>
+              <div class="flex justify-between items-end mb-4 font-medium text-lg">
+                <div class="flex gap-2 w-1/2"><span>Name:</span><div class="flex-1 border-b border-black"></div></div>
+                <div class="flex gap-2 w-1/4"><span>Date:</span><div class="flex-1 border-b border-black"></div></div>
+              </div>
+              <div class="flex justify-between items-end font-medium text-lg">
+                <div class="flex gap-2 w-1/3"><span>Section:</span><div class="flex-1 border-b border-black"></div></div>
+                <div class="flex gap-2 w-1/4"><span>Score:</span><div class="flex-1 border-b border-black"></div></div>
+              </div>
+            </div>
+
+            ${state.worksheet.instructions ? `
+              <div class="mb-8 p-4 bg-gray-50 border border-gray-300 italic text-gray-800 rounded">
+                <strong>Instructions:</strong> ${esc(state.worksheet.instructions)}
+              </div>
+            ` : ''}
+
+            ${state.showAnswers ? `
+              <div class="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 opacity-5 pointer-events-none z-0 no-print">
+                <h1 class="text-[120px] font-black text-blue/30 -rotate-45 whitespace-nowrap">ANSWER KEY</h1>
+              </div>
+            ` : ''}
+
+            <div class="relative z-10 text-lg">
+              ${qHtml}
+            </div>
+            
+            ${state.worksheet.questions.length === 0 ? '<div class="text-center py-20 text-gray-400 italic">No questions added yet.</div>' : ''}
+          </div>
+        </div>
+      `;
+    }
+
+    function render(scrollToBottom = false) {
+      const scrollY = window.scrollY;
+      document.getElementById('app').innerHTML = state.viewMode === 'edit' ? getEditModeHTML() : getPreviewModeHTML();
+      lucide.createIcons();
+      
+      if (scrollToBottom) {
+        setTimeout(() => window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' }), 50);
+      } else {
+        window.scrollTo(0, scrollY);
+      }
+    }
+
+    // --- Global Event Delegation (Non-rendering updates) ---
+    // Handle typing events without re-rendering to prevent losing focus
+    document.addEventListener('input', (e) => {
+      const el = e.target;
+      const action = el.dataset.action;
+      if (!action) return;
+
+      if (action === 'update-ws-title') state.worksheet.title = el.value;
+      if (action === 'update-ws-inst') state.worksheet.instructions = el.value;
+
+      const qid = el.dataset.qid;
+      if (qid) {
+        const q = state.worksheet.questions.find(q => q.id === qid);
+        if (q) {
+          if (action === 'update-q-text') q.text = el.value;
+          if (action === 'update-q-pts') q.points = parseInt(el.value) || 0;
+          if (action === 'update-q-ans') q.answer = el.value;
+          if (action === 'update-q-lines') q.lines = parseInt(el.value) || 1;
+
+          if (action === 'update-mcq-text') {
+            const opt = q.options.find(o => o.id === el.dataset.optid);
+            if (opt) opt.text = el.value;
+          }
+          if (action === 'update-match-left') {
+            const pair = q.pairs.find(p => p.id === el.dataset.pairid);
+            if (pair) pair.left = el.value;
+          }
+          if (action === 'update-match-right') {
+            const pair = q.pairs.find(p => p.id === el.dataset.pairid);
+            if (pair) pair.right = el.value;
+          }
+        }
+      }
+      saveState();
+    });
+
+    // Handle structural UI updates (checkboxes, radios)
+    document.addEventListener('change', (e) => {
+      const el = e.target;
+      const action = el.dataset.action;
+      if (!action) return;
+
+      const qid = el.dataset.qid;
+      const q = qid ? state.worksheet.questions.find(q => q.id === qid) : null;
+
+      if (action === 'set-mcq-correct' && q) {
+        q.options.forEach(o => o.isCorrect = (o.id === el.dataset.optid));
+      }
+      if (action === 'set-tf' && q) {
+        q.isTrue = el.dataset.val === 'true';
+      }
+      if (action === 'toggle-answers') {
+        state.showAnswers = el.checked;
+        render();
+      }
+      saveState();
+    });
+
+    // Handle clicks that cause structural DOM changes
+    document.addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-action]');
+      if (!btn) return;
+      
+      const action = btn.dataset.action;
+      const qid = btn.dataset.qid;
+      
+      switch (action) {
+        case 'add-question':
+          addQuestion(btn.dataset.type);
+          break;
+        case 'delete-question':
+          if (confirm("Delete this question?")) {
+            state.worksheet.questions = state.worksheet.questions.filter(q => q.id !== qid);
+            saveState();
+            render();
+          }
+          break;
+        case 'move-up':
+          moveQuestion(qid, 'up');
+          break;
+        case 'move-down':
+          moveQuestion(qid, 'down');
+          break;
+        case 'add-mcq-opt': {
+          const qMcq = state.worksheet.questions.find(q => q.id === qid);
+          if (qMcq) {
+            qMcq.options.push({ id: generateId(), text: '', isCorrect: false });
+            saveState();
+            render();
+          }
+          break;
+        }
+        case 'delete-mcq-opt': {
+          const qDelOpt = state.worksheet.questions.find(q => q.id === qid);
+          if (qDelOpt) {
+            qDelOpt.options = qDelOpt.options.filter(o => o.id !== btn.dataset.optid);
+            saveState();
+            render();
+          }
+          break;
+        }
+        case 'add-match-pair': {
+          const qMatch = state.worksheet.questions.find(q => q.id === qid);
+          if (qMatch) {
+            qMatch.pairs.push({ id: generateId(), left: '', right: '' });
+            saveState();
+            render();
+          }
+          break;
+        }
+        case 'delete-match-pair': {
+          const qDelPair = state.worksheet.questions.find(q => q.id === qid);
+          if (qDelPair) {
+            qDelPair.pairs = qDelPair.pairs.filter(p => p.id !== btn.dataset.pairid);
+            saveState();
+            render();
+          }
+          break;
+        }
+        case 'set-view-preview':
+          state.showAnswers = false;
+          state.viewMode = 'preview';
+          saveState();
+          render();
+          window.scrollTo(0,0);
+          break;
+        case 'set-view-edit':
+          state.viewMode = 'edit';
+          saveState();
+          render();
+          window.scrollTo(0,0);
+          break;
+        case 'print':
+          window.print();
+          break;
+      }
+    });
+
+    // --- Init ---
+    loadState();
+    render();
+  </script>
+</body>
+</html>

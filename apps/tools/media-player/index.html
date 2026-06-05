@@ -1,0 +1,1092 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>E1B Media Studio</title>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Nunito:wght@400;600;700&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+tailwind.config = {
+  darkMode:'class',
+  theme:{ extend:{
+    colors:{ pink:'#ff4785', orange:'#ff7e33', green:'#00d063', blue:'#1ea7fd', dark:'#1e293b', chalk:'#f8fafc' },
+    fontFamily:{ fredoka:['Fredoka','sans-serif'], nunito:['Nunito','sans-serif'], heading:['Fredoka','sans-serif'], body:['Nunito','sans-serif'] }
+  }}
+}
+</script>
+<script>
+  // Theme sync: check tool-specific key first, then hub key, then system preference
+  (function() {
+    const toolTheme = localStorage.getItem('theme_media-player');
+    const hubTheme = localStorage.getItem('theme_hub');
+    if (toolTheme === 'dark' || (!toolTheme && hubTheme === 'dark') || (!toolTheme && !hubTheme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+      document.documentElement.classList.add('dark');
+    }
+  })();
+</script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden;font-family:'Nunito',sans-serif}
+
+/* ─── App layout ─────────────────────────────────────── */
+#app{height:100vh;display:grid;grid-template-rows:58px 1fr auto;overflow:hidden;background:#f8fafc;transition:background .3s}
+.dark #app{background:#0f172a}
+
+/* ─── Header ─────────────────────────────────────────── */
+#hdr{display:flex;align-items:center;padding:0 14px;gap:10px;border-bottom:3px solid #1e293b;background:#fff;z-index:20;flex-shrink:0}
+.dark #hdr{background:#1e293b;border-color:rgba(148,163,184,.5)}
+
+/* ─── Main ───────────────────────────────────────────── */
+#main{display:grid;grid-template-columns:272px 1fr;overflow:hidden;transition:grid-template-columns .3s ease;min-height:0}
+#main.lib-off{grid-template-columns:0px 1fr}
+
+/* ─── Library ────────────────────────────────────────── */
+#library{display:flex;flex-direction:column;overflow:hidden;border-right:3px solid #1e293b;background:#fff;min-width:0;transition:border .3s}
+.dark #library{background:#1e293b;border-color:rgba(148,163,184,.5)}
+#libScroll{flex:1;overflow-y:auto;overflow-x:hidden;min-height:0;padding:6px}
+#libScroll::-webkit-scrollbar{width:4px}
+#libScroll::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:2px}
+.dark #libScroll::-webkit-scrollbar-thumb{background:#475569}
+#libEmpty{display:flex;flex-direction:column;align-items:center;justify-content:center;flex:1;padding:20px;text-align:center;gap:10px}
+
+/* ─── Player ─────────────────────────────────────────── */
+#player{position:relative;overflow:hidden;display:flex;align-items:center;justify-content:center;background:#0f172a;min-width:0}
+
+/* ─── Controls ───────────────────────────────────────── */
+#controls{border-top:3px solid #1e293b;background:#f8fafc;padding:6px 12px 8px;flex-shrink:0}
+.dark #controls{background:#1e293b;border-color:rgba(148,163,184,.5)}
+
+/* ─── Shadows ────────────────────────────────────────── */
+.hs   {box-shadow:4px 4px 0 #1e293b}
+.hs-sm{box-shadow:2px 2px 0 #1e293b}
+.dark .hs   {box-shadow:4px 4px 0 rgba(148,163,184,.65)}
+.dark .hs-sm{box-shadow:2px 2px 0 rgba(148,163,184,.65)}
+
+/* ─── Buttons ────────────────────────────────────────── */
+.btn{display:inline-flex;align-items:center;justify-content:center;cursor:pointer;transition:transform .08s,box-shadow .08s;font-family:'Fredoka',sans-serif;border:2px solid #1e293b;outline:none}
+.btn:hover{transform:translate(-1px,-1px)}
+.btn:active{transform:translate(2px,2px) !important;box-shadow:0 0 0 !important}
+.dark .btn{border-color:rgba(148,163,184,.6)}
+
+/* ─── Range ──────────────────────────────────────────── */
+input[type=range]{-webkit-appearance:none;appearance:none;height:6px;border-radius:3px;outline:none;cursor:pointer}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;border-radius:50%;border:2px solid #1e293b;cursor:pointer}
+.dark input[type=range]::-webkit-slider-thumb{border-color:rgba(148,163,184,.6)}
+#seekBar::-webkit-slider-thumb{background:#2979FF}
+#volBar::-webkit-slider-thumb{background:#FF6B95}
+
+/* ─── Visualizer ─────────────────────────────────────── */
+.vbar{width:5px;border-radius:3px 3px 0 0;min-height:3px;align-self:flex-end;transition:height .07s ease}
+
+/* ─── Album spin ─────────────────────────────────────── */
+@keyframes discoSpin{from{transform:rotate(0)}to{transform:rotate(360deg)}}
+.spinning{animation:discoSpin 6s linear infinite}
+.spin-off{animation-play-state:paused}
+
+/* ─── Image ──────────────────────────────────────────── */
+#imgEl{cursor:grab;user-select:none;-webkit-user-drag:none;max-width:100%;max-height:100%;object-fit:contain}
+#imgEl.grabbing{cursor:grabbing}
+
+/* ─── YouTube player ─────────────────────────────────── */
+#ytWrap{position:absolute;inset:0;background:#000;display:none;z-index:2}
+#ytWrap iframe{position:absolute;inset:0;width:100%;height:100%;border:none}
+#ytLoading{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;background:#0a0a0a;z-index:3}
+
+/* ─── Library rows ───────────────────────────────────── */
+.lib-row{display:flex;align-items:center;gap:8px;padding:7px 8px;border-radius:12px;cursor:pointer;border:2px solid transparent;margin-bottom:4px;transition:background .12s,border-color .12s}
+.lib-row:hover{background:rgba(41,121,255,.07)}
+.dark .lib-row:hover{background:rgba(148,163,184,.1)}
+.lib-row.active{border-width:2px}
+.lib-icon{width:42px;height:42px;border-radius:8px;display:flex;align-items:center;justify-content:center;border:2px solid #1e293b;flex-shrink:0;overflow:hidden}
+.dark .lib-icon{border-color:rgba(148,163,184,.5)}
+.lib-icon img{width:100%;height:100%;object-fit:cover}
+
+/* ─── Picture grid ───────────────────────────────────── */
+.pic-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+.pic-card{border-radius:10px;border:2px solid #1e293b;overflow:hidden;cursor:pointer;box-shadow:2px 2px 0 #1e293b;transition:border-color .1s}
+.dark .pic-card{border-color:rgba(148,163,184,.5);box-shadow:2px 2px 0 rgba(148,163,184,.5)}
+.pic-card img{width:100%;aspect-ratio:1;object-fit:cover;display:block}
+.pic-name{font-size:10px;padding:3px 5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;background:#fff;font-family:'Nunito',sans-serif;color:#334155;display:flex;align-items:center;justify-content:space-between;gap:4px}
+.dark .pic-name{background:#334155;color:#e2e8f0}
+
+/* ─── YouTube URL input panel ────────────────────────── */
+#ytPanel{display:none;flex-direction:column;gap:6px;padding:8px 10px;border-bottom:2px dashed rgba(255,0,0,.3);background:rgba(255,0,0,.04)}
+#ytPanel.show{display:flex}
+#ytUrlInput{flex:1;border:2px solid #1e293b;border-radius:10px;padding:5px 10px;font-family:'Nunito',sans-serif;font-size:12px;outline:none;background:#fff;color:#1e293b}
+.dark #ytUrlInput{background:#0f172a;color:#e2e8f0;border-color:rgba(148,163,184,.5)}
+#ytUrlInput:focus{border-color:#FF0000;box-shadow:2px 2px 0 rgba(255,0,0,.3)}
+#ytUrlInput::placeholder{color:#94a3b8}
+
+/* ─── YT badge ───────────────────────────────────────── */
+.yt-badge{font-family:'Fredoka',sans-serif;font-size:9px;font-weight:700;padding:1px 4px;border-radius:4px;background:#FF0000;color:#fff;flex-shrink:0;letter-spacing:.3px}
+
+/* ─── Settings drawer ────────────────────────────────── */
+#settingsRow{max-height:0;overflow:hidden;opacity:0;transition:max-height .3s ease,opacity .25s ease,margin .3s ease;display:flex;flex-wrap:wrap;gap:6px 18px;align-items:center;padding:0 2px}
+#settingsRow.open{max-height:52px;opacity:1;margin-bottom:7px}
+
+/* ─── Drop highlight ─────────────────────────────────── */
+#player.drop-over::after{content:'';position:absolute;inset:6px;border:4px dashed #2979FF;border-radius:12px;background:rgba(41,121,255,.08);pointer-events:none;z-index:9}
+
+/* ─── Mode tab active ────────────────────────────────── */
+.mode-tab{position:relative}
+.mode-tab.active::after{content:'';position:absolute;bottom:-4px;left:4px;right:4px;height:3px;border-radius:2px;background:currentColor}
+
+/* ─── Fullscreen ─────────────────────────────────────── */
+#app:-webkit-full-screen,#app:fullscreen{height:100vh;grid-template-rows:0px 1fr auto}
+#app:-webkit-full-screen #hdr,#app:fullscreen #hdr{display:none}
+#app:-webkit-full-screen #main,#app:fullscreen #main{grid-template-columns:0px 1fr}
+#app:-webkit-full-screen #library,#app:fullscreen #library{display:none}
+#app:-webkit-full-screen #controls,#app:fullscreen #controls{border-top:none;box-shadow:0 -2px 24px rgba(0,0,0,.6)}
+
+/* ─── Spinner ────────────────────────────────────────── */
+@keyframes spin2{from{transform:rotate(0)}to{transform:rotate(360deg)}}
+.spinner{width:32px;height:32px;border:3px solid rgba(255,255,255,.2);border-top-color:#FF0000;border-radius:50%;animation:spin2 .8s linear infinite}
+</style>
+</head>
+<body>
+<div id="app">
+
+<!-- ════════ HEADER ════════ -->
+<header id="hdr">
+  <span class="font-fredoka text-xl font-bold text-dark dark:text-white flex-shrink-0 mr-2">
+    <span class="text-[#2979FF]">E1B</span> Studio
+  </span>
+
+  <div class="flex gap-1 flex-1 justify-center">
+    <button id="tab-video"   onclick="setMode('video')"
+      class="mode-tab active btn hs-sm rounded-xl px-4 py-1.5 font-fredoka text-sm gap-1.5" style="color:#2979FF;background:rgba(41,121,255,.12)">
+      <i data-lucide="film" class="w-4 h-4"></i> Video
+    </button>
+    <button id="tab-picture" onclick="setMode('picture')"
+      class="mode-tab btn rounded-xl px-4 py-1.5 font-fredoka text-sm gap-1.5 bg-white dark:bg-slate-700 text-dark dark:text-white">
+      <i data-lucide="image" class="w-4 h-4"></i> Picture
+    </button>
+    <button id="tab-audio"   onclick="setMode('audio')"
+      class="mode-tab btn rounded-xl px-4 py-1.5 font-fredoka text-sm gap-1.5 bg-white dark:bg-slate-700 text-dark dark:text-white">
+      <i data-lucide="music" class="w-4 h-4"></i> Audio
+    </button>
+  </div>
+
+  <div class="flex gap-1.5 flex-shrink-0">
+    <button onclick="openAdd()" id="headerAdd"
+      class="btn hs-sm rounded-xl px-3 py-1.5 text-white font-fredoka text-sm gap-1.5" style="background:#2979FF">
+      <i data-lucide="plus" class="w-4 h-4"></i> Add
+    </button>
+    <button onclick="toggleLib()"
+      class="btn hs-sm rounded-xl p-2 bg-white dark:bg-slate-600 text-dark dark:text-white" title="Toggle library">
+      <i data-lucide="panel-left" class="w-4 h-4" id="libIcon"></i>
+    </button>
+    <button onclick="toggleDark()"
+      class="btn hs-sm rounded-xl p-2 bg-white dark:bg-slate-600 text-dark dark:text-white">
+      <i data-lucide="sun"  class="w-4 h-4 dark:hidden"></i>
+      <i data-lucide="moon" class="w-4 h-4 hidden dark:block"></i>
+    </button>
+  </div>
+</header>
+
+<!-- ════════ MAIN ════════ -->
+<div id="main">
+
+  <!-- LIBRARY -->
+  <aside id="library">
+    <!-- Library header -->
+    <div class="flex items-center justify-between px-3 py-2 flex-shrink-0 border-b-2 border-dark dark:border-slate-500">
+      <div class="min-w-0">
+        <p id="libTitle" class="font-fredoka text-base font-bold text-dark dark:text-white leading-tight">Video Library</p>
+        <p id="libCount" class="font-nunito text-xs text-slate-400"></p>
+      </div>
+      <div class="flex gap-1 flex-shrink-0">
+        <button onclick="openAdd()" id="libAddBtn"
+          class="btn hs-sm rounded-xl px-2 py-1 text-xs font-fredoka text-white gap-1" style="background:#2979FF">
+          <i data-lucide="plus" class="w-3 h-3"></i> File
+        </button>
+        <!-- YouTube button — video mode only -->
+        <button id="ytBtn" onclick="toggleYtPanel()"
+          class="btn hs-sm rounded-xl px-2 py-1 text-xs font-fredoka text-white gap-1" style="background:#FF0000;display:flex">
+          <i data-lucide="youtube" class="w-3 h-3"></i> YT
+        </button>
+        <button onclick="clearLib()"
+          class="btn hs-sm rounded-xl p-1.5 bg-white dark:bg-slate-600 text-slate-400 hover:text-red-500">
+          <i data-lucide="trash-2" class="w-3 h-3"></i>
+        </button>
+      </div>
+    </div>
+
+    <!-- YouTube URL input panel -->
+    <div id="ytPanel">
+      <div class="flex items-center gap-1.5">
+        <i data-lucide="youtube" class="w-4 h-4 flex-shrink-0" style="color:#FF0000"></i>
+        <span class="font-fredoka text-xs text-dark dark:text-white">Add YouTube Video</span>
+      </div>
+      <div class="flex gap-1.5">
+        <input id="ytUrlInput" type="text" placeholder="Paste URL or video ID…"
+          onkeydown="if(event.key==='Enter') addYt()">
+        <button onclick="addYt()"
+          class="btn hs-sm rounded-xl px-2.5 py-1 text-xs font-fredoka text-white flex-shrink-0" style="background:#FF0000;border-color:#c00">
+          Add
+        </button>
+        <button onclick="toggleYtPanel()"
+          class="btn hs-sm rounded-xl px-2 py-1 text-xs bg-white dark:bg-slate-600 text-dark dark:text-white flex-shrink-0">
+          ✕
+        </button>
+      </div>
+      <p id="ytStatus" class="font-nunito text-xs text-slate-400 min-h-[14px]"></p>
+    </div>
+
+    <div id="libScroll"></div>
+    <div id="libEmpty">
+      <div id="libEmptyIcon" class="w-14 h-14 rounded-2xl flex items-center justify-center border-2 border-dark dark:border-slate-500" style="background:rgba(41,121,255,.1)">
+        <i data-lucide="film" class="w-7 h-7 text-[#2979FF]"></i>
+      </div>
+      <p class="font-fredoka text-base text-dark dark:text-white">No media yet</p>
+      <p class="font-nunito text-xs text-slate-400">Add local files or YouTube links</p>
+    </div>
+  </aside>
+
+  <!-- PLAYER -->
+  <div id="player"
+    ondragover="event.preventDefault();$('player').classList.add('drop-over')"
+    ondragleave="$('player').classList.remove('drop-over')"
+    ondrop="event.preventDefault();$('player').classList.remove('drop-over');dropFiles(event.dataTransfer.files)">
+
+    <!-- Empty state -->
+    <div id="emptyState" class="flex flex-col items-center gap-4 text-center p-8 z-10">
+      <div id="emptyIcon" class="w-28 h-28 rounded-3xl border-4 border-white/10 flex items-center justify-center" style="background:rgba(255,255,255,.05)">
+        <i data-lucide="film" class="w-14 h-14 text-white/30"></i>
+      </div>
+      <div>
+        <p id="emptyMsg" class="font-fredoka text-2xl text-white/60">Add videos to get started</p>
+        <p class="font-nunito text-sm text-white/25 mt-1">Local files or YouTube links</p>
+      </div>
+      <div class="flex gap-2">
+        <button onclick="openAdd()" id="emptyBtn"
+          class="btn hs rounded-2xl px-5 py-2.5 font-fredoka text-base text-white gap-2" style="background:#2979FF;border-color:rgba(255,255,255,.2)">
+          <i data-lucide="plus-circle" class="w-5 h-5"></i>
+          <span id="emptyBtnLbl">Add Videos</span>
+        </button>
+        <button id="emptyYtBtn" onclick="showYtPanelAndFocus()"
+          class="btn hs rounded-2xl px-5 py-2.5 font-fredoka text-base text-white gap-2" style="background:#FF0000;border-color:rgba(255,0,0,.4);display:flex">
+          <i data-lucide="youtube" class="w-5 h-5"></i> YouTube
+        </button>
+      </div>
+    </div>
+
+    <!-- Local video -->
+    <video id="videoEl" class="hidden w-full h-full object-contain" style="max-height:100%"></video>
+    <div id="vidOverlay" class="hidden absolute inset-0 cursor-pointer z-10"
+      onclick="togglePlay()" ondblclick="goFullscreen()"></div>
+
+    <!-- YouTube player wrapper -->
+    <div id="ytWrap">
+      <div id="ytLoading">
+        <div class="spinner"></div>
+        <p class="font-fredoka text-white/50 text-sm">Loading YouTube…</p>
+      </div>
+      <div id="ytPlayerEl" style="width:100%;height:100%;position:absolute;inset:0"></div>
+    </div>
+
+    <!-- Audio visualizer -->
+    <div id="audioViz" class="hidden absolute inset-0 flex flex-col items-center justify-center gap-4"
+         style="background:linear-gradient(135deg,#06080f,#141028)">
+      <div id="albumArt" class="w-36 h-36 rounded-2xl border-4 border-white/20 flex items-center justify-center spinning"
+           style="background:linear-gradient(135deg,rgba(41,121,255,.4),rgba(255,107,149,.3))">
+        <i data-lucide="music-2" class="w-16 h-16 text-white/40"></i>
+      </div>
+      <div class="text-center px-6">
+        <p id="audioName" class="font-fredoka text-xl text-white truncate max-w-xs"></p>
+        <p id="audioDur"  class="font-nunito text-xs text-white/40 mt-0.5"></p>
+      </div>
+      <div id="vizBars" class="flex items-end gap-[3px] h-14"></div>
+    </div>
+
+    <!-- Image viewer -->
+    <div id="imgWrap" class="hidden absolute inset-0 overflow-hidden flex items-center justify-center">
+      <img id="imgEl" draggable="false">
+    </div>
+  </div>
+</div>
+
+<!-- ════════ CONTROLS ════════ -->
+<div id="controls">
+  <!-- Settings row -->
+  <div id="settingsRow">
+    <div id="avCfg" class="flex flex-wrap gap-x-4 gap-y-1 items-center">
+      <div class="flex items-center gap-1.5">
+        <span class="font-fredoka text-xs text-dark dark:text-white">Speed</span>
+        <div class="flex gap-1">
+          <button onclick="setSpeed(0.5)" data-s="0.5" class="spd btn hs-sm rounded-lg px-1.5 py-0.5 text-xs bg-white dark:bg-slate-600 text-dark dark:text-white">0.5×</button>
+          <button onclick="setSpeed(1)"   data-s="1"   class="spd btn hs-sm rounded-lg px-1.5 py-0.5 text-xs text-white" style="background:#2979FF">1×</button>
+          <button onclick="setSpeed(1.5)" data-s="1.5" class="spd btn hs-sm rounded-lg px-1.5 py-0.5 text-xs bg-white dark:bg-slate-600 text-dark dark:text-white">1.5×</button>
+          <button onclick="setSpeed(2)"   data-s="2"   class="spd btn hs-sm rounded-lg px-1.5 py-0.5 text-xs bg-white dark:bg-slate-600 text-dark dark:text-white">2×</button>
+        </div>
+      </div>
+      <div class="flex items-center gap-1.5">
+        <span class="font-fredoka text-xs text-dark dark:text-white">Loop</span>
+        <button id="loopBtn" onclick="toggleLoop()"
+          class="btn hs-sm rounded-xl px-2 py-0.5 text-xs bg-white dark:bg-slate-600 text-dark dark:text-white gap-1">
+          <i data-lucide="repeat" class="w-3 h-3"></i> Off
+        </button>
+      </div>
+    </div>
+    <div id="imgCfg" class="hidden flex-wrap gap-x-4 gap-y-1 items-center">
+      <div class="flex items-center gap-1.5">
+        <span class="font-fredoka text-xs text-dark dark:text-white">Fit</span>
+        <div class="flex gap-1">
+          <button onclick="setFit('contain')" class="fit btn hs-sm rounded-lg px-1.5 py-0.5 text-xs text-white" style="background:#FF8C42">Contain</button>
+          <button onclick="setFit('cover')"   class="fit btn hs-sm rounded-lg px-1.5 py-0.5 text-xs bg-white dark:bg-slate-600 text-dark dark:text-white">Cover</button>
+          <button onclick="setFit('fill')"    class="fit btn hs-sm rounded-lg px-1.5 py-0.5 text-xs bg-white dark:bg-slate-600 text-dark dark:text-white">Fill</button>
+        </div>
+      </div>
+      <div class="flex items-center gap-1.5">
+        <span class="font-fredoka text-xs text-dark dark:text-white">BG</span>
+        <div class="flex gap-1">
+          <button onclick="setBg('#000')"    class="btn hs-sm rounded-lg w-6 h-6" style="background:#000;border:2px solid #1e293b"></button>
+          <button onclick="setBg('#fff')"    class="btn hs-sm rounded-lg w-6 h-6" style="background:#fff;border:2px solid #1e293b"></button>
+          <button onclick="setBg('#2979FF')" class="btn hs-sm rounded-lg w-6 h-6" style="background:#2979FF;border:2px solid #1e293b"></button>
+          <button onclick="setBg('checker')" class="btn hs-sm rounded-lg w-6 h-6" style="background-image:linear-gradient(45deg,#aaa 25%,transparent 25%),linear-gradient(-45deg,#aaa 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#aaa 75%),linear-gradient(-45deg,transparent 75%,#aaa 75%);background-size:6px 6px;background-position:0 0,0 3px,3px -3px,-3px 0;background-color:#fff;border:2px solid #1e293b"></button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Seek bar -->
+  <div id="seekRow" class="flex items-center gap-2 mb-1.5">
+    <span id="curTime" class="font-nunito text-xs text-slate-500 dark:text-slate-300 w-9 text-right tabular-nums">0:00</span>
+    <input type="range" id="seekBar" class="flex-1" min="0" max="1000" value="0"
+      oninput="doSeek(this.value)" style="background:#cbd5e1">
+    <span id="durTime" class="font-nunito text-xs text-slate-500 dark:text-slate-300 w-9 tabular-nums">0:00</span>
+  </div>
+
+  <!-- Button row -->
+  <div class="flex items-center justify-between gap-2">
+
+    <!-- AV buttons -->
+    <div id="avBtns" class="flex items-center gap-1">
+      <button onclick="navLib(-1)" class="btn hs-sm rounded-xl p-2 bg-white dark:bg-slate-600 text-dark dark:text-white" title="Previous">
+        <i data-lucide="skip-back" class="w-4 h-4"></i>
+      </button>
+      <button onclick="skipSec(-10)" class="btn hs-sm rounded-xl px-2 py-1.5 text-xs font-fredoka bg-white dark:bg-slate-600 text-dark dark:text-white">−10s</button>
+      <button id="playBtn" onclick="togglePlay()"
+        class="btn hs rounded-xl px-5 py-2 text-white font-fredoka text-lg gap-1" style="background:#2979FF">
+        <i data-lucide="play" class="w-5 h-5" id="playIcon"></i>
+      </button>
+      <button onclick="skipSec(10)" class="btn hs-sm rounded-xl px-2 py-1.5 text-xs font-fredoka bg-white dark:bg-slate-600 text-dark dark:text-white">+10s</button>
+      <button onclick="navLib(1)" class="btn hs-sm rounded-xl p-2 bg-white dark:bg-slate-600 text-dark dark:text-white" title="Next">
+        <i data-lucide="skip-forward" class="w-4 h-4"></i>
+      </button>
+    </div>
+
+    <!-- Image buttons -->
+    <div id="imgBtns" class="hidden items-center gap-1">
+      <button onclick="navLib(-1)"  class="btn hs-sm rounded-xl p-2 bg-white dark:bg-slate-600 text-dark dark:text-white"><i data-lucide="chevron-left"  class="w-4 h-4"></i></button>
+      <button onclick="zoomImg(-.2)" class="btn hs-sm rounded-xl p-2 bg-white dark:bg-slate-600 text-dark dark:text-white"><i data-lucide="zoom-out"      class="w-4 h-4"></i></button>
+      <span id="zoomLbl" class="font-fredoka text-sm text-dark dark:text-white w-12 text-center">100%</span>
+      <button onclick="zoomImg(.2)"  class="btn hs-sm rounded-xl p-2 bg-white dark:bg-slate-600 text-dark dark:text-white"><i data-lucide="zoom-in"       class="w-4 h-4"></i></button>
+      <button onclick="rotImg()"     class="btn hs-sm rounded-xl p-2 bg-white dark:bg-slate-600 text-dark dark:text-white"><i data-lucide="rotate-cw"     class="w-4 h-4"></i></button>
+      <button onclick="resetImg()"   class="btn hs-sm rounded-xl p-2 bg-white dark:bg-slate-600 text-dark dark:text-white"><i data-lucide="maximize-2"    class="w-4 h-4"></i></button>
+      <button onclick="navLib(1)"   class="btn hs-sm rounded-xl p-2 bg-white dark:bg-slate-600 text-dark dark:text-white"><i data-lucide="chevron-right" class="w-4 h-4"></i></button>
+    </div>
+
+    <!-- Right -->
+    <div class="flex items-center gap-1.5">
+      <div id="volRow" class="flex items-center gap-1">
+        <button onclick="toggleMute()" class="text-dark dark:text-slate-300 flex-shrink-0">
+          <i data-lucide="volume-2" class="w-4 h-4" id="volIcon"></i>
+        </button>
+        <input type="range" id="volBar" class="w-16" min="0" max="1" step="0.01" value="1"
+          oninput="setVol(this.value)"
+          style="background:linear-gradient(to right,#FF6B95 100%,#cbd5e1 100%)">
+      </div>
+      <button id="cfgBtn" onclick="toggleCfg()"
+        class="btn hs-sm rounded-xl p-2 bg-white dark:bg-slate-600 text-dark dark:text-white" title="Settings">
+        <i data-lucide="sliders-horizontal" class="w-4 h-4"></i>
+      </button>
+      <button onclick="openAdd()"
+        class="btn hs-sm rounded-xl p-2 text-white" style="background:#FF8C42" title="Add files">
+        <i data-lucide="plus" class="w-4 h-4"></i>
+      </button>
+      <button onclick="goFullscreen()"
+        class="btn hs rounded-xl p-2 text-white" style="background:#FF6B95" title="Fullscreen">
+        <i data-lucide="maximize" class="w-4 h-4" id="fsIcon"></i>
+      </button>
+    </div>
+  </div>
+</div>
+
+<input type="file" id="fileInput" class="hidden" multiple onchange="ingestFiles(this.files)">
+
+</div><!-- #app -->
+<script>
+// ════════════════════════════════════════════════════════
+//  HELPERS
+// ════════════════════════════════════════════════════════
+const $ = id => document.getElementById(id)
+
+// ════════════════════════════════════════════════════════
+//  CONSTANTS
+// ════════════════════════════════════════════════════════
+const CFG = {
+  video:   { color:'#2979FF', bg:'rgba(41,121,255,.12)',  icon:'film',   accept:'video/*', emptyMsg:'Add videos to get started',  emptyBtn:'Add Videos', libTitle:'Video Library'  },
+  picture: { color:'#FF8C42', bg:'rgba(255,140,66,.12)',  icon:'image',  accept:'image/*', emptyMsg:'Add images to get started',  emptyBtn:'Add Images', libTitle:'Picture Library' },
+  audio:   { color:'#FF6B95', bg:'rgba(255,107,149,.12)', icon:'music',  accept:'audio/*', emptyMsg:'Add audio to get started',   emptyBtn:'Add Audio',  libTitle:'Audio Library'  },
+}
+
+// ════════════════════════════════════════════════════════
+//  STATE
+// ════════════════════════════════════════════════════════
+let mode = 'video'
+const libs   = { video:[], picture:[], audio:[] }
+const active = { video:-1, picture:-1, audio:-1 }
+
+let playing = false, looping = false, muted = false
+let iz=1, ir=0, ix=0, iy=0, panning=false, px0=0, py0=0
+let actx=null, analyser=null, asrc=null, vizRaf=null
+let libOpen=true, cfgOpen=false
+
+// YouTube state
+let ytActive  = false   // currently showing YouTube
+let ytPlayer  = null    // YT.Player instance
+let ytReady   = false   // API loaded
+let ytPending = null    // videoId waiting for API
+let ytTimer   = null    // seek poll interval
+let ytApiLoading = false
+
+const video   = $('videoEl')
+const audioEl = new Audio()
+
+// ════════════════════════════════════════════════════════
+//  YOUTUBE IFRAME API
+// ════════════════════════════════════════════════════════
+window.onYouTubeIframeAPIReady = function () {
+  ytReady = true
+  $('ytLoading').style.display = 'none'
+  if (ytPending) { createYtPlayer(ytPending); ytPending = null }
+}
+
+function loadYtApi () {
+  if (ytApiLoading || ytReady) return
+  ytApiLoading = true
+  const s = document.createElement('script')
+  s.src = 'https://www.youtube.com/iframe_api'
+  document.head.appendChild(s)
+}
+
+function createYtPlayer (videoId) {
+  // Ensure target div exists (it gets replaced by iframe after first call)
+  let target = document.getElementById('ytPlayerEl')
+  if (!target || target.tagName === 'IFRAME') {
+    target = document.createElement('div')
+    target.id = 'ytPlayerEl'
+    target.style.cssText = 'width:100%;height:100%;position:absolute;inset:0'
+    $('ytWrap').appendChild(target)
+  }
+
+  ytPlayer = new YT.Player('ytPlayerEl', {
+    width: '100%', height: '100%',
+    videoId,
+    playerVars: { autoplay:1, controls:0, rel:0, modestbranding:1, playsinline:1, iv_load_policy:3, fs:0 },
+    events: {
+      onReady (e) {
+        $('ytLoading').style.display = 'none'
+        const vol = parseFloat($('volBar').value)
+        e.target.setVolume(vol * 100)
+        if (muted) e.target.mute()
+        e.target.playVideo()
+        setPlaying(true)
+        startYtTick()
+      },
+      onStateChange (e) {
+        const S = YT.PlayerState
+        if (e.data === S.PLAYING)  { setPlaying(true);  startYtTick() }
+        if (e.data === S.PAUSED)   { setPlaying(false); }
+        if (e.data === S.ENDED)    {
+          setPlaying(false); stopYtTick()
+          looping ? (ytPlayer.seekTo(0,true), ytPlayer.playVideo()) : navLib(1)
+        }
+        if (e.data === S.BUFFERING) setPlaying(false)
+      }
+    }
+  })
+}
+
+function loadYtVideo (videoId) {
+  $('ytLoading').style.display = 'flex'
+  if (!ytPlayer) {
+    createYtPlayer(videoId)
+  } else {
+    ytPlayer.loadVideoById(videoId)
+    setPlaying(true); startYtTick()
+    $('ytLoading').style.display = 'none'
+  }
+}
+
+function startYtTick () {
+  clearInterval(ytTimer)
+  ytTimer = setInterval(() => {
+    if (!ytPlayer || typeof ytPlayer.getCurrentTime !== 'function') return
+    try {
+      const cur = ytPlayer.getCurrentTime() || 0
+      const dur = ytPlayer.getDuration()    || 0
+      if (dur) {
+        const p = cur / dur
+        const sb = $('seekBar'); sb.value = p * 1000
+        updateSeekGrad(p * 100)
+        $('curTime').textContent = fmtT(cur)
+        $('durTime').textContent = fmtT(dur)
+      }
+    } catch(_) {}
+  }, 500)
+}
+
+function stopYtTick () { clearInterval(ytTimer) }
+
+// ════════════════════════════════════════════════════════
+//  YOUTUBE URL PANEL
+// ════════════════════════════════════════════════════════
+function toggleYtPanel () {
+  const p = $('ytPanel')
+  const show = p.classList.toggle('show')
+  if (show) { $('ytUrlInput').focus(); $('ytStatus').textContent = '' }
+  $('ytBtn').style.background = show ? '#cc0000' : '#FF0000'
+}
+
+function showYtPanelAndFocus () {
+  $('ytPanel').classList.add('show')
+  $('ytUrlInput').focus()
+}
+
+function extractYtId (input) {
+  input = input.trim()
+  if (/^[a-zA-Z0-9_-]{11}$/.test(input)) return input
+  const patterns = [
+    /[?&]v=([a-zA-Z0-9_-]{11})/,
+    /youtu\.be\/([a-zA-Z0-9_-]{11})/,
+    /embed\/([a-zA-Z0-9_-]{11})/,
+    /shorts\/([a-zA-Z0-9_-]{11})/,
+  ]
+  for (const re of patterns) {
+    const m = input.match(re)
+    if (m) return m[1]
+  }
+  return null
+}
+
+async function addYt () {
+  const raw = $('ytUrlInput').value.trim()
+  if (!raw) return
+
+  const id = extractYtId(raw)
+  if (!id) {
+    $('ytStatus').textContent = '⚠️ Invalid URL or ID'
+    $('ytStatus').style.color = '#FF6B95'
+    return
+  }
+
+  $('ytStatus').textContent = '⏳ Fetching title…'
+  $('ytStatus').style.color = '#94a3b8'
+  $('ytUrlInput').value = ''
+
+  const thumb = `https://img.youtube.com/vi/${id}/mqdefault.jpg`
+  const item  = { id: Date.now()+Math.random(), type:'youtube', videoId:id, name:`YouTube: ${id}`, meta:'YouTube', thumb }
+  libs[mode].push(item)
+  renderLib()
+
+  if (libs[mode].length === 1) { active[mode] = 0; loadItem(0) }
+
+  $('ytStatus').textContent = '✅ Added!'
+  setTimeout(() => { $('ytStatus').textContent = '' }, 2000)
+
+  // Fetch real title via oEmbed (no API key needed)
+  try {
+    const r = await fetch(`https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${id}&format=json`)
+    if (r.ok) {
+      const d = await r.json()
+      item.name = d.title
+      renderLib()
+    }
+  } catch (_) {}
+}
+
+// ════════════════════════════════════════════════════════
+//  DARK / LIBRARY TOGGLE
+// ════════════════════════════════════════════════════════
+function toggleDark () {
+  document.documentElement.classList.toggle('dark')
+  const isDark = document.documentElement.classList.contains('dark')
+  localStorage.setItem('theme_media-player', isDark ? 'dark' : 'light')
+}
+
+function toggleLib () {
+  libOpen = !libOpen
+  $('main').classList.toggle('lib-off', !libOpen)
+  $('libIcon').setAttribute('data-lucide', libOpen ? 'panel-left' : 'panel-left-close')
+  lucide.createIcons()
+}
+
+// ════════════════════════════════════════════════════════
+//  MODE SWITCH
+// ════════════════════════════════════════════════════════
+function setMode (m) {
+  mode = m
+  const c = CFG[m]
+
+  // Pause & hide everything
+  pauseAll(); ytActive = false; stopYtTick()
+  video.classList.add('hidden'); $('vidOverlay').classList.add('hidden')
+  $('audioViz').classList.add('hidden'); $('imgWrap').classList.add('hidden')
+  $('ytWrap').style.display = 'none'
+
+  // Tabs
+  ;['video','picture','audio'].forEach(t => {
+    const btn = $('tab-'+t), tc = CFG[t]
+    const on = t === m
+    btn.style.background = on ? tc.bg : ''
+    btn.style.color      = on ? tc.color : ''
+    btn.classList.toggle('hs-sm', on)
+    btn.classList.toggle('active', on)
+  })
+
+  // Library
+  $('libTitle').textContent = c.libTitle
+  $('libAddBtn').style.background = c.color
+  $('headerAdd').style.background = c.color
+  $('libEmptyIcon').style.background = c.bg
+  $('libEmptyIcon').innerHTML = `<i data-lucide="${c.icon}" class="w-7 h-7" style="color:${c.color}"></i>`
+  $('ytBtn').style.display  = m === 'video' ? 'flex' : 'none'
+  $('emptyYtBtn').style.display = m === 'video' ? 'flex' : 'none'
+  if (m !== 'video') $('ytPanel').classList.remove('show')
+
+  // Empty state
+  $('emptyIcon').innerHTML = `<i data-lucide="${c.icon}" class="w-14 h-14 text-white/30"></i>`
+  $('emptyMsg').textContent = c.emptyMsg
+  $('emptyBtnLbl').textContent = c.emptyBtn
+  $('emptyBtn').style.background = c.color
+
+  // Controls
+  const pic = m === 'picture'
+  $('avBtns').style.display  = pic ? 'none' : ''
+  $('imgBtns').style.display = pic ? 'flex' : 'none'
+  $('seekRow').style.display = pic ? 'none' : ''
+  $('volRow').style.display  = pic ? 'none' : ''
+  $('avCfg').style.display   = pic ? 'none' : ''
+  $('imgCfg').style.display  = pic ? 'flex' : 'none'
+  $('playBtn').style.background = c.color
+
+  // Reset speed highlight
+  document.querySelectorAll('.spd').forEach(b => {
+    const on = parseFloat(b.dataset.s) === 1
+    b.style.background = on ? c.color : ''; b.style.color = on ? '#fff' : ''
+  })
+
+  $('fileInput').accept = c.accept
+
+  const idx = active[m]
+  if (idx >= 0 && libs[m][idx]) loadItem(idx)
+  else showEmpty(true)
+
+  renderLib(); lucide.createIcons()
+}
+
+// ════════════════════════════════════════════════════════
+//  FILE HANDLING
+// ════════════════════════════════════════════════════════
+function openAdd () {
+  $('fileInput').accept = CFG[mode].accept
+  $('fileInput').value  = ''
+  $('fileInput').click()
+}
+
+function ingestFiles (files) { [...files].forEach(f => addFile(f)) }
+
+function dropFiles (files) {
+  const ok = { video:'video/', picture:'image/', audio:'audio/' }[mode]
+  ;[...files].filter(f => f.type.startsWith(ok)).forEach(f => addFile(f))
+}
+
+function addFile (file) {
+  const url  = URL.createObjectURL(file)
+  const item = { id:Date.now()+Math.random(), type:'local', url, name:file.name, meta:'' }
+  libs[mode].push(item)
+
+  if (mode === 'video' || mode === 'audio') {
+    const el = document.createElement(mode==='video'?'video':'audio')
+    el.src = url
+    el.onloadedmetadata = () => { item.meta = fmtT(el.duration); renderLib() }
+  } else {
+    const img = new Image()
+    img.onload = () => { item.meta = `${img.naturalWidth}×${img.naturalHeight}`; renderLib() }
+    img.src = url
+  }
+
+  renderLib()
+  if (libs[mode].length === 1) { active[mode]=0; loadItem(0) }
+}
+
+function clearLib () {
+  libs[mode]=[]; active[mode]=-1
+  pauseAll(); ytActive=false; stopYtTick()
+  video.classList.add('hidden'); $('vidOverlay').classList.add('hidden')
+  $('audioViz').classList.add('hidden'); $('imgWrap').classList.add('hidden')
+  $('ytWrap').style.display='none'
+  showEmpty(true); renderLib()
+}
+
+function removeItem (i) {
+  libs[mode].splice(i,1)
+  if (active[mode]===i) {
+    active[mode]=-1; pauseAll(); ytActive=false; stopYtTick()
+    video.classList.add('hidden'); $('vidOverlay').classList.add('hidden')
+    $('audioViz').classList.add('hidden'); $('imgWrap').classList.add('hidden')
+    $('ytWrap').style.display='none'
+    libs[mode].length ? loadItem(Math.min(i,libs[mode].length-1)) : showEmpty(true)
+  } else if (active[mode]>i) active[mode]--
+  renderLib()
+}
+
+// ════════════════════════════════════════════════════════
+//  LIBRARY RENDER
+// ════════════════════════════════════════════════════════
+function renderLib () {
+  const list=libs[mode], ai=active[mode], c=CFG[mode]
+  $('libCount').textContent = list.length ? `${list.length} file${list.length>1?'s':''}` : ''
+  $('libEmpty').style.display  = list.length ? 'none' : 'flex'
+  $('libScroll').style.display = list.length ? ''     : 'none'
+  if (!list.length) { $('libScroll').innerHTML=''; return }
+
+  if (mode==='picture') {
+    $('libScroll').innerHTML = `<div class="pic-grid">${list.map((it,i) => `
+      <div class="pic-card${i===ai?' active':''}" onclick="loadItem(${i})"
+           style="${i===ai?`border-color:${c.color};box-shadow:2px 2px 0 ${c.color}`:''}">
+        <img src="${it.url}" loading="lazy" title="${it.name}">
+        <div class="pic-name dark:bg-slate-700 dark:text-white">
+          <span class="truncate">${it.name.replace(/\.[^.]+$/,'')}</span>
+          <button onclick="event.stopPropagation();removeItem(${i})" class="flex-shrink-0 text-slate-300 hover:text-red-500">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+      </div>`).join('')}</div>`
+    return
+  }
+
+  $('libScroll').innerHTML = list.map((it, i) => {
+    const on  = i === ai
+    const isYT = it.type === 'youtube'
+    const iconHtml = isYT
+      ? `<div class="lib-icon" style="background:#000;border-color:#333"><img src="${it.thumb}" alt="" style="width:100%;height:100%;object-fit:cover"></div>`
+      : `<div class="lib-icon" style="background:${c.bg}"><i data-lucide="${c.icon}" style="width:18px;height:18px;color:${c.color}"></i></div>`
+    return `
+    <div class="lib-row${on?' active':''}" onclick="loadItem(${i})"
+         style="${on?`background:${c.bg};border-color:${c.color}`:''}">
+      ${iconHtml}
+      <div class="flex flex-col flex-1 min-w-0">
+        <div class="flex items-center gap-1">
+          ${isYT ? '<span class="yt-badge">YT</span>' : ''}
+          <span class="font-nunito text-xs font-semibold text-dark dark:text-white truncate">${it.name.replace(/\.[^.]+$/,'')}</span>
+        </div>
+        <span class="font-nunito text-xs text-slate-400">${it.meta||'—'}</span>
+      </div>
+      <button onclick="event.stopPropagation();removeItem(${i})"
+        class="flex-shrink-0 text-slate-300 hover:text-red-500 transition-colors p-1">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>`
+  }).join('')
+  lucide.createIcons()
+}
+
+// ════════════════════════════════════════════════════════
+//  LOAD ITEM
+// ════════════════════════════════════════════════════════
+function loadItem (i) {
+  const item = libs[mode][i]
+  if (!item) return
+  active[mode] = i
+  showEmpty(false)
+
+  // Stop everything
+  pauseAll(); stopYtTick(); stopViz(); ytActive = false
+  video.classList.add('hidden'); $('vidOverlay').classList.add('hidden')
+  $('audioViz').classList.add('hidden'); $('imgWrap').classList.add('hidden')
+  $('ytWrap').style.display = 'none'
+  $('seekBar').value = 0; $('curTime').textContent='0:00'; $('durTime').textContent='0:00'
+  updateSeekGrad(0)
+
+  if (mode==='video') {
+    if (item.type==='youtube') {
+      // ── YouTube
+      ytActive = true
+      $('ytWrap').style.display = 'block'
+      $('ytLoading').style.display = 'flex'
+      loadYtApi()
+      if (!ytReady) { ytPending = item.videoId }
+      else          { loadYtVideo(item.videoId) }
+    } else {
+      // ── Local video
+      video.classList.remove('hidden'); $('vidOverlay').classList.remove('hidden')
+      video.src = item.url; video.load()
+      video.ontimeupdate = tickSeek
+      video.onloadedmetadata = () => { $('durTime').textContent = fmtT(video.duration) }
+      video.onended = () => { setPlaying(false); looping?(video.currentTime=0,video.play(),setPlaying(true)):navLib(1) }
+      video.play().then(()=>setPlaying(true)).catch(()=>{})
+    }
+  }
+  else if (mode==='audio') {
+    $('audioViz').classList.remove('hidden')
+    $('audioName').textContent = item.name.replace(/\.[^.]+$/,'')
+    $('audioDur').textContent  = item.meta || ''
+    audioEl.src = item.url; audioEl.load()
+    audioEl.ontimeupdate = tickSeek
+    audioEl.onloadedmetadata = () => { $('durTime').textContent = fmtT(audioEl.duration) }
+    audioEl.onended = () => { setPlaying(false); stopViz(); looping?(audioEl.currentTime=0,doPlay()):navLib(1) }
+    initViz(); doPlay()
+  }
+  else if (mode==='picture') {
+    $('imgWrap').classList.remove('hidden')
+    $('imgEl').src = item.url
+    iz=1; ir=0; ix=0; iy=0; applyImg()
+  }
+
+  renderLib()
+}
+
+// ════════════════════════════════════════════════════════
+//  NAVIGATION
+// ════════════════════════════════════════════════════════
+function navLib (dir) {
+  const l = libs[mode]; if (!l.length) return
+  loadItem((active[mode]+dir+l.length) % l.length)
+}
+
+// ════════════════════════════════════════════════════════
+//  PLAY / PAUSE
+// ════════════════════════════════════════════════════════
+function pauseAll () {
+  video.pause(); audioEl.pause()
+  if (ytPlayer && typeof ytPlayer.pauseVideo==='function') try{ytPlayer.pauseVideo()}catch(_){}
+  setPlaying(false)
+}
+
+function doPlay () {
+  if (ytActive) { if(ytPlayer) try{ytPlayer.playVideo()}catch(_){} }
+  else if (mode==='video')  video.play().catch(()=>{})
+  else if (mode==='audio')  { audioEl.play().catch(()=>{}); startViz() }
+  setPlaying(true)
+}
+
+function doPause () {
+  if (ytActive) { if(ytPlayer) try{ytPlayer.pauseVideo()}catch(_){} }
+  else if (mode==='video')  video.pause()
+  else if (mode==='audio')  { audioEl.pause(); stopViz() }
+  setPlaying(false)
+}
+
+function togglePlay () {
+  if (mode==='picture' || active[mode]<0) return
+  playing ? doPause() : doPlay()
+}
+
+function setPlaying (s) {
+  playing = s
+  $('playIcon').setAttribute('data-lucide', s?'pause':'play')
+  lucide.createIcons()
+  $('albumArt').classList.toggle('spin-off', !s)
+}
+
+function skipSec (n) {
+  if (ytActive && ytPlayer) {
+    try { ytPlayer.seekTo(Math.max(0,ytPlayer.getCurrentTime()+n), true) } catch(_){}
+    return
+  }
+  const el = mode==='video' ? video : audioEl
+  if (el.duration) el.currentTime = Math.max(0, Math.min(el.duration, el.currentTime+n))
+}
+
+// ════════════════════════════════════════════════════════
+//  SEEK
+// ════════════════════════════════════════════════════════
+function tickSeek () {
+  const el = mode==='video' ? video : audioEl
+  if (!el.duration) return
+  const p = el.currentTime/el.duration
+  $('seekBar').value = p*1000
+  updateSeekGrad(p*100)
+  $('curTime').textContent = fmtT(el.currentTime)
+}
+
+function doSeek (v) {
+  if (ytActive && ytPlayer) {
+    try {
+      const dur = ytPlayer.getDuration()
+      if (dur) ytPlayer.seekTo((v/1000)*dur, true)
+    } catch(_){}
+    return
+  }
+  const el = mode==='video' ? video : audioEl
+  if (el.duration) el.currentTime = (v/1000)*el.duration
+}
+
+function updateSeekGrad (pct) {
+  const dark = document.documentElement.classList.contains('dark')
+  $('seekBar').style.background = `linear-gradient(to right,#2979FF ${pct}%,${dark?'#475569':'#cbd5e1'} ${pct}%)`
+}
+
+function fmtT (s) {
+  if (!s||isNaN(s)) return '0:00'
+  return `${Math.floor(s/60)}:${Math.floor(s%60).toString().padStart(2,'0')}`
+}
+
+// ════════════════════════════════════════════════════════
+//  VOLUME
+// ════════════════════════════════════════════════════════
+function setVol (v) {
+  v = parseFloat(v)
+  video.volume = v; audioEl.volume = v
+  if (ytPlayer && typeof ytPlayer.setVolume==='function') try{ytPlayer.setVolume(v*100)}catch(_){}
+  const p = v*100, dark = document.documentElement.classList.contains('dark')
+  $('volBar').style.background = `linear-gradient(to right,#FF6B95 ${p}%,${dark?'#475569':'#cbd5e1'} ${p}%)`
+  $('volIcon').setAttribute('data-lucide', (muted||v===0)?'volume-x':v<.5?'volume-1':'volume-2')
+  lucide.createIcons()
+}
+
+function toggleMute () {
+  muted=!muted; video.muted=muted; audioEl.muted=muted
+  if (ytPlayer) try{ muted ? ytPlayer.mute() : ytPlayer.unMute() }catch(_){}
+  setVol(muted ? 0 : parseFloat($('volBar').value))
+}
+
+// ════════════════════════════════════════════════════════
+//  SPEED
+// ════════════════════════════════════════════════════════
+function setSpeed (s) {
+  video.playbackRate=s; audioEl.playbackRate=s
+  if (ytPlayer && typeof ytPlayer.setPlaybackRate==='function') try{ytPlayer.setPlaybackRate(s)}catch(_){}
+  const col = CFG[mode].color
+  document.querySelectorAll('.spd').forEach(b=>{
+    const on = parseFloat(b.dataset.s)===s
+    b.style.background=on?col:''; b.style.color=on?'#fff':''
+  })
+}
+
+// ════════════════════════════════════════════════════════
+//  LOOP / SETTINGS
+// ════════════════════════════════════════════════════════
+function toggleLoop () {
+  looping=!looping
+  const b=$('loopBtn')
+  b.style.background=looping?'#00E676':''; b.style.color=looping?'#1e293b':''
+  b.innerHTML=`<i data-lucide="repeat" class="w-3 h-3"></i> ${looping?'On':'Off'}`
+  lucide.createIcons()
+}
+
+function toggleCfg () {
+  cfgOpen=!cfgOpen
+  $('settingsRow').classList.toggle('open', cfgOpen)
+  $('cfgBtn').style.background=cfgOpen?CFG[mode].color:''; $('cfgBtn').style.color=cfgOpen?'#fff':''
+}
+
+// ════════════════════════════════════════════════════════
+//  FULLSCREEN
+// ════════════════════════════════════════════════════════
+function goFullscreen () {
+  if (!document.fullscreenElement) $('app').requestFullscreen?.()
+  else document.exitFullscreen?.()
+}
+document.addEventListener('fullscreenchange', () => {
+  const fs=!!document.fullscreenElement
+  $('fsIcon').setAttribute('data-lucide', fs?'minimize':'maximize')
+  lucide.createIcons()
+})
+
+// ════════════════════════════════════════════════════════
+//  IMAGE
+// ════════════════════════════════════════════════════════
+function applyImg () {
+  $('imgEl').style.transform=`translate(${ix}px,${iy}px) rotate(${ir}deg) scale(${iz})`
+  $('zoomLbl').textContent=Math.round(iz*100)+'%'
+}
+function zoomImg (d) { iz=Math.max(.1,Math.min(10,iz+d)); applyImg() }
+function rotImg  ()  { ir=(ir+90)%360; applyImg() }
+function resetImg()  { iz=1;ir=0;ix=0;iy=0; applyImg() }
+
+function setFit (f) {
+  $('imgEl').style.objectFit=f
+  document.querySelectorAll('.fit').forEach(b=>{
+    const on=b.textContent.trim().toLowerCase()===f
+    b.style.background=on?CFG.picture.color:''; b.style.color=on?'#fff':''
+  })
+}
+
+function setBg (c) {
+  const w=$('imgWrap'); w.style.backgroundImage=''
+  if (c==='checker') {
+    w.style.backgroundImage='linear-gradient(45deg,#aaa 25%,transparent 25%),linear-gradient(-45deg,#aaa 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#aaa 75%),linear-gradient(-45deg,transparent 75%,#aaa 75%)'
+    w.style.backgroundSize='12px 12px'; w.style.backgroundPosition='0 0,0 6px,6px -6px,-6px 0'
+    w.style.backgroundColor='#fff'
+  } else { w.style.backgroundColor=c }
+}
+
+// Image drag/scroll
+const imgEl=$('imgEl')
+imgEl.addEventListener('mousedown', e => { panning=true; px0=e.clientX-ix; py0=e.clientY-iy; imgEl.classList.add('grabbing'); e.preventDefault() })
+window.addEventListener('mousemove', e => { if(!panning) return; ix=e.clientX-px0; iy=e.clientY-py0; imgEl.style.transform=`translate(${ix}px,${iy}px) rotate(${ir}deg) scale(${iz})` })
+window.addEventListener('mouseup',  () => { panning=false; imgEl.classList.remove('grabbing') })
+$('imgWrap').addEventListener('wheel', e => { if(mode!=='picture') return; e.preventDefault(); zoomImg(e.deltaY<0?.15:-.15) }, {passive:false})
+
+// ════════════════════════════════════════════════════════
+//  AUDIO VISUALIZER
+// ════════════════════════════════════════════════════════
+function initViz () {
+  const c=$('vizBars'); c.innerHTML=''
+  for (let i=0;i<48;i++) {
+    const b=document.createElement('div'); b.className='vbar'
+    b.style.height='3px'; b.style.background=`hsl(${195+i*4},85%,62%)`
+    c.appendChild(b)
+  }
+}
+function startViz () {
+  if (!actx) {
+    actx=new(window.AudioContext||window.webkitAudioContext)()
+    analyser=actx.createAnalyser(); analyser.fftSize=128
+    asrc=actx.createMediaElementSource(audioEl)
+    asrc.connect(analyser); analyser.connect(actx.destination)
+  }
+  const bars=[...$('vizBars').children], data=new Uint8Array(analyser.frequencyBinCount)
+  function draw () { vizRaf=requestAnimationFrame(draw); analyser.getByteFrequencyData(data); bars.forEach((b,i)=>b.style.height=Math.max(3,(data[i]/255)*56)+'px') }
+  cancelAnimationFrame(vizRaf); draw()
+}
+function stopViz () { cancelAnimationFrame(vizRaf); document.querySelectorAll('.vbar').forEach(b=>b.style.height='3px') }
+
+// ════════════════════════════════════════════════════════
+//  UTILS
+// ════════════════════════════════════════════════════════
+function showEmpty (s) { $('emptyState').style.display = s ? 'flex' : 'none' }
+
+// ════════════════════════════════════════════════════════
+//  KEYBOARD
+// ════════════════════════════════════════════════════════
+document.addEventListener('keydown', e => {
+  if (['INPUT','TEXTAREA'].includes(e.target.tagName)) return
+  switch (e.code) {
+    case 'Space':      e.preventDefault(); togglePlay(); break
+    case 'KeyF':       goFullscreen(); break
+    case 'KeyM':       toggleMute(); break
+    case 'KeyL':       toggleLib(); break
+    case 'ArrowLeft':  mode!=='picture' ? skipSec(-10) : navLib(-1); break
+    case 'ArrowRight': mode!=='picture' ? skipSec(10)  : navLib(1);  break
+    case 'ArrowUp':    if(mode==='picture') zoomImg(.2);  break
+    case 'ArrowDown':  if(mode==='picture') zoomImg(-.2); break
+    case 'Digit1':     setMode('video');   break
+    case 'Digit2':     setMode('picture'); break
+    case 'Digit3':     setMode('audio');   break
+  }
+})
+
+// ════════════════════════════════════════════════════════
+//  INIT
+// ════════════════════════════════════════════════════════
+setMode('video')
+</script>
+</body>
+</html>
