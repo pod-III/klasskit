@@ -649,8 +649,21 @@ function updateHighlights(r, c) {
     }
 }
 
+// --- NEW: Print Mode Trigger ---
+window.setPrintMode = function(mode) {
+    const printArea = document.getElementById('print-area');
+    if (mode === 'separate') {
+        printArea.classList.add('print-separate-pages');
+    } else {
+        printArea.classList.remove('print-separate-pages');
+    }
+    window.print();
+};
+
+// --- UPDATED: Dynamic Sizing ---
 function preparePrintVersion() {
     const printContainer = document.getElementById('print-grid-container');
+    const printArea = document.getElementById('print-area');
     if (!printContainer) return;
     printContainer.innerHTML = '';
     
@@ -658,9 +671,11 @@ function preparePrintVersion() {
     printGrid.id = "print-grid-clone";
     printGrid.className = "print-grid";
     
-    // Calculate optimal cell size in mm to fit within a 170x140mm bounding box
+    const isSeparate = printArea.classList.contains('print-separate-pages');
+    
+    // Use 230mm height if on its own page, otherwise limit to 140mm for combined mode
     const maxW = 170;
-    const maxH = 140;
+    const maxH = isSeparate ? 230 : 140; 
     const cellSize = Math.min(maxW / GRID_COLS, maxH / GRID_ROWS);
     
     printGrid.style.gridTemplateColumns = `repeat(${GRID_COLS}, 1fr)`;
