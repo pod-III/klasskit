@@ -571,20 +571,19 @@
 
                 <!-- HISTORY -->
                 <div class="p-3 bg-slate-50/50 dark:bg-slate-800/50 border-[1px] border-slate-300 dark:border-white/10 rounded-xl shadow-sm">
-                    <div class="flex justify-between items-center border-b-[1px] border-slate-200 dark:border-white/10 pb-2 mb-2">
+                    <div class="flex justify-between items-center border-b-[1px] border-slate-200 dark:border-white/10 pb-2 mb-3">
                         <label class="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
                             <i data-lucide="history" class="w-4 h-4 text-purple"></i>
                             History
                         </label>
-                        <div class="flex items-center gap-2">
-                            <span id="history-count" class="text-[10px] font-bold text-slate-400">0 spins</span>
-                            <button onclick="clearHistory()" class="text-[10px] font-bold text-pink hover:underline">Clear all</button>
-                        </div>
+                        <span id="history-count" class="text-[10px] font-bold text-slate-400">0 spins</span>
                     </div>
-                    <div class="text-xs font-mono text-slate-400 mb-2">Total: <span id="total-spins" class="text-blue font-bold">0</span></div>
-                    <div id="history-list" class="space-y-1.5 max-h-48 overflow-y-auto custom-scrollbar">
-                        <p class="text-xs text-slate-400 text-center py-4 italic">No spins yet...</p>
-                    </div>
+                    <button onclick="openHistoryModal()"
+                        class="btn-chunky w-full bg-purple/10 hover:bg-purple/20 border-[1px] border-purple/30 text-purple py-2.5 rounded-xl text-xs font-black flex items-center justify-center gap-2 transition-colors">
+                        <i data-lucide="list-ordered" class="w-4 h-4"></i>
+                        VIEW FULL HISTORY
+                        <span id="history-badge" class="hidden bg-purple text-white text-[9px] font-black px-1.5 py-0.5 rounded-full">0</span>
+                    </button>
                 </div>
 
             </div>
@@ -769,6 +768,50 @@
                     class="flex-1 btn-chunky bg-green text-dark dark:text-dark py-3 rounded-xl font-bold">
                     Save Changes
                 </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- History Modal -->
+    <div id="history-modal" class="fixed inset-0 hidden items-center justify-center z-[60] p-4">
+        <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onclick="closeHistoryModal()"></div>
+        <div class="glass-panel border-[1px] border-slate-300 dark:border-white/10 rounded-3xl shadow-neo-lg relative animate-bounce-in w-full max-w-lg flex flex-col max-h-[85vh]">
+            <!-- Header -->
+            <div class="p-5 border-b-[1px] border-slate-200 dark:border-white/10 flex items-center justify-between shrink-0">
+                <div>
+                    <h2 class="font-heading text-xl font-black text-dark dark:text-white flex items-center gap-2">
+                        <i data-lucide="history" class="w-5 h-5 text-purple"></i>
+                        Spin History
+                    </h2>
+                    <p class="text-xs text-slate-400 font-bold mt-0.5"><span id="history-modal-count">0</span> spins recorded</p>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button onclick="clearHistory()" class="px-3 py-1.5 text-xs font-black text-pink border-[1px] border-pink/30 rounded-lg hover:bg-pink/10 transition-colors">
+                        <i data-lucide="trash-2" class="w-3.5 h-3.5 inline mr-1"></i> Clear
+                    </button>
+                    <button onclick="closeHistoryModal()" class="p-2 bg-slate-100 dark:bg-slate-700 rounded-xl text-slate-400 hover:text-dark dark:hover:text-white transition-colors">
+                        <i data-lucide="x" class="w-5 h-5"></i>
+                    </button>
+                </div>
+            </div>
+            <!-- Stats bar -->
+            <div class="px-5 py-3 bg-slate-50/80 dark:bg-slate-800/80 border-b-[1px] border-slate-200 dark:border-white/10 flex gap-4 shrink-0">
+                <div class="text-center">
+                    <div id="hm-total" class="font-heading font-black text-2xl text-blue">0</div>
+                    <div class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total</div>
+                </div>
+                <div class="text-center">
+                    <div id="hm-unique" class="font-heading font-black text-2xl text-green">0</div>
+                    <div class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Unique</div>
+                </div>
+                <div class="flex-1 text-center">
+                    <div id="hm-top" class="font-heading font-black text-base text-orange truncate">—</div>
+                    <div class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Most Picked</div>
+                </div>
+            </div>
+            <!-- List -->
+            <div id="history-modal-list" class="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-2">
+                <p class="text-sm text-slate-400 text-center py-8 italic">No spins yet...</p>
             </div>
         </div>
     </div>
@@ -1629,48 +1672,96 @@
 
         // History
         function updateHistoryDisplay() {
-            const list = document.getElementById("history-list");
+            const count = appState.data.history.length;
             document.getElementById("history-count").textContent =
-                `${appState.data.history.length} spin${appState.data.history.length !== 1 ? "s" : ""}`;
+                `${count} spin${count !== 1 ? "s" : ""}`;
+            const badge = document.getElementById("history-badge");
+            if (count > 0) {
+                badge.textContent = count;
+                badge.classList.remove("hidden");
+            } else {
+                badge.classList.add("hidden");
+            }
+        }
 
-            if (appState.data.history.length === 0) {
-                list.innerHTML =
-                    '<p class="text-sm text-slate-400 text-center py-4 italic">No spins yet...</p>';
-                return;
+        function openHistoryModal() {
+            const history = appState.data.history;
+            const modal = document.getElementById("history-modal");
+
+            // Stats
+            const total = history.length;
+            const unique = new Set(history.map(h => h.name)).size;
+            const freq = {};
+            history.forEach(h => { freq[h.name] = (freq[h.name] || 0) + 1; });
+            const top = total > 0 ? Object.entries(freq).sort((a,b) => b[1]-a[1])[0][0] : "—";
+            document.getElementById("hm-total").textContent = total;
+            document.getElementById("hm-unique").textContent = unique;
+            document.getElementById("hm-top").textContent = top;
+            document.getElementById("history-modal-count").textContent = total;
+
+            // List
+            const list = document.getElementById("history-modal-list");
+            if (total === 0) {
+                list.innerHTML = '<p class="text-sm text-slate-400 text-center py-8 italic">No spins yet...</p>';
+            } else {
+                list.innerHTML = history.map((item, i) => {
+                    const img = item.img || null;
+                    const spinNum = total - i;
+                    return `
+                    <div class="flex items-center gap-3 p-3 bg-white/60 dark:bg-slate-800/60 rounded-xl border-[1px] border-slate-200 dark:border-white/10 hover:border-purple/40 transition-colors group">
+                        <div class="text-[10px] font-black text-slate-400 w-6 text-right shrink-0">#${spinNum}</div>
+                        ${img
+                            ? `<img src="${img}" class="w-10 h-10 rounded-full object-cover border-2 border-white shadow-neo-sm shrink-0" />`
+                            : `<div class="w-10 h-10 rounded-full ${palette[item.index % palette.length]} text-white flex items-center justify-center text-base font-black shadow-neo-sm shrink-0">${item.name.charAt(0).toUpperCase()}</div>`}
+                        <div class="flex-1 min-w-0">
+                            <p class="font-black text-sm text-dark dark:text-slate-100 truncate">${item.name}</p>
+                            <p class="text-[10px] text-slate-400 font-bold">${new Date(item.timestamp).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit', second:'2-digit'})}</p>
+                        </div>
+                        <div class="shrink-0 text-[10px] font-black text-slate-400 bg-slate-100 dark:bg-slate-700 px-2 py-1 rounded-lg">
+                            ${freq[item.name]}× picked
+                        </div>
+                        <button onclick="deleteHistoryEntry(${i})" class="p-1 text-slate-300 hover:text-pink opacity-0 group-hover:opacity-100 transition-all" title="Delete">
+                            <i data-lucide="x" class="w-3.5 h-3.5"></i>
+                        </button>
+                    </div>`;
+                }).join("");
             }
 
-            list.innerHTML = appState.data.history
-                .slice(0, 50)
-                .map(
-                    (item, i) => `
-                <div class="history-item flex items-center gap-2 p-2 bg-white/50 dark:bg-slate-800/50 rounded-lg border-[1px] border-slate-200 dark:border-white/10">
-                    <div class="w-6 h-6 rounded-full ${palette[item.index % palette.length]} text-white flex items-center justify-center text-xs font-bold shadow-neo-sm flex-shrink-0">
-                        ${item.name.charAt(0)}
-                    </div>
-                    <div class="flex-1 min-w-0">
-                        <p class="font-bold text-sm text-dark dark:text-slate-200 truncate">${item.name}</p>
-                        <p class="text-xs text-slate-400">${new Date(item.timestamp).toLocaleTimeString()}</p>
-                    </div>
-                </div>
-            `,
-                )
-                .join("");
+            modal.classList.remove("hidden");
+            modal.classList.add("flex");
+            lucide.createIcons();
+        }
+
+        function closeHistoryModal() {
+            const modal = document.getElementById("history-modal");
+            modal.classList.add("hidden");
+            modal.classList.remove("flex");
+        }
+
+        function deleteHistoryEntry(index) {
+            appState.data.history.splice(index, 1);
+            appState.data.totalSpins = Math.max(0, appState.data.totalSpins - 1);
+            onContentChange();
+            updateHistoryDisplay();
+            updateStats();
+            openHistoryModal();
         }
 
         function updateStats() {
-            document.getElementById("total-spins").textContent = appState.data.totalSpins;
+            const el = document.getElementById("total-spins");
+            if (el) el.textContent = appState.data.totalSpins;
         }
 
         function clearHistory() {
             if (!confirm("Clear history for this class?")) return;
-
             appState.data.history = [];
             appState.data.totalSpins = 0;
-
             onContentChange();
             updateHistoryDisplay();
             updateStats();
             showToast("History cleared", "info");
+            const modal = document.getElementById("history-modal");
+            if (!modal.classList.contains("hidden")) openHistoryModal();
         }
 
         // Resize
