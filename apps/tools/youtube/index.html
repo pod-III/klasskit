@@ -790,6 +790,10 @@
                             <button id="player-next-btn" onclick="playNextVideo()" class="btn-chunky bg-white dark:bg-slate-800 p-2.5 rounded-lg text-xs" title="Next Video" aria-label="Play next video">
                                 <i data-lucide="skip-forward" class="w-4 h-4"></i>
                             </button>
+                            <!-- Autoplay Next Button -->
+                            <button id="player-autoplay-btn" onclick="toggleAutoplayNext()" class="btn-chunky bg-white dark:bg-slate-800 p-2.5 rounded-lg text-xs" title="Autoplay Next" aria-label="Toggle autoplay next video">
+                                <i data-lucide="fast-forward" class="w-4 h-4"></i>
+                            </button>
                             <!-- Favorite Button -->
                             <button id="player-fav-btn" onclick="togglePlayerFavorite()" class="btn-chunky bg-white dark:bg-slate-800 p-2.5 rounded-lg text-xs text-yellow-500" title="Favorite" aria-label="Toggle favorite for current video">
                                 <i data-lucide="star" class="w-4 h-4"></i>
@@ -1015,6 +1019,7 @@
         let currentQueueIndex = -1;
         let managingPlaylistsVideoId = null;
         let isPlayingFromPlaylist = false;
+        let autoplayNext = localStorage.getItem('youtube_autoplay_next') === 'true';
 
         // --- THEME MANAGER ---
         const Theme = {
@@ -1054,7 +1059,10 @@
                 // 5. Render library
                 renderLibrary();
                 
-                // 6. Setup Icons
+                // 6. Setup Autoplay UI
+                updateAutoplayNextBtn();
+
+                // 7. Setup Icons
                 lucide.createIcons();
             } catch (err) {
                 console.error('Init Error:', err);
@@ -1987,7 +1995,7 @@
                     videoId: id,
                     playerVars: {
                         'playsinline': 1,
-                        'autoplay': 1,
+                        'autoplay': 0,
                         'modestbranding': 1,
                         'rel': 0
                     },
@@ -1996,7 +2004,7 @@
                     }
                 });
             } else {
-                player.loadVideoById(id);
+                player.cueVideoById(id);
             }
 
             // Update Metadata Card
@@ -2068,8 +2076,27 @@
 
         function onPlayerStateChange(event) {
             if (event.data === YT.PlayerState.ENDED) {
-                // Always play next video - playNextVideo handles circular behavior
-                playNextVideo();
+                if (autoplayNext) {
+                    playNextVideo();
+                }
+            }
+        }
+
+        function toggleAutoplayNext() {
+            autoplayNext = !autoplayNext;
+            localStorage.setItem('youtube_autoplay_next', autoplayNext ? 'true' : 'false');
+            updateAutoplayNextBtn();
+        }
+
+        function updateAutoplayNextBtn() {
+            const btn = document.getElementById('player-autoplay-btn');
+            if (!btn) return;
+            if (autoplayNext) {
+                btn.classList.add('bg-green-500', 'text-white');
+                btn.classList.remove('bg-white', 'dark:bg-slate-800');
+            } else {
+                btn.classList.remove('bg-green-500', 'text-white');
+                btn.classList.add('bg-white', 'dark:bg-slate-800');
             }
         }
 
