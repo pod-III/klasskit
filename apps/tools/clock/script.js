@@ -1083,9 +1083,18 @@ const countdown = {
         }
     },
     finish() {
-        this.reset();
+        if (state.countdown.interval) {
+            clearInterval(state.countdown.interval);
+            state.countdown.interval = null;
+        }
         const els = this.cacheElements();
-        
+
+        if (els.timeDisplay) {
+            els.timeDisplay.innerText = "TIME'S UP";
+            els.timeDisplay.classList.remove('text-blue');
+            els.timeDisplay.classList.add('text-pink');
+        }
+
         if (els.overlayLabel) els.overlayLabel.innerText = state.countdown.label || "TIME IS UP";
         if (els.overlay) {
             els.overlay.classList.remove('hidden');
@@ -1095,7 +1104,6 @@ const countdown = {
 
         audio.init();
         audio.playChime();
-        // Start a repeating chime or alert sound if needed, but chime is usually enough for a completion popup
     },
     dismissOverlay() {
         const els = this.cacheElements();
@@ -1115,10 +1123,16 @@ const countdown = {
         }
         state.countdown.active = false;
         state.countdown.target = null;
-        
+
         const els = this.cacheElements();
         if (els.runningView) els.runningView.classList.replace('flex', 'hidden');
         if (els.setupView) els.setupView.classList.replace('hidden', 'flex');
+
+        if (els.timeDisplay) {
+            els.timeDisplay.classList.remove('text-pink');
+            els.timeDisplay.classList.add('text-blue');
+        }
+
         this.saveState();
     },
     saveState() {
@@ -1197,6 +1211,11 @@ const calendar = {
         }
         calendar.render();
     },
+    goToday() {
+        state.calendar.date = new Date();
+        state.calendar.selected = utils.getTodayString();
+        this.render();
+    },
     render() {
         const cal = state.calendar;
         const els = this.cacheElements();
@@ -1220,6 +1239,7 @@ const calendar = {
             els.monthYear.innerText = `${year}`;
             this.renderYearView(year);
         }
+        this.updateInfo();
     },
     renderYearView(year) {
         const els = this.cacheElements();
@@ -1305,21 +1325,42 @@ const calendar = {
             } else {
                 state.calendar.selected = dateStr;
                 calendar.render();
-                calendar.updateCounter(cellDate);
             }
         });
     },
-    updateCounter(cellDate) {
-        const diffDays = Math.ceil((new Date(cellDate).setHours(0, 0, 0, 0) - new Date().setHours(0, 0, 0, 0)) / 86400000);
-        let text = "TODAY";
-        if (diffDays > 0) text = `${diffDays} DAY${diffDays > 1 ? 'S' : ''} FROM NOW`;
-        else if (diffDays < 0) text = `${Math.abs(diffDays)} DAY${Math.abs(diffDays) > 1 ? 'S' : ''} AGO`;
-
+    updateInfo() {
         const els = this.cacheElements();
-        if (els.counter) {
+        if (!els.counter) return;
+
+        const year = state.calendar.date.getFullYear();
+        const month = state.calendar.date.getMonth();
+        const markedCount = Object.keys(state.calendar.marked).filter(ds => {
+            const parts = ds.split('-').map(Number);
+            return parts[0] === year && parts[1] === month + 1;
+        }).length;
+
+        if (state.calendar.selected) {
+            const cellDate = new Date(state.calendar.selected + 'T00:00:00');
+            const diffDays = Math.ceil((cellDate.setHours(0,0,0,0) - new Date().setHours(0,0,0,0)) / 86400000);
+            let text = 'TODAY';
+            if (diffDays > 0) text = `${diffDays} DAY${diffDays > 1 ? 'S' : ''} FROM NOW`;
+            else if (diffDays < 0) text = `${Math.abs(diffDays)} DAY${Math.abs(diffDays) > 1 ? 'S' : ''} AGO`;
+
             els.counter.innerHTML = `
-                <span class="text-[#FF8C42] font-bold uppercase tracking-wider">${text}</span>
-                <span class="text-xs ml-2 border-l-2 border-slate-300 pl-2 text-slate-500">${cellDate.toISOString().split('T')[0]}</span>
+                <div class="flex items-center gap-2 flex-wrap justify-center">
+                    <span class="text-blue font-bold uppercase tracking-wider">${CONSTANTS.DAYS[cellDate.getDay()]}</span>
+                    <span class="text-[0.7rem] text-slate-500">${cellDate.toLocaleDateString(undefined, {month:'short', day:'numeric', year:'numeric'})}</span>
+                    <span class="text-[0.7rem] text-pink font-bold border-l border-slate-300 pl-2">${markedCount} marked</span>
+                </div>
+                <div class="text-[0.65rem] text-slate-400 mt-0.5 text-center uppercase tracking-wider">${text}</div>
+            `;
+        } else {
+            els.counter.innerHTML = `
+                <div class="flex items-center gap-2 flex-wrap justify-center">
+                    <span class="text-[0.7rem] text-slate-500">${CONSTANTS.MONTH_NAMES[month]} ${year}</span>
+                    <span class="text-[0.7rem] text-pink font-bold border-l border-slate-300 pl-2">${markedCount} marked</span>
+                </div>
+                <div class="text-[0.65rem] text-slate-400 mt-0.5 text-center uppercase tracking-wider">Click date &middot; Alt+Click to mark</div>
             `;
         }
     }
@@ -1467,6 +1508,7 @@ window.timerStop = () => timer.stop();
 window.timerReset = () => timer.reset();
 window.resetTimerOverlay = () => timer.resetOverlay();
 window.calNav = (delta) => calendar.navigate(delta);
+window.calGoToday = () => calendar.goToday();
 window.calToggleViewMode = () => calendar.toggleViewMode();
 window.toggleDarkMode = () => darkMode.toggle();
 window.toggleSidebar = () => sidebar.toggle();
