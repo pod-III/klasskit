@@ -18,6 +18,7 @@
         <script src="https://cdn.tailwindcss.com"></script>
         <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
         <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/browser-image-compression@2.0.2/dist/browser-image-compression.js"></script>
 
         <!-- Fonts -->
         <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -200,6 +201,7 @@
 
             input[type="range"] {
                 -webkit-appearance: none;
+                appearance: none;
                 background: transparent;
             }
 
@@ -778,16 +780,25 @@
                         </div>
 
                         <!-- Add Item -->
+                        <button
+                            onclick="document.getElementById('img-upload-input').click()"
+                            class="btn-chunky w-full bg-blue text-white py-2.5 rounded-xl text-xs flex items-center justify-center gap-2 mb-2"
+                        >
+                            <i data-lucide="image-plus" class="w-4 h-4"></i> ADD IMAGE(S)
+                        </button>
+                        <input type="file" id="img-upload-input" accept="image/*" multiple class="hidden" onchange="addImageOptions(this)" />
                         <div class="flex gap-2 mb-2">
                             <input
                                 type="text"
                                 id="option-input"
-                                placeholder="Add item..."
+                                placeholder="Or add text item..."
                                 class="flex-1 border-[1px] border-slate-300 dark:border-white/10 rounded-lg px-3 py-2 font-bold text-dark dark:text-slate-200 text-sm bg-white/50 dark:bg-slate-900/50 focus:outline-none focus:border-blue focus:ring-1 focus:ring-blue"
+                                onkeydown="if(event.key==='Enter') addOption()"
                             />
                             <button
                                 onclick="addOption()"
-                                class="btn-chunky bg-green text-dark dark:text-dark px-3 rounded-lg"
+                                class="btn-chunky bg-green text-dark px-3 rounded-lg"
+                                title="Add text item"
                             >
                                 <i data-lucide="plus" class="w-4 h-4"></i>
                             </button>
@@ -819,7 +830,7 @@
                         <!-- Items List -->
                         <div
                             id="items-list"
-                            class="flex flex-wrap gap-1 max-h-32 overflow-y-auto custom-scrollbar"
+                            class="flex flex-col gap-1.5 max-h-48 overflow-y-auto custom-scrollbar"
                         >
                             <!-- Populated by JS -->
                         </div>
@@ -883,7 +894,8 @@
                 class="winner-modal fixed inset-0 z-[100] hidden flex items-center justify-center p-4"
             >
                 <div
-                    class="winner-card w-full max-w-lg p-6 md:p-8 rounded-3xl text-center relative"
+                    class="winner-card w-full max-w-md rounded-3xl text-center relative flex flex-col"
+                    style="max-height:90vh"
                 >
                     <button
                         onclick="closeWinnerModal()"
@@ -892,31 +904,27 @@
                         <i data-lucide="x" class="w-6 h-6"></i>
                     </button>
 
-                    <div class="mb-4 flex justify-center">
-                        <div
-                            class="w-16 h-16 md:w-20 md:h-20 bg-green/10 rounded-full flex items-center justify-center border-4 border-green text-green animate-bounce"
-                        >
-                            <i
-                                data-lucide="trophy"
-                                class="w-8 h-8 md:w-10 md:h-10"
-                            ></i>
+                    <!-- Modal Header -->
+                    <div class="flex items-center justify-between px-6 pt-6 pb-3 shrink-0">
+                        <div class="w-8 h-8 bg-green/10 rounded-full flex items-center justify-center border-2 border-green text-green">
+                            <i data-lucide="trophy" class="w-4 h-4"></i>
                         </div>
+                        <h2 class="text-xs font-black text-slate-400 uppercase tracking-widest">
+                            Results
+                        </h2>
+                        <div class="w-8"></div>
                     </div>
 
-                    <h2
-                        class="text-xs font-black text-slate-400 uppercase tracking-widest mb-4"
-                    >
-                        Results
-                    </h2>
-
-                    <div id="results-container" class="space-y-3 mb-6">
+                    <!-- Scrollable Results -->
+                    <div id="results-container" class="space-y-4 px-6 overflow-y-auto flex-1 custom-scrollbar pb-2">
                         <!-- Results populated by JS -->
                     </div>
 
-                    <div class="flex gap-3">
+                    <!-- Modal Footer -->
+                    <div class="px-6 pb-6 pt-3 shrink-0">
                         <button
                             onclick="closeWinnerModal()"
-                            class="flex-1 btn-chunky bg-blue text-white py-3 rounded-xl font-bold"
+                            class="w-full btn-chunky bg-blue text-white py-3 rounded-xl font-bold"
                         >
                             Spin Again
                         </button>
@@ -945,6 +953,58 @@
         const STORAGE_KEY = "multispin_library_v2";
         const SESSION_KEY = "multispin_session_state";
         const PALETTE = ["#FF6B95", "#FF8C42", "#00E676", "#2979FF", "#7C4DFF", "#FFD700", "#00BCD4", "#E91E63"];
+
+        // ── Option helpers (supports both legacy string and {text, img} objects) ──
+        function optText(opt) { return (opt && typeof opt === 'object') ? (opt.text || '') : (opt || ''); }
+        function optImg(opt)  { return (opt && typeof opt === 'object') ? (opt.img  || '') : ''; }
+        function makeOpt(text, img) { return { text: text || '', img: img || '' }; }
+
+        // ── Backwards-compat migration: normalise all options to {text, img} ──
+        function migrateOptions(wheels) {
+            return wheels.map(w => ({
+                ...w,
+                options: (w.options || []).map(o =>
+                    (o && typeof o === 'object') ? o : makeOpt(o, '')
+                )
+            }));
+        }
+
+        // ── Resolve expired signed URLs for all wheel options after loading ──
+        async function resolveWheelImages() {
+            if (isSandbox()) return; // base64 URLs don't need resolving
+            let changed = false;
+            for (const wheel of appState.data.wheels) {
+                for (const opt of wheel.options) {
+                    const img = optImg(opt);
+                    if (img && !img.startsWith('data:')) {
+                        const fresh = await resolveMediaUrl(img).catch(() => img);
+                        if (fresh !== img && typeof opt === 'object') {
+                            opt.img = fresh;
+                            changed = true;
+                        }
+                    }
+                }
+            }
+            if (changed) {
+                // Persist refreshed URLs locally (don't cloud-sync just for URL refresh)
+                localStorage.setItem('multispin_session', JSON.stringify(appState.data));
+                renderItemsList();
+                for (let i = 0; i < appState.data.activeWheelCount; i++) drawWheel(i);
+            }
+        }
+
+        // Pre-loaded Image cache for canvas drawing
+        const _imgCache = {};
+        function loadImg(src) {
+            if (!src) return Promise.resolve(null);
+            if (_imgCache[src]) return Promise.resolve(_imgCache[src]);
+            return new Promise(resolve => {
+                const img = new Image();
+                img.onload = () => { _imgCache[src] = img; resolve(img); };
+                img.onerror = () => resolve(null);
+                img.src = src;
+            });
+        }
 
         // State for rendering
         let wheelStates = [
@@ -1013,11 +1073,11 @@
         function newSet() {
             appState.data = {
                 name: "",
-                wheels: [
+                wheels: migrateOptions([
                     { name: "Wheel A", label: "Category A", options: [] },
                     { name: "Wheel B", label: "Category B", options: [] },
                     { name: "Wheel C", label: "Category C", options: [] }
-                ],
+                ]),
                 activeWheelCount: 1,
                 history: [],
                 totalSpins: 0
@@ -1075,7 +1135,7 @@
             appState.activeId = id;
             appState.data = {
                 name: item.name,
-                wheels: JSON.parse(JSON.stringify(item.wheels)),
+                wheels: migrateOptions(JSON.parse(JSON.stringify(item.wheels))),
                 activeWheelCount: item.activeWheelCount || 2,
                 history: [...(item.history || [])],
                 totalSpins: item.totalSpins || 0
@@ -1166,7 +1226,7 @@
             const isDark = document.documentElement.classList.toggle("dark");
             localStorage.setItem("theme_spin-the-wheel", isDark ? "dark" : "light");
             lucide.createIcons();
-            for (let i = 0; i < 3; i++) drawWheel(i);
+            for (let i = 0; i < 3; i++) drawWheel(i); // async ok here
         }
 
         function loadTheme() {
@@ -1277,7 +1337,8 @@
             renderItemsList();
         }
 
-        function drawWheel(index) {
+        // ── Synchronous canvas painter (uses already-cached images) ──
+        function renderWheelFrame(index, loadedImgs) {
             const canvas = document.getElementById(`wheel-canvas-${index}`);
             if (!canvas) return;
             const ctx = canvas.getContext("2d");
@@ -1289,10 +1350,11 @@
             canvas.height = 600 * dpr;
             ctx.scale(dpr, dpr);
 
-            const cx = 300;
-            const cy = 300;
+            const cx = 300, cy = 300;
             const outsideRadius = 280;
             const textRadius = 190;
+            const imgRadius = 210;
+            const imgSize = 54;
 
             ctx.clearRect(0, 0, 600, 600);
             state.arc = (Math.PI * 2) / (options.length || 1);
@@ -1317,21 +1379,71 @@
                 ctx.arc(cx, cy, outsideRadius, angle, angle + state.arc, false);
                 ctx.lineTo(cx, cy);
                 ctx.fill();
-
                 ctx.lineWidth = 3;
                 ctx.strokeStyle = "#0F172A";
                 ctx.stroke();
 
-                ctx.save();
-                ctx.fillStyle = "#FFFFFF";
-                ctx.translate(cx + Math.cos(angle + state.arc / 2) * textRadius, cy + Math.sin(angle + state.arc / 2) * textRadius);
-                ctx.rotate(angle + state.arc / 2);
-                const text = options[i];
-                ctx.font = '700 24px "Nunito"';
-                ctx.textAlign = "right";
-                ctx.fillText(text, 50, 10);
-                ctx.restore();
+                const midAngle = angle + state.arc / 2;
+                const img = loadedImgs ? loadedImgs[i] : (_imgCache[optImg(options[i])] || null);
+
+                if (img) {
+                    const imgX = cx + Math.cos(midAngle) * imgRadius;
+                    const imgY = cy + Math.sin(midAngle) * imgRadius;
+                    const r = imgSize / 2;
+                    ctx.save();
+                    ctx.beginPath();
+                    ctx.arc(imgX, imgY, r, 0, 2 * Math.PI);
+                    ctx.clip();
+                    ctx.drawImage(img, imgX - r, imgY - r, imgSize, imgSize);
+                    ctx.restore();
+                    // white ring
+                    ctx.beginPath();
+                    ctx.arc(imgX, imgY, r + 2, 0, 2 * Math.PI);
+                    ctx.strokeStyle = 'rgba(255,255,255,0.7)';
+                    ctx.lineWidth = 2;
+                    ctx.stroke();
+                    // optional label
+                    const text = optText(options[i]);
+                    if (text) {
+                        ctx.save();
+                        ctx.fillStyle = "#FFFFFF";
+                        ctx.translate(cx + Math.cos(midAngle) * (textRadius - 20), cy + Math.sin(midAngle) * (textRadius - 20));
+                        ctx.rotate(midAngle);
+                        const fs = Math.max(10, Math.min(16, Math.floor((state.arc * outsideRadius) / (text.length * 0.8 + 1))));
+                        ctx.font = `700 ${fs}px "Nunito"`;
+                        ctx.textAlign = "right";
+                        ctx.shadowColor = 'rgba(0,0,0,0.5)';
+                        ctx.shadowBlur = 3;
+                        ctx.fillText(text, 30, 8);
+                        ctx.restore();
+                    }
+                } else {
+                    ctx.save();
+                    ctx.fillStyle = "#FFFFFF";
+                    ctx.translate(cx + Math.cos(midAngle) * textRadius, cy + Math.sin(midAngle) * textRadius);
+                    ctx.rotate(midAngle);
+                    const text = optText(options[i]);
+                    const fs = Math.max(11, Math.min(24, Math.floor((state.arc * outsideRadius) / (text.length * 0.7 + 1))));
+                    ctx.font = `700 ${fs}px "Nunito"`;
+                    ctx.textAlign = "right";
+                    ctx.shadowColor = 'rgba(0,0,0,0.4)';
+                    ctx.shadowBlur = 3;
+                    ctx.fillText(text, 50, 10);
+                    ctx.restore();
+                }
             }
+        }
+
+        // Async version: pre-loads images then paints. Use for static redraws.
+        async function drawWheel(index) {
+            const options = appState.data.wheels[index].options;
+            const loadedImgs = await Promise.all(options.map(opt => loadImg(optImg(opt))));
+            renderWheelFrame(index, loadedImgs);
+        }
+
+        // Sync version: uses cache only. Used inside rAF animation loop.
+        function drawWheelSync(index) {
+            renderWheelFrame(index, null);
         }
 
         async function spinAll() {
@@ -1345,6 +1457,10 @@
             }
 
             await initAudio();
+            // Pre-warm image cache so drawWheelSync has all images available
+            for (let i = 0; i < count; i++) {
+                await Promise.all(appState.data.wheels[i].options.map(opt => loadImg(optImg(opt))));
+            }
             const btn = document.getElementById("spinBtn");
             btn.disabled = true;
             btn.innerHTML = `<i data-lucide="loader-2" class="w-6 h-6 animate-spin"></i> SPINNING...`;
@@ -1380,7 +1496,7 @@
                     }
                     const spinAngle = extraSpins * 360 * easeOut(elapsed, 0, 1, durationMs);
                     state.startAngle = ((spinAngle + randomAngle) * Math.PI) / 180;
-                    drawWheel(index);
+                    drawWheelSync(index);
 
                     const degrees = (state.startAngle * 180) / Math.PI + 90;
                     const currentIndex = Math.floor((360 - (degrees % 360)) / ((state.arc * 180) / Math.PI));
@@ -1411,7 +1527,7 @@
                 const index = Math.floor((360 - (degrees % 360)) / arcd) % appState.data.wheels[i].options.length;
                 winners.push({
                     wheelIndex: i,
-                    item: appState.data.wheels[i].options[index],
+                    item: appState.data.wheels[i].options[index],  // may be {text,img} or string
                     color: PALETTE[index % PALETTE.length],
                     label: appState.data.wheels[i].label
                 });
@@ -1421,24 +1537,46 @@
             confetti({ particleCount: 200, spread: 70, origin: { y: 0.6 }, colors: PALETTE });
 
             const container = document.getElementById("results-container");
-            container.innerHTML = winners.map((w, i) => `
-                <div class="result-item flex items-center gap-3 p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border-[1px] border-slate-200 dark:border-white/10" style="animation-delay: ${i * 0.1}s">
-                    <div class="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold shadow-neo flex-shrink-0" style="background-color: ${w.color}">
-                        ${String.fromCharCode(65 + w.wheelIndex)}
-                    </div>
-                    <div class="flex-1 text-left">
-                        <p class="text-xs text-slate-400 font-bold uppercase">${w.label || 'Wheel ' + String.fromCharCode(65+w.wheelIndex)}</p>
-                        <p class="text-lg font-heading font-bold text-dark dark:text-white">${w.item}</p>
-                    </div>
-                </div>
-            `).join("");
+            container.innerHTML = winners.map((w, i) => {
+                const text = optText(w.item);
+                const img  = optImg(w.item);
+                const wheelLabel = w.label || 'Wheel ' + String.fromCharCode(65 + w.wheelIndex);
+
+                if (img) {
+                    return `
+                    <div class="result-item rounded-2xl overflow-hidden border-[1px] border-slate-200 dark:border-white/10 shadow-neo" style="animation-delay:${i * 0.15}s">
+                        <div class="relative">
+                            <img src="${img}" class="w-full object-cover" style="max-height:260px" />
+                            <div class="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent"></div>
+                            <div class="absolute top-2 left-2">
+                                <span class="text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full text-white" style="background-color:${w.color}">${wheelLabel}</span>
+                            </div>
+                        </div>
+                        <div class="bg-white dark:bg-slate-800 px-4 py-3 text-center">
+                            <p class="font-heading font-bold text-xl text-dark dark:text-white">${text || '—'}</p>
+                        </div>
+                    </div>`;
+                } else {
+                    return `
+                    <div class="result-item flex flex-col items-center gap-2 p-5 bg-slate-50 dark:bg-slate-800 rounded-2xl border-[1px] border-slate-200 dark:border-white/10" style="animation-delay:${i * 0.15}s">
+                        <div class="w-14 h-14 rounded-full flex items-center justify-center text-white font-heading font-bold text-2xl shadow-neo" style="background-color:${w.color}">${String.fromCharCode(65 + w.wheelIndex)}</div>
+                        <p class="text-[10px] text-slate-400 font-black uppercase tracking-widest">${wheelLabel}</p>
+                        <p class="font-heading font-bold text-2xl text-dark dark:text-white">${text}</p>
+                    </div>`;
+                }
+            }).join("");
 
             const modal = document.getElementById("winner-modal");
             modal.classList.remove("hidden");
             requestAnimationFrame(() => modal.classList.add("active"));
 
             appState.data.totalSpins++;
-            appState.data.history.unshift({ winners, timestamp: Date.now() });
+            // Strip img data from history to avoid bloating storage (wheel options already persist them)
+            const historyWinners = winners.map(w => ({
+                ...w,
+                item: { text: optText(w.item), img: '' }
+            }));
+            appState.data.history.unshift({ winners: historyWinners, timestamp: Date.now() });
             onContentChange();
             updateHistoryDisplay();
             updateStats();
@@ -1458,15 +1596,49 @@
             if (el) el.textContent = options.length;
 
             if (list) {
-                list.innerHTML = options.map((opt, i) => `
-                    <div class="flex items-center gap-1 bg-white dark:bg-slate-800 border-[1px] border-slate-300 dark:border-white/10 rounded px-2 py-1 text-xs font-bold text-dark dark:text-slate-200 shadow-neo-sm">
-                        <div class="w-2 h-2 rounded-full" style="background-color: ${PALETTE[i % PALETTE.length]}"></div>
-                        <span class="truncate max-w-[80px]">${opt}</span>
-                        <button onclick="removeOption(${i})" class="ml-1 text-slate-400 hover:text-pink">
-                            <i data-lucide="x" class="w-3 h-3"></i>
-                        </button>
-                    </div>
-                `).join("");
+                list.innerHTML = options.map((opt, i) => {
+                    const text = optText(opt);
+                    const img  = optImg(opt);
+                    const color = PALETTE[i % PALETTE.length];
+
+                    if (img) {
+                        // Image-primary card: large thumbnail, label below, action buttons
+                        return `
+                        <div class="bg-white dark:bg-slate-800 border-[1px] border-slate-300 dark:border-white/10 rounded-xl overflow-hidden shadow-neo-sm">
+                            <div class="relative">
+                                <img src="${img}" class="w-full h-20 object-cover" />
+                                <div class="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
+                                <div class="absolute bottom-0 left-0 right-0 px-2 py-1 flex items-end justify-between">
+                                    <span class="text-white font-bold text-xs truncate max-w-[120px] drop-shadow">${text || '(no label)'}</span>
+                                    <div class="flex gap-1">
+                                        <button onclick="renameOption(${currentConfigWheel}, ${i})" class="w-6 h-6 bg-white/20 hover:bg-blue/80 rounded flex items-center justify-center backdrop-blur-sm transition-colors" title="Rename">
+                                            <i data-lucide="pencil" class="w-3 h-3 text-white"></i>
+                                        </button>
+                                        <button onclick="clearOptionImage(${currentConfigWheel}, ${i})" class="w-6 h-6 bg-white/20 hover:bg-orange/80 rounded flex items-center justify-center backdrop-blur-sm transition-colors" title="Remove image">
+                                            <i data-lucide="image-off" class="w-3 h-3 text-white"></i>
+                                        </button>
+                                        <button onclick="removeOption(${i})" class="w-6 h-6 bg-white/20 hover:bg-pink/80 rounded flex items-center justify-center backdrop-blur-sm transition-colors" title="Delete">
+                                            <i data-lucide="x" class="w-3 h-3 text-white"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>`;
+                    } else {
+                        // Text-only compact chip
+                        return `
+                        <div class="flex items-center gap-2 bg-white dark:bg-slate-800 border-[1px] border-slate-300 dark:border-white/10 rounded-lg px-2 py-1.5 text-xs font-bold text-dark dark:text-slate-200 shadow-neo-sm">
+                            <div class="w-2.5 h-2.5 rounded-full shrink-0" style="background-color:${color}"></div>
+                            <span class="flex-1 truncate">${text}</span>
+                            <button onclick="renameOption(${currentConfigWheel}, ${i})" class="text-slate-300 hover:text-blue transition-colors" title="Rename">
+                                <i data-lucide="pencil" class="w-3 h-3"></i>
+                            </button>
+                            <button onclick="removeOption(${i})" class="text-slate-300 hover:text-pink transition-colors" title="Delete">
+                                <i data-lucide="x" class="w-3 h-3"></i>
+                            </button>
+                        </div>`;
+                    }
+                }).join("");
             }
             lucide.createIcons();
             
@@ -1479,18 +1651,91 @@
             const input = document.getElementById("option-input");
             const val = input.value.trim();
             if (!val) return;
-            appState.data.wheels[currentConfigWheel].options.push(val);
+            appState.data.wheels[currentConfigWheel].options.push(makeOpt(val, ''));
             input.value = "";
             onContentChange();
             renderItemsList();
             drawWheel(currentConfigWheel);
         }
 
+        async function addImageOptions(fileInput) {
+            const files = Array.from(fileInput.files);
+            if (!files.length) return;
+            fileInput.value = '';
+
+            showToast(`Uploading ${files.length} image${files.length > 1 ? 's' : ''}...`, 'info');
+
+            const wheelIdx = currentConfigWheel;
+            // Derive a stable setId from active library entry or a session key
+            const setId = appState.activeId ? String(appState.activeId) : 'session';
+
+            const promises = files.map(file => new Promise(resolve => {
+                const name = file.name.replace(/\.[^.]+$/, '');
+
+                if (isSandbox()) {
+                    // Sandbox: use base64 locally
+                    const reader = new FileReader();
+                    reader.onload = e => resolve(makeOpt(name, e.target.result));
+                    reader.readAsDataURL(file);
+                } else {
+                    // Authenticated: upload to Supabase Storage
+                    uploadMedia(file, 'multispin', setId)
+                        .then(signedUrl => resolve(makeOpt(name, signedUrl)))
+                        .catch(err => {
+                            console.warn('[Storage] Upload failed, falling back to base64:', err);
+                            // Fall back to base64 on error
+                            const reader = new FileReader();
+                            reader.onload = e => resolve(makeOpt(name, e.target.result));
+                            reader.readAsDataURL(file);
+                        });
+                }
+            }));
+
+            const newOpts = await Promise.all(promises);
+            newOpts.forEach(opt => appState.data.wheels[wheelIdx].options.push(opt));
+            onContentChange();
+            renderItemsList();
+            drawWheel(wheelIdx);
+            showToast(`Added ${files.length} image${files.length > 1 ? 's' : ''}`, 'success');
+        }
+
+        function renameOption(wheelIdx, optIdx) {
+            const opt = appState.data.wheels[wheelIdx].options[optIdx];
+            const current = optText(opt);
+            const newName = prompt('Rename item:', current);
+            if (newName === null) return;
+            if (typeof opt === 'object') {
+                opt.text = newName.trim();
+            } else {
+                appState.data.wheels[wheelIdx].options[optIdx] = makeOpt(newName.trim(), '');
+            }
+            onContentChange();
+            renderItemsList();
+            drawWheel(wheelIdx);
+        }
+
         function removeOption(index) {
+            const opt = appState.data.wheels[currentConfigWheel].options[index];
+            const img = optImg(opt);
+            if (img && !img.startsWith('data:')) deleteMediaFromUrl(img).catch(() => {});
             appState.data.wheels[currentConfigWheel].options.splice(index, 1);
             onContentChange();
             renderItemsList();
             drawWheel(currentConfigWheel);
+        }
+
+        function clearOptionImage(wheelIdx, optIdx) {
+            const opt = appState.data.wheels[wheelIdx].options[optIdx];
+            const img = optImg(opt);
+            if (img && !img.startsWith('data:')) deleteMediaFromUrl(img).catch(() => {});
+            if (opt && typeof opt === 'object') {
+                opt.img = '';
+            } else {
+                appState.data.wheels[wheelIdx].options[optIdx] = makeOpt(opt, '');
+            }
+            onContentChange();
+            renderItemsList();
+            drawWheel(wheelIdx);
         }
 
         function toggleBatch() {
@@ -1498,7 +1743,7 @@
             const input = document.getElementById("batch-input");
             if (container) {
                 if (container.classList.contains("hidden")) {
-                    if (input) input.value = appState.data.wheels[currentConfigWheel].options.join("\n");
+                    if (input) input.value = appState.data.wheels[currentConfigWheel].options.map(o => optText(o)).join("\n");
                     container.classList.remove("hidden");
                 } else container.classList.add("hidden");
             }
@@ -1507,7 +1752,14 @@
         function saveBatch() {
             const input = document.getElementById("batch-input");
             if (input) {
-                appState.data.wheels[currentConfigWheel].options = input.value.split(/[\n,]+/).map(s => s.trim()).filter(s => s.length > 0);
+                const existing = appState.data.wheels[currentConfigWheel].options;
+                const newTexts = input.value.split(/[\n,]+/).map(s => s.trim()).filter(s => s.length > 0);
+                // Preserve images for items whose text still matches, add new ones without images
+                const newOptions = newTexts.map(t => {
+                    const found = existing.find(e => optText(e) === t);
+                    return found ? found : makeOpt(t, '');
+                });
+                appState.data.wheels[currentConfigWheel].options = newOptions;
                 onContentChange();
                 toggleBatch();
                 renderItemsList();
@@ -1573,6 +1825,7 @@
             if (el) el.textContent = appState.data.totalSpins; 
         }
         function clearHistory() { if (!confirm("Clear history?")) return; appState.data.history = []; appState.data.totalSpins = 0; onContentChange(); updateHistoryDisplay(); updateStats(); }
+        function clearCurrentWheel() { if (!confirm("Clear all items from this wheel?")) return; appState.data.wheels[currentConfigWheel].options = []; onContentChange(); renderItemsList(); drawWheel(currentConfigWheel); }
 
 
         // Init
@@ -1611,9 +1864,11 @@
             if (savedActiveId && savedActiveId !== "null") loadSet(parseInt(savedActiveId));
             else {
                 const session = localStorage.getItem('multispin_session');
-                if (session) { appState.data = JSON.parse(session); updateUI(); }
+                if (session) { const parsed = JSON.parse(session); parsed.wheels = migrateOptions(parsed.wheels || []); appState.data = parsed; updateUI(); }
                 else newSet();
             }
+            // Refresh any expired signed URLs from Supabase Storage
+            await resolveWheelImages();
             renderLibrary();
             const savedDuration = localStorage.getItem('multispin_spinDuration');
             if (savedDuration) {
