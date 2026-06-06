@@ -318,7 +318,7 @@
         }
 
         /* Panel animations */
-        #controls {
+        #controls, #config-panel {
             transition:
                 transform 0.3s cubic-bezier(0.4, 0, 0.2, 1),
                 width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -326,33 +326,28 @@
 
         #controls.collapsed {
             transform: translateX(-100%);
-            width: 0;
-            min-width: 0;
-            padding: 0;
-            margin: 0;
-            border: none;
-            overflow: hidden;
+            width: 0; min-width: 0; padding: 0; margin: 0; border: none; overflow: hidden;
+        }
+
+        #config-panel.collapsed {
+            transform: translateX(100%);
+            width: 0; min-width: 0; padding: 0; margin: 0; border: none; overflow: hidden;
         }
 
         @media (max-width: 768px) {
             #controls {
-                position: fixed;
-                top: 0;
-                left: 0;
-                height: 100vh;
-                z-index: 100;
+                position: fixed; top: 0; left: 0; height: 100vh; z-index: 100;
                 transform: translateX(-100%);
             }
+            #controls.mobile-open { transform: translateX(0); }
+            #controls.collapsed { transform: translateX(-100%); width: 85%; min-width: 300px; }
 
-            #controls.mobile-open {
-                transform: translateX(0);
+            #config-panel {
+                position: fixed; top: 0; right: 0; height: 100vh; z-index: 100;
+                transform: translateX(100%);
             }
-
-            #controls.collapsed {
-                transform: translateX(-100%);
-                width: 85%;
-                min-width: 300px;
-            }
+            #config-panel.mobile-open { transform: translateX(0); }
+            #config-panel.collapsed { transform: translateX(100%); width: 85%; min-width: 300px; }
         }
 
         /* History flex grow */
@@ -415,9 +410,9 @@
         class="fixed top-4 left-1/2 -translate-x-1/2 z-[100] flex flex-col gap-2 pointer-events-none"></div>
 
     <div class="console-frame w-full h-full relative flex z-10 rounded-none md:rounded-2xl">
-        <!-- LEFT PANEL: CONTROLS & HISTORY -->
+        <!-- LEFT PANEL: LIBRARY + SPIN + SETTINGS + HISTORY -->
         <aside id="controls"
-            class="w-80 glass-panel border-r-[1px] border-slate-300 dark:border-white/10 flex flex-col z-50 h-full shrink-0">
+            class="w-72 glass-panel border-r-[1px] border-slate-300 dark:border-white/10 flex flex-col z-50 h-full shrink-0">
             <!-- Header -->
             <div
                 class="p-4 border-b-[1px] border-slate-300 dark:border-white/10 bg-slate-50/50 dark:bg-slate-800/50 flex justify-between items-center shrink-0">
@@ -444,7 +439,7 @@
                         </div>
                     </div>
                 </div>
-                <button onclick="togglePanel()"
+                <button onclick="toggleLeftPanel()"
                     class="p-2 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors md:hidden">
                     <i data-lucide="x" class="w-5 h-5"></i>
                 </button>
@@ -494,14 +489,36 @@
                     </div>
                 </div>
 
-                <!-- SPINNER TYPE SELECTOR -->
-                <div class="shrink-0 p-3 bg-slate-50/50 dark:bg-slate-800/50 border-[1px] border-slate-300 dark:border-white/10 rounded-xl shadow-sm">
-                    <div class="flex justify-between items-center border-b-[1px] border-slate-200 dark:border-white/10 pb-2 mb-2">
-                        <label class="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                            <i data-lucide="pen-tool" class="w-4 h-4 text-orange"></i>
-                            Spinner Type
-                        </label>
+                <!-- SPIN SETTINGS -->
+                <div class="shrink-0 p-3 bg-slate-50/50 dark:bg-slate-800/50 border-[1px] border-slate-300 dark:border-white/10 rounded-xl shadow-sm space-y-2">
+                    <label class="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2 border-b-[1px] border-slate-200 dark:border-white/10 pb-2">
+                        <i data-lucide="settings" class="w-4 h-4 text-orange"></i>
+                        Settings
+                    </label>
+                    <div class="space-y-1">
+                        <div class="flex justify-between">
+                            <span class="text-sm font-bold text-dark dark:text-slate-200">Duration</span>
+                            <span id="duration-display" class="text-xs font-mono font-bold text-blue bg-blue/10 px-2 py-0.5 rounded">4s</span>
+                        </div>
+                        <input type="range" id="duration-slider" min="2" max="8" step="0.5" value="4" oninput="updateDuration(this.value)" class="w-full accent-blue h-2 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer" />
                     </div>
+                    <div class="flex items-center justify-between">
+                        <span class="text-sm font-bold text-dark dark:text-slate-200">Sound</span>
+                        <label class="switch"><input type="checkbox" id="sound-toggle" checked /><span class="slider"></span></label>
+                    </div>
+                    <div class="flex items-center justify-between">
+                        <span class="text-sm font-bold text-dark dark:text-slate-200">Remove Winner</span>
+                        <label class="switch"><input type="checkbox" id="remove-winner-toggle" /><span class="slider"></span></label>
+                    </div>
+                </div>
+
+                <!-- SPINNER TYPE -->
+                <div class="shrink-0 p-3 bg-slate-50/50 dark:bg-slate-800/50 border-[1px] border-slate-300 dark:border-white/10 rounded-xl shadow-sm">
+                    <label class="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2 border-b-[1px] border-slate-200 dark:border-white/10 pb-2 mb-2">
+                        <i data-lucide="pen-tool" class="w-4 h-4 text-orange"></i>
+                        Spinner Type
+                    </label>
+                    <div class="flex justify-between items-center border-b-[1px] border-slate-200 dark:border-white/10 pb-2 mb-2"><!-- spacer --></div>
                     <div class="flex gap-2">
                         <button onclick="setSpinnerType('pencil')" id="spinner-pencil"
                             class="spinner-option active flex-1 p-2 border-[1px] border-slate-300 dark:border-white/10 rounded-xl flex flex-col items-center gap-1">
@@ -552,6 +569,51 @@
                     </div>
                 </div>
 
+                <!-- HISTORY -->
+                <div class="p-3 bg-slate-50/50 dark:bg-slate-800/50 border-[1px] border-slate-300 dark:border-white/10 rounded-xl shadow-sm">
+                    <div class="flex justify-between items-center border-b-[1px] border-slate-200 dark:border-white/10 pb-2 mb-2">
+                        <label class="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                            <i data-lucide="history" class="w-4 h-4 text-purple"></i>
+                            History
+                        </label>
+                        <div class="flex items-center gap-2">
+                            <span id="history-count" class="text-[10px] font-bold text-slate-400">0 spins</span>
+                            <button onclick="clearHistory()" class="text-[10px] font-bold text-pink hover:underline">Clear all</button>
+                        </div>
+                    </div>
+                    <div class="text-xs font-mono text-slate-400 mb-2">Total: <span id="total-spins" class="text-blue font-bold">0</span></div>
+                    <div id="history-list" class="space-y-1.5 max-h-48 overflow-y-auto custom-scrollbar">
+                        <p class="text-xs text-slate-400 text-center py-4 italic">No spins yet...</p>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Footer -->
+            <div class="p-3 border-t-[1px] border-slate-300 dark:border-white/10 bg-slate-50/50 dark:bg-slate-800/50 flex justify-between items-center shrink-0">
+                <button onclick="resetSession()"
+                    class="p-2 bg-white dark:bg-slate-700 border-[1px] border-slate-300 dark:border-white/10 rounded-lg text-slate-400 hover:text-orange transition-colors" title="Reset Session">
+                    <i data-lucide="rotate-ccw" class="w-4 h-4"></i>
+                </button>
+                <div class="font-heading font-black text-slate-400 text-xs uppercase tracking-wider">
+                    SPINS: <span id="total-spins-footer" class="text-blue">0</span>
+                </div>
+            </div>
+        </aside>
+
+        <!-- RIGHT PANEL: EDIT ITEMS -->
+        <aside id="config-panel"
+            class="w-80 glass-panel border-l-[1px] border-slate-300 dark:border-white/10 flex flex-col z-50 h-full shrink-0 order-last">
+            <!-- Header -->
+            <div class="p-4 border-b-[1px] border-slate-300 dark:border-white/10 bg-slate-50/50 dark:bg-slate-800/50 flex items-center justify-between shrink-0">
+                <h2 class="text-sm font-heading font-bold text-dark dark:text-slate-100 tracking-wide">EDIT <span class="text-pink">ITEMS</span></h2>
+                <button onclick="toggleRightPanel()" class="md:hidden p-2 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            <!-- Content -->
+            <div class="flex-1 p-4 overflow-y-auto custom-scrollbar bg-transparent space-y-3">
+
                 <!-- EDIT ITEMS -->
                 <div class="p-3 bg-slate-50/50 dark:bg-slate-800/50 border-[1px] border-slate-300 dark:border-white/10 rounded-xl shadow-sm space-y-2">
                     <div class="flex justify-between items-center border-b-[1px] border-slate-200 dark:border-white/10 pb-2">
@@ -559,11 +621,13 @@
                             <i data-lucide="users" class="w-4 h-4 text-purple"></i>
                             Edit Items
                         </label>
-                        <button onclick="toggleBatch()" class="text-xs text-blue font-bold hover:underline">
-                            Batch
-                        </button>
+                        <button onclick="toggleBatch()" class="text-xs text-blue font-bold hover:underline">Batch</button>
                     </div>
-
+                    <button onclick="document.getElementById('img-upload-pencil').click()"
+                        class="btn-chunky w-full bg-blue text-white py-2.5 rounded-xl text-xs flex items-center justify-center gap-2">
+                        <i data-lucide="image-plus" class="w-4 h-4"></i> ADD IMAGE(S)
+                    </button>
+                    <input type="file" id="img-upload-pencil" accept="image/*" multiple class="hidden" onchange="addImagePlayers(this)" />
                     <div class="flex gap-2">
                         <input type="text" id="player-input-inline" placeholder="Name or word..."
                             class="flex-1 border-[1px] border-slate-300 dark:border-white/10 rounded-lg px-3 py-2 font-bold text-dark dark:text-slate-200 text-sm bg-white/50 dark:bg-slate-900/50 focus:outline-none focus:border-blue focus:ring-1 focus:ring-blue"
@@ -572,99 +636,36 @@
                             <i data-lucide="plus" class="w-4 h-4"></i>
                         </button>
                     </div>
-
-                    <!-- Batch Input -->
                     <div id="batch-container" class="hidden">
                         <textarea id="batch-input" rows="3"
                             class="w-full p-2 bg-white/50 dark:bg-slate-900/50 text-dark dark:text-slate-200 font-mono text-xs border-[1px] border-slate-300 dark:border-white/10 rounded-lg resize-none mb-2"
                             placeholder="One item per line..."></textarea>
-                        <button onclick="saveBatch()" class="w-full btn-chunky bg-dark text-white py-2 rounded-lg text-xs">
-                            Update List
-                        </button>
+                        <button onclick="saveBatch()" class="w-full btn-chunky bg-dark text-white py-2 rounded-lg text-xs">Update List</button>
                     </div>
-
-                    <!-- Player List -->
-                    <div id="player-list-chips" class="flex flex-wrap gap-1 max-h-32 overflow-y-auto custom-scrollbar pt-1">
+                    <div id="player-list-chips" class="flex flex-wrap gap-1 max-h-48 overflow-y-auto custom-scrollbar pt-1">
                         <!-- Populated by JS -->
                     </div>
                 </div>
 
-                <!-- SPIN SETTINGS -->
-                <div class="shrink-0 p-3 bg-slate-50/50 dark:bg-slate-800/50 border-[1px] border-slate-300 dark:border-white/10 rounded-xl shadow-sm space-y-2">
-                    <div class="flex justify-between items-center border-b-[1px] border-slate-200 dark:border-white/10 pb-2">
-                        <label class="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                            <i data-lucide="settings" class="w-4 h-4 text-orange"></i>
-                            Settings
-                        </label>
-                    </div>
-                    <div class="space-y-1">
-                        <div class="flex justify-between">
-                            <span class="text-sm font-bold text-dark dark:text-slate-200">Duration</span>
-                            <span id="duration-display" class="text-xs font-mono font-bold text-blue bg-blue/10 px-2 py-0.5 rounded">4s</span>
-                        </div>
-                        <input type="range" id="duration-slider" min="2" max="8" step="0.5" value="4" oninput="updateDuration(this.value)" class="w-full accent-blue h-2 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer" />
-                    </div>
-                    <div class="flex items-center justify-between">
-                        <span class="text-sm font-bold text-dark dark:text-slate-200">Sound</span>
-                        <label class="switch">
-                            <input type="checkbox" id="sound-toggle" checked />
-                            <span class="slider"></span>
-                        </label>
-                    </div>
-                    <div class="flex items-center justify-between">
-                        <span class="text-sm font-bold text-dark dark:text-slate-200">Remove Winner</span>
-                        <label class="switch">
-                            <input type="checkbox" id="remove-winner-toggle" />
-                            <span class="slider"></span>
-                        </label>
-                    </div>
-                </div>
-
-                <!-- SPIN HISTORY -->
-                <div class="p-3 bg-slate-50/50 dark:bg-slate-800/50 border-[1px] border-slate-300 dark:border-white/10 rounded-xl shadow-sm flex flex-col min-h-0 flex-1">
-                    <div class="flex justify-between items-center border-b-[1px] border-slate-200 dark:border-white/10 pb-2 mb-2 shrink-0">
-                        <label class="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                            <i data-lucide="history" class="w-4 h-4 text-purple"></i>
-                            History
-                        </label>
-                        <span class="text-xs text-slate-400 font-bold" id="history-count">0 spins</span>
-                    </div>
-                    <div id="history-list" class="flex-1 overflow-y-auto custom-scrollbar space-y-1 min-h-[100px]">
-                        <p class="text-sm text-slate-400 text-center py-4 italic">No spins yet...</p>
-                    </div>
-                </div>
             </div>
 
-            <!-- Footer -->
+            <!-- Right footer -->
             <div class="p-3 border-t-[1px] border-slate-300 dark:border-white/10 bg-slate-50/50 dark:bg-slate-800/50 flex justify-between items-center shrink-0">
-                <div class="flex items-center gap-2">
-                    <button onclick="resetSession()"
-                        class="p-2 bg-white dark:bg-slate-700 border-[1px] border-slate-300 dark:border-white/10 rounded-lg text-slate-400 hover:text-orange transition-colors" title="Reset Session">
-                        <i data-lucide="rotate-ccw" class="w-4 h-4"></i>
-                    </button>
-                    <div class="font-heading font-black text-slate-400 text-xs uppercase tracking-wider">
-                        SPINS: <span id="total-spins" class="text-blue">0</span>
-                    </div>
-                </div>
-                <button onclick="clearHistory()" class="text-xs text-pink font-bold hover:underline">
-                    Clear history
-                </button>
+                <span class="text-[10px] font-black text-slate-400 uppercase tracking-wider">Items</span>
+                <span id="player-count" class="font-mono font-bold text-blue text-xs">0</span>
             </div>
         </aside>
 
         <!-- MAIN GAME AREA -->
         <main id="main-area"
             class="flex-1 relative h-full bg-slate-50/50 dark:bg-slate-900/50 flex flex-col overflow-hidden transition-colors duration-300">
-            <!-- Toggle Panel Button -->
-            <button id="panel-toggle" onclick="togglePanel()"
+            <button id="left-toggle-btn" onclick="toggleLeftPanel()" title="Toggle Library panel"
                 class="absolute top-4 left-4 z-30 p-2 glass-panel border-[1px] border-slate-300 dark:border-white/10 rounded-xl shadow-neo-sm hover:translate-y-[-2px] transition-transform text-slate-500 hover:text-dark dark:hover:text-slate-200">
-                <i data-lucide="panel-left-close" class="w-5 h-5"></i>
+                <i data-lucide="panel-left-close" class="w-5 h-5" id="left-toggle-icon"></i>
             </button>
-
-            <!-- Show Panel Button (when collapsed) -->
-            <button id="show-panel-btn" onclick="togglePanel()"
-                class="hidden absolute top-4 left-4 z-30 p-2 glass-panel border-[1px] border-slate-300 dark:border-white/10 rounded-xl shadow-neo-sm hover:translate-y-[-2px] transition-transform text-slate-500 hover:text-dark dark:hover:text-slate-200">
-                <i data-lucide="panel-left-open" class="w-5 h-5"></i>
+            <button id="right-toggle-btn" onclick="toggleRightPanel()" title="Toggle Items panel"
+                class="absolute top-4 right-4 z-30 p-2 glass-panel border-[1px] border-slate-300 dark:border-white/10 rounded-xl shadow-neo-sm hover:translate-y-[-2px] transition-transform text-slate-500 hover:text-dark dark:hover:text-slate-200">
+                <i data-lucide="panel-right-close" class="w-5 h-5" id="right-toggle-icon"></i>
             </button>
 
             <!-- Game Board -->
@@ -1071,32 +1072,55 @@
             }, 2500);
         }
 
-        // Panel Toggle
-        let panelOpen = true;
+        let leftPanelOpen = true, rightPanelOpen = true;
 
-        function togglePanel() {
-            const controls = document.getElementById("controls");
-            const panelToggle = document.getElementById("panel-toggle");
-            const showPanelBtn = document.getElementById("show-panel-btn");
-            const isMobile = window.innerWidth < 768;
-
-            panelOpen = !panelOpen;
-
-            if (isMobile) {
-                controls.classList.toggle("mobile-open", panelOpen);
-            } else {
-                controls.classList.toggle("collapsed", !panelOpen);
-
-                if (panelOpen) {
-                    panelToggle.classList.remove("hidden");
-                    showPanelBtn.classList.add("hidden");
-                } else {
-                    panelToggle.classList.add("hidden");
-                    showPanelBtn.classList.remove("hidden");
-                }
-            }
-
+        function toggleLeftPanel() {
+            const panel = document.getElementById("controls");
+            const icon = document.getElementById("left-toggle-icon");
+            leftPanelOpen = !leftPanelOpen;
+            if (window.innerWidth < 768) panel.classList.toggle("mobile-open", leftPanelOpen);
+            else panel.classList.toggle("collapsed", !leftPanelOpen);
+            icon.setAttribute("data-lucide", leftPanelOpen ? "panel-left-close" : "panel-left-open");
+            lucide.createIcons();
             setTimeout(renderPlayers, 350);
+        }
+
+        function toggleRightPanel() {
+            const panel = document.getElementById("config-panel");
+            const icon = document.getElementById("right-toggle-icon");
+            rightPanelOpen = !rightPanelOpen;
+            if (window.innerWidth < 768) panel.classList.toggle("mobile-open", rightPanelOpen);
+            else panel.classList.toggle("collapsed", !rightPanelOpen);
+            icon.setAttribute("data-lucide", rightPanelOpen ? "panel-right-close" : "panel-right-open");
+            lucide.createIcons();
+            setTimeout(renderPlayers, 350);
+        }
+
+        function togglePanel() { toggleLeftPanel(); }
+
+        async function addImagePlayers(fileInput) {
+            const files = Array.from(fileInput.files);
+            if (!files.length) return;
+            fileInput.value = '';
+            showToast(`Adding ${files.length} image${files.length > 1 ? 's' : ''}...`, 'info');
+            const promises = files.map(file => new Promise(resolve => {
+                const name = file.name.replace(/\.[^.]+$/, '');
+                if (typeof isSandbox === 'function' && !isSandbox() && typeof uploadMedia === 'function') {
+                    uploadMedia(file, 'classspin', 'players')
+                        .then(url => resolve({ name, img: url }))
+                        .catch(() => { const r = new FileReader(); r.onload = e => resolve({ name, img: e.target.result }); r.readAsDataURL(file); });
+                } else {
+                    const r = new FileReader();
+                    r.onload = e => resolve({ name, img: e.target.result });
+                    r.readAsDataURL(file);
+                }
+            }));
+            const newItems = await Promise.all(promises);
+            newItems.forEach(item => appState.data.players.push(item.name));
+            onContentChange();
+            renderPlayers();
+            renderPlayerChips();
+            showToast(`Added ${files.length} image${files.length > 1 ? 's' : ''}`, 'success');
         }
 
         // Spinner Types

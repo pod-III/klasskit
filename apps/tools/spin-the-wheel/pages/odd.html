@@ -439,41 +439,21 @@
             }
 
             /* Panel animations */
-            #controls {
+            #controls, #config-panel {
                 transition:
                     transform 0.3s cubic-bezier(0.4, 0, 0.2, 1),
                     width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
             }
-
-            #controls.collapsed {
-                transform: translateX(-100%);
-                width: 0;
-                min-width: 0;
-                padding: 0;
-                margin: 0;
-                border: none;
-                overflow: hidden;
-            }
+            #controls.collapsed { transform: translateX(-100%); width: 0; min-width: 0; padding: 0; margin: 0; border: none; overflow: hidden; }
+            #config-panel.collapsed { transform: translateX(100%); width: 0; min-width: 0; padding: 0; margin: 0; border: none; overflow: hidden; }
 
             @media (max-width: 768px) {
-                #controls {
-                    position: fixed;
-                    top: 0;
-                    left: 0;
-                    height: 100vh;
-                    z-index: 100;
-                    transform: translateX(-100%);
-                }
-
-                #controls.mobile-open {
-                    transform: translateX(0);
-                }
-
-                #controls.collapsed {
-                    transform: translateX(-100%);
-                    width: 85%;
-                    min-width: 300px;
-                }
+                #controls { position: fixed; top: 0; left: 0; height: 100vh; z-index: 100; transform: translateX(-100%); }
+                #controls.mobile-open { transform: translateX(0); }
+                #controls.collapsed { transform: translateX(-100%); width: 85%; min-width: 300px; }
+                #config-panel { position: fixed; top: 0; right: 0; height: 100vh; z-index: 100; transform: translateX(100%); }
+                #config-panel.mobile-open { transform: translateX(0); }
+                #config-panel.collapsed { transform: translateX(100%); width: 85%; min-width: 300px; }
             }
 
             /* Loading toast */
@@ -539,9 +519,9 @@
         <div
             class="console-frame w-full h-full relative flex z-10 rounded-none md:rounded-2xl"
         >
-            <!-- LEFT PANEL: CONTROLS -->
+            <!-- LEFT PANEL: LIBRARY + SPIN + SETTINGS -->
             <aside id="controls"
-                class="w-80 glass-panel border-r-[1px] border-slate-300 dark:border-white/10 flex flex-col z-50 h-full shrink-0 transition-all duration-300">
+                class="w-72 glass-panel border-r-[1px] border-slate-300 dark:border-white/10 flex flex-col z-50 h-full shrink-0">
                 <!-- Header -->
                 <div
                     class="p-4 border-b-[1px] border-slate-300 dark:border-white/10 bg-slate-50/50 dark:bg-slate-800/50 flex justify-between items-center shrink-0">
@@ -642,49 +622,13 @@
                         </div>
                     </div>
 
-                    <!-- PLAYERS & WEIGHTS -->
-                    <div class="p-3 bg-slate-50/50 dark:bg-slate-800/50 border-[1px] border-slate-300 dark:border-white/10 rounded-xl shadow-sm space-y-2">
-                        <div class="flex justify-between items-center border-b-[1px] border-slate-200 dark:border-white/10 pb-2">
-                            <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                                <i data-lucide="users" class="w-4 h-4 text-purple"></i>
-                                Items & Odds
-                            </label>
-                            <button onclick="toggleBatch()" class="text-[10px] text-blue font-bold hover:underline uppercase tracking-tighter">
-                                Batch Edit
-                            </button>
-                        </div>
-
-                        <div class="flex gap-2">
-                            <input type="text" id="player-input" placeholder="Add item..."
-                                class="flex-1 border-[1px] border-slate-300 dark:border-white/10 rounded-lg px-3 py-2 font-bold text-dark dark:text-slate-200 text-sm bg-white/50 dark:bg-slate-900/50 focus:outline-none focus:border-blue focus:ring-1 focus:ring-blue"
-                                onkeydown="if (event.key === 'Enter') addPlayer();" />
-                            <button onclick="addPlayer()" class="btn-chunky bg-green text-dark dark:text-dark px-3 rounded-lg">
-                                <i data-lucide="plus" class="w-4 h-4"></i>
-                            </button>
-                        </div>
-
-                        <!-- Batch Input -->
-                        <div id="batch-container" class="hidden animate-slide-down">
-                            <textarea id="batch-input" rows="3"
-                                class="w-full p-2 bg-white/50 dark:bg-slate-900/50 text-dark dark:text-slate-200 font-mono text-xs border-[1px] border-slate-300 dark:border-white/10 rounded-lg resize-none mb-2"
-                                placeholder="Item, weight (one per line)...&#10;e.g. Alice, 3"></textarea>
-                            <button onclick="saveBatch()" class="w-full btn-chunky bg-dark text-white py-2 rounded-lg text-xs">
-                                Update List
-                            </button>
-                        </div>
-
-                        <!-- Player List -->
-                        <div id="player-list" class="space-y-2 max-h-48 overflow-y-auto custom-scrollbar pt-1 pr-1">
-                            <!-- Populated by JS -->
-                        </div>
-                    </div>
                 </div>
 
                 <!-- Footer -->
                 <div class="p-3 border-t-[1px] border-slate-300 dark:border-white/10 bg-slate-50/50 dark:bg-slate-800/50 flex justify-between items-center shrink-0">
                     <div class="flex items-center gap-2">
                         <button onclick="clearAll()"
-                            class="p-2 bg-white dark:bg-slate-700 border-[1px] border-slate-300 dark:border-white/10 rounded-lg text-slate-400 hover:text-pink transition-colors shadow-sm" title="Clear Deck">
+                            class="p-2 bg-white dark:bg-slate-700 border-[1px] border-slate-300 dark:border-white/10 rounded-lg text-slate-400 hover:text-pink transition-colors shadow-sm" title="Clear All">
                             <i data-lucide="trash-2" class="w-4 h-4"></i>
                         </button>
                         <button onclick="resetWeights()"
@@ -698,27 +642,61 @@
                 </div>
             </aside>
 
+            <!-- RIGHT PANEL: ITEMS & ODDS -->
+            <aside id="config-panel"
+                class="w-80 glass-panel border-l-[1px] border-slate-300 dark:border-white/10 flex flex-col z-50 h-full shrink-0 order-last">
+                <div class="p-4 border-b-[1px] border-slate-300 dark:border-white/10 bg-slate-50/50 dark:bg-slate-800/50 flex items-center justify-between shrink-0">
+                    <h2 class="text-sm font-heading font-bold text-dark dark:text-slate-100 tracking-wide">ITEMS & <span class="text-purple">ODDS</span></h2>
+                    <button onclick="toggleRightPanel()" class="md:hidden p-2 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg">
+                        <i data-lucide="x" class="w-5 h-5"></i>
+                    </button>
+                </div>
+                <div class="flex-1 p-4 overflow-y-auto custom-scrollbar bg-transparent space-y-3">
+                    <div class="p-3 bg-slate-50/50 dark:bg-slate-800/50 border-[1px] border-slate-300 dark:border-white/10 rounded-xl shadow-sm space-y-2">
+                        <div class="flex justify-between items-center border-b-[1px] border-slate-200 dark:border-white/10 pb-2">
+                            <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                                <i data-lucide="users" class="w-4 h-4 text-purple"></i> Items & Odds
+                            </label>
+                            <button onclick="toggleBatch()" class="text-[10px] text-blue font-bold hover:underline uppercase">Batch Edit</button>
+                        </div>
+                        <button onclick="document.getElementById('img-upload-odd').click()"
+                            class="btn-chunky w-full bg-blue text-white py-2.5 rounded-xl text-xs flex items-center justify-center gap-2">
+                            <i data-lucide="image-plus" class="w-4 h-4"></i> ADD IMAGE(S)
+                        </button>
+                        <input type="file" id="img-upload-odd" accept="image/*" multiple class="hidden" onchange="addImagePlayers(this)" />
+                        <div class="flex gap-2">
+                            <input type="text" id="player-input" placeholder="Add item..."
+                                class="flex-1 border-[1px] border-slate-300 dark:border-white/10 rounded-lg px-3 py-2 font-bold text-dark dark:text-slate-200 text-sm bg-white/50 dark:bg-slate-900/50 focus:outline-none focus:border-blue focus:ring-1 focus:ring-blue"
+                                onkeydown="if (event.key === 'Enter') addPlayer();" />
+                            <button onclick="addPlayer()" class="btn-chunky bg-green text-dark px-3 rounded-lg">
+                                <i data-lucide="plus" class="w-4 h-4"></i>
+                            </button>
+                        </div>
+                        <div id="batch-container" class="hidden animate-slide-down">
+                            <textarea id="batch-input" rows="3"
+                                class="w-full p-2 bg-white/50 dark:bg-slate-900/50 text-dark dark:text-slate-200 font-mono text-xs border-[1px] border-slate-300 dark:border-white/10 rounded-lg resize-none mb-2"
+                                placeholder="Item, weight (one per line)...&#10;e.g. Alice, 3"></textarea>
+                            <button onclick="saveBatch()" class="w-full btn-chunky bg-dark text-white py-2 rounded-lg text-xs">Update List</button>
+                        </div>
+                        <div id="player-list" class="space-y-2 max-h-[calc(100vh-380px)] overflow-y-auto custom-scrollbar pt-1 pr-1">
+                            <!-- Populated by JS -->
+                        </div>
+                    </div>
+                </div>
+            </aside>
+
             <!-- MAIN WHEEL AREA -->
             <main
                 id="main-area"
                 class="flex-1 relative h-full bg-slate-50/50 dark:bg-slate-900/50 flex flex-col overflow-hidden transition-colors duration-300"
             >
-                <!-- Toggle Panel Button -->
-                <button
-                    id="panel-toggle"
-                    onclick="togglePanel()"
-                    class="absolute top-4 left-4 z-30 p-2 glass-panel border-[1px] border-slate-300 dark:border-white/10 rounded-xl shadow-neo-sm hover:translate-y-[-2px] transition-transform text-slate-500 hover:text-dark dark:hover:text-slate-200"
-                >
-                    <i data-lucide="panel-left-close" class="w-5 h-5"></i>
+                <button id="left-toggle-btn" onclick="toggleLeftPanel()" title="Toggle Library panel"
+                    class="absolute top-4 left-4 z-30 p-2 glass-panel border-[1px] border-slate-300 dark:border-white/10 rounded-xl shadow-neo-sm hover:translate-y-[-2px] transition-transform text-slate-500 hover:text-dark dark:hover:text-slate-200">
+                    <i data-lucide="panel-left-close" class="w-5 h-5" id="left-toggle-icon"></i>
                 </button>
-
-                <!-- Show Panel Button (when collapsed) -->
-                <button
-                    id="show-panel-btn"
-                    onclick="togglePanel()"
-                    class="hidden absolute top-4 left-4 z-30 p-2 glass-panel border-[1px] border-slate-300 dark:border-white/10 rounded-xl shadow-neo-sm hover:translate-y-[-2px] transition-transform text-slate-500 hover:text-dark dark:hover:text-slate-200"
-                >
-                    <i data-lucide="panel-left-open" class="w-5 h-5"></i>
+                <button id="right-toggle-btn" onclick="toggleRightPanel()" title="Toggle Items panel"
+                    class="absolute top-4 right-4 z-30 p-2 glass-panel border-[1px] border-slate-300 dark:border-white/10 rounded-xl shadow-neo-sm hover:translate-y-[-2px] transition-transform text-slate-500 hover:text-dark dark:hover:text-slate-200">
+                    <i data-lucide="panel-right-close" class="w-5 h-5" id="right-toggle-icon"></i>
                 </button>
 
                 <!-- Wheel -->
@@ -826,7 +804,7 @@
         let isSpinning = false;
         let audioInitialized = false;
         let synth, winSynth;
-        let panelOpen = true;
+        let leftPanelOpen = true, rightPanelOpen = true;
         let lastSegment = -1;
         let currentWinner = -1;
 
@@ -1321,18 +1299,45 @@
                 document.documentElement.classList.add("dark");
         }
 
-        function togglePanel() {
-            const controls = document.getElementById("controls");
-            const panelToggle = document.getElementById("panel-toggle");
-            const showPanelBtn = document.getElementById("show-panel-btn");
-            panelOpen = !panelOpen;
-            if (window.innerWidth < 768) controls.classList.toggle("mobile-open", panelOpen);
-            else {
-                controls.classList.toggle("collapsed", !panelOpen);
-                panelToggle.classList.toggle("hidden", !panelOpen);
-                showPanelBtn.classList.toggle("hidden", panelOpen);
-            }
+        function toggleLeftPanel() {
+            const panel = document.getElementById("controls");
+            const icon = document.getElementById("left-toggle-icon");
+            leftPanelOpen = !leftPanelOpen;
+            if (window.innerWidth < 768) panel.classList.toggle("mobile-open", leftPanelOpen);
+            else panel.classList.toggle("collapsed", !leftPanelOpen);
+            icon.setAttribute("data-lucide", leftPanelOpen ? "panel-left-close" : "panel-left-open");
+            lucide.createIcons();
             setTimeout(drawWheel, 300);
+        }
+
+        function toggleRightPanel() {
+            const panel = document.getElementById("config-panel");
+            const icon = document.getElementById("right-toggle-icon");
+            rightPanelOpen = !rightPanelOpen;
+            if (window.innerWidth < 768) panel.classList.toggle("mobile-open", rightPanelOpen);
+            else panel.classList.toggle("collapsed", !rightPanelOpen);
+            icon.setAttribute("data-lucide", rightPanelOpen ? "panel-right-close" : "panel-right-open");
+            lucide.createIcons();
+            setTimeout(drawWheel, 300);
+        }
+
+        function togglePanel() { toggleLeftPanel(); }
+
+        async function addImagePlayers(fileInput) {
+            const files = Array.from(fileInput.files);
+            if (!files.length) return;
+            fileInput.value = '';
+            showToast(`Adding ${files.length} image${files.length > 1 ? 's' : ''}...`, 'info');
+            const promises = files.map(file => new Promise(resolve => {
+                const name = file.name.replace(/\.[^.]+$/, '');
+                resolve({ name, weight: 1 });
+            }));
+            const items = await Promise.all(promises);
+            items.forEach(({ name, weight }) => appState.data.players.push({ name, weight }));
+            onContentChange();
+            drawWheel();
+            renderPlayerList();
+            showToast(`Added ${files.length} item${files.length > 1 ? 's' : ''}`, 'success');
         }
 
         function showToast(message, type = "info") {
