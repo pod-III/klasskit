@@ -117,6 +117,18 @@
         #controls, #roster-panel { transition: transform 0.3s cubic-bezier(0.4,0,0.2,1), width 0.3s cubic-bezier(0.4,0,0.2,1); }
         #controls.collapsed { transform:translateX(-100%); width:0; min-width:0; padding:0; margin:0; border:none; overflow:hidden; }
         #roster-panel.collapsed { transform:translateX(100%); width:0; min-width:0; padding:0; margin:0; border:none; overflow:hidden; }
+
+        #controls.simple-hidden { transform:translateX(-100%); width:0; min-width:0; padding:0; margin:0; border:none; overflow:hidden; }
+        #roster-panel.simple-hidden { transform:translateX(100%); width:0; min-width:0; padding:0; margin:0; border:none; overflow:hidden; }
+
+        #simple-panel { transition: opacity 0.25s ease, transform 0.25s ease; }
+        #simple-panel.hidden { opacity:0; pointer-events:none; transform:translateY(8px); }
+        #complex-ui { transition: opacity 0.25s ease; }
+        #complex-ui.hidden { opacity:0; pointer-events:none; display:none; }
+
+        .app-mode-btn { transition: background 0.2s, color 0.2s, box-shadow 0.2s; }
+        .app-mode-btn.active { background: #2979FF; color: #fff; box-shadow: 2px 2px 0 rgba(41,121,255,0.3); }
+        .app-mode-btn:not(.active) { background: transparent; color: #94a3b8; }
         
         @media (max-width:1280px) {
             #controls, #roster-panel { position:fixed; top:0; height:100vh; z-index:100; width:288px; }
@@ -240,23 +252,86 @@
 
         <!-- MAIN AREA -->
         <main id="main-area" class="flex-1 relative h-full bg-slate-50/50 dark:bg-slate-900/50 flex flex-col overflow-hidden transition-colors duration-300">
-            <!-- Toggle Buttons -->
-            <div class="absolute top-6 left-6 z-30 flex gap-2">
-                <button onclick="togglePanel('controls')" class="p-2.5 glass-panel border-[1px] border-slate-300 dark:border-white/10 rounded-xl shadow-neo-sm hover:translate-y-[-2px] transition-transform text-slate-500 hover:text-dark">
-                    <i data-lucide="settings" class="w-5 h-5"></i>
-                </button>
+            <!-- Mode Toggle Pill -->
+            <div class="absolute top-6 left-1/2 -translate-x-1/2 z-30">
+                <div class="flex items-center gap-1 glass-panel border-[1px] border-slate-300 dark:border-white/10 rounded-2xl p-1 shadow-neo-sm font-heading">
+                    <button id="btn-appmode-simple" onclick="app.setAppMode('simple')" class="app-mode-btn px-5 py-2 rounded-xl text-[11px] font-bold uppercase tracking-widest">Simple</button>
+                    <button id="btn-appmode-complex" onclick="app.setAppMode('complex')" class="app-mode-btn px-5 py-2 rounded-xl text-[11px] font-bold uppercase tracking-widest">Complex</button>
+                </div>
             </div>
 
-            <div class="absolute top-6 right-6 z-30 flex gap-3">
-                <button id="copy-btn" onclick="app.copyToClipboard()" class="btn-chunky bg-white dark:bg-slate-700 px-6 py-3 rounded-2xl text-sm font-bold flex items-center gap-2 tracking-widest">
-                    <i data-lucide="copy" class="w-4 h-4"></i> COPY
-                </button>
-                <button onclick="togglePanel('roster-panel')" class="p-2.5 glass-panel border-[1px] border-slate-300 dark:border-white/10 rounded-xl shadow-neo-sm hover:translate-y-[-2px] transition-transform text-slate-500 hover:text-dark">
-                    <i data-lucide="users" class="w-5 h-5"></i>
-                </button>
+            <!-- Toggle Buttons (complex only) -->
+            <div id="complex-ui" class="">
+                <div class="absolute top-6 left-6 z-30 flex gap-2">
+                    <button onclick="togglePanel('controls')" class="p-2.5 glass-panel border-[1px] border-slate-300 dark:border-white/10 rounded-xl shadow-neo-sm hover:translate-y-[-2px] transition-transform text-slate-500 hover:text-dark">
+                        <i data-lucide="settings" class="w-5 h-5"></i>
+                    </button>
+                </div>
+
+                <div class="absolute top-6 right-6 z-30 flex gap-3">
+                    <button id="copy-btn" onclick="app.copyToClipboard()" class="btn-chunky bg-white dark:bg-slate-700 px-6 py-3 rounded-2xl text-sm font-bold flex items-center gap-2 tracking-widest">
+                        <i data-lucide="copy" class="w-4 h-4"></i> COPY
+                    </button>
+                    <button onclick="togglePanel('roster-panel')" class="p-2.5 glass-panel border-[1px] border-slate-300 dark:border-white/10 rounded-xl shadow-neo-sm hover:translate-y-[-2px] transition-transform text-slate-500 hover:text-dark">
+                        <i data-lucide="users" class="w-5 h-5"></i>
+                    </button>
+                </div>
             </div>
 
-            <div class="flex-1 overflow-y-auto p-8 md:p-12 custom-scrollbar">
+            <!-- ═══════════════════════════════════════
+                 SIMPLE MODE PANEL
+            ════════════════════════════════════════ -->
+            <div id="simple-panel" class="hidden absolute inset-0 flex flex-col items-center justify-center z-20 p-6 md:p-12 gap-6 overflow-y-auto">
+                <div class="w-full max-w-2xl flex flex-col gap-5">
+                    <div class="text-center">
+                        <h2 class="font-heading text-4xl font-bold text-dark dark:text-white tracking-wide">TEAM<span class="text-blue">PICKER</span></h2>
+                        <p class="text-slate-400 text-sm font-bold mt-1">Paste names, pick teams, mix!</p>
+                    </div>
+
+                    <div class="glass-panel border-[1px] border-slate-300 dark:border-white/10 rounded-3xl p-6 shadow-neo space-y-4">
+                        <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Names — one per line or comma-separated</label>
+                        <textarea id="simple-input" class="w-full p-4 bg-white dark:bg-slate-900 text-dark dark:text-slate-200 font-mono text-sm border-[1px] border-slate-300 dark:border-white/10 rounded-2xl resize-none focus:ring-2 focus:ring-blue outline-none custom-scrollbar" rows="9" placeholder="Alice&#10;Bob, Charlie&#10;Daisy&#10;Eve, Frank"></textarea>
+
+                        <div class="flex flex-col sm:flex-row gap-4 items-center">
+                            <div class="flex-1 w-full">
+                                <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Grouping</label>
+                                <div class="flex p-1 bg-slate-100 dark:bg-slate-900 rounded-xl border-[1px] border-slate-300 dark:border-white/10 gap-1">
+                                    <button id="simple-btn-mode-teams" onclick="app.setSimpleMode('teams')" class="flex-1 py-2 text-[10px] font-bold rounded-lg transition-all">By Teams</button>
+                                    <button id="simple-btn-mode-members" onclick="app.setSimpleMode('members')" class="flex-1 py-2 text-[10px] font-bold rounded-lg transition-all">By Members</button>
+                                </div>
+                            </div>
+                            <div class="flex-1 w-full">
+                                <label id="simple-count-label" class="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Number of Teams</label>
+                                <div class="flex items-center gap-3">
+                                    <button onclick="app.adjustSimpleValue(-1)" class="btn-chunky bg-white dark:bg-slate-700 w-10 h-10 flex items-center justify-center rounded-xl shrink-0"><i data-lucide="minus" class="w-4 h-4"></i></button>
+                                    <div id="simple-count-display" class="flex-1 text-center font-heading font-bold text-2xl">2</div>
+                                    <button onclick="app.adjustSimpleValue(1)" class="btn-chunky bg-blue text-white w-10 h-10 flex items-center justify-center rounded-xl shrink-0"><i data-lucide="plus" class="w-4 h-4"></i></button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Simple Results -->
+                    <div id="simple-results" class="hidden glass-panel border-[1px] border-slate-300 dark:border-white/10 rounded-3xl p-6 shadow-neo">
+                        <div class="flex justify-between items-center mb-4">
+                            <h3 class="font-heading font-bold text-xl text-dark dark:text-white">Results</h3>
+                            <button onclick="app.copySimpleResults()" class="btn-chunky bg-white dark:bg-slate-700 px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2">
+                                <i data-lucide="copy" class="w-3.5 h-3.5"></i> COPY
+                            </button>
+                        </div>
+                        <div id="simple-results-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+                    </div>
+
+                    <button onclick="app.startSimpleGeneration()" class="btn-chunky bg-green text-dark py-5 rounded-[2rem] text-2xl font-black tracking-[0.15em] shadow-neo-lg self-center px-16 hover:scale-105 transition-all">
+                        MIX IT!
+                    </button>
+                </div>
+            </div>
+
+            <!-- ═══════════════════════════════════════
+                 COMPLEX MODE CONTENT
+            ════════════════════════════════════════ -->
+            <div id="complex-scroll" class="flex-1 overflow-y-auto p-8 md:p-12 custom-scrollbar">
                 <div id="view-results" class="relative min-h-full flex flex-col">
                     <div id="empty-state" class="absolute inset-0 flex flex-col items-center justify-center text-slate-400 pointer-events-none transition-opacity duration-300">
                         <div class="w-32 h-32 rounded-full bg-slate-200/50 dark:bg-slate-800/50 flex items-center justify-center mb-6 border-4 border-dashed border-slate-300 dark:border-slate-700">
@@ -440,6 +515,134 @@
             polySynth: null,
             hexColors: ['#FF6B95', '#FF8C42', '#00E676', '#2979FF', '#7C4DFF', '#00BCD4'],
             isGenerating: false,
+            appMode: 'simple',
+            simpleMode: 'teams',
+            simpleTeamCount: 2,
+            simpleMemberCount: 2,
+
+            /* ── App Mode (Simple vs Complex) ── */
+            setAppMode(mode) {
+                this.appMode = mode;
+                localStorage.setItem('e1_teampicker_appmode', mode);
+
+                const simplePanel = document.getElementById('simple-panel');
+                const complexUi = document.getElementById('complex-ui');
+                const mainScrollArea = document.getElementById('complex-scroll');
+                const mixBtn = document.getElementById('btn-generate');
+                const controls = document.getElementById('controls');
+                const roster = document.getElementById('roster-panel');
+
+                const activeTab = 'app-mode-btn active';
+                const inactiveTab = 'app-mode-btn';
+                document.getElementById('btn-appmode-simple').className = (mode === 'simple' ? activeTab : inactiveTab) + ' px-5 py-2 rounded-xl text-[11px] font-bold uppercase tracking-widest';
+                document.getElementById('btn-appmode-complex').className = (mode === 'complex' ? activeTab : inactiveTab) + ' px-5 py-2 rounded-xl text-[11px] font-bold uppercase tracking-widest';
+
+                if (mode === 'simple') {
+                    simplePanel?.classList.remove('hidden');
+                    complexUi?.classList.add('hidden');
+                    if (mainScrollArea) mainScrollArea.style.display = 'none';
+                    if (mixBtn) mixBtn.style.display = 'none';
+                    controls?.classList.add('simple-hidden');
+                    roster?.classList.add('simple-hidden');
+                } else {
+                    simplePanel?.classList.add('hidden');
+                    complexUi?.classList.remove('hidden');
+                    if (mainScrollArea) mainScrollArea.style.display = '';
+                    if (mixBtn) mixBtn.style.display = '';
+                    controls?.classList.remove('simple-hidden');
+                    roster?.classList.remove('simple-hidden');
+                }
+            },
+
+            /* ── Simple Mode ── */
+            setSimpleMode(mode) {
+                this.simpleMode = mode;
+                const active = 'flex-1 py-2 text-[10px] font-bold rounded-lg bg-blue text-white shadow-neo-sm';
+                const inactive = 'flex-1 py-2 text-[10px] font-bold rounded-lg text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700 transition-all';
+                document.getElementById('simple-btn-mode-teams').className = mode === 'teams' ? active : inactive;
+                document.getElementById('simple-btn-mode-members').className = mode === 'members' ? active : inactive;
+                document.getElementById('simple-count-label').innerText = mode === 'teams' ? 'Number of Teams' : 'Students Per Team';
+                document.getElementById('simple-count-display').innerText = mode === 'teams' ? this.simpleTeamCount : this.simpleMemberCount;
+            },
+
+            adjustSimpleValue(delta) {
+                if (this.simpleMode === 'teams') {
+                    this.simpleTeamCount = Math.min(20, Math.max(2, this.simpleTeamCount + delta));
+                } else {
+                    this.simpleMemberCount = Math.min(20, Math.max(2, this.simpleMemberCount + delta));
+                }
+                document.getElementById('simple-count-display').innerText = this.simpleMode === 'teams' ? this.simpleTeamCount : this.simpleMemberCount;
+            },
+
+            startSimpleGeneration() {
+                const input = document.getElementById('simple-input').value.trim();
+                if (!input) { this.showToast('Paste some names first!', 'error'); return; }
+
+                const names = input.split(/[,\n]+/).map(n => n.trim()).filter(n => n);
+                if (!names.length) { this.showToast('No valid names found.', 'error'); return; }
+
+                const teamCount = this.simpleMode === 'teams'
+                    ? this.simpleTeamCount
+                    : Math.ceil(names.length / this.simpleMemberCount);
+
+                if (names.length < teamCount) {
+                    this.showToast(`Need at least ${teamCount} names for ${teamCount} teams.`, 'error'); return;
+                }
+
+                const shuffled = [...names].sort(() => Math.random() - 0.5);
+                const teams = Array.from({ length: teamCount }, () => []);
+                shuffled.forEach((name, i) => {
+                    const idx = this.simpleMode === 'teams' ? i % teamCount : Math.floor(i / this.simpleMemberCount);
+                    teams[Math.min(idx, teamCount - 1)].push(name);
+                });
+
+                this.renderSimpleResults(teams);
+                this.playSound('success');
+                confetti({ particleCount: 120, spread: 70, origin: { y: 0.6 }, colors: this.hexColors });
+            },
+
+            renderSimpleResults(teams) {
+                const container = document.getElementById('simple-results-grid');
+                container.innerHTML = '';
+                teams.forEach((members, i) => {
+                    const color = this.hexColors[i % this.hexColors.length];
+                    const card = document.createElement('div');
+                    card.className = 'card-enter glass-panel border-[1px] border-slate-300 dark:border-white/10 rounded-2xl overflow-hidden shadow-neo-sm';
+                    card.style.animationDelay = `${i * 0.05}s`;
+                    card.innerHTML = `
+                        <div class="px-4 py-2.5 border-b border-black/5 flex justify-between items-center" style="background-color:${color}22">
+                            <h4 class="font-heading font-bold text-base tracking-wide" style="color:${color}">Team ${i + 1}</h4>
+                            <span class="text-xs font-black bg-white/50 dark:bg-black/20 px-2 py-0.5 rounded-full border border-black/5">${members.length}</span>
+                        </div>
+                        <ul class="p-3 space-y-1.5">
+                            ${members.map(name => `
+                            <li class="name-enter flex items-center gap-2 px-2 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-white/5">
+                                <div class="w-5 h-5 rounded-md bg-white dark:bg-slate-700 flex items-center justify-center shadow-sm shrink-0">
+                                    <i data-lucide="user" class="w-3 h-3 text-slate-400"></i>
+                                </div>
+                                <span class="font-bold text-sm text-slate-700 dark:text-slate-200 truncate">${name}</span>
+                            </li>`).join('')}
+                        </ul>
+                    `;
+                    container.appendChild(card);
+                });
+                lucide.createIcons();
+                document.getElementById('simple-results').classList.remove('hidden');
+                document.getElementById('simple-results').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            },
+
+            copySimpleResults() {
+                const grid = document.getElementById('simple-results-grid');
+                if (!grid.children.length) { this.showToast('Nothing to copy.', 'error'); return; }
+                let text = '';
+                grid.querySelectorAll('.card-enter').forEach((card, i) => {
+                    const names = Array.from(card.querySelectorAll('li span.truncate')).map(s => s.innerText.trim());
+                    text += `Team ${i + 1}: ${names.join(', ')}\n`;
+                });
+                navigator.clipboard.writeText(text.trim()).then(() => {
+                    this.showToast('Copied! ✅', 'success');
+                }).catch(() => this.showToast('Copy failed.', 'error'));
+            },
 
             /* ── Init ── */
             async init() {
@@ -473,6 +676,10 @@
                 this.renderClassSelector();
                 this.renderRoster();
                 this.setGenderMode(this.genderMode);
+
+                const savedAppMode = localStorage.getItem('e1_teampicker_appmode') || 'simple';
+                this.setAppMode(savedAppMode);
+                this.setSimpleMode(this.simpleMode);
             },
 
             /* ── Migration ── */
