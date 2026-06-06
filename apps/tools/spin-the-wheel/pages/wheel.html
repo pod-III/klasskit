@@ -430,6 +430,23 @@
                 overflow: hidden;
             }
 
+            /* RIGHT PANEL */
+            #config-panel {
+                transition:
+                    transform 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+                    width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            }
+
+            #config-panel.collapsed {
+                transform: translateX(100%);
+                width: 0;
+                min-width: 0;
+                padding: 0;
+                margin: 0;
+                border: none;
+                overflow: hidden;
+            }
+
             @media (max-width: 768px) {
                 #controls {
                     position: fixed;
@@ -446,6 +463,25 @@
 
                 #controls.collapsed {
                     transform: translateX(-100%);
+                    width: 85%;
+                    min-width: 300px;
+                }
+
+                #config-panel {
+                    position: fixed;
+                    top: 0;
+                    right: 0;
+                    height: 100vh;
+                    z-index: 100;
+                    transform: translateX(100%);
+                }
+
+                #config-panel.mobile-open {
+                    transform: translateX(0);
+                }
+
+                #config-panel.collapsed {
+                    transform: translateX(100%);
                     width: 85%;
                     min-width: 300px;
                 }
@@ -525,10 +561,10 @@
         <div
             class="console-frame w-full h-full relative flex z-10 rounded-none md:rounded-2xl"
         >
-            <!-- LEFT PANEL: CONTROLS -->
+            <!-- LEFT PANEL: LIBRARY + SPIN -->
             <aside
                 id="controls"
-                class="w-80 glass-panel border-r-[1px] border-slate-300 dark:border-white/10 flex flex-col z-50 h-full shrink-0"
+                class="w-72 glass-panel border-r-[1px] border-slate-300 dark:border-white/10 flex flex-col z-50 h-full shrink-0"
             >
                 <!-- Header -->
                 <div class="p-4 border-b-[1px] border-slate-300 dark:border-white/10 bg-slate-50/50 dark:bg-slate-800/50 flex flex-col gap-3 shrink-0">
@@ -546,14 +582,14 @@
                                 <i data-lucide="moon" class="w-4 h-4 hidden dark:block"></i>
                                 <i data-lucide="sun" class="w-4 h-4 block dark:hidden"></i>
                             </button>
-                            <button onclick="togglePanel()" class="md:hidden p-2 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg">
+                            <button onclick="toggleLeftPanel()" class="md:hidden p-2 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg">
                                 <i data-lucide="x" class="w-5 h-5"></i>
                             </button>
                         </div>
                     </div>
 
-                    <!-- ACTIVE INDICATOR (Pattern 4.1) -->
-                    <div id="active-indicator" class="hidden flex items-center justify-between bg-blue/10 border-[1px] border-blue/20 rounded-xl px-3 py-2 animate-pop-in">
+                    <!-- ACTIVE INDICATOR -->
+                    <div id="active-indicator" class="hidden flex items-center justify-between bg-blue/10 border-[1px] border-blue/20 rounded-xl px-3 py-2">
                         <div class="flex items-center gap-2 overflow-hidden">
                             <div class="w-2 h-2 rounded-full bg-blue animate-pulse"></div>
                             <span id="active-set-name" class="text-[10px] font-black text-blue uppercase tracking-widest truncate">Editing: Unsaved Set</span>
@@ -564,8 +600,8 @@
 
                 <!-- Content -->
                 <div class="flex-1 p-4 overflow-y-auto custom-scrollbar bg-transparent relative space-y-4">
-                    
-                    <!-- ACTION GRID (Pattern 4.2) -->
+
+                    <!-- ACTION GRID -->
                     <div class="grid grid-cols-2 gap-2">
                         <button onclick="newSet()" class="btn-chunky bg-white dark:bg-slate-700 text-dark dark:text-white py-2 rounded-xl text-xs flex items-center justify-center gap-2">
                             <i data-lucide="plus-circle" class="w-4 h-4"></i> NEW
@@ -575,7 +611,7 @@
                         </button>
                     </div>
 
-                    <!-- LIBRARY & SORTING (Pattern 4.3) -->
+                    <!-- LIBRARY -->
                     <div class="shrink-0 p-3 bg-slate-50/50 dark:bg-slate-800/50 border-[1px] border-slate-300 dark:border-white/10 rounded-xl shadow-sm">
                         <div class="flex justify-between items-center border-b-[1px] border-slate-200 dark:border-white/10 pb-2 mb-2">
                             <label class="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
@@ -588,63 +624,26 @@
                                 <option value="popular">Popular</option>
                             </select>
                         </div>
-
-                        <!-- Library List -->
-                        <div id="library-list" class="space-y-1 max-h-40 overflow-y-auto custom-scrollbar">
+                        <div id="library-list" class="space-y-1 max-h-52 overflow-y-auto custom-scrollbar">
                             <!-- Populated by JS -->
                         </div>
                     </div>
 
-                    <!-- WHEEL COUNT SELECTOR -->
-                    <div
-                        class="p-3 bg-slate-50/50 dark:bg-slate-800/50 border-[1px] border-slate-300 dark:border-white/10 rounded-xl shadow-sm"
-                    >
-                        <div
-                            class="flex justify-between items-center border-b-[1px] border-slate-200 dark:border-white/10 pb-2 mb-2"
-                        >
-                            <label
-                                class="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2"
-                            >
-                                <i
-                                    data-lucide="layers"
-                                    class="w-4 h-4 text-blue"
-                                ></i>
-                                Wheels to Spin
-                            </label>
-                        </div>
+                    <!-- WHEEL COUNT -->
+                    <div class="p-3 bg-slate-50/50 dark:bg-slate-800/50 border-[1px] border-slate-300 dark:border-white/10 rounded-xl shadow-sm">
+                        <label class="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2 mb-3">
+                            <i data-lucide="layers" class="w-4 h-4 text-blue"></i>
+                            Wheels to Spin
+                        </label>
                         <div class="flex gap-2">
-                            <button
-                                onclick="setWheelCount(1)"
-                                id="count-1"
-                                class="wheel-count-selector flex-1 btn-chunky py-2 rounded-xl text-xs font-bold"
-                            >
-                                <i
-                                    data-lucide="circle"
-                                    class="w-4 h-4 inline mr-1"
-                                ></i>
-                                1
+                            <button onclick="setWheelCount(1)" id="count-1" class="wheel-count-selector flex-1 btn-chunky py-2 rounded-xl text-xs font-bold">
+                                <i data-lucide="circle" class="w-4 h-4 inline mr-1"></i>1
                             </button>
-                            <button
-                                onclick="setWheelCount(2)"
-                                id="count-2"
-                                class="wheel-count-selector active flex-1 btn-chunky py-2 rounded-xl text-xs font-bold"
-                            >
-                                <i
-                                    data-lucide="circle-2"
-                                    class="w-4 h-4 inline mr-1"
-                                ></i>
-                                2
+                            <button onclick="setWheelCount(2)" id="count-2" class="wheel-count-selector active flex-1 btn-chunky py-2 rounded-xl text-xs font-bold">
+                                <i data-lucide="circle-2" class="w-4 h-4 inline mr-1"></i>2
                             </button>
-                            <button
-                                onclick="setWheelCount(3)"
-                                id="count-3"
-                                class="wheel-count-selector flex-1 btn-chunky py-2 rounded-xl text-xs font-bold"
-                            >
-                                <i
-                                    data-lucide="circle-3"
-                                    class="w-4 h-4 inline mr-1"
-                                ></i>
-                                3
+                            <button onclick="setWheelCount(3)" id="count-3" class="wheel-count-selector flex-1 btn-chunky py-2 rounded-xl text-xs font-bold">
+                                <i data-lucide="circle-3" class="w-4 h-4 inline mr-1"></i>3
                             </button>
                         </div>
                     </div>
@@ -653,133 +652,100 @@
                     <button
                         id="spinBtn"
                         onclick="spinAll()"
-                        class="w-full btn-chunky bg-gradient-to-r from-pink to-orange text-white dark:text-white py-5 rounded-xl text-lg tracking-widest flex items-center justify-center gap-3 hover:brightness-110 shadow-neo-lg group"
+                        class="w-full btn-chunky bg-gradient-to-r from-pink to-orange text-white py-5 rounded-xl text-lg tracking-widest flex items-center justify-center gap-3 hover:brightness-110 shadow-neo-lg group"
                     >
-                        <i
-                            data-lucide="dices"
-                            class="w-6 h-6 group-hover:rotate-180 transition-transform duration-500"
-                        ></i>
+                        <i data-lucide="dices" class="w-6 h-6 group-hover:rotate-180 transition-transform duration-500"></i>
                         SPIN
                     </button>
 
                     <!-- SETTINGS -->
-                    <div
-                        class="p-3 bg-slate-50/50 dark:bg-slate-800/50 border-[1px] border-slate-300 dark:border-white/10 rounded-xl shadow-sm space-y-3"
-                    >
-                        <div
-                            class="flex justify-between items-center border-b-[1px] border-slate-200 dark:border-white/10 pb-2"
-                        >
-                            <label
-                                class="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2"
-                            >
-                                <i
-                                    data-lucide="settings"
-                                    class="w-4 h-4 text-orange"
-                                ></i>
-                                Settings
-                            </label>
-                        </div>
-
+                    <div class="p-3 bg-slate-50/50 dark:bg-slate-800/50 border-[1px] border-slate-300 dark:border-white/10 rounded-xl shadow-sm space-y-3">
+                        <label class="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2 border-b-[1px] border-slate-200 dark:border-white/10 pb-2">
+                            <i data-lucide="settings" class="w-4 h-4 text-orange"></i>
+                            Settings
+                        </label>
                         <div class="space-y-1">
                             <div class="flex justify-between">
-                                <span
-                                    class="text-sm font-bold text-dark dark:text-slate-200"
-                                    >Duration</span
-                                >
-                                <span
-                                    id="duration-display"
-                                    class="text-xs font-mono font-bold text-blue bg-blue/10 px-2 py-0.5 rounded"
-                                    >5s</span
-                                >
+                                <span class="text-sm font-bold text-dark dark:text-slate-200">Duration</span>
+                                <span id="duration-display" class="text-xs font-mono font-bold text-blue bg-blue/10 px-2 py-0.5 rounded">5s</span>
                             </div>
-                            <input
-                                type="range"
-                                id="duration-slider"
-                                min="2"
-                                max="10"
-                                step="0.5"
-                                value="5"
-                                oninput="updateDuration(this.value)"
-                                class="w-full accent-blue"
-                            />
+                            <input type="range" id="duration-slider" min="2" max="10" step="0.5" value="5"
+                                oninput="updateDuration(this.value)" class="w-full accent-blue" />
                         </div>
-
                         <div class="flex items-center justify-between">
-                            <span
-                                class="text-sm font-bold text-dark dark:text-slate-200"
-                                >Sound</span
-                            >
+                            <span class="text-sm font-bold text-dark dark:text-slate-200">Sound</span>
                             <label class="switch">
-                                <input
-                                    type="checkbox"
-                                    id="sound-toggle"
-                                    checked
-                                />
+                                <input type="checkbox" id="sound-toggle" checked />
                                 <span class="slider"></span>
                             </label>
                         </div>
                     </div>
 
-                    <!-- WHEEL CONFIGURATION -->
-                    <div
-                        class="p-3 bg-slate-50/50 dark:bg-slate-800/50 border-[1px] border-slate-300 dark:border-white/10 rounded-xl shadow-sm"
-                    >
-                        <div
-                            class="flex justify-between items-center border-b-[1px] border-slate-200 dark:border-white/10 pb-2 mb-2"
-                        >
-                            <label
-                                class="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2"
-                            >
-                                <i
-                                    data-lucide="sliders"
-                                    class="w-4 h-4 text-green"
-                                ></i>
-                                Configure Wheels
+                    <!-- HISTORY -->
+                    <div class="p-3 bg-slate-50/50 dark:bg-slate-800/50 border-[1px] border-slate-300 dark:border-white/10 rounded-xl shadow-sm">
+                        <div class="flex justify-between items-center border-b-[1px] border-slate-200 dark:border-white/10 pb-2 mb-2">
+                            <label class="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                                <i data-lucide="history" class="w-4 h-4 text-purple"></i>
+                                History
                             </label>
+                            <div class="flex items-center gap-2">
+                                <span id="history-count" class="text-[10px] font-bold text-slate-400">0 spins</span>
+                                <button onclick="clearHistory()" class="text-[10px] font-bold text-pink hover:underline">Clear all</button>
+                            </div>
                         </div>
+                        <div class="text-xs font-mono text-slate-400 mb-2">
+                            Total: <span id="total-spins" class="text-blue font-bold">0</span>
+                        </div>
+                        <div id="history-list" class="space-y-1.5 max-h-48 overflow-y-auto custom-scrollbar">
+                            <!-- Populated by JS -->
+                        </div>
+                    </div>
+
+                </div>
+            </aside>
+
+            <!-- RIGHT PANEL: WHEEL CONFIG -->
+            <aside
+                id="config-panel"
+                class="w-80 glass-panel border-l-[1px] border-slate-300 dark:border-white/10 flex flex-col z-50 h-full shrink-0 order-last"
+            >
+                <!-- Header -->
+                <div class="p-4 border-b-[1px] border-slate-300 dark:border-white/10 bg-slate-50/50 dark:bg-slate-800/50 flex items-center justify-between shrink-0">
+                    <h2 class="text-sm font-heading font-bold text-dark dark:text-slate-100 tracking-wide">
+                        WHEEL <span class="text-green">CONFIG</span>
+                    </h2>
+                    <button onclick="toggleRightPanel()" class="md:hidden p-2 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg">
+                        <i data-lucide="x" class="w-5 h-5"></i>
+                    </button>
+                </div>
+
+                <!-- Content -->
+                <div class="flex-1 p-4 overflow-y-auto custom-scrollbar bg-transparent space-y-4">
+
+                    <!-- WHEEL CONFIGURATION -->
+                    <div class="p-3 bg-slate-50/50 dark:bg-slate-800/50 border-[1px] border-slate-300 dark:border-white/10 rounded-xl shadow-sm">
+                        <label class="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2 border-b-[1px] border-slate-200 dark:border-white/10 pb-2 mb-3">
+                            <i data-lucide="sliders" class="w-4 h-4 text-green"></i>
+                            Configure Wheels
+                        </label>
 
                         <!-- Wheel Tabs -->
                         <div class="flex gap-1 mb-3" id="config-tabs">
-                            <button
-                                onclick="switchConfigWheel(0)"
-                                id="config-tab-0"
-                                class="flex-1 btn-chunky bg-blue text-white py-2 rounded-lg text-xs font-bold"
-                            >
-                                Wheel A
-                            </button>
-                            <button
-                                onclick="switchConfigWheel(1)"
-                                id="config-tab-1"
-                                class="flex-1 btn-chunky bg-white dark:bg-slate-700 text-dark dark:text-slate-200 py-2 rounded-lg text-xs font-bold"
-                            >
-                                Wheel B
-                            </button>
-                            <button
-                                onclick="switchConfigWheel(2)"
-                                id="config-tab-2"
-                                class="flex-1 btn-chunky bg-white dark:bg-slate-700 text-dark dark:text-slate-200 py-2 rounded-lg text-xs font-bold hidden"
-                            >
-                                Wheel C
-                            </button>
+                            <button onclick="switchConfigWheel(0)" id="config-tab-0"
+                                class="flex-1 btn-chunky bg-blue text-white py-2 rounded-lg text-xs font-bold">Wheel A</button>
+                            <button onclick="switchConfigWheel(1)" id="config-tab-1"
+                                class="flex-1 btn-chunky bg-white dark:bg-slate-700 text-dark dark:text-slate-200 py-2 rounded-lg text-xs font-bold">Wheel B</button>
+                            <button onclick="switchConfigWheel(2)" id="config-tab-2"
+                                class="flex-1 btn-chunky bg-white dark:bg-slate-700 text-dark dark:text-slate-200 py-2 rounded-lg text-xs font-bold hidden">Wheel C</button>
                         </div>
 
-                        <!-- Current Wheel Info -->
-                        <div
-                            class="mb-2 p-2 bg-white/50 dark:bg-slate-900/50 rounded-lg"
-                        >
-                            <div class="flex justify-between items-center">
-                                <span class="text-xs text-slate-500 font-bold"
-                                    >Items</span
-                                >
-                                <span
-                                    id="current-wheel-count"
-                                    class="font-mono font-bold text-blue"
-                                    >0</span
-                                >
-                            </div>
+                        <!-- Item count badge -->
+                        <div class="mb-3 px-3 py-1.5 bg-white/50 dark:bg-slate-900/50 rounded-lg flex justify-between items-center">
+                            <span class="text-xs text-slate-500 font-bold">Items in wheel</span>
+                            <span id="current-wheel-count" class="font-mono font-bold text-blue text-sm">0</span>
                         </div>
 
-                        <!-- Add Item -->
+                        <!-- Add Image -->
                         <button
                             onclick="document.getElementById('img-upload-input').click()"
                             class="btn-chunky w-full bg-blue text-white py-2.5 rounded-xl text-xs flex items-center justify-center gap-2 mb-2"
@@ -787,71 +753,45 @@
                             <i data-lucide="image-plus" class="w-4 h-4"></i> ADD IMAGE(S)
                         </button>
                         <input type="file" id="img-upload-input" accept="image/*" multiple class="hidden" onchange="addImageOptions(this)" />
-                        <div class="flex gap-2 mb-2">
-                            <input
-                                type="text"
-                                id="option-input"
-                                placeholder="Or add text item..."
+
+                        <!-- Add Text -->
+                        <div class="flex gap-2 mb-3">
+                            <input type="text" id="option-input" placeholder="Or add text item..."
                                 class="flex-1 border-[1px] border-slate-300 dark:border-white/10 rounded-lg px-3 py-2 font-bold text-dark dark:text-slate-200 text-sm bg-white/50 dark:bg-slate-900/50 focus:outline-none focus:border-blue focus:ring-1 focus:ring-blue"
-                                onkeydown="if(event.key==='Enter') addOption()"
-                            />
-                            <button
-                                onclick="addOption()"
-                                class="btn-chunky bg-green text-dark px-3 rounded-lg"
-                                title="Add text item"
-                            >
+                                onkeydown="if(event.key==='Enter') addOption()" />
+                            <button onclick="addOption()" class="btn-chunky bg-green text-dark px-3 rounded-lg" title="Add text item">
                                 <i data-lucide="plus" class="w-4 h-4"></i>
                             </button>
                         </div>
 
                         <!-- Batch Edit -->
-                        <button
-                            onclick="toggleBatch()"
-                            class="text-xs text-blue font-bold hover:underline mb-2"
-                        >
+                        <button onclick="toggleBatch()" class="text-xs text-blue font-bold hover:underline mb-2 block">
                             Batch Edit
                         </button>
-
-                        <div id="batch-container" class="hidden mb-2">
-                            <textarea
-                                id="batch-input"
-                                rows="3"
+                        <div id="batch-container" class="hidden mb-3">
+                            <textarea id="batch-input" rows="3"
                                 class="w-full p-2 bg-white/50 dark:bg-slate-900/50 text-dark dark:text-slate-200 font-mono text-xs border-[1px] border-slate-300 dark:border-white/10 rounded-lg resize-none mb-2"
-                                placeholder="One item per line..."
-                            ></textarea>
-                            <button
-                                onclick="saveBatch()"
-                                class="w-full btn-chunky bg-dark text-white py-2 rounded-lg text-xs"
-                            >
+                                placeholder="One item per line..."></textarea>
+                            <button onclick="saveBatch()" class="w-full btn-chunky bg-dark text-white py-2 rounded-lg text-xs">
                                 Update Wheel
                             </button>
                         </div>
 
-                        <!-- Items List -->
-                        <div
-                            id="items-list"
-                            class="flex flex-col gap-1.5 max-h-48 overflow-y-auto custom-scrollbar"
-                        >
+                        <!-- Items List (grows to fill available space) -->
+                        <div id="items-list" class="flex flex-col gap-1.5 overflow-y-auto custom-scrollbar" style="max-height: calc(100vh - 520px); min-height: 80px;">
                             <!-- Populated by JS -->
                         </div>
                     </div>
+
                 </div>
 
                 <!-- Footer -->
-                <div
-                    class="p-3 border-t-[1px] border-slate-300 dark:border-white/10 bg-slate-50/50 dark:bg-slate-800/50 flex justify-between items-center shrink-0"
-                >
-                    <div class="flex items-center gap-2">
-                        <button
-                            onclick="clearCurrentWheel()"
-                            class="p-2 bg-white dark:bg-slate-700 border-[1px] border-slate-300 dark:border-white/10 rounded-lg text-slate-400 hover:text-pink transition-colors"
-                        >
-                            <i data-lucide="trash-2" class="w-4 h-4"></i>
-                        </button>
-                    </div>
-                    <div
-                        class="font-heading font-black text-slate-400 text-xs uppercase tracking-wider"
-                    >
+                <div class="p-3 border-t-[1px] border-slate-300 dark:border-white/10 bg-slate-50/50 dark:bg-slate-800/50 flex justify-between items-center shrink-0">
+                    <button onclick="clearCurrentWheel()"
+                        class="p-2 bg-white dark:bg-slate-700 border-[1px] border-slate-300 dark:border-white/10 rounded-lg text-slate-400 hover:text-pink transition-colors">
+                        <i data-lucide="trash-2" class="w-4 h-4"></i>
+                    </button>
+                    <div class="font-heading font-black text-slate-400 text-xs uppercase tracking-wider">
                         TOTAL: <span id="total-items" class="text-blue">0</span>
                     </div>
                 </div>
@@ -862,22 +802,18 @@
                 id="main-area"
                 class="flex-1 relative h-full bg-slate-50/50 dark:bg-slate-900/50 flex flex-col overflow-hidden transition-colors duration-300"
             >
-                <!-- Toggle Panel Button -->
-                <button
-                    id="panel-toggle"
-                    onclick="togglePanel()"
+                <!-- Left panel toggle -->
+                <button id="left-toggle-btn" onclick="toggleLeftPanel()"
                     class="absolute top-4 left-4 z-30 p-2 glass-panel border-[1px] border-slate-300 dark:border-white/10 rounded-xl shadow-neo-sm hover:translate-y-[-2px] transition-transform text-slate-500 hover:text-dark dark:hover:text-slate-200"
-                >
-                    <i data-lucide="panel-left-close" class="w-5 h-5"></i>
+                    title="Toggle Library panel">
+                    <i data-lucide="panel-left-close" class="w-5 h-5" id="left-toggle-icon"></i>
                 </button>
 
-                <!-- Show Panel Button (when collapsed) -->
-                <button
-                    id="show-panel-btn"
-                    onclick="togglePanel()"
-                    class="hidden absolute top-4 left-4 z-30 p-2 glass-panel border-[1px] border-slate-300 dark:border-white/10 rounded-xl shadow-neo-sm hover:translate-y-[-2px] transition-transform text-slate-500 hover:text-dark dark:hover:text-slate-200"
-                >
-                    <i data-lucide="panel-left-open" class="w-5 h-5"></i>
+                <!-- Right panel toggle -->
+                <button id="right-toggle-btn" onclick="toggleRightPanel()"
+                    class="absolute top-4 right-4 z-30 p-2 glass-panel border-[1px] border-slate-300 dark:border-white/10 rounded-xl shadow-neo-sm hover:translate-y-[-2px] transition-transform text-slate-500 hover:text-dark dark:hover:text-slate-200"
+                    title="Toggle Config panel">
+                    <i data-lucide="panel-right-close" class="w-5 h-5" id="right-toggle-icon"></i>
                 </button>
 
                 <!-- Wheels Display - Dynamic sizing -->
@@ -1018,7 +954,6 @@
         let isMuted = false;
         let audioInitialized = false;
         let synth, winSynth;
-        let panelOpen = true;
 
         // Persistence Helpers
         function getLibrary() {
@@ -1235,18 +1170,40 @@
                 document.documentElement.classList.add("dark");
         }
 
-        function togglePanel() {
-            const controls = document.getElementById("controls");
-            const isMobile = window.innerWidth < 768;
-            panelOpen = !panelOpen;
+        let leftPanelOpen = true;
+        let rightPanelOpen = true;
 
+        function toggleLeftPanel() {
+            const panel = document.getElementById("controls");
+            const icon = document.getElementById("left-toggle-icon");
+            const isMobile = window.innerWidth < 768;
+            leftPanelOpen = !leftPanelOpen;
             if (isMobile) {
-                controls.classList.toggle("mobile-open", panelOpen);
+                panel.classList.toggle("mobile-open", leftPanelOpen);
             } else {
-                controls.classList.toggle("collapsed", !panelOpen);
+                panel.classList.toggle("collapsed", !leftPanelOpen);
             }
+            icon.setAttribute("data-lucide", leftPanelOpen ? "panel-left-close" : "panel-left-open");
+            lucide.createIcons();
             setTimeout(() => { for (let i = 0; i < 3; i++) drawWheel(i); }, 350);
         }
+
+        function toggleRightPanel() {
+            const panel = document.getElementById("config-panel");
+            const icon = document.getElementById("right-toggle-icon");
+            const isMobile = window.innerWidth < 768;
+            rightPanelOpen = !rightPanelOpen;
+            if (isMobile) {
+                panel.classList.toggle("mobile-open", rightPanelOpen);
+            } else {
+                panel.classList.toggle("collapsed", !rightPanelOpen);
+            }
+            icon.setAttribute("data-lucide", rightPanelOpen ? "panel-right-close" : "panel-right-open");
+            lucide.createIcons();
+            setTimeout(() => { for (let i = 0; i < 3; i++) drawWheel(i); }, 350);
+        }
+
+        function togglePanel() { toggleLeftPanel(); }
 
         // Toast
         function showToast(message, type = "info") {
@@ -1810,14 +1767,28 @@
                 list.innerHTML = '<p class="text-xs text-slate-400 text-center py-4 italic">No spins yet...</p>';
                 return;
             }
-            list.innerHTML = appState.data.history.slice(0, 20).map(h => `
-                <div class="flex items-center gap-2 p-2 bg-white/50 dark:bg-slate-800/50 rounded-lg border-[1px] border-slate-200 dark:border-white/10">
-                    <div class="flex-1">
-                        <p class="font-bold text-[10px] text-dark dark:text-slate-200 truncate">${h.winners.map(w => w.item).join(" • ")}</p>
-                        <p class="text-[8px] text-slate-400">${new Date(h.timestamp).toLocaleTimeString()}</p>
+            list.innerHTML = appState.data.history.slice(0, 20).map((h, i) => {
+                const label = h.winners.map(w => optText(w.item) || '(image)').join(' • ');
+                const time  = new Date(h.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                return `
+                <div class="flex items-center gap-2 p-2 bg-white/50 dark:bg-slate-800/50 rounded-lg border-[1px] border-slate-200 dark:border-white/10 group">
+                    <div class="flex-1 min-w-0">
+                        <p class="font-bold text-[10px] text-dark dark:text-slate-200 truncate">${label}</p>
+                        <p class="text-[8px] text-slate-400">${time}</p>
                     </div>
-                </div>
-            `).join("");
+                    <button onclick="removeHistoryEntry(${i})" class="opacity-0 group-hover:opacity-100 text-slate-300 hover:text-pink transition-all shrink-0" title="Remove">
+                        <i data-lucide="x" class="w-3 h-3"></i>
+                    </button>
+                </div>`;
+            }).join("");
+            lucide.createIcons();
+        }
+
+        function removeHistoryEntry(index) {
+            appState.data.history.splice(index, 1);
+            onContentChange();
+            updateHistoryDisplay();
+            updateStats();
         }
 
         function updateStats() { 
