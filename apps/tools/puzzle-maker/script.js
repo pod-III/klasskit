@@ -7,6 +7,7 @@ let activePageIndex = -1;
 let src = null;
 let seed = Math.random() * 9e5;
 let S = { rows:4, cols:4, style:'straight', color:'#ffffff', width:2, opacity:1, depth:.5, freq:3 };
+let printOrientation = 'portrait';
 
 // ── IndexedDB for Puzzle Images ──────────────────────────────────────────────
 const DB_NAME = 'klasskit_puzzle_db';
@@ -363,6 +364,17 @@ document.querySelectorAll('.style-btn').forEach(b => {
   });
 });
 
+// ── Print Orientation ────────────────────────────────────────────────────────
+['orientPortrait','orientLandscape'].forEach(id => {
+  const btn = document.getElementById(id);
+  if (!btn) return;
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('[data-orient]').forEach(x => x.classList.remove('active'));
+    btn.classList.add('active');
+    printOrientation = btn.dataset.orient;
+  });
+});
+
 // ── Color ──────────────────────────────────────────────────────────────────
 document.querySelectorAll('.swatch[data-color]').forEach(sw => {
   sw.addEventListener('click', () => {
@@ -445,8 +457,19 @@ document.getElementById('printBtn').addEventListener('click', () => {
     printArea.appendChild(pageDiv);
   });
   
+  // Inject dynamic @page rule for orientation
+  let pageStyle = document.getElementById('printPageStyle');
+  if (pageStyle) pageStyle.remove();
+  pageStyle = document.createElement('style');
+  pageStyle.id = 'printPageStyle';
+  pageStyle.textContent = `@media print { @page { size: A4 ${printOrientation}; margin: 0; } }`;
+  document.head.appendChild(pageStyle);
+
   // Trigger system print dialog
   window.print();
+
+  // Clean up injected style after print dialog closes
+  setTimeout(() => { if (pageStyle) pageStyle.remove(); }, 1000);
 });
 
 // ── RNG ────────────────────────────────────────────────────────────────────
