@@ -804,6 +804,10 @@
         let isSpinning = false;
         let audioInitialized = false;
         let synth, winSynth;
+        // Data model helpers
+        const optText = p => (typeof p === 'object' && p !== null) ? (p.name || '') : (p || '');
+        const optImg  = p => (typeof p === 'object' && p !== null) ? (p.img  || null) : null;
+
         let leftPanelOpen = true, rightPanelOpen = true;
         let lastSegment = -1;
         let currentWinner = -1;
@@ -998,10 +1002,16 @@
             return appState.data.players.reduce((sum, p) => sum + (parseFloat(p.weight) || 0), 0);
         }
 
-        function drawWheel() {
+        async function drawWheel() {
             const canvas = document.getElementById("wheel-canvas");
             const ctx = canvas.getContext("2d");
             ctx.clearRect(0, 0, 800, 800);
+            // Preload all images so they render synchronously on canvas
+            await Promise.all(appState.data.players.map(p => {
+                const src = optImg(p);
+                if (!src) return Promise.resolve();
+                return new Promise(res => { const img = new Image(); img.onload = img.onerror = res; img.src = src; });
+            }));
             const totalWeight = getTotalWeight();
 
             if (appState.data.players.length === 0 || totalWeight === 0) {
@@ -1044,7 +1054,21 @@
                 const textRadius = 260;
                 ctx.translate(400 + Math.cos(midAngle) * textRadius, 400 + Math.sin(midAngle) * textRadius);
                 ctx.rotate(midAngle);
-                const text = p.name;
+                const text = optText(p);
+                const img  = optImg(p);
+                if (img && sliceAngle > 0.3) {
+                    try {
+                        const imgEl = new Image();
+                        imgEl.src = img;
+                        const r = 28;
+                        ctx.save();
+                        ctx.beginPath();
+                        ctx.arc(-r - 8, 0, r, 0, 2 * Math.PI);
+                        ctx.clip();
+                        ctx.drawImage(imgEl, -r * 2 - 8, -r, r * 2, r * 2);
+                        ctx.restore();
+                    } catch(e) {}
+                }
                 if (text.length > 15) ctx.font = '700 24px "Nunito"';
                 else if (text.length > 8) ctx.font = '700 32px "Nunito"';
                 else ctx.font = '700 48px "Nunito"';
@@ -1124,7 +1148,20 @@
             const winner = appState.data.players[winnerIdx];
             const totalWeight = getTotalWeight();
             const percentage = ((winner.weight / totalWeight) * 100).toFixed(1);
-            document.getElementById("winner-name").textContent = winner.name;
+            const winnerName = optText(winner);
+            const winnerImg  = optImg(winner);
+            document.getElementById("winner-name").textContent = winnerName;
+            const avatarEl = document.querySelector('#winner-modal .w-20');
+            if (avatarEl) {
+                if (winnerImg) {
+                    avatarEl.innerHTML = `<img src="${winnerImg}" class="w-full h-full object-cover rounded-full" />`;
+                    avatarEl.className = 'w-20 h-20 rounded-full overflow-hidden border-4 border-green animate-bounce';
+                } else {
+                    avatarEl.innerHTML = '<i data-lucide="trophy" class="w-10 h-10"></i>';
+                    avatarEl.className = 'w-20 h-20 bg-green/10 rounded-full flex items-center justify-center border-4 border-green text-green animate-bounce';
+                    lucide.createIcons();
+                }
+            }
             document.getElementById("winner-odds").textContent = `${percentage}% chance`;
             const modal = document.getElementById("winner-modal");
             modal.classList.remove("hidden");
@@ -1168,15 +1205,19 @@
             const totalWeight = getTotalWeight();
 
             list.innerHTML = appState.data.players.map((p, i) => {
+                const text = optText(p);
+                const img  = optImg(p);
                 const percentage = totalWeight > 0 ? ((p.weight / totalWeight) * 100).toFixed(1) : 0;
                 const colors = ["bg-pink", "bg-orange", "bg-green", "bg-blue"];
                 const color = colors[i % 4];
 
                 return `
                     <div class="flex items-center gap-2 p-2 bg-white/50 dark:bg-slate-900/50 rounded-lg border-[1px] border-slate-200 dark:border-white/10 group transition-all">
-                        <div class="w-2.5 h-2.5 rounded-full ${color} shrink-0"></div>
+                        ${img
+                            ? `<img src="${img}" class="w-7 h-7 rounded-full object-cover shrink-0 border-2 border-white shadow" />`
+                            : `<div class="w-2.5 h-2.5 rounded-full ${color} shrink-0"></div>`}
                         <div class="flex-1 min-w-0">
-                            <div class="font-black text-[10px] uppercase tracking-tight text-dark dark:text-slate-200 truncate">${p.name}</div>
+                            <div class="font-black text-[10px] uppercase tracking-tight text-dark dark:text-slate-200 truncate">${text}</div>
                             <div class="odds-bar mt-1">
                                 <div class="odds-fill ${color}" style="width: ${percentage}%"></div>
                             </div>
@@ -1201,7 +1242,7 @@
             const input = document.getElementById("player-input");
             const val = input.value.trim();
             if (!val) return;
-            appState.data.players.push({ name: val, weight: 1 });
+            appState.data.players.push({ name: val, img: null, weight: 1 });
             input.value = "";
             onContentChange();
             renderPlayers();
@@ -1247,7 +1288,7 @@
             const lines = input.value.split("\n").filter(l => l.trim());
             appState.data.players = lines.map(line => {
                 const parts = line.split(",").map(s => s.trim());
-                return { name: parts[0], weight: parseFloat(parts[1]) || 1 };
+                return { name: parts[0], img: null, weight: parseFloat(parts[1]) || 1 };
             }).filter(p => p.name);
             onContentChange();
             toggleBatch();
@@ -1330,14 +1371,17 @@
             showToast(`Adding ${files.length} image${files.length > 1 ? 's' : ''}...`, 'info');
             const promises = files.map(file => new Promise(resolve => {
                 const name = file.name.replace(/\.[^.]+$/, '');
-                resolve({ name, weight: 1 });
+                const readLocal = () => { const r = new FileReader(); r.onload = e => resolve({ name, img: e.target.result, weight: 1 }); r.readAsDataURL(file); };
+                if (typeof isSandbox === 'function' && !isSandbox() && typeof uploadMedia === 'function') {
+                    uploadMedia(file, 'spinodds', 'players').then(url => resolve({ name, img: url, weight: 1 })).catch(readLocal);
+                } else { readLocal(); }
             }));
             const items = await Promise.all(promises);
-            items.forEach(({ name, weight }) => appState.data.players.push({ name, weight }));
+            items.forEach(item => appState.data.players.push({ name: item.name, img: item.img, weight: item.weight }));
             onContentChange();
             drawWheel();
-            renderPlayerList();
-            showToast(`Added ${files.length} item${files.length > 1 ? 's' : ''}`, 'success');
+            renderPlayers();
+            showToast(`Added ${files.length} image${files.length > 1 ? 's' : ''}`, 'success');
         }
 
         function showToast(message, type = "info") {

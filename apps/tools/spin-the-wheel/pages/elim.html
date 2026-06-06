@@ -713,6 +713,10 @@
         let isMuted = false;
         let audioInitialized = false;
         let synth, noiseSynth, winSynth;
+        // Data model helpers
+        const optText = p => (typeof p === 'object' && p !== null) ? (p.name || '') : (p || '');
+        const optImg  = p => (typeof p === 'object' && p !== null) ? (p.img  || null) : null;
+
         let leftPanelOpen = true, rightPanelOpen = true;
 
         function toggleLeftPanel() {
@@ -742,14 +746,19 @@
             if (!files.length) return;
             fileInput.value = '';
             showToast(`Adding ${files.length} image${files.length > 1 ? 's' : ''}...`, 'info');
-            files.forEach(file => {
+            const promises = files.map(file => new Promise(resolve => {
                 const name = file.name.replace(/\.[^.]+$/, '');
-                appState.data.participants.push(name);
-            });
+                const readLocal = () => { const r = new FileReader(); r.onload = e => resolve({ name, img: e.target.result }); r.readAsDataURL(file); };
+                if (typeof isSandbox === 'function' && !isSandbox() && typeof uploadMedia === 'function') {
+                    uploadMedia(file, 'elimgrid', 'participants').then(url => resolve({ name, img: url })).catch(readLocal);
+                } else { readLocal(); }
+            }));
+            const items = await Promise.all(promises);
+            items.forEach(item => appState.data.participants.push({ name: item.name, img: item.img }));
             onContentChange();
             renderList();
             renderGrid();
-            showToast(`Added ${files.length} item${files.length > 1 ? 's' : ''}`, 'success');
+            showToast(`Added ${files.length} image${files.length > 1 ? 's' : ''}`, 'success');
         }
 
         // Persistence Helpers
@@ -950,24 +959,34 @@
 
             emptyState.classList.add("hidden");
 
-            appState.data.participants.forEach((name, i) => {
+            appState.data.participants.forEach((p, i) => {
+                const name = optText(p);
+                const img  = optImg(p);
                 const isEliminated = appState.data.eliminatedIndices.includes(i);
                 const card = document.createElement("div");
                 card.id = `card-${i}`;
-                card.className = `grid-card relative rounded-2xl p-4 min-h-[100px] flex flex-col items-center justify-center cursor-pointer select-none ${isEliminated ? "eliminated" : ""}`;
+                card.className = `grid-card relative rounded-2xl overflow-hidden min-h-[100px] flex flex-col items-center justify-center cursor-pointer select-none ${isEliminated ? "eliminated" : ""}`;
                 card.onclick = () => manualToggle(i);
 
                 const display = name.length > 15 ? name.substring(0, 13) + "..." : name;
                 const fontSize = name.length > 10 ? "text-sm" : name.length > 6 ? "text-base" : "text-lg";
 
-                card.innerHTML = `
-                    <div class="text-center font-heading font-bold text-dark dark:text-white break-words w-full leading-tight ${fontSize}" title="${name}">
-                        ${display}
-                    </div>
-                    <div class="elimination-mark">
-                        <i data-lucide="x" class="w-12 h-12 text-pink stroke-[3]"></i>
-                    </div>
-                `;
+                if (img) {
+                    card.innerHTML = `
+                        <img src="${img}" class="absolute inset-0 w-full h-full object-cover" />
+                        <div class="relative z-10 w-full text-center font-heading font-bold text-white text-xs px-2 py-1 bg-black/50 backdrop-blur-sm mt-auto" title="${name}">${display}</div>
+                        <div class="elimination-mark">
+                            <i data-lucide="x" class="w-12 h-12 text-pink stroke-[3]"></i>
+                        </div>
+                    `;
+                } else {
+                    card.innerHTML = `
+                        <div class="p-4 text-center font-heading font-bold text-dark dark:text-white break-words w-full leading-tight ${fontSize}" title="${name}">${display}</div>
+                        <div class="elimination-mark">
+                            <i data-lucide="x" class="w-12 h-12 text-pink stroke-[3]"></i>
+                        </div>
+                    `;
+                }
                 grid.appendChild(card);
             });
 
@@ -977,14 +996,20 @@
 
         function renderList() {
             const list = document.getElementById("optionsList");
-            list.innerHTML = appState.data.participants.map((name, i) => `
-                <div class="flex items-center gap-1 bg-white dark:bg-slate-700 border-[1px] border-slate-300 dark:border-white/10 rounded-lg px-2 py-1 text-[10px] font-black text-dark dark:text-slate-200 shadow-neo-sm uppercase tracking-tighter transition-all">
-                    ${name}
-                    <button onclick="removeParticipant(${i})" class="ml-1 text-slate-400 hover:text-pink">
+            list.innerHTML = appState.data.participants.map((p, i) => {
+                const text = optText(p);
+                const img  = optImg(p);
+                return `
+                <div class="flex items-center gap-1.5 bg-white dark:bg-slate-700 border-[1px] border-slate-300 dark:border-white/10 rounded-lg px-2 py-1 shadow-neo-sm">
+                    ${img
+                        ? `<img src="${img}" class="w-6 h-6 rounded object-cover shrink-0" />`
+                        : `<div class="w-6 h-6 rounded bg-pink/20 flex items-center justify-center text-[9px] font-black text-pink shrink-0">${text.charAt(0).toUpperCase()}</div>`}
+                    <span class="text-[10px] font-black text-dark dark:text-slate-200 truncate max-w-[100px]">${text}</span>
+                    <button onclick="removeParticipant(${i})" class="ml-auto text-slate-400 hover:text-pink">
                         <i data-lucide="x" class="w-3 h-3"></i>
                     </button>
-                </div>
-            `).join("");
+                </div>`;
+            }).join("");
             lucide.createIcons();
         }
 
@@ -1009,8 +1034,7 @@
             const input = document.getElementById("optionInput");
             const name = input.value.trim();
             if (!name) return;
-
-            appState.data.participants.push(name);
+            appState.data.participants.push({ name, img: null });
             input.value = "";
             onContentChange();
             renderGrid();
@@ -1032,14 +1056,14 @@
             const container = document.getElementById("batchContainer");
             const input = document.getElementById("batchInput");
             if (container.classList.contains("hidden")) {
-                input.value = appState.data.participants.join("\n");
+                input.value = appState.data.participants.map(p => optText(p)).join("\n");
                 container.classList.remove("hidden");
             } else container.classList.add("hidden");
         }
 
         function saveBatch() {
             const input = document.getElementById("batchInput");
-            appState.data.participants = input.value.split(/[\n,]+/).map(s => s.trim()).filter(s => s.length > 0);
+            appState.data.participants = input.value.split(/[\n,]+/).map(s => s.trim()).filter(s => s.length > 0).map(n => ({ name: n, img: null }));
             appState.data.eliminatedIndices = [];
             onContentChange();
             toggleBatch();

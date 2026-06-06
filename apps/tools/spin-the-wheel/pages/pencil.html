@@ -1072,6 +1072,10 @@
             }, 2500);
         }
 
+        // Data model helpers (backward-compat with plain strings)
+        const optText = p => (typeof p === 'object' && p !== null) ? (p.name || '') : (p || '');
+        const optImg  = p => (typeof p === 'object' && p !== null) ? (p.img  || null) : null;
+
         let leftPanelOpen = true, rightPanelOpen = true;
 
         function toggleLeftPanel() {
@@ -1105,18 +1109,13 @@
             showToast(`Adding ${files.length} image${files.length > 1 ? 's' : ''}...`, 'info');
             const promises = files.map(file => new Promise(resolve => {
                 const name = file.name.replace(/\.[^.]+$/, '');
+                const readLocal = () => { const r = new FileReader(); r.onload = e => resolve({ name, img: e.target.result }); r.readAsDataURL(file); };
                 if (typeof isSandbox === 'function' && !isSandbox() && typeof uploadMedia === 'function') {
-                    uploadMedia(file, 'classspin', 'players')
-                        .then(url => resolve({ name, img: url }))
-                        .catch(() => { const r = new FileReader(); r.onload = e => resolve({ name, img: e.target.result }); r.readAsDataURL(file); });
-                } else {
-                    const r = new FileReader();
-                    r.onload = e => resolve({ name, img: e.target.result });
-                    r.readAsDataURL(file);
-                }
+                    uploadMedia(file, 'classspin', 'players').then(url => resolve({ name, img: url })).catch(readLocal);
+                } else { readLocal(); }
             }));
             const newItems = await Promise.all(promises);
-            newItems.forEach(item => appState.data.players.push(item.name));
+            newItems.forEach(item => appState.data.players.push({ name: item.name, img: item.img }));
             onContentChange();
             renderPlayers();
             renderPlayerChips();
@@ -1328,7 +1327,7 @@
             document.getElementById("batch-container").classList.toggle("hidden", !isBatchMode);
             document.getElementById("player-input-inline").parentElement.classList.toggle("hidden", isBatchMode);
             if (isBatchMode) {
-                document.getElementById("batch-input").value = appState.data.players.join("\n");
+                document.getElementById("batch-input").value = appState.data.players.map(p => optText(p)).join("\n");
             }
         }
 
@@ -1336,8 +1335,7 @@
             const input = document.getElementById("player-input-inline");
             const name = input.value.trim();
             if (!name) return;
-
-            appState.data.players.push(name);
+            appState.data.players.push({ name, img: null });
             input.value = "";
             onContentChange();
             updateUI();
@@ -1349,7 +1347,7 @@
             appState.data.players.splice(index, 1);
             onContentChange();
             updateUI();
-            showToast(`Removed ${removed}`, "info");
+            showToast(`Removed ${optText(removed)}`, "info");
         }
 
         function saveBatch() {
@@ -1364,7 +1362,7 @@
                 return;
             }
 
-            appState.data.players = newPlayers;
+            appState.data.players = newPlayers.map(n => ({ name: n, img: null }));
             toggleBatch();
             onContentChange();
             updateUI();
@@ -1373,25 +1371,27 @@
 
         function renderPlayerChips() {
             const list = document.getElementById("player-list-chips");
-            list.innerHTML = appState.data.players
-                .map(
-                    (p, i) => `
-                <div class="flex items-center gap-1 bg-white dark:bg-slate-700 border-[1px] border-slate-300 dark:border-white/10 rounded-lg px-2 py-1 text-xs font-bold text-dark dark:text-slate-200 shadow-neo-sm">
-                    ${p}
-                    <button onclick="removePlayer(${i})" class="text-slate-400 hover:text-pink">
+            list.innerHTML = appState.data.players.map((p, i) => {
+                const text = optText(p);
+                const img  = optImg(p);
+                return `
+                <div class="flex items-center gap-1.5 bg-white dark:bg-slate-700 border-[1px] border-slate-300 dark:border-white/10 rounded-lg px-2 py-1 shadow-neo-sm">
+                    ${img
+                        ? `<img src="${img}" class="w-6 h-6 rounded object-cover shrink-0" />`
+                        : `<div class="w-6 h-6 rounded bg-pink/20 flex items-center justify-center text-[9px] font-black text-pink shrink-0">${text.charAt(0).toUpperCase()}</div>`}
+                    <span class="text-xs font-bold text-dark dark:text-slate-200 truncate max-w-[100px]">${text}</span>
+                    <button onclick="removePlayer(${i})" class="text-slate-400 hover:text-pink ml-auto">
                         <i data-lucide="x" class="w-3 h-3"></i>
                     </button>
-                </div>
-            `,
-                )
-                .join("");
+                </div>`;
+            }).join("");
             lucide.createIcons();
         }
 
         function renderPlayers() {
             container.innerHTML = "";
 
-            const activePlayers = appState.data.players.map((p, i) => ({ name: p, originalIndex: i }))
+            const activePlayers = appState.data.players.map((p, i) => ({ raw: p, name: optText(p), originalIndex: i }))
                 .filter(p => !eliminatedIndices.has(p.originalIndex));
 
             const count = activePlayers.length;
@@ -1410,6 +1410,8 @@
                 const x = Math.cos(angleRad) * radius;
                 const y = Math.sin(angleRad) * radius;
                 const colorClass = palette[player.originalIndex % palette.length];
+                const text = optText(player.raw);
+                const img  = optImg(player.raw);
 
                 const label = document.createElement("div");
                 label.className = `player-bubble absolute flex flex-col items-center justify-center transform -translate-x-1/2 -translate-y-1/2`;
@@ -1417,19 +1419,18 @@
                 label.style.top = `calc(50% + ${y}px)`;
                 label.dataset.index = player.originalIndex;
 
-                const textSize =
-                    window.innerWidth < 640
-                        ? "text-xs px-2 py-1"
-                        : "text-sm px-4 py-2";
-                const maxWidth =
-                    window.innerWidth < 640
-                        ? "max-w-[90px]"
-                        : "max-w-[140px]";
+                const isMobile = window.innerWidth < 640;
+                const bubbleSize = isMobile ? 'w-10 h-10' : 'w-14 h-14';
+                const fontSize   = isMobile ? 'text-[9px]' : 'text-[10px]';
 
-                label.innerHTML = `
-                    <div class="${colorClass} ${textSize} ${maxWidth} text-white border-[1px] border-slate-300 dark:border-white/20 rounded-xl shadow-neo font-bold truncate">
-                        ${player.name}
+                label.innerHTML = img ? `
+                    <div class="${bubbleSize} rounded-full overflow-hidden border-2 border-white shadow-neo">
+                        <img src="${img}" class="w-full h-full object-cover" />
                     </div>
+                    <div class="mt-1 ${fontSize} font-black text-dark dark:text-white bg-white/80 dark:bg-slate-800/80 px-1.5 py-0.5 rounded-md truncate max-w-[80px] text-center">${text}</div>
+                    <div class="mt-0.5 w-2 h-2 rounded-full bg-slate-300 dark:bg-slate-600"></div>
+                ` : `
+                    <div class="${colorClass} ${isMobile ? 'text-xs px-2 py-1 max-w-[90px]' : 'text-sm px-4 py-2 max-w-[140px]'} text-white border-[1px] border-slate-300 dark:border-white/20 rounded-xl shadow-neo font-bold truncate">${text}</div>
                     <div class="mt-1 w-2 h-2 rounded-full bg-slate-300 dark:bg-slate-600"></div>
                 `;
                 container.appendChild(label);
@@ -1539,7 +1540,7 @@
         }
 
         function determineWinner(angle) {
-            const activePlayers = appState.data.players.map((p, i) => ({ name: p, originalIndex: i }))
+            const activePlayers = appState.data.players.map((p, i) => ({ raw: p, name: optText(p), img: optImg(p), originalIndex: i }))
                 .filter(p => !eliminatedIndices.has(p.originalIndex));
             const count = activePlayers.length;
             const segmentSize = 360 / count;
@@ -1548,6 +1549,7 @@
             const winner = activePlayers[winningIndex];
             lastWinner = {
                 name: winner.name,
+                img: winner.img || null,
                 index: winner.originalIndex,
                 angle: angle,
                 timestamp: new Date(),
@@ -1576,7 +1578,12 @@
             const backdrop = document.getElementById("winner-backdrop");
 
             document.getElementById("winner-name").textContent = winner.name;
-            document.getElementById("winner-avatar").textContent = winner.name.charAt(0).toUpperCase();
+            const avatarEl = document.getElementById("winner-avatar");
+            if (winner.img) {
+                avatarEl.innerHTML = `<img src="${winner.img}" class="w-full h-full object-cover rounded-full" />`;
+            } else {
+                avatarEl.textContent = winner.name.charAt(0).toUpperCase();
+            }
             document.getElementById("winner-class").textContent = appState.data.name || "Unsaved Class";
 
             const removeBtn = document.getElementById("remove-btn");
@@ -1678,24 +1685,12 @@
 
                 if (!isMobile) {
                     controls.classList.remove("mobile-open");
-                    if (!panelOpen) {
+                    if (!leftPanelOpen) {
                         controls.classList.add("collapsed");
-                        document
-                            .getElementById("panel-toggle")
-                            .classList.add("hidden");
-                        document
-                            .getElementById("show-panel-btn")
-                            .classList.remove("hidden");
                     }
                 } else {
                     controls.classList.remove("collapsed");
-                    document
-                        .getElementById("panel-toggle")
-                        .classList.remove("hidden");
-                    document
-                        .getElementById("show-panel-btn")
-                        .classList.add("hidden");
-                    if (!panelOpen) {
+                    if (!leftPanelOpen) {
                         controls.classList.remove("mobile-open");
                     }
                 }
