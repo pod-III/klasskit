@@ -511,6 +511,114 @@
             to { transform: rotate(360deg); }
         }
 
+        /* Player Control Bar */
+        .player-controls {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+        .seek-row {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            width: 100%;
+        }
+        .seek-row input[type="range"] {
+            flex: 1;
+            -webkit-appearance: none;
+            appearance: none;
+            height: 6px;
+            border-radius: 999px;
+            background: #cbd5e1;
+            outline: none;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .seek-row input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: #1ea7fd;
+            cursor: pointer;
+            border: 2px solid white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+        .seek-row input[type="range"]::-moz-range-thumb {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: #1ea7fd;
+            cursor: pointer;
+            border: 2px solid white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+        .time-label {
+            font-family: 'Nunito', sans-serif;
+            font-weight: 700;
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            min-width: 38px;
+            text-align: center;
+        }
+        .ctrl-btn-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+        }
+        .ctrl-group {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .vol-slider {
+            width: 70px;
+            -webkit-appearance: none;
+            appearance: none;
+            height: 5px;
+            border-radius: 999px;
+            background: #cbd5e1;
+            outline: none;
+            cursor: pointer;
+        }
+        .vol-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #1ea7fd;
+            cursor: pointer;
+            border: 2px solid white;
+        }
+        .vol-slider::-moz-range-thumb {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #1ea7fd;
+            cursor: pointer;
+            border: 2px solid white;
+        }
+        .speed-btn {
+            font-family: 'Fredoka', sans-serif;
+            font-weight: 600;
+            font-size: 0.65rem;
+            padding: 0.25rem 0.4rem;
+        }
+        .speed-btn.active {
+            background: #1ea7fd !important;
+            color: white !important;
+        }
+        #playerWrap:fullscreen,
+        #playerWrap:-webkit-full-screen {
+            width: 100vw !important;
+            height: 100vh !important;
+            aspect-ratio: unset !important;
+            border: none !important;
+            border-radius: 0 !important;
+        }
+
         /* Responsive */
         @media (max-width: 768px) {
             .view {
@@ -768,36 +876,64 @@
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 max-w-[1350px] mx-auto w-full">
             <!-- Left Column: Video Player & Metadata -->
             <div class="lg:col-span-2 flex flex-col gap-4">
-                <div class="w-full aspect-video bg-black border-[3px] border-[var(--border-primary)] rounded-3xl shadow-neo overflow-hidden relative">
+                <div id="playerWrap" class="w-full aspect-video bg-black border-[3px] border-[var(--border-primary)] rounded-3xl shadow-neo overflow-hidden relative">
                     <div id="player"></div>
                 </div>
                 <!-- Video Controls & Metadata Card -->
                 <div class="glass-panel border-[var(--border-width-thick)] border-[var(--border-primary)] rounded-3xl p-5 shadow-neo-sm bg-white dark:bg-slate-900/40">
-                    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                        <div>
-                            <h3 id="player-video-title" class="font-heading text-xl font-bold text-dark dark:text-white">Video Title</h3>
-                            <div class="flex flex-wrap items-center gap-2.5 mt-2">
-                                <span id="player-video-category" class="category-badge">Category</span>
-                                <span id="player-video-date" class="text-xs font-bold text-slate-400">Added Date</span>
-                            </div>
+                    <!-- Title Row -->
+                    <div class="mb-3">
+                        <h3 id="player-video-title" class="font-heading text-xl font-bold text-dark dark:text-white">Video Title</h3>
+                        <div class="flex flex-wrap items-center gap-2.5 mt-1.5">
+                            <span id="player-video-category" class="category-badge">Category</span>
+                            <span id="player-video-date" class="text-xs font-bold text-slate-400">Added Date</span>
                         </div>
-                        <div class="flex items-center gap-2">
-                            <!-- Prev Button -->
-                            <button id="player-prev-btn" onclick="playPrevVideo()" class="btn-chunky bg-white dark:bg-slate-800 p-2.5 rounded-lg text-xs" title="Previous Video" aria-label="Play previous video">
-                                <i data-lucide="skip-back" class="w-4 h-4"></i>
-                            </button>
-                            <!-- Next Button -->
-                            <button id="player-next-btn" onclick="playNextVideo()" class="btn-chunky bg-white dark:bg-slate-800 p-2.5 rounded-lg text-xs" title="Next Video" aria-label="Play next video">
-                                <i data-lucide="skip-forward" class="w-4 h-4"></i>
-                            </button>
-                            <!-- Autoplay Next Button -->
-                            <button id="player-autoplay-btn" onclick="toggleAutoplayNext()" class="btn-chunky bg-white dark:bg-slate-800 p-2.5 rounded-lg text-xs" title="Autoplay Next" aria-label="Toggle autoplay next video">
-                                <i data-lucide="fast-forward" class="w-4 h-4"></i>
-                            </button>
-                            <!-- Favorite Button -->
-                            <button id="player-fav-btn" onclick="togglePlayerFavorite()" class="btn-chunky bg-white dark:bg-slate-800 p-2.5 rounded-lg text-xs text-yellow-500" title="Favorite" aria-label="Toggle favorite for current video">
-                                <i data-lucide="star" class="w-4 h-4"></i>
-                            </button>
+                    </div>
+                    <!-- Control Bar -->
+                    <div class="player-controls">
+                        <!-- Seek Bar -->
+                        <div class="seek-row">
+                            <span id="curTime" class="time-label">0:00</span>
+                            <input type="range" id="seekBar" min="0" max="1000" value="0" oninput="seekVideo(this.value)">
+                            <span id="durTime" class="time-label">0:00</span>
+                        </div>
+                        <!-- Buttons -->
+                        <div class="ctrl-btn-row">
+                            <div class="ctrl-group">
+                                <button id="player-prev-btn" onclick="playPrevVideo()" class="btn-chunky bg-white dark:bg-slate-800 p-2.5 rounded-lg text-xs" title="Previous" aria-label="Previous video">
+                                    <i data-lucide="skip-back" class="w-4 h-4"></i>
+                                </button>
+                                <button id="player-play-btn" onclick="togglePlayPause()" class="btn-chunky bg-blue text-white p-2.5 rounded-lg text-xs" title="Play / Pause" aria-label="Play or pause">
+                                    <i data-lucide="play" class="w-4 h-4" id="playPauseIcon"></i>
+                                </button>
+                                <button id="player-next-btn" onclick="playNextVideo()" class="btn-chunky bg-white dark:bg-slate-800 p-2.5 rounded-lg text-xs" title="Next" aria-label="Next video">
+                                    <i data-lucide="skip-forward" class="w-4 h-4"></i>
+                                </button>
+                            </div>
+                            <div class="ctrl-group">
+                                <button id="player-mute-btn" onclick="togglePlayerMute()" class="btn-chunky bg-white dark:bg-slate-800 p-2 rounded-lg text-xs" title="Mute" aria-label="Toggle mute">
+                                    <i data-lucide="volume-2" class="w-4 h-4" id="muteIcon"></i>
+                                </button>
+                                <input type="range" id="volSlider" class="vol-slider" min="0" max="100" value="100" oninput="setPlayerVolume(this.value)">
+                                <button id="player-loop-btn" onclick="togglePlayerLoop()" class="btn-chunky bg-white dark:bg-slate-800 p-2 rounded-lg text-xs speed-btn" title="Loop" aria-label="Toggle loop">
+                                    <i data-lucide="repeat" class="w-3.5 h-3.5"></i>
+                                </button>
+                                <button onclick="setPlayerSpeed(0.5)" id="spd05" class="btn-chunky bg-white dark:bg-slate-800 rounded-lg text-xs speed-btn">0.5×</button>
+                                <button onclick="setPlayerSpeed(1)" id="spd1" class="btn-chunky bg-white dark:bg-slate-800 rounded-lg text-xs speed-btn active">1×</button>
+                                <button onclick="setPlayerSpeed(1.5)" id="spd15" class="btn-chunky bg-white dark:bg-slate-800 rounded-lg text-xs speed-btn">1.5×</button>
+                                <button onclick="setPlayerSpeed(2)" id="spd2" class="btn-chunky bg-white dark:bg-slate-800 rounded-lg text-xs speed-btn">2×</button>
+                                <button onclick="togglePlayerFullscreen()" class="btn-chunky bg-white dark:bg-slate-800 p-2 rounded-lg text-xs" title="Fullscreen" aria-label="Toggle fullscreen">
+                                    <i data-lucide="maximize" class="w-4 h-4"></i>
+                                </button>
+                            </div>
+                            <div class="ctrl-group">
+                                <button id="player-autoplay-btn" onclick="toggleAutoplayNext()" class="btn-chunky bg-white dark:bg-slate-800 p-2.5 rounded-lg text-xs" title="Autoplay Next" aria-label="Toggle autoplay next video">
+                                    <i data-lucide="fast-forward" class="w-4 h-4"></i>
+                                </button>
+                                <button id="player-fav-btn" onclick="togglePlayerFavorite()" class="btn-chunky bg-white dark:bg-slate-800 p-2.5 rounded-lg text-xs text-yellow-500" title="Favorite" aria-label="Toggle favorite for current video">
+                                    <i data-lucide="star" class="w-4 h-4"></i>
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -1020,6 +1156,11 @@
         let managingPlaylistsVideoId = null;
         let isPlayingFromPlaylist = false;
         let autoplayNext = localStorage.getItem('youtube_autoplay_next') === 'true';
+        let playerLoop = false;
+        let playerMuted = false;
+        let playerVolume = 100;
+        let currentSpeed = 1;
+        let seekPoller = null;
 
         // --- THEME MANAGER ---
         const Theme = {
@@ -1115,8 +1256,9 @@
             document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
             document.getElementById(`view-${viewName}`).classList.add('active');
             
-            if (viewName === 'library' && player) {
-                player.stopVideo();
+            if (viewName === 'library') {
+                stopSeekPoller();
+                if (player) player.stopVideo();
             }
         }
 
@@ -2000,6 +2142,11 @@
                         'rel': 0
                     },
                     events: {
+                        'onReady': function(e) {
+                            e.target.setVolume(playerVolume);
+                            if (playerMuted) e.target.mute();
+                            e.target.setPlaybackRate(currentSpeed);
+                        },
                         'onStateChange': onPlayerStateChange
                     }
                 });
@@ -2018,6 +2165,14 @@
             // Nav buttons & Favorite indicator
             updatePlayerFavBtn(video.favorite);
             updatePlayerNavButtons();
+            updatePlayPauseBtn(false);
+            updateLoopBtn();
+            updateSpeedBtns();
+            document.getElementById('volSlider').value = playerVolume;
+            document.getElementById('seekBar').value = 0;
+            document.getElementById('curTime').textContent = '0:00';
+            document.getElementById('durTime').textContent = '0:00';
+            startSeekPoller();
 
             // Render right side Recommendations & Queue list
             renderRecommendations();
@@ -2075,8 +2230,16 @@
         }
 
         function onPlayerStateChange(event) {
-            if (event.data === YT.PlayerState.ENDED) {
-                if (autoplayNext) {
+            if (event.data === YT.PlayerState.PLAYING) {
+                updatePlayPauseBtn(true);
+            } else if (event.data === YT.PlayerState.PAUSED) {
+                updatePlayPauseBtn(false);
+            } else if (event.data === YT.PlayerState.ENDED) {
+                updatePlayPauseBtn(false);
+                if (playerLoop) {
+                    player.seekTo(0, true);
+                    player.playVideo();
+                } else if (autoplayNext) {
                     playNextVideo();
                 }
             }
@@ -2238,6 +2401,142 @@
             });
 
             lucide.createIcons();
+        }
+
+        // ── Player Control Functions ──
+
+        function togglePlayPause() {
+            if (!player || !player.getPlayerState) return;
+            const state = player.getPlayerState();
+            if (state === YT.PlayerState.PLAYING) {
+                player.pauseVideo();
+            } else {
+                player.playVideo();
+            }
+        }
+
+        function updatePlayPauseBtn(playing) {
+            const icon = document.getElementById('playPauseIcon');
+            if (!icon) return;
+            icon.setAttribute('data-lucide', playing ? 'pause' : 'play');
+            lucide.createIcons();
+        }
+
+        function seekVideo(val) {
+            if (!player || !player.getDuration) return;
+            const dur = player.getDuration();
+            if (!dur) return;
+            const pct = val / 1000;
+            player.seekTo(dur * pct, true);
+        }
+
+        function startSeekPoller() {
+            stopSeekPoller();
+            seekPoller = setInterval(() => {
+                if (!player || !player.getCurrentTime || !player.getDuration) return;
+                try {
+                    const cur = player.getCurrentTime() || 0;
+                    const dur = player.getDuration() || 0;
+                    if (dur) {
+                        document.getElementById('seekBar').value = (cur / dur) * 1000;
+                        document.getElementById('curTime').textContent = formatTime(cur);
+                        document.getElementById('durTime').textContent = formatTime(dur);
+                    }
+                } catch (e) {}
+            }, 500);
+        }
+
+        function stopSeekPoller() {
+            if (seekPoller) {
+                clearInterval(seekPoller);
+                seekPoller = null;
+            }
+        }
+
+        function setPlayerVolume(val) {
+            playerVolume = parseInt(val, 10);
+            if (player && player.setVolume) {
+                player.setVolume(playerVolume);
+            }
+            if (playerVolume > 0 && playerMuted) {
+                playerMuted = false;
+                if (player && player.unMute) player.unMute();
+                updateMuteBtn();
+            }
+        }
+
+        function togglePlayerMute() {
+            if (!player) return;
+            playerMuted = !playerMuted;
+            if (playerMuted) {
+                player.mute();
+            } else {
+                player.unMute();
+                player.setVolume(playerVolume);
+            }
+            updateMuteBtn();
+        }
+
+        function updateMuteBtn() {
+            const icon = document.getElementById('muteIcon');
+            if (!icon) return;
+            icon.setAttribute('data-lucide', playerMuted ? 'volume-x' : 'volume-2');
+            lucide.createIcons();
+        }
+
+        function setPlayerSpeed(rate) {
+            if (!player || !player.setPlaybackRate) return;
+            currentSpeed = rate;
+            player.setPlaybackRate(rate);
+            updateSpeedBtns();
+        }
+
+        function updateSpeedBtns() {
+            ['0.5','1','1.5','2'].forEach(r => {
+                const btn = document.getElementById('spd' + r.replace('.',''));
+                if (!btn) return;
+                const val = parseFloat(r);
+                if (Math.abs(val - currentSpeed) < 0.01) {
+                    btn.classList.add('active');
+                } else {
+                    btn.classList.remove('active');
+                }
+            });
+        }
+
+        function togglePlayerLoop() {
+            playerLoop = !playerLoop;
+            updateLoopBtn();
+        }
+
+        function updateLoopBtn() {
+            const btn = document.getElementById('player-loop-btn');
+            if (!btn) return;
+            if (playerLoop) {
+                btn.classList.add('bg-blue', 'text-white');
+                btn.classList.remove('bg-white', 'dark:bg-slate-800');
+            } else {
+                btn.classList.remove('bg-blue', 'text-white');
+                btn.classList.add('bg-white', 'dark:bg-slate-800');
+            }
+        }
+
+        function togglePlayerFullscreen() {
+            const wrap = document.getElementById('playerWrap');
+            if (!wrap) return;
+            if (document.fullscreenElement || document.webkitFullscreenElement) {
+                if (document.exitFullscreen) document.exitFullscreen();
+                else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+            } else {
+                if (wrap.requestFullscreen) wrap.requestFullscreen();
+                else if (wrap.webkitRequestFullscreen) wrap.webkitRequestFullscreen();
+            }
+        }
+
+        function formatTime(seconds) {
+            const m = Math.floor(seconds / 60);
+            const s = Math.floor(seconds % 60);
+            return m + ':' + (s < 10 ? '0' : '') + s;
         }
 
         // Start
