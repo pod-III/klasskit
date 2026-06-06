@@ -2,28 +2,28 @@
 const CONFIG = {
     colors: ['pink', 'orange', 'green', 'blue', 'purple', 'red', 'teal', 'indigo'],
     sizes: {
-        vocab: { 
-            xs: 'text-sm', sm: 'text-lg', md: 'text-2xl', lg: 'text-4xl', 
-            xl: 'text-6xl', '2xl': 'text-7xl', '3xl': 'text-8xl' 
+        vocab: {
+            auto: 'autofit-text', xs: 'text-sm', sm: 'text-lg', md: 'text-2xl', lg: 'text-4xl',
+            xl: 'text-6xl', '2xl': 'text-7xl', '3xl': 'text-8xl'
         },
-        text: { 
-            xs: 'text-sm leading-tight', sm: 'text-lg leading-snug', md: 'text-2xl leading-relaxed', 
-            lg: 'text-4xl leading-tight', xl: 'text-6xl leading-none', '2xl': 'text-7xl leading-none', '3xl': 'text-8xl leading-none' 
+        text: {
+            auto: 'autofit-text', xs: 'text-sm leading-tight', sm: 'text-lg leading-snug', md: 'text-2xl leading-relaxed',
+            lg: 'text-4xl leading-tight', xl: 'text-6xl leading-none', '2xl': 'text-7xl leading-none', '3xl': 'text-8xl leading-none'
         },
-        table: { 
-            xs: 'text-[10px]', sm: 'text-xs', md: 'text-base', lg: 'text-xl', 
-            xl: 'text-2xl', '2xl': 'text-3xl', '3xl': 'text-4xl' 
+        table: {
+            auto: 'autofit-text', xs: 'text-[10px]', sm: 'text-xs', md: 'text-base', lg: 'text-xl',
+            xl: 'text-2xl', '2xl': 'text-3xl', '3xl': 'text-4xl'
         },
-        note: { 
-            xs: 'text-xl', sm: 'text-2xl', md: 'text-4xl', lg: 'text-6xl', 
-            xl: 'text-8xl', '2xl': 'text-9xl', '3xl': 'text-[10rem]' 
+        note: {
+            auto: 'autofit-text', xs: 'text-xl', sm: 'text-2xl', md: 'text-4xl', lg: 'text-6xl',
+            xl: 'text-8xl', '2xl': 'text-9xl', '3xl': 'text-[10rem]'
         },
-        formula: { 
-            xs: 'text-lg', sm: 'text-xl', md: 'text-3xl', lg: 'text-5xl', 
-            xl: 'text-7xl', '2xl': 'text-8xl', '3xl': 'text-9xl' 
+        formula: {
+            auto: 'autofit-text', xs: 'text-lg', sm: 'text-xl', md: 'text-3xl', lg: 'text-5xl',
+            xl: 'text-7xl', '2xl': 'text-8xl', '3xl': 'text-9xl'
         },
         title: {
-            xs: 'text-lg', sm: 'text-xl', md: 'text-2xl', lg: 'text-4xl', 
+            auto: 'autofit-text', xs: 'text-lg', sm: 'text-xl', md: 'text-2xl', lg: 'text-4xl',
             xl: 'text-5xl', '2xl': 'text-6xl', '3xl': 'text-7xl'
         }
     }
@@ -53,10 +53,10 @@ const ModuleRegistry = {
         `,
         render: (d, c, fs) => {
             const fontClasses = {
-                xs: 'text-lg', sm: 'text-xl', md: 'text-3xl', lg: 'text-5xl', xl: 'text-6xl', '2xl': 'text-7xl', '3xl': 'text-8xl'
+                auto: 'autofit-text', xs: 'text-lg', sm: 'text-xl', md: 'text-3xl', lg: 'text-5xl', xl: 'text-6xl', '2xl': 'text-7xl', '3xl': 'text-8xl'
             };
             const headerFontClasses = {
-                xs: 'text-[10px]', sm: 'text-[11px]', md: 'text-xs', lg: 'text-sm', xl: 'text-base', '2xl': 'text-lg', '3xl': 'text-xl'
+                auto: 'text-xs', xs: 'text-[10px]', sm: 'text-[11px]', md: 'text-xs', lg: 'text-sm', xl: 'text-base', '2xl': 'text-lg', '3xl': 'text-xl'
             };
             const fCls = fontClasses[fs] || fontClasses.md;
             const hCls = headerFontClasses[fs] || headerFontClasses.md;
@@ -97,10 +97,10 @@ const ModuleRegistry = {
         },
         render: (d, c, fs) => {
             const fontClasses = {
-                xs: 'text-sm', sm: 'text-lg', md: 'text-xl', lg: 'text-2xl', xl: 'text-3xl', '2xl': 'text-4xl', '3xl': 'text-5xl'
+                auto: 'autofit-text', xs: 'text-sm', sm: 'text-lg', md: 'text-xl', lg: 'text-2xl', xl: 'text-3xl', '2xl': 'text-4xl', '3xl': 'text-5xl'
             };
             const bubbleClasses = {
-                xs: 'w-4 h-4 text-[9px]', sm: 'w-5 h-5 text-[10px]', md: 'w-6 h-6 text-xs', lg: 'w-8 h-8 text-sm', xl: 'w-10 h-10 text-base', '2xl': 'w-12 h-12 text-lg', '3xl': 'w-14 h-14 text-xl'
+                auto: 'w-6 h-6 text-xs', xs: 'w-4 h-4 text-[9px]', sm: 'w-5 h-5 text-[10px]', md: 'w-6 h-6 text-xs', lg: 'w-8 h-8 text-sm', xl: 'w-10 h-10 text-base', '2xl': 'w-12 h-12 text-lg', '3xl': 'w-14 h-14 text-xl'
             };
             const fCls = fontClasses[fs] || fontClasses.md;
             const bCls = bubbleClasses[fs] || bubbleClasses.md;
@@ -127,7 +127,7 @@ const ModuleRegistry = {
         inputs: (id, d) => `<label class="l">Formula</label><input class="inp font-heading font-black text-xl mb-2" value="${d.formula || ''}" oninput="Store.updateMod('${id}','data.formula',this.value)"><label class="l">Example</label><textarea class="inp-area font-hand text-xl h-24" oninput="Store.updateMod('${id}','data.example',this.value)">${d.example || ''}</textarea>`,
         render: (d, c, fs) => {
             const exampleClasses = {
-                xs: 'text-base', sm: 'text-lg', md: 'text-2xl', lg: 'text-4xl', xl: 'text-5xl', '2xl': 'text-6xl', '3xl': 'text-7xl'
+                auto: 'autofit-text', xs: 'text-base', sm: 'text-lg', md: 'text-2xl', lg: 'text-4xl', xl: 'text-5xl', '2xl': 'text-6xl', '3xl': 'text-7xl'
             };
             const exCls = exampleClasses[fs] || exampleClasses.md;
             return `<div class="p-8 text-center h-full flex flex-col justify-center" style="background: var(--surface-card)"><div class="mb-4 font-heading font-black text-brand-${c} px-6 py-4 rounded-xl border-2 border-brand-${c} border-dashed ${CONFIG.sizes.formula[fs] || CONFIG.sizes.formula.md}" style="background-color: var(--bg-brand-${c}-tint)">${d.formula || ''}</div><p class="font-hand opacity-80 ${exCls}" style="color: var(--text-secondary)">"${d.example || ''}"</p></div>`;
@@ -569,7 +569,7 @@ const App = {
                 Store.triggerSave();
             });
         });
-        ['layout', 'pattern'].forEach(k => {
+        ['layout', 'pattern', 'gridSize'].forEach(k => {
             document.getElementById(`global_${k}`).addEventListener('change', e => {
                 Store.updateGlobal(k, e.target.value);
                 if (k === 'layout') {
@@ -606,6 +606,7 @@ const App = {
         document.getElementById('global_badge').value = g.badge || '';
         document.getElementById('global_layout').value = g.layout || 'landscape';
         document.getElementById('global_pattern').value = g.pattern || 'graph';
+        document.getElementById('global_gridSize').value = g.gridSize || 'md';
 
         const sel = document.getElementById('project-select');
         sel.innerHTML = Store.state.posters.map(p => `<option value="${p.id}" ${p.id === Store.current.id ? 'selected' : ''}>${p.global.title}</option>`).join('');
@@ -688,6 +689,30 @@ const App = {
         const el = document.getElementById('help-modal');
         if (el.classList.contains('hidden')) { el.classList.remove('hidden'); el.classList.add('flex'); } else { el.classList.add('hidden'); el.classList.remove('flex'); }
     },
+    toggleSettingsMenu(e) {
+        e.stopPropagation();
+        const menu = document.getElementById('settings-menu');
+        if (menu.classList.contains('hidden')) {
+            menu.classList.remove('hidden');
+            // Close when clicking outside
+            setTimeout(() => {
+                document.addEventListener('click', App.closeSettingsMenuOnClickOutside, { once: true });
+            }, 0);
+        } else {
+            App.closeSettingsMenu();
+        }
+    },
+    closeSettingsMenu() {
+        const menu = document.getElementById('settings-menu');
+        if (menu) menu.classList.add('hidden');
+    },
+    closeSettingsMenuOnClickOutside(e) {
+        const menu = document.getElementById('settings-menu');
+        const btn = document.getElementById('settings-menu-btn');
+        if (menu && !menu.contains(e.target) && btn && !btn.contains(e.target)) {
+            menu.classList.add('hidden');
+        }
+    },
     openImageSelector(modId, key = 'imageId') {
         App.currentImageModId = modId;
         App.currentImageKey = key;
@@ -731,7 +756,7 @@ const App = {
     deleteImageAsset(id) { if (confirm('Delete image?')) Store.deleteImage(id).then(App.refreshImageLibrary); },
     switchPoster(id) { Store.state.currentId = id; Store.loadCurrent(); App.updateUI(); Renderer.renderPoster(); App.fitToScreen(); },
     createNewPoster() {
-        const newP = { id: crypto.randomUUID(), lastModified: Date.now(), zoom: 0.5, global: { title: 'UNTITLED', subtitle: 'New Project', badge: '1', layout: 'landscape', pattern: 'graph' }, modules: [] };
+        const newP = { id: crypto.randomUUID(), lastModified: Date.now(), zoom: 0.5, global: { title: 'UNTITLED', subtitle: 'New Project', badge: '1', layout: 'landscape', pattern: 'graph', gridSize: 'md' }, modules: [] };
         Store.state.posters.push(newP); App.switchPoster(newP.id);
     },
     cyclePoster(dir) {
@@ -878,6 +903,7 @@ const Renderer = {
         // Apply Layout and Pattern
         const layout = g.layout || 'landscape';
         const pattern = g.pattern || 'graph';
+        const gridSize = g.gridSize || 'md';
         let width = 2560;
         let height = 1440;
         if (layout === 'portrait') {
@@ -890,10 +916,19 @@ const Renderer = {
         area.style.width = `${width}px`;
         area.style.height = `${height}px`;
 
-        // Update background pattern
+        // Update background pattern — clear all pattern classes first
         area.classList.remove('bg-graph-paper', 'bg-dots', 'bg-chalkboard', 'bg-plain');
-        const patternClass = pattern === 'graph' ? 'bg-graph-paper' : `bg-${pattern}`;
+        // Also clear inline background styles that might interfere
+        area.style.backgroundImage = '';
+        area.style.backgroundColor = '';
+
+        const patternMap = { graph: 'bg-graph-paper', dots: 'bg-dots', chalkboard: 'bg-chalkboard', plain: 'bg-plain' };
+        const patternClass = patternMap[pattern] || 'bg-graph-paper';
         area.classList.add(patternClass);
+
+        // Apply grid size
+        area.classList.remove('grid-sm', 'grid-md', 'grid-lg');
+        area.classList.add(`grid-${gridSize}`);
 
         const header = `
             <div class="col-span-12 row-span-2 flex items-start justify-between pb-4 pointer-events-none" style="border-bottom: 4px solid var(--border-primary)">
@@ -926,15 +961,16 @@ const Renderer = {
                 const inner = cfg.render(m.data, m.color, fontSize);
                 const titleSizeClass = CONFIG.sizes.title[fontSize] || CONFIG.sizes.title.md;
 
+                const isAutoFit = fontSize === 'auto';
                 return `
-                    <div 
+                    <div
                         draggable="true"
                         ondragstart="App.handleDragStart(event, '${idx}')"
                         ondragend="App.handleDragEnd(event)"
                         ondragover="App.handleDragOver(event)"
                         ondragleave="App.handleDragLeave(event)"
                         ondrop="App.handleDrop(event, '${idx}')"
-                        onclick="App.openEditor('${m.id}')" 
+                        onclick="App.openEditor('${m.id}')"
                         class="module-wrapper ${spans.size[m.size] || 'col-span-6'} ${spans.height[m.height] || 'row-span-3'} rounded-2xl overflow-hidden shadow-neo relative flex flex-col group" style="background-color: var(--surface-card); border: 4px solid var(--border-primary)">
                         <div class="bg-brand-${m.color} px-6 py-3 flex justify-between items-center relative z-10 shrink-0" style="border-bottom: 4px solid var(--border-primary)">
                             <h3 class="font-heading font-black text-white ${titleSizeClass} uppercase tracking-wide truncate pointer-events-none">${m.title}</h3>
@@ -942,7 +978,7 @@ const Renderer = {
                                 <i data-lucide="move" class="w-5 h-5 text-white"></i>
                             </div>
                         </div>
-                        <div class="flex-1 overflow-hidden relative pointer-events-none">${inner}</div>
+                        <div class="flex-1 overflow-hidden relative pointer-events-none" ${isAutoFit ? 'style="container-type: inline-size;"' : ''}>${inner}</div>
                         <div class="tape-strip pointer-events-none"></div>
                     </div>`;
             }).join('');
@@ -987,24 +1023,24 @@ const Editor = {
         // Color Picker
         const colors = CONFIG.colors.map(c => `<button onclick="Store.updateMod('${id}','color','${c}'); Editor.render('${id}')" class="w-8 h-8 rounded-full bg-brand-${c} ${m.color === c ? 'border-4 border-brand-dark scale-110' : 'border-2 border-white opacity-50 ring-2 ring-transparent'}"></button>`).join('');
 
-        // Enhanced Segment Control for Responsiveness
+        // Compact Segment Control
         const mkSeg = (lbl, key, opts) => `
-            <div class="mb-3"><label class="lbl">${lbl}</label><div class="grid grid-cols-3 sm:grid-cols-6 gap-1 p-1 rounded-xl border-2" style="background-color: var(--bg-tertiary); border-color: var(--border-secondary)">
-            ${opts.map((o, i) => `<button onclick="Store.updateMod('${id}','${key}','${o.v}'); Editor.render('${id}')" class="py-1.5 text-[9px] font-black uppercase rounded-lg border-2 transition-all ${(m[key] || o.def) === o.v ? 'shadow-neo-sm' : 'border-transparent'}" style="background-color: ${(m[key] || o.def) === o.v ? 'var(--text-primary)' : 'var(--surface-card)'}; color: ${(m[key] || o.def) === o.v ? 'var(--bg-primary)' : 'var(--text-secondary)'}; border-color: ${(m[key] || o.def) === o.v ? 'var(--border-primary)' : 'transparent'}">${o.l}</button>`).join('')}
+            <div class="mb-2"><label class="lbl">${lbl}</label><div class="flex gap-1 p-1 rounded-lg border-2" style="background-color: var(--bg-tertiary); border-color: var(--border-secondary)">
+            ${opts.map((o) => `<button onclick="Store.updateMod('${id}','${key}','${o.v}'); Editor.render('${id}')" class="flex-1 py-1 text-[10px] font-black uppercase rounded-md border-2 transition-all ${(m[key] || o.def) === o.v ? 'shadow-neo-sm' : 'border-transparent'}" style="background-color: ${(m[key] || o.def) === o.v ? 'var(--text-primary)' : 'var(--surface-card)'}; color: ${(m[key] || o.def) === o.v ? 'var(--bg-primary)' : 'var(--text-secondary)'}; border-color: ${(m[key] || o.def) === o.v ? 'var(--border-primary)' : 'transparent'}">${o.l}</button>`).join('')}
             </div></div>`;
 
         con.innerHTML = `
-            <div class="space-y-6">
+            <div class="space-y-4">
                 <div>
                     <label class="lbl">Layer Title</label>
-                    <input type="text" value="${m.title}" class="w-full font-heading font-black text-2xl text-brand-dark bg-transparent border-b-2 border-slate-200 hover:border-brand-dark focus:border-brand-blue outline-none py-1" oninput="Store.updateMod('${id}','title',this.value)">
+                    <input type="text" value="${m.title}" class="w-full font-heading font-black text-xl text-brand-dark bg-transparent border-b-2 border-slate-200 hover:border-brand-dark focus:border-brand-blue outline-none py-1" oninput="Store.updateMod('${id}','title',this.value)">
                 </div>
 
-                <div class="p-4 rounded-xl border-2" style="background-color: var(--bg-primary); border-color: var(--border-secondary)">
-                    <label class="lbl mb-2">Style & Color</label>
-                    <div class="flex gap-2 mb-4 overflow-x-auto pb-2 custom-scrollbar">${colors}</div>
-                    
-                    <div class="space-y-1">
+                <div class="p-3 rounded-xl border-2" style="background-color: var(--bg-primary); border-color: var(--border-secondary)">
+                    <label class="lbl mb-1">Color</label>
+                    <div class="flex gap-2 mb-3 overflow-x-auto pb-1 custom-scrollbar">${colors}</div>
+
+                    <div class="grid grid-cols-2 gap-x-3">
                         ${mkSeg('Width', 'size', [
             { v: 'xs', l: 'XS' }, { v: 'sm', l: 'SM' }, { v: 'md', l: 'MD', def: true },
             { v: 'lg', l: 'LG' }, { v: 'xl', l: 'XL' }, { v: 'full', l: 'FULL' }
@@ -1015,11 +1051,11 @@ const Editor = {
         ])}
                     </div>
                     ${mkSeg('Text Size', 'fontSize', [
-                        { v: 'xs', l: 'XS' }, { v: 'sm', l: 'SM' }, { v: 'md', l: 'MD', def: true }, 
+                        { v: 'auto', l: 'Auto' }, { v: 'xs', l: 'XS' }, { v: 'sm', l: 'SM' }, { v: 'md', l: 'MD', def: true },
                         { v: 'lg', l: 'LG' }, { v: 'xl', l: 'XL' }, { v: '2xl', l: '2XL' }, { v: '3xl', l: '3XL' }
                     ])}
                 </div>
-                
+
                 <div class="p-4 rounded-xl border-2 shadow-neo-sm" style="background-color: var(--surface-card); border-color: var(--border-primary)">
                     ${cfg.inputs(id, m.data)}
                 </div>
