@@ -290,9 +290,13 @@ const AudioEngine = {
     const config = this.muted
       ? { icon: 'volume-x', color: 'rgb(248 113 113)' }
       : { icon: 'volume-2', color: 'rgb(74 222 128)' };
-    icon.setAttribute('data-lucide', config.icon);
+    if (window.updateHugeicon) {
+      window.updateHugeicon(icon, config.icon);
+    } else {
+      icon.setAttribute('data-lucide', config.icon);
+    }
     icon.style.color = config.color;
-    Utils.refreshIcons();
+    if (icon.tagName.toLowerCase() !== 'iconify-icon') Utils.refreshIcons();
   }
 };
 
@@ -952,12 +956,15 @@ const Announcements = {
     };
     const config = typeConfigs[ann.type] || typeConfigs.info;
     
-    if (iconEl) iconEl.setAttribute('data-lucide', config.icon);
+    if (iconEl) {
+      if (window.updateHugeicon) window.updateHugeicon(iconEl, config.icon);
+      else iconEl.setAttribute('data-lucide', config.icon);
+    }
     if (headerEl) {
       headerEl.className = headerEl.className.replace(/bg-(blue|green|orange)/g, config.color);
     }
     
-    Utils.refreshIcons(headerEl);
+    if (!iconEl || iconEl.tagName.toLowerCase() !== 'iconify-icon') Utils.refreshIcons(headerEl);
     UI.toggleModal('ann-detail-modal', true);
   },
 
@@ -1034,10 +1041,11 @@ const RecentGames = {
     section.classList.toggle('hidden', recentIds.length === 0);
 
     if (toggleBtn) {
-      const icon = toggleBtn.querySelector('i');
+      const icon = toggleBtn.querySelector('i, iconify-icon');
       if (icon) {
-        icon.setAttribute('data-lucide', collapsed ? 'chevron-down' : 'chevron-up');
-        Utils.refreshIcons(toggleBtn);
+        if (window.updateHugeicon) window.updateHugeicon(icon, collapsed ? 'chevron-down' : 'chevron-up');
+        else icon.setAttribute('data-lucide', collapsed ? 'chevron-down' : 'chevron-up');
+        if (icon.tagName.toLowerCase() !== 'iconify-icon') Utils.refreshIcons(toggleBtn);
       }
     }
 
@@ -3978,8 +3986,10 @@ const App = {
       const isFs = !!document.fullscreenElement;
       const icon = document.getElementById('myspace-fs-icon');
       if (icon) {
-        icon.setAttribute('data-lucide', isFs ? 'minimize-2' : 'maximize');
-        Utils.refreshIcons(icon.parentElement);
+        const name = isFs ? 'minimize-2' : 'maximize';
+        if (window.updateHugeicon) window.updateHugeicon(icon, name);
+        else icon.setAttribute('data-lucide', name);
+        if (icon.tagName.toLowerCase() !== 'iconify-icon') Utils.refreshIcons(icon.parentElement);
       }
       
       if (!isFs) {

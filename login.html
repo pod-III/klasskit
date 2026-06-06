@@ -13,7 +13,8 @@
 
   <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.105.4"></script>
   <script defer src="/supabase.js"></script>
-  <script src="https://unpkg.com/lucide@1.16.0"></script>
+  <script src="https://cdn.jsdelivr.net/npm/iconify-icon@2.2.0/dist/iconify-icon.min.js"></script>
+  <script src="./hugeicons-loader.js"></script>
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -469,14 +470,16 @@
     function setLoading(btn, loading, originalText) {
       btn.disabled = loading;
       const span = btn.querySelector('span');
-      const icon = btn.querySelector('[data-lucide]');
+      const icon = btn.querySelector('[data-lucide], iconify-icon');
       
       if (span) span.textContent = loading ? 'Working...' : originalText;
       if (icon) {
-        icon.setAttribute('data-lucide', loading ? 'loader-2' : btn.dataset.icon);
+        const name = loading ? 'loader-2' : btn.dataset.icon;
+        if (window.updateHugeicon) window.updateHugeicon(icon, name);
+        else icon.setAttribute('data-lucide', name);
         icon.className = loading ? 'w-5 h-5 animate-spin' : 'w-5 h-5';
       }
-      lucide.createIcons();
+      if (!icon || icon.tagName.toLowerCase() !== 'iconify-icon') lucide.createIcons();
     }
 
     async function handleSignIn() {

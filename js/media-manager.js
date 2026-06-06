@@ -76,7 +76,7 @@ const MediaManager = {
             }
 
             const btn = this.refreshBtn;
-            const icon = btn.querySelector('i');
+            const icon = btn.querySelector('i, iconify-icon');
             if (icon) icon.classList.add('animate-spin');
             btn.disabled = true;
 

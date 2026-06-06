@@ -1915,7 +1915,7 @@ async function syncUserStorage(userId) {
 
 async function syncAllStorage() {
     const btn = document.getElementById('syncAllBtn')
-    const icon = btn ? btn.querySelector('i') : null
+    const icon = btn ? btn.querySelector('i, iconify-icon') : null
     if (icon) icon.classList.add('animate-spin')
     if (btn) btn.disabled = true
 
