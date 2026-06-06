@@ -518,6 +518,8 @@ async function resolveMediaUrl(url) {
 
 /**
  * Deletes a media file and updates storage usage.
+ * Note: deletion fires DB trigger sync_storage_on_delete() — must target storage_quotas
+ * (see supabase/sql/fix_sync_storage_triggers.sql if you get a schema mismatch 400).
  */
 async function deleteMedia(filePath) {
   if (isSandbox()) return;
@@ -525,31 +527,20 @@ async function deleteMedia(filePath) {
   const user = await getUser();
   if (!user) return;
 
-  // 1. Get file size before deletion
-  let fileSize = 0;
-  try {
-    const pathParts = filePath.split('/');
-    const filename = pathParts.pop();
-    const dir = pathParts.join('/');
-    const { data: files } = await db.storage.from(STORAGE_CONFIG.bucket).list(dir);
-    const file = files?.find(f => f.name === filename);
-    if (file) fileSize = file.metadata.size;
-  } catch (e) {
-    console.warn('[Storage] Could not get file size for deletion:', e);
+  const { error } = await db.storage.from(STORAGE_CONFIG.bucket).remove([filePath]);
+  if (error) {
+    if (error.message?.includes('sync_storage_on_delete') || error.message?.includes('schema mismatch')) {
+      const fix = new Error(
+        'Storage delete blocked by an outdated database trigger. Run supabase/sql/fix_sync_storage_triggers.sql in the Supabase SQL Editor.'
+      );
+      fix.cause = error;
+      throw fix;
+    }
+    throw error;
   }
 
-  // 2. Delete from Storage
-  const { error } = await db.storage.from(STORAGE_CONFIG.bucket).remove([filePath]);
-  if (error) throw error;
-
-  // 3. Update usage
-  const usage = await getUserStorageUsage();
-  const newUsage = Math.max(0, usage.used - fileSize);
-  
-  await db
-    .from('storage_quotas')
-    .update({ storage_usage: newUsage })
-    .eq('user_id', user.id);
+  // Reconcile quota with actual bucket contents (accurate even if trigger also adjusted usage)
+  await recalculateUserStorage(user.id);
 
   return { success: true };
 }
@@ -587,21 +578,13 @@ async function deleteFolder(folderPath) {
     const totalSize = files.reduce((sum, f) => sum + (f.metadata?.size || 0), 0);
     const filePaths = files.map(f => `${folderPath}/${f.name}`);
 
-    // 3. Delete files
     const { error: delError } = await db.storage
       .from(STORAGE_CONFIG.bucket)
       .remove(filePaths);
-    
+
     if (delError) throw delError;
 
-    // 4. Update usage
-    const usage = await getUserStorageUsage();
-    const newUsage = Math.max(0, usage.used - totalSize);
-    
-    await db
-      .from('storage_quotas')
-      .update({ storage_usage: newUsage })
-      .eq('user_id', user.id);
+    await recalculateUserStorage(user.id);
 
     return { success: true, freed: totalSize };
   } catch (e) {
