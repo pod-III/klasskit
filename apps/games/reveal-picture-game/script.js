@@ -262,8 +262,10 @@ const app = {
 
         // Load Game State
         Game.gridSize = preset.gridSize || 4;
-        document.getElementById('grid-slider').value = Game.gridSize;
-        document.getElementById('grid-val').textContent = `${Game.gridSize} x ${Game.gridSize}`;
+        const gridSlider = document.getElementById('grid-slider');
+        const gridVal = document.getElementById('grid-val');
+        if (gridSlider) gridSlider.value = Game.gridSize;
+        if (gridVal) gridVal.textContent = `${Game.gridSize} x ${Game.gridSize}`;
 
         Game.images = preset.images || [];
         Game.currentIndex = preset.currentIndex || 0;
@@ -272,15 +274,22 @@ const app = {
         if (Game.images.length > 0) {
             // Bounds check
             if (Game.currentIndex >= Game.images.length) Game.currentIndex = 0;
-            document.getElementById('empty-state').style.display = 'none';
+            const emptyState = document.getElementById('empty-state');
+            if (emptyState) emptyState.style.display = 'none';
             Game.loadLevel();
         } else {
-            document.getElementById('empty-state').style.display = 'flex';
-            document.getElementById('target-image').src = "";
-            document.getElementById('tile-grid').innerHTML = '';
-            document.getElementById('round-display').textContent = "0 / 0";
-            document.getElementById('next-round-btn').disabled = true;
+            const emptyState = document.getElementById('empty-state');
+            const targetImage = document.getElementById('target-image');
+            const tileGrid = document.getElementById('tile-grid');
+            const roundDisplay = document.getElementById('round-display');
+            const nextBtn = document.getElementById('next-round-btn');
             const prevBtn = document.getElementById('prev-round-btn');
+            
+            if (emptyState) emptyState.style.display = 'flex';
+            if (targetImage) targetImage.src = "";
+            if (tileGrid) tileGrid.innerHTML = '';
+            if (roundDisplay) roundDisplay.textContent = "0 / 0";
+            if (nextBtn) nextBtn.disabled = true;
             if (prevBtn) prevBtn.disabled = true;
             UI.updateCount(0);
         }
@@ -537,6 +546,7 @@ const AutoReveal = {
     init() {
         const slider = document.getElementById('speed-slider');
         const label = document.getElementById('speed-label');
+        if (!slider) return; // Skip if not in tile mode
 
         slider.addEventListener('input', (e) => {
             AutoReveal.speed = parseInt(e.target.value);
@@ -582,6 +592,7 @@ const AutoReveal = {
         clearInterval(this.intervalId);
 
         const btn = document.getElementById('auto-reveal-btn');
+        if (!btn) return;
 
         btn.innerHTML = `<i data-lucide="play" class="w-4 h-4 md:w-5 md:h-5 fill-current"></i> <span class="hidden md:inline">AUTO</span>`;
         btn.classList.replace('bg-white', 'bg-blue');
@@ -661,6 +672,7 @@ const Game = {
 
     buildGrid() {
         const grid = document.getElementById('tile-grid');
+        if (!grid) return; // Skip if not in tile mode
         grid.innerHTML = '';
         grid.style.gridTemplateColumns = `repeat(${this.gridSize}, 1fr)`;
 
@@ -800,7 +812,8 @@ const UI = {
     },
 
     updateCount(num) {
-        document.getElementById('tiles-count').innerText = num;
+        const countEl = document.getElementById('tiles-count');
+        if (countEl) countEl.innerText = num;
     },
 
     fireConfetti() {
@@ -976,6 +989,8 @@ const ZoomGame = {
                 speedVal.textContent = speedLabels[parseInt(e.target.value) - 1];
             });
         }
+        // Apply initial zoom after a short delay to ensure DOM is ready
+        setTimeout(() => this.updateZoom(), 100);
     },
 
     reset() {
@@ -988,7 +1003,14 @@ const ZoomGame = {
         };
         const guessSection = document.getElementById('guess-section');
         if (guessSection) guessSection.classList.add('hidden');
-        this.updateZoom();
+        // Wait for image to load before applying zoom
+        const img = document.getElementById('target-image');
+        if (img && img.src && img.complete) {
+            this.updateZoom();
+        } else if (img) {
+            img.onload = () => this.updateZoom();
+            img.onerror = () => setTimeout(() => this.updateZoom(), 100);
+        }
         this.updateZoomBar();
         
         const btn = document.getElementById('auto-zoom-btn');
@@ -1001,11 +1023,14 @@ const ZoomGame = {
 
     updateZoom() {
         const img = document.getElementById('target-image');
-        if (!img || !img.src) return;
+        const container = document.getElementById('zoom-container');
+        if (!img || !img.src || img.src === window.location.href) return;
         const scale = this.currentZoom;
         const x = this.zoomPosition.x;
         const y = this.zoomPosition.y;
-        img.style.transform = `scale(${scale}) translate(${50 - x}%, ${50 - y}%)`;
+        // Center the zoom point and apply scale
+        img.style.transformOrigin = `${x}% ${y}%`;
+        img.style.transform = `scale(${scale})`;
         const display = document.getElementById('zoom-display');
         if (display) display.textContent = scale.toFixed(1) + 'x';
         this.updateZoomBar();
@@ -1157,17 +1182,24 @@ const BlurGame = {
 
     updateEffect() {
         const img = document.getElementById('target-image');
+        const container = document.getElementById('blur-container');
         if (!img) return;
         
         if (this.effectType === 'blur') {
             img.style.filter = `blur(${(this.currentLevel / 5) * 20}px)`;
             img.style.imageRendering = 'auto';
             img.style.transform = 'scale(1)';
+            if (container) container.style.overflow = 'hidden';
         } else {
+            // Pixelate effect: scale down using transform with pixelated rendering
+            // The key is to use a small scale and let the browser pixelate when scaling back up
             img.style.filter = 'none';
             img.style.imageRendering = 'pixelated';
-            const scale = 0.05 + (this.currentLevel / 5) * 0.15;
+            // Map 0-5 level to scale: level 5 = 0.05 (very pixelated), level 0 = 1.0 (clear)
+            const scale = 0.03 + (1 - this.currentLevel / 5) * 0.97;
             img.style.transform = `scale(${scale})`;
+            // Ensure container clips the scaled image
+            if (container) container.style.overflow = 'hidden';
         }
         
         const display = document.getElementById('blur-display');
