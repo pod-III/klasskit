@@ -933,7 +933,11 @@ const ClassTallyApp = (function () {
         },
         toggleSound: () => {
             State.soundEnabled = !State.soundEnabled;
-            document.getElementById('btn-sound').innerHTML = State.soundEnabled ? '<i data-lucide="volume-2" class="w-5 h-5"></i>' : '<i data-lucide="volume-x" class="w-5 h-5 text-red-400"></i>';
+            const iconHtml = State.soundEnabled ? '<i data-lucide="volume-2" class="w-4 h-4"></i>' : '<i data-lucide="volume-x" class="w-4 h-4 text-red-400"></i>';
+            const btn = document.getElementById('btn-sound');
+            const btnMobile = document.getElementById('btn-sound-mobile');
+            if (btn) btn.innerHTML = iconHtml;
+            if (btnMobile) btnMobile.querySelector('i[data-lucide]')?.setAttribute('data-lucide', State.soundEnabled ? 'volume-2' : 'volume-x');
             lucide.createIcons(); Persistence.save();
         },
         toggleTheme: () => {
@@ -1113,31 +1117,42 @@ const ClassTallyApp = (function () {
             });
             lucide.createIcons();
         },
-        toggleSettings: () => { document.getElementById('toolbar').classList.toggle('hidden'); document.getElementById('toolbar').classList.toggle('flex'); },
+        toggleSettings: () => {
+            const panel = document.getElementById('settings-panel');
+            const overlay = document.getElementById('settings-overlay');
+            if (!panel || !overlay) return;
+            const isOpen = !panel.classList.contains('translate-x-full');
+            if (isOpen) {
+                panel.classList.add('translate-x-full');
+                overlay.classList.add('opacity-0');
+                setTimeout(() => overlay.classList.add('hidden'), 300);
+            } else {
+                overlay.classList.remove('hidden');
+                setTimeout(() => overlay.classList.remove('opacity-0'), 10);
+                panel.classList.remove('translate-x-full');
+            }
+        },
         toggleShowAbsent: () => {
             State.showAbsent = !State.showAbsent;
-            const btn = document.getElementById('btn-show-absent');
-            if (btn) {
-                btn.classList.toggle('text-brand-orange', State.showAbsent);
-                btn.classList.toggle('text-slate-400', !State.showAbsent);
-                btn.innerHTML = State.showAbsent
-                    ? '<i data-lucide="eye-off" class="w-5 h-5"></i>'
-                    : '<i data-lucide="eye" class="w-5 h-5"></i>';
-            }
+            UI.updateShowAbsentUI();
             Persistence.save();
             UI.render();
-            lucide.createIcons();
         },
         updateShowAbsentUI: () => {
             const btn = document.getElementById('btn-show-absent');
-            if (btn) {
-                btn.classList.toggle('text-brand-orange', State.showAbsent);
-                btn.classList.toggle('text-slate-400', !State.showAbsent);
-                btn.innerHTML = State.showAbsent 
-                    ? '<i data-lucide="eye-off" class="w-5 h-5"></i>' 
-                    : '<i data-lucide="eye" class="w-5 h-5"></i>';
+            if (!btn) return;
+            const track = btn.querySelector('.absent-track');
+            const thumb = btn.querySelector('.absent-thumb');
+            const icon = btn.querySelector('i[data-lucide]');
+            if (State.showAbsent) {
+                if (track) { track.classList.add('bg-brand-orange'); track.classList.remove('bg-slate-200', 'bg-slate-700'); }
+                if (thumb) thumb.classList.add('translate-x-4');
+                if (icon) { icon.setAttribute('data-lucide', 'eye-off'); lucide.createIcons(); }
+            } else {
+                if (track) { track.classList.remove('bg-brand-orange'); track.classList.add('bg-slate-200'); }
+                if (thumb) thumb.classList.remove('translate-x-4');
+                if (icon) { icon.setAttribute('data-lucide', 'eye'); lucide.createIcons(); }
             }
-            lucide.createIcons();
         },
         setViewMode: (m) => {
             State.viewMode = m;
@@ -1215,12 +1230,14 @@ const ClassTallyApp = (function () {
         updateAutoFitUI: () => {
             const btn = document.getElementById('btn-autofit');
             if (!btn) return;
+            const track = btn.querySelector('.autofit-track');
+            const thumb = btn.querySelector('.autofit-thumb');
             if (State.isAutoFit) {
-                btn.classList.add('bg-brand-blue', 'text-white', 'border-brand-blue');
-                btn.classList.remove('text-slate-500', 'border-slate-100');
+                if (track) { track.classList.add('bg-brand-blue'); track.classList.remove('bg-slate-200', 'bg-slate-700'); }
+                if (thumb) thumb.classList.add('translate-x-4');
             } else {
-                btn.classList.remove('bg-brand-blue', 'text-white', 'border-brand-blue');
-                btn.classList.add('text-slate-500', 'border-slate-100');
+                if (track) { track.classList.remove('bg-brand-blue'); track.classList.add('bg-slate-200'); }
+                if (thumb) thumb.classList.remove('translate-x-4');
             }
         },
 
@@ -1240,8 +1257,8 @@ const ClassTallyApp = (function () {
             if (!appBody) return;
 
             // Base dimensions
-            const cardBaseWidth = 360;
-            const cardBaseHeight = 320; // Increased from 256 for "longer" cards
+            const cardBaseWidth = 300;
+            const cardBaseHeight = 300;
             const gapBase = 24; 
             const padding = 48; // generous padding for safe containment
 
@@ -1415,85 +1432,87 @@ const ClassTallyApp = (function () {
                     </div>`;
                 }
 
-                // Default: Grid (Normal) View
+                // Default: Grid (Normal) View — vertical card
                 return `
-                <div id="card-${s.id}" 
-                    class="app-panel rounded-[2rem] flex flex-row relative overflow-hidden bg-white hover:border-slate-200 group transition-all duration-300 ${pickedClass} ${absentClass} ${animationClass}" style="${animationStyle}">
+                <div id="card-${s.id}"
+                    class="app-panel rounded-[1.75rem] flex flex-col relative overflow-hidden bg-white group transition-all duration-300 ${pickedClass} ${absentClass} ${animationClass}" style="${animationStyle}">
                     ${rankBadge}
-                    
-                    <div class="w-32 sm:w-40 flex-none relative flex flex-col items-center justify-center p-2 transition-colors duration-300 border-r border-black/5" style="background-color: ${s.cardColor}; background-image: radial-gradient(circle, rgba(255,255,255,0.15) 2px, transparent 2.5px); background-size: 14px 14px;">
-                        <div class="absolute inset-0 bg-gradient-to-b from-black/0 to-black/10"></div>
-                        
-                        <div class="w-24 h-24 rounded-full bg-white p-1.5 shadow-xl ring-4 ring-white/20 relative z-10 mb-4 transform group-hover:scale-105 transition-transform duration-300">
-                             <div class="w-full h-full rounded-full bg-slate-50 flex items-center justify-center text-5xl select-none overflow-hidden">
-                                <span class="filter drop-shadow-sm group-hover:scale-110 transition-transform duration-500 block">${s.avatar || '😀'}</span>
-                            </div>
+
+                    <!-- Card Header: colored background with avatar + name + scores -->
+                    <div class="relative flex flex-col items-center pt-4 pb-3 px-3 shrink-0"
+                         style="background: linear-gradient(150deg, ${s.cardColor}f2, ${s.cardColor}99);">
+                        <div class="absolute inset-0 pointer-events-none" style="background-image: radial-gradient(rgba(255,255,255,0.22) 1px, transparent 1px); background-size: 10px 10px;"></div>
+                        <div class="absolute inset-0 bg-gradient-to-b from-transparent to-black/10 pointer-events-none"></div>
+
+                        <!-- Hover Controls -->
+                        <div class="absolute top-1.5 right-1.5 flex gap-0.5 opacity-0 group-hover:opacity-100 transition-all duration-200 z-10">
+                            <button onclick="ClassTallyApp.Student.toggleAbsent(${s.id})" data-tooltip="${s.isAbsent ? 'Mark Present' : 'Mark Absent'}"
+                                class="${s.isAbsent ? 'text-yellow-200' : 'text-white/60'} hover:text-white p-1 rounded-lg hover:bg-white/20 transition-colors">
+                                <i data-lucide="${s.isAbsent ? 'eye' : 'eye-off'}" class="w-3 h-3"></i>
+                            </button>
+                            <button onclick="ClassTallyApp.Student.editStudent(${s.id})" data-tooltip="Edit"
+                                class="text-white/60 hover:text-white p-1 rounded-lg hover:bg-white/20 transition-colors">
+                                <i data-lucide="pencil" class="w-3 h-3"></i>
+                            </button>
+                            <button onclick="ClassTallyApp.Student.emptyScore(${s.id})" data-tooltip="Reset Score"
+                                class="text-white/60 hover:text-white p-1 rounded-lg hover:bg-white/20 transition-colors">
+                                <i data-lucide="rotate-ccw" class="w-3 h-3"></i>
+                            </button>
+                            <button onclick="ClassTallyApp.Student.remove(${s.id})" data-tooltip="Delete"
+                                class="text-white/60 hover:text-red-200 p-1 rounded-lg hover:bg-white/20 transition-colors">
+                                <i data-lucide="x" class="w-3 h-3"></i>
+                            </button>
                         </div>
 
-                        <!-- Numeric Counters -->
-                        <div class="flex gap-2 relative z-10">
-                            <div class="bg-white/90 backdrop-blur-sm px-2 py-0.5 rounded-full text-xs font-black text-brand-green flex items-center gap-1 shadow-sm">
+                        <!-- Avatar -->
+                        <div class="w-14 h-14 rounded-2xl bg-white/25 flex items-center justify-center text-4xl mb-2 shadow-md relative z-10 shrink-0 group-hover:scale-105 transition-transform duration-300">
+                            ${s.avatar || '😀'}
+                        </div>
+
+                        <!-- Name -->
+                        <div class="relative z-10 w-full px-1">
+                            ${s.signatureData
+                                ? `<img src="${s.signatureData}" class="h-7 object-contain mx-auto filter brightness-0 invert" alt="Signature" />`
+                                : `<p class="text-white font-black text-base text-center drop-shadow leading-tight truncate">${s.name}</p>`
+                            }
+                        </div>
+
+                        <!-- Score Pills -->
+                        <div class="flex gap-1.5 mt-1.5 relative z-10">
+                            <div class="bg-white/30 backdrop-blur-sm rounded-full px-2 py-0.5 text-white text-[11px] font-black flex items-center gap-1 shadow-sm">
                                 <span>${State.currentGood}</span><span class="good-count">${s.goodLogs.length}</span>
                             </div>
-                            <div class="bg-white/90 backdrop-blur-sm px-2 py-0.5 rounded-full text-xs font-black text-brand-pink flex items-center gap-1 shadow-sm">
+                            <div class="bg-black/15 backdrop-blur-sm rounded-full px-2 py-0.5 text-white text-[11px] font-black flex items-center gap-1 shadow-sm">
                                 <span>${State.currentBad}</span><span class="bad-count">${s.badLogs.length}</span>
                             </div>
                         </div>
                     </div>
 
-                    <div class="flex-1 flex flex-col p-4 min-w-0 justify-between relative bg-gradient-to-br from-white to-slate-50">
-                        <div class="flex justify-between items-start mb-2 pl-1 pt-1">
-                            <div class="flex-1 min-w-0 pr-2">
-                                ${s.signatureData ?
-                        `<img src="${s.signatureData}" class="h-16 object-contain -ml-2" alt="Signature" />` :
-                        `<h3 class="text-3xl font-black text-slate-800 truncate tracking-tight leading-none cursor-text hover:text-brand-blue transition-colors" title="Click to edit name" onclick="ClassTallyApp.Student.editStudent(${s.id})">${s.name}</h3>`
-                    }
-                            </div>
-                            <div class="flex gap-1 -mt-2 -mr-2">
-                                <button onclick="ClassTallyApp.Student.toggleAbsent(${s.id})" 
-                                    data-tooltip="${s.isAbsent ? 'Mark Present' : 'Mark Absent'}"
-                                    class="${s.isAbsent ? 'text-brand-orange' : 'text-slate-300'} hover:text-brand-orange p-2 rounded-xl hover:bg-orange-50 transition-colors">
-                                    <i data-lucide="${s.isAbsent ? 'eye' : 'eye-off'}" class="w-4 h-4"></i>
-                                </button>
-                                <button onclick="ClassTallyApp.Student.editStudent(${s.id})" 
-                                    data-tooltip="Edit Name"
-                                    class="text-slate-300 hover:text-brand-blue p-2 rounded-xl hover:bg-blue-50 transition-colors">
-                                    <i data-lucide="pencil" class="w-4 h-4"></i>
-                                </button>
-                                <button onclick="ClassTallyApp.Student.emptyScore(${s.id})" 
-                                    data-tooltip="Reset Score"
-                                    class="text-slate-300 hover:text-brand-orange p-2 rounded-xl hover:bg-orange-50 transition-colors">
-                                    <i data-lucide="rotate-ccw" class="w-4 h-4"></i>
-                                </button>
-                                <button onclick="ClassTallyApp.Student.remove(${s.id})" 
-                                    data-tooltip="Delete Student"
-                                    class="text-slate-300 hover:text-red-400 p-2 rounded-xl hover:bg-red-50 transition-colors">
-                                    <i data-lucide="x" class="w-5 h-5"></i>
-                                </button>
-                            </div>
+                    <!-- Tally Area -->
+                    <div class="flex-1 relative overflow-hidden bg-white dark:bg-slate-900 min-h-0 group/logs">
+                        <div class="custom-scrollbar tally-log-container flex flex-wrap content-start gap-1 h-full overflow-y-auto w-full p-2.5">
+                            ${s.goodLogs.map((e, i) => `<span onclick="event.stopPropagation(); ClassTallyApp.Student.removeLastPoint(${s.id},'good')" class="tally-item text-xl select-none hover:opacity-50 drop-shadow-sm cursor-pointer">${e}</span>`).join('')}
+                            ${s.badLogs.map(e => `<span onclick="event.stopPropagation(); ClassTallyApp.Student.removeLastPoint(${s.id},'bad')" class="tally-item text-lg grayscale opacity-70 hover:opacity-100 drop-shadow-sm cursor-pointer">${e}</span>`).join('')}
+                            ${s.goodLogs.length === 0 && s.badLogs.length === 0 ? '<span class="text-[10px] text-slate-300 font-bold self-center w-full text-center mt-4 uppercase tracking-wide">No marks yet</span>' : ''}
                         </div>
+                        <div class="tap-hint absolute bottom-1 right-2 text-[8px] text-slate-300 font-bold uppercase tracking-widest pointer-events-none opacity-0 group-hover/logs:opacity-100 transition-opacity bg-white dark:bg-slate-900 px-1 rounded">Tap to remove</div>
+                    </div>
 
-                        <div class="flex-grow bg-white rounded-xl border border-slate-100 p-2.5 mb-4 relative group/logs overflow-hidden shadow-inner">
-                             <div class="custom-scrollbar tally-log-container flex flex-wrap content-start gap-1.5 h-full overflow-y-auto w-full">
-                                ${s.goodLogs.map((e, i) => `<span onclick="event.stopPropagation(); ClassTallyApp.Student.removeLastPoint(${s.id},'good')" class="tally-item text-xl select-none hover:opacity-50 drop-shadow-sm cursor-pointer">${e}</span>`).join('')}
-                                ${s.badLogs.map(e => `<span onclick="event.stopPropagation(); ClassTallyApp.Student.removeLastPoint(${s.id},'bad')" class="tally-item text-lg grayscale opacity-80 hover:opacity-100 drop-shadow-sm cursor-pointer">${e}</span>`).join('')}
-                                ${s.goodLogs.length === 0 && s.badLogs.length === 0 ? '<span class="text-xs text-slate-300 font-bold self-center w-full text-center mt-2 uppercase tracking-wide opacity-50">Empty</span>' : ''}
-                            </div>
-                             <div class="tap-hint absolute bottom-1 right-2 text-[8px] text-slate-300 font-bold uppercase tracking-widest pointer-events-none opacity-0 group-hover/logs:opacity-100 transition-opacity bg-white px-1 rounded">Click items to remove</div>
-                        </div>
-
-                        <div class="flex gap-3 h-14">
-                             <button onclick="ClassTallyApp.Student.addPoint(${s.id}, 'good')" 
-                                class="flex-1 bg-white hover:bg-brand-green hover:text-white text-brand-green border border-slate-100 hover:border-brand-green rounded-2xl flex items-center justify-center gap-2 transition-all active:scale-95 font-bold shadow-sm hover:shadow-lg hover:-translate-y-1 group/btn">
-                                <span class="text-2xl filter drop-shadow-sm group-hover/btn:scale-110 transition-transform">${State.currentGood}</span>
-                                <span class="hidden xl:inline text-sm uppercase tracking-wide">Good</span>
-                            </button>
-                            <button onclick="ClassTallyApp.Student.addPoint(${s.id}, 'bad')" 
-                                class="flex-1 bg-white hover:bg-brand-pink hover:text-white text-brand-pink border border-slate-100 hover:border-brand-pink rounded-2xl flex items-center justify-center gap-2 transition-all active:scale-95 font-bold shadow-sm hover:shadow-lg hover:-translate-y-1 group/btn">
-                                <span class="text-2xl filter drop-shadow-sm group-hover/btn:scale-110 transition-transform">${State.currentBad}</span>
-                                <span class="hidden xl:inline text-sm uppercase tracking-wide">Bad</span>
-                            </button>
-                        </div>
+                    <!-- Action Buttons -->
+                    <div class="flex shrink-0 h-11 border-t border-slate-100 dark:border-slate-700/50">
+                        <button onclick="ClassTallyApp.Student.addPoint(${s.id}, 'good')"
+                            data-tooltip="Add ${State.currentGood}"
+                            class="flex-1 flex items-center justify-center gap-1 font-bold text-brand-green hover:bg-green-500 hover:text-white dark:hover:bg-green-600 transition-all active:scale-95 group/btn rounded-bl-[1.75rem]">
+                            <span class="text-base drop-shadow-sm group-hover/btn:scale-110 transition-transform">${State.currentGood}</span>
+                            <span class="text-[10px] uppercase tracking-wide font-black opacity-60 group-hover/btn:opacity-100">Good</span>
+                        </button>
+                        <div class="w-px bg-slate-100 dark:bg-slate-700/50 self-stretch my-1.5 shrink-0"></div>
+                        <button onclick="ClassTallyApp.Student.addPoint(${s.id}, 'bad')"
+                            data-tooltip="Add ${State.currentBad}"
+                            class="flex-1 flex items-center justify-center gap-1 font-bold text-brand-pink hover:bg-brand-pink hover:text-white dark:hover:bg-pink-600 transition-all active:scale-95 group/btn rounded-br-[1.75rem]">
+                            <span class="text-base drop-shadow-sm group-hover/btn:scale-110 transition-transform">${State.currentBad}</span>
+                            <span class="text-[10px] uppercase tracking-wide font-black opacity-60 group-hover/btn:opacity-100">Bad</span>
+                        </button>
                     </div>
                 </div>`;
             }).join('');
@@ -1670,7 +1689,8 @@ const ClassTallyApp = (function () {
             resizeObserver.observe(document.getElementById('app-body'));
 
             document.addEventListener('click', UI.closeAllDropdowns);
-            document.getElementById('btn-sound').innerHTML = State.soundEnabled ? '<i data-lucide="volume-2" class="w-5 h-5"></i>' : '<i data-lucide="volume-x" class="w-5 h-5 text-red-400"></i>';
+            const sndBtn = document.getElementById('btn-sound');
+            if (sndBtn) sndBtn.innerHTML = State.soundEnabled ? '<i data-lucide="volume-2" class="w-4 h-4"></i>' : '<i data-lucide="volume-x" class="w-4 h-4 text-red-400"></i>';
             lucide.createIcons();
             UI.updateActiveIndicator();
             UI.updateShowAbsentUI();
