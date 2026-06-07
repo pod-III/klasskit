@@ -1049,35 +1049,31 @@ const countdown = {
     },
     update() {
         if (!state.countdown.active || !state.countdown.target) return;
-        
+
         const els = this.cacheElements();
         const now = new Date();
         const targetDate = new Date();
-        
+
         let targetH = state.countdown.target.h;
         const targetM = state.countdown.target.m;
-        
+
         if (state.countdown.target.ampm === 'PM' && targetH < 12) targetH += 12;
         if (state.countdown.target.ampm === 'AM' && targetH === 12) targetH = 0;
-        
+
         targetDate.setHours(targetH, targetM, 0, 0);
-        
-        // If target is in the past today, assume it's for tomorrow
-        if (targetDate < now) {
-            targetDate.setDate(targetDate.getDate() + 1);
-        }
-        
+
         const diff = targetDate - now;
-        
+
         if (diff <= 0) {
+            // Target time reached - show TIME'S UP
             this.finish();
             return;
         }
-        
+
         const h = Math.floor(diff / 3600000);
         const m = Math.floor((diff % 3600000) / 60000);
         const s = Math.floor((diff % 60000) / 1000);
-        
+
         if (els.timeDisplay) {
             els.timeDisplay.innerText = `${utils.padZero(h)}:${utils.padZero(m)}:${utils.padZero(s)}`;
         }
