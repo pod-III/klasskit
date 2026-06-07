@@ -120,6 +120,72 @@
             border-radius: 10px;
         }
 
+        /* Scoring Stars */
+        .star-filled { color: #FFD700; }
+        .star-filled svg, .star-empty svg { fill: currentColor; }
+        .star-empty { color: #e2e8f0; }
+
+        /* Settings Panel */
+        #settingsPanel {
+            transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+        #settingsPanel.hidden {
+            transform: translateY(-10px);
+            opacity: 0;
+            pointer-events: none;
+        }
+        #settingsPanel:not(.hidden) {
+            transform: translateY(0);
+            opacity: 1;
+        }
+
+        /* Icon Picker */
+        .icon-picker-btn {
+            transition: transform 0.15s;
+        }
+        .icon-picker-btn:hover {
+            transform: scale(1.2);
+        }
+
+        /* Color Picker Dot */
+        .color-dot {
+            width: 14px; height: 14px; border-radius: 50%;
+            border: 2px solid transparent;
+            cursor: pointer; transition: all 0.2s;
+        }
+        .color-dot:hover { transform: scale(1.3); }
+        .color-dot.active { border-color: #1e293b; box-shadow: 0 0 0 2px white, 0 0 0 4px currentColor; }
+
+        /* Card Polish */
+        .score-card {
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .score-card:hover {
+            transform: translateY(-4px);
+        }
+
+        /* Score Button Glow */
+        .score-btn-plus {
+            transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .score-btn-plus:hover {
+            transform: scale(1.08);
+            filter: brightness(1.1);
+        }
+        .score-btn-plus:active {
+            transform: scale(0.95);
+        }
+        .score-btn-minus {
+            transition: all 0.15s;
+        }
+        .score-btn-minus:hover {
+            background-color: #f1f5f9;
+            transform: scale(1.05);
+        }
+        .score-btn-minus:active {
+            transform: scale(0.95);
+        }
+
         /* Modal Transitions */
         #customModal {
             transition: opacity 0.2s ease-out;
@@ -166,34 +232,76 @@
     </header>
 
     <!-- Toolbar -->
-    <div class="flex-none py-6 px-4 flex justify-center">
-        <div class="bg-surface border border-border shadow-float rounded-full p-1.5 flex items-center gap-1">
-            <button onclick="addTeam()" class="bg-blue hover:bg-blue/90 text-white px-6 py-2.5 rounded-full font-heading font-bold btn-press flex items-center gap-2 shadow-sm">
-                <i data-lucide="user-plus" class="w-5 h-5"></i> Add Team
-            </button>
-            
-            <div class="w-px h-8 bg-border mx-2"></div>
-            
-            <button onclick="resetScores()" class="text-slate-600 hover:text-orange hover:bg-orange/10 px-4 py-2.5 rounded-full font-heading font-semibold btn-press flex items-center gap-2 transition-colors">
-                <i data-lucide="refresh-cw" class="w-4 h-4"></i> Reset
-            </button>
-            
-            <button onclick="celebrate()" class="text-slate-600 hover:text-pink hover:bg-pink/10 px-4 py-2.5 rounded-full font-heading font-semibold btn-press flex items-center gap-2 transition-colors">
-                <i data-lucide="trophy" class="w-4 h-4"></i> Celebrate
-            </button>
+    <div class="flex-none py-3 px-4 flex flex-col items-center gap-2">
+        <div class="bg-surface border border-border shadow-float rounded-2xl p-2 flex items-center gap-2 flex-wrap justify-center max-w-4xl w-full">
+            <!-- Primary Actions -->
+            <div class="flex items-center gap-1.5">
+                <button onclick="addTeam()" class="bg-blue hover:bg-blue/90 text-white px-4 py-2 rounded-xl font-heading font-bold btn-press flex items-center gap-1.5 shadow-sm text-sm">
+                    <i data-lucide="users" class="w-4 h-4"></i> Team
+                </button>
+                <button onclick="addPlayer()" class="bg-green hover:bg-green/90 text-dark px-4 py-2 rounded-xl font-heading font-bold btn-press flex items-center gap-1.5 shadow-sm text-sm">
+                    <i data-lucide="user-plus" class="w-4 h-4"></i> Player
+                </button>
+            </div>
 
-            <div class="w-px h-8 bg-border mx-2"></div>
+            <div class="w-px h-6 bg-border"></div>
 
-            <button onclick="deleteAllTeams()" class="text-slate-400 hover:text-red-500 hover:bg-red-50 px-4 py-2.5 rounded-full font-heading font-semibold btn-press flex items-center gap-2 transition-colors">
-                <i data-lucide="trash-2" class="w-4 h-4"></i> Clear All
-            </button>
+            <!-- Layout & Settings -->
+            <div class="flex items-center gap-1.5">
+                <button onclick="autoFitCards()" class="bg-slate-50 border border-slate-200 hover:border-blue hover:bg-blue/5 text-blue px-3 py-2 rounded-xl font-heading font-bold btn-press flex items-center gap-1.5 shadow-sm transition-colors text-xs" title="Fit Cards">
+                    <i data-lucide="layout-template" class="w-4 h-4"></i>
+                    <span id="fit-label">Auto</span>
+                </button>
+                <button onclick="toggleSettings()" class="w-9 h-9 rounded-xl bg-slate-50 border border-slate-200 hover:border-purple hover:bg-purple/5 text-purple flex items-center justify-center btn-press transition-colors shadow-sm" title="Settings">
+                    <i data-lucide="settings-2" class="w-4 h-4"></i>
+                </button>
+            </div>
+
+            <div class="w-px h-6 bg-border"></div>
+
+            <!-- Utilities -->
+            <div class="flex items-center gap-1">
+                <button onclick="resetScores()" class="text-slate-500 hover:text-orange hover:bg-orange/10 px-3 py-2 rounded-xl font-heading font-bold btn-press flex items-center gap-1.5 transition-colors text-xs">
+                    <i data-lucide="refresh-cw" class="w-4 h-4"></i> Reset
+                </button>
+                <button onclick="celebrate()" class="text-slate-500 hover:text-pink hover:bg-pink/10 px-3 py-2 rounded-xl font-heading font-bold btn-press flex items-center gap-1.5 transition-colors text-xs">
+                    <i data-lucide="trophy" class="w-4 h-4"></i> Win
+                </button>
+                <button onclick="deleteAllTeams()" class="text-slate-400 hover:text-red-500 hover:bg-red-50 px-3 py-2 rounded-xl font-heading font-bold btn-press flex items-center gap-1.5 transition-colors text-xs">
+                    <i data-lucide="trash-2" class="w-4 h-4"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Settings Panel -->
+        <div id="settingsPanel" class="hidden bg-surface border border-border shadow-card rounded-2xl p-3 flex items-center gap-5 flex-wrap justify-center">
+            <div class="flex items-center gap-2">
+                <span class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Score Style</span>
+                <div class="flex bg-slate-100 rounded-lg p-1 gap-1">
+                    <button onclick="setScoringMode('number')" id="mode-number" class="px-3 py-1 rounded-md text-xs font-bold transition-all bg-white shadow-sm text-dark">Number</button>
+                    <button onclick="setScoringMode('stars')" id="mode-stars" class="px-3 py-1 rounded-md text-xs font-bold transition-all text-slate-500 hover:bg-white/50">Stars</button>
+                    <button onclick="setScoringMode('bars')" id="mode-bars" class="px-3 py-1 rounded-md text-xs font-bold transition-all text-slate-500 hover:bg-white/50">Bars</button>
+                </div>
+            </div>
+            <div class="flex items-center gap-2">
+                <span class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Step</span>
+                <div class="flex bg-slate-100 rounded-lg p-1 gap-1">
+                    <button onclick="setScoreStep(1)" id="step-1" class="w-8 py-1 rounded-md text-xs font-bold transition-all bg-white shadow-sm text-dark">+1</button>
+                    <button onclick="setScoreStep(5)" id="step-5" class="w-8 py-1 rounded-md text-xs font-bold transition-all text-slate-500 hover:bg-white/50">+5</button>
+                    <button onclick="setScoreStep(10)" id="step-10" class="w-8 py-1 rounded-md text-xs font-bold transition-all text-slate-500 hover:bg-white/50">+10</button>
+                </div>
+            </div>
+            <div class="flex items-center gap-2" id="bar-target-control">
+                <span class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Target</span>
+                <input type="number" value="10" min="1" max="100" onchange="setBarTarget(this.value)" class="w-14 py-1 px-2 rounded-lg border border-slate-200 text-center text-xs font-bold text-dark focus:border-blue focus:outline-none">
+            </div>
         </div>
     </div>
 
     <!-- Main Content -->
-    <main class="flex-grow p-6 overflow-y-auto flex items-start justify-center custom-scrollbar">
+    <main class="flex-grow px-4 py-4 overflow-y-auto flex items-start justify-center custom-scrollbar">
         <!-- Score Grid -->
-        <div id="scoreGrid" class="w-full max-w-7xl grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8 pb-32">
+        <div id="scoreGrid" class="w-full max-w-7xl grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5 pb-24">
             <!-- Team cards will be injected here -->
         </div>
     </main>
@@ -220,13 +328,21 @@
     <script>
         // State
         let teams = [
-            { id: 1, name: "Team 1", score: 0, color: "blue" },
-            { id: 2, name: "Team 2", score: 0, color: "pink" }
+            { id: 1, name: "Team 1", score: 0, color: "blue", icon: null, type: "team" },
+            { id: 2, name: "Team 2", score: 0, color: "pink", icon: null, type: "team" }
         ];
         let soundEnabled = true;
+        let scoringMode = 'number'; // 'number' | 'stars' | 'bars'
+        let scoreStep = 1;
+        let barTarget = 10; // target score for bar mode
+        let autoFitCols = 0; // 0=auto, 1-4=fixed cols
+        const layoutLabels = ['Auto', '1 Col', '2 Col', '3 Col', '4 Col'];
 
         // Color rotation for new teams
         const colors = ["blue", "pink", "green", "orange"];
+        const colorHex = { blue: '#2979FF', pink: '#FF6B95', green: '#00E676', orange: '#FF8C42' };
+        const playerIcons = ['👤', '🧑', '👧', '👦', '🧒', '👩', '👨', '🧑‍🎓', '🧑‍🏫', '🧑‍🔬', '🧑‍🚀', '🧑‍🎨'];
+        const teamIcons = ['🦁', '🦊', '🐯', '🐺', '🐻', '🐼', '🐨', '🦄', '🐉', '🦅', '🦈', '🐙'];
 
         // Persistence
         const LS_KEY = 'klasskit_scorecounter_data';
@@ -235,6 +351,10 @@
             const data = {
                 teams,
                 soundEnabled,
+                scoringMode,
+                scoreStep,
+                barTarget,
+                autoFitCols,
                 updatedAt: Date.now()
             };
             localStorage.setItem(LS_KEY, JSON.stringify(data));
@@ -255,8 +375,20 @@
                 if (data && data.teams) {
                     teams = data.teams;
                     soundEnabled = data.soundEnabled !== undefined ? data.soundEnabled : true;
+                    scoringMode = data.scoringMode || 'number';
+                    scoreStep = data.scoreStep || 1;
+                    barTarget = data.barTarget || 10;
+                    autoFitCols = data.autoFitCols || 0;
+                    teams.forEach(t => {
+                        if (!t.type) t.type = 'team';
+                        if (!t.icon) {
+                            const pool = t.type === 'player' ? playerIcons : teamIcons;
+                            t.icon = pool[(t.id - 1) % pool.length];
+                        }
+                    });
                     renderGrid();
                     updateSoundUI();
+                    syncSettingsUI();
                 }
             } catch (e) {
                 console.error("Cloud load failed", e);
@@ -269,6 +401,18 @@
                 const data = JSON.parse(raw);
                 teams = data.teams || teams;
                 soundEnabled = data.soundEnabled !== undefined ? data.soundEnabled : true;
+                scoringMode = data.scoringMode || 'number';
+                scoreStep = data.scoreStep || 1;
+                barTarget = data.barTarget || 10;
+                autoFitCols = data.autoFitCols || 0;
+                // Backfill missing fields on old data
+                teams.forEach(t => {
+                    if (!t.type) t.type = 'team';
+                    if (!t.icon) {
+                        const pool = t.type === 'player' ? playerIcons : teamIcons;
+                        t.icon = pool[(t.id - 1) % pool.length];
+                    }
+                });
             }
         }
 
@@ -286,9 +430,16 @@
         document.addEventListener('DOMContentLoaded', async () => {
             await requireAuth();
             loadFromLocalStorage();
+            syncSettingsUI();
             renderGrid();
             updateSoundUI();
             await loadFromCloud();
+            // Set initial UI state from loaded data
+            const fitLabel = document.getElementById('fit-label');
+            if (fitLabel) fitLabel.textContent = layoutLabels[autoFitCols] || 'Auto';
+            const barInput = document.querySelector('#bar-target-control input');
+            if (barInput) barInput.value = barTarget;
+            window.addEventListener('resize', () => { if (autoFitCols === 0) applyAutoFit(); });
         });
 
         // --- Custom Modal Logic ---
@@ -372,11 +523,11 @@
             if (teams.length === 0) {
                  grid.innerHTML = `
                     <div class="col-span-full flex flex-col items-center justify-center text-slate-400 mt-24">
-                        <div class="bg-white p-8 rounded-3xl border border-dashed border-slate-300 mb-6 group hover:border-blue transition-colors">
+                        <div class="bg-white p-8 rounded-3xl border border-dashed border-slate-300 mb-6 group hover:border-blue transition-colors shadow-card">
                              <i data-lucide="users" class="w-16 h-16 opacity-30 group-hover:opacity-50 group-hover:text-blue transition-all"></i>
                         </div>
                         <p class="font-heading font-bold text-2xl text-slate-700">Ready to start?</p>
-                        <p class="text-slate-500 font-semibold">Click "Add Team" to begin the activity.</p>
+                        <p class="text-slate-500 font-semibold mt-1">Click "Team" or "Player" to add participants.</p>
                     </div>
                  `;
                  lucide.createIcons();
@@ -384,74 +535,164 @@
             }
 
             teams.forEach((team, index) => {
-                const textColors = { 'blue': 'text-blue', 'pink': 'text-pink', 'green': 'text-green', 'orange': 'text-orange' };
                 const bgColors = { 'blue': 'bg-blue', 'pink': 'bg-pink', 'green': 'bg-green', 'orange': 'bg-orange' };
                 const shadowColors = { 'blue': 'shadow-blue/20', 'pink': 'shadow-pink/20', 'green': 'shadow-green/20', 'orange': 'shadow-orange/20' };
 
-                const textColor = textColors[team.color];
                 const bgColor = bgColors[team.color];
                 const shadowColor = shadowColors[team.color];
-                
+                const hex = colorHex[team.color];
+
+                const iconPool = team.type === 'player' ? playerIcons : teamIcons;
+                const currentIcon = team.icon || iconPool[(team.id - 1) % iconPool.length];
+
+                const scoreDisplay = getScoreHTML(team);
+
                 const card = document.createElement('div');
-                card.className = `bg-surface border border-slate-200 rounded-[2rem] shadow-card p-6 flex flex-col items-center relative group select-none card-enter hover:shadow-xl hover:border-slate-300 transition-all duration-300`;
-                
+                card.className = `bg-surface border border-slate-200 rounded-3xl shadow-card p-5 flex flex-col items-center relative group select-none card-enter score-card hover:shadow-float hover:border-slate-300`;
+                card.style.minHeight = '320px';
+
                 card.innerHTML = `
-                    <div class="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-all transform translate-y-1 group-hover:translate-y-0">
-                        <button onclick="removeTeam(${team.id})" class="w-9 h-9 rounded-xl bg-slate-50 text-slate-400 hover:bg-red-50 hover:text-red-500 flex items-center justify-center transition-colors shadow-sm" title="Remove Team">
-                            <i data-lucide="x" class="w-5 h-5"></i>
-                        </button>
+                    <!-- Top bar: type label + color dots + delete -->
+                    <div class="w-full flex items-center justify-between mb-3">
+                        <span class="text-[9px] font-black text-slate-300 uppercase tracking-[0.15em] bg-slate-50 px-2 py-0.5 rounded-md">${team.type}</span>
+                        <div class="flex items-center gap-2">
+                            <div class="flex gap-1">
+                                ${colors.map(c => `<div class="color-dot ${c === team.color ? 'active' : ''}" style="background-color: ${colorHex[c]}; color: ${colorHex[c]}" onclick="updateTeamColor(${team.id}, '${c}')"></div>`).join('')}
+                            </div>
+                            <button onclick="removeTeam(${team.id})" class="w-7 h-7 rounded-lg bg-slate-50 text-slate-300 hover:bg-red-50 hover:text-red-500 flex items-center justify-center transition-all opacity-0 group-hover:opacity-100 shadow-sm" title="Remove">
+                                <i data-lucide="x" class="w-3.5 h-3.5"></i>
+                            </button>
+                        </div>
                     </div>
 
-                    <div class="w-full mb-2 mt-2">
-                        <input type="text" 
-                            value="${team.name}" 
+                    <!-- Icon + Name -->
+                    <div class="w-full flex flex-col items-center mb-4">
+                        <button onclick="cycleIcon(${team.id})" class="icon-picker-btn text-4xl mb-2 leading-none p-1 rounded-xl hover:bg-slate-50 transition-colors" title="Click to change">${currentIcon}</button>
+                        <input type="text"
+                            value="${team.name}"
                             onchange="updateName(${team.id}, this.value)"
-                            class="team-name-input w-full text-center text-2xl font-heading font-bold text-slate-700 py-1.5 px-3"
+                            class="team-name-input w-full text-center text-lg font-heading font-bold text-slate-700 py-1 px-2"
                             spellcheck="false"
                         >
                     </div>
 
-                    <div class="flex-grow flex items-center justify-center my-6 h-32 w-full">
-                        <span class="score-display text-[6.5rem] font-bold ${textColor} tracking-tight transition-transform duration-200" id="score-${team.id}">${team.score}</span>
+                    <!-- Score Display -->
+                    <div class="flex-grow flex items-center justify-center w-full overflow-hidden px-1">
+                        ${scoreDisplay}
                     </div>
 
-                    <div class="flex items-center gap-6 w-full justify-center mt-2">
-                        <button onclick="updateScore(${team.id}, -1)" 
-                            class="w-14 h-14 rounded-2xl bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-slate-800 flex items-center justify-center btn-press transition-colors border border-slate-200/50">
-                            <i data-lucide="minus" class="w-7 h-7"></i>
+                    <!-- Score Buttons -->
+                    <div class="flex items-center gap-3 w-full justify-center mt-4 pt-3 border-t border-slate-100">
+                        <button onclick="updateScore(${team.id}, -1)"
+                            class="score-btn-minus w-11 h-11 rounded-xl bg-slate-100 text-slate-400 flex items-center justify-center border border-slate-200/50">
+                            <i data-lucide="minus" class="w-5 h-5"></i>
                         </button>
-                        
-                        <button onclick="updateScore(${team.id}, 1)" 
-                            class="w-20 h-20 rounded-3xl ${bgColor} text-white shadow-lg ${shadowColor} flex items-center justify-center btn-press transform hover:scale-105 transition-all">
-                            <i data-lucide="plus" class="w-10 h-10 font-bold"></i>
+
+                        <button onclick="updateScore(${team.id}, 1)"
+                            class="score-btn-plus w-14 h-14 rounded-xl ${bgColor} text-white shadow-lg ${shadowColor} flex items-center justify-center">
+                            <i data-lucide="plus" class="w-7 h-7 font-bold"></i>
                         </button>
                     </div>
                 `;
                 grid.appendChild(card);
             });
-            
+
             lucide.createIcons();
+            applyAutoFit();
+        }
+
+        function getScoreHTML(team) {
+            if (scoringMode === 'stars') {
+                const count = Math.min(team.score, 25);
+                const stars = Array.from({ length: count }, () => `<i data-lucide="star" class="w-6 h-6 fill-current star-filled"></i>`).join('');
+                const emptyCount = Math.max(0, 5 - (count % 5 || 5));
+                const empty = count > 0 && count % 5 === 0 ? '' : Array.from({ length: emptyCount }, () => `<i data-lucide="star" class="w-6 h-6 star-empty"></i>`).join('');
+                return `<div class="flex flex-wrap gap-1.5 justify-center items-center content-center w-full px-2">${stars}${empty}</div>`;
+            }
+            if (scoringMode === 'bars') {
+                const pct = Math.min(100, Math.max(0, (team.score / barTarget) * 100));
+                const color = colorHex[team.color];
+                return `
+                    <div class="w-full px-3 flex flex-col items-center gap-3">
+                        <div class="w-full h-8 bg-slate-100 rounded-xl overflow-hidden border border-slate-200 shadow-inner">
+                            <div class="h-full rounded-xl transition-all duration-500 ease-out flex items-center justify-end pr-3" style="width: ${pct}%; background-color: ${color};">
+                                ${pct > 20 ? `<span class="text-xs font-black text-white drop-shadow">${team.score}</span>` : ''}
+                            </div>
+                        </div>
+                        <span class="text-sm font-bold text-slate-400 font-heading">${team.score} <span class="text-slate-300">/</span> ${barTarget}</span>
+                    </div>
+                `;
+            }
+            // number mode (default)
+            const textColor = { blue: 'text-blue', pink: 'text-pink', green: 'text-green', orange: 'text-orange' }[team.color];
+            return `
+                <div class="bg-slate-50 rounded-2xl px-6 py-3 flex items-center justify-center">
+                    <span class="score-display text-[4rem] sm:text-[4.5rem] font-bold ${textColor} tracking-tight transition-transform duration-200 leading-none" id="score-${team.id}">${team.score}</span>
+                </div>
+            `;
+        }
+
+        function cycleIcon(id) {
+            const team = teams.find(t => t.id === id);
+            if (!team) return;
+            const pool = team.type === 'player' ? playerIcons : teamIcons;
+            const currentIdx = pool.indexOf(team.icon);
+            const nextIdx = (currentIdx + 1) % pool.length;
+            team.icon = pool[nextIdx];
+            renderGrid();
+            save();
+        }
+
+        function updateTeamColor(id, color) {
+            const team = teams.find(t => t.id === id);
+            if (team) {
+                team.color = color;
+                renderGrid();
+                save();
+            }
         }
 
         function addTeam() {
             const nextId = teams.length > 0 ? Math.max(...teams.map(t => t.id)) + 1 : 1;
             const nextColor = colors[teams.length % colors.length];
+            const icon = teamIcons[nextId % teamIcons.length];
             teams.push({
                 id: nextId,
                 name: `Team ${teams.length + 1}`,
                 score: 0,
-                color: nextColor
+                color: nextColor,
+                icon: icon,
+                type: 'team'
             });
             playBeep(440, 'triangle', 0.1);
             renderGrid();
             save();
         }
 
+        function addPlayer() {
+            const nextId = teams.length > 0 ? Math.max(...teams.map(t => t.id)) + 1 : 1;
+            const nextColor = colors[teams.length % colors.length];
+            const icon = playerIcons[nextId % playerIcons.length];
+            teams.push({
+                id: nextId,
+                name: `Player ${teams.length + 1}`,
+                score: 0,
+                color: nextColor,
+                icon: icon,
+                type: 'player'
+            });
+            playBeep(600, 'sine', 0.1);
+            renderGrid();
+            save();
+        }
+
         async function removeTeam(id) {
+            const team = teams.find(t => t.id === id);
+            const label = team ? team.type : 'participant';
             const confirmed = await showModal({
-                title: 'Delete Team?',
-                message: 'Are you sure you want to remove this team?',
-                confirmText: 'Yes, Delete',
+                title: `Remove ${label.charAt(0).toUpperCase() + label.slice(1)}?`,
+                message: `Are you sure you want to remove this ${label}?`,
+                confirmText: 'Remove',
                 type: 'danger'
             });
             if (confirmed) {
@@ -463,8 +704,8 @@
 
         async function deleteAllTeams() {
             const confirmed = await showModal({
-                title: 'Clear Everything?',
-                message: 'This will remove all teams and reset the board.',
+                title: 'Clear Board?',
+                message: 'This will remove all participants and reset scores.',
                 confirmText: 'Clear All',
                 type: 'danger'
             });
@@ -487,21 +728,118 @@
         function updateScore(id, delta) {
             const team = teams.find(t => t.id === id);
             if(team) {
-                team.score += delta;
+                const step = Math.abs(scoreStep) || 1;
+                team.score += delta * step;
                 if(team.score < 0) team.score = 0;
-                
-                const scoreEl = document.getElementById(`score-${id}`);
-                scoreEl.textContent = team.score;
-                
-                scoreEl.classList.remove('scale-125');
-                void scoreEl.offsetWidth; 
-                scoreEl.classList.add('scale-125');
-                setTimeout(() => scoreEl.classList.remove('scale-125'), 150);
+
+                // If in number mode, animate the score element directly
+                if (scoringMode === 'number') {
+                    const scoreEl = document.getElementById(`score-${id}`);
+                    if (scoreEl) {
+                        scoreEl.textContent = team.score;
+                        scoreEl.classList.remove('scale-125');
+                        void scoreEl.offsetWidth;
+                        scoreEl.classList.add('scale-125');
+                        setTimeout(() => scoreEl.classList.remove('scale-125'), 150);
+                    }
+                } else {
+                    // Re-render for stars/bars modes
+                    renderGrid();
+                }
 
                 if(delta > 0) playBeep(600 + (Math.min(team.score, 20) * 15), 'sine', 0.1);
                 else playBeep(260, 'sawtooth', 0.1);
                 save();
             }
+        }
+
+        // --- Settings & Autofit ---
+        function toggleSettings() {
+            const panel = document.getElementById('settingsPanel');
+            panel.classList.toggle('hidden');
+        }
+
+        function syncSettingsUI() {
+            ['number', 'stars', 'bars'].forEach(mode => {
+                const btn = document.getElementById(`mode-${mode}`);
+                if (btn) {
+                    if (scoringMode === mode) {
+                        btn.className = 'px-3 py-1 rounded-md text-xs font-bold transition-all bg-white shadow-sm text-dark';
+                    } else {
+                        btn.className = 'px-3 py-1 rounded-md text-xs font-bold transition-all text-slate-500 hover:bg-white/50';
+                    }
+                }
+            });
+            [1, 5, 10].forEach(step => {
+                const btn = document.getElementById(`step-${step}`);
+                if (btn) {
+                    if (scoreStep === step) {
+                        btn.className = 'w-8 py-1 rounded-md text-xs font-bold transition-all bg-white shadow-sm text-dark';
+                    } else {
+                        btn.className = 'w-8 py-1 rounded-md text-xs font-bold transition-all text-slate-500 hover:bg-white/50';
+                    }
+                }
+            });
+            const targetCtrl = document.getElementById('bar-target-control');
+            if (targetCtrl) targetCtrl.style.display = scoringMode === 'bars' ? 'flex' : 'none';
+        }
+
+        function setScoringMode(mode) {
+            scoringMode = mode;
+            syncSettingsUI();
+            renderGrid();
+            save();
+        }
+
+        function setScoreStep(step) {
+            scoreStep = step;
+            syncSettingsUI();
+            save();
+        }
+
+        function setBarTarget(val) {
+            barTarget = Math.max(1, parseInt(val) || 10);
+            renderGrid();
+            save();
+        }
+
+        function autoFitCards() {
+            autoFitCols = (autoFitCols + 1) % 5;
+            const label = document.getElementById('fit-label');
+            if (label) label.textContent = layoutLabels[autoFitCols];
+            applyAutoFit();
+            playBeep(520, 'sine', 0.08);
+            save();
+        }
+
+        function applyAutoFit() {
+            const grid = document.getElementById('scoreGrid');
+            if (!grid || grid.children.length === 0) return;
+            const count = teams.length;
+            const containerWidth = grid.parentElement.clientWidth - 48;
+
+            // Remove responsive grid classes
+            grid.classList.remove('grid-cols-1', 'grid-cols-2', 'grid-cols-3', 'grid-cols-4', 'md:grid-cols-2', 'lg:grid-cols-3', 'xl:grid-cols-4');
+
+            let cols = 1;
+            if (autoFitCols === 0) {
+                if (count >= 2 && containerWidth >= 500) cols = 2;
+                if (count >= 3 && containerWidth >= 750) cols = 3;
+                if (count >= 4 && containerWidth >= 1000) cols = 4;
+            } else {
+                cols = autoFitCols;
+            }
+            grid.classList.add(`grid-cols-${cols}`);
+
+            // Adjust card min-height to fill viewport
+            const vpHeight = window.innerHeight - 220;
+            const rows = Math.ceil(count / cols);
+            const idealHeight = Math.max(260, Math.floor(vpHeight / Math.max(1, rows)) - 24);
+            Array.from(grid.children).forEach(card => {
+                if (!card.querySelector('.col-span-full')) {
+                    card.style.minHeight = `${idealHeight}px`;
+                }
+            });
         }
 
         async function resetScores() {
