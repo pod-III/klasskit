@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.105.4"></script>
+    <script src="https://cdn.jsdelivr.net/npm/browser-image-compression@2.0.2/dist/browser-image-compression.js"></script>
+    <script src="/supabase.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Reveal Pic - Zoom Mode</title>
+    <link rel="icon" type="image/x-icon" href="../../../media/icon.ico" />
+    <link rel="icon" type="image/webp" href="../../../media/icon.webp" />
+    <script>if(localStorage.getItem("theme_reveal-picture")==="dark"||(!localStorage.getItem("theme_reveal-picture")&&window.matchMedia("(prefers-color-scheme:dark)").matches)){document.documentElement.classList.add("dark")}</script>
+    <script src="https://unpkg.com/lucide@1.16.0"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Nunito:wght@400;700;900&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: { pink: '#FF6B95', orange: '#FF8C42', green: '#00E676', blue: '#2979FF', dark: '#0f172a', chalk: '#f8fafc' },
+                    fontFamily: { heading: ['Fredoka', 'sans-serif'], body: ['Nunito', 'sans-serif'], mono: ['JetBrains Mono', 'monospace'] },
+                    boxShadow: { 'neo': '4px 4px 0px 0px rgba(51, 65, 85, 0.15)', 'neo-sm': '2px 2px 0px 0px rgba(51, 65, 85, 0.15)', 'neo-lg': '8px 8px 0px 0px rgba(51, 65, 85, 0.15)' }
+                }
+            }
+        }
+    </script>
+    <link rel="stylesheet" href="../style.css">
+    <link rel="stylesheet" href="../../../css/base.css" />
+    <link rel="stylesheet" href="../../../css/components.css" />
+    <style>
+        .zoom-viewport { overflow: hidden; position: relative; }
+        .zoom-image { position: absolute; transition: transform 0.1s linear; will-change: transform; }
+        .guess-input { background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(12px); }
+        html.dark .guess-input { background: rgba(15, 23, 42, 0.9); }
+        .zoom-level-bar { background: linear-gradient(90deg, #FF6B95 0%, #FF8C42 50%, #00E676 100%); }
+    </style>
+</head>
+<body class="h-screen w-screen flex flex-col items-center justify-center p-2 md:p-6 overflow-hidden transition-colors duration-300">
+    <i data-lucide="zoom-in" class="bg-float-icon w-32 h-32 top-10 left-10"></i>
+    <i data-lucide="search" class="bg-float-icon w-40 h-40 bottom-20 right-20"></i>
+    <div id="drag-overlay" class="fixed inset-0 z-0 transition-opacity duration-300"></div>
+    <div id="db-loader" class="fixed inset-0 z-[60] flex flex-col items-center justify-center hidden">
+        <div class="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-blue"></div>
+        <span class="mt-4 font-heading font-bold text-dark dark:text-slate-200 text-lg animate-pulse">SAVING DATA...</span>
+    </div>
+    <div class="console-frame w-full h-full relative flex-col md:flex-row max-w-[1600px] mx-auto z-10 transition-colors duration-300">
+        <aside id="controls" class="w-full md:w-96 glass-panel border-b-[1px] md:border-b-0 md:border-r-[1px] border-slate-300 dark:border-white/10 flex flex-col z-50 transition-all duration-300 shadow-xl md:shadow-none h-[45%] md:h-full relative shrink-0">
+            <div class="p-6 border-b-[1px] border-slate-300 dark:border-white/10 bg-slate-50/50 dark:bg-slate-800/50 flex justify-between items-center shrink-0">
+                <div>
+                    <a href="../index.html" class="text-xs font-bold text-slate-400 hover:text-orange transition-colors flex items-center gap-1 mb-1">
+                        <i data-lucide="arrow-left" class="w-3 h-3"></i> Back
+                    </a>
+                    <h1 class="text-3xl font-heading text-dark dark:text-slate-100 tracking-wide leading-none">Reveal Pic</h1>
+                    <div class="flex items-center gap-2 mt-2">
+                        <span class="px-2 py-1 bg-orange/10 text-orange text-[10px] font-bold rounded border border-orange/30">ZOOM MODE</span>
+                        <button onclick="UI.toggleTheme()" class="px-2 py-1 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 text-[10px] font-bold rounded flex items-center gap-1 hover:bg-slate-300 dark:hover:bg-slate-600 transition-colors">
+                            <i data-lucide="moon" class="w-3 h-3 hidden dark:block"></i>
+                            <i data-lucide="sun" class="w-3 h-3 block dark:hidden"></i>
+                        </button>
+                    </div>
+                </div>
+                <button onclick="UI.togglePanel(true)" class="md:hidden p-2 bg-orange/10 text-orange border-[1px] border-slate-300 dark:border-white/20 rounded-lg shadow-neo-sm active:translate-y-1 active:shadow-none transition-all">
+                    <i data-lucide="x" class="w-6 h-6"></i>
+                </button>
+            </div>
+            <div class="flex-1 p-6 overflow-y-auto custom-scrollbar space-y-6 bg-transparent">
+                <div class="space-y-3 relative z-20">
+                    <div class="flex justify-between items-center mb-1">
+                        <label class="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                            <i data-lucide="folder-code" class="w-4 h-4 text-orange"></i> CURRENT PRESET
+                        </label>
+                        <button onclick="app.createNewPreset()" class="text-[10px] font-bold bg-orange text-white px-2 py-1 rounded shadow-neo-sm hover:translate-y-[-1px] active:translate-y-[1px] active:shadow-none transition-all uppercase tracking-wider">+ New</button>
+                    </div>
+                    <div class="relative group">
+                        <select id="preset-selector" onchange="app.switchPreset(this.value)" class="w-full appearance-none bg-white dark:bg-slate-700 border-2 border-slate-300 dark:border-slate-600 text-dark dark:text-slate-200 py-3 px-4 pr-10 rounded-xl font-body font-bold text-sm shadow-neo focus:outline-none focus:border-orange focus:ring-2 focus:ring-orange/20 transition-all cursor-pointer">
+                            <option value="default">Default Images</option>
+                        </select>
+                        <i data-lucide="chevron-down" class="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 pointer-events-none group-hover:text-orange transition-colors"></i>
+                    </div>
+                    <div class="flex gap-2">
+                        <input type="text" id="preset-title" class="w-full bg-white dark:bg-slate-700 border-2 border-slate-300 dark:border-slate-600 text-dark dark:text-slate-200 py-2 px-4 rounded-xl font-body font-bold text-sm focus:outline-none focus:border-orange transition-all placeholder:text-slate-400" placeholder="Preset Title" onblur="app.updatePresetTitle(this.value)" onkeydown="if(event.key === 'Enter') this.blur();">
+                        <button onclick="app.deleteCurrentPreset()" id="delete-preset-btn" class="shrink-0 aspect-square p-2 bg-white dark:bg-slate-700 border-2 border-slate-300 dark:border-slate-600 rounded-xl text-slate-400 hover:text-red-500 hover:border-red-500 hover:bg-red-50 dark:hover:bg-slate-600 transition-all flex items-center justify-center group shadow-neo-sm active:translate-y-[2px] active:shadow-none" title="Delete Preset">
+                            <i data-lucide="trash-2" class="w-4 h-4 group-hover:scale-110 transition-transform"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="space-y-3">
+                    <label class="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                        <i data-lucide="database" class="w-4 h-4 text-blue"></i> Add to Active Preset
+                    </label>
+                    <div class="relative w-full h-24 border-4 border-dashed border-slate-200 rounded-2xl hover:border-blue hover:bg-blue/5 transition-all cursor-pointer group flex flex-col items-center justify-center gap-2">
+                        <input type="file" id="file-input" accept="image/*" multiple class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10">
+                        <div class="p-2 bg-white rounded-full border-2 border-slate-200 group-hover:border-blue group-hover:scale-110 transition-transform">
+                            <i data-lucide="upload-cloud" class="w-5 h-5 text-slate-400 group-hover:text-blue"></i>
+                        </div>
+                        <span class="text-[10px] text-slate-400 font-bold group-hover:text-blue uppercase tracking-wide" id="file-label">Append Images</span>
+                    </div>
+                </div>
+                <div class="space-y-4 p-4 bg-slate-50/50 dark:bg-slate-800/50 border-[1px] border-slate-300 dark:border-white/10 rounded-xl shadow-sm">
+                    <div class="flex justify-between items-end border-b-[1px] border-slate-200 dark:border-white/10 pb-2 border-dashed">
+                        <label class="text-xs font-black text-slate-400 uppercase tracking-widest">Zoom Start</label>
+                        <span id="zoom-start-val" class="font-mono text-orange font-black text-lg">3.0x</span>
+                    </div>
+                    <div class="px-1 pt-2">
+                        <input type="range" id="zoom-start-slider" min="1.5" max="5" step="0.1" value="3" class="w-full">
+                    </div>
+                    <div class="flex justify-between items-end border-b-[1px] border-slate-200 dark:border-white/10 pb-2 border-dashed pt-2">
+                        <label class="text-xs font-black text-slate-400 uppercase tracking-widest">Zoom Speed</label>
+                        <span id="zoom-speed-val" class="font-mono text-blue font-black text-lg">Medium</span>
+                    </div>
+                    <div class="px-1 pt-2">
+                        <input type="range" id="zoom-speed-slider" min="1" max="5" step="1" value="3" class="w-full">
+                    </div>
+                    <div class="flex items-center justify-between pt-2">
+                        <label class="text-xs font-black text-slate-400 uppercase tracking-widest">Audio FX</label>
+                        <button id="sound-toggle" class="p-2 bg-white dark:bg-slate-700 rounded-lg border-[1px] border-slate-200 dark:border-white/10 hover:border-slate-400 transition-all text-slate-400 hover:text-dark dark:hover:text-slate-200">
+                            <i data-lucide="volume-2" class="w-4 h-4"></i>
+                        </button>
+                    </div>
+                </div>
+                <button onclick="Game.resetZoom()" class="w-full btn-chunky bg-white dark:bg-slate-700 text-dark py-3 rounded-xl text-sm tracking-wider flex items-center justify-center gap-2 hover:bg-orange/5 hover:text-orange hover:border-orange transition-colors">
+                    <i data-lucide="rotate-ccw" class="w-5 h-5"></i> RESET ZOOM
+                </button>
+                <button onclick="app.openImageManager()" class="w-full btn-chunky bg-white dark:bg-slate-700 text-slate-400 py-3 rounded-xl text-sm tracking-wider flex items-center justify-center gap-2 hover:bg-blue-50 dark:hover:bg-slate-600 hover:text-blue hover:border-blue group transition-colors shadow-neo-sm active:shadow-none active:translate-y-[2px]">
+                    <i data-lucide="images" class="w-5 h-5 group-hover:scale-110 transition-transform"></i> MANAGE IMAGES
+                </button>
+            </div>
+            <div class="p-4 border-t-[1px] border-slate-300 dark:border-white/10 bg-slate-50/50 dark:bg-slate-800/50 flex justify-between items-center shrink-0">
+                <div class="font-heading text-slate-400 text-sm tracking-wide">ZOOM LEVEL</div>
+                <div class="flex items-center gap-2">
+                    <div class="w-24 h-2 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+                        <div id="zoom-bar" class="zoom-level-bar h-full w-full transition-all duration-300"></div>
+                    </div>
+                    <span id="zoom-display" class="font-mono font-bold text-dark dark:text-slate-200">3.0x</span>
+                </div>
+            </div>
+        </aside>
+        <main class="flex-1 relative h-[55%] md:h-full bg-slate-50/50 dark:bg-slate-900/50 flex flex-col overflow-hidden">
+            <div class="h-16 md:h-20 border-b-[1px] border-slate-300 dark:border-white/10 glass-panel flex items-center px-4 md:px-6 justify-between shrink-0 z-20 shadow-sm">
+                <div class="flex items-center gap-4">
+                    <button onclick="UI.togglePanel(false)" class="p-2 bg-white dark:bg-slate-700 border-[1px] border-slate-300 dark:border-white/10 rounded-xl shadow-neo-sm hover:translate-y-[-2px] transition-transform text-slate-400 hover:text-dark dark:hover:text-slate-200 group">
+                        <i data-lucide="settings-2" class="w-5 h-5 group-hover:rotate-45 transition-transform"></i>
+                    </button>
+                    <div class="hidden md:flex flex-col border-l-[1px] border-slate-300 dark:border-white/10 pl-4">
+                        <span class="text-[10px] uppercase font-black text-slate-400 tracking-wider">Progress</span>
+                        <span id="round-display" class="font-mono text-lg font-bold text-dark dark:text-slate-200">0 / 0</span>
+                    </div>
+                </div>
+                <div class="flex items-center gap-2 md:gap-3">
+                    <button id="prev-round-btn" onclick="Game.prevLevel()" class="btn-chunky bg-orange text-dark px-4 md:px-5 py-2 rounded-xl text-xs md:text-sm font-bold tracking-wide flex items-center gap-2 transition-all disabled:opacity-50" disabled>
+                        <i data-lucide="arrow-left" class="w-4 h-4 md:w-5 md:h-5"></i> <span class="hidden md:inline">PREV</span>
+                    </button>
+                    <button id="next-round-btn" onclick="Game.nextLevel()" class="btn-chunky bg-green text-dark px-4 md:px-5 py-2 rounded-xl text-xs md:text-sm font-bold tracking-wide flex items-center gap-2 transition-all disabled:opacity-50" disabled>
+                        <span>NEXT</span> <i data-lucide="arrow-right" class="w-4 h-4 md:w-5 md:h-5"></i>
+                    </button>
+                    <button id="auto-zoom-btn" onclick="AutoZoom.toggle()" class="btn-chunky bg-blue text-white px-4 md:px-6 py-2 rounded-xl text-xs md:text-sm font-bold tracking-wide flex items-center gap-2 transition-all">
+                        <i data-lucide="play" class="w-4 h-4 md:w-5 md:h-5 fill-current"></i>
+                        <span class="hidden md:inline">AUTO ZOOM</span>
+                    </button>
+                    <button onclick="Game.revealAll()" class="btn-chunky bg-pink text-white px-4 md:px-6 py-2 rounded-xl text-xs md:text-sm font-bold tracking-wide flex items-center gap-2">
+                        <i data-lucide="eye" class="w-4 h-4 md:w-5 md:h-5"></i> <span class="hidden md:inline">REVEAL</span>
+                    </button>
+                </div>
+            </div>
+            <div class="flex-1 relative p-4 md:p-8 flex flex-col items-center justify-center overflow-hidden bg-transparent">
+                <div class="absolute top-4 left-4 w-32 h-32 bg-orange/5 rounded-full blur-2xl pointer-events-none"></div>
+                <div class="absolute bottom-4 right-4 w-40 h-40 bg-blue/5 rounded-full blur-3xl pointer-events-none"></div>
+                <div class="w-full max-w-5xl retro-window shadow-neo-lg transition-transform duration-300 transform hover:scale-[1.005]">
+                    <div class="window-header">
+                        <div class="flex gap-2">
+                            <div class="window-dot bg-orange"></div>
+                            <div class="window-dot bg-pink"></div>
+                            <div class="window-dot bg-green"></div>
+                        </div>
+                        <div class="ml-auto text-[10px] font-mono font-bold text-slate-400 tracking-widest">ZOOM_VIEWER.EXE</div>
+                    </div>
+                    <div class="game-viewport zoom-viewport" id="zoom-container">
+                        <img id="target-image" class="zoom-image absolute z-0 select-none pointer-events-none" src="" alt="">
+                        <div id="empty-state" class="absolute inset-0 z-0 flex flex-col items-center justify-center text-slate-300 bg-slate-100">
+                            <div class="p-6 border-4 border-dashed border-slate-200 rounded-3xl mb-4 animate-bounce">
+                                <i data-lucide="image-plus" class="w-12 h-12 md:w-16 md:h-16"></i>
+                            </div>
+                            <span class="font-heading text-xl md:text-3xl text-slate-400">NO IMAGE LOADED</span>
+                            <span class="font-body text-xs md:text-sm font-bold text-slate-400 mt-2">Upload images via sidebar</span>
+                        </div>
+                        <div id="guess-section" class="absolute bottom-6 left-1/2 -translate-x-1/2 z-20 hidden">
+                            <div class="guess-input px-4 py-3 rounded-2xl border-2 border-slate-300 dark:border-slate-600 shadow-neo flex items-center gap-3">
+                                <input type="text" id="guess-input" placeholder="What's this?" class="bg-transparent border-none outline-none text-dark dark:text-white font-heading font-bold text-lg w-48 md:w-64" onkeydown="if(event.key === 'Enter') Game.checkGuess()">
+                                <button onclick="Game.checkGuess()" class="p-2 bg-green text-white rounded-xl hover:scale-110 transition-transform">
+                                    <i data-lucide="check" class="w-5 h-5"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div id="image-manager-modal" class="fixed inset-0 z-[100] hidden items-center justify-center">
+                    <div class="absolute inset-0 bg-slate-900/40 backdrop-blur-sm transition-opacity" onclick="app.closeImageManager()"></div>
+                    <div class="bg-white dark:bg-slate-800 border-4 border-slate-900 dark:border-slate-500 rounded-2xl p-6 md:p-8 max-w-4xl w-full mx-4 relative z-10 shadow-hard transform scale-95 opacity-0 transition-all duration-200 flex flex-col max-h-[85vh] overflow-hidden" id="image-manager-content">
+                        <div class="flex justify-between items-center mb-6 shrink-0">
+                            <h2 class="text-2xl font-heading font-bold text-slate-900 dark:text-white flex items-center gap-3">
+                                <div class="p-2 bg-blue/10 rounded-xl text-blue"><i data-lucide="images" class="w-6 h-6"></i></div>
+                                Manage Images
+                            </h2>
+                            <button onclick="app.closeImageManager()" class="p-2 bg-slate-100 dark:bg-slate-700 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white">
+                                <i data-lucide="x" class="w-5 h-5"></i>
+                            </button>
+                        </div>
+                        <div id="image-manager-list" class="flex-1 overflow-y-auto custom-scrollbar grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 pb-4"></div>
+                        <div class="pt-4 border-t-2 border-slate-100 dark:border-slate-700 shrink-0 flex justify-between items-center">
+                            <span class="text-xs font-bold font-body tracking-wider text-slate-400 uppercase bg-slate-100 dark:bg-slate-700 px-3 py-1 rounded-full" id="image-manager-count">0 Images</span>
+                            <button onclick="app.clearActiveImages()" class="btn-chunky bg-red-50 dark:bg-red-900/20 text-red-500 py-3 rounded-xl font-bold font-body text-sm hover:bg-red-500 hover:text-white dark:hover:text-white hover:border-red-600 transition-colors flex items-center gap-2 px-6">
+                                <i data-lucide="trash-2" class="w-4 h-4"></i> CLEAR ALL
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <div id="delete-modal" class="fixed inset-0 z-[100] hidden items-center justify-center">
+                    <div class="absolute inset-0 bg-slate-900/40 backdrop-blur-sm transition-opacity" onclick="app.closeDeleteModal()"></div>
+                    <div class="bg-white dark:bg-slate-800 border-4 border-slate-900 dark:border-slate-500 rounded-2xl p-6 md:p-8 max-w-sm w-full mx-4 relative z-10 shadow-hard transform scale-95 opacity-0 transition-all duration-200" id="delete-modal-content">
+                        <div class="w-16 h-16 bg-red-100 dark:bg-red-900/30 text-red-500 rounded-full flex items-center justify-center mx-auto mb-4 border-2 border-red-200 dark:border-red-800">
+                            <i data-lucide="alert-triangle" class="w-8 h-8"></i>
+                        </div>
+                        <h2 class="text-2xl font-heading font-bold text-center text-slate-900 dark:text-white mb-2">Delete Preset?</h2>
+                        <p class="text-center text-slate-500 dark:text-slate-400 font-body mb-6">This will permanently delete "<span id="delete-preset-name" class="font-bold text-slate-800 dark:text-slate-200"></span>" and all its images.</p>
+                        <div class="flex gap-3">
+                            <button onclick="app.closeDeleteModal()" class="flex-1 btn-chunky bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 py-3 rounded-xl font-bold">CANCEL</button>
+                            <button onclick="app.confirmDeletePreset()" class="flex-1 btn-chunky bg-red-500 text-white py-3 rounded-xl font-bold hover:bg-red-600 transition-colors">DELETE</button>
+                        </div>
+                    </div>
+                </div>
+                <div id="guess-modal" class="fixed inset-0 z-[100] hidden items-center justify-center">
+                    <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm transition-opacity"></div>
+                    <div class="bg-white dark:bg-slate-800 border-4 border-slate-900 dark:border-slate-500 rounded-2xl p-6 md:p-8 max-w-md w-full mx-4 relative z-10 shadow-hard transform scale-95 opacity-0 transition-all duration-200" id="guess-modal-content">
+                        <div id="guess-result-icon" class="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 border-2"></div>
+                        <h2 id="guess-result-title" class="text-2xl font-heading font-bold text-center text-slate-900 dark:text-white mb-2"></h2>
+                        <p id="guess-result-msg" class="text-center text-slate-500 dark:text-slate-400 font-body mb-6"></p>
+                        <button onclick="Game.closeGuessModal()" class="w-full btn-chunky bg-blue text-white py-3 rounded-xl font-bold">CONTINUE</button>
+                    </div>
+                </div>
+                <div id="toast" class="fixed bottom-10 left-1/2 -translate-x-1/2 bg-slate-900 dark:bg-slate-800 text-white px-6 py-3 rounded-xl font-bold font-heading shadow-hard-sm transform translate-y-20 transition-transform opacity-0 z-50 flex items-center gap-3 border-2 border-slate-700 dark:border-slate-600">
+                    <i id="toast-icon" data-lucide="check-circle" class="w-5 h-5 text-green"></i>
+                    <span id="toast-msg">Action Completed</span>
+                </div>
+            </div>
+        </main>
+    </div>
+    <script src="../script.js"></script>
+</body>
+</html>

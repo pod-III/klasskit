@@ -848,8 +848,14 @@ const UI = {
 
 // --- EVENT BINDINGS ---
 
-document.getElementById('grid-slider').addEventListener('input', (e) => Game.updateGridSize(e.target.value));
-document.getElementById('sound-toggle').addEventListener('click', Audio.toggle);
+const gridSlider = document.getElementById('grid-slider');
+if (gridSlider) {
+    gridSlider.addEventListener('input', (e) => Game.updateGridSize(e.target.value));
+}
+const soundToggle = document.getElementById('sound-toggle');
+if (soundToggle) {
+    soundToggle.addEventListener('click', Audio.toggle);
+}
 
 // 2. File Loading & Persistence
 const handleFiles = async (files) => {
@@ -926,6 +932,440 @@ window.addEventListener('resize', () => {
 window.onload = async () => {
     await app.init();
     await Game.init();
+    
+    // Initialize mode-specific features
+    const path = window.location.pathname;
+    if (path.includes('zoom.html')) {
+        ZoomGame.init();
+    } else if (path.includes('blur.html')) {
+        BlurGame.init();
+    }
+    
     lucide.createIcons();
     if (window.innerWidth < 768) UI.togglePanel(true);
 };
+
+// ==================== ZOOM MODE ====================
+const ZoomGame = {
+    currentZoom: 3.0,
+    zoomStart: 3.0,
+    zoomPosition: { x: 50, y: 50 },
+    isAutoZooming: false,
+    animationId: null,
+    revealed: false,
+    
+    init() {
+        const startSlider = document.getElementById('zoom-start-slider');
+        const startVal = document.getElementById('zoom-start-val');
+        if (startSlider) {
+            startSlider.addEventListener('input', (e) => {
+                this.zoomStart = parseFloat(e.target.value);
+                startVal.textContent = this.zoomStart.toFixed(1) + 'x';
+                if (!this.isAutoZooming && !this.revealed) {
+                    this.currentZoom = this.zoomStart;
+                    this.updateZoom();
+                }
+            });
+        }
+
+        const speedLabels = ['Very Slow', 'Slow', 'Medium', 'Fast', 'Very Fast'];
+        const speedSlider = document.getElementById('zoom-speed-slider');
+        const speedVal = document.getElementById('zoom-speed-val');
+        if (speedSlider) {
+            speedSlider.addEventListener('input', (e) => {
+                speedVal.textContent = speedLabels[parseInt(e.target.value) - 1];
+            });
+        }
+    },
+
+    reset() {
+        this.stopAutoZoom();
+        this.revealed = false;
+        this.currentZoom = this.zoomStart;
+        this.zoomPosition = {
+            x: 20 + Math.random() * 60,
+            y: 20 + Math.random() * 60
+        };
+        const guessSection = document.getElementById('guess-section');
+        if (guessSection) guessSection.classList.add('hidden');
+        this.updateZoom();
+        this.updateZoomBar();
+        
+        const btn = document.getElementById('auto-zoom-btn');
+        if (btn) {
+            btn.innerHTML = `<i data-lucide="play" class="w-4 h-4 md:w-5 md:h-5 fill-current"></i><span class="hidden md:inline">AUTO ZOOM</span>`;
+            btn.classList.remove('bg-white', 'text-blue', 'border-blue');
+            btn.classList.add('bg-blue', 'text-white');
+        }
+    },
+
+    updateZoom() {
+        const img = document.getElementById('target-image');
+        if (!img || !img.src) return;
+        const scale = this.currentZoom;
+        const x = this.zoomPosition.x;
+        const y = this.zoomPosition.y;
+        img.style.transform = `scale(${scale}) translate(${50 - x}%, ${50 - y}%)`;
+        const display = document.getElementById('zoom-display');
+        if (display) display.textContent = scale.toFixed(1) + 'x';
+        this.updateZoomBar();
+    },
+
+    updateZoomBar() {
+        const bar = document.getElementById('zoom-bar');
+        if (!bar) return;
+        const percent = 100 - ((this.currentZoom - 1) / (this.zoomStart - 1)) * 100;
+        bar.style.width = Math.max(0, Math.min(100, percent)) + '%';
+    },
+
+    startAutoZoom() {
+        if (this.isAutoZooming || this.revealed) return;
+        this.isAutoZooming = true;
+        const speedSlider = document.getElementById('zoom-speed-slider');
+        const speedMultiplier = speedSlider ? parseInt(speedSlider.value) : 3;
+        const zoomSpeed = 0.003 * speedMultiplier;
+        
+        const animate = () => {
+            if (!this.isAutoZooming || this.revealed) return;
+            this.currentZoom = Math.max(1.0, this.currentZoom - zoomSpeed);
+            this.updateZoom();
+            if (this.currentZoom <= 1.01) {
+                this.revealComplete();
+            } else {
+                this.animationId = requestAnimationFrame(animate);
+            }
+        };
+        animate();
+    },
+
+    stopAutoZoom() {
+        this.isAutoZooming = false;
+        if (this.animationId) {
+            cancelAnimationFrame(this.animationId);
+            this.animationId = null;
+        }
+    },
+
+    revealComplete() {
+        this.revealed = true;
+        this.currentZoom = 1.0;
+        this.updateZoom();
+        Audio.playWin();
+        UI.fireConfetti();
+        const guessSection = document.getElementById('guess-section');
+        if (guessSection) guessSection.classList.remove('hidden');
+        const input = document.getElementById('guess-input');
+        if (input) input.focus();
+        const btn = document.getElementById('next-round-btn');
+        if (btn) btn.disabled = false;
+        const prevBtn = document.getElementById('prev-round-btn');
+        if (prevBtn) prevBtn.disabled = false;
+    },
+
+    toggleAuto() {
+        if (this.isAutoZooming) {
+            this.stopAutoZoom();
+            const btn = document.getElementById('auto-zoom-btn');
+            if (btn) {
+                btn.innerHTML = `<i data-lucide="play" class="w-4 h-4 md:w-5 md:h-5 fill-current"></i><span class="hidden md:inline">AUTO ZOOM</span>`;
+                btn.classList.remove('bg-white', 'text-blue', 'border-blue');
+                btn.classList.add('bg-blue', 'text-white');
+                lucide.createIcons();
+            }
+        } else {
+            this.startAutoZoom();
+            const btn = document.getElementById('auto-zoom-btn');
+            if (btn) {
+                btn.innerHTML = `<i data-lucide="pause" class="w-4 h-4 md:w-5 md:h-5 fill-current"></i><span class="hidden md:inline">PAUSE</span>`;
+                btn.classList.remove('bg-blue', 'text-white');
+                btn.classList.add('bg-white', 'text-blue', 'border-blue');
+                lucide.createIcons();
+            }
+        }
+    },
+
+    revealAll() {
+        this.stopAutoZoom();
+        this.revealComplete();
+    }
+};
+
+// ==================== BLUR MODE ====================
+const BlurGame = {
+    currentLevel: 5,
+    maxLevel: 5,
+    effectType: 'blur',
+    isAutoRevealing: false,
+    animationId: null,
+    revealed: false,
+    
+    init() {
+        const blurSlider = document.getElementById('blur-start-slider');
+        const blurVal = document.getElementById('blur-start-val');
+        if (blurSlider) {
+            const labels = ['Low', 'Medium', 'High', 'Very High', 'Extreme'];
+            blurSlider.addEventListener('input', (e) => {
+                this.maxLevel = parseInt(e.target.value);
+                blurVal.textContent = labels[this.maxLevel - 1];
+                if (!this.isAutoRevealing && !this.revealed) {
+                    this.currentLevel = this.maxLevel;
+                    this.updateEffect();
+                }
+            });
+        }
+
+        const speedLabels = ['Very Slow', 'Slow', 'Medium', 'Fast', 'Very Fast'];
+        const speedSlider = document.getElementById('blur-speed-slider');
+        const speedVal = document.getElementById('blur-speed-val');
+        if (speedSlider) {
+            speedSlider.addEventListener('input', (e) => {
+                speedVal.textContent = speedLabels[parseInt(e.target.value) - 1];
+            });
+        }
+    },
+
+    setEffect(type) {
+        this.effectType = type;
+        const blurBtn = document.getElementById('blur-mode-btn');
+        const mosaicBtn = document.getElementById('mosaic-mode-btn');
+        if (type === 'blur') {
+            if (blurBtn) { blurBtn.classList.add('bg-blue', 'text-white'); blurBtn.classList.remove('bg-white', 'dark:bg-slate-700', 'text-slate-600', 'dark:text-slate-300'); }
+            if (mosaicBtn) { mosaicBtn.classList.remove('bg-blue', 'text-white'); mosaicBtn.classList.add('bg-white', 'dark:bg-slate-700', 'text-slate-600', 'dark:text-slate-300'); }
+        } else {
+            if (mosaicBtn) { mosaicBtn.classList.add('bg-blue', 'text-white'); mosaicBtn.classList.remove('bg-white', 'dark:bg-slate-700', 'text-slate-600', 'dark:text-slate-300'); }
+            if (blurBtn) { blurBtn.classList.remove('bg-blue', 'text-white'); blurBtn.classList.add('bg-white', 'dark:bg-slate-700', 'text-slate-600', 'dark:text-slate-300'); }
+        }
+        this.updateEffect();
+    },
+
+    reset() {
+        this.stopAutoReveal();
+        this.revealed = false;
+        this.currentLevel = this.maxLevel;
+        const guessSection = document.getElementById('guess-section');
+        if (guessSection) guessSection.classList.add('hidden');
+        this.updateEffect();
+        this.updateBlurBar();
+        
+        const btn = document.getElementById('auto-blur-btn');
+        if (btn) {
+            btn.innerHTML = `<i data-lucide="play" class="w-4 h-4 md:w-5 md:h-5 fill-current"></i><span class="hidden md:inline">AUTO REVEAL</span>`;
+            btn.classList.remove('bg-white', 'text-blue', 'border-blue');
+            btn.classList.add('bg-blue', 'text-white');
+        }
+    },
+
+    updateEffect() {
+        const img = document.getElementById('target-image');
+        if (!img) return;
+        
+        if (this.effectType === 'blur') {
+            img.style.filter = `blur(${(this.currentLevel / 5) * 20}px)`;
+            img.style.imageRendering = 'auto';
+            img.style.transform = 'scale(1)';
+        } else {
+            img.style.filter = 'none';
+            img.style.imageRendering = 'pixelated';
+            const scale = 0.05 + (this.currentLevel / 5) * 0.15;
+            img.style.transform = `scale(${scale})`;
+        }
+        
+        const display = document.getElementById('blur-display');
+        if (display) {
+            const clarity = Math.round((1 - this.currentLevel / this.maxLevel) * 100);
+            display.textContent = clarity + '%';
+        }
+        this.updateBlurBar();
+    },
+
+    updateBlurBar() {
+        const bar = document.getElementById('blur-bar');
+        if (!bar) return;
+        const percent = (1 - this.currentLevel / this.maxLevel) * 100;
+        bar.style.width = percent + '%';
+    },
+
+    startAutoReveal() {
+        if (this.isAutoRevealing || this.revealed) return;
+        this.isAutoRevealing = true;
+        const speedSlider = document.getElementById('blur-speed-slider');
+        const speedMultiplier = speedSlider ? parseInt(speedSlider.value) : 3;
+        const stepDelay = 600 / speedMultiplier;
+        
+        const step = () => {
+            if (!this.isAutoRevealing || this.revealed) return;
+            if (this.currentLevel > 0) {
+                this.currentLevel -= 0.5;
+                if (this.currentLevel < 0) this.currentLevel = 0;
+                this.updateEffect();
+                if (this.currentLevel > 0) {
+                    this.animationId = setTimeout(() => requestAnimationFrame(step), stepDelay);
+                } else {
+                    this.revealComplete();
+                }
+            }
+        };
+        step();
+    },
+
+    stopAutoReveal() {
+        this.isAutoRevealing = false;
+        if (this.animationId) {
+            clearTimeout(this.animationId);
+            this.animationId = null;
+        }
+    },
+
+    revealComplete() {
+        this.revealed = true;
+        this.currentLevel = 0;
+        this.updateEffect();
+        Audio.playWin();
+        UI.fireConfetti();
+        const guessSection = document.getElementById('guess-section');
+        if (guessSection) guessSection.classList.remove('hidden');
+        const input = document.getElementById('guess-input');
+        if (input) input.focus();
+        const btn = document.getElementById('next-round-btn');
+        if (btn) btn.disabled = false;
+        const prevBtn = document.getElementById('prev-round-btn');
+        if (prevBtn) prevBtn.disabled = false;
+    },
+
+    toggleAuto() {
+        if (this.isAutoRevealing) {
+            this.stopAutoReveal();
+            const btn = document.getElementById('auto-blur-btn');
+            if (btn) {
+                btn.innerHTML = `<i data-lucide="play" class="w-4 h-4 md:w-5 md:h-5 fill-current"></i><span class="hidden md:inline">AUTO REVEAL</span>`;
+                btn.classList.remove('bg-white', 'text-blue', 'border-blue');
+                btn.classList.add('bg-blue', 'text-white');
+                lucide.createIcons();
+            }
+        } else {
+            this.startAutoReveal();
+            const btn = document.getElementById('auto-blur-btn');
+            if (btn) {
+                btn.innerHTML = `<i data-lucide="pause" class="w-4 h-4 md:w-5 md:h-5 fill-current"></i><span class="hidden md:inline">PAUSE</span>`;
+                btn.classList.remove('bg-blue', 'text-white');
+                btn.classList.add('bg-white', 'text-blue', 'border-blue');
+                lucide.createIcons();
+            }
+        }
+    },
+
+    revealAll() {
+        this.stopAutoReveal();
+        this.currentLevel = 0;
+        this.revealComplete();
+    }
+};
+
+// ==================== AUTO CONTROLLERS ====================
+const AutoZoom = {
+    toggle: () => ZoomGame.toggleAuto()
+};
+
+const AutoBlur = {
+    toggle: () => BlurGame.toggleAuto()
+};
+
+// ==================== MODE OVERRIDES ====================
+const path = window.location.pathname;
+if (path.includes('zoom.html')) {
+    const originalLoadLevel = Game.loadLevel;
+    Game.loadLevel = async function() {
+        await originalLoadLevel.call(this);
+        ZoomGame.reset();
+    };
+    Game.resetZoom = () => ZoomGame.reset();
+    Game.revealAll = () => ZoomGame.revealAll();
+    Game.checkGuess = () => {
+        const input = document.getElementById('guess-input');
+        const guess = input.value.trim().toLowerCase();
+        const modal = document.getElementById('guess-modal');
+        const content = document.getElementById('guess-modal-content');
+        const icon = document.getElementById('guess-result-icon');
+        const title = document.getElementById('guess-result-title');
+        const msg = document.getElementById('guess-result-msg');
+        
+        if (guess.length > 2) {
+            icon.className = 'w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 border-2 bg-green-100 text-green-500 border-green-200';
+            icon.innerHTML = '<i data-lucide="check-circle" class="w-8 h-8"></i>';
+            title.textContent = 'Good Guess!';
+            msg.textContent = 'You guessed: "' + guess + '"';
+        } else {
+            icon.className = 'w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 border-2 bg-blue-100 text-blue-500 border-blue-200';
+            icon.innerHTML = '<i data-lucide="help-circle" class="w-8 h-8"></i>';
+            title.textContent = 'Think about it...';
+            msg.textContent = 'Keep guessing or move to next image!';
+        }
+        
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+        requestAnimationFrame(() => {
+            content.classList.remove('scale-95', 'opacity-0');
+            content.classList.add('scale-100', 'opacity-100');
+        });
+        lucide.createIcons();
+        input.value = '';
+    };
+    Game.closeGuessModal = () => {
+        const modal = document.getElementById('guess-modal');
+        const content = document.getElementById('guess-modal-content');
+        content.classList.remove('scale-100', 'opacity-100');
+        content.classList.add('scale-95', 'opacity-0');
+        setTimeout(() => {
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+        }, 200);
+    };
+} else if (path.includes('blur.html')) {
+    const originalLoadLevel = Game.loadLevel;
+    Game.loadLevel = async function() {
+        await originalLoadLevel.call(this);
+        BlurGame.reset();
+    };
+    Game.resetBlur = () => BlurGame.reset();
+    Game.revealAll = () => BlurGame.revealAll();
+    Game.checkGuess = () => {
+        const input = document.getElementById('guess-input');
+        const guess = input.value.trim().toLowerCase();
+        const modal = document.getElementById('guess-modal');
+        const content = document.getElementById('guess-modal-content');
+        const icon = document.getElementById('guess-result-icon');
+        const title = document.getElementById('guess-result-title');
+        const msg = document.getElementById('guess-result-msg');
+        
+        if (guess.length > 2) {
+            icon.className = 'w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 border-2 bg-green-100 text-green-500 border-green-200';
+            icon.innerHTML = '<i data-lucide="check-circle" class="w-8 h-8"></i>';
+            title.textContent = 'Good Guess!';
+            msg.textContent = 'You guessed: "' + guess + '"';
+        } else {
+            icon.className = 'w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 border-2 bg-blue-100 text-blue-500 border-blue-200';
+            icon.innerHTML = '<i data-lucide="help-circle" class="w-8 h-8"></i>';
+            title.textContent = 'Think about it...';
+            msg.textContent = 'Keep guessing or move to next image!';
+        }
+        
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+        requestAnimationFrame(() => {
+            content.classList.remove('scale-95', 'opacity-0');
+            content.classList.add('scale-100', 'opacity-100');
+        });
+        lucide.createIcons();
+        input.value = '';
+    };
+    Game.closeGuessModal = () => {
+        const modal = document.getElementById('guess-modal');
+        const content = document.getElementById('guess-modal-content');
+        content.classList.remove('scale-100', 'opacity-100');
+        content.classList.add('scale-95', 'opacity-0');
+        setTimeout(() => {
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+        }, 200);
+    };
+}
