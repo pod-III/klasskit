@@ -326,11 +326,11 @@
 
     <div id="presentation-mode" tabindex="0">
         <div id="slide-content" class="text-center p-10 max-w-[90vw] flex flex-col items-center justify-center">
-            <h1 id="display-word" class="text-chalk font-title slide-text break-words"
-                style="font-size: 10vw; line-height: 1.1;">
+            <h1 id="display-word" class="text-chalk font-title slide-text break-words leading-tight"
+                style="font-size: 10vw;">
                 Word
             </h1>
-            <img id="display-image" class="max-w-full max-h-[80vh] object-contain hidden slide-text rounded-2xl shadow-hard-white border-4 border-chalk" />
+            <img id="display-image" class="max-w-full max-h-[80vh] object-contain hidden slide-text rounded-2xl shadow-hard-white border-4 border-chalk transition-all duration-300" />
         </div>
 
         <div class="absolute bottom-8 left-0 w-full text-center pointer-events-none">
@@ -345,6 +345,12 @@
         <button onclick="app.stopPresentation()"
             class="btn-chunky absolute top-6 right-6 bg-pink text-dark border-4 border-dark dark:border-slate-600 rounded-xl p-3 shadow-hard z-50 pointer-events-auto">
             <i data-lucide="x" class="w-8 h-8"></i>
+        </button>
+
+        <button onclick="app.toggleImageFullscreen()" id="img-fullscreen-btn"
+            class="btn-chunky absolute top-6 left-6 bg-chalk text-dark border-4 border-dark dark:border-slate-600 dark:text-chalk dark:bg-slate-800 rounded-xl p-3 shadow-hard z-50 pointer-events-auto hidden"
+            title="Toggle Fullscreen Image">
+            <i data-lucide="maximize" class="w-6 h-6" id="img-fullscreen-icon"></i>
         </button>
     </div>
 
@@ -513,12 +519,12 @@
             }
         }
         async function dbPut(key, data) {
-            try { 
-                const database = await initDB(); 
-                database.transaction(STATE_STORE, 'readwrite').objectStore(STATE_STORE).put(data, key); 
+            try {
+                const database = await initDB();
+                database.transaction(STATE_STORE, 'readwrite').objectStore(STATE_STORE).put(data, key);
                 // Always sync state items to cloud
                 if (key === 'presentationText' || key === 'presentationImages') {
-                    saveToCloud();
+                    await saveToCloud();
                 }
             } catch(e) { console.error(e); }
         }
@@ -528,14 +534,17 @@
                 return new Promise((res) => { const r = database.transaction(STATE_STORE, 'readonly').objectStore(STATE_STORE).get(key); r.onsuccess = () => res(r.result); r.onerror = () => res(null); });
             } catch(e) { return null; }
         }
-        async function saveSetToDB(name, text, images = []) {
+        async function saveSetToDB(name, text, images = [], id = null, extra = {}) {
             const database = await initDB();
             const tx = database.transaction(SETS_STORE, 'readwrite');
-            tx.objectStore(SETS_STORE).put({ name, text, images, createdAt: Date.now() });
-            tx.oncomplete = () => {
-                saveToCloud(); // Sync sets as well
-            };
-            return new Promise(r => { tx.oncomplete = r; });
+            const store = tx.objectStore(SETS_STORE);
+            const payload = { name, text, images, createdAt: extra.createdAt || Date.now(), ...extra };
+            if (id) payload.id = id;
+            store.put(payload);
+            return new Promise((resolve, reject) => {
+                tx.oncomplete = () => { saveToCloud(); resolve(); };
+                tx.onerror = () => reject(tx.error);
+            });
         }
         async function getAllSets() {
             try {
@@ -560,11 +569,11 @@
                 const rawImages = await dbGet('presentationImages');
                 const rawSets = await getAllSets();
 
-                // Strip local blobs from cloud sync, keep Supabase URLs
-                const cleanImages = (rawImages || []).map(img => (img && img.startsWith('http')) ? img : "");
+                // Only sync http(s) URLs to cloud; filter out local data: URLs
+                const cleanImages = (rawImages || []).filter(img => img && img.startsWith('http'));
                 const cleanSets = (rawSets || []).map(s => ({
                     ...s,
-                    images: (s.images || []).map(img => (img && img.startsWith('http')) ? img : "")
+                    images: (s.images || []).filter(img => img && img.startsWith('http'))
                 }));
 
                 await saveProgress('speedy_slides_data', { text, images: cleanImages, sets: cleanSets });
@@ -576,33 +585,54 @@
         async function loadFromCloud() {
             try {
                 const data = await loadProgress('speedy_slides_data');
-                if (data) {
-                    if (data.text !== undefined) {
-                        const localText = await dbGet('presentationText');
-                        // Simple policy: Cloud takes precedence if different
-                        if (data.text !== localText) {
-                            await dbPut('presentationText', data.text);
-                            const textarea = document.getElementById('word-input');
-                            if (textarea) textarea.value = data.text;
-                        }
+                if (!data) return;
+
+                // Merge text: cloud wins if non-empty, otherwise keep local
+                if (data.text !== undefined && data.text !== null && data.text !== '') {
+                    const localText = await dbGet('presentationText') || '';
+                    if (data.text !== localText) {
+                        await dbPut('presentationText', data.text);
+                        const textarea = document.getElementById('word-input');
+                        if (textarea) textarea.value = data.text;
                     }
-                    if (data.images !== undefined) {
-                        await dbPut('presentationImages', data.images);
-                        app.images = data.images;
-                    }
-                    if (data.sets) {
-                        for (const s of data.sets) {
-                            // Simple merge: if name not in current sets, add it
-                            const existing = await getAllSets();
-                            if (!existing.find(es => es.name === s.name)) {
-                                await saveSetToDB(s.name, s.text, s.images);
-                            }
-                        }
-                    }
-                    app.updateImageUI();
-                    app.updateCount();
-                    app.renderSets();
                 }
+
+                // Merge images: only add cloud URLs that don't already exist locally; never wipe local data: URLs
+                if (data.images !== undefined && data.images.length > 0) {
+                    const localImages = (await dbGet('presentationImages')) || [];
+                    const merged = [...localImages];
+                    for (const img of data.images) {
+                        if (img && !merged.includes(img)) merged.push(img);
+                    }
+                    await dbPut('presentationImages', merged);
+                    app.images = merged;
+                }
+
+                // Merge sets: update by name if exists, otherwise create new; preserve local ids
+                if (data.sets && data.sets.length > 0) {
+                    const existing = await getAllSets();
+                    for (const s of data.sets) {
+                        const match = existing.find(es => es.name === s.name);
+                        if (match) {
+                            // Update existing set, preserving local id and stats
+                            await saveSetToDB(s.name, s.text, s.images, match.id, {
+                                createdAt: match.createdAt || s.createdAt || Date.now(),
+                                lastUsed: match.lastUsed || s.lastUsed || Date.now(),
+                                usageCount: match.usageCount || s.usageCount || 0
+                            });
+                        } else {
+                            await saveSetToDB(s.name, s.text, s.images, null, {
+                                createdAt: s.createdAt || Date.now(),
+                                lastUsed: s.lastUsed || Date.now(),
+                                usageCount: s.usageCount || 0
+                            });
+                        }
+                    }
+                }
+
+                app.updateImageUI();
+                app.updateCount();
+                app.renderSets();
             } catch (e) {
                 console.error("Cloud load failed", e);
             }
@@ -613,6 +643,7 @@
             images: [],
             activeSetId: null,
             currentIndex: 0,
+            imageFullscreen: false,
             colors: ['#FF6B95', '#FF8C42', '#00E676', '#2979FF'], // KK Palette: Pink, Orange, Green, Blue
 
             async init() {
@@ -722,7 +753,7 @@
                         const src = await resolveAndCache(item);
                         content = `<img src="${src}" class="w-full h-full object-cover">`;
                     } else {
-                        content = `<div class="w-full h-full flex items-center justify-center p-1.5 text-[8px] font-bold text-chalk text-center leading-tight break-words uppercase overflow-hidden">${item}</div>`;
+                        content = `<div class="strip-text w-full h-full flex items-center justify-center p-1 font-bold text-chalk text-center leading-none overflow-hidden" style="font-size: 12px;">${item}</div>`;
                     }
 
                     return `
@@ -734,6 +765,23 @@
                 }));
 
                 strip.innerHTML = html.join('');
+                requestAnimationFrame(() => this.fitStripTexts());
+            },
+
+            fitStripTexts() {
+                const texts = document.querySelectorAll('.strip-text');
+                texts.forEach(el => {
+                    let size = parseFloat(getComputedStyle(el).fontSize);
+                    let safe = 0;
+                    while (safe < 50) {
+                        const overflowX = el.scrollWidth > el.clientWidth;
+                        const overflowY = el.scrollHeight > el.clientHeight;
+                        if (!overflowX && !overflowY) break;
+                        size *= 0.92;
+                        el.style.fontSize = size + 'px';
+                        safe++;
+                    }
+                });
             },
 
             async handleImages(event) {
@@ -957,11 +1005,14 @@
                     display.style.display = 'none';
                     displayImg.style.display = 'block';
                     displayImg.src = await resolveAndCache(currentContent);
-                    
+                    document.getElementById('img-fullscreen-btn').classList.remove('hidden');
+                    this.updateImageFullscreenUI();
+
                     displayImg.classList.remove('slide-text');
                     void displayImg.offsetWidth;
                     displayImg.classList.add('slide-text');
                 } else {
+                    document.getElementById('img-fullscreen-btn').classList.add('hidden');
                     displayImg.style.display = 'none';
                     display.style.display = 'block';
                     display.innerText = currentContent;
@@ -969,6 +1020,7 @@
                     display.classList.remove('slide-text');
                     void display.offsetWidth;
                     display.classList.add('slide-text');
+                    this.fitText(display);
                 }
 
                 // Cycle through KlassKit palette colors based on index
@@ -978,6 +1030,50 @@
                 // Update counters
                 document.getElementById('slide-number').innerText = this.currentIndex + 1;
                 document.getElementById('total-slides').innerText = this.words.length;
+            },
+
+            toggleImageFullscreen() {
+                this.imageFullscreen = !this.imageFullscreen;
+                this.updateImageFullscreenUI();
+            },
+
+            updateImageFullscreenUI() {
+                const btn = document.getElementById('img-fullscreen-btn');
+                const icon = document.getElementById('img-fullscreen-icon');
+                const img = document.getElementById('display-image');
+                if (!btn || !img) return;
+
+                if (this.imageFullscreen) {
+                    img.classList.remove('max-w-full', 'max-h-[80vh]', 'object-contain', 'rounded-2xl', 'shadow-hard-white', 'border-4', 'border-chalk', 'relative');
+                    img.classList.add('fixed', 'inset-0', 'w-screen', 'h-screen', 'object-cover', 'z-10');
+                    if (icon) icon.setAttribute('data-lucide', 'minimize');
+                } else {
+                    img.classList.remove('fixed', 'inset-0', 'w-screen', 'h-screen', 'object-cover', 'z-10');
+                    img.classList.add('max-w-full', 'max-h-[80vh]', 'object-contain', 'rounded-2xl', 'shadow-hard-white', 'border-4', 'border-chalk', 'relative');
+                    if (icon) icon.setAttribute('data-lucide', 'maximize');
+                }
+                lucide.createIcons();
+            },
+
+            fitText(el) {
+                const container = document.getElementById('slide-content');
+                if (!el || !container) return;
+
+                // Reset to a large starting size
+                el.style.fontSize = '15vw';
+
+                const containerW = container.clientWidth - 80; // padding buffer
+                const containerH = window.innerHeight - 200; // leave room for nav
+
+                let size = parseFloat(getComputedStyle(el).fontSize);
+                let safe = 0;
+                while (safe < 60) {
+                    const rect = el.getBoundingClientRect();
+                    if (rect.width <= containerW && rect.height <= containerH) break;
+                    size *= 0.92;
+                    el.style.fontSize = size + 'px';
+                    safe++;
+                }
             },
 
             // Modal Logic
@@ -1006,26 +1102,73 @@
             async saveCurrentSet() {
                 const nameInput = document.getElementById('set-name-input');
                 const name = nameInput.value.trim();
-                const text = document.getElementById('word-input').value.trim();
-                if (!name || (!text && this.images.length === 0)) return;
-                
+                const text = document.getElementById('word-input').value;
+                if (!name || (!text.trim() && this.images.length === 0)) return;
+
+                // If editing an active set, update it directly
+                if (this.activeSetId) {
+                    const database = await initDB();
+                    const tx = database.transaction(SETS_STORE, 'readwrite');
+                    const store = tx.objectStore(SETS_STORE);
+                    const req = store.get(this.activeSetId);
+                    const setId = await new Promise((resolve) => {
+                        req.onsuccess = () => {
+                            const existing = req.result;
+                            if (existing) {
+                                existing.name = name;
+                                existing.text = text;
+                                existing.images = this.images;
+                                existing.lastUsed = Date.now();
+                                store.put(existing);
+                                resolve(existing.id);
+                            } else {
+                                // Fallback if ID no longer exists
+                                const putReq = store.put({
+                                    name, text, images: this.images,
+                                    createdAt: Date.now(), lastUsed: Date.now(), usageCount: 1
+                                });
+                                putReq.onsuccess = () => resolve(putReq.result);
+                            }
+                        };
+                    });
+                    nameInput.value = '';
+                    this.activeSetId = setId;
+                    this.renderSets();
+                    saveToCloud();
+                    showToast(`Updated "${name}"`, "success");
+                    return;
+                }
+
+                // No active set: check if name already exists to avoid duplicates
+                const allSets = await getAllSets();
+                const existing = allSets.find(s => s.name === name);
+                if (existing) {
+                    await saveSetToDB(name, text, this.images, existing.id, {
+                        createdAt: existing.createdAt,
+                        lastUsed: Date.now(),
+                        usageCount: existing.usageCount || 1
+                    });
+                    this.activeSetId = existing.id;
+                    nameInput.value = '';
+                    this.renderSets();
+                    showToast(`Updated "${name}"`, "success");
+                    return;
+                }
+
+                // Create brand new set
                 const database = await initDB();
-                const tx = database.transaction(SETS_STORE, 'readwrite');
-                const store = tx.objectStore(SETS_STORE);
-                const setId = await new Promise(resolve => {
-                    const req = store.put({ 
-                        name, 
-                        text, 
-                        images: this.images, 
-                        createdAt: Date.now(), 
-                        lastUsed: Date.now(), 
-                        usageCount: 1 
+                const newId = await new Promise(resolve => {
+                    const tx = database.transaction(SETS_STORE, 'readwrite');
+                    const store = tx.objectStore(SETS_STORE);
+                    const req = store.put({
+                        name, text, images: this.images,
+                        createdAt: Date.now(), lastUsed: Date.now(), usageCount: 1
                     });
                     req.onsuccess = () => resolve(req.result);
                 });
-                
+
                 nameInput.value = '';
-                this.activeSetId = setId;
+                this.activeSetId = newId;
                 this.renderSets();
                 saveToCloud();
                 showToast(`Saved as "${name}"`, "success");
