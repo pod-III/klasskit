@@ -88,6 +88,7 @@ const ClassTallyApp = (function () {
         isPicking: false,
         cardSize: 1,
         isAutoFit: true,
+        tvMode: false,
         showRankings: false,
         editingStudentId: null,
         activeSetId: null,
@@ -379,6 +380,7 @@ const ClassTallyApp = (function () {
                 pickedQueue: State.pickedQueue,
                 cardSize: State.cardSize,
                 isAutoFit: State.isAutoFit,
+                tvMode: State.tvMode,
                 activeSetId: State.activeSetId,
                 showAbsent: State.showAbsent,
                 viewMode: State.viewMode
@@ -410,6 +412,7 @@ const ClassTallyApp = (function () {
                     State.pickedQueue = o.pickedQueue || []
                     State.cardSize = o.cardSize || 1
                     State.isAutoFit = o.isAutoFit !== undefined ? o.isAutoFit : true
+                    State.tvMode = o.tvMode || false
                     State.activeSetId = o.activeSetId || null
                     State.showAbsent = o.showAbsent || false
                     State.viewMode = o.viewMode || 'grid'
@@ -1216,6 +1219,38 @@ const ClassTallyApp = (function () {
         },
 
         // CARD RESIZING & AUTO-FIT
+        toggleTVMode: () => {
+            State.tvMode = !State.tvMode;
+            document.body.classList.toggle('tv-mode', State.tvMode);
+            if (State.tvMode) {
+                document.documentElement.style.setProperty('--card-base-w', '360px');
+                document.documentElement.style.setProperty('--card-base-h', '380px');
+            } else {
+                document.documentElement.style.setProperty('--card-base-w', '300px');
+                document.documentElement.style.setProperty('--card-base-h', '300px');
+            }
+            UI.updateTVModeUI();
+            Persistence.save();
+            if (State.viewMode === 'grid') {
+                if (State.isAutoFit) UI.calculateAutoFitScale();
+                else UI.setCardSize(1);
+            }
+        },
+
+        updateTVModeUI: () => {
+            const btn = document.getElementById('btn-tv-mode');
+            if (!btn) return;
+            const track = btn.querySelector('.tvmode-track');
+            const thumb = btn.querySelector('.tvmode-thumb');
+            if (State.tvMode) {
+                if (track) { track.classList.add('bg-brand-blue'); track.classList.remove('bg-slate-200', 'bg-slate-700'); }
+                if (thumb) thumb.classList.add('translate-x-4');
+            } else {
+                if (track) { track.classList.remove('bg-brand-blue'); track.classList.add('bg-slate-200'); }
+                if (thumb) thumb.classList.remove('translate-x-4');
+            }
+        },
+
         toggleAutoFit: () => {
             State.isAutoFit = !State.isAutoFit;
             UI.updateAutoFitUI();
@@ -1256,20 +1291,26 @@ const ClassTallyApp = (function () {
             const appBody = document.getElementById('app-body');
             if (!appBody) return;
 
-            // Base dimensions
-            const cardBaseWidth = 300;
-            const cardBaseHeight = 300;
-            const gapBase = 24; 
-            const padding = 48; // generous padding for safe containment
+            // TV mode uses larger base dimensions, tighter padding, higher scale limits
+            const tv = State.tvMode;
+            const cardBaseWidth = tv ? 360 : 300;
+            const cardBaseHeight = tv ? 380 : 300;
+            const gapBase = 24;
+            const padding = tv ? 20 : 48;
+            const minScaleLimit = tv ? 0.8 : 0.3;
+            const maxScaleLimit = tv ? 1.5 : 1.2;
+
+            // Keep CSS base vars in sync with the current mode
+            document.documentElement.style.setProperty('--card-base-w', cardBaseWidth + 'px');
+            document.documentElement.style.setProperty('--card-base-h', cardBaseHeight + 'px');
 
             const availableWidth = appBody.clientWidth - padding;
             const availableHeight = appBody.clientHeight - padding;
             const count = State.students.length;
 
-            let bestScale = 0.3;
+            let bestScale = minScaleLimit;
             let bestCols = 1;
 
-            // Try different column counts (from 1 to count) to find the best fit
             for (let cols = 1; cols <= count; cols++) {
                 const rows = Math.ceil(count / cols);
                 const totalWidthNeeded = (cols * cardBaseWidth) + ((cols - 1) * gapBase);
@@ -1278,7 +1319,6 @@ const ClassTallyApp = (function () {
                 const scaleW = availableWidth / totalWidthNeeded;
                 const scaleH = availableHeight / totalHeightNeeded;
 
-                // We want to fit within BOTH width and height
                 const scale = Math.min(scaleW, scaleH);
 
                 if (scale > bestScale) {
@@ -1287,10 +1327,8 @@ const ClassTallyApp = (function () {
                 }
             }
 
-            // Constrain scale to reasonable limits
-            bestScale = Math.min(Math.max(bestScale, 0.3), 1.2);
+            bestScale = Math.min(Math.max(bestScale, minScaleLimit), maxScaleLimit);
 
-            // Explicitly set the number of columns to prevent auto-fill overflow
             document.documentElement.style.setProperty('--grid-cols', bestCols);
             UI.setCardSize(bestScale);
         },
@@ -1439,7 +1477,7 @@ const ClassTallyApp = (function () {
                     ${rankBadge}
 
                     <!-- Card Header: colored background with avatar + name + scores -->
-                    <div class="relative flex flex-col items-center pt-4 pb-3 px-3 shrink-0"
+                    <div class="card-header relative flex flex-col items-center pt-4 pb-3 px-3 shrink-0"
                          style="background: linear-gradient(150deg, ${s.cardColor}f2, ${s.cardColor}99);">
                         <div class="absolute inset-0 pointer-events-none" style="background-image: radial-gradient(rgba(255,255,255,0.22) 1px, transparent 1px); background-size: 10px 10px;"></div>
                         <div class="absolute inset-0 bg-gradient-to-b from-transparent to-black/10 pointer-events-none"></div>
@@ -1465,7 +1503,7 @@ const ClassTallyApp = (function () {
                         </div>
 
                         <!-- Avatar -->
-                        <div class="w-14 h-14 rounded-2xl bg-white/25 flex items-center justify-center text-4xl mb-2 shadow-md relative z-10 shrink-0 group-hover:scale-105 transition-transform duration-300">
+                        <div class="card-avatar w-14 h-14 rounded-2xl bg-white/25 flex items-center justify-center text-4xl mb-2 shadow-md relative z-10 shrink-0 group-hover:scale-105 transition-transform duration-300">
                             ${s.avatar || '😀'}
                         </div>
 
@@ -1473,16 +1511,16 @@ const ClassTallyApp = (function () {
                         <div class="relative z-10 w-full px-1">
                             ${s.signatureData
                                 ? `<img src="${s.signatureData}" class="h-7 object-contain mx-auto filter brightness-0 invert" alt="Signature" />`
-                                : `<p class="text-white font-black text-base text-center drop-shadow leading-tight truncate">${s.name}</p>`
+                                : `<p class="card-name text-white font-black text-base text-center drop-shadow leading-tight truncate">${s.name}</p>`
                             }
                         </div>
 
                         <!-- Score Pills -->
                         <div class="flex gap-1.5 mt-1.5 relative z-10">
-                            <div class="bg-white/30 backdrop-blur-sm rounded-full px-2 py-0.5 text-white text-[11px] font-black flex items-center gap-1 shadow-sm">
+                            <div class="card-score-pill bg-white/30 backdrop-blur-sm rounded-full px-2 py-0.5 text-white text-[11px] font-black flex items-center gap-1 shadow-sm">
                                 <span>${State.currentGood}</span><span class="good-count">${s.goodLogs.length}</span>
                             </div>
-                            <div class="bg-black/15 backdrop-blur-sm rounded-full px-2 py-0.5 text-white text-[11px] font-black flex items-center gap-1 shadow-sm">
+                            <div class="card-score-pill bg-black/15 backdrop-blur-sm rounded-full px-2 py-0.5 text-white text-[11px] font-black flex items-center gap-1 shadow-sm">
                                 <span>${State.currentBad}</span><span class="bad-count">${s.badLogs.length}</span>
                             </div>
                         </div>
@@ -1493,25 +1531,25 @@ const ClassTallyApp = (function () {
                         <div class="custom-scrollbar tally-log-container flex flex-wrap content-start gap-1 h-full overflow-y-auto w-full p-2.5">
                             ${s.goodLogs.map((e, i) => `<span onclick="event.stopPropagation(); ClassTallyApp.Student.removeLastPoint(${s.id},'good')" class="tally-item text-xl select-none hover:opacity-50 drop-shadow-sm cursor-pointer">${e}</span>`).join('')}
                             ${s.badLogs.map(e => `<span onclick="event.stopPropagation(); ClassTallyApp.Student.removeLastPoint(${s.id},'bad')" class="tally-item text-lg grayscale opacity-70 hover:opacity-100 drop-shadow-sm cursor-pointer">${e}</span>`).join('')}
-                            ${s.goodLogs.length === 0 && s.badLogs.length === 0 ? '<span class="text-[10px] text-slate-300 font-bold self-center w-full text-center mt-4 uppercase tracking-wide">No marks yet</span>' : ''}
+                            ${s.goodLogs.length === 0 && s.badLogs.length === 0 ? '<span class="card-empty-label text-[10px] text-slate-300 font-bold self-center w-full text-center mt-4 uppercase tracking-wide">No marks yet</span>' : ''}
                         </div>
                         <div class="tap-hint absolute bottom-1 right-2 text-[8px] text-slate-300 font-bold uppercase tracking-widest pointer-events-none opacity-0 group-hover/logs:opacity-100 transition-opacity bg-white dark:bg-slate-900 px-1 rounded">Tap to remove</div>
                     </div>
 
                     <!-- Action Buttons -->
-                    <div class="flex shrink-0 h-11 border-t border-slate-100 dark:border-slate-700/50">
+                    <div class="card-action-row flex shrink-0 h-11 border-t border-slate-100 dark:border-slate-700/50">
                         <button onclick="ClassTallyApp.Student.addPoint(${s.id}, 'good')"
                             data-tooltip="Add ${State.currentGood}"
                             class="flex-1 flex items-center justify-center gap-1 font-bold text-brand-green hover:bg-green-500 hover:text-white dark:hover:bg-green-600 transition-all active:scale-95 group/btn rounded-bl-[1.75rem]">
-                            <span class="text-base drop-shadow-sm group-hover/btn:scale-110 transition-transform">${State.currentGood}</span>
-                            <span class="text-[10px] uppercase tracking-wide font-black opacity-60 group-hover/btn:opacity-100">Good</span>
+                            <span class="card-action-emoji text-base drop-shadow-sm group-hover/btn:scale-110 transition-transform">${State.currentGood}</span>
+                            <span class="card-action-label text-[10px] uppercase tracking-wide font-black opacity-60 group-hover/btn:opacity-100">Good</span>
                         </button>
                         <div class="w-px bg-slate-100 dark:bg-slate-700/50 self-stretch my-1.5 shrink-0"></div>
                         <button onclick="ClassTallyApp.Student.addPoint(${s.id}, 'bad')"
                             data-tooltip="Add ${State.currentBad}"
                             class="flex-1 flex items-center justify-center gap-1 font-bold text-brand-pink hover:bg-brand-pink hover:text-white dark:hover:bg-pink-600 transition-all active:scale-95 group/btn rounded-br-[1.75rem]">
-                            <span class="text-base drop-shadow-sm group-hover/btn:scale-110 transition-transform">${State.currentBad}</span>
-                            <span class="text-[10px] uppercase tracking-wide font-black opacity-60 group-hover/btn:opacity-100">Bad</span>
+                            <span class="card-action-emoji text-base drop-shadow-sm group-hover/btn:scale-110 transition-transform">${State.currentBad}</span>
+                            <span class="card-action-label text-[10px] uppercase tracking-wide font-black opacity-60 group-hover/btn:opacity-100">Bad</span>
                         </button>
                     </div>
                 </div>`;
@@ -1674,7 +1712,15 @@ const ClassTallyApp = (function () {
             UI.render();
             UI.updateViewModeUI();
             UI.updateAutoFitUI();
+            UI.updateTVModeUI();
             UI.renderClassSets();
+
+            // Restore TV mode CSS state if saved
+            if (State.tvMode) {
+                document.body.classList.add('tv-mode');
+                document.documentElement.style.setProperty('--card-base-w', '360px');
+                document.documentElement.style.setProperty('--card-base-h', '380px');
+            }
 
             if (State.isAutoFit) {
                 UI.calculateAutoFitScale();
@@ -1684,7 +1730,7 @@ const ClassTallyApp = (function () {
 
             // Resize observer for Auto-Fit
             const resizeObserver = new ResizeObserver(() => {
-                if (State.isAutoFit) UI.calculateAutoFitScale();
+                if (State.isAutoFit) UI.calculateAutoFitScale(); // calculateAutoFitScale is TV-aware
             });
             resizeObserver.observe(document.getElementById('app-body'));
 
