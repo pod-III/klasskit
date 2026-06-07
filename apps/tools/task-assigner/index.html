@@ -359,6 +359,24 @@
                             <span class="text-[10px] font-bold text-slate-400">RANDOM</span>
                         </div>
                     </div>
+
+                    <!-- Image Upload -->
+                    <div class="p-4 bg-slate-50/50 dark:bg-slate-800/50 border-[1px] border-slate-300 dark:border-white/10 rounded-xl space-y-2">
+                        <label class="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                            <i data-lucide="image" class="w-4 h-4 text-purple"></i> Mission Images
+                        </label>
+                        <label class="w-full cursor-pointer flex items-center justify-center gap-2 p-2 border-2 border-dashed border-slate-300 dark:border-white/20 rounded-xl hover:border-purple transition-colors text-xs font-bold text-slate-500">
+                            <i data-lucide="upload" class="w-4 h-4"></i>
+                            <span id="image-upload-label">Upload Images</span>
+                            <input type="file" id="card-image-input" class="hidden" accept="image/*" multiple onchange="handleImageUpload(this)">
+                        </label>
+                        <div id="image-preview-list" class="flex gap-2 flex-wrap"></div>
+                        <div class="flex bg-slate-200 dark:bg-slate-700 rounded-lg p-1 gap-1 mt-2">
+                            <button id="text-mission-btn" onclick="setMissionMode('text')" class="flex-1 py-1.5 px-2 rounded-md text-[10px] font-bold uppercase transition-all bg-white dark:bg-slate-600 text-dark dark:text-white shadow-neo-sm">Text Mission</button>
+                            <button id="image-mission-btn" onclick="setMissionMode('image')" class="flex-1 py-1.5 px-2 rounded-md text-[10px] font-bold uppercase transition-all text-slate-500 dark:text-slate-400 hover:bg-white/50 dark:hover:bg-slate-600/50">Image Mission</button>
+                        </div>
+                        <input type="checkbox" id="image-mission-toggle" class="hidden" onchange="onImageMissionToggle()">
+                    </div>
                 </div>
 
                 <div class="pt-4 flex gap-3">
@@ -383,13 +401,19 @@
         <main class="flex-1 relative h-[55%] md:h-full bg-slate-50/50 dark:bg-slate-900/50 flex flex-col overflow-hidden transition-colors duration-300">
             <div class="absolute inset-0 opacity-10 pointer-events-none" style="background-image: radial-gradient(currentColor 2px, transparent 2px); background-size: 24px 24px;"></div>
             
-            <!-- Main display header with Sidebar toggle and Assign button -->
+            <!-- Main display header with Sidebar toggle and action buttons -->
             <div class="absolute top-4 left-4 z-20 flex gap-2">
                 <button onclick="toggleControlPanel()" class="p-2 glass-panel border-[1px] border-slate-300 dark:border-white/10 rounded-xl shadow-neo-sm hover:translate-y-[-2px] transition-transform text-slate-400 hover:text-dark dark:hover:text-slate-200" title="Toggle Sidebar">
                     <i data-lucide="settings" class="w-5 h-5"></i>
                 </button>
                 <button onclick="assignTasks()" class="btn-chunky bg-green text-dark px-4 py-1.5 rounded-xl text-xs font-bold shadow-neo-sm flex items-center gap-2">
                     <i data-lucide="wand-2" class="w-4 h-4"></i> ASSIGN
+                </button>
+                <button onclick="autoFitCards()" class="btn-chunky bg-white dark:bg-slate-700 text-blue px-3 py-1.5 rounded-xl text-xs font-bold shadow-neo-sm flex items-center gap-1" title="Autofit card layout">
+                    <i data-lucide="layout-template" class="w-4 h-4"></i> Fit Cards <span id="fit-cards-indicator" class="ml-1 bg-blue/10 dark:bg-blue/20 text-blue px-1 py-0.5 rounded text-[10px]">Default</span>
+                </button>
+                <button onclick="autoFitTextAll()" class="btn-chunky bg-white dark:bg-slate-700 text-orange px-3 py-1.5 rounded-xl text-xs font-bold shadow-neo-sm flex items-center gap-1" title="Autofit text in cards">
+                    <i data-lucide="type" class="w-4 h-4"></i> Fit Text
                 </button>
             </div>
 
@@ -426,15 +450,17 @@
     <script>
         // --- CONSTANTS & CONFIG ---
         const DB_NAME = 'TaskAssignerDB';
-        const DB_VERSION = 1;
+        const DB_VERSION = 2;
         const STORE_PRESETS = 'presets';
         const STORE_SETTINGS = 'settings';
+        const STORE_IMAGES = 'images';
         const LS_KEY_THEME = 'theme_task-assigner';
 
         let idb = null;
         let currentPresetId = null;
         let currentGroupSize = 1;
         let audioEnabled = true;
+        let uploadedImages = []; // { id, url, name }
 
         // --- THEME & UI ---
         function toggleTheme() {
@@ -548,8 +574,110 @@
                     if (!database.objectStoreNames.contains(STORE_SETTINGS)) {
                         database.createObjectStore(STORE_SETTINGS, { keyPath: 'key' });
                     }
+                    if (!database.objectStoreNames.contains(STORE_IMAGES)) {
+                        database.createObjectStore(STORE_IMAGES, { keyPath: 'id' });
+                    }
                 };
             });
+        }
+
+        // --- IMAGE HANDLERS ---
+        async function saveImageToDB(id, blob, name) {
+            if (!idb) return;
+            return new Promise((resolve, reject) => {
+                const tx = idb.transaction(STORE_IMAGES, 'readwrite');
+                const store = tx.objectStore(STORE_IMAGES);
+                const req = store.put({ id, blob, name, updatedAt: Date.now() });
+                req.onsuccess = () => resolve();
+                req.onerror = () => reject(req.error);
+            });
+        }
+
+        async function getImageFromDB(id) {
+            if (!idb) return null;
+            return new Promise((resolve, reject) => {
+                const tx = idb.transaction(STORE_IMAGES, 'readonly');
+                const store = tx.objectStore(STORE_IMAGES);
+                const req = store.get(id);
+                req.onsuccess = () => {
+                    const result = req.result;
+                    if (result && result.blob) {
+                        resolve(URL.createObjectURL(result.blob));
+                    } else {
+                        resolve(null);
+                    }
+                };
+                req.onerror = () => reject(req.error);
+            });
+        }
+
+        async function getAllImagesFromDB() {
+            if (!idb) return [];
+            return new Promise((resolve, reject) => {
+                const tx = idb.transaction(STORE_IMAGES, 'readonly');
+                const store = tx.objectStore(STORE_IMAGES);
+                const req = store.getAll();
+                req.onsuccess = () => {
+                    const results = req.result || [];
+                    resolve(results.map(r => ({ id: r.id, name: r.name, url: URL.createObjectURL(r.blob) })));
+                };
+                req.onerror = () => reject(req.error);
+            });
+        }
+
+        async function deleteImageFromDB(id) {
+            if (!idb) return;
+            return new Promise((resolve, reject) => {
+                const tx = idb.transaction(STORE_IMAGES, 'readwrite');
+                const store = tx.objectStore(STORE_IMAGES);
+                const req = store.delete(id);
+                req.onsuccess = () => resolve();
+                req.onerror = () => reject(req.error);
+            });
+        }
+
+        async function handleImageUpload(input) {
+            const files = Array.from(input.files);
+            if (!files.length) return;
+            for (const file of files) {
+                const id = crypto.randomUUID();
+                await saveImageToDB(id, file, file.name);
+            }
+            await refreshImagePreviews();
+            showToast(`${files.length} image(s) uploaded`, 'success');
+            input.value = '';
+        }
+
+        async function refreshImagePreviews() {
+            uploadedImages = await getAllImagesFromDB();
+            const container = document.getElementById('image-preview-list');
+            if (!container) return;
+            if (uploadedImages.length === 0) {
+                container.innerHTML = '';
+                document.getElementById('image-upload-label').textContent = 'Upload Images';
+                return;
+            }
+            document.getElementById('image-upload-label').textContent = `${uploadedImages.length} image(s)`;
+            container.innerHTML = uploadedImages.map(img => `
+                <div class="relative group w-10 h-10 rounded-lg border border-slate-300 dark:border-white/20 overflow-hidden cursor-pointer" onclick="removeImage('${img.id}')">
+                    <img src="${img.url}" class="w-full h-full object-cover">
+                    <div class="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                        <i data-lucide="x" class="w-4 h-4 text-white"></i>
+                    </div>
+                </div>
+            `).join('');
+            lucide.createIcons();
+        }
+
+        async function removeImage(id) {
+            await deleteImageFromDB(id);
+            await refreshImagePreviews();
+            // Re-render cards if visible to remove deleted image
+            const cardsGrid = document.getElementById('cardsGrid');
+            if (cardsGrid && cardsGrid.children.length > 0) {
+                // Cards will re-render on next assign; for now just refresh previews
+            }
+            showToast('Image removed', 'info');
         }
 
         async function initDB() {
@@ -587,6 +715,99 @@
             } catch (e) {
                 console.error("Cloud load failed", e);
             }
+        }
+
+        // --- AUTOFIT FUNCTIONS ---
+        let currentGridCols = 3; // 1, 2, 3, or 0 for auto
+        const gridLayouts = ['grid-cols-1', 'grid-cols-2', 'grid-cols-3', 'grid-cols-4'];
+
+        function autoFitCards() {
+            const cardsGrid = document.getElementById('cardsGrid');
+            if (!cardsGrid || cardsGrid.children.length === 0) {
+                showToast('Generate cards first', 'warning');
+                return;
+            }
+            const cardCount = cardsGrid.children.length;
+            const vpWidth = document.getElementById('resultsArea').clientWidth;
+
+            // Cycle layouts: auto → 1col → 2col → 3col → 4col → auto
+            currentGridCols = (currentGridCols + 1) % 5;
+
+            // Remove all grid col classes
+            gridLayouts.forEach(cls => cardsGrid.classList.remove(cls));
+            cardsGrid.classList.remove('md:grid-cols-2', 'lg:grid-cols-2', 'xl:grid-cols-3');
+
+            const indicator = document.getElementById('fit-cards-indicator');
+            if (currentGridCols === 0) {
+                // Auto-fit: pick best column count based on card count and viewport
+                let bestCols = 1;
+                if (cardCount >= 2 && vpWidth >= 600) bestCols = 2;
+                if (cardCount >= 3 && vpWidth >= 900) bestCols = 3;
+                if (cardCount >= 4 && vpWidth >= 1200) bestCols = 4;
+                cardsGrid.classList.add(`grid-cols-${bestCols}`);
+                if (indicator) indicator.textContent = 'Auto';
+                showToast(`Auto layout: ${bestCols} column(s)`, 'info');
+            } else {
+                cardsGrid.classList.add(`grid-cols-${currentGridCols}`);
+                if (indicator) indicator.textContent = `${currentGridCols} Col`;
+                showToast(`Layout: ${currentGridCols} column(s)`, 'info');
+            }
+
+            // Also adjust card min-heights to fill viewport
+            const vpHeight = document.getElementById('resultsArea').clientHeight - 80;
+            const rows = Math.ceil(cardCount / (currentGridCols === 0 ? 3 : currentGridCols));
+            const idealHeight = Math.max(180, Math.floor(vpHeight / Math.max(1, rows)) - 24);
+            Array.from(cardsGrid.children).forEach(card => {
+                card.style.minHeight = `${idealHeight}px`;
+            });
+
+            AudioEngine.playClick();
+            // Re-fit text after layout change
+            setTimeout(autoFitTextAll, 150);
+        }
+
+        function autoFitTextAll() {
+            const cardsGrid = document.getElementById('cardsGrid');
+            if (!cardsGrid || cardsGrid.children.length === 0) {
+                showToast('Generate cards first', 'warning');
+                return;
+            }
+            document.querySelectorAll('.fit-text').forEach(el => fitText(el));
+            showToast('Text fitted', 'success');
+            AudioEngine.playClick();
+        }
+
+        function fitText(el) {
+            const container = el.parentElement;
+            if (!container) return;
+            // Reset first to get natural size
+            el.style.fontSize = '';
+            el.style.whiteSpace = '';
+
+            const computed = window.getComputedStyle(el);
+            const baseSize = parseInt(computed.fontSize) || 24;
+            const maxFontSize = Math.max(baseSize, 72);
+            const minFontSize = 10;
+            const containerW = container.clientWidth;
+            const containerH = container.clientHeight;
+
+            function isOverflowing(size) {
+                el.style.fontSize = size + 'px';
+                return el.scrollWidth > containerW || el.scrollHeight > containerH;
+            }
+
+            // Binary search for optimal font size
+            let low = minFontSize, high = maxFontSize, best = minFontSize;
+            while (low <= high) {
+                const mid = Math.floor((low + high) / 2);
+                if (isOverflowing(mid)) {
+                    high = mid - 1;
+                } else {
+                    best = mid;
+                    low = mid + 1;
+                }
+            }
+            el.style.fontSize = best + 'px';
         }
 
         async function migrateFromLocalStorage() {
@@ -697,6 +918,10 @@
                     document.getElementById('sort-mode-toggle').checked = data.isRandom;
                     updateSortIcon();
                 }
+                if (data.useImageMission !== undefined) {
+                    document.getElementById('image-mission-toggle').checked = data.useImageMission;
+                }
+                syncMissionModeButtons();
                 await saveCurrentPresetId(id);
                 await renderPresetSelector();
                 updateCounts();
@@ -708,7 +933,8 @@
             const content = JSON.stringify({
                 people: document.getElementById('peopleInput').value,
                 tasks: document.getElementById('taskInput').value,
-                isRandom: document.getElementById('sort-mode-toggle').checked
+                isRandom: document.getElementById('sort-mode-toggle').checked,
+                useImageMission: document.getElementById('image-mission-toggle').checked
             });
             const id = await savePreset(name, content, currentPresetId);
             currentPresetId = id;
@@ -841,7 +1067,8 @@
             const cardsGrid = document.getElementById('cardsGrid');
             const resultsArea = document.getElementById('resultsArea');
             const emptyState = document.getElementById('emptyState');
-            
+            const useImageMission = document.getElementById('image-mission-toggle')?.checked || false;
+
             cardsGrid.innerHTML = '';
             emptyState.classList.add('hidden');
             resultsArea.classList.remove('hidden');
@@ -862,11 +1089,18 @@
                 const colorTheme = cardColors[index % cardColors.length];
                 const isGroup = groupArray.length > 1;
                 const label = isGroup ? 'TEAM' : 'STUDENT';
-                
+
                 // --- Text Fitting Logic ---
                 const taskWords = task.split(/\s+/).filter(w => w.length > 0);
                 const isMultiWordTask = taskWords.length >= 2;
-                
+
+                // --- Image Logic ---
+                const img = uploadedImages.length > 0 ? uploadedImages[index % uploadedImages.length] : null;
+                const imgHtml = img ? (useImageMission
+                    ? `<div class="w-full h-full max-h-[280px] rounded-xl overflow-hidden border-2 border-white/30 shadow-neo flex items-center justify-center"><img src="${img.url}" class="w-full h-full object-contain"></div>`
+                    : `<div class="w-full h-24 mb-2 rounded-xl overflow-hidden border border-white/20 shadow-neo-sm shrink-0"><img src="${img.url}" class="w-full h-full object-cover"></div>`
+                ) : '';
+
                 let namesHtml = '';
                 if (isGroup) {
                     namesHtml = `<div class="flex flex-wrap gap-2 mt-2">${groupArray.map(n => `<span class="bg-white/50 dark:bg-slate-800/50 border-[1px] border-dark/20 dark:border-white/20 px-3 py-1 rounded-xl text-lg font-black text-dark dark:text-white shadow-neo-sm">${n}</span>`).join('')}</div>`;
@@ -894,12 +1128,10 @@
                         </div>
                     </div>
 
-                    <div class="w-1/2 p-4 ${colorTheme.accent} flex flex-col justify-center items-center text-center relative overflow-hidden">
+                    <div class="w-1/2 p-4 ${colorTheme.accent} flex flex-col ${useImageMission ? 'justify-start pt-4' : 'justify-center'} items-center text-center relative overflow-hidden">
                         <div class="bg-white/50 dark:bg-slate-900/40 border-[1px] border-dark/20 px-3 py-1 rounded-lg text-[10px] font-black text-dark dark:text-white mb-3 tracking-widest uppercase shadow-neo-sm shrink-0">MISSION</div>
-                        <div class="flex-grow flex items-center justify-center w-full overflow-hidden">
-                            <div class="fit-text font-heading text-2xl md:text-4xl font-black leading-tight text-dark dark:text-white z-10 w-full ${isMultiWordTask ? 'break-words' : 'whitespace-nowrap'}">
-                                ${task}
-                            </div>
+                        <div class="flex-grow flex ${useImageMission ? 'items-start justify-start pt-1' : 'items-center justify-center'} w-full overflow-hidden">
+                            ${useImageMission ? imgHtml || `<div class="fit-text font-heading text-2xl md:text-4xl font-black leading-tight text-dark dark:text-white z-10 w-full ${isMultiWordTask ? 'break-words' : 'whitespace-nowrap'}">${task}</div>` : `<div class="fit-text font-heading text-2xl md:text-4xl font-black leading-tight text-dark dark:text-white z-10 w-full ${isMultiWordTask ? 'break-words' : 'whitespace-nowrap'}">${task}</div>`}
                         </div>
                         <i data-lucide="target" class="absolute -bottom-6 -right-6 w-32 h-32 text-dark/10 z-0"></i>
                     </div>
@@ -907,26 +1139,10 @@
 
                 cardsGrid.appendChild(card);
             });
-            
+
             // Apply text fitting after cards are in the DOM
             document.querySelectorAll('.fit-text').forEach(el => fitText(el));
             lucide.createIcons();
-        }
-
-        function fitText(el) {
-            const container = el.parentElement;
-            let fontSize = parseInt(window.getComputedStyle(el).fontSize);
-            const maxFontSize = fontSize;
-            const minFontSize = 12;
-
-            function isOverflowing() {
-                return el.scrollWidth > container.clientWidth || el.scrollHeight > container.clientHeight;
-            }
-
-            while (isOverflowing() && fontSize > minFontSize) {
-                fontSize--;
-                el.style.fontSize = fontSize + 'px';
-            }
         }
 
         function clearAll() {
@@ -953,6 +1169,44 @@
             lucide.createIcons();
         }
 
+        function syncMissionModeButtons() {
+            const enabled = document.getElementById('image-mission-toggle').checked;
+            const textBtn = document.getElementById('text-mission-btn');
+            const imgBtn = document.getElementById('image-mission-btn');
+            if (!textBtn || !imgBtn) return;
+            const activeClass = 'flex-1 py-1.5 px-2 rounded-md text-[10px] font-bold uppercase transition-all bg-white dark:bg-slate-600 text-dark dark:text-white shadow-neo-sm';
+            const inactiveClass = 'flex-1 py-1.5 px-2 rounded-md text-[10px] font-bold uppercase transition-all text-slate-500 dark:text-slate-400 hover:bg-white/50 dark:hover:bg-slate-600/50';
+            if (enabled) {
+                textBtn.className = inactiveClass;
+                imgBtn.className = activeClass;
+            } else {
+                textBtn.className = activeClass;
+                imgBtn.className = inactiveClass;
+            }
+        }
+
+        function setMissionMode(mode) {
+            const checkbox = document.getElementById('image-mission-toggle');
+            checkbox.checked = mode === 'image';
+            onImageMissionToggle();
+        }
+
+        function onImageMissionToggle() {
+            const enabled = document.getElementById('image-mission-toggle').checked;
+            if (enabled && uploadedImages.length === 0) {
+                showToast('Upload images first', 'warning');
+                document.getElementById('image-mission-toggle').checked = false;
+                syncMissionModeButtons();
+                return;
+            }
+            syncMissionModeButtons();
+            // If cards are already rendered, refresh them
+            const cardsGrid = document.getElementById('cardsGrid');
+            if (cardsGrid && cardsGrid.children.length > 0) {
+                assignTasks();
+            }
+        }
+
         // --- INIT ---
         async function initializeApp() {
             loadTheme();
@@ -965,11 +1219,14 @@
                     document.getElementById('peopleInput').value = data.people || '';
                     document.getElementById('taskInput').value = data.tasks || '';
                     if (data.isRandom !== undefined) document.getElementById('sort-mode-toggle').checked = data.isRandom;
+                    if (data.useImageMission !== undefined) document.getElementById('image-mission-toggle').checked = data.useImageMission;
                     document.getElementById('preset-name').value = preset.name;
                 }
             }
+            syncMissionModeButtons();
             updateSortIcon();
             await renderPresetSelector();
+            await refreshImagePreviews();
             updateCounts();
             lucide.createIcons();
 
