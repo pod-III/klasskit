@@ -23,15 +23,16 @@
             orange: '#ff7e33',
             green: '#00d063',
             blue: '#1ea7fd',
-            dark: '#111827',
+            dark: '#0f172a',
+            chalk: '#f8fafc',
           },
           fontFamily: {
             heading: ['Fredoka', 'sans-serif'],
             body: ['Nunito', 'sans-serif'],
           },
           boxShadow: {
-            'hard': '4px 4px 0px 0px #111827',
-            'hard-sm': '2px 2px 0px 0px #111827',
+            'hard': '4px 4px 0px 0px #0f172a',
+            'hard-sm': '2px 2px 0px 0px #0f172a',
           }
         }
       }
@@ -40,8 +41,9 @@
   <script>
     // Theme sync with system/localStorage
     function syncTheme() {
-      const savedTheme = localStorage.getItem('theme_hub');
-      if (savedTheme === 'dark' || (!savedTheme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+      const toolTheme = localStorage.getItem('theme_worksheet-maker');
+      const hubTheme = localStorage.getItem('theme_hub');
+      if (toolTheme === 'dark' || (!toolTheme && hubTheme === 'dark') || (!toolTheme && !hubTheme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
         document.documentElement.classList.add('dark');
       } else {
         document.documentElement.classList.remove('dark');
@@ -49,7 +51,7 @@
     }
     syncTheme();
     window.addEventListener('storage', (e) => {
-      if (e.key === 'theme_hub') {
+      if (e.key === 'theme_hub' || e.key === 'theme_worksheet-maker') {
         syncTheme();
       }
     });
@@ -540,6 +542,9 @@
             <div class="text-xs font-black text-slate-400 bg-slate-800/80 px-3.5 py-1.5 rounded-xl border-2 border-slate-700 uppercase tracking-widest font-mono">
               ${state.worksheet.questions.length} Qs
             </div>
+            <button data-action="toggle-theme" class="btn-chunky bg-slate-800 text-white hover:bg-slate-700 w-10 h-10 rounded-xl border-2 border-dark dark:border-slate-500 shadow-hard-sm dark:shadow-none flex items-center justify-center" title="Toggle Theme">
+              <i data-lucide="${document.documentElement.classList.contains('dark') ? 'sun' : 'moon'}" class="w-4 h-4"></i>
+            </button>
             <button data-action="set-view-preview" class="btn-chunky bg-blue text-white hover:brightness-105 px-5 py-2.5 rounded-xl border-2 border-dark dark:border-slate-500 shadow-hard-sm dark:shadow-none text-xs font-heading flex items-center gap-2">
               <i data-lucide="eye" class="w-4 h-4"></i> Preview & Print
             </button>
@@ -603,6 +608,9 @@
                 <input type="checkbox" data-action="toggle-answers" ${state.showAnswers ? 'checked' : ''} class="w-4 h-4 rounded text-blue border-slate-600 focus:ring-0">
                 <span class="font-heading text-xs font-black uppercase tracking-widest text-slate-300">Show Answer Key</span>
               </label>
+              <button data-action="toggle-theme" class="btn-chunky bg-slate-800 text-white hover:bg-slate-700 w-10 h-10 rounded-xl border-2 border-dark shadow-hard-sm flex items-center justify-center" title="Toggle Theme">
+                <i data-lucide="${document.documentElement.classList.contains('dark') ? 'sun' : 'moon'}" class="w-4 h-4"></i>
+              </button>
               <button data-action="print" class="btn-chunky bg-green text-dark hover:brightness-105 px-5 py-2.5 rounded-xl border-2 border-dark shadow-hard-sm text-xs font-heading flex items-center gap-2">
                 <i data-lucide="printer" class="w-4 h-4"></i> Print Now
               </button>
@@ -788,6 +796,12 @@
           render();
           window.scrollTo(0,0);
           break;
+        case 'toggle-theme': {
+          const isDark = document.documentElement.classList.toggle('dark');
+          localStorage.setItem('theme_worksheet-maker', isDark ? 'dark' : 'light');
+          render();
+          break;
+        }
         case 'print':
           window.print();
           break;
