@@ -140,11 +140,36 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;heigh
 .mode-tab.active::after{content:'';position:absolute;bottom:-4px;left:4px;right:4px;height:3px;border-radius:2px;background:currentColor}
 
 /* ─── Fullscreen ─────────────────────────────────────── */
-#app:-webkit-full-screen,#app:fullscreen{height:100vh;grid-template-rows:0px 1fr auto}
-#app:-webkit-full-screen #hdr,#app:fullscreen #hdr{display:none}
-#app:-webkit-full-screen #main,#app:fullscreen #main{grid-template-columns:0px 1fr}
-#app:-webkit-full-screen #library,#app:fullscreen #library{display:none}
-#app:-webkit-full-screen #controls,#app:fullscreen #controls{border-top:none;box-shadow:0 -2px 24px rgba(0,0,0,.6)}
+html:fullscreen,html:-webkit-full-screen,html:-moz-full-screen{
+  width:100%!important;height:100%!important;overflow:hidden!important
+}
+#app:-webkit-full-screen,#app:fullscreen{
+  position:fixed;inset:0;width:100vw!important;height:100vh!important;
+  max-width:none;max-height:none;margin:0!important;padding:0!important;border:none!important;
+  grid-template-rows:0px 1fr 0px!important
+}
+#app:-webkit-full-screen #hdr,#app:fullscreen #hdr{display:none!important}
+#app:-webkit-full-screen #main,#app:fullscreen #main{
+  grid-template-columns:0px 1fr!important;height:100vh!important;min-height:100vh!important
+}
+#app:-webkit-full-screen #library,#app:fullscreen #library{display:none!important}
+#app:-webkit-full-screen #controls,#app:fullscreen #controls{
+  position:fixed!important;bottom:0!important;left:0!important;right:0!important;
+  z-index:10001!important;background:rgba(15,23,42,.9)!important;border-top:1px solid rgba(255,255,255,.1)!important
+}
+#app:-webkit-full-screen #player,#app:fullscreen #player{height:100vh!important;min-height:100vh!important}
+#app:-webkit-full-screen #videoEl,#app:fullscreen #videoEl{
+  position:fixed!important;inset:0!important;width:100vw!important;height:100vh!important;z-index:9999;object-fit:contain
+}
+#app:-webkit-full-screen #imgEl,#app:fullscreen #imgEl{
+  position:fixed!important;inset:0!important;width:100vw!important;height:100vh!important;max-width:none!important;max-height:none!important;z-index:9999;object-fit:contain;cursor:default!important
+}
+#app:-webkit-full-screen #ytWrap,#app:fullscreen #ytWrap{
+  position:fixed!important;inset:0!important;width:100vw!important;height:100vh!important;z-index:9999
+}
+#app:-webkit-full-screen #vidOverlay,#app:fullscreen #vidOverlay{
+  position:fixed!important;inset:0!important;width:100vw!important;height:100vh!important;z-index:10000
+}
 
 /* ─── Spinner ────────────────────────────────────────── */
 @keyframes spin2{from{transform:rotate(0)}to{transform:rotate(360deg)}}
@@ -280,12 +305,12 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;heigh
     </div>
 
     <!-- Local video -->
-    <video id="videoEl" class="hidden w-full h-full object-contain" style="max-height:100%"></video>
+    <video id="videoEl" class="hidden absolute inset-0 w-full h-full object-contain" style="z-index:5"></video>
     <div id="vidOverlay" class="hidden absolute inset-0 cursor-pointer z-10"
       onclick="togglePlay()" ondblclick="goFullscreen()"></div>
 
     <!-- YouTube player wrapper -->
-    <div id="ytWrap">
+    <div id="ytWrap" style="position:absolute;inset:0;z-index:6">
       <div id="ytLoading">
         <div class="spinner"></div>
         <p class="font-fredoka text-white/50 text-sm">Loading YouTube…</p>
@@ -1200,13 +1225,24 @@ function toggleCfg () {
 //  FULLSCREEN
 // ════════════════════════════════════════════════════════
 function goFullscreen () {
-  if (!document.fullscreenElement) $('app').requestFullscreen?.()
-  else document.exitFullscreen?.()
+  const el = $('app')
+  if (!document.fullscreenElement && !document.webkitFullscreenElement && !document.mozFullScreenElement && !document.msFullscreenElement) {
+    const req = el.requestFullscreen || el.webkitRequestFullscreen || el.mozRequestFullScreen || el.msRequestFullscreen
+    if (req) {
+      try { req.call(el) } catch (e) { console.warn('Fullscreen failed:', e) }
+    }
+  } else {
+    const exit = document.exitFullscreen || document.webkitExitFullscreen || document.mozCancelFullScreen || document.msExitFullscreen
+    if (exit) exit.call(document)
+  }
 }
-document.addEventListener('fullscreenchange', () => {
-  const fs=!!document.fullscreenElement
-  $('fsIcon').setAttribute('data-lucide', fs?'minimize':'maximize')
+function onFsChange () {
+  const fs = !!(document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement || document.msFullscreenElement)
+  $('fsIcon').setAttribute('data-lucide', fs ? 'minimize' : 'maximize')
   lucide.createIcons()
+}
+['fullscreenchange','webkitfullscreenchange','mozfullscreenchange','MSFullscreenChange'].forEach(evt => {
+  document.addEventListener(evt, onFsChange)
 })
 
 // ════════════════════════════════════════════════════════
