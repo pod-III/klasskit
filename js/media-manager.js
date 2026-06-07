@@ -19,6 +19,16 @@ const MediaManager = {
     sortBy: 'folder-asc',
     cachedGroups: null,
     cachedMode: null,
+
+    selectionMode: false,
+    selectedItems: new Map(),
+
+    selectBtn: null,
+    selectAllBtn: null,
+    deleteSelectedBtn: null,
+    cancelSelectBtn: null,
+    selectionCount: null,
+    selectionActions: null,
     
     KNOWN_DB_NAMES: [
         { name: 'PosterStudioDB', label: 'Poster Studio', store: 'imgs' },
@@ -59,6 +69,13 @@ const MediaManager = {
         this.refreshBtn = document.getElementById('media-manager-refresh-btn');
         this.filterInput = document.getElementById('media-manager-filter');
         this.sortSelect = document.getElementById('media-manager-sort');
+
+        this.selectBtn = document.getElementById('media-manager-select-btn');
+        this.selectAllBtn = document.getElementById('media-manager-select-all-btn');
+        this.deleteSelectedBtn = document.getElementById('media-manager-delete-selected-btn');
+        this.cancelSelectBtn = document.getElementById('media-manager-cancel-select-btn');
+        this.selectionCount = document.getElementById('media-selection-count');
+        this.selectionActions = document.getElementById('media-selection-actions');
 
         // Event Listeners
         document.querySelectorAll('[data-action="openMediaManager"]').forEach(btn => {
@@ -107,6 +124,19 @@ const MediaManager = {
                 this.rerenderFromCache();
             });
         }
+
+        if (this.selectBtn) {
+            this.selectBtn.addEventListener('click', () => this.toggleSelectionMode(true));
+        }
+        if (this.selectAllBtn) {
+            this.selectAllBtn.addEventListener('click', () => this.selectAllVisible());
+        }
+        if (this.deleteSelectedBtn) {
+            this.deleteSelectedBtn.addEventListener('click', () => this.deleteSelected());
+        }
+        if (this.cancelSelectBtn) {
+            this.cancelSelectBtn.addEventListener('click', () => this.toggleSelectionMode(false));
+        }
     },
 
     open() {
@@ -117,6 +147,7 @@ const MediaManager = {
         if (this.sortSelect) this.sortSelect.value = 'folder-asc';
         this.cachedGroups = null;
         this.cachedMode = null;
+        this.toggleSelectionMode(false);
         this.loadData();
     },
 
@@ -324,16 +355,22 @@ const MediaManager = {
 
     createCloudCard(file, signedUrl) {
         const card = document.createElement('div');
-        card.className = "bg-white dark:bg-slate-800 rounded-2xl border-[3px] border-dark dark:border-slate-600 p-3 flex flex-col gap-2 relative group shadow-hard hover:-translate-y-1 hover:shadow-hard-lg transition-all duration-200 cursor-pointer";
+        card.className = "media-card bg-white dark:bg-slate-800 rounded-2xl border-[3px] border-dark dark:border-slate-600 p-3 flex flex-col gap-2 relative group shadow-hard hover:-translate-y-1 hover:shadow-hard-lg transition-all duration-200 cursor-pointer";
+        card.dataset.path = file.fullPath;
 
         card.innerHTML = `
+            <div class="media-card-check absolute top-2 left-2 z-30 hidden">
+                <div class="w-6 h-6 rounded-lg bg-white dark:bg-slate-800 border-2 border-dark dark:border-slate-500 flex items-center justify-center shadow-hard transition-all">
+                    <i data-lucide="check" class="w-4 h-4 text-blue hidden"></i>
+                </div>
+            </div>
             <div class="flex-1 flex items-center justify-center bg-slate-100 dark:bg-slate-900 rounded-xl border-2 border-dark/20 dark:border-slate-700/50 aspect-square overflow-hidden relative">
                 <div class="absolute inset-0 flex items-center justify-center"><i data-lucide="image" class="w-8 h-8 text-slate-300"></i></div>
                 <img class="w-full h-full object-cover relative z-10 opacity-0 transition-opacity duration-300" />
             </div>
             <div class="text-center font-bold text-xs text-slate-500 dark:text-slate-400 truncate w-full px-2" title="${file.name}">${file.name}</div>
 
-            <div class="absolute -top-3 -right-3 flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition-all z-20">
+            <div class="media-card-actions absolute -top-3 -right-3 flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition-all z-20">
                 <button class="download-btn w-10 h-10 bg-blue text-white rounded-xl border-3 border-dark dark:border-slate-500 shadow-hard hover:bg-blue-600 transition-all flex items-center justify-center hover:scale-110 btn-chunky" title="Download Image">
                     <i data-lucide="download" class="w-4 h-4"></i>
                 </button>
@@ -361,10 +398,16 @@ const MediaManager = {
             this.deleteCloudFile(file, card);
         };
 
-        card.onclick = () => {
+        card.onclick = (e) => {
+            if (this.selectionMode) {
+                e.stopPropagation();
+                this.toggleSelectCard(card, 'cloud', file);
+                return;
+            }
             this.downloadMedia(img.src, file.name);
         };
 
+        this.syncCardSelectionVisual(card, file.fullPath);
         return card;
     },
 
@@ -506,15 +549,22 @@ const MediaManager = {
         else if (item.value && item.value.dataUrl) srcUrl = item.value.dataUrl;
 
         const card = document.createElement('div');
-        card.className = "bg-white dark:bg-slate-800 rounded-2xl border-[3px] border-dark dark:border-slate-600 p-3 flex flex-col gap-2 relative group shadow-hard hover:-translate-y-1 hover:shadow-hard-lg transition-all duration-200 cursor-pointer";
+        card.className = "media-card bg-white dark:bg-slate-800 rounded-2xl border-[3px] border-dark dark:border-slate-600 p-3 flex flex-col gap-2 relative group shadow-hard hover:-translate-y-1 hover:shadow-hard-lg transition-all duration-200 cursor-pointer";
+        const uid = `${dbInfo.name}::${item.key}`;
+        card.dataset.uid = uid;
 
         card.innerHTML = `
+            <div class="media-card-check absolute top-2 left-2 z-30 hidden">
+                <div class="w-6 h-6 rounded-lg bg-white dark:bg-slate-800 border-2 border-dark dark:border-slate-500 flex items-center justify-center shadow-hard transition-all">
+                    <i data-lucide="check" class="w-4 h-4 text-blue hidden"></i>
+                </div>
+            </div>
             <div class="flex-1 flex items-center justify-center bg-slate-100 dark:bg-slate-900 rounded-xl border-2 border-dark/20 dark:border-slate-700/50 aspect-square overflow-hidden relative">
                 <img src="${srcUrl}" class="w-full h-full object-cover relative z-10" />
             </div>
             <div class="text-center font-bold text-[10px] text-slate-500 dark:text-slate-400 truncate w-full px-2" title="${item.key}">${item.key}</div>
 
-            <div class="absolute -top-3 -right-3 flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition-all z-20">
+            <div class="media-card-actions absolute -top-3 -right-3 flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition-all z-20">
                 <button class="download-btn w-10 h-10 bg-blue text-white rounded-xl border-3 border-dark dark:border-slate-500 shadow-hard hover:bg-blue-600 transition-all flex items-center justify-center hover:scale-110 btn-chunky" title="Download Image">
                     <i data-lucide="download" class="w-4 h-4"></i>
                 </button>
@@ -538,10 +588,16 @@ const MediaManager = {
             };
         }
 
-        card.onclick = () => {
+        card.onclick = (e) => {
+            if (this.selectionMode) {
+                e.stopPropagation();
+                this.toggleSelectCard(card, 'sandbox', { dbInfo, item, uid });
+                return;
+            }
             this.downloadMedia(srcUrl, `${item.key}.png`);
         };
 
+        this.syncCardSelectionVisual(card, uid);
         return card;
     },
 
@@ -566,6 +622,282 @@ const MediaManager = {
             cardEl.classList.remove('opacity-50', 'pointer-events-none');
             this.showToast('Failed to delete file', 'error');
         }
+    },
+
+    // ---------------------------------------------------------
+    // MULTI-SELECT
+    // ---------------------------------------------------------
+    toggleSelectionMode(enabled) {
+        this.selectionMode = enabled;
+        this.selectedItems.clear();
+
+        if (this.selectBtn) {
+            this.selectBtn.classList.toggle('hidden', enabled);
+        }
+        if (this.selectionActions) {
+            this.selectionActions.classList.toggle('hidden', !enabled);
+            this.selectionActions.classList.toggle('flex', enabled);
+        }
+
+        // Show/hide checkboxes on all cards
+        document.querySelectorAll('.media-card-check').forEach(el => {
+            el.classList.toggle('hidden', !enabled);
+        });
+
+        // Show/hide section checkboxes
+        document.querySelectorAll('.media-section-check').forEach(el => {
+            el.classList.toggle('hidden', !enabled);
+        });
+
+        // Show/hide action buttons on cards
+        document.querySelectorAll('.media-card-actions').forEach(el => {
+            el.classList.toggle('hidden', enabled);
+        });
+
+        // Clear all selection visuals
+        document.querySelectorAll('.media-card').forEach(card => {
+            card.classList.remove('ring-2', 'ring-blue', 'border-blue');
+            const checkIcon = card.querySelector('.media-card-check i');
+            if (checkIcon) checkIcon.classList.add('hidden');
+        });
+
+        this.updateSelectionUI();
+    },
+
+    selectAllVisible() {
+        const cards = document.querySelectorAll('.media-card');
+        cards.forEach(card => {
+            const path = card.dataset.path;
+            const uid = card.dataset.uid;
+            if (path) {
+                this.selectedItems.set(path, { type: 'cloud', data: { fullPath: path } });
+            } else if (uid) {
+                const sepIndex = uid.indexOf('::');
+                const dbName = uid.slice(0, sepIndex);
+                const key = uid.slice(sepIndex + 2);
+                this.selectedItems.set(uid, { type: 'sandbox', data: { dbName, key, uid } });
+            }
+        });
+        cards.forEach(card => this.syncCardSelectionVisual(card, card.dataset.path || card.dataset.uid));
+        this.updateSelectionUI();
+    },
+
+    toggleSelectCard(card, type, data) {
+        const id = type === 'cloud' ? data.fullPath : data.uid;
+        if (this.selectedItems.has(id)) {
+            this.selectedItems.delete(id);
+        } else {
+            this.selectedItems.set(id, { type, data });
+        }
+        this.syncCardSelectionVisual(card, id);
+
+        const section = card.closest('.media-section');
+        if (section) this.syncSectionCheckboxState(section);
+
+        this.updateSelectionUI();
+    },
+
+    toggleSectionSelect(section, checked) {
+        const cards = section.querySelectorAll('.media-card');
+        cards.forEach(card => {
+            const path = card.dataset.path;
+            const uid = card.dataset.uid;
+            let id, type, data;
+            if (path) {
+                id = path;
+                type = 'cloud';
+                data = { fullPath: path };
+            } else if (uid) {
+                id = uid;
+                const sepIndex = uid.indexOf('::');
+                const dbName = uid.slice(0, sepIndex);
+                const key = uid.slice(sepIndex + 2);
+                type = 'sandbox';
+                data = { dbInfo: { name: dbName }, item: { key }, uid };
+            } else {
+                return;
+            }
+
+            if (checked) {
+                this.selectedItems.set(id, { type, data });
+            } else {
+                this.selectedItems.delete(id);
+            }
+            this.syncCardSelectionVisual(card, id);
+        });
+
+        const checkbox = section.querySelector('.media-section-check .section-check-box');
+        const checkIcon = checkbox.querySelector('svg, i');
+        if (checkIcon) checkIcon.classList.toggle('hidden', !checked);
+        if (checked) {
+            checkbox.classList.add('ring-2', 'ring-blue', 'border-blue');
+            checkbox.classList.remove('border-dark');
+        } else {
+            checkbox.classList.remove('ring-2', 'ring-blue', 'border-blue');
+            checkbox.classList.add('border-dark');
+        }
+
+        this.updateSelectionUI();
+    },
+
+    syncSectionCheckboxState(section) {
+        const cards = section.querySelectorAll('.media-card');
+        if (cards.length === 0) return;
+        let selectedCount = 0;
+        cards.forEach(card => {
+            const id = card.dataset.path || card.dataset.uid;
+            if (id && this.selectedItems.has(id)) selectedCount++;
+        });
+
+        const checkbox = section.querySelector('.media-section-check .section-check-box');
+        const checkIcon = checkbox.querySelector('svg, i');
+        const isChecked = selectedCount === cards.length;
+        if (checkIcon) checkIcon.classList.toggle('hidden', !isChecked);
+
+        if (isChecked) {
+            checkbox.classList.add('ring-2', 'ring-blue', 'border-blue');
+            checkbox.classList.remove('border-dark');
+        } else {
+            checkbox.classList.remove('ring-2', 'ring-blue', 'border-blue');
+            checkbox.classList.add('border-dark');
+        }
+    },
+
+    syncCardSelectionVisual(card, id) {
+        const isSelected = this.selectedItems.has(id);
+        const checkIcon = card.querySelector('.media-card-check svg, .media-card-check i');
+        if (checkIcon) {
+            checkIcon.classList.toggle('hidden', !isSelected);
+        }
+        if (isSelected) {
+            card.classList.add('ring-2', 'ring-blue', 'border-blue');
+            card.classList.remove('border-dark');
+        } else {
+            card.classList.remove('ring-2', 'ring-blue', 'border-blue');
+            card.classList.add('border-dark');
+        }
+    },
+
+    updateSelectionUI() {
+        if (this.selectionCount) {
+            this.selectionCount.textContent = `${this.selectedItems.size} selected`;
+        }
+        if (this.deleteSelectedBtn) {
+            this.deleteSelectedBtn.disabled = this.selectedItems.size === 0;
+            this.deleteSelectedBtn.style.opacity = this.selectedItems.size === 0 ? '0.5' : '1';
+        }
+    },
+
+    async deleteSelected() {
+        if (this.selectedItems.size === 0) return;
+        const count = this.selectedItems.size;
+        const noun = count === 1 ? 'file' : 'files';
+        if (!confirm(`Delete ${count} ${noun}? This cannot be undone.`)) return;
+
+        if (this.cachedMode === 'cloud') {
+            await this.deleteSelectedCloudFiles();
+        } else {
+            await this.deleteSelectedSandboxFiles();
+        }
+    },
+
+    async deleteSelectedCloudFiles() {
+        const toDelete = [];
+        this.selectedItems.forEach((value, key) => {
+            if (value.type === 'cloud') toDelete.push(value.data.fullPath);
+        });
+        if (toDelete.length === 0) return;
+
+        // Remove from DOM immediately for responsive feel
+        toDelete.forEach(path => {
+            const card = document.querySelector(`.media-card[data-path="${CSS.escape(path)}"]`);
+            if (card) {
+                card.classList.add('opacity-50', 'pointer-events-none');
+                card.remove();
+            }
+        });
+
+        try {
+            const { error } = await db.storage.from('klasskit-media').remove(toDelete);
+            if (error) throw error;
+
+            // Recalculate once
+            const user = await getUser();
+            if (user) await recalculateUserStorage(user.id);
+
+            toDelete.forEach(path => this.removeItemFromCache(path));
+            this.cleanupEmptySections();
+            this.checkEmptyState();
+            await this.updateUsageIncrementally();
+            this.showToast(`${toDelete.length} file(s) deleted from cloud`, 'success');
+        } catch (error) {
+            console.error('Batch cloud delete failed:', error);
+            const msg = error.message?.includes('database trigger')
+                ? 'Delete blocked by a server config issue. Ask the admin to run fix_sync_storage_triggers.sql in Supabase.'
+                : 'Failed to delete some files';
+            this.showToast(msg, 'error');
+            await this.loadData(); // Refresh to restore accurate state
+        } finally {
+            this.toggleSelectionMode(false);
+        }
+    },
+
+    async deleteSelectedSandboxFiles() {
+        const toDelete = [];
+        this.selectedItems.forEach((value, key) => {
+            if (value.type === 'sandbox') toDelete.push(value.data);
+        });
+        if (toDelete.length === 0) return;
+
+        // Group by db for efficient batch clearing
+        const byDb = {};
+        toDelete.forEach(({ dbName, key, uid }) => {
+            const dbInfo = this.KNOWN_DB_NAMES.find(d => d.name === dbName);
+            if (dbName === 'LocalStorage') return; // Skip localStorage
+            if (!byDb[dbName]) byDb[dbName] = { store: dbInfo?.store || '', keys: [] };
+            byDb[dbName].keys.push(key);
+        });
+
+        // Remove from DOM
+        toDelete.forEach(({ uid }) => {
+            const card = document.querySelector(`.media-card[data-uid="${CSS.escape(uid)}"]`);
+            if (card) card.remove();
+        });
+
+        try {
+            const deletePromises = [];
+            for (const [dbName, { store, keys }] of Object.entries(byDb)) {
+                const db = await this.openIDB(dbName);
+                if (!db.objectStoreNames.contains(store)) { db.close(); continue; }
+                deletePromises.push(new Promise((resolve) => {
+                    const tx = db.transaction(store, 'readwrite');
+                    const objectStore = tx.objectStore(store);
+                    keys.forEach(key => objectStore.delete(key));
+                    tx.oncomplete = () => { db.close(); resolve(); };
+                }));
+            }
+            await Promise.all(deletePromises);
+
+            toDelete.forEach(({ dbName, key }) => this.removeItemFromCache(key, dbName));
+            this.cleanupEmptySections();
+            this.checkEmptyState();
+            await this.updateUsageIncrementally();
+            this.showToast(`${toDelete.length} file(s) deleted locally`, 'success');
+        } catch (error) {
+            console.error('Batch sandbox delete failed:', error);
+            this.showToast('Failed to delete some files', 'error');
+            await this.loadData();
+        } finally {
+            this.toggleSelectionMode(false);
+        }
+    },
+
+    cleanupEmptySections() {
+        document.querySelectorAll('.media-section').forEach(section => {
+            if (section.querySelectorAll('.media-grid > div').length === 0) {
+                section.remove();
+            }
+        });
     },
 
     // --- IDB Helpers ---
@@ -731,7 +1063,7 @@ const MediaManager = {
         }
 
         for (const group of filtered) {
-            const section = this.createSection(group.label);
+            const section = this.createSection(group.label, group.key);
             const grid = section.querySelector('.media-grid');
 
             for (const entry of group.items) {
@@ -745,6 +1077,20 @@ const MediaManager = {
         }
 
         lucide.createIcons();
+
+        // Re-apply selection mode if active (e.g., after filter/sort)
+        if (this.selectionMode) {
+            document.querySelectorAll('.media-card-check').forEach(el => el.classList.remove('hidden'));
+            document.querySelectorAll('.media-card-actions').forEach(el => el.classList.add('hidden'));
+            document.querySelectorAll('.media-section-check').forEach(el => el.classList.remove('hidden'));
+            document.querySelectorAll('.media-card').forEach(card => {
+                const id = card.dataset.path || card.dataset.uid;
+                if (id) this.syncCardSelectionVisual(card, id);
+            });
+            document.querySelectorAll('.media-section').forEach(section => {
+                this.syncSectionCheckboxState(section);
+            });
+        }
     },
 
     removeItemFromCache(identifier, groupKey) {
@@ -774,9 +1120,10 @@ const MediaManager = {
     // ---------------------------------------------------------
     // COMMON UI HELPERS
     // ---------------------------------------------------------
-    createSection(title) {
+    createSection(title, groupKey) {
         const section = document.createElement('div');
         section.className = "media-section flex flex-col gap-4";
+        section.dataset.sectionKey = groupKey;
         
         const header = document.createElement('div');
         header.className = "flex items-center justify-between border-b-[4px] border-dark dark:border-slate-600 pb-4 mb-2";
@@ -787,7 +1134,21 @@ const MediaManager = {
                 </div>
                 <h3 class="font-heading font-black text-2xl text-dark dark:text-white tracking-tight uppercase">${title}</h3>
             </div>
+            <div class="media-section-check hidden cursor-pointer select-none" title="Select folder">
+                <div class="section-check-box w-8 h-8 rounded-lg bg-white dark:bg-slate-800 border-2 border-dark dark:border-slate-500 flex items-center justify-center shadow-hard transition-all">
+                    <i data-lucide="check" class="w-5 h-5 text-blue hidden"></i>
+                </div>
+            </div>
         `;
+
+        const sectionCheck = header.querySelector('.media-section-check');
+        sectionCheck.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const checkbox = sectionCheck.querySelector('.section-check-box');
+            const checkIcon = checkbox.querySelector('svg, i');
+            const isChecked = checkIcon && !checkIcon.classList.contains('hidden');
+            this.toggleSectionSelect(section, !isChecked);
+        });
 
         const grid = document.createElement('div');
         grid.className = "media-grid grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4";
