@@ -9,6 +9,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@600;700&family=Nunito:wght@400;600;800&display=swap" rel="stylesheet">
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="../../../components/input-modal.js"></script>
   <link rel="stylesheet" href="../../../css/base.css">
   <link rel="stylesheet" href="../../../css/components.css">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.105.4"></script>
@@ -735,11 +736,20 @@
           addQuestion(btn.dataset.type);
           break;
         case 'delete-question':
-          if (confirm("Delete this question?")) {
-            state.worksheet.questions = state.worksheet.questions.filter(q => q.id !== qid);
-            saveState();
-            render();
-          }
+          (async () => {
+            const confirmed = await showConfirmModal("Delete this question?", {
+              title: "Delete Question?",
+              confirmText: "Delete",
+              cancelText: "Keep",
+              icon: "trash-2",
+              iconColor: "red"
+            });
+            if (confirmed) {
+              state.worksheet.questions = state.worksheet.questions.filter(q => q.id !== qid);
+              saveState();
+              render();
+            }
+          })();
           break;
         case 'move-up':
           moveQuestion(qid, 'up');

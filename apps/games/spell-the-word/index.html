@@ -15,6 +15,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Nunito:wght@400;600;700&display=swap" rel="stylesheet">
     
     <script src="https://unpkg.com/lucide@1.16.0"></script>
+    <script src="../../../components/input-modal.js"></script>
     
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -436,36 +437,25 @@
             }
         });
 
-        // Modals
-        function showAlert(title, message, isSuccess, actionType) {
-            alertTitle.textContent = title;
-            alertMessage.textContent = message;
-            alertTitle.className = `font-heading text-4xl md:text-5xl font-bold mb-4 transform -rotate-2 inline-block ${isSuccess ? 'text-green' : 'text-pink'}`;
-            currentAlertAction = actionType;
-            
+        // Modals - using universal input modal
+        async function showAlert(title, message, isSuccess, actionType) {
+            const confirmText = actionType === "next" ? "Next Word" : actionType === "finish" ? "Play Again" : "Try Again";
+            const iconColor = isSuccess ? "green" : "pink";
+            const icon = isSuccess ? "check-circle" : "alert-circle";
+
+            await showAlertModal(message, { title: title, icon: icon, iconColor: iconColor, confirmText: confirmText });
+
+            // Handle action after alert is closed
             if (actionType === "next") {
-                alertBtn.textContent = "Next Word";
-                alertBtn.className = "btn-brutal bg-green text-dark font-heading font-bold text-2xl md:text-3xl py-3 md:py-4 px-8 rounded-2xl border-4 border-dark shadow-brutal w-full";
+                currentWordIndex++;
+                loadCurrentWord();
             } else if (actionType === "finish") {
-                alertBtn.textContent = "Play Again";
-                alertBtn.className = "btn-brutal bg-blue text-white font-heading font-bold text-2xl md:text-3xl py-3 md:py-4 px-8 rounded-2xl border-4 border-dark shadow-brutal w-full";
-            } else {
-                alertBtn.textContent = "Try Again";
-                alertBtn.className = "btn-brutal bg-slate-200 text-dark font-heading font-bold text-2xl md:text-3xl py-3 md:py-4 px-8 rounded-2xl border-4 border-dark shadow-brutal w-full";
+                initGame();
             }
-            
-            alertModal.classList.remove('hidden');
-            setTimeout(() => alertBtn.focus(), 100); 
         }
 
         function handleAlertAction() {
-            alertModal.classList.add('hidden');
-            if (currentAlertAction === "next") {
-                currentWordIndex++;
-                loadCurrentWord();
-            } else if (currentAlertAction === "finish") {
-                initGame(); 
-            }
+            // Kept for compatibility, actions now handled in showAlert
         }
 
         function openSettings() {

@@ -17,6 +17,7 @@
         href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Nunito:wght@400;600;700;800&display=swap"
         rel="stylesheet" />
     <script src="https://unpkg.com/lucide@1.16.0"></script>
+    <script src="../../../components/input-modal.js"></script>
 
     <script>
         tailwind.config = {
@@ -975,28 +976,21 @@
             lucide.createIcons();
         }
 
-        function customAlert(msg) {
+        async function customAlert(msg) {
             playSound("click");
-            document.getElementById("customAlertMessage").innerText = msg;
-            document.getElementById("customAlertModal").classList.remove("hidden");
-        }
-        function closeCustomAlert() {
-            playSound("click");
-            document.getElementById("customAlertModal").classList.add("hidden");
+            await showAlertModal(msg, { title: "Notice", icon: "info", iconColor: "blue" });
         }
 
-        let confirmCallback = null;
-        function customConfirm(msg, callback) {
+        async function customConfirm(msg, callback) {
             playSound("click");
-            document.getElementById("customConfirmMessage").innerText = msg;
-            confirmCallback = callback;
-            document.getElementById("customConfirmModal").classList.remove("hidden");
-        }
-        function closeCustomConfirm(result) {
-            playSound("click");
-            document.getElementById("customConfirmModal").classList.add("hidden");
-            if (result && confirmCallback) confirmCallback();
-            confirmCallback = null;
+            const confirmed = await showConfirmModal(msg, {
+                title: "Confirm",
+                confirmText: "Yes",
+                cancelText: "No",
+                icon: "help-circle",
+                iconColor: "orange"
+            });
+            if (confirmed && callback) callback();
         }
 
         async function init() {
