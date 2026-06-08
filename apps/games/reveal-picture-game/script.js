@@ -259,10 +259,10 @@ const app = {
         
         // Build dropdown items with delete buttons
         menu.innerHTML = this.presets.map(p => `
-            <div class="flex items-center justify-between px-4 py-3 border-b border-slate-200 dark:border-slate-600 last:border-b-0 hover:bg-slate-50 dark:hover:bg-slate-600 cursor-pointer transition-colors ${p.id === this.activePresetId ? 'bg-orange/10 dark:bg-orange/20' : ''}">
-                <span class="font-body font-bold text-sm text-dark dark:text-slate-200 truncate flex-1" onclick="app.selectPreset('${p.id}')">${p.title}</span>
-                <button onclick="app.deletePresetById('${p.id}', event)" class="ml-2 p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all" title="Delete Preset">
-                    <i data-lucide="trash-2" class="w-4 h-4"></i>
+            <div class="flex items-center justify-between px-4 py-3 border-b border-slate-200 dark:border-slate-600 last:border-b-0 hover:bg-slate-50 dark:hover:bg-slate-600 cursor-pointer transition-colors ${p.id === this.activePresetId ? 'bg-orange/10 dark:bg-orange/20' : ''}" onclick="app.selectPreset('${p.id}')">
+                <span class="font-body font-bold text-sm text-dark dark:text-slate-200 truncate flex-1 pointer-events-none">${p.title}</span>
+                <button onclick="app.deletePresetById('${p.id}', event)" class="ml-2 p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all shrink-0" title="Delete Preset">
+                    <i data-lucide="trash-2" class="w-4 h-4 pointer-events-none"></i>
                 </button>
             </div>
         `).join('');
@@ -1085,13 +1085,12 @@ const ZoomGame = {
         };
         const guessSection = document.getElementById('guess-section');
         if (guessSection) guessSection.classList.add('hidden');
-        // Wait for image to load before applying zoom
+        // Apply zoom immediately so the image never appears unzoomed
         const img = document.getElementById('target-image');
-        if (img && img.src && img.complete) {
-            this.updateZoom();
-        } else if (img) {
+        if (img) {
+            img.style.transformOrigin = `${this.zoomPosition.x}% ${this.zoomPosition.y}%`;
+            img.style.transform = `scale(${this.currentZoom})`;
             img.onload = () => this.updateZoom();
-            img.onerror = () => setTimeout(() => this.updateZoom(), 100);
         }
         this.updateZoomBar();
         
@@ -1351,6 +1350,11 @@ const path = window.location.pathname;
 if (path.includes('zoom.html')) {
     const originalLoadLevel = Game.loadLevel;
     Game.loadLevel = async function() {
+        // Pre-apply zoom so the image is never visible unzoomed during transition
+        const img = document.getElementById('target-image');
+        if (img) {
+            img.style.transform = `scale(${ZoomGame.zoomStart})`;
+        }
         await originalLoadLevel.call(this);
         ZoomGame.reset();
     };
