@@ -1325,13 +1325,13 @@ C,A,T</textarea>
             const initialMsg = document.getElementById("initial-message");
             if (initialMsg) initialMsg.style.display = 'none';
             activeBouncingWords = [];
-            if (!roundsData.length) return;
+            if (!roundsData.length && !uploadedImages.length) return;
 
             let nextIndex = index;
-            if (nextIndex >= roundsData.length) nextIndex = 0;
+            if (roundsData.length && nextIndex >= roundsData.length) nextIndex = 0;
             currentRoundIndex = nextIndex;
 
-            const words = roundsData[currentRoundIndex];
+            const words = roundsData[currentRoundIndex] || [];
             isRevealed = false;
 
             document.getElementById('reveal-btn').classList.remove('hidden');
@@ -1340,7 +1340,8 @@ C,A,T</textarea>
             document.getElementById('speed-control-display').classList.remove('opacity-50', 'pointer-events-none');
 
             const status = document.getElementById("round-counter");
-            status.innerHTML = `ROUND <span class="text-blue font-black text-xl md:text-2xl ml-1 px-2 py-0.5 bg-blue/10 rounded-lg">${currentRoundIndex + 1}</span> / ${roundsData.length}`;
+            const totalRounds = Math.max(1, roundsData.length);
+            status.innerHTML = `ROUND <span class="text-blue font-black text-xl md:text-2xl ml-1 px-2 py-0.5 bg-blue/10 rounded-lg">${currentRoundIndex + 1}</span> / ${totalRounds}`;
 
             words.forEach((text) => {
                 activeBouncingWords.push(new BouncingWord(text, display.clientWidth, display.clientHeight));
@@ -1355,7 +1356,11 @@ C,A,T</textarea>
             const input = wordInput.value;
             const lines = input.split("\n").map((l) => l.trim()).filter((l) => l.length > 0);
             roundsData = lines.map((line) => line.split(",").map((w) => w.trim()).filter((w) => w.length > 0)).filter((r) => r.length > 0);
-            if (!roundsData.length) return;
+            // Allow images-only play: create a dummy round if images exist but no words
+            if (!roundsData.length && uploadedImages.length > 0) {
+                roundsData = [[]];
+            }
+            if (!roundsData.length && !uploadedImages.length) return;
 
             if (window.innerWidth < 768) toggleControlPanel(true);
             currentRoundIndex = -1;
@@ -1363,7 +1368,7 @@ C,A,T</textarea>
         }
 
         function loadNextRound() {
-            if (!roundsData.length) return;
+            if (!roundsData.length && !uploadedImages.length) return;
             loadRound(currentRoundIndex + 1);
         }
 
