@@ -152,7 +152,10 @@ const app = {
                     lastAccessed: Date.now()
                 };
 
-                await DB.savePreset(defaultPreset);
+                // Only save to DB if preset has images
+                if (defaultImages.length > 0) {
+                    await DB.savePreset(defaultPreset);
+                }
                 storedPresets = [defaultPreset];
             }
 
@@ -244,10 +247,86 @@ const app = {
     },
 
     renderPresetDropdown() {
-        const selector = document.getElementById('preset-selector');
-        selector.innerHTML = this.presets.map(p =>
-            `<option value="${p.id}" ${p.id === this.activePresetId ? 'selected' : ''}>${p.title}</option>`
-        ).join('');
+        const btn = document.getElementById('preset-dropdown-btn');
+        const menu = document.getElementById('preset-dropdown-menu');
+        const label = document.getElementById('preset-dropdown-label');
+        
+        if (!menu) return; // Skip if custom dropdown doesn't exist (tiles mode still uses select)
+        
+        // Update label
+        const activePreset = this.presets.find(p => p.id === this.activePresetId);
+        if (label && activePreset) label.textContent = activePreset.title;
+        
+        // Build dropdown items with delete buttons
+        menu.innerHTML = this.presets.map(p => `
+            <div class="flex items-center justify-between px-4 py-3 border-b border-slate-200 dark:border-slate-600 last:border-b-0 hover:bg-slate-50 dark:hover:bg-slate-600 cursor-pointer transition-colors ${p.id === this.activePresetId ? 'bg-orange/10 dark:bg-orange/20' : ''}">
+                <span class="font-body font-bold text-sm text-dark dark:text-slate-200 truncate flex-1" onclick="app.selectPreset('${p.id}')">${p.title}</span>
+                <button onclick="app.deletePresetById('${p.id}', event)" class="ml-2 p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all" title="Delete Preset">
+                    <i data-lucide="trash-2" class="w-4 h-4"></i>
+                </button>
+            </div>
+        `).join('');
+        
+        lucide.createIcons();
+    },
+
+    togglePresetDropdown() {
+        const menu = document.getElementById('preset-dropdown-menu');
+        if (menu) {
+            const isHidden = menu.classList.contains('hidden');
+            // Close all other dropdowns first
+            document.querySelectorAll('#preset-dropdown-menu').forEach(m => m.classList.add('hidden'));
+            if (isHidden) {
+                menu.classList.remove('hidden');
+                // Add click outside listener
+                setTimeout(() => {
+                    document.addEventListener('click', this.closeDropdownOnClickOutside, { once: true });
+                }, 10);
+            }
+        }
+    },
+
+    closeDropdownOnClickOutside(e) {
+        const container = document.getElementById('preset-dropdown-container');
+        if (container && !container.contains(e.target)) {
+            const menu = document.getElementById('preset-dropdown-menu');
+            if (menu) menu.classList.add('hidden');
+        }
+    },
+
+    selectPreset(id) {
+        this.switchPreset(id);
+        this.togglePresetDropdown();
+    },
+
+    async deletePresetById(id, event) {
+        if (event) event.stopPropagation();
+        
+        // Prevent deleting the last preset
+        if (this.presets.length <= 1) {
+            UI.showToast("Cannot delete the last remaining preset.", "error");
+            return;
+        }
+        
+        const preset = this.presets.find(p => p.id === id);
+        if (!preset) return;
+        
+        // Delete from DB
+        await DB.deletePreset(id);
+        
+        // Remove from array
+        this.presets = this.presets.filter(p => p.id !== id);
+        
+        // If we deleted the active preset, switch to another one
+        if (id === this.activePresetId) {
+            this.activePresetId = this.presets[0].id;
+            localStorage.setItem('mb_active_preset_id', this.activePresetId);
+            this.loadPresetData(this.presets[0]);
+        }
+        
+        this.renderPresetDropdown();
+        this.syncToCloud();
+        UI.showToast(`Deleted "${preset.title}"`, "success");
     },
 
     loadPresetData(preset) {
@@ -307,8 +386,11 @@ const app = {
         preset.revealedIndices = Game.revealedIndices || [];
         preset.lastAccessed = Date.now();
 
-        await DB.savePreset(preset);
-        this.syncToCloud();
+        // Only save to DB if preset has images
+        if (preset.images && preset.images.length > 0) {
+            await DB.savePreset(preset);
+            this.syncToCloud();
+        }
     },
 
     async switchPreset(id) {
@@ -329,13 +411,13 @@ const app = {
     };
 
     this.presets.unshift(newPreset); // Add to top
-    await DB.savePreset(newPreset);
+    // Don't save empty presets to DB - will save when images are added
 
     this.renderPresetDropdown();
-    document.getElementById('preset-selector').value = newPreset.id;
+    const selector = document.getElementById('preset-selector');
+    if (selector) selector.value = newPreset.id;
     this.loadPresetData(newPreset);
-    this.syncToCloud();
-    UI.showToast("New preset created!", "success");
+    UI.showToast("New preset created! Add images to save it.", "info");
 },
 
     async updatePresetTitle(newTitle) {
@@ -1077,10 +1159,6 @@ const ZoomGame = {
         this.updateZoom();
         Audio.playWin();
         UI.fireConfetti();
-        const guessSection = document.getElementById('guess-section');
-        if (guessSection) guessSection.classList.remove('hidden');
-        const input = document.getElementById('guess-input');
-        if (input) input.focus();
         const btn = document.getElementById('next-round-btn');
         if (btn) btn.disabled = false;
         const prevBtn = document.getElementById('prev-round-btn');
@@ -1119,7 +1197,6 @@ const ZoomGame = {
 const BlurGame = {
     currentLevel: 5,
     maxLevel: 5,
-    effectType: 'blur',
     isAutoRevealing: false,
     animationId: null,
     revealed: false,
@@ -1149,20 +1226,6 @@ const BlurGame = {
         }
     },
 
-    setEffect(type) {
-        this.effectType = type;
-        const blurBtn = document.getElementById('blur-mode-btn');
-        const mosaicBtn = document.getElementById('mosaic-mode-btn');
-        if (type === 'blur') {
-            if (blurBtn) { blurBtn.classList.add('bg-blue', 'text-white'); blurBtn.classList.remove('bg-white', 'dark:bg-slate-700', 'text-slate-600', 'dark:text-slate-300'); }
-            if (mosaicBtn) { mosaicBtn.classList.remove('bg-blue', 'text-white'); mosaicBtn.classList.add('bg-white', 'dark:bg-slate-700', 'text-slate-600', 'dark:text-slate-300'); }
-        } else {
-            if (mosaicBtn) { mosaicBtn.classList.add('bg-blue', 'text-white'); mosaicBtn.classList.remove('bg-white', 'dark:bg-slate-700', 'text-slate-600', 'dark:text-slate-300'); }
-            if (blurBtn) { blurBtn.classList.remove('bg-blue', 'text-white'); blurBtn.classList.add('bg-white', 'dark:bg-slate-700', 'text-slate-600', 'dark:text-slate-300'); }
-        }
-        this.updateEffect();
-    },
-
     reset() {
         this.stopAutoReveal();
         this.revealed = false;
@@ -1182,25 +1245,10 @@ const BlurGame = {
 
     updateEffect() {
         const img = document.getElementById('target-image');
-        const container = document.getElementById('blur-container');
         if (!img) return;
         
-        if (this.effectType === 'blur') {
-            img.style.filter = `blur(${(this.currentLevel / 5) * 20}px)`;
-            img.style.imageRendering = 'auto';
-            img.style.transform = 'scale(1)';
-            if (container) container.style.overflow = 'hidden';
-        } else {
-            // Pixelate effect: scale down using transform with pixelated rendering
-            // The key is to use a small scale and let the browser pixelate when scaling back up
-            img.style.filter = 'none';
-            img.style.imageRendering = 'pixelated';
-            // Map 0-5 level to scale: level 5 = 0.05 (very pixelated), level 0 = 1.0 (clear)
-            const scale = 0.03 + (1 - this.currentLevel / 5) * 0.97;
-            img.style.transform = `scale(${scale})`;
-            // Ensure container clips the scaled image
-            if (container) container.style.overflow = 'hidden';
-        }
+        // Blur effect only
+        img.style.filter = `blur(${(this.currentLevel / 5) * 20}px)`;
         
         const display = document.getElementById('blur-display');
         if (display) {
@@ -1254,10 +1302,6 @@ const BlurGame = {
         this.updateEffect();
         Audio.playWin();
         UI.fireConfetti();
-        const guessSection = document.getElementById('guess-section');
-        if (guessSection) guessSection.classList.remove('hidden');
-        const input = document.getElementById('guess-input');
-        if (input) input.focus();
         const btn = document.getElementById('next-round-btn');
         if (btn) btn.disabled = false;
         const prevBtn = document.getElementById('prev-round-btn');
