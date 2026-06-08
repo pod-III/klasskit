@@ -1976,6 +1976,58 @@ const MySpace = {
 };
 window.MySpace = MySpace;
 
+// --- INPUT POPUP (custom prompt replacement) ---
+const InputPopup = {
+  _resolve: null,
+
+  show(title, defaultValue = '', placeholder = '') {
+    return new Promise((resolve) => {
+      this._resolve = resolve;
+      const popup = document.getElementById('input-popup');
+      const field = document.getElementById('input-popup-field');
+      const titleEl = document.getElementById('input-popup-title');
+
+      titleEl.textContent = title;
+      field.value = defaultValue;
+      field.placeholder = placeholder || 'Type here...';
+
+      popup.classList.remove('hidden');
+      popup.classList.add('flex');
+      Utils.refreshIcons(popup);
+
+      requestAnimationFrame(() => {
+        field.focus();
+        field.select();
+      });
+    });
+  },
+
+  submit() {
+    const field = document.getElementById('input-popup-field');
+    const value = field.value.trim();
+    this._hide();
+    if (this._resolve) {
+      this._resolve(value || null);
+      this._resolve = null;
+    }
+  },
+
+  cancel() {
+    this._hide();
+    if (this._resolve) {
+      this._resolve(null);
+      this._resolve = null;
+    }
+  },
+
+  _hide() {
+    const popup = document.getElementById('input-popup');
+    popup.classList.add('hidden');
+    popup.classList.remove('flex');
+  }
+};
+window.InputPopup = InputPopup;
+
 // --- TAB MANAGER ---
 const TabManager = {
   tabs: [],
@@ -2299,9 +2351,26 @@ const TabManager = {
     const index = this.groups.findIndex(g => g.id === groupId);
     if (index === -1) return;
     this.groups.splice(index, 1);
-    this.tabs.forEach(tab => {
-      if (tab.groupId === groupId) tab.groupId = null;
+
+    // Close all tabs that belong to this group
+    const tabsInGroup = this.tabs.filter(t => t.groupId === groupId);
+    tabsInGroup.forEach(tab => {
+      tab.iconElement?.remove();
+      tab.panel?.remove();
     });
+    this.tabs = this.tabs.filter(t => t.groupId !== groupId);
+
+    // If active tab was in the deleted group, switch to another
+    if (this.activeTabId && !this.tabs.find(t => t.id === this.activeTabId)) {
+      this.activeTabId = this.tabs.length > 0 ? this.tabs[this.tabs.length - 1].id : null;
+      if (this.activeTabId) {
+        this.switchToTab(this.activeTabId);
+      } else {
+        this.updateEmptyState();
+        this.closeModal();
+      }
+    }
+
     this.saveGroupsToStorage();
     this.saveTabsToStorage();
     this.renderGroups();
@@ -2546,8 +2615,9 @@ const TabManager = {
     separator2.className = 'h-px bg-slate-200 dark:bg-slate-700 my-1';
     menu.appendChild(separator2);
 
-    addItem('New Group...', 'folder-plus', () => {
-      const name = prompt('Group name:', '');
+    addItem('New Group...', 'folder-plus', async () => {
+      this.hideContextMenu();
+      const name = await InputPopup.show('New Group', '', 'Group name');
       if (name) {
         const group = this.createGroup(name);
         this.moveTabToGroup(tabId, group.id);
@@ -2610,8 +2680,9 @@ const TabManager = {
       menu.appendChild(btn);
     };
 
-    addItem('Rename Group', 'pencil', () => {
-      const name = prompt('Rename group:', group.name);
+    addItem('Rename Group', 'pencil', async () => {
+      this.hideContextMenu();
+      const name = await InputPopup.show('Rename Group', group.name, 'Group name');
       if (name) this.renameGroup(groupId, name);
     });
 
@@ -2644,7 +2715,11 @@ const TabManager = {
     menu.appendChild(sep);
 
     addItem('Delete Group', 'trash-2', () => {
-      if (confirm('Delete this group? Tabs will become ungrouped.')) this.deleteGroup(groupId);
+      const tabCount = this.tabs.filter(t => t.groupId === groupId).length;
+      const msg = tabCount > 0
+        ? `Delete this group and close ${tabCount} tab${tabCount > 1 ? 's' : ''} inside it?`
+        : 'Delete this empty group?';
+      if (confirm(msg)) this.deleteGroup(groupId);
     });
 
     Utils.refreshIcons(menu);
