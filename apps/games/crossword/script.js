@@ -99,9 +99,8 @@ async function saveWordSet(name, content) {
         const tx = db.transaction(SETS_STORE, 'readwrite');
         const store = tx.objectStore(SETS_STORE);
         store.put({ name, content, createdAt: Date.now() });
-        syncToCloud();
         return new Promise((resolve, reject) => {
-            tx.oncomplete = resolve;
+            tx.oncomplete = () => { syncToCloud(); resolve(); };
             tx.onerror = () => reject(tx.error);
         });
     } catch (err) {
@@ -131,13 +130,56 @@ async function deleteWordSet(id) {
         const tx = db.transaction(SETS_STORE, 'readwrite');
         const store = tx.objectStore(SETS_STORE);
         store.delete(id);
-        syncToCloud();
         return new Promise((resolve, reject) => {
-            tx.oncomplete = resolve;
+            tx.oncomplete = () => { syncToCloud(); resolve(); };
             tx.onerror = () => reject(tx.error);
         });
     } catch (err) {
         console.error('Delete word set error:', err);
+    }
+}
+
+async function loadFromCloud() {
+    const cloudData = await loadProgress('crossword');
+    if (!cloudData) return;
+
+    if (cloudData.word_sets && Array.isArray(cloudData.word_sets)) {
+        const db = await initDB();
+        const existingSets = await getAllWordSets();
+        const existingNames = new Set(existingSets.map(s => s.name));
+
+        for (const set of cloudData.word_sets) {
+            if (!set.name || existingNames.has(set.name)) continue;
+            await new Promise((resolve, reject) => {
+                const tx = db.transaction(SETS_STORE, 'readwrite');
+                const store = tx.objectStore(SETS_STORE);
+                const item = { name: set.name, content: set.content, createdAt: set.createdAt || Date.now() };
+                store.add(item);
+                tx.oncomplete = resolve;
+                tx.onerror = () => reject(tx.error);
+            });
+        }
+    }
+
+    if (cloudData.game_state) {
+        const { word_input, grid_rows, grid_cols, puzzle_data } = cloudData.game_state;
+        if (word_input && !els.input.value) {
+            await saveToDB('word_input', word_input);
+            els.input.value = word_input;
+        }
+        if (grid_rows && grid_cols) {
+            await saveToDB('grid_rows', grid_rows);
+            await saveToDB('grid_cols', grid_cols);
+        }
+        if (puzzle_data && !puzzle) {
+            await saveToDB('puzzle_data', puzzle_data);
+            puzzle = puzzle_data;
+            grid = puzzle_data.grid;
+            words = puzzle_data.words;
+            GRID_ROWS = puzzle_data.rows || GRID_ROWS;
+            GRID_COLS = puzzle_data.cols || GRID_COLS;
+            render();
+        }
     }
 }
 
@@ -779,6 +821,7 @@ window.onload = async () => {
     const themeBtn = document.getElementById('theme-toggle');
     if (themeBtn) themeBtn.onclick = toggleTheme;
     await loadGameState();
+    await loadFromCloud();
     await renderWordSets();
     if (window.innerWidth < 768) toggleControlPanel(true);
 };
