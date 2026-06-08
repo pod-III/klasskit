@@ -90,17 +90,19 @@
         });
 
         // Escape to cancel
-        document.addEventListener('keydown', (e) => {
+        escapeKeyListener = (e) => {
             if (e.key === 'Escape' && !modal.classList.contains('hidden')) {
                 hideInputModal();
             }
-        });
+        };
+        document.addEventListener('keydown', escapeKeyListener);
     }
 
     // Current callback references
     let currentOnConfirm = null;
     let currentOnCancel = null;
     let currentValidation = null;
+    let escapeKeyListener = null;
 
     /**
      * Show the input modal
@@ -148,14 +150,19 @@
 
         // Refresh icons if lucide is available
         if (window.lucide) {
-            lucide.createIcons();
-            // After icons are created, the <i> might be replaced with SVG
-            // So we need to find the new icon element and update its styles
-            const newIcon = iconWrapper.querySelector('svg, i');
-            if (newIcon) {
-                newIcon.style.width = '2rem';
-                newIcon.style.height = '2rem';
-                newIcon.style.color = color;
+            try {
+                lucide.createIcons();
+                // After icons are created, the <i> might be replaced with SVG
+                // So we need to find the new icon element and update its styles
+                const newIcon = iconWrapper.querySelector('svg, i');
+                if (newIcon) {
+                    newIcon.style.width = '2rem';
+                    newIcon.style.height = '2rem';
+                    newIcon.style.color = color;
+                }
+            } catch (error) {
+                console.warn('Failed to create Lucide icons:', error);
+                // Fallback: keep the original <i> element with styles
             }
         }
 
@@ -220,6 +227,11 @@
             if (buttons) {
                 buttons.style.marginTop = '';
             }
+        }
+        // Clean up escape key listener
+        if (escapeKeyListener) {
+            document.removeEventListener('keydown', escapeKeyListener);
+            escapeKeyListener = null;
         }
     }
 

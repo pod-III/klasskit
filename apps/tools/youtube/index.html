@@ -18,6 +18,7 @@
     
     <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@1.16.0"></script>
+    <script src="../../../components/input-modal.js"></script>
     
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -1518,7 +1519,14 @@
 
         async function deleteSelected() {
             if (selectedVideos.size === 0) return;
-            if (!confirm(`Delete ${selectedVideos.size} selected videos?`)) return;
+            const confirmed = await showConfirmModal(`Delete ${selectedVideos.size} selected videos?`, {
+                title: "Delete Videos?",
+                confirmText: "Delete",
+                cancelText: "Keep",
+                icon: "trash-2",
+                iconColor: "red"
+            });
+            if (!confirmed) return;
             
             library = library.filter(v => !selectedVideos.has(v.id));
             
@@ -1583,7 +1591,7 @@
             const categoryName = categoryInput.value.trim();
 
             if (!newTitle) {
-                alert('Please enter a video title.');
+                await showAlertModal('Please enter a video title.', { title: "Input Required", icon: "alert-circle", iconColor: "orange" });
                 return;
             }
 
@@ -1666,18 +1674,23 @@
             }
         }
 
-        function deleteCategory(catId) {
+        async function deleteCategory(catId) {
             if (catId === 'uncategorized') {
-                alert('Cannot delete the default category.');
+                await showAlertModal('Cannot delete the default category.', { title: "Cannot Delete", icon: "alert-circle", iconColor: "orange" });
                 return;
             }
 
             // Check if any videos use this category
             const videosInCategory = library.filter(v => v.category === catId);
             if (videosInCategory.length > 0) {
-                if (!confirm(`${videosInCategory.length} videos are in this category. They will be moved to Uncategorized. Continue?`)) {
-                    return;
-                }
+                const confirmed = await showConfirmModal(`${videosInCategory.length} videos are in this category. They will be moved to Uncategorized. Continue?`, {
+                    title: "Move Videos?",
+                    confirmText: "Move & Delete",
+                    cancelText: "Cancel",
+                    icon: "alert-triangle",
+                    iconColor: "orange"
+                });
+                if (!confirmed) return;
                 // Move videos to uncategorized
                 library.forEach(v => {
                     if (v.category === catId) {
@@ -1716,13 +1729,12 @@
             const playlistId = playlistSelect.value;
 
             if (!id) {
-                alert('Please enter a valid YouTube URL or ID.');
+                await showAlertModal('Please enter a valid YouTube URL or ID.', { title: "Invalid Input", icon: "alert-circle", iconColor: "orange" });
                 return;
             }
 
             if (library.find(v => v.id === id)) {
-                alert('This video is already in your library.');
-                toggleModal(false);
+                await showAlertModal('This video is already in your library.', { title: "Duplicate Video", icon: "info", iconColor: "blue" });
                 return;
             }
 
@@ -1746,7 +1758,14 @@
         }
 
         async function deleteVideo(id) {
-            if (!confirm('Remove this video from your library?')) return;
+            const confirmed = await showConfirmModal('Remove this video from your library?', {
+                title: "Remove Video?",
+                confirmText: "Remove",
+                cancelText: "Keep",
+                icon: "trash-2",
+                iconColor: "red"
+            });
+            if (!confirmed) return;
             library = library.filter(v => v.id !== id);
             
             // Remove from playlists
@@ -1903,7 +1922,14 @@
         async function deletePlaylist(playlistId) {
             const pl = playlists.find(p => p.id === playlistId);
             if (!pl) return;
-            if (!confirm(`Are you sure you want to delete the playlist "${pl.name}"? The videos themselves will not be deleted.`)) return;
+            const confirmed = await showConfirmModal(`Delete the playlist "${pl.name}"? The videos themselves will not be deleted.`, {
+                title: "Delete Playlist?",
+                confirmText: "Delete",
+                cancelText: "Keep",
+                icon: "trash-2",
+                iconColor: "red"
+            });
+            if (!confirmed) return;
 
             playlists = playlists.filter(p => p.id !== playlistId);
             if (activePlaylistId === playlistId) {
@@ -1954,7 +1980,7 @@
             const color = colorInput.value;
 
             if (!name) {
-                alert('Please enter a playlist name.');
+                await showAlertModal('Please enter a playlist name.', { title: "Input Required", icon: "alert-circle", iconColor: "orange" });
                 return;
             }
 
@@ -2081,9 +2107,9 @@
             console.log('YouTube API Ready');
         }
 
-        function playVideo(id) {
+        async function playVideo(id) {
             if (!apiReady) {
-                alert('YouTube Player is still loading. Please try again in a moment.');
+                await showAlertModal('YouTube Player is still loading. Please try again in a moment.', { title: "Loading", icon: "loader", iconColor: "blue" });
                 return;
             }
             const video = library.find(v => v.id === id);
@@ -2178,11 +2204,11 @@
             renderRecommendations();
         }
 
-        function playActivePlaylist() {
+        async function playActivePlaylist() {
             if (!activePlaylistId) return;
             const playlist = playlists.find(p => p.id === activePlaylistId);
             if (!playlist || playlist.videos.length === 0) {
-                alert('This playlist is empty.');
+                await showAlertModal('This playlist is empty.', { title: "Empty Playlist", icon: "alert-circle", iconColor: "orange" });
                 return;
             }
 
@@ -2191,7 +2217,7 @@
                 .filter(v => !!v);
 
             if (queue.length === 0) {
-                alert('No videos in this playlist are present in the library.');
+                await showAlertModal('No videos in this playlist are present in the library.', { title: "No Videos", icon: "alert-circle", iconColor: "orange" });
                 return;
             }
 

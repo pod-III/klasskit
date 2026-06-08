@@ -68,7 +68,6 @@ setDefaultBlank(defaultQuestions[2], "busy", "Full of activity");
 let questions = [];
 let currentQuestionIndex = 0;
 let score = 0;
-let alertCallback = null;
 
 // --- Game Logic ---
 
@@ -199,15 +198,23 @@ function checkAnswer() {
     if (allCorrect) {
         score += 10;
         updateScore();
-        setTimeout(() => {
-            showAlert("Correct!", "Awesome job! Keep going.", "text-green", "check-circle", loadQuestion);
+        setTimeout(async () => {
+            await showAlertModal("Awesome job! Keep going.", { title: "Correct!", icon: "check-circle", iconColor: "green" });
+            loadQuestion();
         }, 500);
     }
 }
 
 // --- Data Reset ---
-function resetData() {
-    if (confirm("Are you sure you want to reset to default questions and wipe your score? This cannot be undone.")) {
+async function resetData() {
+    const confirmed = await showConfirmModal("Reset to default questions and wipe your score? This cannot be undone.", {
+        title: "Reset Data?",
+        confirmText: "Reset",
+        cancelText: "Cancel",
+        icon: "rotate-ccw",
+        iconColor: "red"
+    });
+    if (confirmed) {
         localStorage.removeItem('englishGameQuestions');
         localStorage.removeItem('englishGameScore');
         questions = JSON.parse(JSON.stringify(defaultQuestions));
@@ -342,10 +349,10 @@ function deleteRow(index) {
     renderEditorList();
 }
 
-function saveAllQuestions() {
+async function saveAllQuestions() {
     const hasError = editorQuestions.some(q => q.rawText.trim() === '' || !q.tokens.some(t => t.isBlank));
     if (hasError) {
-        showAlert("Formatting Error", "Make sure all rows have text and at least one blank word selected.", "text-orange", "alert-triangle");
+        await showAlertModal("Make sure all rows have text and at least one blank word selected.", { title: "Formatting Error", icon: "alert-triangle", iconColor: "orange" });
         return;
     }
 
@@ -353,16 +360,17 @@ function saveAllQuestions() {
     localStorage.setItem('englishGameQuestions', JSON.stringify(questions));
     syncToCloud();
     closeManageModal();
-    showAlert("Saved!", "Your questions have been successfully updated.", "text-blue", "save", loadQuestion);
+    await showAlertModal("Your questions have been successfully updated.", { title: "Saved!", icon: "check-circle", iconColor: "green" });
+    loadQuestion();
 }
 
 
 
 // --- JSON Export / Import ---
 
-function exportJSON() {
+async function exportJSON() {
     if (questions.length === 0) {
-        showAlert("No Data", "There are no questions to export.", "text-orange", "alert-circle");
+        await showAlertModal("There are no questions to export.", { title: "No Data", icon: "alert-circle", iconColor: "orange" });
         return;
     }
 
@@ -404,15 +412,16 @@ function importJSON(event) {
                     localStorage.setItem('englishGameQuestions', JSON.stringify(questions));
                     syncToCloud();
                     renderEditorList();
-                    showAlert("Imported!", "Questions successfully loaded from the JSON file.", "text-green", "check-circle", loadQuestion);
+                    await showAlertModal("Questions successfully loaded from the JSON file.", { title: "Imported!", icon: "check-circle", iconColor: "green" });
+                    loadQuestion();
                 } else {
-                    showAlert("Invalid Data", "The JSON file must contain valid Fill-It question formats.", "text-pink", "alert-triangle");
+                    await showAlertModal("The JSON file must contain valid Fill-It question formats.", { title: "Invalid Data", icon: "alert-triangle", iconColor: "red" });
                 }
             } else {
-                showAlert("Invalid Format", "The JSON file must be an array of questions.", "text-pink", "alert-triangle");
+                await showAlertModal("The JSON file must be an array of questions.", { title: "Invalid Format", icon: "alert-triangle", iconColor: "red" });
             }
         } catch (err) {
-            showAlert("Error", "Could not parse the JSON file. Ensure it is formatted correctly.", "text-pink", "x-octagon");
+            await showAlertModal("Could not parse the JSON file. Ensure it is formatted correctly.", { title: "Error", icon: "x-octagon", iconColor: "red" });
         }
 
         // Reset input to allow re-uploading the same file if needed
@@ -421,29 +430,6 @@ function importJSON(event) {
     reader.readAsText(file);
 }
 
-// --- Custom Alert Logic ---
-
-function showAlert(title, message, colorClass, iconName, callback = null) {
-    alertCallback = callback;
-
-    document.getElementById('alert-title').innerText = title;
-    document.getElementById('alert-title').className = `font-heading text-4xl mb-3 ${colorClass}`;
-    document.getElementById('alert-message').innerText = message;
-
-    const iconHtml = `<i data-lucide="${iconName}" class="w-16 h-16 ${colorClass}"></i>`;
-    document.getElementById('alert-icon').innerHTML = iconHtml;
-    lucide.createIcons();
-
-    document.getElementById('alert-modal').classList.remove('hidden');
-}
-
-function closeAlertAndNext() {
-    document.getElementById('alert-modal').classList.add('hidden');
-    if (alertCallback) {
-        alertCallback();
-        alertCallback = null;
-    }
-}
 
 // --- Utilities ---
 
