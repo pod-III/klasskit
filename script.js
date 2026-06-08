@@ -3346,6 +3346,10 @@ const Timer = {
           <i data-lucide="rotate-ccw" class="w-4 h-4"></i>
         </button>
       </div>
+      <div class="timer-add-time">
+        <button class="timer-add-btn" data-add="30" title="Add 30 seconds">+30s</button>
+        <button class="timer-add-btn" data-add="60" title="Add 1 minute">+1m</button>
+      </div>
     `;
     document.getElementById('tab-content-area')?.appendChild(timer);
     this.el = timer;
@@ -3504,6 +3508,15 @@ const Timer = {
     playBtn?.addEventListener('click', (e) => { e.stopPropagation(); this.start(); });
     pauseBtn?.addEventListener('click', (e) => { e.stopPropagation(); this.pause(); });
     resetBtn?.addEventListener('click', (e) => { e.stopPropagation(); this.reset(); });
+
+    // --- Add time buttons ---
+    this.el.querySelectorAll('.timer-add-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const sec = parseInt(btn.dataset.add);
+        if (sec > 0) this.addTime(sec);
+      });
+    });
   },
 
   setDuration(seconds) {
@@ -3573,6 +3586,16 @@ const Timer = {
   reset() {
     this.pause();
     this.remaining = this.initial;
+    this.el?.classList.remove('timer-finished');
+    this.updateDisplay();
+    this.updateRing();
+    AudioEngine.click();
+  },
+
+  addTime(seconds) {
+    const ms = seconds * 1000;
+    this.initial += ms;
+    this.remaining += ms;
     this.el?.classList.remove('timer-finished');
     this.updateDisplay();
     this.updateRing();
