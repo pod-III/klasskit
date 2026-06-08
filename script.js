@@ -3365,21 +3365,9 @@ const Timer = {
       timer.style.top = `${pos.y}px`;
       timer.style.right = 'auto';
       timer.style.bottom = 'auto';
-    } else {
-      // First init: center in the iframe container
-      const container = document.getElementById('tab-content-area');
-      if (container) {
-        const containerRect = container.getBoundingClientRect();
-        const timerWidth = 200; // Approximate timer width
-        const timerHeight = 280; // Approximate timer height
-        const centerX = (containerRect.width - timerWidth) / 2;
-        const centerY = (containerRect.height - timerHeight) / 2;
-        timer.style.left = `${centerX}px`;
-        timer.style.top = `${centerY}px`;
-        timer.style.right = 'auto';
-        timer.style.bottom = 'auto';
-      }
+      timer.style.transform = 'none';
     }
+    // If no saved position, CSS centers it via top:50%; left:50%; transform:translate(-50%,-50%)
 
     // Restore duration or set default 5 min
     const savedDuration = Storage.get(CONFIG.storageKeys.timerDuration);
@@ -3408,6 +3396,7 @@ const Timer = {
       // Only primary button (left-click / single touch)
       if (e.button !== 0) return;
       this.drag.active = true;
+      this.el.style.transform = 'none';
       const rect = this.el.getBoundingClientRect();
       this.drag.offsetX = e.clientX - rect.left;
       this.drag.offsetY = e.clientY - rect.top;
