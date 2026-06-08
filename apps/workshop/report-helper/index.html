@@ -13,6 +13,7 @@
     <script src="https://unpkg.com/lucide@1.16.0"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.105.4"></script>
     <script src="../../../supabase.js"></script>
+    <script src="../../../components/input-modal.js"></script>
 
     <script>
         tailwind.config = {
@@ -356,15 +357,26 @@
             toast.classList.add('toast-animate');
         }
 
-        function saveReportToDB() {
-            if (!dataBase) return alert("Database not initialized yet.");
+        async function saveReportToDB() {
+            if (!dataBase) {
+                await showAlertModal("Database not initialized yet.", {
+                    title: 'Error',
+                    icon: 'database',
+                    iconColor: 'red'
+                });
+                return;
+            }
             
             const studentName = document.getElementById('studentName').value.trim();
             const className = document.getElementById('className').value.trim() || 'Uncategorized';
             const pronoun = document.getElementById('pronoun').value;
 
             if (!studentName) {
-                alert("Please enter a Student Name to save their report.");
+                await showAlertModal("Please enter a Student Name to save their report.", {
+                    title: 'Input Required',
+                    icon: 'user',
+                    iconColor: 'orange'
+                });
                 document.getElementById('studentName').focus();
                 return;
             }
@@ -396,9 +408,16 @@
         }
 
         // Action Functions
-        function deleteReport(id, e) {
+        async function deleteReport(id, e) {
             if (e) e.stopPropagation();
-            if (!confirm("Are you sure you want to delete this report?")) return;
+            const confirmed = await showConfirmModal("Are you sure you want to delete this report?", {
+                title: 'Delete Report?',
+                confirmText: 'Delete',
+                cancelText: 'Keep',
+                icon: 'trash-2',
+                iconColor: 'red'
+            });
+            if (!confirmed) return;
             const tx = dataBase.transaction("reports", "readwrite");
             tx.objectStore("reports").delete(id);
             tx.oncomplete = () => { 
@@ -421,8 +440,15 @@
             };
         }
 
-        function deleteClass(className) {
-            if (!confirm(`Are you sure you want to delete ALL reports for class ${className}?`)) return;
+        async function deleteClass(className) {
+            const confirmed = await showConfirmModal(`Are you sure you want to delete ALL reports for class ${className}?`, {
+                title: 'Delete Class?',
+                confirmText: 'Delete',
+                cancelText: 'Keep',
+                icon: 'trash-2',
+                iconColor: 'red'
+            });
+            if (!confirmed) return;
             const tx = dataBase.transaction("reports", "readwrite");
             const store = tx.objectStore("reports");
             const request = store.index("className").getAllKeys(className);
@@ -460,7 +486,7 @@
             const file = event.target.files[0];
             if (!file) return;
             const reader = new FileReader();
-            reader.onload = (e) => {
+            reader.onload = async (e) => {
                 try {
                     const data = JSON.parse(e.target.result);
                     if (!Array.isArray(data)) throw new Error("Invalid format: Expected an array.");
@@ -483,7 +509,11 @@
                         openDatabaseModal();
                     };
                 } catch(err) {
-                    alert("Error importing file. Please ensure it is a valid KlassKit export.");
+                    await showAlertModal("Error importing file. Please ensure it is a valid KlassKit export.", {
+                        title: 'Import Error',
+                        icon: 'file-x',
+                        iconColor: 'red'
+                    });
                 }
                 event.target.value = ''; // Reset input
             };

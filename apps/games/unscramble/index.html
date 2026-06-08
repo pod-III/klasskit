@@ -21,6 +21,7 @@
     <script src="https://unpkg.com/lucide@1.16.0"></script>
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+    <script src="../../../components/input-modal.js"></script>
 
     <link rel="stylesheet" href="../../styles.css">
 
@@ -483,7 +484,11 @@
             syncToCloud();
 
             if (items.length === 0) {
-                alert(currentMode === 'word' ? "Please enter words!" : "Please enter sentences!");
+                showAlertModal(currentMode === 'word' ? "Please enter words!" : "Please enter sentences!", {
+                    title: 'Input Required',
+                    icon: 'alert-circle',
+                    iconColor: 'orange'
+                });
                 return;
             }
 
@@ -601,8 +606,15 @@
             btnNext.innerText = "NEXT";
         }
 
-        function exitGame() {
-            if (confirm("Exit to setup? Progress will be lost.")) {
+        async function exitGame() {
+            const confirmed = await showConfirmModal("Exit to setup? Progress will be lost.", {
+                title: 'Leave Game?',
+                confirmText: 'Exit',
+                cancelText: 'Stay',
+                icon: 'log-out',
+                iconColor: 'red'
+            });
+            if (confirmed) {
                 elGame.classList.add('hidden');
                 elEnd.classList.add('hidden');
                 elSetup.classList.remove('hidden');

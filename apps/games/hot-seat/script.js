@@ -204,9 +204,23 @@ function saveCurrentList() {
     }, 3000);
 }
 
-if (activeListName === name) selectList('Default (Easy)');
-syncToCloud();
+async function deleteCustomList(name) {
+    const confirmed = await showConfirmModal(`Delete list "${name}"?`, {
+        title: 'Delete List?',
+        confirmText: 'Delete',
+        cancelText: 'Keep',
+        icon: 'trash-2',
+        iconColor: 'red'
+    });
+    if (!confirmed) return;
 
+    customLists = customLists.filter(l => l.name !== name);
+    localStorage.setItem(CUSTOM_LISTS_KEY, JSON.stringify(customLists));
+
+    if (activeListName === name) selectList('Default (Easy)');
+    syncToCloud();
+    renderCustomListButtons();
+}
 
 function syncToCloud() {
     if (window.syncTimeout) clearTimeout(window.syncTimeout);
@@ -263,6 +277,7 @@ async function init() {
         document.getElementById('time-input').value = savedTimer;
     }
 
+    renderCustomListButtons();
     setMode(gameMode || 'classic');
     showWordTab('presets');
     initTheme();
@@ -355,9 +370,13 @@ function shuffle(array) {
     return array.sort(() => Math.random() - 0.5);
 }
 
-function startGame() {
+async function startGame() {
     if (words.length === 0) {
-        alert("Please add some words first!");
+        await showAlertModal("Please add some words first!", {
+            title: 'Words Required',
+            icon: 'alert-circle',
+            iconColor: 'orange'
+        });
         toggleWords();
         return;
     }
