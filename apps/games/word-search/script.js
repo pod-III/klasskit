@@ -848,7 +848,7 @@ window.onload = async () => {
     els.zoomOut.onclick = () => { CELL_SIZE = Math.max(CELL_SIZE - 5, 25); updateGridSize(); };
 
     els.generateBtn.onclick = () => {
-        const words = els.input.value.split(',').map(w => w.trim().toUpperCase()).filter(w => w.length > 0);
+        const words = els.input.value.split(',').map(w => w.trim().toUpperCase().replace(/[^A-Z]/g, '')).filter(w => w.length > 0);
         if (words.length < 1) return showToast('Enter some words!', 'error');
         saveCurrentUserPreset();
 
