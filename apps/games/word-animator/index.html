@@ -708,17 +708,17 @@ C,A,T</textarea>
         async function migrateFromLocalStorage() {
             const savedWords = localStorage.getItem(LS_KEY_WORDS);
             if (savedWords) {
-                await savePreset('Default', savedWords);
+                await savePreset('Default', savedWords, []);
                 localStorage.removeItem(LS_KEY_WORDS);
             }
         }
 
-        async function savePreset(name, content, id = null) {
+        async function savePreset(name, content, images = [], id = null) {
             if (!dataBase) return;
             const result = await new Promise((resolve, reject) => {
                 const tx = dataBase.transaction(STORE_PRESETS, 'readwrite');
                 const store = tx.objectStore(STORE_PRESETS);
-                const data = { name, content, updatedAt: Date.now() };
+                const data = { name, content, images, updatedAt: Date.now() };
                 if (id) data.id = id;
                 const request = id ? store.put(data) : store.add(data);
                 request.onsuccess = () => resolve(request.result);
@@ -819,6 +819,8 @@ C,A,T</textarea>
                 currentPresetId = id;
                 wordInput.value = preset.content;
                 document.getElementById('preset-name').value = preset.name;
+                uploadedImages = await resolvePresetImages(preset.images);
+                renderImageThumbs();
                 await saveCurrentPresetId(id);
                 await renderPresetSelector();
             }
@@ -827,7 +829,7 @@ C,A,T</textarea>
         async function saveCurrentPreset() {
             const name = document.getElementById('preset-name').value.trim() || 'Untitled';
             const content = wordInput.value;
-            const id = await savePreset(name, content, currentPresetId);
+            const id = await savePreset(name, content, uploadedImages, currentPresetId);
             currentPresetId = id;
             await saveCurrentPresetId(id);
             await renderPresetSelector();
@@ -836,6 +838,8 @@ C,A,T</textarea>
         async function createNewPreset() {
             document.getElementById('preset-name').value = 'New Preset';
             wordInput.value = '';
+            uploadedImages = [];
+            renderImageThumbs();
             currentPresetId = null;
             await saveCurrentPresetId(null);
             await renderPresetSelector();
@@ -852,6 +856,8 @@ C,A,T</textarea>
                 currentPresetId = null;
                 document.getElementById('preset-name').value = '';
                 wordInput.value = '';
+                uploadedImages = [];
+                renderImageThumbs();
                 await saveCurrentPresetId(null);
                 await renderPresetSelector();
                 showToast('Preset deleted', 'success');
@@ -932,11 +938,15 @@ C,A,T</textarea>
                 if (preset) {
                     wordInput.value = preset.content;
                     document.getElementById('preset-name').value = preset.name;
+                    uploadedImages = await resolvePresetImages(preset.images);
+                    renderImageThumbs();
                 }
             } else if (presets.length > 0) {
                 currentPresetId = presets[0].id;
                 wordInput.value = presets[0].content;
                 document.getElementById('preset-name').value = presets[0].name;
+                uploadedImages = await resolvePresetImages(presets[0].images);
+                renderImageThumbs();
                 await saveCurrentPresetId(currentPresetId);
             }
             await renderPresetSelector();
@@ -967,21 +977,48 @@ C,A,T</textarea>
             updateSpeed(globalSpeedMultiplier + delta);
         }
 
-        // ========== IMAGE UPLOAD ==========
-        function handleImageUpload(files) {
+        // ========== IMAGE UPLOAD (Supabase Bucket) ==========
+        async function resolvePresetImages(images) {
+            if (!images || images.length === 0) return [];
+            const resolved = await Promise.all(
+                images.map(async url => {
+                    try { return await resolveMediaUrl(url); }
+                    catch (e) { console.warn('Failed to resolve image URL:', e); return url; }
+                })
+            );
+            return resolved;
+        }
+
+        async function handleImageUpload(files) {
             if (!files || files.length === 0) return;
+
+            // Ensure we have a preset ID to group images by set
+            if (!currentPresetId) {
+                await saveCurrentPreset();
+            }
+
+            showToast('Uploading images...', 'info');
             for (const file of files) {
-                const url = URL.createObjectURL(file);
-                uploadedImages.push(url);
+                try {
+                    const url = await uploadMedia(file, 'word-animator', currentPresetId);
+                    uploadedImages.push(url);
+                } catch (e) {
+                    console.error('Image upload failed:', e);
+                    showToast('Upload failed: ' + e.message, 'error');
+                }
             }
             renderImageThumbs();
             document.getElementById('img-upload').value = '';
+            await saveCurrentPreset();
         }
 
-        function clearImages() {
-            uploadedImages.forEach(url => URL.revokeObjectURL(url));
+        async function clearImages() {
+            for (const url of uploadedImages) {
+                try { await deleteMediaFromUrl(url); } catch (e) { /* ignore */ }
+            }
             uploadedImages = [];
             renderImageThumbs();
+            await saveCurrentPreset();
         }
 
         function renderImageThumbs() {
