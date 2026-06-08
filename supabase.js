@@ -137,6 +137,15 @@ async function signIn(email, pass) {
   return db.auth.signInWithPassword({ email, password: pass })
 }
 
+async function signInWithGoogle() {
+  return db.auth.signInWithOAuth({
+    provider: 'google',
+    options: {
+      redirectTo: window.location.origin + '/',
+    }
+  });
+}
+
 async function signOut() {
   if (!isSandbox()) {
     await db.auth.signOut()
