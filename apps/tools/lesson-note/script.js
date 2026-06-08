@@ -1,8 +1,8 @@
 // ===== GLOBAL STATE =====
 let notes = [];
-let folders = [];
 let currentNoteId = null;
-let activeFolderId = null;
+let currentNoteParentId = null;
+let expandedParents = new Set();
 let quill;
 let isZenMode = false;
 let isOutlineOpen = false;
@@ -18,15 +18,6 @@ let draggedNoteId = null;
 let noteLinkSearchActive = false;
 let noteLinkTriggerIndex = -1;
 let noteLinkActiveIndex = 0;
-
-const FOLDER_COLORS = [
-    { name: 'Blue', hex: '#2979FF' },
-    { name: 'Orange', hex: '#FF8C42' },
-    { name: 'Pink', hex: '#FF6B95' },
-    { name: 'Green', hex: '#00E676' },
-    { name: 'Purple', hex: '#7C4DFF' },
-    { name: 'Teal', hex: '#00BCD4' },
-];
 
 // ===== UTILITIES =====
 function debounce(func, wait) {
@@ -173,8 +164,11 @@ async function migrateFromLocalStorage() {
             const parsedNotes = JSON.parse(oldNotes);
             if (Array.isArray(parsedNotes)) {
                 for (const note of parsedNotes) {
+                    // Migrate folderId to parentId if present
+                    const parentId = note.parentId || note.folderId || null;
                     await saveNoteToDB({
                         ...note,
+                        parentId,
                         deleted: note.deleted || false,
                         updatedAt: note.updatedAt || Date.now()
                     });
@@ -186,13 +180,14 @@ async function migrateFromLocalStorage() {
         }
     }
 
-
-
     const oldLastActive = localStorage.getItem('e1_last_active_note');
     if (oldLastActive) {
         await saveSetting('lastActiveNoteId', oldLastActive);
         localStorage.removeItem('e1_last_active_note');
     }
+    
+    // Clean up old folder-related localStorage
+    localStorage.removeItem('e1_lesson_folders');
 }
 
 function arrayBufferToBase64(buf) {
@@ -247,9 +242,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     initTableToolbar();
 
     notes = await getAllNotes();
-    folders = (await getSetting('folders')) || [];
+    const savedExpanded = await getSetting('expandedParents');
+    if (savedExpanded) {
+        expandedParents = new Set(savedExpanded);
+    }
     sortMode = (await getSetting('sortMode')) || 'date-desc';
     updateSortDropdownUI();
+    setupRootDropTarget();
     await loadFromCloud(); // Sync with cloud on startup
     await purgeExpiredTrash(); // Auto-delete notes trashed >14 days ago
 
@@ -955,7 +954,7 @@ function toggleTrashMode(targetNoteId = null) {
         else {
             currentNoteId = null;
             document.getElementById('noteTitle').value = "";
-            document.getElementById('headerNoteTitle').textContent = 'Trash';
+            updateBreadcrumb();
             quill.root.innerHTML = '<p style="text-align:center;color:#94a3b8;margin-top:20vh;">Trash is empty</p>';
             quill.disable();
             renderNotesList();
@@ -999,7 +998,8 @@ function updateUIState() {
 // ===== NOTE CRUD =====
 async function createNewNote() {
     if (isTrashMode) return;
-    const newNote = { id: Date.now().toString(), title: '', content: '', updatedAt: Date.now(), deleted: false, folderId: null };
+    // Create root-level note by default
+    const newNote = { id: Date.now().toString(), title: '', content: '', updatedAt: Date.now(), deleted: false, parentId: null };
     notes.unshift(newNote);
     await saveNoteToDB(newNote);
     saveToCloud();
@@ -1030,10 +1030,20 @@ async function loadNote(id) {
     }
 
     currentNoteId = id;
+    currentNoteParentId = note.parentId || null;
     if (!isTrashMode) await saveSetting('lastActiveNoteId', id);
 
+    // Expand all parents in the tree so the current note is visible
+    let parent = notes.find(n => n.id === note.parentId);
+    while (parent) {
+        expandedParents.add(parent.id);
+        parent = notes.find(n => n.id === parent.parentId);
+    }
+
     document.getElementById('noteTitle').value = note.title;
-    document.getElementById('headerNoteTitle').textContent = note.title || 'Untitled';
+
+    // Update breadcrumb (replaces headerNoteTitle)
+    updateBreadcrumb();
 
     // Resolve idb:// image URLs
     const resolvedHtml = await resolveImagesInHtml(note.content);
@@ -1052,7 +1062,8 @@ async function saveCurrentNote() {
         note.title = document.getElementById('noteTitle').value;
         note.content = getContentForSave();
         note.updatedAt = Date.now();
-        document.getElementById('headerNoteTitle').textContent = note.title || 'Untitled';
+        note.parentId = note.parentId || null;
+        updateBreadcrumb();
 
         // Update cache
         strippedContentCache.set(note.id, fastStripHtml(note.content).toLowerCase());
@@ -1115,7 +1126,7 @@ async function permanentDeleteCurrentNote() {
         } else {
             currentNoteId = null;
             document.getElementById('noteTitle').value = "";
-            document.getElementById('headerNoteTitle').textContent = 'Trash';
+            updateBreadcrumb();
             quill.root.innerHTML = '<p style="text-align:center;color:#94a3b8;margin-top:20vh;">Trash is empty</p>';
             renderNotesList();
         }
@@ -1143,7 +1154,7 @@ async function emptyTrash() {
 
     currentNoteId = null;
     document.getElementById('noteTitle').value = "";
-    document.getElementById('headerNoteTitle').textContent = 'Trash';
+    updateBreadcrumb();
     quill.root.innerHTML = "<p>Trash is empty.</p>";
     renderNotesList();
 }
@@ -1201,17 +1212,14 @@ async function saveToCloud() {
                 user_id: user.id,
                 title: note.title || '',
                 content: note.content || '',
-                folder_id: note.folderId || null,
+                parent_id: note.parentId || null,
                 deleted: note.deleted || false,
                 updated_at: note.updatedAt
             }, { onConflict: 'id,user_id' });
         }
 
-        // Save folders separately
-        await db.from('note_folders').upsert({
-            user_id: user.id,
-            folders: folders
-        }, { onConflict: 'user_id' });
+        // Expanded state for tree view is stored locally
+        await saveSetting('expandedParents', Array.from(expandedParents));
 
         if (statusText) statusText.innerText = 'Cloud Synced';
         setTimeout(() => {
@@ -1246,7 +1254,7 @@ async function loadFromCloud() {
                         id: cn.id,
                         title: cn.title,
                         content: cn.content,
-                        folderId: cn.folder_id,
+                        parentId: cn.parent_id,
                         deleted: cn.deleted,
                         updatedAt: cn.updated_at
                     };
@@ -1259,16 +1267,10 @@ async function loadFromCloud() {
             }
         }
 
-        // Load folders
-        const { data: folderData } = await db
-            .from('note_folders')
-            .select('folders')
-            .eq('user_id', user.id)
-            .single();
-
-        if (folderData?.folders) {
-            folders = folderData.folders;
-            await saveSetting('folders', folders);
+        // Load expanded state
+        const savedExpanded = await getSetting('expandedParents');
+        if (savedExpanded) {
+            expandedParents = new Set(savedExpanded);
         }
 
     } catch (e) {
@@ -1285,6 +1287,7 @@ function sortNotes(notesList) {
         case 'title-asc': return sorted.sort((a, b) => (a.title || 'Untitled').localeCompare(b.title || 'Untitled'));
         case 'title-desc': return sorted.sort((a, b) => (b.title || 'Untitled').localeCompare(a.title || 'Untitled'));
         case 'manual': return sorted.sort((a, b) => (a.sortOrder ?? 9999) - (b.sortOrder ?? 9999));
+        case 'tree': return sorted.sort((a, b) => (a.updatedAt - b.updatedAt));
         default: return sorted;
     }
 }
@@ -1307,7 +1310,7 @@ async function setSortMode(mode) {
 }
 
 function getSortLabel(mode) {
-    const labels = { 'date-desc': 'Newest', 'date-asc': 'Oldest', 'title-asc': 'A → Z', 'title-desc': 'Z → A', 'manual': 'Manual' };
+    const labels = { 'date-desc': 'Newest', 'date-asc': 'Oldest', 'title-asc': 'A → Z', 'title-desc': 'Z → A', 'manual': 'Manual', 'tree': 'Hierarchy' };
     return labels[mode] || mode;
 }
 
@@ -1330,127 +1333,43 @@ function handleDragStart(e, noteId) {
 
 function handleDragEnd() {
     document.querySelectorAll('.note-dragging').forEach(el => el.classList.remove('note-dragging'));
-    document.querySelectorAll('.folder-drop-target').forEach(el => el.classList.remove('folder-drop-target'));
-    document.querySelectorAll('.unfiled-drop-target').forEach(el => el.classList.remove('unfiled-drop-target'));
-    document.querySelectorAll('.drop-indicator').forEach(el => el.remove());
+    document.querySelectorAll('.nest-drop-target').forEach(el => el.classList.remove('nest-drop-target'));
+    document.querySelectorAll('.drop-indicator, .nest-drop-indicator').forEach(el => el.remove());
     draggedNoteId = null;
 }
 
-function setupFolderDropTarget(headerEl, folderId) {
-    headerEl.addEventListener('dragover', (e) => {
+function setupRootDropTarget() {
+    const list = document.getElementById('notesList');
+    if (!list) return;
+    
+    list.addEventListener('dragover', (e) => {
+        if (!draggedNoteId) return;
         e.preventDefault();
-        e.dataTransfer.dropEffect = 'move';
-        headerEl.classList.add('folder-drop-target');
+        // Only show root target when dragging near top of list
+        if (e.clientY < list.getBoundingClientRect().top + 50) {
+            list.classList.add('root-drop-target');
+        }
     });
-    headerEl.addEventListener('dragleave', () => {
-        headerEl.classList.remove('folder-drop-target');
+    
+    list.addEventListener('dragleave', () => {
+        list.classList.remove('root-drop-target');
     });
-    headerEl.addEventListener('drop', async (e) => {
+    
+    list.addEventListener('drop', async (e) => {
         e.preventDefault();
-        headerEl.classList.remove('folder-drop-target');
+        list.classList.remove('root-drop-target');
         const noteId = e.dataTransfer.getData('text/plain');
         if (!noteId) return;
+        
         const note = notes.find(n => n.id === noteId);
-        if (note && note.folderId !== folderId) {
-            await moveNoteToFolder(noteId, folderId);
-            const folder = folders.find(f => f.id === folderId);
-            showToast(`Moved to "${folder?.name || 'folder'}"`, 'folder');
+        if (note && note.parentId) {
+            await nestNote(noteId, null);
         }
     });
 }
 
-function setupUnfiledDropTarget(headerEl) {
-    headerEl.addEventListener('dragover', (e) => {
-        e.preventDefault();
-        e.dataTransfer.dropEffect = 'move';
-        headerEl.classList.add('unfiled-drop-target');
-    });
-    headerEl.addEventListener('dragleave', () => {
-        headerEl.classList.remove('unfiled-drop-target');
-    });
-    headerEl.addEventListener('drop', async (e) => {
-        e.preventDefault();
-        headerEl.classList.remove('unfiled-drop-target');
-        const noteId = e.dataTransfer.getData('text/plain');
-        if (!noteId) return;
-        const note = notes.find(n => n.id === noteId);
-        if (note && note.folderId) {
-            await moveNoteToFolder(noteId, null);
-            showToast('Moved to Unfiled', 'info');
-        }
-    });
-}
 
-function setupNoteReorderDrop(noteEl, targetNoteId, groupNotes) {
-    noteEl.addEventListener('dragover', (e) => {
-        e.preventDefault();
-        e.dataTransfer.dropEffect = 'move';
-        // Show drop indicator
-        const rect = noteEl.getBoundingClientRect();
-        const midY = rect.top + rect.height / 2;
-        const isAbove = e.clientY < midY;
-        noteEl.querySelectorAll('.drop-indicator').forEach(el => el.remove());
-        // Don't show indicator on self
-        if (targetNoteId === draggedNoteId) return;
-        const indicator = document.createElement('div');
-        indicator.className = 'drop-indicator';
-        if (isAbove) {
-            noteEl.parentElement.insertBefore(indicator, noteEl);
-        } else {
-            noteEl.parentElement.insertBefore(indicator, noteEl.nextSibling);
-        }
-    });
-
-    noteEl.addEventListener('dragleave', () => {
-        noteEl.parentElement?.querySelectorAll('.drop-indicator').forEach(el => el.remove());
-    });
-
-    noteEl.addEventListener('drop', async (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        noteEl.parentElement?.querySelectorAll('.drop-indicator').forEach(el => el.remove());
-        const noteId = e.dataTransfer.getData('text/plain');
-        if (!noteId || noteId === targetNoteId) return;
-
-        const dragNote = notes.find(n => n.id === noteId);
-        const targetNote = notes.find(n => n.id === targetNoteId);
-        if (!dragNote || !targetNote) return;
-
-        // Move to the same folder as the target
-        const targetFolderId = targetNote.folderId || null;
-        dragNote.folderId = targetFolderId;
-
-        // Calculate new sort order
-        const rect = noteEl.getBoundingClientRect();
-        const midY = rect.top + rect.height / 2;
-        const insertBefore = e.clientY < midY;
-
-        const targetIdx = groupNotes.findIndex(n => n.id === targetNoteId);
-        const newOrder = [...groupNotes.filter(n => n.id !== noteId)];
-        const insertIdx = insertBefore ? targetIdx : targetIdx + 1;
-        newOrder.splice(Math.min(insertIdx, newOrder.length), 0, dragNote);
-
-        // Update sortOrder for all notes in the group
-        for (let i = 0; i < newOrder.length; i++) {
-            newOrder[i].sortOrder = i;
-            newOrder[i].updatedAt = Date.now();
-            await saveNoteToDB(newOrder[i]);
-        }
-
-        // Auto-switch to manual sort
-        if (sortMode !== 'manual') {
-            sortMode = 'manual';
-            await saveSetting('sortMode', 'manual');
-            updateSortDropdownUI();
-        }
-
-        saveToCloud();
-        renderNotesList();
-        showToast('Notes reordered', 'success');
-    });
-}
-
-// ===== RENDER NOTES LIST =====
+// ===== RENDER NOTES LIST (TREE VIEW) =====
 function renderNotesList() {
     const list = document.getElementById('notesList');
     const search = document.getElementById('searchInput').value.toLowerCase();
@@ -1482,119 +1401,76 @@ function renderNotesList() {
         }
         const sortedFiltered = sortNotes(filtered);
         const fragment = document.createDocumentFragment();
-        sortedFiltered.forEach(note => fragment.appendChild(buildNoteItem(note, sortedFiltered)));
+        sortedFiltered.forEach(note => fragment.appendChild(buildNoteItem(note, sortedFiltered, 0)));
         list.appendChild(fragment);
         lucide.createIcons({ scope: list });
         return;
     }
 
-    // ── FOLDER GROUPED VIEW ──
+    // ── TREE VIEW ──
     const fragment = document.createDocumentFragment();
 
-    // Render each folder
-    folders.forEach(folder => {
-        const folderNotes = sortNotes(modeFiltered.filter(n => n.folderId === folder.id));
-        const section = document.createElement('div');
-        section.className = 'folder-section mb-3';
+    // Get root notes (no parent or parent doesn't exist)
+    const rootNotes = sortNotes(modeFiltered.filter(n => {
+        if (!n.parentId) return true;
+        const parent = notes.find(p => p.id === n.parentId);
+        return !parent || parent.deleted;
+    }));
 
-        const isActive = activeFolderId === folder.id;
-        const chevron = folder.collapsed ? 'chevron-right' : 'chevron-down';
-        const folderIcon = folder.collapsed ? 'folder' : 'folder-open';
+    function renderTreeRecursive(notesList, parentId, level, parentEl) {
+        notesList.forEach(note => {
+            const noteEl = buildNoteItem(note, notesList, level);
+            parentEl.appendChild(noteEl);
 
-        const headerDiv = document.createElement('div');
-        headerDiv.className = `folder-header flex items-center gap-2 px-2 py-1.5 rounded-md cursor-pointer select-none group transition-colors ${isActive ? 'bg-slate-100 dark:bg-slate-800' : 'hover:bg-slate-50 dark:hover:bg-slate-800/50'}`;
-        headerDiv.dataset.folderId = folder.id;
-        headerDiv.innerHTML = `
-            <i data-lucide="${chevron}" class="w-3 h-3 text-slate-400 flex-none"></i>
-            <i data-lucide="${folderIcon}" class="w-3.5 h-3.5 flex-none" style="color: ${folder.color}"></i>
-            <span class="font-medium text-[13px] text-slate-700 dark:text-slate-200 truncate flex-1">${folder.name}</span>
-            <span class="text-[10px] font-medium text-slate-400 dark:text-slate-500 flex-none">${folderNotes.length}</span>
-            <button class="folder-menu-btn opacity-0 group-hover:opacity-100 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 p-1 rounded transition-all" onclick="event.stopPropagation(); showFolderMenu(event, '${folder.id}')">
-                <i data-lucide="more-horizontal" class="w-3 h-3 pointer-events-none"></i>
-            </button>
-        `;
-
-        headerDiv.addEventListener('click', (e) => {
-            if (e.target.closest('.folder-menu-btn')) return;
-            if (activeFolderId === folder.id) {
-                activeFolderId = null;
-            } else {
-                activeFolderId = folder.id;
+            // Render children if expanded
+            const children = sortNotes(getNoteChildren(note.id));
+            if (children.length > 0 && expandedParents.has(note.id)) {
+                const childrenContainer = document.createElement('div');
+                childrenContainer.className = 'tree-children';
+                childrenContainer.style.paddingLeft = `${12 + (level * 8)}px`;
+                renderTreeRecursive(children, note.id, level + 1, childrenContainer);
+                parentEl.appendChild(childrenContainer);
             }
-            folder.collapsed = !folder.collapsed;
-            saveFolders();
-            renderNotesList();
         });
-
-        // Make folder header a drop target
-        setupFolderDropTarget(headerDiv, folder.id);
-
-        section.appendChild(headerDiv);
-
-        if (!folder.collapsed && folderNotes.length > 0) {
-            const notesContainer = document.createElement('div');
-            notesContainer.className = 'pl-5 border-l border-slate-200 dark:border-slate-700 ml-3 mt-0.5 mb-1';
-            folderNotes.forEach(note => notesContainer.appendChild(buildNoteItem(note, folderNotes)));
-            section.appendChild(notesContainer);
-        }
-
-        if (!folder.collapsed && folderNotes.length === 0) {
-            const emptyHint = document.createElement('div');
-            emptyHint.className = 'text-[11px] text-slate-300 dark:text-slate-600 font-medium pl-10 py-1.5 italic';
-            emptyHint.textContent = 'Drop notes here';
-            section.appendChild(emptyHint);
-        }
-
-        fragment.appendChild(section);
-    });
-
-    // Unfiled notes
-    const unfiledNotes = sortNotes(modeFiltered.filter(n => !n.folderId || !folders.some(f => f.id === n.folderId)));
-    if (unfiledNotes.length > 0 || folders.length > 0) {
-        if (folders.length > 0) {
-            const unfiledHeader = document.createElement('div');
-            unfiledHeader.className = 'flex items-center gap-2 px-2 py-1.5 mt-2 mb-0.5 rounded-md transition-colors';
-            unfiledHeader.innerHTML = `
-                <i data-lucide="inbox" class="w-3.5 h-3.5 text-slate-400 flex-none"></i>
-                <span class="text-[13px] font-medium text-slate-500 dark:text-slate-400 flex-1">Unfiled</span>
-                <span class="text-[10px] font-medium text-slate-400 dark:text-slate-500">${unfiledNotes.length}</span>
-            `;
-            setupUnfiledDropTarget(unfiledHeader);
-            fragment.appendChild(unfiledHeader);
-        }
-        unfiledNotes.forEach(note => fragment.appendChild(buildNoteItem(note, unfiledNotes)));
     }
 
-    if (modeFiltered.length === 0) {
+    if (rootNotes.length === 0 && modeFiltered.length === 0) {
         list.innerHTML = `<div class="flex flex-col items-center justify-center py-10 text-center"><i data-lucide="pen-tool" class="w-8 h-8 text-slate-300 dark:text-slate-600 mb-2"></i><p class="text-sm text-slate-400 dark:text-slate-500 font-medium">No notes yet</p><p class="text-xs text-slate-400 dark:text-slate-600 mt-1">Click "New page" to get started</p></div>`;
         lucide.createIcons({ scope: list });
         return;
     }
 
+    renderTreeRecursive(rootNotes, null, 0, fragment);
     list.appendChild(fragment);
     lucide.createIcons({ scope: list });
 }
 
-function buildNoteItem(note, groupNotes) {
+function buildNoteItem(note, groupNotes, level = 0) {
     const el = document.createElement('div');
     const title = note.title || 'Untitled';
     const date = new Date(note.updatedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     const isActive = note.id === currentNoteId;
+    const children = getNoteChildren(note.id);
+    const hasChildren = children.length > 0;
+    const isExpanded = expandedParents.has(note.id);
+    
     let baseClasses = "note-item cursor-pointer relative group/note";
     if (isActive) baseClasses += isTrashMode ? " active-trash" : " active";
+    if (hasChildren) baseClasses += " has-children";
     el.className = baseClasses;
     el.dataset.noteId = note.id;
+    el.style.paddingLeft = `${8 + (level * 12)}px`;
 
     // Make draggable (not in trash mode)
     if (!isTrashMode) {
         el.draggable = true;
         el.addEventListener('dragstart', (e) => handleDragStart(e, note.id));
         el.addEventListener('dragend', handleDragEnd);
-        setupNoteReorderDrop(el, note.id, groupNotes || []);
+        setupNoteTreeDrop(el, note.id);
     }
 
     el.onclick = (e) => {
-        if (e.target.closest('.note-ctx-trigger') || e.target.closest('.drag-handle')) return;
+        if (e.target.closest('.note-ctx-trigger') || e.target.closest('.drag-handle') || e.target.closest('.expand-btn')) return;
         loadNote(note.id);
         if (window.innerWidth < 768) toggleSidebar();
     };
@@ -1604,9 +1480,17 @@ function buildNoteItem(note, groupNotes) {
     }
     const rawText = strippedContentCache.get(note.id) || "";
     const titleColor = isActive ? (isTrashMode ? 'text-pink-500' : 'text-slate-900 dark:text-white') : 'text-slate-700 dark:text-slate-300';
+    
+    // Expand/collapse button for notes with children
+    const expandBtn = hasChildren 
+        ? `<button class="expand-btn flex-none p-0.5 rounded hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-400" onclick="event.stopPropagation(); toggleParent('${note.id}')">
+            <i data-lucide="${isExpanded ? 'chevron-down' : 'chevron-right'}" class="w-3 h-3"></i>
+        </button>` 
+        : '<span class="w-4 flex-none"></span>';
 
     el.innerHTML = `
-        <div class="flex items-center gap-1.5 min-w-0">
+        <div class="flex items-center gap-1 min-w-0">
+            ${expandBtn}
             ${!isTrashMode ? '<i data-lucide="grip-vertical" class="drag-handle w-3 h-3 flex-none text-slate-300 dark:text-slate-600 opacity-0 group-hover/note:opacity-100"></i>' : '<span class="w-3 flex-none"></span>'}
             <div class="flex-1 min-w-0">
                 <div class="flex items-center justify-between gap-2">
@@ -1622,70 +1506,221 @@ function buildNoteItem(note, groupNotes) {
     return el;
 }
 
-// ===== FOLDER CRUD =====
-async function saveFolders() {
-    await saveSetting('folders', folders);
-    saveToCloud();
+// Tree-aware drag and drop
+function setupNoteTreeDrop(noteEl, targetNoteId) {
+    noteEl.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        
+        if (draggedNoteId === targetNoteId) return;
+        
+        const rect = noteEl.getBoundingClientRect();
+        const midY = rect.top + rect.height / 2;
+        
+        // Clear existing indicators
+        document.querySelectorAll('.drop-indicator, .nest-drop-indicator').forEach(el => el.remove());
+        
+        // Determine drop zone: above, inside (nest), or below
+        const relativeY = e.clientY - rect.top;
+        const zoneHeight = rect.height / 3;
+        
+        if (relativeY < zoneHeight) {
+            // Drop above
+            const indicator = document.createElement('div');
+            indicator.className = 'drop-indicator';
+            noteEl.parentElement.insertBefore(indicator, noteEl);
+        } else if (relativeY > rect.height - zoneHeight) {
+            // Drop below
+            const indicator = document.createElement('div');
+            indicator.className = 'drop-indicator';
+            noteEl.parentElement.insertBefore(indicator, noteEl.nextSibling);
+        } else {
+            // Nest inside (middle zone)
+            const indicator = document.createElement('div');
+            indicator.className = 'nest-drop-indicator';
+            indicator.textContent = 'Drop to nest inside';
+            noteEl.appendChild(indicator);
+            noteEl.classList.add('nest-drop-target');
+        }
+    });
+
+    noteEl.addEventListener('dragleave', () => {
+        document.querySelectorAll('.drop-indicator, .nest-drop-indicator').forEach(el => el.remove());
+        noteEl.classList.remove('nest-drop-target');
+    });
+
+    noteEl.addEventListener('drop', async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        document.querySelectorAll('.drop-indicator, .nest-drop-indicator').forEach(el => el.remove());
+        noteEl.classList.remove('nest-drop-target');
+        
+        const draggedId = e.dataTransfer.getData('text/plain');
+        if (!draggedId || draggedId === targetNoteId) return;
+        
+        const draggedNote = notes.find(n => n.id === draggedId);
+        const targetNote = notes.find(n => n.id === targetNoteId);
+        if (!draggedNote || !targetNote) return;
+        
+        // Check for circular reference
+        const descendants = getNoteDescendants(draggedId);
+        if (descendants.some(d => d.id === targetNoteId)) {
+            showToast('Cannot nest into own children', 'error');
+            return;
+        }
+        
+        const rect = noteEl.getBoundingClientRect();
+        const relativeY = e.clientY - rect.top;
+        const zoneHeight = rect.height / 3;
+        
+        if (relativeY < zoneHeight) {
+            // Drop above - same parent as target
+            await moveNoteToParent(draggedId, targetNote.parentId, targetNoteId, 'before');
+        } else if (relativeY > rect.height - zoneHeight) {
+            // Drop below - same parent as target
+            await moveNoteToParent(draggedId, targetNote.parentId, targetNoteId, 'after');
+        } else {
+            // Nest inside target
+            await nestNote(draggedId, targetNoteId);
+            expandedParents.add(targetNoteId);
+        }
+        
+        renderNotesList();
+    });
 }
 
-async function createFolder() {
-    const name = await showPrompt('New Folder', 'Give your new workspace a name', 'folder-plus');
-    if (!name || !name.trim()) return;
-    const color = FOLDER_COLORS[folders.length % FOLDER_COLORS.length].hex;
-    const folder = { id: 'folder_' + Date.now(), name: name.trim(), color, collapsed: false };
-    folders.push(folder);
-    await saveFolders();
-    renderNotesList();
-    showToast(`Folder "${name.trim()}" created!`, 'folder');
-}
-
-async function renameFolder(id) {
-    const folder = folders.find(f => f.id === id);
-    if (!folder) return;
-    const newName = await showPrompt('Rename Folder', 'Enter a new name for this folder', 'pencil', folder.name);
-    if (!newName || !newName.trim()) return;
-    folder.name = newName.trim();
-    await saveFolders();
-    renderNotesList();
-    showToast('Folder renamed', 'success');
-}
-
-async function changeFolderColor(id) {
-    const folder = folders.find(f => f.id === id);
-    if (!folder) return;
-    const currentIdx = FOLDER_COLORS.findIndex(c => c.hex === folder.color);
-    const nextIdx = (currentIdx + 1) % FOLDER_COLORS.length;
-    folder.color = FOLDER_COLORS[nextIdx].hex;
-    await saveFolders();
-    renderNotesList();
-}
-
-async function deleteFolder(id) {
-    const folder = folders.find(f => f.id === id);
-    if (!folder) return;
-    const folderNotes = notes.filter(n => n.folderId === id && !n.deleted);
-    const confirmed = await showModal('Delete Folder?', `"${folder.name}" will be deleted. ${folderNotes.length} note(s) inside will be moved to Unfiled.`, 'Delete Folder');
-    if (!confirmed) return;
-
-    // Move notes to unfiled
-    for (const note of folderNotes) {
-        note.folderId = null;
-        await saveNoteToDB(note);
-    }
-    folders = folders.filter(f => f.id !== id);
-    if (activeFolderId === id) activeFolderId = null;
-    await saveFolders();
-    renderNotesList();
-}
-
-async function moveNoteToFolder(noteId, folderId) {
+async function moveNoteToParent(noteId, newParentId, targetId, position) {
     const note = notes.find(n => n.id === noteId);
     if (!note) return;
-    note.folderId = folderId;
+    
+    note.parentId = newParentId;
     note.updatedAt = Date.now();
+    
+    // Update sort order based on position
+    const siblings = getNoteSiblings(noteId).filter(n => n.id !== noteId);
+    const targetIndex = siblings.findIndex(n => n.id === targetId);
+    
+    if (position === 'before' && targetIndex !== -1) {
+        siblings.splice(targetIndex, 0, note);
+    } else if (position === 'after' && targetIndex !== -1) {
+        siblings.splice(targetIndex + 1, 0, note);
+    } else {
+        siblings.push(note);
+    }
+    
+    // Reassign sort orders
+    for (let i = 0; i < siblings.length; i++) {
+        siblings[i].sortOrder = i;
+        await saveNoteToDB(siblings[i]);
+    }
+    
+    await saveNoteToDB(note);
+    saveToCloud();
+    showToast(newParentId ? 'Note moved' : 'Note moved to root', 'success');
+}
+
+// ===== FOLDER CRUD =====
+// ===== TREE NAVIGATION =====
+function getNotePath(noteId) {
+    const path = [];
+    let current = notes.find(n => n.id === noteId);
+    while (current) {
+        path.unshift(current);
+        current = notes.find(n => n.id === current.parentId);
+    }
+    return path;
+}
+
+function getNoteChildren(parentId) {
+    return notes.filter(n => n.parentId === parentId && !n.deleted);
+}
+
+function getNoteDescendants(noteId) {
+    const descendants = [];
+    const children = getNoteChildren(noteId);
+    for (const child of children) {
+        descendants.push(child);
+        descendants.push(...getNoteDescendants(child.id));
+    }
+    return descendants;
+}
+
+function getNoteSiblings(noteId) {
+    const note = notes.find(n => n.id === noteId);
+    if (!note) return [];
+    return notes.filter(n => n.parentId === note.parentId && !n.deleted);
+}
+
+function toggleParent(noteId) {
+    if (expandedParents.has(noteId)) {
+        expandedParents.delete(noteId);
+    } else {
+        expandedParents.add(noteId);
+    }
+    renderNotesList();
+}
+
+async function nestNote(noteId, targetParentId) {
+    const note = notes.find(n => n.id === noteId);
+    if (!note) return;
+    
+    // Prevent nesting into itself or its descendants (circular reference)
+    if (targetParentId === noteId) return;
+    const descendants = getNoteDescendants(noteId);
+    if (descendants.some(d => d.id === targetParentId)) return;
+    
+    note.parentId = targetParentId;
+    note.updatedAt = Date.now();
+    
+    // Auto-expand the new parent
+    if (targetParentId) {
+        expandedParents.add(targetParentId);
+    }
+    
     await saveNoteToDB(note);
     saveToCloud();
     renderNotesList();
+    showToast(targetParentId ? 'Note nested' : 'Note moved to root', 'success');
+}
+
+async function unnestNote(noteId) {
+    const note = notes.find(n => n.id === noteId);
+    if (!note || !note.parentId) return;
+    
+    const oldParent = note.parentId;
+    const oldParentNote = notes.find(n => n.id === oldParent);
+    
+    // Move to same level as parent (become sibling of parent)
+    note.parentId = oldParentNote?.parentId || null;
+    note.updatedAt = Date.now();
+    
+    await saveNoteToDB(note);
+    saveToCloud();
+    renderNotesList();
+    showToast('Note unnested', 'success');
+}
+
+function updateBreadcrumb() {
+    const container = document.getElementById('breadcrumbNav');
+    if (!container) return;
+    
+    const path = currentNoteId ? getNotePath(currentNoteId) : [];
+    if (path.length === 0) {
+        container.innerHTML = '<span class="text-slate-400">Notes</span>';
+        return;
+    }
+    
+    const html = path.map((note, idx) => {
+        const isLast = idx === path.length - 1;
+        const title = note.title || 'Untitled';
+        if (isLast) {
+            return `<span class="font-medium text-slate-900 dark:text-slate-100 truncate max-w-[200px] md:max-w-xs" title="${escapeHtml(title)}">${escapeHtml(title)}</span>`;
+        }
+        return `<button onclick="loadNote('${note.id}')" class="text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 truncate max-w-[120px]" title="${escapeHtml(title)}">${escapeHtml(title)}</button><span class="text-slate-300">/</span>`;
+    }).join('');
+    
+    container.innerHTML = html;
 }
 
 // ===== CONTEXT MENUS =====
@@ -1694,20 +1729,38 @@ function showNoteContextMenu(e, noteId) {
     const menu = document.createElement('div');
     menu.className = 'note-ctx-menu fixed z-50 bg-white dark:bg-[#1e293b] border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg py-1 min-w-[180px] animate-pop';
 
+    const note = notes.find(n => n.id === noteId);
+    const hasParent = note && note.parentId;
+    const children = note ? getNoteChildren(noteId) : [];
+    
     let items = '';
-    if (folders.length > 0) {
-        items += `<div class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider px-3 py-1">Move to</div>`;
-        folders.forEach(f => {
-            items += `<button class="w-full text-left px-3 py-1.5 text-[13px] font-medium text-slate-700 dark:text-slate-200 rounded-md hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-2 transition-colors mx-1" onclick="moveNoteToFolder('${noteId}', '${f.id}'); this.closest('.note-ctx-menu').remove()">
-                <div class="w-2 h-2 rounded-full flex-none" style="background:${f.color}"></div>
-                <span class="truncate">${escapeHtml(f.name)}</span>
-            </button>`;
-        });
-        items += `<button class="w-full text-left px-3 py-1.5 text-[13px] font-medium text-slate-500 dark:text-slate-400 rounded-md hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-2 transition-colors mx-1" onclick="moveNoteToFolder('${noteId}', null); this.closest('.note-ctx-menu').remove()">
-            <i data-lucide="inbox" class="w-3 h-3 pointer-events-none flex-none"></i> Unfiled
+    
+    // Tree actions
+    if (hasParent) {
+        items += `<button class="w-full text-left px-3 py-1.5 text-[13px] font-medium text-slate-700 dark:text-slate-200 rounded-md hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-2 transition-colors mx-1" onclick="this.closest('.note-ctx-menu').remove(); nestNote('${noteId}', null)">
+            <i data-lucide="arrow-up-left" class="w-3.5 h-3.5 pointer-events-none flex-none"></i> Move to Root
+        </button>`;
+        items += `<button class="w-full text-left px-3 py-1.5 text-[13px] font-medium text-slate-700 dark:text-slate-200 rounded-md hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-2 transition-colors mx-1" onclick="this.closest('.note-ctx-menu').remove(); unnestNote('${noteId}')">
+            <i data-lucide="arrow-up" class="w-3.5 h-3.5 pointer-events-none flex-none"></i> Unnest (Outdent)
         </button>`;
         items += `<div class="border-t border-slate-100 dark:border-slate-700 my-1 mx-2"></div>`;
     }
+    
+    // Create sub-page
+    items += `<button class="w-full text-left px-3 py-1.5 text-[13px] font-medium text-slate-700 dark:text-slate-200 rounded-md hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-2 transition-colors mx-1" onclick="this.closest('.note-ctx-menu').remove(); createChildNote('${noteId}')">
+        <i data-lucide="file-plus" class="w-3.5 h-3.5 pointer-events-none flex-none"></i> Create Sub-page
+    </button>`;
+    
+    // Stats
+    const descendantCount = getNoteDescendants(noteId).length;
+    if (children.length > 0 || descendantCount > 0) {
+        items += `<div class="border-t border-slate-100 dark:border-slate-700 my-1 mx-2"></div>`;
+        items += `<div class="px-3 py-1 text-[11px] text-slate-400 dark:text-slate-500">${children.length} sub-pages${descendantCount > children.length ? ` (${descendantCount} total)` : ''}</div>`;
+    }
+    
+    items += `<div class="border-t border-slate-100 dark:border-slate-700 my-1 mx-2"></div>`;
+    
+    // Delete
     items += `<button class="w-full text-left px-3 py-1.5 text-[13px] font-medium text-red-600 dark:text-red-400 rounded-md hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-2 transition-colors mx-1" onclick="document.querySelectorAll('.note-ctx-menu').forEach(m=>m.remove()); softDeleteNote('${noteId}')">
         <i data-lucide="trash-2" class="w-3.5 h-3.5 pointer-events-none flex-none"></i> Move to Trash
     </button>`;
@@ -1734,28 +1787,56 @@ function showNoteContextMenu(e, noteId) {
     });
 }
 
-function showFolderMenu(e, folderId) {
+function showNoteTreeMenu(e, noteId) {
     document.querySelectorAll('.note-ctx-menu').forEach(m => m.remove());
+    const note = notes.find(n => n.id === noteId);
+    if (!note) return;
+    
     const menu = document.createElement('div');
-    menu.className = 'note-ctx-menu fixed z-50 bg-white dark:bg-[#1e293b] border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg py-1 min-w-[160px] animate-pop';
-    menu.innerHTML = `
-        <button class="w-full text-left px-3 py-1.5 text-[13px] font-medium text-slate-700 dark:text-slate-200 rounded-md hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-2 transition-colors mx-1" onclick="this.closest('.note-ctx-menu').remove(); renameFolder('${folderId}')">
-            <i data-lucide="pencil" class="w-3.5 h-3.5 pointer-events-none flex-none"></i> Rename
-        </button>
-        <button class="w-full text-left px-3 py-1.5 text-[13px] font-medium text-slate-700 dark:text-slate-200 rounded-md hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-2 transition-colors mx-1" onclick="this.closest('.note-ctx-menu').remove(); changeFolderColor('${folderId}')">
-            <i data-lucide="palette" class="w-3.5 h-3.5 pointer-events-none flex-none"></i> Change Color
-        </button>
-        <div class="border-t border-slate-100 dark:border-slate-700 my-1 mx-2"></div>
-        <button class="w-full text-left px-3 py-1.5 text-[13px] font-medium text-red-600 dark:text-red-400 rounded-md hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-2 transition-colors mx-1" onclick="this.closest('.note-ctx-menu').remove(); deleteFolder('${folderId}')">
-            <i data-lucide="trash-2" class="w-3.5 h-3.5 pointer-events-none flex-none"></i> Delete Folder
-        </button>
-    `;
-    const rect = e.target.closest('.folder-menu-btn').getBoundingClientRect();
-    menu.style.top = rect.bottom + 4 + 'px';
-    menu.style.left = Math.max(rect.left - 120, 8) + 'px';
+    menu.className = 'note-ctx-menu fixed z-50 bg-white dark:bg-[#1e293b] border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg py-1 min-w-[180px] animate-pop';
+    
+    const children = getNoteChildren(noteId);
+    const hasParent = !!note.parentId;
+    
+    let items = '';
+    
+    // Move to root
+    if (hasParent) {
+        items += `<button class="w-full text-left px-3 py-1.5 text-[13px] font-medium text-slate-700 dark:text-slate-200 rounded-md hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-2 transition-colors mx-1" onclick="this.closest('.note-ctx-menu').remove(); nestNote('${noteId}', null)">
+            <i data-lucide="arrow-up-left" class="w-3.5 h-3.5 pointer-events-none flex-none"></i> Move to Root
+        </button>`;
+    }
+    
+    // Unnest (move to parent's level)
+    if (hasParent) {
+        items += `<button class="w-full text-left px-3 py-1.5 text-[13px] font-medium text-slate-700 dark:text-slate-200 rounded-md hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-2 transition-colors mx-1" onclick="this.closest('.note-ctx-menu').remove(); unnestNote('${noteId}')">
+            <i data-lucide="arrow-up" class="w-3.5 h-3.5 pointer-events-none flex-none"></i> Unnest (Outdent)
+        </button>`;
+    }
+    
+    // Create child note
+    items += `<button class="w-full text-left px-3 py-1.5 text-[13px] font-medium text-slate-700 dark:text-slate-200 rounded-md hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-2 transition-colors mx-1" onclick="this.closest('.note-ctx-menu').remove(); createChildNote('${noteId}')">
+        <i data-lucide="file-plus" class="w-3.5 h-3.5 pointer-events-none flex-none"></i> Create Sub-page
+    </button>`;
+    
+    if (hasParent || children.length > 0) {
+        items += `<div class="border-t border-slate-100 dark:border-slate-700 my-1 mx-2"></div>`;
+    }
+    
+    // Stats
+    const descendantCount = getNoteDescendants(noteId).length;
+    if (children.length > 0 || descendantCount > 0) {
+        items += `<div class="px-3 py-1 text-[11px] text-slate-400 dark:text-slate-500">${children.length} sub-pages${descendantCount > children.length ? ` (${descendantCount} total)` : ''}</div>`;
+    }
+    
+    menu.innerHTML = items;
+    
+    const rect = e.target.getBoundingClientRect();
+    menu.style.top = Math.min(rect.bottom + 4, window.innerHeight - 200) + 'px';
+    menu.style.left = Math.max(rect.left - 140, 8) + 'px';
     document.body.appendChild(menu);
     lucide.createIcons({ scope: menu });
-
+    
     requestAnimationFrame(() => {
         const closeHandler = (ev) => {
             if (!menu.contains(ev.target)) {
@@ -1765,6 +1846,18 @@ function showFolderMenu(e, folderId) {
         };
         document.addEventListener('click', closeHandler);
     });
+}
+
+async function createChildNote(parentId) {
+    if (isTrashMode) return;
+    const newNote = { id: Date.now().toString(), title: '', content: '', updatedAt: Date.now(), deleted: false, parentId: parentId };
+    notes.unshift(newNote);
+    expandedParents.add(parentId);
+    await saveNoteToDB(newNote);
+    saveToCloud();
+    await loadNote(newNote.id);
+    renderNotesList();
+    if (window.innerWidth < 768) toggleSidebar();
 }
 
 async function softDeleteNote(noteId) {
