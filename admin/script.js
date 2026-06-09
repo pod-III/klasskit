@@ -214,7 +214,8 @@ function extractLogEntries(row) {
                 ?? item.date ?? item.savedAt ?? item.updated_at ?? item.time
             let ts = fallbackTs
             if (rawTs !== undefined && rawTs !== null) {
-                const parsed = new Date(rawTs)
+                const num = Number(rawTs)
+                const parsed = !isNaN(num) && num > 0 ? new Date(num) : new Date(rawTs)
                 if (!isNaN(parsed.getTime())) ts = parsed
             }
             entries.push({ user_id: row.user_id, tool_key: row.tool_key, timestamp: ts })
@@ -241,7 +242,7 @@ function updateStats() {
 
     const uniqueTools = new Set([...metricsProgress.map(r => r.tool_key), ...metricsNotes.map(n => 'lesson-note')]).size
     const latestProgress = metricsProgress[0]?.updated_at ? new Date(metricsProgress[0].updated_at).getTime() : 0
-    const latestNote = metricsNotes[0]?.updated_at ? new Date(metricsNotes[0].updated_at).getTime() : 0
+    const latestNote = metricsNotes[0]?.updated_at ? (Number(metricsNotes[0].updated_at) || 0) : 0
     const latest = Math.max(latestProgress, latestNote)
         ? new Date(Math.max(latestProgress, latestNote)).toLocaleDateString()
         : '—'
@@ -251,6 +252,12 @@ function updateStats() {
     const proCount = Object.values(metricsProfiles).filter(p => p.role === 'pro').length
     const statPro = document.getElementById('statPro')
     if (statPro) statPro.textContent = proCount
+    const statProBar = document.getElementById('statProBar')
+    if (statProBar) {
+        const total = Object.keys(metricsProfiles).length || 1
+        const percent = Math.min(100, Math.round((proCount / total) * 100))
+        statProBar.style.width = `${percent}%`
+    }
     // Count total individual log entries across all progress rows, not just unique (user,tool) pairs.
     // user_progress is an upsert table so row count stays flat; the real activity count lives in data[].
     const totalLogEntries = metricsProgress.reduce((sum, r) => sum + extractLogEntries(r).length, 0)
@@ -675,8 +682,10 @@ function applyFilters() {
     const toolFilter = document.getElementById('toolFilter')
     const search = searchInput ? searchInput.value.toLowerCase() : ''
     const tool = toolFilter ? toolFilter.value : ''
+    const excludedIds = getExcludedUserIds()
 
     let filteredRows = allProgress.filter(r => {
+        if (excludedIds.includes(r.user_id)) return false
         const name = (allProfiles[r.user_id]?.display_name || '').toLowerCase()
         const matchSearch = !search
             || name.includes(search)
@@ -687,6 +696,7 @@ function applyFilters() {
     })
 
     let filteredUserIds = Object.keys(allProfiles).filter(uid => {
+        if (excludedIds.includes(uid)) return false
         const name = (allProfiles[uid]?.display_name || '').toLowerCase()
         const matchSearch = !search || name.includes(search) || uid.toLowerCase().includes(search)
         const hasUsedTool = !tool || allProgress.some(r => r.user_id === uid && r.tool_key === tool) || (tool === 'lesson-note' && allNotes.some(n => n.user_id === uid))
@@ -694,6 +704,7 @@ function applyFilters() {
     })
 
     let filteredNotes = allNotes.filter(n => {
+        if (excludedIds.includes(n.user_id)) return false
         const name = (allProfiles[n.user_id]?.display_name || '').toLowerCase()
         const matchSearch = !search
             || name.includes(search)
@@ -702,6 +713,9 @@ function applyFilters() {
         const matchTool = !tool || tool === 'lesson-note'
         return matchSearch && matchTool
     })
+
+    let filteredScheduleEvents = allScheduleEvents.filter(e => !excludedIds.includes(e.user_id))
+    let filteredClassAdmin = allClassAdmin.filter(c => !excludedIds.includes(c.user_id))
 
     // Sort Users
     filteredUserIds.sort((a, b) => {
@@ -773,7 +787,7 @@ function applyFilters() {
     })
 
     // Sort Schedule Events
-    allScheduleEvents.sort((a, b) => {
+    filteredScheduleEvents.sort((a, b) => {
         const conf = sortConfig.schedule
         let valA, valB
         if (conf.col === 'user') {
@@ -792,7 +806,7 @@ function applyFilters() {
     })
 
     // Sort Class Admin
-    allClassAdmin.sort((a, b) => {
+    filteredClassAdmin.sort((a, b) => {
         const conf = sortConfig.classes
         let valA, valB
         if (conf.col === 'user') {
@@ -835,18 +849,18 @@ function applyFilters() {
     if (notesPageInfo) notesPageInfo.textContent = `Page ${pagination.notes} of ${notesPages}`
 
     // Pagination for Schedule Events
-    const schedPages = Math.ceil(allScheduleEvents.length / PAGE_SIZE) || 1
+    const schedPages = Math.ceil(filteredScheduleEvents.length / PAGE_SIZE) || 1
     if (pagination.schedule > schedPages) pagination.schedule = schedPages
     const schedStart = (pagination.schedule - 1) * PAGE_SIZE
-    const pagedSched = allScheduleEvents.slice(schedStart, schedStart + PAGE_SIZE)
+    const pagedSched = filteredScheduleEvents.slice(schedStart, schedStart + PAGE_SIZE)
     const schedulePageInfo = document.getElementById('schedule-page-info')
     if (schedulePageInfo) schedulePageInfo.textContent = `Page ${pagination.schedule} of ${schedPages}`
 
     // Pagination for Classes
-    const classPages = Math.ceil(allClassAdmin.length / PAGE_SIZE) || 1
+    const classPages = Math.ceil(filteredClassAdmin.length / PAGE_SIZE) || 1
     if (pagination.classes > classPages) pagination.classes = classPages
     const classStart = (pagination.classes - 1) * PAGE_SIZE
-    const pagedClasses = allClassAdmin.slice(classStart, classStart + PAGE_SIZE)
+    const pagedClasses = filteredClassAdmin.slice(classStart, classStart + PAGE_SIZE)
     const classesPageInfo = document.getElementById('classes-page-info')
     if (classesPageInfo) classesPageInfo.textContent = `Page ${pagination.classes} of ${classPages}`
 
@@ -855,8 +869,8 @@ function applyFilters() {
         users: filteredUserIds.length,
         progress: filteredRows.length,
         notes: filteredNotes.length,
-        schedule: allScheduleEvents.length,
-        classes: allClassAdmin.length
+        schedule: filteredScheduleEvents.length,
+        classes: filteredClassAdmin.length
     }
 
     renderUsersTable(pagedUserIds, filteredRows)
@@ -874,16 +888,20 @@ function applyFilters() {
     if (progressCount) progressCount.textContent = filteredRows.length + ' rows'
     const notesCount = document.getElementById('notesCount')
     if (notesCount) notesCount.textContent = filteredNotes.length + ' notes'
+    const filteredClassUnits = allClassUnits.filter(u => !excludedIds.includes(u.user_id))
+    const filteredMySpaceTasks = allMySpaceTasks.filter(t => !excludedIds.includes(t.user_id))
+    const filteredMyClass = allMyClass.filter(c => !excludedIds.includes(c.user_id))
+
     const scheduleCount = document.getElementById('scheduleCount')
-    if (scheduleCount) scheduleCount.textContent = allScheduleEvents.length + ' events'
+    if (scheduleCount) scheduleCount.textContent = filteredScheduleEvents.length + ' events'
     const classAdminCount = document.getElementById('classAdminCount')
-    if (classAdminCount) classAdminCount.textContent = allClassAdmin.length + ' classes'
+    if (classAdminCount) classAdminCount.textContent = filteredClassAdmin.length + ' classes'
     const classUnitsCount = document.getElementById('classUnitsCount')
-    if (classUnitsCount) classUnitsCount.textContent = allClassUnits.length + ' classes'
+    if (classUnitsCount) classUnitsCount.textContent = filteredClassUnits.length + ' classes'
     const tasksCount = document.getElementById('tasksCount')
-    if (tasksCount) tasksCount.textContent = allMySpaceTasks.length + ' tasks'
+    if (tasksCount) tasksCount.textContent = filteredMySpaceTasks.length + ' tasks'
     const myclassCount = document.getElementById('myclassCount')
-    if (myclassCount) myclassCount.textContent = allMyClass.length + ' classes'
+    if (myclassCount) myclassCount.textContent = filteredMyClass.length + ' classes'
 }
 
 function clearFilters() {
@@ -1196,10 +1214,12 @@ function renderClassesView(pagedClasses) {
     // Units table
     const unitsBody = document.getElementById('classUnitsTableBody')
     if (unitsBody) {
-        if (!allClassUnits.length) {
+        const excludedIds = getExcludedUserIds()
+        const filteredUnits = allClassUnits.filter(cls => !excludedIds.includes(cls.user_id))
+        if (!filteredUnits.length) {
             unitsBody.innerHTML = '<tr><td colspan="5" class="text-center py-12 text-slate-500 font-bold">No class units found</td></tr>'
         } else {
-            unitsBody.innerHTML = allClassUnits.map(cls => {
+            unitsBody.innerHTML = filteredUnits.map(cls => {
                 const profile = allProfiles[cls.user_id]
                 const name = profile?.display_name || '—'
                 const initial = name[0]?.toUpperCase() || '?'
@@ -1479,10 +1499,13 @@ function renderLogsTable() {
     const body = document.getElementById('logsTableBody')
     if (!body) return
 
+    const excludedIds = getExcludedUserIds()
+
     // Extract individual log entries from every progress row's data payload and merge them
     // into a single flat log sorted newest-first. This gives a true chronological audit
     // trail instead of just showing the latest upsert timestamp per (user, tool) row.
     const logEntries = allProgress
+        .filter(r => !excludedIds.includes(r.user_id))
         .flatMap(r => extractLogEntries(r))
         .sort((a, b) => b.timestamp - a.timestamp)
         .slice(0, 200)
@@ -1736,7 +1759,8 @@ function renderCloudTable() {
     const body = document.getElementById('cloudTableBody')
     if (!body) return
 
-    let profiles = Object.values(allProfiles)
+    const excludedIds = getExcludedUserIds()
+    let profiles = Object.values(allProfiles).filter(p => !excludedIds.includes(p.id))
 
     // Sort Cloud Usage
     profiles.sort((a, b) => {
@@ -2049,12 +2073,15 @@ function renderTasksTable() {
     const body = document.getElementById('tasksTableBody')
     if (!body) return
 
-    if (!allMySpaceTasks.length) {
+    const excludedIds = getExcludedUserIds()
+    const filteredTasks = allMySpaceTasks.filter(task => !excludedIds.includes(task.user_id))
+
+    if (!filteredTasks.length) {
         body.innerHTML = '<tr><td colspan="5" class="text-center py-12 text-slate-500 font-bold">No tasks found</td></tr>'
         return
     }
 
-    body.innerHTML = allMySpaceTasks.map(task => {
+    body.innerHTML = filteredTasks.map(task => {
         const profile = allProfiles[task.user_id]
         const name = profile?.display_name || '—'
         const initial = name[0]?.toUpperCase() || '?'
@@ -2096,12 +2123,15 @@ function renderMyClassTable() {
     const body = document.getElementById('myclassTableBody')
     if (!body) return
 
-    if (!allMyClass.length) {
+    const excludedIds = getExcludedUserIds()
+    const filteredMyClass = allMyClass.filter(cls => !excludedIds.includes(cls.user_id))
+
+    if (!filteredMyClass.length) {
         body.innerHTML = '<tr><td colspan="4" class="text-center py-12 text-slate-500 font-bold">No class records found</td></tr>'
         return
     }
 
-    body.innerHTML = allMyClass.map(cls => {
+    body.innerHTML = filteredMyClass.map(cls => {
         const profile = allProfiles[cls.user_id]
         const name = profile?.display_name || '—'
         const initial = name[0]?.toUpperCase() || '?'
