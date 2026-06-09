@@ -96,6 +96,7 @@
             }
         };
         document.addEventListener('keydown', escapeKeyListener);
+        // Note: listener is permanent; it self-guards via the hidden check
     }
 
     // Current callback references
@@ -128,7 +129,12 @@
         input.placeholder = options.placeholder || 'Type here...';
         input.value = options.defaultValue || '';
         confirmBtn.textContent = options.confirmText || 'Confirm';
-        cancelBtn.textContent = options.cancelText || 'Cancel';
+        if (options.cancelText === null) {
+            cancelBtn.style.display = 'none';
+        } else {
+            cancelBtn.style.display = '';
+            cancelBtn.textContent = options.cancelText || 'Cancel';
+        }
 
         // Set icon
         const iconName = options.icon || 'edit-3';
@@ -199,14 +205,21 @@
             if (currentOnCancel) currentOnCancel();
         };
 
+        // Hide input field if not needed (alert/confirm modes)
+        if (options.hideInput) {
+            input.style.display = 'none';
+        }
+
         // Show modal
         modal.classList.remove('hidden');
         
         // Focus input after a short delay for animation
-        setTimeout(() => {
-            input.focus();
-            input.select();
-        }, 50);
+        if (!options.hideInput) {
+            setTimeout(() => {
+                input.focus();
+                input.select();
+            }, 50);
+        }
     }
 
     /**
@@ -227,11 +240,6 @@
             if (buttons) {
                 buttons.style.marginTop = '';
             }
-        }
-        // Clean up escape key listener
-        if (escapeKeyListener) {
-            document.removeEventListener('keydown', escapeKeyListener);
-            escapeKeyListener = null;
         }
     }
 
@@ -265,24 +273,13 @@
                 description: message,
                 defaultValue: '',
                 confirmText: options.confirmText || 'OK',
-                cancelText: null, // Hide cancel button
+                cancelText: null,
                 icon: options.icon || 'info',
                 iconColor: options.iconColor || 'blue',
+                hideInput: true,
                 onConfirm: () => resolve(),
                 onCancel: () => resolve()
             });
-            // Hide the input field for alerts
-            setTimeout(() => {
-                const input = document.getElementById('inputModalField');
-                if (input) {
-                    input.style.display = 'none';
-                }
-                // Adjust margin of buttons container
-                const buttons = document.querySelector('#universalInputModal .flex.gap-3');
-                if (buttons) {
-                    buttons.style.marginTop = '0';
-                }
-            }, 10);
         });
     }
 
@@ -302,16 +299,10 @@
                 cancelText: options.cancelText || 'No',
                 icon: options.icon || 'help-circle',
                 iconColor: options.iconColor || 'orange',
+                hideInput: true,
                 onConfirm: () => resolve(true),
                 onCancel: () => resolve(false)
             });
-            // Hide the input field for confirmations
-            setTimeout(() => {
-                const input = document.getElementById('inputModalField');
-                if (input) {
-                    input.style.display = 'none';
-                }
-            }, 10);
         });
     }
 

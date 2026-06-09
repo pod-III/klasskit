@@ -16,6 +16,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <script src="../../../../components/input-modal.js"></script>
 
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -874,9 +875,16 @@
             showToast(`Loaded ${item.name}`, "info");
         }
 
-        function deleteLibraryItem(id, event) {
+        async function deleteLibraryItem(id, event) {
             if (event) event.stopPropagation();
-            if (!confirm("Are you sure you want to delete this list?")) return;
+            const confirmed = await showConfirmModal("Are you sure you want to delete this list?", {
+                title: "Delete List?",
+                confirmText: "Delete",
+                cancelText: "Keep",
+                icon: "trash-2",
+                iconColor: "red"
+            });
+            if (!confirmed) return;
 
             let library = getLibrary();
             library = library.filter(i => i.id !== id);
@@ -1072,8 +1080,15 @@
             showToast("List updated", "success");
         }
 
-        function clearAll() {
-            if (!confirm("Clear current list?")) return;
+        async function clearAll() {
+            const confirmed = await showConfirmModal("Clear current list?", {
+                title: "Clear List?",
+                confirmText: "Clear",
+                cancelText: "Keep",
+                icon: "rotate-ccw",
+                iconColor: "orange"
+            });
+            if (!confirmed) return;
             appState.data.participants = [];
             appState.data.eliminatedIndices = [];
             onContentChange();

@@ -386,7 +386,7 @@ async function exportJSON() {
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
 
-    showAlert("Exported!", "Your question set has been downloaded successfully.", "text-blue", "download");
+    await showAlertModal("Your question set has been downloaded successfully.", { title: "Exported!", icon: "download", iconColor: "blue" });
 }
 
 function importJSON(event) {
@@ -394,7 +394,7 @@ function importJSON(event) {
     if (!file) return;
 
     const reader = new FileReader();
-    reader.onload = function (e) {
+    reader.onload = async function (e) {
         try {
             const importedData = JSON.parse(e.target.result);
 
