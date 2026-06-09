@@ -8,6 +8,14 @@
             { key: 'order', label: 'Put in Order', icon: 'arrow-down-up' },
         ];
         function getQType(q) { return q.type || 'mc'; }
+        function migrateQuestions(questions) {
+            for (const q of questions) {
+                if (!q.type) {
+                    q.type = (q.q && q.q.includes('___')) ? 'fill' : 'mc';
+                }
+            }
+            return questions;
+        }
         function makeDefaultQuestion(type) {
             switch (type) {
                 case 'tf': return { type: 'tf', q: '', a: 0, e: '' };
@@ -381,6 +389,14 @@
 
             if (localData && localData.collections) {
                 collections = localData.collections;
+                // Migration: ensure every question has explicit type
+                let migrated = false;
+                for (const col of collections) {
+                    const before = col.questions.some(q => !q.type);
+                    migrateQuestions(col.questions);
+                    if (before) migrated = true;
+                }
+                if (migrated) localStorage.setItem('prog_quiz_maker', JSON.stringify(localData));
                 currentCollectionId = localData.lastId || (collections[0] ? collections[0].id : null);
                 const active = collections.find(c => c.id === currentCollectionId);
                 currentQuestions = active ? active.questions : [];
@@ -389,6 +405,10 @@
             try {
                 const cloud = await loadProgress('quiz_maker');
                 if (cloud && cloud.collections && cloud.collections.length > 0) {
+                    // Migration: ensure cloud questions have explicit type
+                    for (const col of cloud.collections) {
+                        migrateQuestions(col.questions);
+                    }
                     const cloudTime = cloud.updatedAt || 0;
                     const localTime = localData?.updatedAt || 0;
                     if (cloudTime >= localTime || collections.length === 0) {
@@ -436,52 +456,98 @@
             document.getElementById('import-overlay').classList.remove('open');
         }
 
+        const MAX_OPTIONS = 4;
+
         function parseBulkImport(text) {
             const questions = [];
+            const warnings = [];
             const blocks = text.split(/\n\s*\n/); // split by blank lines
+            const validTypes = ['mc', 'tf', 'text', 'fill', 'order'];
 
-            for (const block of blocks) {
+            for (let blockIdx = 0; blockIdx < blocks.length; blockIdx++) {
+                const block = blocks[blockIdx];
                 const lines = block.split('\n').map(l => l.trim()).filter(l => l);
                 if (lines.length === 0) continue;
 
+                // First line: [type] question text  OR  just question text (defaults to mc)
+                const firstLine = lines[0];
+                const headerMatch = firstLine.match(/^\[(\w+)\]\s*(.*)$/);
                 let type = 'mc';
-                const answerMap = { 'A': 0, 'B': 1, 'C': 2, 'D': 3 };
-                let hasQuestion = false;
-                let qText = '', options = ['', '', '', ''], correctIdx = 0, explanation = '';
+                let qText = '';
+
+                if (headerMatch) {
+                    type = headerMatch[1].toLowerCase();
+                    qText = headerMatch[2].trim();
+                    if (!validTypes.includes(type)) {
+                        warnings.push(`Question ${questions.length + 1}: Unknown type "[${type}]" — treated as multiple choice. Valid types: mc, tf, text, fill, order`);
+                    }
+                } else {
+                    qText = firstLine;
+                }
+
+                if (!qText) continue;
+
+                let options = [];
+                let correctIdx = 0;
                 let acceptedAnswers = [];
                 let orderItems = [];
+                let explanation = '';
                 let tfAnswer = 0;
 
-                for (const line of lines) {
-                    const match = line.match(/^([A-Z]+):\s*(.*)$/i);
-                    if (!match) continue;
-                    const prefix = match[1].toUpperCase();
-                    const value = match[2].trim();
-
-                    switch (prefix) {
-                        case 'T': type = value.toLowerCase(); break;
-                        case 'Q': qText = value; hasQuestion = true; break;
-                        case 'A': options[0] = value; break;
-                        case 'B': options[1] = value; break;
-                        case 'C': options[2] = value; break;
-                        case 'D': options[3] = value; break;
-                        case 'X':
-                            const letter = value.toUpperCase().trim();
-                            if (letter === 'TRUE' || letter === 'T') tfAnswer = 0;
-                            else if (letter === 'FALSE' || letter === 'F') tfAnswer = 1;
-                            else if (answerMap[letter] !== undefined) correctIdx = answerMap[letter];
-                            break;
-                        case 'E': explanation = value; break;
-                        case 'ANS': acceptedAnswers.push(value); break;
-                        case 'I': orderItems.push(value); break;
-                        case 'ITEMS':
-                            orderItems = value.split(/\s*[,|]\s*/).filter(s => s);
-                            break;
+                // For tf: check for *true or *false at end of first line
+                if (type === 'tf') {
+                    const tfMatch = qText.match(/^(.*?)\s*\*(true|false)\s*$/i);
+                    if (tfMatch) {
+                        qText = tfMatch[1].trim();
+                        tfAnswer = tfMatch[2].toLowerCase() === 'true' ? 0 : 1;
                     }
                 }
 
-                if (!hasQuestion || !qText) continue;
+                // Parse remaining lines
+                for (let i = 1; i < lines.length; i++) {
+                    const line = lines[i];
 
+                    // > explanation
+                    if (line.startsWith('>')) {
+                        explanation = line.slice(1).trim();
+                        continue;
+                    }
+
+                    // = accepted answer (text type)
+                    if (line.startsWith('=')) {
+                        acceptedAnswers.push(line.slice(1).trim());
+                        continue;
+                    }
+
+                    // - option (* marks correct; \* for literal asterisk)
+                    if (line.startsWith('-')) {
+                        let opt = line.slice(1).trim();
+                        // Handle escaped asterisks first: replace \* with a placeholder
+                        const PLACEHOLDER = '\x00';
+                        opt = opt.replace(/\\\*/g, PLACEHOLDER);
+                        const isCorrect = opt.endsWith('*');
+                        if (isCorrect) opt = opt.slice(0, -1).trim();
+                        if (isCorrect) correctIdx = options.length;
+                        // Restore literal asterisks
+                        opt = opt.replace(new RegExp(PLACEHOLDER, 'g'), '*');
+                        options.push(opt);
+                        continue;
+                    }
+
+                    // 1. 2. 3. etc — ordered items
+                    const orderMatch = line.match(/^\d+[.)]\s*(.+)$/);
+                    if (orderMatch) {
+                        orderItems.push(orderMatch[1].trim());
+                        continue;
+                    }
+
+                    // Fallback: for tf, check if line is *true/*false
+                    if (type === 'tf' && /^\*(true|false)$/i.test(line)) {
+                        tfAnswer = line.slice(1).toLowerCase() === 'true' ? 0 : 1;
+                    }
+                }
+
+                // Build question object
                 switch (type) {
                     case 'tf':
                         questions.push({ type: 'tf', q: qText, a: tfAnswer, e: explanation });
@@ -490,24 +556,38 @@
                         if (acceptedAnswers.length === 0) acceptedAnswers = [''];
                         questions.push({ type: 'text', q: qText, answers: acceptedAnswers, e: explanation });
                         break;
-                    case 'fill':
-                        questions.push({ type: 'fill', q: qText, o: options, a: correctIdx, e: explanation });
+                    case 'fill': {
+                        // Check for too many options
+                        if (options.length > MAX_OPTIONS) {
+                            warnings.push(`Question ${questions.length + 1}: Has ${options.length} options — only first ${MAX_OPTIONS} will be used.`);
+                        }
+                        while (options.length < MAX_OPTIONS) options.push('');
+                        questions.push({ type: 'fill', q: qText, o: options.slice(0, MAX_OPTIONS), a: correctIdx, e: explanation });
                         break;
+                    }
                     case 'order':
                         if (orderItems.length < 2) orderItems = ['', ''];
                         questions.push({ type: 'order', q: qText, items: orderItems, e: explanation });
                         break;
-                    default:
-                        questions.push({ type: 'mc', q: qText, o: options, a: correctIdx, e: explanation });
+                    default: {
+                        // mc — pad options to 4
+                        if (options.length > MAX_OPTIONS) {
+                            warnings.push(`Question ${questions.length + 1}: Has ${options.length} options — only first ${MAX_OPTIONS} will be used.`);
+                        }
+                        while (options.length < MAX_OPTIONS) options.push('');
+                        questions.push({ type: 'mc', q: qText, o: options.slice(0, MAX_OPTIONS), a: correctIdx, e: explanation });
                         break;
+                    }
                 }
             }
-            return questions;
+            return { questions, warnings };
         }
 
         function updateImportPreview() {
             const text = document.getElementById('import-textarea').value;
-            parsedImportQuestions = parseBulkImport(text);
+            const result = parseBulkImport(text);
+            parsedImportQuestions = result.questions;
+            const warnings = result.warnings;
             const count = parsedImportQuestions.length;
             const previewEl = document.getElementById('import-preview-count');
             const confirmBtn = document.getElementById('import-confirm-btn');
@@ -518,8 +598,12 @@
                 span.className = '';
                 confirmBtn.disabled = true;
             } else {
-                span.textContent = `${count} question${count !== 1 ? 's' : ''} detected ✓`;
-                span.className = 'text-green';
+                let msg = `${count} question${count !== 1 ? 's' : ''} detected ✓`;
+                if (warnings.length > 0) {
+                    msg += ` (${warnings.length} warning${warnings.length !== 1 ? 's' : ''})`;
+                }
+                span.textContent = msg;
+                span.className = warnings.length > 0 ? 'text-orange' : 'text-green';
                 confirmBtn.disabled = false;
             }
             lucide.createIcons();
@@ -551,7 +635,32 @@
         }
 
         function copyTemplate() {
-            const template = `Q: What is the capital of France?\nA: London\nB: Paris\nC: Berlin\nD: Madrid\nX: B\nE: Paris has been the capital since the 10th century.\n\nT: tf\nQ: The sun is a star.\nX: True\nE: The sun is classified as a G-type main-sequence star.\n\nT: text\nQ: What color do you get when you mix red and blue?\nANS: purple\nANS: Purple\nE: Red and blue make purple.\n\nT: fill\nQ: She ___ to school every day.\nA: walks\nB: running\nC: eat\nD: sleep\nX: A\n\nT: order\nQ: Put these numbers in order from smallest to largest.\nI: 1\nI: 5\nI: 10\nI: 50`;
+            const template = `What is the capital of France?
+- London
+- Paris *
+- Berlin
+- Madrid
+> Paris has been the capital since the 10th century.
+
+[tf] The sun is a star. *true
+> The sun is a G-type main-sequence star.
+
+[text] What color do you get mixing red and blue?
+= purple
+= Purple
+> Red and blue make purple.
+
+[fill] She ___ to school every day.
+- walks *
+- running
+- eat
+- sleep
+
+[order] Put these numbers smallest to largest.
+1. 1
+2. 5
+3. 10
+4. 50`;
             navigator.clipboard.writeText(template).then(() => {
                 AudioEngine.playTone(600, 'sine', 0.1);
             });
@@ -1088,6 +1197,10 @@
             try {
                 const res = await fetch('presets.json');
                 PRESETS = await res.json();
+                // Migration: ensure presets have explicit type (backwards compat)
+                for (const key in PRESETS) {
+                    migrateQuestions(PRESETS[key]);
+                }
             } catch (e) {
                 console.warn('Could not load presets.json:', e);
             }
