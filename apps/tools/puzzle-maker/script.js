@@ -460,11 +460,24 @@ document.getElementById('printBtn').addEventListener('click', () => {
   pageStyle.textContent = `@media print { @page { size: A4 ${printOrientation}; margin: 0; } }`;
   document.head.appendChild(pageStyle);
 
-  // Trigger system print dialog
-  window.print();
+  // Wait for all print images to decode before opening print dialog
+  const imgs = Array.from(printArea.querySelectorAll('img'));
+  const decodeWithTimeout = (img) => {
+    if (!img.decode) return Promise.resolve();
+    return Promise.race([
+      img.decode(),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('Decode timeout')), 5000))
+    ]);
+  };
 
-  // Clean up injected style after print dialog closes
-  setTimeout(() => { if (pageStyle) pageStyle.remove(); }, 1000);
+  Promise.all(imgs.map(decodeWithTimeout))
+    .catch(() => {}) // Fallback: print anyway even if decode fails/times out
+    .then(() => window.print());
+
+  // Clean up after print dialog closes
+  window.addEventListener('afterprint', () => {
+    if (pageStyle) pageStyle.remove();
+  }, { once: true });
 });
 
 // ── RNG ────────────────────────────────────────────────────────────────────
