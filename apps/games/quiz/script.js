@@ -33,6 +33,7 @@
         let currentCollectionId = null;
         let isAnswering = false;
         let currentQuestions = [];
+        let playQuestions = []; // Filtered questions for active quiz session
         let currentStep = 0;
         let score = 0;
         let isSetupMode = false;
@@ -591,12 +592,16 @@
             const count = parsedImportQuestions.length;
             const previewEl = document.getElementById('import-preview-count');
             const confirmBtn = document.getElementById('import-confirm-btn');
+            const previewPanel = document.getElementById('import-preview-panel');
+            const previewList = document.getElementById('import-preview-list');
+            const warningsEl = document.getElementById('import-warnings');
 
             const span = previewEl.querySelector('span');
             if (count === 0) {
                 span.textContent = '0 questions detected';
                 span.className = '';
                 confirmBtn.disabled = true;
+                previewPanel.classList.add('hidden');
             } else {
                 let msg = `${count} question${count !== 1 ? 's' : ''} detected ✓`;
                 if (warnings.length > 0) {
@@ -605,6 +610,24 @@
                 span.textContent = msg;
                 span.className = warnings.length > 0 ? 'text-orange' : 'text-green';
                 confirmBtn.disabled = false;
+
+                // Show live preview badges
+                previewPanel.classList.remove('hidden');
+                const typeColors = { mc: 'bg-blue/15 text-blue', tf: 'bg-green/15 text-green', text: 'bg-orange/15 text-orange', fill: 'bg-pink/15 text-pink', order: 'bg-purple-500/15 text-purple-500' };
+                previewList.innerHTML = parsedImportQuestions.map((q, i) => {
+                    const color = typeColors[q.type] || typeColors.mc;
+                    const qText = q.q || '';
+                    const truncQ = qText.length > 30 ? qText.slice(0, 30) + '…' : qText;
+                    const displayText = truncQ || '(empty question)';
+                    return `<span class="import-badge ${color}" title="${escapeHtml(qText)}">${i + 1}. ${q.type.toUpperCase()} <span class="opacity-60 font-semibold ml-1 truncate max-w-[120px]">${escapeHtml(displayText)}</span></span>`;
+                }).join('');
+
+                // Show warnings
+                if (warnings.length > 0) {
+                    warningsEl.innerHTML = warnings.map(w => `<p class="text-[10px] font-bold text-orange flex items-center gap-1"><i data-lucide="alert-triangle" class="w-3 h-3 shrink-0"></i> ${escapeHtml(w)}</p>`).join('');
+                } else {
+                    warningsEl.innerHTML = '';
+                }
             }
             lucide.createIcons();
         }
@@ -707,7 +730,7 @@
                 toggleMode('setup');
                 return;
             }
-            currentQuestions = validQ;
+            playQuestions = validQ;
             currentStep = 0; score = 0; isAnswering = false;
             document.getElementById('landing-screen').classList.add('hidden');
             document.getElementById('result-screen').classList.add('hidden');
@@ -719,22 +742,32 @@
         function renderDots() {
             const container = document.getElementById('dots-container');
             container.innerHTML = '';
-            currentQuestions.forEach((_, idx) => {
+            playQuestions.forEach((_, idx) => {
                 const dot = document.createElement('div');
                 dot.className = 'dot';
                 dot.id = `dot-${idx}`;
                 container.appendChild(dot);
             });
+            updateProgressBar();
         }
 
         function updateDots() {
-            currentQuestions.forEach((_, idx) => {
+            playQuestions.forEach((_, idx) => {
                 const dot = document.getElementById(`dot-${idx}`);
                 if (!dot) return;
                 if (idx < currentStep) dot.className = 'dot completed';
                 else if (idx === currentStep) dot.className = 'dot active';
                 else dot.className = 'dot';
             });
+            updateProgressBar();
+        }
+
+        function updateProgressBar() {
+            const bar = document.getElementById('progress-bar');
+            if (!bar) return;
+            if (playQuestions.length === 0) { bar.style.width = '0%'; return; }
+            const pct = ((currentStep + 1) / playQuestions.length) * 100;
+            bar.style.width = pct + '%';
         }
 
         function fitText(el, container, max, min) {
@@ -754,10 +787,10 @@
 
         function showQuestion() {
             isAnswering = false;
-            const q = currentQuestions[currentStep];
+            const q = playQuestions[currentStep];
             const type = getQType(q);
             const qText = document.getElementById('question-text');
-            document.getElementById('progress-text').textContent = `${currentStep + 1}/${currentQuestions.length}`;
+            document.getElementById('progress-text').textContent = `${currentStep + 1}/${playQuestions.length}`;
             document.getElementById('score-text').textContent = score;
             document.getElementById('feedback-controls').classList.add('hidden');
             document.getElementById('main-reveal-btn').classList.remove('hidden');
@@ -771,7 +804,7 @@
 
             // Render question text (fill type uses special rendering)
             if (type === 'fill') {
-                const parts = (q.q || '').split(/___+/);
+                const parts = escapeHtml(q.q || '').split(/___+/);
                 qText.innerHTML = parts.map((p, i) => i < parts.length - 1
                     ? `${p}<span class="fill-blank" id="fill-blank-display">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>`
                     : p).join('');
@@ -791,24 +824,24 @@
         }
 
         function renderMCPlay(q, container) {
-            container.className = 'flex-[1.5] grid grid-cols-1 md:grid-cols-2 gap-3 min-h-0 pb-1 pr-1 overflow-hidden';
+            container.className = 'flex-[3] min-h-0 overflow-hidden px-5 md:px-8 pb-2 grid grid-cols-1 md:grid-cols-2 gap-3';
             const validOptions = q.o.map((opt, i) => ({ text: opt, index: i })).filter(o => o.text.trim() !== "");
             validOptions.forEach((optObj, displayIdx) => {
                 const btn = document.createElement('button');
                 const color = OPTION_COLORS[displayIdx % 4];
                 const shape = OPTION_SHAPES[displayIdx % 4];
-                btn.className = `option-btn btn-chunky ${color} text-white px-5 py-3 rounded-xl shadow-hard font-heading transition-all w-full flex items-center text-left relative min-h-0 h-full`;
-                btn.innerHTML = `<div class="shape-indicator"><i data-lucide="${shape}" class="w-5 h-5 text-white fill-current"></i></div><div class="flex-1 h-full flex items-center overflow-hidden opt-text-container"><span class="leading-tight w-full">${optObj.text}</span></div><span class="kbd-label">Key ${displayIdx + 1}</span>`;
+                btn.className = `option-btn btn-chunky ${color} text-white px-5 py-3 rounded-xl shadow-hard font-heading transition-all w-full h-full flex items-center text-left relative min-h-0`;
+                btn.innerHTML = `<div class="shape-indicator"><i data-lucide="${shape}" class="w-5 h-5 text-white fill-current"></i></div><div class="flex-1 h-full flex items-center overflow-hidden opt-text-container"><span class="leading-tight w-full break-words">${optObj.text}</span></div><span class="kbd-label">Key ${displayIdx + 1}</span>`;
                 btn.onclick = () => selectOption(optObj.index);
                 container.appendChild(btn);
                 const optText = btn.querySelector('span');
                 const optContainer = btn.querySelector('.opt-text-container');
-                fitText(optText, optContainer, 32, 12);
+                fitText(optText, optContainer, 32, 13);
             });
         }
 
         function renderTFPlay(q, container) {
-            container.className = 'flex-[1.5] flex gap-4 min-h-0 pb-1 overflow-hidden items-stretch';
+            container.className = 'flex-[3] min-h-0 overflow-hidden px-5 md:px-8 pb-2 flex gap-4 items-stretch';
             const btns = [
                 { label: 'TRUE', icon: 'check', color: 'bg-green', idx: 0 },
                 { label: 'FALSE', icon: 'x', color: 'bg-pink', idx: 1 }
@@ -816,14 +849,15 @@
             btns.forEach(b => {
                 const btn = document.createElement('button');
                 btn.className = `tf-btn btn-chunky ${b.color} text-white rounded-2xl shadow-hard font-heading flex flex-col items-center justify-center gap-2`;
-                btn.innerHTML = `<i data-lucide="${b.icon}" class="w-10 h-10"></i><span>${b.label}</span><span class="kbd-label">Key ${b.idx + 1}</span>`;
+                btn.innerHTML = `<i data-lucide="${b.icon}" class="w-12 h-12"></i><span class="tf-label">${b.label}</span><span class="kbd-label">Key ${b.idx + 1}</span>`;
                 btn.onclick = () => selectOption(b.idx);
                 container.appendChild(btn);
+                fitText(btn.querySelector('.tf-label'), btn, 48, 16);
             });
         }
 
         function renderTextPlay(q, container) {
-            container.className = 'flex-[1.5] flex flex-col items-center justify-center gap-4 min-h-0 pb-1 overflow-hidden';
+            container.className = 'flex-[3] min-h-0 overflow-hidden px-5 md:px-8 pb-2 flex flex-col items-center justify-center gap-4';
             container.innerHTML = `
                 <input type="text" id="text-answer-field" class="text-answer-input" placeholder="Type your answer…" autocomplete="off" spellcheck="false">
                 <button id="text-submit-btn" onclick="submitTextAnswer()" class="btn-chunky bg-blue text-white px-10 py-3 rounded-xl shadow-hard font-heading text-xl flex items-center gap-2">
@@ -837,20 +871,21 @@
         }
 
         function renderFillPlay(q, container) {
-            container.className = 'flex-[1.5] grid grid-cols-2 md:grid-cols-4 gap-3 min-h-0 pb-1 pr-1 overflow-hidden items-start content-start';
+            container.className = 'flex-[3] min-h-0 overflow-hidden px-5 md:px-8 pb-2 grid grid-cols-2 md:grid-cols-4 gap-3';
             const validOptions = (q.o || []).map((opt, i) => ({ text: opt, index: i })).filter(o => o.text.trim() !== "");
             validOptions.forEach((optObj, displayIdx) => {
                 const btn = document.createElement('button');
                 const color = OPTION_COLORS[displayIdx % 4];
-                btn.className = `fill-option btn-chunky ${color} text-white px-4 py-3 rounded-xl shadow-hard font-heading text-lg transition-all w-full text-center`;
-                btn.textContent = optObj.text;
+                btn.className = `fill-option btn-chunky ${color} text-white px-4 py-3 rounded-xl shadow-hard font-heading transition-all w-full h-full flex items-center justify-center text-center min-h-0`;
+                btn.innerHTML = `<span class="break-words w-full">${optObj.text}</span>`;
                 btn.onclick = () => selectOption(optObj.index);
                 container.appendChild(btn);
+                fitText(btn.querySelector('span'), btn, 28, 12);
             });
         }
 
         function renderOrderPlay(q, container) {
-            container.className = 'flex-[1.5] flex flex-col gap-2 min-h-0 pb-1 overflow-y-auto custom-scrollbar';
+            container.className = 'flex-[3] min-h-0 overflow-y-auto custom-scrollbar px-5 md:px-8 pb-2 flex flex-col gap-2';
             const items = q.items || [];
             currentShuffledOrder = shuffleArray(items.map((item, i) => ({ text: item, correctIdx: i })));
             // Ensure shuffled is different from correct if possible
@@ -884,7 +919,9 @@
                 div.dataset.idx = idx;
                 div.innerHTML = `<div class="drag-handle"><i data-lucide="grip-vertical" class="w-5 h-5"></i></div>
                     <div class="order-num bg-slate-100 dark:bg-slate-700 text-dark dark:text-white">${idx + 1}</div>
-                    <span class="font-bold text-dark dark:text-white flex-1">${item.text}</span>`;
+                    <span class="font-heading text-dark dark:text-white flex-1 order-item-text">${item.text}</span>`;
+                const itemText = div.querySelector('.order-item-text');
+                if (itemText) fitText(itemText, div, 24, 14);
                 // Drag events
                 div.addEventListener('dragstart', (e) => { e.dataTransfer.setData('text/plain', idx); div.classList.add('dragging'); });
                 div.addEventListener('dragend', () => { div.classList.remove('dragging'); container.querySelectorAll('.order-item').forEach(el => el.classList.remove('drag-over')); });
@@ -911,7 +948,7 @@
         function selectOption(idx) {
             if (isAnswering) return;
             isAnswering = true;
-            const q = currentQuestions[currentStep];
+            const q = playQuestions[currentStep];
             const type = getQType(q);
             const correct = q.a;
             const container = document.getElementById('options-container');
@@ -925,7 +962,7 @@
                 });
             } else if (type === 'fill') {
                 const btns = container.querySelectorAll('.fill-option');
-                const validOptions = (q.o || []).map((opt, i) => ({ text: opt, index: i })).filter(o => o.text.trim() !== "");
+                const validOptions = (playQuestions[currentStep].o || []).map((opt, i) => ({ text: opt, index: i })).filter(o => o.text.trim() !== "");
                 btns.forEach((btn, dIdx) => {
                     const originalIdx = validOptions[dIdx].index;
                     btn.classList.add('dimmed');
@@ -934,11 +971,11 @@
                 });
                 // Fill the blank display
                 const blank = document.getElementById('fill-blank-display');
-                if (blank) blank.textContent = q.o[correct];
+                if (blank) blank.textContent = playQuestions[currentStep].o[correct];
             } else {
                 // mc
                 const btns = container.querySelectorAll('.option-btn');
-                const validOptions = q.o.map((opt, i) => ({ text: opt, index: i })).filter(o => o.text.trim() !== "");
+                const validOptions = playQuestions[currentStep].o.map((opt, i) => ({ text: opt, index: i })).filter(o => o.text.trim() !== "");
                 btns.forEach((btn, dIdx) => {
                     const originalIdx = validOptions[dIdx].index;
                     btn.classList.add('dimmed');
@@ -966,7 +1003,7 @@
             if (!userAnswer) { field.focus(); return; }
 
             isAnswering = true;
-            const q = currentQuestions[currentStep];
+            const q = playQuestions[currentStep];
             const accepted = (q.answers || []).filter(a => a.trim());
             const isCorrect = accepted.some(a => a.trim().toLowerCase() === userAnswer.toLowerCase());
 
@@ -1001,7 +1038,7 @@
         function checkOrder() {
             if (isAnswering) return;
             isAnswering = true;
-            const q = currentQuestions[currentStep];
+            const q = playQuestions[currentStep];
             const container = document.getElementById('options-container');
             const allCorrect = currentShuffledOrder.every((s, i) => s.correctIdx === i);
 
@@ -1042,7 +1079,7 @@
         function revealAnswer() {
             if (isAnswering) return;
             isAnswering = true;
-            const q = currentQuestions[currentStep];
+            const q = playQuestions[currentStep];
             const type = getQType(q);
             const correct = q.a;
             const container = document.getElementById('options-container');
@@ -1068,14 +1105,14 @@
                 }
             } else if (type === 'fill') {
                 const btns = container.querySelectorAll('.fill-option');
-                const validOptions = (q.o || []).map((opt, i) => ({ text: opt, index: i })).filter(o => o.text.trim() !== "");
+                const validOptions = (playQuestions[currentStep].o || []).map((opt, i) => ({ text: opt, index: i })).filter(o => o.text.trim() !== "");
                 btns.forEach((btn, dIdx) => {
                     const originalIdx = validOptions[dIdx].index;
                     btn.classList.add('dimmed');
                     if (originalIdx === correct) { btn.classList.remove('dimmed'); btn.classList.add('correct'); }
                 });
                 const blank = document.getElementById('fill-blank-display');
-                if (blank) blank.textContent = q.o[correct];
+                if (blank) blank.textContent = playQuestions[currentStep].o[correct];
             } else if (type === 'order') {
                 // Order reveal shows correct order
                 checkOrder();
@@ -1083,7 +1120,7 @@
             } else {
                 // mc
                 const btns = container.querySelectorAll('.option-btn');
-                const validOptions = q.o.map((opt, i) => ({ text: opt, index: i })).filter(o => o.text.trim() !== "");
+                const validOptions = playQuestions[currentStep].o.map((opt, i) => ({ text: opt, index: i })).filter(o => o.text.trim() !== "");
                 btns.forEach((btn, dIdx) => {
                     const originalIdx = validOptions[dIdx].index;
                     btn.classList.add('dimmed');
@@ -1102,7 +1139,7 @@
             const panel = document.getElementById('explanation-panel');
             const textEl = document.getElementById('explanation-text');
             if (q.e && q.e.trim()) {
-                textEl.textContent = q.e;
+                textEl.textContent = escapeHtml(q.e);
                 requestAnimationFrame(() => panel.classList.add('visible'));
                 lucide.createIcons();
             }
@@ -1113,13 +1150,13 @@
             panel.classList.remove('visible');
         }
 
-        function nextQuestion() { currentStep++; if (currentStep < currentQuestions.length) showQuestion(); else showResult(); }
+        function nextQuestion() { currentStep++; if (currentStep < playQuestions.length) showQuestion(); else showResult(); }
 
         function showResult() {
             document.getElementById('quiz-screen').classList.add('hidden');
             document.getElementById('result-screen').classList.remove('hidden');
-            document.getElementById('final-score').textContent = `${score}/${currentQuestions.length}`;
-            const ratio = score / (currentQuestions.length || 1);
+            document.getElementById('final-score').textContent = `${score}/${playQuestions.length}`;
+            const ratio = score / (playQuestions.length || 1);
             let rank = "F", msg = "Keep Training! 💪";
             if (ratio >= 0.9) { rank = "S"; msg = "LEGENDARY! 🏆"; }
             else if (ratio >= 0.8) { rank = "A"; msg = "EXCELLENT! ⭐"; }
@@ -1142,7 +1179,7 @@
             const quizScreen = document.getElementById('quiz-screen');
             if (quizScreen.classList.contains('hidden')) return;
 
-            const q = currentQuestions[currentStep];
+            const q = playQuestions[currentStep];
             const type = q ? getQType(q) : 'mc';
 
             if (!isAnswering) {
@@ -1157,15 +1194,21 @@
                     if (e.key === '2' || e.key.toLowerCase() === 'f') { selectOption(1); return; }
                 } else if (type === 'fill') {
                     if (['1', '2', '3', '4'].includes(e.key)) {
-                        const btns = document.querySelectorAll('.fill-option');
-                        if (btns[parseInt(e.key) - 1]) btns[parseInt(e.key) - 1].click();
+                        const keyIdx = parseInt(e.key) - 1;
+                        const validOptions = (playQuestions[currentStep].o || []).map((opt, i) => ({ text: opt, index: i })).filter(o => o.text.trim() !== "");
+                        if (keyIdx >= 0 && keyIdx < validOptions.length) {
+                            selectOption(validOptions[keyIdx].index);
+                        }
                         return;
                     }
                 } else {
                     // mc
                     if (['1', '2', '3', '4'].includes(e.key)) {
-                        const btns = document.querySelectorAll('.option-btn');
-                        if (btns[parseInt(e.key) - 1]) btns[parseInt(e.key) - 1].click();
+                        const keyIdx = parseInt(e.key) - 1;
+                        const validOptions = playQuestions[currentStep].o.map((opt, i) => ({ text: opt, index: i })).filter(o => o.text.trim() !== "");
+                        if (keyIdx >= 0 && keyIdx < validOptions.length) {
+                            selectOption(validOptions[keyIdx].index);
+                        }
                         return;
                     }
                 }
