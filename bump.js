@@ -29,6 +29,9 @@ if (fs.existsSync(gamesPath)) {
         const oldVersion = games.version;
         games.version = newVersion;
         games.lastUpdated = today;
+        if (Array.isArray(games.games)) {
+            games.metadata.totalGames = games.games.filter(g => g.category !== 'under-construction').length;
+        }
         fs.writeFileSync(gamesPath, JSON.stringify(games, null, 2) + '\n', 'utf8');
         console.log(`✅ games.json: ${oldVersion} -> ${newVersion}`);
     } catch (e) {
