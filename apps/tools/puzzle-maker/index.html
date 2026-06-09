@@ -1,342 +1,291 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Puzzle Maker</title>
-<link rel="icon" type="image/x-icon" href="../../../media/icon.ico" />
-<link rel="icon" type="image/webp" href="../../../media/icon.webp" />
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Puzzle Maker — KlassKit</title>
+  <link rel="icon" type="image/x-icon" href="../../../media/icon.ico" />
+  <link rel="icon" type="image/webp" href="../../../media/icon.webp" />
 
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Nunito:wght@400;600;800&display=swap" rel="stylesheet">
-<script src="https://cdn.tailwindcss.com"></script>
-<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
-<link rel="stylesheet" href="../../../css/base.css" />
-<link rel="stylesheet" href="../../../css/components.css" />
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.105.4"></script>
-<script src="/supabase.js"></script>
-<script>
-tailwind.config = {
-  darkMode: 'class',
-  theme: {
-    extend: {
-      colors: {
-        pink:   '#ff4785',
-        orange: '#ff7e33',
-        green:  '#00d063',
-        blue:   '#1ea7fd',
-        dark:   '#0f172a',
-        chalk:  '#f8fafc',
-      },
-      fontFamily: {
-        heading: ['"Fredoka"','sans-serif'],
-        body:    ['"Nunito"','sans-serif'],
-        fredoka: ['"Fredoka"','sans-serif'],
-        nunito:  ['"Nunito"','sans-serif'],
-      },
-      boxShadow: {
-        'hard-sm': '2px 2px 0px 0px #0f172a',
-        'hard':    '4px 4px 0px 0px #0f172a',
+  <!-- Supabase Auth -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.105.4"></script>
+  <script src="/supabase.js"></script>
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+
+  <!-- Libraries -->
+  <script src="https://unpkg.com/lucide@1.16.0/dist/umd/lucide.min.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            pink:   '#ff4785',
+            orange: '#ff7e33',
+            green:  '#00d063',
+            blue:   '#1ea7fd',
+            dark:   '#1e293b',
+            chalk:  '#f8fafc',
+          },
+          fontFamily: {
+            heading: ['"Fredoka"', 'sans-serif'],
+            body:    ['"Nunito"',  'sans-serif'],
+          },
+          boxShadow: {
+            'neo-sm': '2px 2px 0px 0px var(--border-primary)',
+            'neo':    '4px 4px 0px 0px var(--border-primary)',
+            'neo-lg': '8px 8px 0px 0px var(--border-primary)',
+          }
+        }
       }
     }
-  }
-}
-</script>
-<script>
-  // Theme sync: tool-specific → hub → system
-  (function() {
-    function sync() {
-      const t = localStorage.getItem('theme_puzzle-maker');
-      const h = localStorage.getItem('theme_hub');
-      if (t === 'dark' || (!t && h === 'dark') || (!t && !h && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-        document.documentElement.classList.add('dark');
-      } else {
-        document.documentElement.classList.remove('dark');
+  </script>
+
+  <!-- Theme sync: tool-specific → hub → system -->
+  <script>
+    (function () {
+      function sync() {
+        const t = localStorage.getItem('theme_puzzle-maker');
+        const h = localStorage.getItem('theme_hub');
+        if (t === 'dark' || (!t && h === 'dark') || (!t && !h && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+          document.documentElement.classList.add('dark');
+        } else {
+          document.documentElement.classList.remove('dark');
+        }
       }
-    }
-    sync();
-    window.addEventListener('storage', (e) => {
-      if (e.key === 'theme_hub' || e.key === 'theme_puzzle-maker') {
-        sync();
-      }
-    });
-  })();
-</script>
-<style>
-*{box-sizing:border-box}
-body{font-family:'Nunito',sans-serif;margin:0;overflow:hidden;height:100vh}
+      sync();
+      window.addEventListener('storage', (e) => {
+        if (e.key === 'theme_hub' || e.key === 'theme_puzzle-maker') sync();
+      });
+    })();
+  </script>
 
-/* App layout – fixed header, scrollable content */
-#app-shell{display:grid;grid-template-rows:auto 1fr;height:100vh;overflow:hidden}
-#main-area{display:grid;grid-template-columns:280px 1fr;overflow:hidden;min-height:0}
-@media(max-width:768px){#main-area{grid-template-columns:1fr;grid-template-rows:auto 1fr}}
-
-/* Sidebar */
-#controls{overflow-y:auto;scrollbar-width:thin;padding:12px;border-right:3px solid var(--border-primary,#0f172a)}
-.dark #controls{border-color:rgba(148,163,184,.5)}
-#controls::-webkit-scrollbar{width:4px}
-#controls::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:2px}
-.dark #controls::-webkit-scrollbar-thumb{background:#475569}
-
-/* Canvas area */
-#canvas-area{overflow:hidden;display:flex;align-items:center;justify-content:center;background:#e2e8f0;position:relative}
-.dark #canvas-area{background:#0f172a}
-#canvas{max-width:100%;max-height:100%;display:block}
-
-/* Buttons */
-.btn-k{display:inline-flex;align-items:center;justify-content:center;gap:6px;cursor:pointer;font-family:'Fredoka',sans-serif;font-weight:700;border:2px solid #0f172a;box-shadow:2px 2px 0 #0f172a;transition:transform .08s,box-shadow .08s;border-radius:12px;outline:none}
-.dark .btn-k{border-color:rgba(148,163,184,.6);box-shadow:2px 2px 0 rgba(148,163,184,.5)}
-.btn-k:hover{transform:translate(-1px,-1px);box-shadow:3px 3px 0 #0f172a}
-.dark .btn-k:hover{box-shadow:3px 3px 0 rgba(148,163,184,.5)}
-.btn-k:active{transform:translate(2px,2px)!important;box-shadow:0 0 0!important}
-
-/* Range inputs */
-input[type=range]{-webkit-appearance:none;appearance:none;height:8px;border-radius:4px;background:#e2e8f0;border:2px solid #0f172a;outline:none;width:100%}
-.dark input[type=range]{background:#334155;border-color:#64748b}
-input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:20px;height:20px;border-radius:50%;background:#ff4785;border:3px solid #0f172a;cursor:pointer}
-.dark input[type=range]::-webkit-slider-thumb{border-color:#f1f5f9}
-
-/* Style buttons */
-.style-btn{background:#f8fafc;border:2px solid #0f172a;border-radius:12px;padding:7px 10px;display:flex;align-items:center;gap:8px;cursor:pointer;font-family:'Fredoka',sans-serif;font-size:13px;font-weight:600;color:#0f172a;box-shadow:2px 2px 0 #0f172a;transition:transform .08s,box-shadow .08s}
-.dark .style-btn{background:#0f172a;color:#f1f5f9;border-color:#64748b;box-shadow:2px 2px 0 #64748b}
-.style-btn:hover{transform:translate(-1px,-1px);box-shadow:3px 3px 0 #0f172a}
-.dark .style-btn:hover{box-shadow:3px 3px 0 #64748b}
-.style-btn:active{transform:translate(2px,2px);box-shadow:0 0 0}
-.style-btn.active{background:#1ea7fd;color:#fff;border-color:#0f172a}
-.dark .style-btn.active{background:#1ea7fd;border-color:#64748b}
-
-/* Swatches */
-.swatch{width:24px;height:24px;border-radius:8px;border:2px solid #0f172a;cursor:pointer;box-shadow:2px 2px 0 #0f172a;transition:transform .1s;flex-shrink:0}
-.dark .swatch{border-color:#64748b;box-shadow:2px 2px 0 #64748b}
-.swatch:hover{transform:scale(1.1)}
-.swatch.sel{outline:3px solid #1ea7fd;outline-offset:2px}
-
-/* Section card */
-.ctrl-card{background:var(--surface-card);border:var(--border-width-medium) solid var(--border-primary);border-radius:16px;padding:12px;box-shadow:var(--shadow-hard-sm);margin-bottom:10px;transition:background .3s,border-color .3s}
-.dark .ctrl-card{box-shadow:var(--shadow-hard-sm)}
-.ctrl-label{font-family:'Fredoka',sans-serif;font-weight:700;font-size:13px;display:flex;align-items:center;gap:6px;margin-bottom:8px;text-transform:uppercase;letter-spacing:.04em}
-
-/* Drop zone */
-.drop-zone.over{background:rgba(30,167,253,.12)!important;border-color:#1ea7fd!important}
-
-/* Print */
-@media print {
-  @page { margin: 0; }
-  .no-print { display: none !important; }
-  #printArea { display: block !important; background: white !important; margin: 0 !important; padding: 0 !important; }
-  .print-page { width: 100vw !important; height: 100vh !important; display: flex !important; align-items: center !important; justify-content: center !important; padding: 15mm !important; margin: 0 !important; background: white !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-  .print-page:not(:last-of-type) { page-break-after: always; break-after: page; }
-  .print-img { max-width: 100% !important; max-height: 100% !important; width: auto !important; height: auto !important; object-fit: contain !important; }
-}
-</style>
+  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="../../../css/base.css" />
+  <link rel="stylesheet" href="../../../css/components.css" />
 </head>
-<body class="text-dark dark:text-white font-body">
 
-<div id="app-shell">
+<body class="flex min-h-screen text-dark dark:text-white font-body" style="height:100vh;overflow:hidden">
 
-<!-- HEADER -->
-<header class="bg-slate-900 border-b-4 border-dark dark:border-slate-700 text-white px-4 py-3 flex items-center justify-between z-50 no-print">
-  <div class="flex items-center gap-3">
-    <div class="w-10 h-10 rounded-xl border-2 border-white/20 bg-pink flex items-center justify-center flex-shrink-0">
-      <i data-lucide="scissors" class="w-5 h-5 text-white"></i>
-    </div>
-    <div>
-      <h1 class="font-heading font-bold text-xl uppercase tracking-tight leading-none">Puzzle Maker</h1>
-      <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-0.5">Upload → Style → Print</p>
-    </div>
-  </div>
-  <div class="flex items-center gap-2">
-    <span id="sizeLbl" class="text-xs text-slate-400 font-mono hidden sm:block"></span>
-    <button id="darkToggle" class="btn-k w-9 h-9 bg-slate-800 text-white">
-      <i data-lucide="moon" id="darkIcon" class="w-4 h-4"></i>
-    </button>
-  </div>
-</header>
+  <!-- ── SIDEBAR ─────────────────────────────────────────────────────────── -->
+  <aside class="sidebar no-print flex flex-col p-5">
 
-<!-- MAIN -->
-<div id="main-area">
-
-  <!-- LEFT: CONTROLS -->
-  <aside id="controls" class="bg-chalk dark:bg-slate-900 space-y-0 no-print">
-
-    <!-- Upload -->
-    <div class="ctrl-card">
-      <div class="ctrl-label text-dark dark:text-white"><i data-lucide="image-plus" class="w-4 h-4 text-pink"></i> Upload Image</div>
-      <div id="dropZone" class="drop-zone border-2 border-dashed border-dark dark:border-slate-600 rounded-xl p-4 text-center cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
-        <i data-lucide="upload-cloud" class="w-7 h-7 text-blue mx-auto mb-1.5"></i>
-        <p class="text-xs text-slate-500 dark:text-slate-400"><span class="text-pink font-bold">Click</span> or drag image</p>
-        <p class="text-[10px] text-slate-400 mt-0.5">PNG · JPG · GIF · WebP</p>
-        <input type="file" id="fileIn" accept="image/*" class="hidden">
-      </div>
-      <p id="imgInfo" class="mt-2 text-[10px] text-slate-400 truncate hidden"></p>
-    </div>
-
-    <!-- Pages -->
-    <div id="pagesSection" class="ctrl-card hidden">
-      <div class="ctrl-label text-dark dark:text-white"><i data-lucide="layers" class="w-4 h-4 text-blue"></i> Pages</div>
-      <div class="flex flex-wrap items-center gap-2">
-        <div id="pagesList" class="flex flex-wrap items-center gap-2"></div>
-        <button id="addPageBtn" class="btn-k bg-blue text-white px-2.5 py-1 text-[11px]">
-          <i data-lucide="plus" class="w-3.5 h-3.5"></i> Add
-        </button>
-      </div>
-    </div>
-
-    <!-- Grid Size -->
-    <div class="ctrl-card">
-      <div class="ctrl-label text-dark dark:text-white"><i data-lucide="grid-3x3" class="w-4 h-4 text-blue"></i> Grid Size</div>
-      <div class="space-y-2.5">
-        <div>
-          <div class="flex justify-between mb-0.5">
-            <span class="text-xs font-bold text-dark dark:text-slate-300">Rows</span>
-            <span id="rowsLbl" class="font-heading text-xs font-bold text-pink">4</span>
-          </div>
-          <input type="range" id="rowsR" min="2" max="20" value="4">
-        </div>
-        <div>
-          <div class="flex justify-between mb-0.5">
-            <span class="text-xs font-bold text-dark dark:text-slate-300">Columns</span>
-            <span id="colsLbl" class="font-heading text-xs font-bold text-pink">4</span>
-          </div>
-          <input type="range" id="colsR" min="2" max="20" value="4">
+    <!-- Header -->
+    <div class="mb-6 border-b-2 border-slate-100 dark:border-slate-700 pb-5 flex items-center justify-between">
+      <div>
+        <h1 class="text-3xl font-heading text-dark dark:text-white tracking-tight leading-none">
+          PUZZLE<span class="text-pink">MAKER</span>
+        </h1>
+        <div class="flex items-center gap-2 mt-2">
+          <span class="px-2 py-0.5 rounded bg-dark text-white text-[10px] font-bold uppercase tracking-widest">KlassKit</span>
+          <span class="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Edition</span>
         </div>
       </div>
+      <button id="darkToggle"
+        class="bg-white dark:bg-slate-800 text-dark dark:text-white p-2 rounded-full border-2 border-dark dark:border-slate-500 shadow-neo-sm hover:-translate-y-1 transition-all focus:outline-none">
+        <i data-lucide="moon" id="darkIcon" class="w-4 h-4"></i>
+      </button>
     </div>
 
-    <!-- Cut Style -->
-    <div class="ctrl-card">
-      <div class="ctrl-label text-dark dark:text-white"><i data-lucide="pen-tool" class="w-4 h-4 text-orange"></i> Cut Style</div>
-      <div class="grid grid-cols-2 gap-1.5">
-        <button class="style-btn active" data-style="straight">
-          <svg width="32" height="14" viewBox="0 0 44 18" fill="none"><line x1="2" y1="9" x2="42" y2="9" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-          Straight
-        </button>
-        <button class="style-btn" data-style="jigsaw">
-          <svg width="32" height="14" viewBox="0 0 44 18" fill="none"><path d="M2,9 L14,9 Q15,5 17,4 Q19,3 22,4 Q25,5 26,9 L42,9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          Jigsaw
-        </button>
-        <button class="style-btn" data-style="jagged">
-          <svg width="32" height="14" viewBox="0 0 44 18" fill="none"><path d="M2,9 L8,3 L14,15 L20,3 L26,15 L32,3 L38,15 L42,9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          Zigzag
-        </button>
-        <button class="style-btn" data-style="wavy">
-          <svg width="32" height="14" viewBox="0 0 44 18" fill="none"><path d="M2,9 C8,2 14,16 22,9 C30,2 36,16 42,9" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-          Wavy
-        </button>
-        <button class="style-btn" data-style="curved">
-          <svg width="32" height="14" viewBox="0 0 44 18" fill="none"><path d="M2,9 C14,1 30,17 42,9" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-          S-Curve
-        </button>
-        <button class="style-btn" data-style="bumpy">
-          <svg width="32" height="14" viewBox="0 0 44 18" fill="none"><path d="M2,9 Q7,4 11,9 Q16,14 20,9 Q25,4 29,9 Q34,14 38,9 L42,9" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-          Bumpy
-        </button>
-      </div>
-    </div>
+    <!-- Scrollable Controls -->
+    <div class="space-y-6 flex-1 overflow-y-auto pr-1 custom-scrollbar">
 
-    <!-- Line Appearance -->
-    <div class="ctrl-card">
-      <div class="ctrl-label text-dark dark:text-white"><i data-lucide="palette" class="w-4 h-4 text-green"></i> Line Appearance</div>
-      <div class="space-y-2.5">
-        <!-- Color swatches -->
-        <div>
-          <p class="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400 mb-1.5">Color</p>
-          <div class="flex flex-wrap gap-1.5 items-center">
-            <div class="swatch sel" style="background:#ffffff" data-color="#ffffff" title="White"></div>
-            <div class="swatch" style="background:#000000" data-color="#000000" title="Black"></div>
-            <div class="swatch" style="background:#ff4785" data-color="#ff4785" title="Pink"></div>
-            <div class="swatch" style="background:#1ea7fd" data-color="#1ea7fd" title="Blue"></div>
-            <div class="swatch" style="background:#00d063" data-color="#00d063" title="Green"></div>
-            <div class="swatch" style="background:#ff7e33" data-color="#ff7e33" title="Orange"></div>
-            <div class="swatch" style="background:#FFEB3B" data-color="#FFEB3B" title="Yellow"></div>
-            <input type="color" id="colorPick" value="#ffffff" class="swatch" style="padding:2px" title="Custom">
-          </div>
+      <!-- Upload -->
+      <section>
+        <label class="section-label"><i data-lucide="image-plus" class="inline w-3.5 h-3.5 mr-1 text-pink"></i>Upload Image</label>
+        <div id="dropZone"
+          class="drop-zone border-[3px] border-dashed border-dark dark:border-slate-600 rounded-2xl p-5 text-center cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+          <i data-lucide="upload-cloud" class="w-8 h-8 text-blue mx-auto mb-2"></i>
+          <p class="text-xs font-bold text-slate-500 dark:text-slate-400"><span class="text-pink">Click</span> or drag image</p>
+          <p class="text-[10px] text-slate-400 mt-0.5 font-bold">PNG · JPG · GIF · WebP</p>
+          <input type="file" id="fileIn" accept="image/*" class="hidden">
         </div>
-        <!-- Width -->
-        <div>
-          <div class="flex justify-between mb-0.5">
-            <span class="text-xs font-bold text-dark dark:text-slate-300">Line Width</span>
-            <span id="widthLbl" class="font-heading text-xs font-bold text-orange">2px</span>
-          </div>
-          <input type="range" id="widthR" min="1" max="12" value="2">
-        </div>
-        <!-- Opacity -->
-        <div>
-          <div class="flex justify-between mb-0.5">
-            <span class="text-xs font-bold text-dark dark:text-slate-300">Opacity</span>
-            <span id="opacLbl" class="font-heading text-xs font-bold text-orange">100%</span>
-          </div>
-          <input type="range" id="opacR" min="5" max="100" value="100">
-        </div>
-        <!-- Cut Depth -->
-        <div>
-          <div class="flex justify-between mb-0.5">
-            <span class="text-xs font-bold text-dark dark:text-slate-300">Cut Depth</span>
-            <span id="depthLbl" class="font-heading text-xs font-bold text-orange">50%</span>
-          </div>
-          <input type="range" id="depthR" min="10" max="100" value="50">
-        </div>
-        <!-- Frequency -->
-        <div id="freqRow">
-          <div class="flex justify-between mb-0.5">
-            <span class="text-xs font-bold text-dark dark:text-slate-300">Frequency</span>
-            <span id="freqLbl" class="font-heading text-xs font-bold text-orange">3</span>
-          </div>
-          <input type="range" id="freqR" min="1" max="8" value="3">
-        </div>
-      </div>
-    </div>
+        <p id="imgInfo" class="mt-2 text-[10px] text-slate-400 font-bold truncate hidden"></p>
+      </section>
 
-    <!-- Print Settings -->
-    <div class="ctrl-card">
-      <div class="ctrl-label text-dark dark:text-white"><i data-lucide="printer" class="w-4 h-4 text-blue"></i> Print Settings</div>
-      <div class="grid grid-cols-2 gap-1.5">
-        <button class="style-btn active" id="orientPortrait" data-orient="portrait">
-          <svg width="18" height="24" viewBox="0 0 18 24" fill="none" style="flex-shrink:0"><rect x="1" y="1" width="16" height="22" rx="2" stroke="currentColor" stroke-width="2"/></svg>
-          Portrait
-        </button>
-        <button class="style-btn" id="orientLandscape" data-orient="landscape">
-          <svg width="24" height="18" viewBox="0 0 24 18" fill="none" style="flex-shrink:0"><rect x="1" y="1" width="22" height="16" rx="2" stroke="currentColor" stroke-width="2"/></svg>
-          Landscape
-        </button>
-      </div>
-    </div>
+      <!-- Pages -->
+      <section id="pagesSection" class="hidden border-t-2 border-slate-100 dark:border-slate-700 pt-4">
+        <div class="flex items-center justify-between mb-3">
+          <label class="section-label mb-0"><i data-lucide="layers" class="inline w-3.5 h-3.5 mr-1 text-blue"></i>Pages</label>
+          <button id="addPageBtn" class="btn-chunky bg-blue text-white px-3 py-1.5 rounded-xl text-[11px] flex items-center gap-1">
+            <i data-lucide="plus" class="w-3.5 h-3.5"></i> Add Page
+          </button>
+        </div>
+        <div id="pagesList" class="flex flex-wrap gap-2"></div>
+      </section>
 
-    <!-- Actions -->
-    <div class="space-y-2 pt-1">
-      <button id="shuffleBtn" class="btn-k w-full bg-orange text-white text-sm py-2.5 px-3">
+      <!-- Grid Size -->
+      <section class="border-t-2 border-slate-100 dark:border-slate-700 pt-4">
+        <label class="section-label"><i data-lucide="grid-3x3" class="inline w-3.5 h-3.5 mr-1 text-blue"></i>Grid Size</label>
+        <div class="space-y-3">
+          <div>
+            <div class="flex justify-between mb-1">
+              <span class="text-xs font-bold text-dark dark:text-slate-300">Rows</span>
+              <span id="rowsLbl" class="font-heading text-sm font-bold text-pink">4</span>
+            </div>
+            <input type="range" id="rowsR" min="2" max="20" value="4">
+          </div>
+          <div>
+            <div class="flex justify-between mb-1">
+              <span class="text-xs font-bold text-dark dark:text-slate-300">Columns</span>
+              <span id="colsLbl" class="font-heading text-sm font-bold text-pink">4</span>
+            </div>
+            <input type="range" id="colsR" min="2" max="20" value="4">
+          </div>
+        </div>
+      </section>
+
+      <!-- Cut Style -->
+      <section class="border-t-2 border-slate-100 dark:border-slate-700 pt-4">
+        <label class="section-label"><i data-lucide="pen-tool" class="inline w-3.5 h-3.5 mr-1 text-orange"></i>Cut Style</label>
+        <div class="grid grid-cols-2 gap-2">
+          <button class="btn-chunky style-btn active bg-white dark:bg-slate-700 dark:text-white py-2 px-3 rounded-xl text-xs flex items-center gap-2" data-style="straight">
+            <svg width="30" height="12" viewBox="0 0 44 18" fill="none"><line x1="2" y1="9" x2="42" y2="9" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            Straight
+          </button>
+          <button class="btn-chunky style-btn bg-white dark:bg-slate-700 dark:text-white py-2 px-3 rounded-xl text-xs flex items-center gap-2" data-style="jigsaw">
+            <svg width="30" height="12" viewBox="0 0 44 18" fill="none"><path d="M2,9 L14,9 Q15,5 17,4 Q19,3 22,4 Q25,5 26,9 L42,9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            Jigsaw
+          </button>
+          <button class="btn-chunky style-btn bg-white dark:bg-slate-700 dark:text-white py-2 px-3 rounded-xl text-xs flex items-center gap-2" data-style="jagged">
+            <svg width="30" height="12" viewBox="0 0 44 18" fill="none"><path d="M2,9 L8,3 L14,15 L20,3 L26,15 L32,3 L38,15 L42,9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            Zigzag
+          </button>
+          <button class="btn-chunky style-btn bg-white dark:bg-slate-700 dark:text-white py-2 px-3 rounded-xl text-xs flex items-center gap-2" data-style="wavy">
+            <svg width="30" height="12" viewBox="0 0 44 18" fill="none"><path d="M2,9 C8,2 14,16 22,9 C30,2 36,16 42,9" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            Wavy
+          </button>
+          <button class="btn-chunky style-btn bg-white dark:bg-slate-700 dark:text-white py-2 px-3 rounded-xl text-xs flex items-center gap-2" data-style="curved">
+            <svg width="30" height="12" viewBox="0 0 44 18" fill="none"><path d="M2,9 C14,1 30,17 42,9" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            S-Curve
+          </button>
+          <button class="btn-chunky style-btn bg-white dark:bg-slate-700 dark:text-white py-2 px-3 rounded-xl text-xs flex items-center gap-2" data-style="bumpy">
+            <svg width="30" height="12" viewBox="0 0 44 18" fill="none"><path d="M2,9 Q7,4 11,9 Q16,14 20,9 Q25,4 29,9 Q34,14 38,9 L42,9" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            Bumpy
+          </button>
+        </div>
+      </section>
+
+      <!-- Line Appearance -->
+      <section class="border-t-2 border-slate-100 dark:border-slate-700 pt-4">
+        <label class="section-label"><i data-lucide="palette" class="inline w-3.5 h-3.5 mr-1 text-green"></i>Line Appearance</label>
+        <div class="space-y-3">
+
+          <div>
+            <span class="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2 block">Color</span>
+            <div class="flex flex-wrap gap-2 items-center">
+              <div class="swatch sel" style="background:#ffffff" data-color="#ffffff" title="White"></div>
+              <div class="swatch" style="background:#000000" data-color="#000000" title="Black"></div>
+              <div class="swatch" style="background:#ff4785" data-color="#ff4785" title="Pink"></div>
+              <div class="swatch" style="background:#1ea7fd" data-color="#1ea7fd" title="Blue"></div>
+              <div class="swatch" style="background:#00d063" data-color="#00d063" title="Green"></div>
+              <div class="swatch" style="background:#ff7e33" data-color="#ff7e33" title="Orange"></div>
+              <div class="swatch" style="background:#FFEB3B" data-color="#FFEB3B" title="Yellow"></div>
+              <input type="color" id="colorPick" value="#ffffff" class="swatch" style="padding:2px" title="Custom">
+            </div>
+          </div>
+
+          <div>
+            <div class="flex justify-between mb-1">
+              <span class="text-xs font-bold text-dark dark:text-slate-300">Line Width</span>
+              <span id="widthLbl" class="font-heading text-sm font-bold text-orange">2px</span>
+            </div>
+            <input type="range" id="widthR" min="1" max="12" value="2">
+          </div>
+
+          <div>
+            <div class="flex justify-between mb-1">
+              <span class="text-xs font-bold text-dark dark:text-slate-300">Opacity</span>
+              <span id="opacLbl" class="font-heading text-sm font-bold text-orange">100%</span>
+            </div>
+            <input type="range" id="opacR" min="5" max="100" value="100">
+          </div>
+
+          <div>
+            <div class="flex justify-between mb-1">
+              <span class="text-xs font-bold text-dark dark:text-slate-300">Cut Depth</span>
+              <span id="depthLbl" class="font-heading text-sm font-bold text-orange">50%</span>
+            </div>
+            <input type="range" id="depthR" min="10" max="100" value="50">
+          </div>
+
+          <div id="freqRow">
+            <div class="flex justify-between mb-1">
+              <span class="text-xs font-bold text-dark dark:text-slate-300">Frequency</span>
+              <span id="freqLbl" class="font-heading text-sm font-bold text-orange">3</span>
+            </div>
+            <input type="range" id="freqR" min="1" max="8" value="3">
+          </div>
+        </div>
+      </section>
+
+      <!-- Print Settings -->
+      <section class="border-t-2 border-slate-100 dark:border-slate-700 pt-4">
+        <label class="section-label"><i data-lucide="printer" class="inline w-3.5 h-3.5 mr-1 text-blue"></i>Orientation</label>
+        <div class="flex gap-2">
+          <button id="orientPortrait" data-orient="portrait"
+            class="btn-chunky flex-1 bg-white dark:bg-slate-700 dark:text-white py-2 rounded-xl text-xs flex items-center justify-center gap-2 active">
+            <svg width="14" height="18" viewBox="0 0 18 24" fill="none" style="flex-shrink:0"><rect x="1" y="1" width="16" height="22" rx="2" stroke="currentColor" stroke-width="2"/></svg>
+            Portrait
+          </button>
+          <button id="orientLandscape" data-orient="landscape"
+            class="btn-chunky flex-1 bg-white dark:bg-slate-700 dark:text-white py-2 rounded-xl text-xs flex items-center justify-center gap-2">
+            <svg width="18" height="14" viewBox="0 0 24 18" fill="none" style="flex-shrink:0"><rect x="1" y="1" width="22" height="16" rx="2" stroke="currentColor" stroke-width="2"/></svg>
+            Landscape
+          </button>
+        </div>
+      </section>
+
+    </div><!-- /scrollable -->
+
+    <!-- Bottom Actions -->
+    <div class="mt-4 pt-4 border-t-2 border-dark dark:border-slate-700 space-y-2">
+      <button id="shuffleBtn"
+        class="btn-chunky w-full bg-orange text-dark py-3 rounded-xl text-sm flex items-center justify-center gap-2">
         <i data-lucide="shuffle" class="w-4 h-4"></i> Shuffle Tabs
       </button>
-      <button id="downloadBtn" class="btn-k w-full bg-green text-dark text-sm py-2.5 px-3">
-        <i data-lucide="download" class="w-4 h-4"></i> Download PNG
-      </button>
-      <button id="printBtn" class="btn-k w-full bg-blue text-white text-sm py-2.5 px-3">
-        <i data-lucide="printer" class="w-4 h-4"></i> Print
-      </button>
+      <div class="grid grid-cols-2 gap-2">
+        <button id="downloadBtn"
+          class="btn-chunky bg-green text-dark py-3 rounded-xl text-sm flex items-center justify-center gap-1">
+          <i data-lucide="image" class="w-4 h-4"></i> PNG
+        </button>
+        <button id="printBtn"
+          class="btn-chunky bg-blue text-white py-3 rounded-xl text-sm flex items-center justify-center gap-1">
+          <i data-lucide="printer" class="w-4 h-4"></i> Print
+        </button>
+      </div>
     </div>
 
   </aside>
 
-  <!-- RIGHT: CANVAS -->
-  <div id="canvas-area">
+  <!-- ── PREVIEW AREA ────────────────────────────────────────────────────── -->
+  <main class="preview-area">
+
     <!-- Empty state -->
-    <div id="empty" class="flex flex-col items-center justify-center text-center p-8 z-10">
-      <div class="w-24 h-24 rounded-3xl border-4 border-white/10 flex items-center justify-center mb-4" style="background:rgba(255,255,255,.05)">
-        <i data-lucide="image" class="w-12 h-12 text-white/20"></i>
+    <div id="empty" class="flex flex-col items-center justify-center text-center p-10">
+      <div class="w-28 h-28 rounded-3xl border-4 border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800/50 flex items-center justify-center mb-6">
+        <i data-lucide="image" class="w-14 h-14 text-slate-300 dark:text-slate-600"></i>
       </div>
-      <p class="font-heading text-2xl text-white/50 uppercase tracking-tight">Upload an image</p>
-      <p class="text-sm text-white/20 mt-1">Your puzzle template will appear here</p>
+      <p class="font-heading text-3xl text-slate-400 dark:text-slate-500 uppercase tracking-tight">Upload an image</p>
+      <p class="text-sm text-slate-400 dark:text-slate-600 mt-2 font-bold">Your puzzle template will appear here</p>
     </div>
+
     <!-- Canvas -->
-    <div id="canvasWrap" class="hidden justify-center items-center" style="padding:12px">
-      <canvas id="canvas" class="rounded-xl" style="box-shadow:0 0 40px rgba(0,0,0,.4)"></canvas>
+    <div id="canvasWrap" class="hidden items-center justify-center" style="padding:24px;width:100%;height:100%">
+      <canvas id="canvas"></canvas>
     </div>
-  </div>
 
-</div><!-- main-area -->
-</div><!-- app-shell -->
+    <!-- Size label -->
+    <span id="sizeLbl" class="absolute bottom-3 right-4 text-[10px] font-bold text-slate-400 font-mono pointer-events-none"></span>
 
-<script src="./script.js"></script>
+  </main>
+
+  <script src="./script.js"></script>
 </body>
 </html>

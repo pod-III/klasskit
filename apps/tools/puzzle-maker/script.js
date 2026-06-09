@@ -160,7 +160,7 @@ function updateDarkIcon() {
   const icon = document.getElementById('darkIcon');
   if (icon) {
     icon.setAttribute('data-lucide', isDark ? 'sun' : 'moon');
-    lucide.createIcons();
+    lucide.createIcons({ nodes: [icon] });
   }
 }
 
@@ -257,7 +257,6 @@ function deletePage(index) {
     }
     selectPage(activePageIndex);
   }
-  renderPagesList();
 }
 
 function renderPagesList() {
@@ -267,11 +266,7 @@ function renderPagesList() {
   pages.forEach((p, index) => {
     const isActive = index === activePageIndex;
     const btn = document.createElement('div');
-    btn.className = `flex items-center gap-1.5 border-2 border-dark dark:border-slate-600 rounded-xl px-2.5 py-1 cursor-pointer select-none font-heading font-bold text-[11px] uppercase tracking-wide transition-all ${
-      isActive 
-        ? 'bg-blue text-white shadow-[2px_2px_0_#111827] dark:shadow-[2px_2px_0_rgba(148,163,184,.5)]' 
-        : 'bg-white dark:bg-slate-700 text-dark dark:text-white hover:bg-slate-50 dark:hover:bg-slate-600'
-    }`;
+    btn.className = `page-pill ${isActive ? 'active' : ''}`;
     
     btn.addEventListener('click', (e) => {
       if (e.target.closest('.delete-page-btn')) return;
@@ -474,7 +469,6 @@ document.getElementById('printBtn').addEventListener('click', () => {
 
 // ── RNG ────────────────────────────────────────────────────────────────────
 function rngWithSeed(s, pSeed) { const x = Math.sin(s + pSeed)*1e5; return x - Math.floor(x); }
-function rng(s) { return rngWithSeed(s, seed); }
 
 // ── Draw ───────────────────────────────────────────────────────────────────
 function redraw() {
