@@ -19,6 +19,7 @@
 
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@1.16.0"></script>
+    <script src="../../../components/input-modal.js"></script>
 
     <script>
         tailwind.config = {
@@ -406,7 +407,7 @@
 
             // --- CORE MECHANICS ---
 
-            function spin() {
+            async function spin() {
                 if (state.isSpinning) return;
 
                 // 1. Calculate Available Letters
@@ -414,7 +415,7 @@
 
                 // 2. Check for End of Game
                 if (available.length === 0) {
-                    alert("All letters have been used! Please reset the game.");
+                    await showAlertModal("All letters have been used! Please reset the game.", { title: "Game Over", icon: "info", iconColor: "blue" });
                     return;
                 }
 
@@ -629,8 +630,15 @@
                 closeSetup();
             }
 
-            function resetGame() {
-                if (confirm("Start a new game? This clears scores and used letters.")) {
+            async function resetGame() {
+                const confirmed = await showConfirmModal("Start a new game? This clears scores and used letters.", {
+                    title: "New Game?",
+                    confirmText: "Start New",
+                    cancelText: "Cancel",
+                    icon: "rotate-ccw",
+                    iconColor: "orange"
+                });
+                if (confirmed) {
                     state.scores = [0, 0, 0, 0];
                     state.usedLetters = [];
                     els.letter.textContent = "?";

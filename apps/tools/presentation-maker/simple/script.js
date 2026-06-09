@@ -414,7 +414,14 @@
             },
 
             async clearImages() {
-                if (!confirm('Clear all images from local and cloud?')) return;
+                const confirmed = await showConfirmModal('Clear all images from local and cloud?', {
+                    title: "Clear Images?",
+                    confirmText: "Clear",
+                    cancelText: "Cancel",
+                    icon: "rotate-ccw",
+                    iconColor: "red"
+                });
+                if (!confirmed) return;
                 
                 const { data: { user } } = await db.auth.getUser();
                 if (!isSandbox() && user) {
@@ -897,7 +904,14 @@
                     
                     item.querySelector('.set-load').onclick = () => app.loadSet(set);
                     item.querySelector('.set-del').onclick = async () => { 
-                        if(confirm(`Delete "${set.name}"?`)) {
+                        const confirmed = await showConfirmModal(`Delete "${set.name}"?`, {
+                            title: "Delete Set?",
+                            confirmText: "Delete",
+                            cancelText: "Keep",
+                            icon: "trash-2",
+                            iconColor: "red"
+                        });
+                        if (confirmed) {
                             if (this.activeSetId === set.id) this.activeSetId = null;
                             await deleteSet(set.id); 
                             app.renderSets(); 

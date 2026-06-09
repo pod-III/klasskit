@@ -17,6 +17,7 @@
     <script src="https://cdn.jsdelivr.net/npm/lucide@0.344.0/dist/umd/lucide.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.105.4"></script>
     <script src="/supabase.js"></script>
+    <script src="../../../components/input-modal.js"></script>
 
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -841,12 +842,12 @@
 
         // --- 7. EXPORT / IMPORT ---
 
-        function exportData() {
+        async function exportData() {
             // Build fresh from live DOM so export always reflects current state
             const dataObj = getDataObject();
             const hasData = dataObj.rows.length && dataObj.rows.some(r => Object.values(r).some(v => v));
             if (!hasData && !Object.values(dataObj.staticFields).some(v => v)) {
-                alert('Nothing to export yet. Fill in some data first!');
+                await showAlertModal('Nothing to export yet. Fill in some data first!', { title: "No Data", icon: "alert-circle", iconColor: "orange" });
                 return;
             }
             const teacher = document.getElementById('teacher_name').value || 'observation';
@@ -864,18 +865,24 @@
             setTimeout(function() { URL.revokeObjectURL(url); }, 1000);
         }
 
-        function handleFileImport(input) {
+        async function handleFileImport(input) {
             const file = input.files[0];
             if (!file) return;
 
-            // Confirm BEFORE async read — avoids browser security blocks on confirm() in callbacks
-            if (!confirm('Importing will overwrite current data. Continue?')) {
+            const confirmed = await showConfirmModal('Importing will overwrite current data. Continue?', {
+                title: "Import Data?",
+                confirmText: "Import",
+                cancelText: "Cancel",
+                icon: "alert-triangle",
+                iconColor: "orange"
+            });
+            if (!confirmed) {
                 input.value = '';
                 return;
             }
 
             const reader = new FileReader();
-            reader.onload = function(e) {
+            reader.onload = async function(e) {
                 try {
                     const data = JSON.parse(e.target.result);
                     if (!data || typeof data !== 'object') throw new Error('Not a valid JSON file.');
@@ -886,11 +893,14 @@
                     input.value = '';
                     location.reload();
                 } catch (err) {
-                    alert('Import failed: ' + err.message);
+                    await showAlertModal('Import failed: ' + err.message, { title: "Error", icon: "x-octagon", iconColor: "red" });
                     input.value = '';
                 }
             };
-            reader.onerror = function() { alert('Could not read the file.'); input.value = ''; };
+            reader.onerror = async function() { 
+                await showAlertModal('Could not read the file.', { title: "Error", icon: "x-octagon", iconColor: "red" }); 
+                input.value = ''; 
+            };
             reader.readAsText(file);
         }
 
@@ -904,8 +914,15 @@
             });
         });
 
-        document.getElementById('resetBtn').addEventListener('click', () => {
-            if (confirm("Clear all data? This cannot be undone.")) {
+        document.getElementById('resetBtn').addEventListener('click', async () => {
+            const confirmed = await showConfirmModal("Clear all data? This cannot be undone.", {
+                title: "Clear All Data?",
+                confirmText: "Clear",
+                cancelText: "Cancel",
+                icon: "rotate-ccw",
+                iconColor: "red"
+            });
+            if (confirmed) {
                 localStorage.removeItem('obsFormV3');
                 location.reload();
             }

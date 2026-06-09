@@ -934,8 +934,15 @@ const StudentManager = {
     UI.showToast('Students added successfully!', 'success');
   },
 
-  delete(id) {
-    if (!confirm('Are you sure you want to remove this student?')) return;
+  async delete(id) {
+    const confirmed = await showConfirmModal('Are you sure you want to remove this student?', {
+      title: 'Remove Student?',
+      confirmText: 'Remove',
+      cancelText: 'Keep',
+      icon: 'user-x',
+      iconColor: 'red'
+    });
+    if (!confirmed) return;
     
     const classData = ClassManager.data.classes[ClassManager.activeClass];
     classData.students = classData.students.filter(s => s.id !== id);
@@ -1333,8 +1340,15 @@ const ReflectionManager = {
     this.editingId = null;
   },
 
-  delete(id) {
-    if (!confirm('Are you sure you want to delete this reflection?')) return;
+  async delete(id) {
+    const confirmed = await showConfirmModal('Are you sure you want to delete this reflection?', {
+      title: 'Delete Reflection?',
+      confirmText: 'Delete',
+      cancelText: 'Keep',
+      icon: 'trash-2',
+      iconColor: 'red'
+    });
+    if (!confirmed) return;
     
     const classData = ClassManager.data.classes[ClassManager.activeClass];
     classData.reflections = classData.reflections.filter(r => r.id !== id);
@@ -1994,8 +2008,15 @@ const SkillsManager = {
     UI.showToast('Skill added!', 'success');
   },
 
-  deleteSkill(skillId) {
-    if (!confirm('Delete this skill? All student ratings and snapshot history will be lost.')) return;
+  async deleteSkill(skillId) {
+    const confirmed = await showConfirmModal('Delete this skill? All student ratings and snapshot history will be lost.', {
+      title: 'Delete Skill?',
+      confirmText: 'Delete',
+      cancelText: 'Keep',
+      icon: 'trash-2',
+      iconColor: 'red'
+    });
+    if (!confirmed) return;
     const classData = ClassManager.data.classes[ClassManager.activeClass];
     classData.skills = classData.skills.filter(s => s.id !== skillId);
     if (classData.studentSkills) {
@@ -2715,8 +2736,15 @@ const CommentsManager = {
     navigator.clipboard.writeText(s.puComments[0]).then(() => UI.showToast('Copied!', 'success'));
   },
 
-  deleteStudentComment(id) {
-    if (!confirm('Delete this saved comment?')) return;
+  async deleteStudentComment(id) {
+    const confirmed = await showConfirmModal('Delete this saved comment?', {
+      title: 'Delete Comment?',
+      confirmText: 'Delete',
+      cancelText: 'Keep',
+      icon: 'message-square-x',
+      iconColor: 'red'
+    });
+    if (!confirmed) return;
     const s = this.getStudent(id);
     if (!s) return;
     s.puComments = null;
@@ -2978,8 +3006,15 @@ const ReportManager = {
     navigator.clipboard.writeText(s.reportText).then(() => UI.showToast('Copied!', 'success'));
   },
 
-  deleteStudentReport(id) {
-    if (!confirm('Delete this saved report?')) return;
+  async deleteStudentReport(id) {
+    const confirmed = await showConfirmModal('Delete this saved report?', {
+      title: 'Delete Report?',
+      confirmText: 'Delete',
+      cancelText: 'Keep',
+      icon: 'file-x',
+      iconColor: 'red'
+    });
+    if (!confirmed) return;
     const s = this.getStudent(id);
     if (!s) return;
     s.reportState = null; s.reportPronoun = null; s.reportText = null;

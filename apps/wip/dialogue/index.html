@@ -14,6 +14,7 @@
     <script src="https://unpkg.com/lucide@1.16.0"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.105.4"></script>
     <script src="/supabase.js"></script>
+    <script src="../../../components/input-modal.js"></script>
 
     <script src="https://cdn.tailwindcss.com"></script>
 
@@ -448,7 +449,7 @@
             if (!file) return;
 
             const reader = new FileReader();
-            reader.onload = function(e) {
+            reader.onload = async function(e) {
                 try {
                     const json = JSON.parse(e.target.result);
                     if (Array.isArray(json)) {
@@ -457,12 +458,12 @@
                         localStorage.setItem(STORAGE_KEY, JSON.stringify(lessonData));
                         
                         resetChat();
-                        alert("Lesson loaded and saved!");
+                        await showAlertModal("Lesson loaded and saved!", { title: "Success", icon: "check-circle", iconColor: "green" });
                     } else {
-                        alert("Invalid JSON format: Root must be an array.");
+                        await showAlertModal("Invalid JSON format: Root must be an array.", { title: "Error", icon: "alert-circle", iconColor: "red" });
                     }
                 } catch (err) {
-                    alert("Error parsing JSON file. Please check the format.");
+                    await showAlertModal("Error parsing JSON file. Please check the format.", { title: "Error", icon: "alert-circle", iconColor: "red" });
                     console.error(err);
                 }
             };
@@ -470,12 +471,19 @@
             input.value = ''; 
         }
 
-        function restoreDefaults() {
-            if(confirm('Are you sure you want to delete your custom lesson and restore the default example?')) {
+        async function restoreDefaults() {
+            const confirmed = await showConfirmModal('Are you sure you want to delete your custom lesson and restore the default example?', {
+                title: "Restore Defaults?",
+                confirmText: "Restore",
+                cancelText: "Cancel",
+                icon: "rotate-ccw",
+                iconColor: "orange"
+            });
+            if(confirmed) {
                 localStorage.removeItem(STORAGE_KEY);
                 lessonData = JSON.parse(JSON.stringify(defaultData));
                 resetChat();
-                alert("Default lesson restored.");
+                await showAlertModal("Default lesson restored.", { title: "Restored", icon: "check-circle", iconColor: "green" });
             }
         }
 
@@ -567,7 +575,7 @@
             });
         }
 
-        function saveLesson() {
+        async function saveLesson() {
             const rows = document.querySelectorAll('.row-item');
             const newData = [];
             
@@ -587,7 +595,7 @@
                 resetChat();
                 closeEditor();
             } else {
-                alert("Please add at least one line of dialogue!");
+                await showAlertModal("Please add at least one line of dialogue!", { title: "Empty Lesson", icon: "alert-circle", iconColor: "orange" });
             }
         }
 

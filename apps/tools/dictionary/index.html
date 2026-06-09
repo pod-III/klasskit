@@ -17,6 +17,7 @@
     
     <!-- Icons -->
     <script src="https://unpkg.com/lucide@1.16.0"></script>
+    <script src="../../../components/input-modal.js"></script>
     
     <!-- Tailwind -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -863,7 +864,7 @@
             if (!file) return;
 
             const reader = new FileReader();
-            reader.onload = (e) => {
+            reader.onload = async (e) => {
                 try {
                     const json = JSON.parse(e.target.result);
                     let newWords = [], newCats = [];
@@ -873,7 +874,14 @@
                         newCats = json.categories;
                     }
 
-                    if(confirm(`Importing data. OK to REPLACE, Cancel to MERGE?`)) {
+                    const shouldReplace = await showConfirmModal("Replace existing data or merge?", {
+                        title: "Import Data",
+                        confirmText: "Replace",
+                        cancelText: "Merge",
+                        icon: "database",
+                        iconColor: "blue"
+                    });
+                    if (shouldReplace) {
                         if (newWords.length) appState.savedWords = newWords;
                         if (newCats.length) appState.categories = newCats;
                     } else {
@@ -990,9 +998,15 @@
             renderGrid();
         });
 
-        function deleteWord(id) {
-            if(confirm("Remove this word from your bank?")) {
-                // Ensure ID comparison works (string vs number)
+        async function deleteWord(id) {
+            const confirmed = await showConfirmModal("Remove this word from your bank?", {
+                title: "Delete Word?",
+                confirmText: "Remove",
+                cancelText: "Keep",
+                icon: "trash-2",
+                iconColor: "red"
+            });
+            if (confirmed) {
                 appState.savedWords = appState.savedWords.filter(w => String(w.id) !== String(id));
                 saveWordsToLocal();
                 renderGrid();
@@ -1000,8 +1014,15 @@
             }
         }
 
-        function clearAllData() {
-            if(confirm("Are you sure you want to delete ALL words? This cannot be undone.")) {
+        async function clearAllData() {
+            const confirmed = await showConfirmModal("Are you sure you want to delete ALL words? This cannot be undone.", {
+                title: "Clear All Data?",
+                confirmText: "Delete All",
+                cancelText: "Cancel",
+                icon: "alert-triangle",
+                iconColor: "red"
+            });
+            if (confirmed) {
                 appState.savedWords = [];
                 saveWordsToLocal();
                 renderGrid();

@@ -19,6 +19,7 @@
         <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
         <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
         <script src="https://cdn.jsdelivr.net/npm/browser-image-compression@2.0.2/dist/browser-image-compression.js"></script>
+        <script src="../../../../components/input-modal.js"></script>
 
         <!-- Fonts -->
         <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -1081,9 +1082,16 @@
             showToast(`Loaded ${item.name}`, "info");
         }
 
-        function deleteLibraryItem(id, event) {
+        async function deleteLibraryItem(id, event) {
             if (event) event.stopPropagation();
-            if (!confirm("Are you sure you want to delete this set?")) return;
+            const confirmed = await showConfirmModal("Are you sure you want to delete this set?", {
+                title: 'Delete Set?',
+                confirmText: 'Delete',
+                cancelText: 'Keep',
+                icon: 'trash-2',
+                iconColor: 'red'
+            });
+            if (!confirmed) return;
 
             let library = getLibrary();
             library = library.filter(i => i.id !== id);
@@ -1795,8 +1803,28 @@
             const el = document.getElementById("total-spins");
             if (el) el.textContent = appState.data.totalSpins; 
         }
-        function clearHistory() { if (!confirm("Clear history?")) return; appState.data.history = []; appState.data.totalSpins = 0; onContentChange(); updateHistoryDisplay(); updateStats(); }
-        function clearCurrentWheel() { if (!confirm("Clear all items from this wheel?")) return; appState.data.wheels[currentConfigWheel].options = []; onContentChange(); renderItemsList(); drawWheel(currentConfigWheel); }
+        async function clearHistory() { 
+            const confirmed = await showConfirmModal("Clear history?", {
+                title: 'Clear History?',
+                confirmText: 'Clear',
+                cancelText: 'Keep',
+                icon: 'history',
+                iconColor: 'orange'
+            });
+            if (!confirmed) return; 
+            appState.data.history = []; appState.data.totalSpins = 0; onContentChange(); updateHistoryDisplay(); updateStats(); 
+        }
+        async function clearCurrentWheel() { 
+            const confirmed = await showConfirmModal("Clear all items from this wheel?", {
+                title: 'Clear Wheel?',
+                confirmText: 'Clear',
+                cancelText: 'Keep',
+                icon: 'trash-2',
+                iconColor: 'red'
+            });
+            if (!confirmed) return; 
+            appState.data.wheels[currentConfigWheel].options = []; onContentChange(); renderItemsList(); drawWheel(currentConfigWheel); 
+        }
 
 
         // Init

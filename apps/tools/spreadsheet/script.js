@@ -1603,9 +1603,16 @@
             }
         },
 
-        createNewSheet(confirmMsg = true) {
-            if (confirmMsg && !confirm("Create a new empty sheet? Any unsaved changes will be cleared.")) {
-                return;
+        async createNewSheet(confirmMsg = true) {
+            if (confirmMsg) {
+                const confirmed = await showConfirmModal("Create a new empty sheet? Any unsaved changes will be cleared.", {
+                    title: "New Sheet?",
+                    confirmText: "Create",
+                    cancelText: "Cancel",
+                    icon: "file-plus",
+                    iconColor: "blue"
+                });
+                if (!confirmed) return;
             }
 
             const state = SpreadsheetApp.State;
@@ -1832,7 +1839,7 @@
             if (window.lucide) window.lucide.createIcons();
         },
 
-        loadSheetById(id) {
+        async loadSheetById(id) {
             const savedStr = localStorage.getItem('kk_sheet_saved_list');
             if (!savedStr) return;
 
@@ -1840,7 +1847,14 @@
                 const saved = JSON.parse(savedStr);
                 const sheet = saved.find(s => s.id === id);
                 if (sheet) {
-                    if (confirm(`Load "${sheet.title}"? Unsaved changes in active sheet will be lost.`)) {
+                    const confirmed = await showConfirmModal(`Load "${sheet.title}"? Unsaved changes in active sheet will be lost.`, {
+                        title: "Load Sheet?",
+                        confirmText: "Load",
+                        cancelText: "Cancel",
+                        icon: "file-up",
+                        iconColor: "blue"
+                    });
+                    if (confirmed) {
                         this.loadSheetData(sheet);
                         SpreadsheetApp.State.sheetId = sheet.id;
                         SpreadsheetApp.UI.toggleSavedSheetsPanel(false);
@@ -1853,7 +1867,14 @@
         },
 
         async deleteSheetById(id) {
-            if (confirm("Are you sure you want to delete this sheet? This action cannot be undone.")) {
+            const confirmed = await showConfirmModal("Are you sure you want to delete this sheet? This action cannot be undone.", {
+                title: "Delete Sheet?",
+                confirmText: "Delete",
+                cancelText: "Keep",
+                icon: "trash-2",
+                iconColor: "red"
+            });
+            if (confirmed) {
                 try {
                     if (!isSandbox() && window.db) {
                         const user = await getUser();
@@ -2000,15 +2021,20 @@
             reader.readAsText(file);
         },
 
-        parseCSV(text) {
+        async parseCSV(text) {
             const state = SpreadsheetApp.State;
             const lines = text.split(/\r\n|\n/);
             if (lines.length === 0) return;
 
             // Confirm import
-            if (!confirm("Load values from CSV? This will overwrite the top-left area of your grid.")) {
-                return;
-            }
+            const confirmed = await showConfirmModal("Load values from CSV? This will overwrite the top-left area of your grid.", {
+                title: "Import CSV?",
+                confirmText: "Import",
+                cancelText: "Cancel",
+                icon: "file-up",
+                iconColor: "orange"
+            });
+            if (!confirmed) return;
 
             // Parse lines
             let csvGrid = [];
@@ -2149,9 +2175,16 @@
        7. EDUCATIONAL WORKBOOK TEMPLATES
        ========================================================================= */
     SpreadsheetApp.Templates = {
-        load(templateName, triggerConfirm = true) {
-            if (triggerConfirm && !confirm(`Load ${templateName} template? Any unsaved edits will be replaced.`)) {
-                return;
+        async load(templateName, triggerConfirm = true) {
+            if (triggerConfirm) {
+                const confirmed = await showConfirmModal(`Load ${templateName} template? Any unsaved edits will be replaced.`, {
+                    title: "Load Template?",
+                    confirmText: "Load",
+                    cancelText: "Cancel",
+                    icon: "layout-template",
+                    iconColor: "blue"
+                });
+                if (!confirmed) return;
             }
 
             const state = SpreadsheetApp.State;

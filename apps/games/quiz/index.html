@@ -19,6 +19,7 @@
     <!-- Supabase Auth -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.105.4"></script>
     <script src="/supabase.js"></script>
+    <script src="../../../components/input-modal.js"></script>
     <script>
         tailwind.config = {
             darkMode: 'class',
@@ -924,9 +925,19 @@ X: B" oninput="updateImportPreview()"></textarea>
             }
         }
 
-        function deleteCurrentCollection() {
-            if (collections.length <= 1) { alert("You must have at least one quiz!"); return; }
-            if (confirm("Permanently delete this battle set?")) {
+        async function deleteCurrentCollection() {
+            if (collections.length <= 1) {
+                await showAlertModal("You must have at least one quiz!", { title: "Cannot Delete", icon: "alert-circle", iconColor: "orange" });
+                return;
+            }
+            const confirmed = await showConfirmModal("Permanently delete this battle set?", {
+                title: "Delete Quiz?",
+                confirmText: "Delete",
+                cancelText: "Keep",
+                icon: "trash-2",
+                iconColor: "red"
+            });
+            if (confirmed) {
                 collections = collections.filter(c => c.id !== currentCollectionId);
                 currentCollectionId = collections[0].id;
                 currentQuestions = collections[0].questions;
@@ -1192,9 +1203,13 @@ X: B" oninput="updateImportPreview()"></textarea>
             document.getElementById('main-reveal-btn').classList.remove('hidden');
         }
 
-        function startQuiz() {
+        async function startQuiz() {
             const validQ = currentQuestions.filter(q => q.q.trim() !== "");
-            if (validQ.length === 0) { alert("Please add some questions in SETUP before starting!"); toggleMode('setup'); return; }
+            if (validQ.length === 0) {
+                await showAlertModal("Please add some questions in SETUP before starting!", { title: "No Questions", icon: "help-circle", iconColor: "orange" });
+                toggleMode('setup');
+                return;
+            }
             currentQuestions = validQ;
             currentStep = 0; score = 0; isAnswering = false;
             document.getElementById('landing-screen').classList.add('hidden');

@@ -753,7 +753,16 @@ const App = {
             App.closeImageLibrary();
         }
     },
-    deleteImageAsset(id) { if (confirm('Delete image?')) Store.deleteImage(id).then(App.refreshImageLibrary); },
+    async deleteImageAsset(id) { 
+        const confirmed = await showConfirmModal('Delete image?', {
+            title: "Delete Image?",
+            confirmText: "Delete",
+            cancelText: "Keep",
+            icon: "trash-2",
+            iconColor: "red"
+        });
+        if (confirmed) Store.deleteImage(id).then(App.refreshImageLibrary); 
+    },
     switchPoster(id) { Store.state.currentId = id; Store.loadCurrent(); App.updateUI(); Renderer.renderPoster(); App.fitToScreen(); },
     createNewPoster() {
         const newP = { id: crypto.randomUUID(), lastModified: Date.now(), zoom: 0.5, global: { title: 'UNTITLED', subtitle: 'New Project', badge: '1', layout: 'landscape', pattern: 'graph', gridSize: 'md' }, modules: [] };
@@ -858,7 +867,7 @@ const App = {
         }); 
     },
     exportPoster() { const a = document.createElement('a'); a.href = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(Store.current)); a.download = `Poster_${Store.current.global.title}.json`; a.click(); },
-    handleFileImport(input) { const f = input.files[0]; if (!f) return; const r = new FileReader(); r.onload = e => { try { const j = JSON.parse(e.target.result); j.id = crypto.randomUUID(); Store.state.posters.push(j); App.switchPoster(j.id); } catch (err) { alert('Invalid file'); } }; r.readAsText(f); },
+    handleFileImport(input) { const f = input.files[0]; if (!f) return; const r = new FileReader(); r.onload = async e => { try { const j = JSON.parse(e.target.result); j.id = crypto.randomUUID(); Store.state.posters.push(j); App.switchPoster(j.id); } catch (err) { await showAlertModal('Invalid file', { title: "Error", icon: "x-octagon", iconColor: "red" }); } }; r.readAsText(f); },
 
     // --- DRAG AND DROP HANDLERS ---
     handleDragStart(e, idx) {

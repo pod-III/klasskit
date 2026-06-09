@@ -1658,7 +1658,14 @@ async function updateRole(userId, newRole) {
 
     const roleLabels = { user: '👤 User', pro: '⭐ Pro', admin: '🛡️ Admin' }
     const roleDisplay = roleLabels[newRole] || newRole.toUpperCase()
-    if (!confirm(`Change role for ${row.display_name || userId} to ${roleDisplay}?`)) {
+    const confirmed = await showConfirmModal(`Change role for ${row.display_name || userId} to ${roleDisplay}?`, {
+        title: 'Change Role?',
+        confirmText: 'Change',
+        cancelText: 'Cancel',
+        icon: 'shield',
+        iconColor: 'blue'
+    });
+    if (!confirmed) {
         applyFilters() // Reset dropdown
         return
     }

@@ -9,6 +9,7 @@
   <script src="https://unpkg.com/lucide@1.16.0/dist/umd/lucide.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.105.4"></script>
   <script src="../../../supabase.js"></script>
+  <script src="../../../components/input-modal.js"></script>
   <script>
     tailwind.config = {
       darkMode: 'class',
@@ -446,21 +447,32 @@
     document.getElementById('outputSection').classList.add('hidden');
   }
 
-  function addNewClass() {
-    const name = prompt('Enter new class name:');
+  async function addNewClass() {
+    const name = await quickPrompt('Enter new class name:');
     if (!name) return;
     const newCls = { id: Date.now().toString(), name, students: [] };
     state.classes.push(newCls);
     switchClass(newCls.id);
   }
 
-  function deleteCurrentClass() {
+  async function deleteCurrentClass() {
     if (state.classes.length <= 1) {
-      alert('You must have at least one class.');
+      await showAlertModal('You must have at least one class.', {
+        title: 'Cannot Delete',
+        icon: 'alert-circle',
+        iconColor: 'orange'
+      });
       return;
     }
     const cls = getActiveClass();
-    if (!confirm(`Delete class "${cls.name}" and all its students?`)) return;
+    const confirmed = await showConfirmModal(`Delete class "${cls.name}" and all its students?`, {
+      title: 'Delete Class?',
+      confirmText: 'Delete',
+      cancelText: 'Keep',
+      icon: 'trash-2',
+      iconColor: 'red'
+    });
+    if (!confirmed) return;
     state.classes = state.classes.filter(c => c.id !== state.activeClassId);
     state.activeClassId = state.classes[0].id;
     switchClass(state.activeClassId);
@@ -499,7 +511,7 @@
     const file = event.target.files[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = (e) => {
+    reader.onload = async (e) => {
       try {
         const data = JSON.parse(e.target.result);
         if (data.name && Array.isArray(data.students)) {
@@ -511,7 +523,11 @@
           throw new Error('Invalid format');
         }
       } catch (err) {
-        alert('Error importing file. Please ensure it is a valid PU Helper class export.');
+        await showAlertModal('Error importing file. Please ensure it is a valid PU Helper class export.', {
+          title: 'Import Error',
+          icon: 'file-x',
+          iconColor: 'red'
+        });
       }
       event.target.value = '';
     };
@@ -672,9 +688,16 @@
     renderComments(name, s.comments);
   }
 
-  function deleteCurrentStudent() {
+  async function deleteCurrentStudent() {
     if (!state.currentStudentId) return;
-    if (!confirm('Delete this student and their scores?')) return;
+    const confirmed = await showConfirmModal('Delete this student and their scores?', {
+      title: 'Delete Student?',
+      confirmText: 'Delete',
+      cancelText: 'Keep',
+      icon: 'trash-2',
+      iconColor: 'red'
+    });
+    if (!confirmed) return;
     const cls = getActiveClass();
     cls.students = cls.students.filter(s => s.id !== state.currentStudentId);
     state.currentStudentId = null;

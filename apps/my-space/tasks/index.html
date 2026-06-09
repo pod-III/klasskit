@@ -27,6 +27,7 @@
   <!-- Icons & Styling -->
   <script src="https://unpkg.com/lucide@1.16.0"></script>
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="../../../components/input-modal.js"></script>
 
   <script>
     tailwind.config = {
@@ -681,8 +682,15 @@
       return externalTasks;
     }
 
-    function deleteTask(id) {
-      if (confirm("Delete this task?")) {
+    async function deleteTask(id) {
+      const confirmed = await showConfirmModal("Delete this task?", {
+        title: "Delete Task?",
+        confirmText: "Delete",
+        cancelText: "Keep",
+        icon: "trash-2",
+        iconColor: "red"
+      });
+      if (confirmed) {
         tasks = tasks.filter(t => t.id != id);
         save();
       }
@@ -908,7 +916,13 @@
             save();
             renderCategories();
           }
-        } catch (err) { alert("Invalid file format"); }
+        } catch (err) { 
+          showAlertModal("Invalid file format", {
+            title: 'Import Error',
+            icon: 'file-x',
+            iconColor: 'red'
+          });
+        }
       };
       reader.readAsText(file);
     }
