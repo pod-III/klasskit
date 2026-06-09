@@ -1832,7 +1832,7 @@
             if (window.lucide) window.lucide.createIcons();
         },
 
-        loadSheetById(id) {
+        async loadSheetById(id) {
             const savedStr = localStorage.getItem('kk_sheet_saved_list');
             if (!savedStr) return;
 
@@ -1840,7 +1840,14 @@
                 const saved = JSON.parse(savedStr);
                 const sheet = saved.find(s => s.id === id);
                 if (sheet) {
-                    if (confirm(`Load "${sheet.title}"? Unsaved changes in active sheet will be lost.`)) {
+                    const confirmed = await showConfirmModal(`Load "${sheet.title}"? Unsaved changes in active sheet will be lost.`, {
+                        title: "Load Sheet?",
+                        confirmText: "Load",
+                        cancelText: "Cancel",
+                        icon: "file-up",
+                        iconColor: "blue"
+                    });
+                    if (confirmed) {
                         this.loadSheetData(sheet);
                         SpreadsheetApp.State.sheetId = sheet.id;
                         SpreadsheetApp.UI.toggleSavedSheetsPanel(false);
@@ -1853,7 +1860,14 @@
         },
 
         async deleteSheetById(id) {
-            if (confirm("Are you sure you want to delete this sheet? This action cannot be undone.")) {
+            const confirmed = await showConfirmModal("Are you sure you want to delete this sheet? This action cannot be undone.", {
+                title: "Delete Sheet?",
+                confirmText: "Delete",
+                cancelText: "Keep",
+                icon: "trash-2",
+                iconColor: "red"
+            });
+            if (confirmed) {
                 try {
                     if (!isSandbox() && window.db) {
                         const user = await getUser();

@@ -589,12 +589,19 @@
             playSound('click');
         }
 
-        function deleteCurrentRound() {
+        async function deleteCurrentRound() {
             if (rounds.length <= 1) {
-                alert("Cannot delete the only round!");
+                await showAlertModal("Cannot delete the only round!", { title: "Cannot Delete", icon: "alert-circle", iconColor: "orange" });
                 return;
             }
-            if (confirm("Are you sure you want to delete this round?")) {
+            const confirmed = await showConfirmModal("Are you sure you want to delete this round?", {
+                title: "Delete Round?",
+                confirmText: "Delete",
+                cancelText: "Keep",
+                icon: "trash-2",
+                iconColor: "red"
+            });
+            if (confirmed) {
                 rounds.splice(editRoundIdx, 1);
                 if (editRoundIdx >= rounds.length) editRoundIdx = rounds.length - 1;
                 renderModalInputs();
@@ -650,8 +657,15 @@
             renderGameRound();
         }
 
-        function loadDefaults() {
-            if (confirm("Reset all rounds and scores to default?")) {
+        async function loadDefaults() {
+            const confirmed = await showConfirmModal("Reset all rounds and scores to default?", {
+                title: "Reset to Defaults?",
+                confirmText: "Reset",
+                cancelText: "Cancel",
+                icon: "rotate-ccw",
+                iconColor: "orange"
+            });
+            if (confirmed) {
                 localStorage.removeItem('e1_role_speak_state');
                 rounds = JSON.parse(JSON.stringify(DEFAULT_ROUNDS));
                 scores = { 1: 0, 2: 0 };
