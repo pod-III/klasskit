@@ -823,10 +823,10 @@ const App = {
         lucide.createIcons();
         document.getElementById('library-modal').classList.remove('hidden');
     },
-    renamePoster(id) {
+    async renamePoster(id) {
         const p = Store.state.posters.find(x => x.id === id);
         if (!p) return;
-        const newTitle = prompt("Rename Project Title:", p.global.title);
+        const newTitle = await quickPrompt("Rename Project Title:", p.global.title);
         if (newTitle && newTitle.trim()) {
             p.global.title = newTitle.trim();
             p.lastModified = Date.now();

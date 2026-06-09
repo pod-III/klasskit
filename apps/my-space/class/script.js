@@ -963,12 +963,12 @@ const StudentManager = {
     }
   },
 
-  edit(id) {
+  async edit(id) {
     const classData = ClassManager.data.classes[ClassManager.activeClass];
     const student = classData.students.find(s => s.id === id);
     if (!student) return;
     
-    const newNotes = prompt('Edit notes for ' + (student.nick || student.name), student.notes);
+    const newNotes = await quickPrompt('Edit notes for ' + (student.nick || student.name), student.notes || '');
     if (newNotes !== null) {
       student.notes = newNotes;
       ClassManager.saveData();
