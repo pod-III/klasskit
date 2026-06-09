@@ -116,6 +116,10 @@
         createModalStructure();
 
         const modal = document.getElementById('universalInputModal');
+
+        // Re-entrancy guard: if already open, ignore the new call
+        if (modal && !modal.classList.contains('hidden')) return;
+
         const title = document.getElementById('inputModalTitle');
         const desc = document.getElementById('inputModalDesc');
         const input = document.getElementById('inputModalField');
