@@ -223,6 +223,32 @@ async function updatePassword(newPassword) {
 
 /* ── DATA HELPERS ── */
 async function saveProgress(toolKey, data) {
+  if (data === null || data === undefined) {
+    if (isSandbox()) {
+      localStorage.removeItem(`prog_${toolKey}`)
+      return
+    }
+    if (toolKey === 'my-class') {
+      localStorage.removeItem(`prog_${toolKey}`)
+      return
+    }
+    const user = await getUser()
+    if (!user) {
+      localStorage.removeItem(`prog_${toolKey}`)
+      return
+    }
+    const { error } = await db.from('user_progress')
+      .delete()
+      .eq('user_id', user.id)
+      .eq('tool_key', toolKey)
+    if (error) {
+      console.error(`[SaveProgress] Failed to delete ${toolKey}:`, error)
+      return
+    }
+    localStorage.removeItem(`prog_${toolKey}`)
+    return
+  }
+
   localStorage.setItem(`prog_${toolKey}`, JSON.stringify(data))
 
   if (isSandbox()) return;
@@ -235,7 +261,7 @@ async function saveProgress(toolKey, data) {
 
   const sanitizedData = sanitizeCloudPayload(data)
 
-  await db.from('user_progress').upsert(
+  const { error } = await db.from('user_progress').upsert(
     {
       user_id: user.id,
       tool_key: toolKey,
@@ -244,6 +270,9 @@ async function saveProgress(toolKey, data) {
     },
     { onConflict: 'user_id,tool_key' }
   )
+  if (error) {
+    console.error(`[SaveProgress] Failed to save ${toolKey}:`, error)
+  }
 }
 
 async function loadProgress(toolKey) {
