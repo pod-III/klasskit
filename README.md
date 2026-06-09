@@ -1,6 +1,6 @@
 # 🍎 KlassKit: The Ultimate Classroom Command Center
 
-![Version](https://img.shields.io/badge/version-1.4.4-blue?style=for-the-badge)
+![Version](https://img.shields.io/badge/version-1.4.5-blue?style=for-the-badge)
 ![Activities](https://img.shields.io/badge/activities-52+-green?style=for-the-badge)
 ![Status](https://img.shields.io/badge/status-Active%20Development-orange?style=for-the-badge)
 ![Aesthetic](https://img.shields.io/badge/aesthetic-Soft%20Brutalism-pink?style=for-the-badge)
