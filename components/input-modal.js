@@ -79,6 +79,7 @@
         modal.addEventListener('click', (e) => {
             if (e.target === modal) {
                 hideInputModal();
+                if (currentOnCancel) currentOnCancel();
             }
         });
 
@@ -93,6 +94,7 @@
         escapeKeyListener = (e) => {
             if (e.key === 'Escape' && !modal.classList.contains('hidden')) {
                 hideInputModal();
+                if (currentOnCancel) currentOnCancel();
             }
         };
         document.addEventListener('keydown', escapeKeyListener);

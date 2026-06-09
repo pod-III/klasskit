@@ -1185,7 +1185,14 @@ const HistoryManager = {
   },
 
   async clearHistory() {
-    if (!confirm('Are you sure you want to clear your tab history?')) return;
+    const confirmed = await showConfirmModal('Are you sure you want to clear your tab history?', {
+      title: 'Clear History?',
+      confirmText: 'Clear',
+      cancelText: 'Keep',
+      icon: 'rotate-ccw',
+      iconColor: 'red'
+    });
+    if (!confirmed) return;
     AudioEngine.click();
 
     this.historyMap.clear();
@@ -2714,12 +2721,19 @@ const TabManager = {
     sep.className = 'h-px bg-slate-200 dark:bg-slate-700 my-1';
     menu.appendChild(sep);
 
-    addItem('Delete Group', 'trash-2', () => {
+    addItem('Delete Group', 'trash-2', async () => {
       const tabCount = this.tabs.filter(t => t.groupId === groupId).length;
       const msg = tabCount > 0
         ? `Delete this group and close ${tabCount} tab${tabCount > 1 ? 's' : ''} inside it?`
         : 'Delete this empty group?';
-      if (confirm(msg)) this.deleteGroup(groupId);
+      const confirmed = await showConfirmModal(msg, {
+        title: 'Delete Group?',
+        confirmText: 'Delete',
+        cancelText: 'Keep',
+        icon: 'trash-2',
+        iconColor: 'red'
+      });
+      if (confirmed) this.deleteGroup(groupId);
     });
 
     Utils.refreshIcons(menu);

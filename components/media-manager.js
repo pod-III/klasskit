@@ -412,7 +412,14 @@ const MediaManager = {
     },
 
     async deleteCloudFile(file, cardEl) {
-        if (!confirm(`Delete "${file.name}" from cloud storage? This cannot be undone.`)) return;
+        const confirmed = await showConfirmModal(`Delete "${file.name}" from cloud storage? This cannot be undone.`, {
+            title: 'Delete File?',
+            confirmText: 'Delete',
+            cancelText: 'Keep',
+            icon: 'trash-2',
+            iconColor: 'red'
+        });
+        if (!confirmed) return;
 
         const section = cardEl.closest('.media-section');
         cardEl.classList.add('opacity-50', 'pointer-events-none');
@@ -602,7 +609,14 @@ const MediaManager = {
     },
 
     async deleteSandboxFile(dbInfo, item, cardEl) {
-        if (!confirm(`Delete "${item.key}" from local storage?`)) return;
+        const confirmed = await showConfirmModal(`Delete "${item.key}" from local storage?`, {
+            title: 'Delete File?',
+            confirmText: 'Delete',
+            cancelText: 'Keep',
+            icon: 'trash-2',
+            iconColor: 'red'
+        });
+        if (!confirmed) return;
 
         const section = cardEl.closest('.media-section');
         cardEl.classList.add('opacity-50', 'pointer-events-none');
@@ -792,7 +806,14 @@ const MediaManager = {
         if (this.selectedItems.size === 0) return;
         const count = this.selectedItems.size;
         const noun = count === 1 ? 'file' : 'files';
-        if (!confirm(`Delete ${count} ${noun}? This cannot be undone.`)) return;
+        const confirmed = await showConfirmModal(`Delete ${count} ${noun}? This cannot be undone.`, {
+            title: 'Delete Selected?',
+            confirmText: 'Delete',
+            cancelText: 'Keep',
+            icon: 'trash-2',
+            iconColor: 'red'
+        });
+        if (!confirmed) return;
 
         if (this.cachedMode === 'cloud') {
             await this.deleteSelectedCloudFiles();

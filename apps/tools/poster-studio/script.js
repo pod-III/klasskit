@@ -867,7 +867,7 @@ const App = {
         }); 
     },
     exportPoster() { const a = document.createElement('a'); a.href = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(Store.current)); a.download = `Poster_${Store.current.global.title}.json`; a.click(); },
-    handleFileImport(input) { const f = input.files[0]; if (!f) return; const r = new FileReader(); r.onload = e => { try { const j = JSON.parse(e.target.result); j.id = crypto.randomUUID(); Store.state.posters.push(j); App.switchPoster(j.id); } catch (err) { alert('Invalid file'); } }; r.readAsText(f); },
+    handleFileImport(input) { const f = input.files[0]; if (!f) return; const r = new FileReader(); r.onload = async e => { try { const j = JSON.parse(e.target.result); j.id = crypto.randomUUID(); Store.state.posters.push(j); App.switchPoster(j.id); } catch (err) { await showAlertModal('Invalid file', { title: "Error", icon: "x-octagon", iconColor: "red" }); } }; r.readAsText(f); },
 
     // --- DRAG AND DROP HANDLERS ---
     handleDragStart(e, idx) {

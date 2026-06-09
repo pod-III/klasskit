@@ -1603,9 +1603,16 @@
             }
         },
 
-        createNewSheet(confirmMsg = true) {
-            if (confirmMsg && !confirm("Create a new empty sheet? Any unsaved changes will be cleared.")) {
-                return;
+        async createNewSheet(confirmMsg = true) {
+            if (confirmMsg) {
+                const confirmed = await showConfirmModal("Create a new empty sheet? Any unsaved changes will be cleared.", {
+                    title: "New Sheet?",
+                    confirmText: "Create",
+                    cancelText: "Cancel",
+                    icon: "file-plus",
+                    iconColor: "blue"
+                });
+                if (!confirmed) return;
             }
 
             const state = SpreadsheetApp.State;
@@ -2014,15 +2021,20 @@
             reader.readAsText(file);
         },
 
-        parseCSV(text) {
+        async parseCSV(text) {
             const state = SpreadsheetApp.State;
             const lines = text.split(/\r\n|\n/);
             if (lines.length === 0) return;
 
             // Confirm import
-            if (!confirm("Load values from CSV? This will overwrite the top-left area of your grid.")) {
-                return;
-            }
+            const confirmed = await showConfirmModal("Load values from CSV? This will overwrite the top-left area of your grid.", {
+                title: "Import CSV?",
+                confirmText: "Import",
+                cancelText: "Cancel",
+                icon: "file-up",
+                iconColor: "orange"
+            });
+            if (!confirmed) return;
 
             // Parse lines
             let csvGrid = [];
@@ -2163,9 +2175,16 @@
        7. EDUCATIONAL WORKBOOK TEMPLATES
        ========================================================================= */
     SpreadsheetApp.Templates = {
-        load(templateName, triggerConfirm = true) {
-            if (triggerConfirm && !confirm(`Load ${templateName} template? Any unsaved edits will be replaced.`)) {
-                return;
+        async load(templateName, triggerConfirm = true) {
+            if (triggerConfirm) {
+                const confirmed = await showConfirmModal(`Load ${templateName} template? Any unsaved edits will be replaced.`, {
+                    title: "Load Template?",
+                    confirmText: "Load",
+                    cancelText: "Cancel",
+                    icon: "layout-template",
+                    iconColor: "blue"
+                });
+                if (!confirmed) return;
             }
 
             const state = SpreadsheetApp.State;

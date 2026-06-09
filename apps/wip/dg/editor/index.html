@@ -14,6 +14,7 @@
         <script src="https://unpkg.com/lucide@1.16.0"></script>
         <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.105.4"></script>
         <script src="/supabase.js"></script>
+        <script src="../../../../components/input-modal.js"></script>
 
         <!-- Google Fonts -->
         <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -941,8 +942,15 @@
                 selectCase(newId);
             }
 
-            function deleteActiveCase() {
-                if (confirm("Are you sure you want to delete this case?")) {
+            async function deleteActiveCase() {
+                const confirmed = await showConfirmModal("Are you sure you want to delete this case?", {
+                    title: "Delete Case?",
+                    confirmText: "Delete",
+                    cancelText: "Keep",
+                    icon: "trash-2",
+                    iconColor: "red"
+                });
+                if (confirmed) {
                     cases = cases.filter((c) => c.id !== activeCaseId);
                     activeCaseId = cases.length > 0 ? cases[0].id : null;
                     renderSidebar();
@@ -1068,7 +1076,7 @@
                 const file = event.target.files[0];
                 if (!file) return;
                 const reader = new FileReader();
-                reader.onload = (e) => {
+                reader.onload = async (e) => {
                     try {
                         const parsed = JSON.parse(e.target.result);
                         if (Array.isArray(parsed)) {
@@ -1077,26 +1085,24 @@
                                 cases.length > 0 ? cases[0].id : null;
                             document.getElementById("json-input").value =
                                 JSON.stringify(cases, null, 2);
-                            alert("JSON Imported Successfully!");
+                            await showAlertModal("JSON Imported Successfully!", { title: "Success", icon: "check-circle", iconColor: "green" });
                             renderSidebar();
                             renderActiveCase();
                             lucide.createIcons();
                         } else {
-                            alert(
-                                "Invalid JSON format. Expected an array of cases.",
-                            );
+                            await showAlertModal("Invalid JSON format. Expected an array of cases.", { title: "Error", icon: "alert-triangle", iconColor: "red" });
                         }
                     } catch (err) {
-                        alert("Error parsing JSON file: " + err);
+                        await showAlertModal("Error parsing JSON file: " + err, { title: "Error", icon: "x-octagon", iconColor: "red" });
                     }
                 };
                 reader.readAsText(file);
                 event.target.value = ""; // Reset input to allow re-uploading the same file
             }
 
-            function exportToFile() {
+            async function exportToFile() {
                 if (cases.length === 0) {
-                    alert("No cases to export!");
+                    await showAlertModal("No cases to export!", { title: "No Data", icon: "alert-circle", iconColor: "orange" });
                     return;
                 }
                 const jsonStr = JSON.stringify(cases, null, 2);
@@ -1111,35 +1117,31 @@
                 URL.revokeObjectURL(url);
             }
 
-            function loadJSON() {
+            async function loadJSON() {
                 const input = document.getElementById("json-input").value;
                 try {
                     const parsed = JSON.parse(input);
                     if (Array.isArray(parsed)) {
                         cases = parsed;
                         activeCaseId = cases.length > 0 ? cases[0].id : null;
-                        alert("JSON Loaded Successfully!");
+                        await showAlertModal("JSON Loaded Successfully!", { title: "Success", icon: "check-circle", iconColor: "green" });
                         switchTab("editor");
                     } else {
-                        alert(
-                            "Invalid JSON format. Expected an array of cases.",
-                        );
+                        await showAlertModal("Invalid JSON format. Expected an array of cases.", { title: "Error", icon: "alert-triangle", iconColor: "red" });
                     }
                 } catch (e) {
-                    alert("Error parsing JSON. Please check the syntax.");
+                    await showAlertModal("Error parsing JSON. Please check the syntax.", { title: "Error", icon: "x-octagon", iconColor: "red" });
                 }
             }
 
-            function copyJSON() {
+            async function copyJSON() {
                 const jsonStr = JSON.stringify(cases, null, 2);
-                navigator.clipboard
-                    .writeText(jsonStr)
-                    .then(() => {
-                        alert("JSON Copied to Clipboard!");
-                    })
-                    .catch((err) => {
-                        alert("Failed to copy text: " + err);
-                    });
+                try {
+                    await navigator.clipboard.writeText(jsonStr);
+                    await showAlertModal("JSON Copied to Clipboard!", { title: "Copied", icon: "copy", iconColor: "green" });
+                } catch (err) {
+                    await showAlertModal("Failed to copy text: " + err, { title: "Error", icon: "x-octagon", iconColor: "red" });
+                }
             }
 
             // --- UI State Management ---
