@@ -565,7 +565,14 @@ renderImageManagerList() {
 },
 
     async clearActiveImages() {
-    if (!confirm("Are you sure you want to remove ALL images from this preset?")) return;
+    const confirmed = await showConfirmModal("Are you sure you want to remove ALL images from this preset?", {
+        title: "Remove All Images?",
+        confirmText: "Remove",
+        cancelText: "Keep",
+        icon: "trash-2",
+        iconColor: "red"
+    });
+    if (!confirmed) return;
     Game.images = [];
     Game.currentIndex = 0;
     await this.saveCurrentState();

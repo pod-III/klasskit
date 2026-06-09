@@ -753,7 +753,16 @@ const App = {
             App.closeImageLibrary();
         }
     },
-    deleteImageAsset(id) { if (confirm('Delete image?')) Store.deleteImage(id).then(App.refreshImageLibrary); },
+    async deleteImageAsset(id) { 
+        const confirmed = await showConfirmModal('Delete image?', {
+            title: "Delete Image?",
+            confirmText: "Delete",
+            cancelText: "Keep",
+            icon: "trash-2",
+            iconColor: "red"
+        });
+        if (confirmed) Store.deleteImage(id).then(App.refreshImageLibrary); 
+    },
     switchPoster(id) { Store.state.currentId = id; Store.loadCurrent(); App.updateUI(); Renderer.renderPoster(); App.fitToScreen(); },
     createNewPoster() {
         const newP = { id: crypto.randomUUID(), lastModified: Date.now(), zoom: 0.5, global: { title: 'UNTITLED', subtitle: 'New Project', badge: '1', layout: 'landscape', pattern: 'graph', gridSize: 'md' }, modules: [] };
