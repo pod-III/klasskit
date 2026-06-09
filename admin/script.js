@@ -173,8 +173,12 @@ function debouncedSearch() {
 function getExcludedUserIds() {
     const saved = localStorage.getItem('kk_admin_settings')
     if (saved) {
-        const settings = JSON.parse(saved)
-        return (settings.excluded_ids || '').split(',').map(id => id.trim()).filter(id => id)
+        try {
+            const settings = JSON.parse(saved)
+            return (settings.excluded_ids || '').split(',').map(id => id.trim()).filter(id => id)
+        } catch (e) {
+            console.error('[Admin] Failed to parse excluded IDs:', e)
+        }
     }
     return []
 }
@@ -877,9 +881,9 @@ function applyFilters() {
     renderProgressTable(pagedRows)
     renderNotesTable(pagedNotes)
     renderScheduleTable(pagedSched)
-    renderClassesView(pagedClasses)
-    renderTasksTable()
-    renderMyClassTable()
+    renderClassesView(pagedClasses, filteredClassUnits)
+    renderTasksTable(filteredMySpaceTasks)
+    renderMyClassTable(filteredMyClass)
     updateSortIcons()
 
     const userCount = document.getElementById('userCount')
@@ -1170,7 +1174,7 @@ function renderScheduleTable(rows) {
 }
 
 // ── SCHEDULE CLASSES VIEW ──
-function renderClassesView(pagedClasses) {
+function renderClassesView(pagedClasses, filteredUnits) {
     // Admin classes table
     const adminBody = document.getElementById('classAdminTableBody')
     if (adminBody) {
@@ -1214,8 +1218,10 @@ function renderClassesView(pagedClasses) {
     // Units table
     const unitsBody = document.getElementById('classUnitsTableBody')
     if (unitsBody) {
-        const excludedIds = getExcludedUserIds()
-        const filteredUnits = allClassUnits.filter(cls => !excludedIds.includes(cls.user_id))
+        if (!filteredUnits) {
+            const excludedIds = getExcludedUserIds()
+            filteredUnits = allClassUnits.filter(cls => !excludedIds.includes(cls.user_id))
+        }
         if (!filteredUnits.length) {
             unitsBody.innerHTML = '<tr><td colspan="5" class="text-center py-12 text-slate-500 font-bold">No class units found</td></tr>'
         } else {
@@ -1573,15 +1579,19 @@ function saveSettings() {
 function loadSettings() {
     const saved = localStorage.getItem('kk_admin_settings')
     if (saved) {
-        const settings = JSON.parse(saved)
-        const maint = document.getElementById('setting-maintenance')
-        const sync = document.getElementById('setting-sync')
-        const ann = document.getElementById('setting-announcement')
-        const excl = document.getElementById('setting-excluded-ids')
-        if (maint) maint.checked = settings.maintenance || false
-        if (sync) sync.checked = settings.sync !== false
-        if (ann) ann.value = settings.announcement || ''
-        if (excl) excl.value = settings.excluded_ids || ''
+        try {
+            const settings = JSON.parse(saved)
+            const maint = document.getElementById('setting-maintenance')
+            const sync = document.getElementById('setting-sync')
+            const ann = document.getElementById('setting-announcement')
+            const excl = document.getElementById('setting-excluded-ids')
+            if (maint) maint.checked = settings.maintenance || false
+            if (sync) sync.checked = settings.sync !== false
+            if (ann) ann.value = settings.announcement || ''
+            if (excl) excl.value = settings.excluded_ids || ''
+        } catch (e) {
+            console.error('[Admin] Failed to parse saved settings:', e)
+        }
     }
     renderExcludedUserPicker()
 }
@@ -2069,12 +2079,14 @@ function resetAnnForm() {
 }
 
 // ── MY SPACE TASKS VIEW ──
-function renderTasksTable() {
+function renderTasksTable(filteredTasks) {
     const body = document.getElementById('tasksTableBody')
     if (!body) return
 
-    const excludedIds = getExcludedUserIds()
-    const filteredTasks = allMySpaceTasks.filter(task => !excludedIds.includes(task.user_id))
+    if (!filteredTasks) {
+        const excludedIds = getExcludedUserIds()
+        filteredTasks = allMySpaceTasks.filter(task => !excludedIds.includes(task.user_id))
+    }
 
     if (!filteredTasks.length) {
         body.innerHTML = '<tr><td colspan="5" class="text-center py-12 text-slate-500 font-bold">No tasks found</td></tr>'
@@ -2119,12 +2131,14 @@ function openTaskModal(id) {
 }
 
 // ── MY CLASS VIEW ──
-function renderMyClassTable() {
+function renderMyClassTable(filteredMyClass) {
     const body = document.getElementById('myclassTableBody')
     if (!body) return
 
-    const excludedIds = getExcludedUserIds()
-    const filteredMyClass = allMyClass.filter(cls => !excludedIds.includes(cls.user_id))
+    if (!filteredMyClass) {
+        const excludedIds = getExcludedUserIds()
+        filteredMyClass = allMyClass.filter(cls => !excludedIds.includes(cls.user_id))
+    }
 
     if (!filteredMyClass.length) {
         body.innerHTML = '<tr><td colspan="4" class="text-center py-12 text-slate-500 font-bold">No class records found</td></tr>'
