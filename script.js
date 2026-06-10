@@ -2297,10 +2297,10 @@ const TabManager = {
     UI.toggleModal('game-modal', true);
     savedData.tabs.forEach(tabData => {
       const game = State.getGameById(tabData.gameId);
-      if (game) {
-        const tab = this.createTabSilent(game, tabData.id, false, tabData.groupId);
-        if (tabData.pinned) this.togglePinTab(tab.id, true);
-      }
+      if (!game) return;
+      if (game.pro && !State.isPro()) return;
+      const tab = this.createTabSilent(game, tabData.id, false, tabData.groupId);
+      if (tabData.pinned) this.togglePinTab(tab.id, true);
     });
 
     const targetTab = (savedData.activeTabId && this.tabs.find(t => t.id === savedData.activeTabId))
@@ -2588,6 +2588,15 @@ const TabManager = {
 
     addItem('Pin / Unpin', 'pin', () => this.togglePinTab(tabId));
     addItem('Reload', 'rotate-cw', () => this.reloadTab(tabId));
+    addItem('Open in New Tab', 'external-link', () => {
+      const game = State.getGameById(tab.gameId);
+      if (!game) return;
+      if (game.pro && !State.isPro()) {
+        UI.showToast("This app is exclusive to PRO users", "warning");
+        return;
+      }
+      window.open(game.path, '_blank', 'noopener,noreferrer');
+    });
     addItem('Close Tab', 'x', () => this.closeTab(tabId));
 
     if (hasGroups) {
