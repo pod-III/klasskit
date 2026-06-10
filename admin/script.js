@@ -183,6 +183,38 @@ function getExcludedUserIds() {
     return []
 }
 
+function getToolMeta(toolKey) {
+    // Format name: replace hyphens with spaces and capitalize words
+    const displayName = toolKey
+        .split('-')
+        .map(w => w.charAt(0).toUpperCase() + w.slice(1))
+        .join(' ')
+
+    // Determine category
+    const toolMap = window.toolCategoryMap || {}
+    let cat = toolMap[toolKey]
+    if (!cat) {
+        if (toolKey.includes('game') || toolKey.includes('quiz') || toolKey === 'card-match' || toolKey === 'card-memory' || toolKey === 'connect-four') cat = 'Games'
+        else if (toolKey.includes('note') || toolKey.includes('schedule') || toolKey.includes('admin') || toolKey === 'my-class') cat = 'My Space'
+        else if (toolKey.includes('factory') || toolKey.includes('generator') || toolKey.includes('maker')) cat = 'Workshop'
+        else cat = 'Tools'
+    }
+
+    const categories = {
+        'My Space': { color: '#ff7e33', icon: 'layout' },
+        'Tools': { color: '#1ea7fd', icon: 'settings' },
+        'Workshop': { color: '#ff4785', icon: 'wrench' },
+        'Games': { color: '#00d063', icon: 'gamepad-2' }
+    }
+
+    return {
+        name: displayName,
+        category: cat,
+        color: categories[cat]?.color || '#1ea7fd',
+        icon: categories[cat]?.icon || 'settings'
+    }
+}
+
 // ── LOG ENTRY EXTRACTOR ──
 // user_progress is an upsert table (1 row per user+tool). The actual history of
 // individual interactions is stored as an array inside row.data. This function
@@ -277,6 +309,66 @@ function updateStats() {
     if (statEvents) statEvents.textContent = metricsSched.length
     const statClasses = document.getElementById('statClasses')
     if (statClasses) statClasses.textContent = metricsClasses.length
+
+    // Render Top Tools Card
+    const topToolsList = document.getElementById('topToolsList')
+    const topToolsTitle = document.getElementById('topToolsTitle')
+    if (topToolsList) {
+        const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000
+        const weekToolCounts = {}
+        const filteredProgress = metricsProgress.filter(r => r.tool_key !== 'klasskit_hub' && r.tool_key !== 'hub')
+        const allLogEntries = filteredProgress.flatMap(r => extractLogEntries(r))
+
+        allLogEntries.forEach(entry => {
+            if (entry.timestamp.getTime() >= sevenDaysAgo) {
+                weekToolCounts[entry.tool_key] = (weekToolCounts[entry.tool_key] || 0) + 1
+            }
+        })
+        metricsNotes.forEach(n => {
+            const ts = Number(n.updated_at) || 0
+            if (ts >= sevenDaysAgo) {
+                weekToolCounts['lesson-note'] = (weekToolCounts['lesson-note'] || 0) + 1
+            }
+        })
+
+        let topTools = Object.entries(weekToolCounts).sort((a, b) => b[1] - a[1])
+        let isFallback = false
+
+        // Fallback: If no activity this week, use overall top tools
+        if (topTools.length === 0) {
+            const allTimeCounts = {}
+            allLogEntries.forEach(entry => {
+                allTimeCounts[entry.tool_key] = (allTimeCounts[entry.tool_key] || 0) + 1
+            })
+            metricsNotes.forEach(n => {
+                allTimeCounts['lesson-note'] = (allTimeCounts['lesson-note'] || 0) + 1
+            })
+            topTools = Object.entries(allTimeCounts).sort((a, b) => b[1] - a[1])
+            isFallback = true
+        }
+
+        if (topToolsTitle) {
+            topToolsTitle.textContent = isFallback ? 'Top Tools Overall' : 'Top Tools This Week'
+        }
+
+        const sliced = topTools.slice(0, 3)
+        if (sliced.length === 0) {
+            topToolsList.innerHTML = '<div class="text-center py-6 text-slate-500 font-bold text-xs">No activity yet</div>'
+        } else {
+            topToolsList.innerHTML = sliced.map(([toolKey, count]) => {
+                const meta = getToolMeta(toolKey)
+                return `
+                    <div class="flex items-center justify-between p-1.5 bg-slate-900/50 rounded-xl border border-slate-700/30">
+                        <span class="text-xs text-slate-400 flex items-center gap-1.5">
+                            <i data-lucide="${meta.icon}" class="w-3.5 h-3.5" style="color: ${meta.color}"></i> ${meta.name}
+                        </span>
+                        <span class="text-sm font-bold text-white font-mono">${count} <span class="text-[9px] text-slate-500 font-bold uppercase tracking-wide">saves</span></span>
+                    </div>
+                `
+            }).join('')
+            lucide.createIcons({ root: topToolsList })
+        }
+    }
 
     // Global Storage Stat
     const totalUsed = Object.values(metricsProfiles).reduce((sum, p) => sum + (p.storage_usage || 0), 0)
