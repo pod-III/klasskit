@@ -118,22 +118,222 @@
       }
     };
 
+    // ── IndexedDB for Worksheet Sets ──────────────────────────────────────────
+    const DB_NAME = 'klasskit_worksheet_db';
+    const DB_VERSION = 1;
+    const STORE_SETS = 'worksheet_sets';
+    let dbInstance = null;
+
+    function initDB() {
+      return new Promise((resolve, reject) => {
+        if (dbInstance) return resolve(dbInstance);
+        const request = indexedDB.open(DB_NAME, DB_VERSION);
+        request.onupgradeneeded = (e) => {
+          const db = e.target.result;
+          if (!db.objectStoreNames.contains(STORE_SETS)) {
+            db.createObjectStore(STORE_SETS, { keyPath: 'id' });
+          }
+        };
+        request.onsuccess = (e) => {
+          dbInstance = e.target.result;
+          resolve(dbInstance);
+        };
+        request.onerror = (e) => reject(e.target.error);
+      });
+    }
+
+    // ── Cloud Set Management (Following card-maker/puzzle-maker patterns) ──────
+    let activeSetId = null;
+    let activeSetName = null;
+    let allSets = [];
+    let sortMode = 'recent';
+
+    async function saveWorksheetSetToDB(name, stateData, existingId = null) {
+      if (!isSandbox()) {
+        const { data: { user } } = await db.auth.getUser();
+        if (!user) return null;
+
+        const set = {
+          user_id: user.id,
+          name,
+          state_data: typeof sanitizeCloudPayload === 'function' ? sanitizeCloudPayload(stateData) : stateData,
+          last_used: new Date().toISOString()
+        };
+
+        if (existingId) {
+          const { data, error } = await db.from('tools_worksheetmaker')
+            .update({ name, state_data: set.state_data, last_used: set.last_used })
+            .eq('id', existingId)
+            .select('id').single();
+          if (error) { console.error('[WorksheetSet] Update failed:', error); return null; }
+          return data.id;
+        } else {
+          const { data, error } = await db.from('tools_worksheetmaker')
+            .insert([set])
+            .select('id').single();
+          if (error) { console.error('[WorksheetSet] Insert failed:', error); return null; }
+          return data.id;
+        }
+      }
+
+      // Local IndexedDB fallback
+      const localDb = await initDB();
+      const tx = localDb.transaction(STORE_SETS, 'readwrite');
+      const store = tx.objectStore(STORE_SETS);
+
+      const set = {
+        name,
+        stateData,
+        createdAt: Date.now(),
+        lastUsed: Date.now(),
+        usageCount: 1
+      };
+
+      if (existingId) {
+        return new Promise((resolve) => {
+          const req = store.get(existingId);
+          req.onsuccess = () => {
+            const old = req.result;
+            if (old) {
+              set.id = existingId;
+              set.createdAt = old.createdAt || Date.now();
+              set.usageCount = (old.usageCount || 0) + 1;
+            }
+            store.put(set);
+            tx.oncomplete = () => resolve(set.id);
+          };
+        });
+      }
+
+      const generatedId = 'ws_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+      set.id = generatedId;
+      const req = store.add(set);
+      return new Promise(r => {
+        req.onsuccess = () => r(set.id);
+      });
+    }
+
+    async function updateWorksheetSetMetadata(id, data) {
+      if (!isSandbox()) {
+        const updateData = {};
+        if (data.lastUsed) updateData.last_used = new Date().toISOString();
+        if (data.stateData) updateData.state_data = typeof sanitizeCloudPayload === 'function' ? sanitizeCloudPayload(data.stateData) : data.stateData;
+        if (data.name) updateData.name = data.name;
+        if (data.usageCount !== undefined) {
+          updateData.usage_count = data.usageCount;
+          updateData.last_used = new Date().toISOString();
+        }
+
+        const { error } = await db.from('tools_worksheetmaker').update(updateData).eq('id', id);
+        if (error) console.error('[WorksheetSet] Update metadata failed:', error);
+        return;
+      }
+
+      const localDb = await initDB();
+      const tx = localDb.transaction(STORE_SETS, 'readwrite');
+      const store = tx.objectStore(STORE_SETS);
+
+      return new Promise((resolve) => {
+        const req = store.get(id);
+        req.onsuccess = () => {
+          const item = req.result;
+          if (item) {
+            const updated = { ...item, ...data, lastUsed: Date.now() };
+            if (data.usageCount !== undefined) updated.usageCount = data.usageCount;
+            store.put(updated);
+          }
+          resolve();
+        };
+      });
+    }
+
+    async function getAllWorksheetSets() {
+      if (!isSandbox()) {
+        const { data, error } = await db.from('tools_worksheetmaker')
+          .select('*')
+          .order('last_used', { ascending: false });
+        if (error) { console.error(error); return []; }
+        return data.map(d => ({
+          id: d.id,
+          name: d.name,
+          stateData: d.state_data,
+          usageCount: d.usage_count || 0,
+          lastUsed: new Date(d.last_used).getTime(),
+          createdAt: new Date(d.created_at).getTime()
+        }));
+      }
+
+      try {
+        const localDb = await initDB();
+        return new Promise((res) => {
+          const r = localDb.transaction(STORE_SETS, 'readonly').objectStore(STORE_SETS).getAll();
+          r.onsuccess = () => {
+            let sets = r.result || [];
+            sets.forEach(set => {
+              if (!set.lastUsed) set.lastUsed = set.createdAt || Date.now();
+              if (!set.usageCount) set.usageCount = 0;
+            });
+            res(sets);
+          };
+          r.onerror = () => res([]);
+        });
+      } catch (e) { return []; }
+    }
+
+    async function deleteWorksheetSet(id) {
+      if (!isSandbox()) {
+        const { data: { user } } = await db.auth.getUser();
+        if (user) {
+          await db.from('tools_worksheetmaker').delete().eq('id', id);
+        }
+        return;
+      }
+
+      const localDb = await initDB();
+      const tx = localDb.transaction(STORE_SETS, 'readwrite');
+      tx.objectStore(STORE_SETS).delete(id);
+      return new Promise(r => { tx.oncomplete = r; });
+    }
+
     let saveTimeout = null;
-    function saveState() {
-      localStorage.setItem('prog_worksheet-maker', JSON.stringify(state));
+    async function saveState() {
+      const stateToSave = {
+        activeSetId,
+        viewMode: state.viewMode,
+        showAnswers: state.showAnswers,
+        worksheet: state.worksheet
+      };
+
+      localStorage.setItem('prog_worksheet-maker', JSON.stringify(stateToSave));
+
+      // Auto-save to library if active set
+      if (activeSetId) {
+        try {
+          await updateWorksheetSetMetadata(activeSetId, { stateData: stateToSave });
+        } catch (err) {
+          console.error('[SaveState] Failed to update library metadata:', err);
+        }
+      }
+
       clearTimeout(saveTimeout);
       saveTimeout = setTimeout(() => {
         if (typeof saveProgress === 'function') {
-          saveProgress('worksheet-maker', state).catch(err => {
+          saveProgress('worksheet-maker', stateToSave).catch(err => {
             console.error('[Cloud Save] Error:', err);
           });
         }
       }, 1000);
     }
+
     async function loadState() {
+      // Load library list first
+      allSets = await getAllWorksheetSets();
+
       let saved = null;
       if (typeof loadProgress === 'function') {
-        saved = await loadProgress('worksheet-maker');
+        try {
+          saved = await loadProgress('worksheet-maker');
+        } catch (e) {}
       }
       if (!saved) {
         const local = localStorage.getItem('prog_worksheet-maker') || localStorage.getItem('worksheet-maker_state');
@@ -144,7 +344,222 @@
         }
       }
       if (saved) {
-        state = saved;
+        activeSetId = saved.activeSetId || null;
+        state.viewMode = saved.viewMode || 'edit';
+        state.showAnswers = saved.showAnswers || false;
+        if (saved.worksheet) {
+          state.worksheet = saved.worksheet;
+        }
+      }
+
+      // Restore active set name
+      if (activeSetId) {
+        const activeSet = allSets.find(s => s.id === activeSetId);
+        if (activeSet) {
+          activeSetName = activeSet.name;
+          updateActiveIndicator();
+        } else {
+          activeSetId = null; // Clean up stale ID
+        }
+      }
+
+      renderLibrary();
+    }
+
+    // ── Library Workflows (Following sets_management_pattern.md) ──────────────
+
+    async function createNewSet() {
+      state.worksheet = {
+        title: 'Untitled Worksheet',
+        instructions: 'Please read each question carefully and provide the best possible answer.',
+        questions: []
+      };
+      state.viewMode = 'edit';
+      state.showAnswers = false;
+      activeSetId = null;
+      activeSetName = null;
+
+      const nameInput = document.getElementById('set-name-input');
+      if (nameInput) nameInput.value = '';
+
+      updateActiveIndicator();
+      render();
+      saveState();
+    }
+
+    async function saveCurrentSet() {
+      const nameInput = document.getElementById('set-name-input');
+      const name = nameInput ? nameInput.value.trim() : '';
+      if (!name || name.length > 100) {
+        alert('Please enter a valid worksheet set name (1-100 characters)');
+        return;
+      }
+
+      const stateData = {
+        activeSetId,
+        viewMode: state.viewMode,
+        showAnswers: state.showAnswers,
+        worksheet: state.worksheet
+      };
+
+      const newId = await saveWorksheetSetToDB(name, stateData, activeSetId);
+      if (newId) {
+        activeSetId = newId;
+        activeSetName = name;
+        if (nameInput) nameInput.value = '';
+        updateActiveIndicator();
+        allSets = await getAllWorksheetSets();
+        renderLibrary();
+        alert(`Worksheet set "${name}" saved!`);
+      }
+    }
+
+    async function loadSetFromList(id) {
+      let stateData = null;
+      let freshSet = null;
+
+      if (!isSandbox() && typeof db !== 'undefined') {
+        try {
+          const { data: { user } } = await db.auth.getUser();
+          if (user) {
+            const { data, error } = await db.from('tools_worksheetmaker')
+              .select('*')
+              .eq('id', id)
+              .single();
+            if (data) {
+              stateData = data.state_data;
+              freshSet = { name: data.name, usageCount: data.usage_count || 0 };
+            }
+          }
+        } catch (e) {}
+      }
+
+      if (!stateData) {
+        const localSet = await loadSetFromLibrary(id);
+        if (localSet) {
+          stateData = localSet.stateData;
+          freshSet = { name: localSet.name, usageCount: localSet.usageCount || 0 };
+        }
+      }
+
+      if (freshSet) {
+        await updateWorksheetSetMetadata(id, { usageCount: freshSet.usageCount + 1 });
+      }
+
+      if (stateData && freshSet) {
+        loadWorksheetSet(stateData, id, freshSet.name);
+      }
+    }
+
+    async function loadSetFromLibrary(id) {
+      const localDb = await initDB();
+      return new Promise((res) => {
+        const tx = localDb.transaction(STORE_SETS, 'readonly');
+        const store = tx.objectStore(STORE_SETS);
+        const req = store.get(id);
+        req.onsuccess = () => res(req.result);
+        req.onerror = () => res(null);
+      });
+    }
+
+    function loadWorksheetSet(stateData, id = null, name = '') {
+      activeSetId = id;
+      activeSetName = name;
+      state.viewMode = stateData.viewMode || 'edit';
+      state.showAnswers = stateData.showAnswers || false;
+      if (stateData.worksheet) {
+        state.worksheet = stateData.worksheet;
+      }
+
+      const nameInput = document.getElementById('set-name-input');
+      if (nameInput) nameInput.value = '';
+
+      updateActiveIndicator();
+      render();
+      saveState();
+    }
+
+    function updateActiveIndicator() {
+      const indicator = document.getElementById('active-set-indicator');
+      const nameEl = document.getElementById('active-set-name');
+      const saveBtn = document.getElementById('save-btn');
+
+      if (indicator && nameEl) {
+        if (activeSetId && activeSetName) {
+          indicator.classList.remove('hidden');
+          nameEl.textContent = activeSetName;
+          if (saveBtn) saveBtn.innerHTML = '<i data-lucide="copy" class="w-3.5 h-3.5"></i> Save As';
+        } else {
+          indicator.classList.add('hidden');
+          if (saveBtn) saveBtn.innerHTML = '<i data-lucide="save" class="w-3.5 h-3.5"></i> Save';
+        }
+        lucide.createIcons();
+      }
+    }
+
+    function closeActiveSet() {
+      activeSetId = null;
+      activeSetName = null;
+      updateActiveIndicator();
+      renderLibrary();
+    }
+
+    function changeSetsSort() {
+      const sortSelect = document.getElementById('sets-sort');
+      if (sortSelect) {
+        sortMode = sortSelect.value;
+        renderLibrary();
+      }
+    }
+
+    function renderLibrary() {
+      const list = document.getElementById('sets-list');
+      if (!list) return;
+
+      let sorted = [...allSets];
+      if (sortMode === 'recent') sorted.sort((a, b) => b.lastUsed - a.lastUsed);
+      else if (sortMode === 'alpha') sorted.sort((a, b) => a.name.localeCompare(b.name));
+      else if (sortMode === 'popular') sorted.sort((a, b) => b.usageCount - a.usageCount);
+
+      if (sorted.length === 0) {
+        list.innerHTML = '<p class="text-slate-400 dark:text-slate-500 text-[10px] italic p-2">No saved worksheets yet.</p>';
+        return;
+      }
+
+      list.innerHTML = sorted.map(set => {
+        const isActive = activeSetId === set.id;
+        const qCount = set.stateData?.worksheet?.questions?.length || 0;
+        const date = new Date(set.lastUsed).toLocaleDateString();
+        return `
+          <div class="flex items-center justify-between gap-2 p-2 border-2 ${isActive ? 'bg-blue/10 border-blue text-blue dark:bg-blue/20' : 'bg-slate-50 dark:bg-slate-900 border-dark/10 dark:border-slate-700 hover:border-dark/30 dark:hover:border-slate-500'} rounded-xl transition-all duration-150">
+            <div class="flex items-center gap-2 cursor-pointer flex-1 min-w-0" onclick="loadSetFromList('${set.id}')">
+              <div class="w-8 h-8 rounded-lg bg-blue/20 flex items-center justify-center text-blue font-bold text-xs shrink-0">
+                ${qCount}
+              </div>
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-1.5">
+                  <p class="text-xs font-bold truncate ${isActive ? 'text-blue' : 'text-slate-700 dark:text-slate-300'}">${esc(set.name)}</p>
+                  ${isActive ? '<span class="px-1 py-0.5 bg-blue text-white text-[7px] font-heading font-black rounded uppercase tracking-wider">Active</span>' : ''}
+                </div>
+                <p class="text-[9px] text-slate-400 dark:text-slate-500">${date} • ${set.usageCount || 0} uses</p>
+              </div>
+            </div>
+            <button onclick="event.stopPropagation(); deleteWorksheetSetPrompt('${set.id}')" class="p-1.5 text-slate-400 hover:text-red-500 dark:hover:text-red-400 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-lg transition-colors shrink-0">
+              <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+            </button>
+          </div>
+        `;
+      }).join('');
+
+      lucide.createIcons();
+    }
+
+    async function deleteWorksheetSetPrompt(id) {
+      if (confirm('Delete this worksheet set? This cannot be undone.')) {
+        await deleteWorksheetSet(id);
+        if (activeSetId === id) closeActiveSet();
+        allSets = await getAllWorksheetSets();
+        renderLibrary();
       }
     }
 
@@ -552,31 +967,78 @@
           </div>
         </div>
 
-        <div class="max-w-4xl mx-auto p-4 pb-32 fade-in">
-          <div class="bg-white dark:bg-slate-800 rounded-2xl border-3 border-dark dark:border-slate-700 shadow-hard dark:shadow-none p-6 mb-6">
-            <h2 class="text-lg font-bold text-slate-800 dark:text-white mb-4 flex items-center gap-2 font-heading uppercase tracking-wider">
-              <i data-lucide="settings" class="w-5 h-5 text-slate-400 dark:text-slate-500"></i> Worksheet Details
-            </h2>
-            <div class="space-y-4">
-              ${getEditorInput('Worksheet Title', state.worksheet.title, '', 'update-ws-title', '', 'text', 'text-xl font-bold')}
-              ${getEditorTextarea('Instructions', state.worksheet.instructions, '', 'update-ws-inst')}
-            </div>
-          </div>
+        <div class="max-w-7xl mx-auto p-4 pb-32 fade-in flex flex-col lg:flex-row gap-6">
           
-          <div class="space-y-4">${qHtml}</div>
-          ${emptyStateHtml}
+          <!-- Library Sidebar -->
+          <div class="w-full lg:w-80 shrink-0 space-y-6 no-print">
+            <div class="bg-white dark:bg-slate-800 rounded-2xl border-3 border-dark dark:border-slate-700 shadow-hard dark:shadow-none p-5">
+              <div class="flex items-center justify-between mb-4">
+                <h2 class="text-base font-bold text-slate-800 dark:text-white flex items-center gap-2 font-heading uppercase tracking-wider">
+                  <i data-lucide="library" class="w-5 h-5 text-green"></i> Saved Worksheets
+                </h2>
+                <select id="sets-sort" onchange="changeSetsSort()" class="text-[10px] bg-slate-100 dark:bg-slate-900 border-2 border-dark dark:border-slate-600 rounded-lg px-2 py-1 font-bold">
+                  <option value="recent">Recent</option>
+                  <option value="alpha">A-Z</option>
+                  <option value="popular">Popular</option>
+                </select>
+              </div>
 
-          <!-- Floating Menu -->
-          <div class="fixed bottom-0 left-0 right-0 p-5 bg-white/80 dark:bg-slate-800/80 backdrop-blur-[16px] border-t-2 border-dark/20 dark:border-white/10 flex justify-center z-40 no-print">
-            <div class="flex flex-wrap justify-center gap-3 max-w-4xl w-full">
-              ${Object.values(QUESTION_TYPES).map(t => `
-                <button data-action="add-question" data-type="${t.id}" class="btn-chunky bg-white dark:bg-slate-700 hover:bg-slate-50 dark:hover:bg-slate-600 text-dark dark:text-white px-4 py-2.5 rounded-xl border-2 border-dark dark:border-slate-500 shadow-hard-sm dark:shadow-none font-heading text-xs flex items-center gap-2">
-                  <i data-lucide="${t.icon}" class="w-4 h-4 text-blue"></i>
-                  <span>${t.label}</span>
-                </button>
-              `).join('')}
+              <!-- Active Set Indicator -->
+              <div id="active-set-indicator" class="hidden mb-4 p-3 bg-blue/10 border-2 border-blue/30 rounded-xl">
+                <div class="flex items-center justify-between">
+                  <span class="text-xs font-bold text-blue truncate">Editing: <span id="active-set-name" class="underline"></span></span>
+                  <button onclick="closeActiveSet()" class="text-blue/60 hover:text-blue shrink-0 ml-2"><i data-lucide="x" class="w-4 h-4"></i></button>
+                </div>
+              </div>
+
+              <!-- Save form -->
+              <div class="flex flex-col gap-2 mb-4">
+                <input type="text" id="set-name-input" placeholder="Worksheet name..." class="w-full text-xs px-3 py-2.5 rounded-xl border-2 border-dark dark:border-slate-600 bg-slate-50 dark:bg-slate-900 font-bold text-dark dark:text-white focus:outline-none focus:border-blue transition-all">
+                <div class="grid grid-cols-2 gap-2">
+                  <button id="save-btn" onclick="saveCurrentSet()" class="btn-chunky bg-green text-dark px-3 py-2 rounded-xl text-xs flex items-center justify-center gap-1">
+                    <i data-lucide="save" class="w-3.5 h-3.5"></i> Save
+                  </button>
+                  <button onclick="createNewSet()" class="btn-chunky bg-white dark:bg-slate-700 text-dark dark:text-white px-3 py-2 rounded-xl text-xs flex items-center justify-center gap-1 border-2 border-dark dark:border-slate-500">
+                    <i data-lucide="plus" class="w-3.5 h-3.5"></i> New
+                  </button>
+                </div>
+              </div>
+
+              <!-- Library Sets List -->
+              <div id="sets-list" class="space-y-2.5 max-h-[300px] overflow-y-auto pr-1 custom-scrollbar">
+                <!-- Loaded sets list will render here -->
+              </div>
             </div>
           </div>
+
+          <!-- Main Worksheet Editor -->
+          <div class="flex-1 min-w-0">
+            <div class="bg-white dark:bg-slate-800 rounded-2xl border-3 border-dark dark:border-slate-700 shadow-hard dark:shadow-none p-6 mb-6">
+              <h2 class="text-lg font-bold text-slate-800 dark:text-white mb-4 flex items-center gap-2 font-heading uppercase tracking-wider">
+                <i data-lucide="settings" class="w-5 h-5 text-slate-400 dark:text-slate-500"></i> Worksheet Details
+              </h2>
+              <div class="space-y-4">
+                ${getEditorInput('Worksheet Title', state.worksheet.title, '', 'update-ws-title', '', 'text', 'text-xl font-bold')}
+                ${getEditorTextarea('Instructions', state.worksheet.instructions, '', 'update-ws-inst')}
+              </div>
+            </div>
+            
+            <div class="space-y-4">${qHtml}</div>
+            ${emptyStateHtml}
+
+            <!-- Floating Menu (Add questions) -->
+            <div class="fixed bottom-0 left-0 right-0 p-5 bg-white/80 dark:bg-slate-800/80 backdrop-blur-[16px] border-t-2 border-dark/20 dark:border-white/10 flex justify-center z-40 no-print">
+              <div class="flex flex-wrap justify-center gap-3 max-w-4xl w-full">
+                ${Object.values(QUESTION_TYPES).map(t => `
+                  <button data-action="add-question" data-type="${t.id}" class="btn-chunky bg-white dark:bg-slate-700 hover:bg-slate-50 dark:hover:bg-slate-600 text-dark dark:text-white px-4 py-2.5 rounded-xl border-2 border-dark dark:border-slate-500 shadow-hard-sm dark:shadow-none font-heading text-xs flex items-center gap-2">
+                    <i data-lucide="${t.icon}" class="w-4 h-4 text-blue"></i>
+                    <span>${t.label}</span>
+                  </button>
+                `).join('')}
+              </div>
+            </div>
+          </div>
+
         </div>
       `;
     }
@@ -657,6 +1119,11 @@
       const scrollY = window.scrollY;
       document.getElementById('app').innerHTML = state.viewMode === 'edit' ? getEditModeHTML() : getPreviewModeHTML();
       lucide.createIcons();
+      
+      if (state.viewMode === 'edit') {
+        renderLibrary();
+        updateActiveIndicator();
+      }
       
       if (scrollToBottom) {
         setTimeout(() => window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' }), 50);
