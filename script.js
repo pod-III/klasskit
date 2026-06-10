@@ -455,15 +455,6 @@ const UI = {
       document.querySelectorAll('.pro-only-card').forEach(card => {
         card.classList.remove('hidden');
       });
-
-      // Update Workshop Section Badge count on landing page
-      document.querySelectorAll('.section-header').forEach(header => {
-        const h3 = header.querySelector('h3');
-        const badge = header.querySelector('.section-header-badge');
-        if (h3 && h3.textContent.includes('Workshop Tools') && badge) {
-          badge.textContent = '4 Tools';
-        }
-      });
     }
   },
 
@@ -817,29 +808,24 @@ const Announcements = {
 
       return `
         <div onclick="Announcements.viewDetail('${ann.id}')" 
-          class="ann-card bg-white dark:bg-slate-800 p-6 rounded-2xl border-[3px] border-dark dark:border-slate-600 shadow-hard dark:shadow-neon-sm hover:border-blue dark:hover:border-blue transition-all cursor-pointer group animate-pop-in" 
+          class="ann-card bg-white dark:bg-slate-800 p-4 rounded-xl border-2 border-dark dark:border-slate-600 shadow-sm hover:border-blue dark:hover:border-blue transition-all cursor-pointer group animate-pop-in" 
           style="animation-delay: ${i * 0.1}s">
           
-          <div class="flex items-start justify-between mb-4">
-            <div class="flex items-center gap-3">
-              <div class="w-10 h-10 rounded-xl bg-${color}/10 text-${color} flex items-center justify-center border-2 border-${color}/20">
-                <i data-lucide="${icon}" class="w-5 h-5"></i>
+          <div class="flex items-start justify-between mb-2">
+            <div class="flex items-center gap-2">
+              <div class="w-7 h-7 rounded-lg bg-${color}/10 text-${color} flex items-center justify-center border-2 border-${color}/20">
+                <i data-lucide="${icon}" class="w-3.5 h-3.5"></i>
               </div>
               <div>
-                <span class="text-[10px] font-black text-${color} uppercase tracking-widest">${ann.type}</span>
-                <div class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">${date}</div>
+                <span class="text-[9px] font-black text-${color} uppercase tracking-widest">${ann.type}</span>
+                <div class="text-[9px] font-bold text-slate-400 uppercase tracking-widest">${date}</div>
               </div>
             </div>
-            <i data-lucide="chevron-right" class="w-5 h-5 text-slate-300 group-hover:text-blue transition-colors"></i>
+            <i data-lucide="chevron-right" class="w-4 h-4 text-slate-300 group-hover:text-blue transition-colors"></i>
           </div>
           
-          <h4 class="text-xl font-heading font-black text-dark dark:text-white mb-3 leading-tight group-hover:text-blue transition-colors">${ann.title}</h4>
-          <p class="text-sm text-slate-600 dark:text-slate-400 leading-relaxed font-body font-semibold line-clamp-3 mb-4">${this.formatText(ann.content).replace(/<br>/g, ' ')}</p>
-          
-          <div class="flex items-center gap-2 text-[10px] font-black text-blue uppercase tracking-[0.2em] opacity-0 group-hover:opacity-100 transition-opacity">
-            <span>View Full Update</span>
-            <i data-lucide="arrow-right" class="w-3 h-3"></i>
-          </div>
+          <h4 class="text-base font-heading font-black text-dark dark:text-white mb-1.5 leading-tight group-hover:text-blue transition-colors">${ann.title}</h4>
+          <p class="text-xs text-slate-600 dark:text-slate-400 leading-relaxed font-body font-semibold line-clamp-2">${this.formatText(ann.content).replace(/<br>/g, ' ')}</p>
         </div>
       `;
     }).join('');
