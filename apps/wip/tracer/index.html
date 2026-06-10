@@ -1,0 +1,830 @@
+<!DOCTYPE html>
+<html lang="en" class="light">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Tracer Whiteboard & Letter Practice</title>
+
+    <!-- External Assets & Libraries -->
+    <script src="https://unpkg.com/lucide@1.16.0"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Typography -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Nunito:wght@400;600;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+
+    <!-- CSS Theme & Tailwind Config -->
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        pink: '#FF6B95',
+                        orange: '#FF8C42',
+                        green: '#00E676',
+                        blue: '#2979FF',
+                        yellow: '#FFD54F',
+                        dark: '#0f172a',
+                        surface: 'rgba(255, 255, 255, 0.85)',
+                    },
+                    fontFamily: {
+                        heading: ['Fredoka', 'sans-serif'],
+                        body: ['Nunito', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                    boxShadow: {
+                        'neo': '5px 5px 0px 0px #0f172a',
+                        'neo-sm': '2.5px 2.5px 0px 0px #0f172a',
+                        'neo-lg': '9px 9px 0px 0px #0f172a',
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        body {
+            font-family: 'Nunito', sans-serif;
+            overflow: hidden;
+            background-color: #f1f5f9;
+            background-image:
+                linear-gradient(#cbd5e1 1px, transparent 1px),
+                linear-gradient(90deg, #cbd5e1 1px, transparent 1px);
+            background-size: 24px 24px;
+            color: #0f172a;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+            transition: background-color 0.3s, color 0.3s;
+        }
+
+        html.dark body {
+            background-color: #0b0f19;
+            background-image:
+                linear-gradient(#1e293b 1px, transparent 1px),
+                linear-gradient(90deg, #1e293b 1px, transparent 1px);
+            color: #f1f5f9;
+        }
+
+        /* Realistic Whiteboard Visual Effects */
+        .whiteboard-surface {
+            background-color: #ffffff;
+            background-image: 
+                radial-gradient(circle, rgba(0,0,0,0.01) 1px, transparent 1px);
+            background-size: 16px 16px;
+            box-shadow: inset 2px 2px 8px rgba(0,0,0,0.06);
+            position: relative;
+        }
+
+        html.dark .whiteboard-surface {
+            background-color: #ffffff;
+        }
+
+        /* Neobrutalism buttons with hard borders & flat drop-shadows */
+        .btn-neo {
+            transition: all 0.15s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            transform: translateY(0);
+            position: relative;
+            border: 2.5px solid #0f172a;
+            box-shadow: 4px 4px 0 #0f172a;
+            font-family: 'Fredoka', sans-serif;
+            font-weight: 700;
+        }
+
+        .btn-neo:hover:not(:disabled) {
+            transform: translate(-1px, -1px);
+            box-shadow: 5px 5px 0 #0f172a;
+        }
+
+        .btn-neo:active:not(:disabled) {
+            transform: translate(2.5px, 2.5px);
+            box-shadow: 1.5px 1.5px 0 #0f172a !important;
+        }
+
+        .btn-neo:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: 2px 2px 0 #0f172a;
+        }
+
+        /* Customized slider interface elements */
+        input[type=range] {
+            -webkit-appearance: none;
+            appearance: none;
+            background: transparent;
+        }
+
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            height: 22px;
+            width: 22px;
+            border-radius: 6px;
+            background: #ffffff;
+            border: 2.5px solid #0f172a;
+            margin-top: -6px;
+            cursor: pointer;
+            box-shadow: 2px 2px 0px #0f172a;
+        }
+
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 10px;
+            background: #e2e8f0;
+            border: 2px solid #0f172a;
+            border-radius: 4px;
+        }
+
+        /* Animated floating icons on background wall */
+        .bg-float-icon {
+            color: rgba(148, 163, 184, 0.2);
+            position: fixed;
+            z-index: 0;
+            pointer-events: none;
+        }
+
+        html.dark .bg-float-icon {
+            color: rgba(51, 65, 85, 0.2);
+        }
+    </style>
+</head>
+
+<body class="h-screen w-screen flex flex-col items-center justify-center p-3 md:p-6 overflow-hidden">
+
+    <!-- FLOATING DECORATIONS -->
+    <i data-lucide="sparkles" class="bg-float-icon w-28 h-28 top-8 left-12 rotate-12"></i>
+    <i data-lucide="book-open" class="bg-float-icon w-36 h-36 bottom-16 right-16 -rotate-12"></i>
+    <i data-lucide="pencil" class="bg-float-icon w-24 h-24 top-1/3 right-8 rotate-45"></i>
+
+    <!-- MAIN APP WRAPPER FRAME -->
+    <div class="w-full h-full border-[3px] border-dark bg-white/70 dark:bg-slate-900/80 rounded-[24px] shadow-neo-lg flex flex-col md:flex-row overflow-hidden relative z-10 backdrop-blur-md">
+
+        <!-- ASIDE CONTROLS (LEFT BAR) -->
+        <aside id="sidebar" class="w-full md:w-[380px] border-b-[3px] md:border-b-0 md:border-r-[3px] border-dark flex flex-col shrink-0 h-[40%] md:h-full overflow-y-auto">
+            
+            <!-- BRAND HEADER -->
+            <div class="p-5 border-b-[3px] border-dark bg-yellow/10 flex justify-between items-center shrink-0">
+                <div>
+                    <h1 class="text-3xl font-heading text-dark dark:text-white tracking-wide flex items-center gap-2">
+                        TRACE<span class="text-blue">BOT</span> <i data-lucide="graduation-cap" class="w-7 h-7 text-pink"></i>
+                    </h1>
+                    <p class="text-[10px] text-slate-500 font-bold uppercase tracking-wider mt-1">Klasskit Handwriting Companion</p>
+                </div>
+                <button onclick="toggleTheme()" class="p-2 bg-white border-[2.5px] border-dark rounded-xl shadow-neo-sm hover:scale-105 transition-transform">
+                    <i data-lucide="sun" class="w-5 h-5 dark:hidden text-orange"></i>
+                    <i data-lucide="moon" class="w-5 h-5 hidden dark:block text-blue"></i>
+                </button>
+            </div>
+
+            <!-- CONTROLS LIST -->
+            <div class="flex-1 p-5 space-y-6">
+                
+                <!-- 1. STEP: SELECT PRESET CATEGORY -->
+                <div class="space-y-2">
+                    <label class="text-xs font-black text-slate-600 dark:text-slate-300 uppercase tracking-widest flex items-center gap-2">
+                        <i data-lucide="layers" class="w-4 h-4 text-pink animate-pulse"></i> 1. Choose Target Mode
+                    </label>
+                    <div class="grid grid-cols-3 gap-2">
+                        <button onclick="setMode('letter')" id="btn-mode-letter" class="btn-neo bg-pink text-white py-2 text-xs rounded-xl">Letter</button>
+                        <button onclick="setMode('word')" id="btn-mode-word" class="btn-neo bg-white text-dark py-2 text-xs rounded-xl">Words</button>
+                        <button onclick="setMode('shape')" id="btn-mode-shape" class="btn-neo bg-white text-dark py-2 text-xs rounded-xl">Shape</button>
+                    </div>
+                </div>
+
+                <!-- 2. STEP: DYNAMIC BLUEPRINT PICKERS -->
+                <div class="space-y-2">
+                    <label class="text-xs font-black text-slate-600 dark:text-slate-300 uppercase tracking-widest flex items-center gap-2">
+                        <i data-lucide="text-cursor-input" class="w-4 h-4 text-blue"></i> 2. Configure Blueprints
+                    </label>
+
+                    <!-- Letter Select Option -->
+                    <div id="letter-options" class="space-y-2">
+                        <select id="letter-select" onchange="clearWhiteboardDrawing(); renderTemplate();" class="w-full p-3 bg-white text-dark font-heading text-lg border-[2.5px] border-dark rounded-xl outline-none shadow-neo-sm cursor-pointer">
+                            <option value="A">Letter A</option>
+                            <option value="B">Letter B</option>
+                            <option value="C">Letter C</option>
+                            <option value="D">Letter D</option>
+                            <option value="E">Letter E</option>
+                            <option value="F">Letter F</option>
+                            <option value="G">Letter G</option>
+                            <option value="H">Letter H</option>
+                            <option value="M">Letter M</option>
+                            <option value="S">Letter S</option>
+                            <option value="Z">Letter Z</option>
+                        </select>
+                    </div>
+
+                    <!-- Shape Select Option -->
+                    <div id="shape-options" class="hidden space-y-2">
+                        <select id="shape-select" onchange="clearWhiteboardDrawing(); renderTemplate();" class="w-full p-3 bg-white text-dark font-heading text-lg border-[2.5px] border-dark rounded-xl outline-none shadow-neo-sm cursor-pointer">
+                            <option value="circle">Circle ◯</option>
+                            <option value="square">Square ▢</option>
+                            <option value="triangle">Triangle △</option>
+                            <option value="star">Star ⭐</option>
+                            <option value="heart">Heart ❤️</option>
+                        </select>
+                    </div>
+
+                    <!-- Comma-Separated Multi-Word Queue Options -->
+                    <div id="word-options" class="hidden space-y-3">
+                        <div class="space-y-1">
+                            <span class="text-[11px] font-bold text-slate-400 block">Comma separated list (e.g. CAT, DOG, APPLE):</span>
+                            <textarea id="word-csv-input" oninput="handleCSVWordsChanged()" class="w-full p-3 font-mono text-xs border-[2.5px] border-dark rounded-xl outline-none bg-white text-dark resize-none h-16 shadow-inner" placeholder="Enter words..."></textarea>
+                        </div>
+                        
+                        <!-- Word Navigation controls -->
+                        <div class="flex items-center justify-between gap-2 p-2 bg-blue/5 border-[2.5px] border-dark rounded-xl">
+                            <button onclick="clearWhiteboardDrawing(); navigateWord(-1);" class="p-2 bg-white border-2 border-dark rounded-lg hover:bg-slate-50 active:translate-y-0.5">
+                                <i data-lucide="chevron-left" class="w-5 h-5 text-dark"></i>
+                            </button>
+                            <div class="text-center font-heading text-xs">
+                                <span class="text-slate-400 block uppercase tracking-wider text-[9px]">Active Tracing</span>
+                                <span id="word-queue-info" class="text-blue text-sm font-bold">1 of 1</span>
+                            </div>
+                            <button onclick="clearWhiteboardDrawing(); navigateWord(1);" class="p-2 bg-white border-2 border-dark rounded-lg hover:bg-slate-50 active:translate-y-0.5">
+                                <i data-lucide="chevron-right" class="w-5 h-5 text-dark"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 3. STEP: GHOST TEMPLATE BOLDNESS & SETTINGS -->
+                <div class="space-y-3">
+                    <label class="text-xs font-black text-slate-600 dark:text-slate-300 uppercase tracking-widest flex items-center gap-2">
+                        <i data-lucide="settings-2" class="w-4 h-4 text-orange"></i> 3. Blueprint Display
+                    </label>
+                    <div class="p-4 bg-white/90 dark:bg-slate-800/80 border-[2.5px] border-dark rounded-xl space-y-4 shadow-sm">
+                        <!-- Blueprint Stroke Thickness -->
+                        <div>
+                            <div class="flex justify-between text-xs font-extrabold mb-1">
+                                <span>Blueprint Size / Boldness</span>
+                                <span id="bp-boldness-val">6px</span>
+                            </div>
+                            <input type="range" id="bp-boldness" min="2" max="18" value="6" oninput="updateBlueprintBoldness(this.value)" class="w-full">
+                        </div>
+
+                        <!-- School Writing Guide rulelines toggle -->
+                        <div class="flex items-center justify-between py-1">
+                            <span class="text-xs font-extrabold flex items-center gap-1.5">
+                                <i data-lucide="navigation-2" class="w-4 h-4 text-blue rotate-90"></i> Classroom Writing Guides
+                            </span>
+                            <label class="relative inline-flex items-center cursor-pointer">
+                                <input type="checkbox" id="guides-toggle" onchange="toggleGuides(this.checked)" class="sr-only peer" checked>
+                                <div class="w-11 h-6 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green border-2 border-dark"></div>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 4. STEP: USER PEN SETTINGS -->
+                <div class="space-y-3">
+                    <label class="text-xs font-black text-slate-600 dark:text-slate-300 uppercase tracking-widest flex items-center gap-2">
+                        <i data-lucide="brush" class="w-4 h-4 text-green"></i> 4. Marker Settings
+                    </label>
+                    <div class="p-4 bg-white/90 dark:bg-slate-800/80 border-[2.5px] border-dark rounded-xl space-y-4 shadow-sm">
+                        <!-- Marker stroke line width selection -->
+                        <div>
+                            <div class="flex justify-between text-xs font-extrabold mb-1">
+                                <span>Marker Stroke Width</span>
+                                <span id="pen-width-val">12px</span>
+                            </div>
+                            <input type="range" id="pen-width" min="4" max="32" value="12" oninput="updatePenWidth(this.value)" class="w-full">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- CLEAR CURRENT SKETCH ONLY -->
+                <button onclick="clearWhiteboardDrawing()" class="w-full btn-neo bg-orange text-dark py-3 rounded-xl text-sm tracking-wide flex items-center justify-center gap-2">
+                    <i data-lucide="eraser" class="w-5 h-5"></i> ERASE INK DRAWINGS
+                </button>
+
+            </div>
+        </aside>
+
+        <!-- MAIN WHITEBOARD STAGE & SURROUND FRAME -->
+        <main id="whiteboard-outer-container" class="flex-1 flex flex-col p-4 md:p-8 bg-slate-200 dark:bg-slate-800 justify-center items-center relative overflow-hidden transition-all">
+            
+            <!-- BRUSHED CLASSROOM WHITEBOARD CASING AND FRAME -->
+            <div id="whiteboard-bezel" class="w-full h-full max-w-5xl aspect-[4/3] flex flex-col bg-slate-300 border-[10px] md:border-[16px] border-slate-400 dark:border-slate-600 rounded-[12px] md:rounded-[20px] shadow-2xl relative transition-all">
+                
+                <!-- Metallic corners brackets details -->
+                <div class="absolute top-0 left-0 w-4 h-4 bg-slate-500 rounded-br border-b border-r border-slate-600"></div>
+                <div class="absolute top-0 right-0 w-4 h-4 bg-slate-500 rounded-bl border-b border-l border-slate-600"></div>
+                
+                <!-- WHITEBOARD WORKSPACE CONTAINER -->
+                <div class="flex-1 relative whiteboard-surface overflow-hidden rounded-t-[2px]">
+                    <!-- LAYER 1: Ghost Blueprint/Guide Canvas -->
+                    <canvas id="template-canvas" class="absolute top-0 left-0 w-full h-full pointer-events-none"></canvas>
+                    
+                    <!-- LAYER 2: Live Draw Interactive Canvas -->
+                    <canvas id="drawing-canvas" class="absolute top-0 left-0 w-full h-full cursor-crosshair touch-none"></canvas>
+
+                    <!-- TOP CORNER OVERLAYS (FULLSCREEN ACTION + CURRENT MODE BADGE) -->
+                    <div class="absolute top-3 left-3 flex gap-2 pointer-events-auto z-30">
+                        <span id="guide-badge" class="px-2.5 py-1 bg-dark text-white text-[10px] font-black uppercase tracking-widest rounded-md flex items-center gap-1 shadow-sm border border-slate-600">
+                            <span class="w-1.5 h-1.5 bg-green rounded-full animate-ping"></span>
+                            Interactive Whiteboard
+                        </span>
+                    </div>
+
+                    <!-- FLOATING OVERLAYS (FULLSCREEN) -->
+                    <div class="absolute top-3 right-3 flex items-center gap-2 pointer-events-auto z-30">
+                        <button onclick="toggleFullscreen()" class="p-2 bg-white/90 border-2 border-dark rounded-xl shadow-neo-sm hover:scale-105 active:translate-y-0.5" title="Toggle Fullscreen">
+                            <i data-lucide="maximize-2" id="fullscreen-icon" class="w-4 h-4 text-dark"></i>
+                        </button>
+                    </div>
+
+                    <!-- INTERACTIVE NAVIGATION OVERLAYS (BOTTOM RIGHT) -->
+                    <div class="absolute bottom-3 right-3 flex items-center gap-2 pointer-events-auto z-30">
+                        <button onclick="goToPrevItem()" class="btn-neo bg-white hover:bg-slate-50 text-dark p-2.5 rounded-xl flex items-center justify-center shadow-neo-sm hover:scale-105 active:scale-95" title="Previous Item">
+                            <i data-lucide="arrow-left" class="w-5 h-5"></i>
+                        </button>
+                        <button onclick="goToNextItem()" class="btn-neo bg-green hover:bg-green/95 text-dark px-4 py-2.5 rounded-xl flex items-center gap-2 shadow-neo-sm hover:scale-105 active:scale-95">
+                            <span id="next-btn-text">Next Letter</span>
+                            <i data-lucide="arrow-right" class="w-5 h-5"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- CLASSROOM DRY ERASE PEN & CHALK TRAY AND HOLDER -->
+                <div class="h-8 md:h-10 bg-gradient-to-b from-slate-400 to-slate-500 border-t-2 border-slate-600 shadow-inner flex items-center justify-between px-4 md:px-8 relative rounded-b-[2px]">
+                    <div class="absolute inset-x-0 bottom-0 h-1 bg-slate-600 rounded-b"></div>
+                    
+                    <!-- Virtual Markers inside tray -->
+                    <div class="flex items-center gap-3">
+                        <span class="hidden md:block text-[9px] font-black tracking-widest text-slate-200 uppercase mr-2">Marker Tray</span>
+                        
+                        <!-- Pen Swatch Colors selection -->
+                        <div class="flex gap-2">
+                            <button onclick="setMarkerColor('#2979FF', this)" class="w-6 h-6 md:w-8 md:h-8 rounded-full bg-blue border-2 border-slate-300 ring-2 ring-dark hover:scale-110 active:scale-95 transition-all marker-swatch ring-offset-1 active"></button>
+                            <button onclick="setMarkerColor('#FF6B95', this)" class="w-6 h-6 md:w-8 md:h-8 rounded-full bg-pink border-2 border-slate-300 ring-1 ring-slate-400 hover:scale-110 active:scale-95 transition-all marker-swatch"></button>
+                            <button onclick="setMarkerColor('#FF8C42', this)" class="w-6 h-6 md:w-8 md:h-8 rounded-full bg-orange border-2 border-slate-300 ring-1 ring-slate-400 hover:scale-110 active:scale-95 transition-all marker-swatch"></button>
+                            <button onclick="setMarkerColor('#00E676', this)" class="w-6 h-6 md:w-8 md:h-8 rounded-full bg-green border-2 border-slate-300 ring-1 ring-slate-400 hover:scale-110 active:scale-95 transition-all marker-swatch"></button>
+                            <button onclick="setMarkerColor('#0f172a', this)" class="w-6 h-6 md:w-8 md:h-8 rounded-full bg-slate-800 border-2 border-slate-300 ring-1 ring-slate-400 hover:scale-110 active:scale-95 transition-all marker-swatch"></button>
+                        </div>
+                    </div>
+
+                    <!-- Virtual Sponge Eraser in the Tray -->
+                    <button onclick="clearWhiteboardDrawing()" class="flex items-center gap-2 bg-yellow px-3 py-1 text-[10px] font-black border border-dark uppercase rounded shadow-sm hover:scale-105 active:translate-y-0.5">
+                        <i data-lucide="eraser" class="w-3.5 h-3.5 text-dark"></i> Wipe Board
+                    </button>
+                </div>
+            </div>
+
+            <!-- MOBILE NAV INDICATOR AND DISMISS HOVER INFO -->
+            <p class="text-[10px] font-bold text-slate-500 mt-3 text-center pointer-events-none">
+                Touch or Use Mouse on Whiteboard to trace. Toggle sidebar for letter & guideline configuration.
+            </p>
+        </main>
+    </div>
+
+    <!-- SCRIPT APPLICATION CONTROLLER -->
+    <script>
+        // DOM elements
+        const templateCanvas = document.getElementById('template-canvas');
+        const drawingCanvas = document.getElementById('drawing-canvas');
+        const tCtx = templateCanvas.getContext('2d');
+        const dCtx = drawingCanvas.getContext('2d');
+
+        const wordCSVInput = document.getElementById('word-csv-input');
+        const wordQueueInfo = document.getElementById('word-queue-info');
+
+        // Application State Management
+        let appState = {
+            currentMode: 'letter', // letter, word, shape
+            blueprintBoldness: 6, // dashed template line stroke size
+            primaryGuidesEnabled: true, // handwriting helper guidelines
+            activeWordsList: ['HELLO', 'CAT', 'DOG', 'STAR'],
+            activeWordIndex: 0,
+            activeBrushColor: '#2979FF',
+            activeBrushWidth: 12,
+            isTracingActive: false
+        };
+
+        // Initialize CSV Word input with defaults
+        wordCSVInput.value = appState.activeWordsList.join(', ');
+
+        // Initialization handler
+        function initApp() {
+            lucide.createIcons();
+            resizeCanvases();
+            setMode('letter'); // Initial mode
+        }
+
+        // Handles resizing operations dynamically
+        function resizeCanvases() {
+            const container = drawingCanvas.parentElement;
+            const rect = container.getBoundingClientRect();
+            
+            // Adjust to device resolution pixel ratios
+            const dpr = window.devicePixelRatio || 1;
+
+            templateCanvas.width = rect.width * dpr;
+            templateCanvas.height = rect.height * dpr;
+            drawingCanvas.width = rect.width * dpr;
+            drawingCanvas.height = rect.height * dpr;
+
+            tCtx.scale(dpr, dpr);
+            dCtx.scale(dpr, dpr);
+
+            // Re-render blueprint template background
+            renderTemplate();
+        }
+
+        // Get relative coordinates for pointer events
+        function getPointerCoordinates(e) {
+            const rect = drawingCanvas.getBoundingClientRect();
+            let clientX, clientY;
+
+            if (e.touches && e.touches.length > 0) {
+                clientX = e.touches[0].clientX;
+                clientY = e.touches[0].clientY;
+            } else {
+                clientX = e.clientX;
+                clientY = e.clientY;
+            }
+
+            return {
+                x: clientX - rect.left,
+                y: clientY - rect.top
+            };
+        }
+
+        // Drawing Event Loop
+        function handlePointerDown(e) {
+            e.preventDefault();
+            appState.isTracingActive = true;
+            const coords = getPointerCoordinates(e);
+
+            dCtx.beginPath();
+            dCtx.moveTo(coords.x, coords.y);
+            
+            // Draw initial point on touch/click
+            dCtx.lineTo(coords.x, coords.y);
+            dCtx.strokeStyle = appState.activeBrushColor;
+            dCtx.lineWidth = appState.activeBrushWidth;
+            dCtx.lineCap = 'round';
+            dCtx.lineJoin = 'round';
+            dCtx.stroke();
+        }
+
+        function handlePointerMove(e) {
+            if (!appState.isTracingActive) return;
+            e.preventDefault();
+            const coords = getPointerCoordinates(e);
+            dCtx.lineTo(coords.x, coords.y);
+            dCtx.stroke();
+        }
+
+        function handlePointerUp() {
+            appState.isTracingActive = false;
+            dCtx.beginPath();
+        }
+
+        // Tracing template drawings generator
+        function renderTemplate() {
+            const width = templateCanvas.width / (window.devicePixelRatio || 1);
+            const height = templateCanvas.height / (window.devicePixelRatio || 1);
+
+            tCtx.clearRect(0, 0, width, height);
+
+            const centerX = width / 2;
+            const centerY = height / 2;
+
+            // Step 1: Draw Classroom Guidelines if Enabled
+            if (appState.primaryGuidesEnabled) {
+                drawClassroomGuidelines(width, height);
+            }
+
+            // Step 2: Draw Selected Blueprint content
+            tCtx.save();
+            tCtx.textAlign = 'center';
+            tCtx.textBaseline = 'middle';
+            tCtx.setLineDash([10, 8]); // Dashed font blueprint lines
+            tCtx.lineWidth = appState.blueprintBoldness;
+            tCtx.strokeStyle = 'rgba(15, 23, 42, 0.2)'; // semi-transparent dashed template
+            tCtx.fillStyle = 'rgba(15, 23, 42, 0.04)'; // faint background fill
+
+            if (appState.currentMode === 'letter') {
+                const letter = document.getElementById('letter-select').value;
+                const fontSize = Math.min(width, height) * 0.7;
+                tCtx.font = `bold ${fontSize}px Fredoka`;
+                tCtx.fillText(letter, centerX, centerY + (fontSize * 0.05));
+                tCtx.strokeText(letter, centerX, centerY + (fontSize * 0.05));
+            } 
+            else if (appState.currentMode === 'word') {
+                const word = appState.activeWordsList[appState.activeWordIndex] || 'HELLO';
+                const fontSize = Math.min(width, height) * (1.6 / Math.max(word.length, 3));
+                tCtx.font = `bold ${fontSize}px Fredoka`;
+                tCtx.fillText(word, centerX, centerY + (fontSize * 0.05));
+                tCtx.strokeText(word, centerX, centerY + (fontSize * 0.05));
+            } 
+            else if (appState.currentMode === 'shape') {
+                const shape = document.getElementById('shape-select').value;
+                const size = Math.min(width, height) * 0.5;
+                
+                tCtx.beginPath();
+                if (shape === 'circle') {
+                    tCtx.arc(centerX, centerY, size / 2, 0, Math.PI * 2);
+                } else if (shape === 'square') {
+                    tCtx.rect(centerX - size / 2, centerY - size / 2, size, size);
+                } else if (shape === 'triangle') {
+                    tCtx.moveTo(centerX, centerY - size / 2);
+                    tCtx.lineTo(centerX + size / 2, centerY + size / 2);
+                    tCtx.lineTo(centerX - size / 2, centerY + size / 2);
+                    tCtx.closePath();
+                } else if (shape === 'star') {
+                    drawStar(tCtx, centerX, centerY, 5, size / 2, size / 4);
+                } else if (shape === 'heart') {
+                    drawHeart(tCtx, centerX, centerY - size/8, size);
+                }
+                tCtx.fill();
+                tCtx.stroke();
+            }
+
+            tCtx.restore();
+        }
+
+        // Draw dynamic standard school lined-paper guides
+        function drawClassroomGuidelines(canvasWidth, canvasHeight) {
+            tCtx.save();
+            const centerY = canvasHeight / 2;
+            let referenceSize = Math.min(canvasWidth, canvasHeight);
+            
+            // Adjust baseline heights based on trace mode for aligned looks
+            let scaleOffset = appState.currentMode === 'word' ? 0.25 : 0.65;
+            if (appState.currentMode === 'word') {
+                const word = appState.activeWordsList[appState.activeWordIndex] || 'HELLO';
+                scaleOffset = 1.6 / Math.max(word.length, 3);
+            }
+            
+            const gap = referenceSize * scaleOffset * 0.35;
+
+            // Draw primary school line-height arrays (Standard Top, Mid, Base, Descender)
+            const topY = centerY - gap * 0.9;
+            const midY = centerY - gap * 0.05;
+            const baseY = centerY + gap * 0.8;
+            const descenderY = centerY + gap * 1.35;
+
+            // Helper to draw horizontal guides
+            const drawGuideLine = (y, color, isDashed) => {
+                tCtx.beginPath();
+                tCtx.strokeStyle = color;
+                tCtx.lineWidth = 2.5;
+                if (isDashed) {
+                    tCtx.setLineDash([8, 8]);
+                } else {
+                    tCtx.setLineDash([]);
+                }
+                tCtx.moveTo(30, y);
+                tCtx.lineTo(canvasWidth - 30, y);
+                tCtx.stroke();
+            };
+
+            // Drawing Guidelines colorways mirroring standard handwriting templates
+            drawGuideLine(topY, 'rgba(41, 121, 255, 0.45)', false);       // Solid Blue Top
+            drawGuideLine(midY, 'rgba(41, 121, 255, 0.45)', true);        // Dashed Blue Mid
+            drawGuideLine(baseY, 'rgba(255, 107, 149, 0.55)', false);     // Solid Red Base
+            if (appState.currentMode === 'letter' || appState.currentMode === 'word') {
+                drawGuideLine(descenderY, 'rgba(15, 23, 42, 0.15)', true); // Soft Descender guide
+            }
+
+            tCtx.restore();
+        }
+
+        // Shape rendering coordinate calculations helper functions
+        function drawStar(ctx, cx, cy, spikes, outerRadius, innerRadius) {
+            let rot = Math.PI / 2 * 3;
+            let x = cx;
+            let y = cy;
+            let step = Math.PI / spikes;
+
+            ctx.moveTo(cx, cy - outerRadius);
+            for (let i = 0; i < spikes; i++) {
+                x = cx + Math.cos(rot) * outerRadius;
+                y = cy + Math.sin(rot) * outerRadius;
+                ctx.lineTo(x, y);
+                rot += step;
+
+                x = cx + Math.cos(rot) * innerRadius;
+                y = cy + Math.sin(rot) * innerRadius;
+                ctx.lineTo(x, y);
+                rot += step;
+            }
+            ctx.closePath();
+        }
+
+        function drawHeart(ctx, x, y, size) {
+            const w = size * 0.8;
+            const h = size * 0.8;
+            ctx.moveTo(x, y + h / 4);
+            ctx.quadraticCurveTo(x, y, x - w / 4, y);
+            ctx.quadraticCurveTo(x - w / 2, y, x - w / 2, y + h / 4);
+            ctx.quadraticCurveTo(x - w / 2, y + h / 2, x, y + h * 0.85);
+            ctx.quadraticCurveTo(x + w / 2, y + h / 2, x + w / 2, y + h / 4);
+            ctx.quadraticCurveTo(x + w / 2, y, x + w / 4, y);
+            ctx.quadraticCurveTo(x, y, x, y + h / 4);
+            ctx.closePath();
+        }
+
+        // Configure active tracing modes
+        function setMode(mode) {
+            appState.currentMode = mode;
+            
+            // Toggle sidebar selector button configurations
+            document.querySelectorAll('[id^="btn-mode-"]').forEach(btn => {
+                btn.classList.remove('bg-pink', 'text-white');
+                btn.classList.add('bg-white', 'text-dark');
+            });
+            
+            const activeBtn = document.getElementById(`btn-mode-${mode}`);
+            activeBtn.classList.replace('bg-white', 'bg-pink');
+            activeBtn.classList.replace('text-dark', 'text-white');
+
+            // Hide or reveal contextual inputs based on selection
+            document.getElementById('letter-options').classList.toggle('hidden', mode !== 'letter');
+            document.getElementById('shape-options').classList.toggle('hidden', mode !== 'shape');
+            document.getElementById('word-options').classList.toggle('hidden', mode !== 'word');
+
+            // Update interactive Next button labels on whiteboard UI
+            const nextBtnText = document.getElementById('next-btn-text');
+            if (mode === 'letter') nextBtnText.innerText = 'Next Letter';
+            if (mode === 'word') nextBtnText.innerText = 'Next Word';
+            if (mode === 'shape') nextBtnText.innerText = 'Next Shape';
+
+            clearWhiteboardDrawing();
+            renderTemplate();
+        }
+
+        // Handle Input and Word Playlist Navigations
+        function handleCSVWordsChanged() {
+            const csv = wordCSVInput.value;
+            appState.activeWordsList = csv.split(',')
+                                         .map(w => w.trim().toUpperCase())
+                                         .filter(Boolean);
+            if (appState.activeWordsList.length === 0) {
+                appState.activeWordsList = ['HELLO'];
+            }
+            appState.activeWordIndex = 0;
+            updateWordQueueUI();
+            renderTemplate();
+        }
+
+        function navigateWord(direction) {
+            const listSize = appState.activeWordsList.length;
+            appState.activeWordIndex = (appState.activeWordIndex + direction + listSize) % listSize;
+            updateWordQueueUI();
+            renderTemplate();
+        }
+
+        function updateWordQueueUI() {
+            const count = appState.activeWordsList.length;
+            const current = appState.activeWordIndex + 1;
+            wordQueueInfo.innerText = `${current} of ${count}`;
+        }
+
+        // Whiteboard UI Easy-Access Unified Navigators
+        function goToNextItem() {
+            clearWhiteboardDrawing(); // Wipe drawing board on progress navigation
+
+            if (appState.currentMode === 'letter') {
+                const select = document.getElementById('letter-select');
+                let nextIdx = select.selectedIndex + 1;
+                if (nextIdx >= select.options.length) nextIdx = 0; // Wrap list
+                select.selectedIndex = nextIdx;
+                renderTemplate();
+            } 
+            else if (appState.currentMode === 'word') {
+                navigateWord(1);
+            } 
+            else if (appState.currentMode === 'shape') {
+                const select = document.getElementById('shape-select');
+                let nextIdx = select.selectedIndex + 1;
+                if (nextIdx >= select.options.length) nextIdx = 0; // Wrap list
+                select.selectedIndex = nextIdx;
+                renderTemplate();
+            }
+        }
+
+        function goToPrevItem() {
+            clearWhiteboardDrawing(); // Wipe drawing board on backward navigation
+
+            if (appState.currentMode === 'letter') {
+                const select = document.getElementById('letter-select');
+                let prevIdx = select.selectedIndex - 1;
+                if (prevIdx < 0) prevIdx = select.options.length - 1; // Wrap list
+                select.selectedIndex = prevIdx;
+                renderTemplate();
+            } 
+            else if (appState.currentMode === 'word') {
+                navigateWord(-1);
+            } 
+            else if (appState.currentMode === 'shape') {
+                const select = document.getElementById('shape-select');
+                let prevIdx = select.selectedIndex - 1;
+                if (prevIdx < 0) prevIdx = select.options.length - 1; // Wrap list
+                select.selectedIndex = prevIdx;
+                renderTemplate();
+            }
+        }
+
+        // Parameter modifications
+        function updateBlueprintBoldness(val) {
+            appState.blueprintBoldness = parseInt(val);
+            document.getElementById('bp-boldness-val').innerText = `${val}px`;
+            renderTemplate();
+        }
+
+        function toggleGuides(isEnabled) {
+            appState.primaryGuidesEnabled = isEnabled;
+            renderTemplate();
+        }
+
+        // User ink updates
+        function updatePenWidth(val) {
+            appState.activeBrushWidth = parseInt(val);
+            document.getElementById('pen-width-val').innerText = `${val}px`;
+        }
+
+        function setMarkerColor(color, btnElement) {
+            appState.activeBrushColor = color;
+            document.querySelectorAll('.marker-swatch').forEach(swatch => {
+                swatch.classList.remove('ring-2', 'ring-dark', 'ring-offset-1', 'active');
+                swatch.classList.add('ring-1', 'ring-slate-400');
+            });
+            btnElement.classList.replace('ring-1', 'ring-2');
+            btnElement.classList.replace('ring-slate-400', 'ring-dark');
+            btnElement.classList.add('ring-offset-1', 'active');
+        }
+
+        // Erase student active dry-erase ink only
+        function clearWhiteboardDrawing() {
+            const width = drawingCanvas.width / (window.devicePixelRatio || 1);
+            const height = drawingCanvas.height / (window.devicePixelRatio || 1);
+            dCtx.clearRect(0, 0, width, height);
+        }
+
+        // Toggle simple light/dark wrapper details
+        function toggleTheme() {
+            document.documentElement.classList.toggle('dark');
+        }
+
+        // Browser Fullscreen API deployment & visual adjustment
+        function toggleFullscreen() {
+            const bezel = document.getElementById('whiteboard-bezel');
+            const icon = document.getElementById('fullscreen-icon');
+            
+            if (!document.fullscreenElement) {
+                bezel.requestFullscreen().then(() => {
+                    icon.setAttribute('data-lucide', 'minimize-2');
+                    lucide.createIcons();
+                }).catch(err => {
+                    console.warn(`Fullscreen error: ${err.message}`);
+                });
+            } else {
+                document.exitFullscreen().then(() => {
+                    icon.setAttribute('data-lucide', 'maximize-2');
+                    lucide.createIcons();
+                });
+            }
+        }
+
+        // Listen for internal browser window fullscreen changes directly
+        document.addEventListener('fullscreenchange', () => {
+            const icon = document.getElementById('fullscreen-icon');
+            if (document.fullscreenElement) {
+                icon.setAttribute('data-lucide', 'minimize-2');
+            } else {
+                icon.setAttribute('data-lucide', 'maximize-2');
+            }
+            lucide.createIcons();
+            setTimeout(resizeCanvases, 100);
+        });
+
+        // Touch & pointer binding configurations
+        drawingCanvas.addEventListener('mousedown', handlePointerDown);
+        drawingCanvas.addEventListener('mousemove', handlePointerMove);
+        window.addEventListener('mouseup', handlePointerUp);
+
+        drawingCanvas.addEventListener('touchstart', handlePointerDown);
+        drawingCanvas.addEventListener('touchmove', handlePointerMove);
+        window.addEventListener('touchend', handlePointerUp);
+
+        // Window resize debouncer
+        let resizeTimer;
+        window.addEventListener('resize', () => {
+            clearTimeout(resizeTimer);
+            resizeTimer = setTimeout(resizeCanvases, 150);
+        });
+
+        // Initialize App on DOM trigger load
+        window.onload = function() {
+            initApp();
+            updateWordQueueUI();
+        };
+    </script>
+</body>
+</html>
