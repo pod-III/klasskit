@@ -11,8 +11,9 @@ let printOrientation = 'portrait';
 
 // ── IndexedDB for Puzzle Images ──────────────────────────────────────────────
 const DB_NAME = 'klasskit_puzzle_db';
-const DB_VERSION = 1;
-const STORE_NAME = 'puzzle_images';
+const DB_VERSION = 2; // Upgraded for sets management + cloud sync
+const STORE_IMAGES = 'puzzle_images';
+const STORE_SETS = 'puzzle_sets';
 let dbInstance = null;
 
 function initDB() {
@@ -21,8 +22,13 @@ function initDB() {
     const request = indexedDB.open(DB_NAME, DB_VERSION);
     request.onupgradeneeded = (e) => {
       const db = e.target.result;
-      if (!db.objectStoreNames.contains(STORE_NAME)) {
-        db.createObjectStore(STORE_NAME);
+      // Images store
+      if (!db.objectStoreNames.contains(STORE_IMAGES)) {
+        db.createObjectStore(STORE_IMAGES);
+      }
+      // Sets store for library management
+      if (!db.objectStoreNames.contains(STORE_SETS)) {
+        db.createObjectStore(STORE_SETS, { keyPath: 'id' });
       }
     };
     request.onsuccess = (e) => {
@@ -33,31 +39,74 @@ function initDB() {
   });
 }
 
-async function saveImageToDB(id, dataUrl) {
+async function saveImageToDB(id, dataUrl, setId = null) {
   try {
     const db = await initDB();
-    return new Promise((resolve, reject) => {
-      const transaction = db.transaction(STORE_NAME, 'readwrite');
-      const store = transaction.objectStore(STORE_NAME);
-      const request = store.put(dataUrl, id);
-      request.onsuccess = () => resolve();
-      request.onerror = (e) => reject(e.target.error);
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE_IMAGES, 'readwrite');
+      const store = tx.objectStore(STORE_IMAGES);
+      const req = store.put(dataUrl, id);
+      req.onsuccess = () => resolve();
+      req.onerror = (e) => reject(e.target.error);
     });
+
+    // Upload to cloud if authenticated and not sandbox
+    if (!isSandbox() && typeof uploadMedia === 'function' && setId) {
+      try {
+        const user = await getUser();
+        if (user) {
+          const response = await fetch(dataUrl);
+          const blob = await response.blob();
+          const file = new File([blob], `puzzle_${id}.webp`, { type: 'image/webp' });
+          const cloudUrl = await uploadMedia(file, 'puzzle_maker', setId);
+          return { localId: id, cloudUrl };
+        }
+      } catch (err) {
+        console.warn('[Cloud] Image upload failed:', err);
+      }
+    }
+    return { localId: id, cloudUrl: null };
   } catch (err) {
     console.error('saveImageToDB error:', err);
+    return { localId: id, cloudUrl: null };
   }
 }
 
-async function loadImageFromDB(id) {
+async function loadImageFromDB(id, cloudUrl = null) {
   try {
+    // Try local first
     const db = await initDB();
-    return new Promise((resolve, reject) => {
-      const transaction = db.transaction(STORE_NAME, 'readonly');
-      const store = transaction.objectStore(STORE_NAME);
-      const request = store.get(id);
-      request.onsuccess = () => resolve(request.result);
-      request.onerror = (e) => reject(e.target.error);
+    const localData = await new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE_IMAGES, 'readonly');
+      const store = tx.objectStore(STORE_IMAGES);
+      const req = store.get(id);
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = (e) => reject(e.target.error);
     });
+
+    if (localData) return localData;
+
+    // Fall back to cloud if available
+    if (cloudUrl && typeof resolveMediaUrl === 'function') {
+      try {
+        const resolvedUrl = await resolveMediaUrl(cloudUrl);
+        if (resolvedUrl) {
+          const response = await fetch(resolvedUrl);
+          const blob = await response.blob();
+          const dataUrl = await new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result);
+            reader.readAsDataURL(blob);
+          });
+          // Cache locally
+          await saveImageToDB(id, dataUrl);
+          return dataUrl;
+        }
+      } catch (err) {
+        console.warn('[Cloud] Failed to load image from cloud:', err);
+      }
+    }
+    return null;
   } catch (err) {
     console.error('loadImageFromDB error:', err);
     return null;
@@ -67,36 +116,215 @@ async function loadImageFromDB(id) {
 async function deleteImageFromDB(id) {
   try {
     const db = await initDB();
-    return new Promise((resolve, reject) => {
-      const transaction = db.transaction(STORE_NAME, 'readwrite');
-      const store = transaction.objectStore(STORE_NAME);
-      const request = store.delete(id);
-      request.onsuccess = () => resolve();
-      request.onerror = (e) => reject(e.target.error);
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE_IMAGES, 'readwrite');
+      const store = tx.objectStore(STORE_IMAGES);
+      const req = store.delete(id);
+      req.onsuccess = () => resolve();
+      req.onerror = (e) => reject(e.target.error);
     });
   } catch (err) {
     console.error('deleteImageFromDB error:', err);
   }
 }
 
+// ── Cloud Set Management (Following card-maker pattern) ─────────────────────
+
+async function savePuzzleSetToDB(name, stateData, existingId = null) {
+  if (!isSandbox()) {
+    const { data: { user } } = await db.auth.getUser();
+    if (!user) return null;
+
+    const set = {
+      user_id: user.id,
+      name,
+      state_data: sanitizeCloudPayload(stateData),
+      last_used: new Date().toISOString()
+    };
+
+    if (existingId) {
+      // Update
+      const { data, error } = await db.from('tools_puzzlemaker')
+        .update({ name, state_data: set.state_data, last_used: set.last_used })
+        .eq('id', existingId)
+        .select('id').single();
+      if (error) { console.error('[PuzzleSet] Update failed:', error); return null; }
+      return data.id;
+    } else {
+      // Insert
+      const { data, error } = await db.from('tools_puzzlemaker')
+        .insert([set])
+        .select('id').single();
+      if (error) { console.error('[PuzzleSet] Insert failed:', error); return null; }
+      return data.id;
+    }
+  }
+
+  // Local IndexedDB fallback
+  const localDb = await initDB();
+  const tx = localDb.transaction(STORE_SETS, 'readwrite');
+  const store = tx.objectStore(STORE_SETS);
+
+  const set = {
+    name,
+    stateData,
+    createdAt: Date.now(),
+    lastUsed: Date.now(),
+    usageCount: 1
+  };
+
+  if (existingId) {
+    return new Promise((resolve) => {
+      const req = store.get(existingId);
+      req.onsuccess = () => {
+        const old = req.result;
+        if (old) {
+          set.id = existingId;
+          set.createdAt = old.createdAt || Date.now();
+          set.usageCount = (old.usageCount || 0) + 1;
+        }
+        store.put(set);
+        tx.oncomplete = () => resolve(set.id);
+      };
+    });
+  }
+
+  const req = store.add(set);
+  return new Promise(r => {
+    req.onsuccess = (e) => r(e.target.result);
+  });
+}
+
+async function updatePuzzleSetMetadata(id, data) {
+  if (!isSandbox()) {
+    const updateData = {};
+    if (data.lastUsed) updateData.last_used = new Date().toISOString();
+    if (data.stateData) updateData.state_data = sanitizeCloudPayload(data.stateData);
+    if (data.name) updateData.name = data.name;
+    if (data.usageCount !== undefined) {
+      updateData.usage_count = data.usageCount;
+      updateData.last_used = new Date().toISOString();
+    }
+
+    const { error } = await db.from('tools_puzzlemaker').update(updateData).eq('id', id);
+    if (error) console.error('[PuzzleSet] Update metadata failed:', error);
+    return;
+  }
+
+  const localDb = await initDB();
+  const tx = localDb.transaction(STORE_SETS, 'readwrite');
+  const store = tx.objectStore(STORE_SETS);
+
+  return new Promise((resolve) => {
+    const req = store.get(id);
+    req.onsuccess = () => {
+      const item = req.result;
+      if (item) {
+        const updated = { ...item, ...data, lastUsed: Date.now() };
+        store.put(updated);
+      }
+      resolve();
+    };
+  });
+}
+
+async function getAllPuzzleSets() {
+  if (!isSandbox()) {
+    const { data, error } = await db.from('tools_puzzlemaker')
+      .select('*')
+      .order('last_used', { ascending: false });
+    if (error) { console.error(error); return []; }
+    return data.map(d => ({
+      id: d.id,
+      name: d.name,
+      stateData: d.state_data,
+      usageCount: d.usage_count || 0,
+      lastUsed: new Date(d.last_used).getTime(),
+      createdAt: new Date(d.created_at).getTime()
+    }));
+  }
+
+  try {
+    const localDb = await initDB();
+    return new Promise((res) => {
+      const r = localDb.transaction(STORE_SETS, 'readonly').objectStore(STORE_SETS).getAll();
+      r.onsuccess = () => {
+        let sets = r.result || [];
+        // Backwards compatibility
+        sets.forEach(set => {
+          if (!set.lastUsed) set.lastUsed = set.createdAt || Date.now();
+          if (!set.usageCount) set.usageCount = 0;
+        });
+        res(sets);
+      };
+      r.onerror = () => res([]);
+    });
+  } catch (e) { return []; }
+}
+
+async function deletePuzzleSet(id) {
+  if (!isSandbox()) {
+    const { data: { user } } = await db.auth.getUser();
+    if (user) {
+      // Delete cloud images folder
+      deleteFolder(`${user.id}/puzzle_maker/${id}`).catch(e => console.warn("Cloud folder delete failed", e));
+      // Delete from database
+      await db.from('tools_puzzlemaker').delete().eq('id', id);
+    }
+    return;
+  }
+
+  // Local cleanup
+  const localDb = await initDB();
+  const tx = localDb.transaction(STORE_SETS, 'readwrite');
+  tx.objectStore(STORE_SETS).delete(id);
+  return new Promise(r => { tx.oncomplete = r; });
+}
+
+// ── State Management ──────────────────────────────────────────────────────
+
 let saveTimeout = null;
-function saveState() {
+let activeSetId = null;
+let activeSetName = null;
+let allSets = [];
+
+async function saveState() {
   const stateToSave = {
+    activeSetId,
     activePageIndex,
     pages: pages.map(p => ({
       id: p.id,
       name: p.name,
       seed: p.seed,
-      S: p.S
-    }))
+      S: p.S,
+      cloudUrl: p.cloudUrl || null
+    })),
+    S,
+    printOrientation
   };
 
   localStorage.setItem('prog_puzzle-maker', JSON.stringify(stateToSave));
 
+  // Auto-save to library if active set (fire and forget with error handling)
+  if (activeSetId) {
+    try {
+      await updatePuzzleSetMetadata(activeSetId, { stateData: stateToSave });
+    } catch (err) {
+      console.error('[SaveState] Failed to update library metadata:', err);
+    }
+  }
+
+  // Cloud sync with sanitized payload (strip data URLs)
   clearTimeout(saveTimeout);
   saveTimeout = setTimeout(() => {
     if (typeof saveProgress === 'function') {
-      saveProgress('puzzle-maker', stateToSave).catch(err => {
+      const cloudState = JSON.parse(JSON.stringify(stateToSave));
+      // Strip any large data URLs for cloud storage
+      cloudState.pages = cloudState.pages.map(p => ({
+        ...p,
+        cloudUrl: p.cloudUrl || null
+      }));
+      saveProgress('puzzle-maker', cloudState).catch(err => {
         console.error('[Cloud Save] Error:', err);
       });
     }
@@ -104,9 +332,14 @@ function saveState() {
 }
 
 async function loadState() {
+  // Load library first
+  allSets = await getAllPuzzleSets();
+
   let saved = null;
   if (typeof loadProgress === 'function') {
-    saved = await loadProgress('puzzle-maker');
+    try {
+      saved = await loadProgress('puzzle-maker');
+    } catch (e) {}
   }
   if (!saved) {
     const local = localStorage.getItem('prog_puzzle-maker');
@@ -117,41 +350,61 @@ async function loadState() {
     }
   }
 
-  if (saved && saved.pages && saved.pages.length > 0) {
-    pages = [];
-    activePageIndex = saved.activePageIndex !== undefined ? saved.activePageIndex : -1;
-    
-    for (const p of saved.pages) {
-      const dataUrl = await loadImageFromDB(p.id);
-      if (dataUrl) {
-        const im = new Image();
-        await new Promise((resolve) => {
-          im.onload = resolve;
-          im.onerror = resolve;
-          im.src = dataUrl;
-        });
-        pages.push({
-          id: p.id,
-          im: im,
-          name: p.name,
-          seed: p.seed,
-          S: p.S
-        });
+  if (saved) {
+    activeSetId = saved.activeSetId || null;
+
+    if (saved.pages && saved.pages.length > 0) {
+      pages = [];
+      activePageIndex = saved.activePageIndex !== undefined ? saved.activePageIndex : -1;
+      S = saved.S || S;
+      printOrientation = saved.printOrientation || printOrientation;
+
+      for (const p of saved.pages) {
+        const dataUrl = await loadImageFromDB(p.id, p.cloudUrl);
+        if (dataUrl) {
+          const im = new Image();
+          await new Promise((resolve) => {
+            im.onload = resolve;
+            im.onerror = resolve;
+            im.src = dataUrl;
+          });
+          pages.push({
+            id: p.id,
+            im: im,
+            name: p.name,
+            seed: p.seed,
+            S: p.S,
+            cloudUrl: p.cloudUrl
+          });
+        }
       }
-    }
-    
-    if (pages.length > 0) {
-      document.getElementById('empty').classList.add('hidden');
-      document.getElementById('canvasWrap').classList.remove('hidden');
-      document.getElementById('canvasWrap').classList.add('flex');
-      document.getElementById('pagesSection').classList.remove('hidden');
-      
-      if (activePageIndex < 0 || activePageIndex >= pages.length) {
-        activePageIndex = 0;
+
+      if (pages.length > 0) {
+        document.getElementById('empty').classList.add('hidden');
+        document.getElementById('canvasWrap').classList.remove('hidden');
+        document.getElementById('canvasWrap').classList.add('flex');
+        document.getElementById('pagesSection').classList.remove('hidden');
+
+        if (activePageIndex < 0 || activePageIndex >= pages.length) {
+          activePageIndex = 0;
+        }
+        selectPage(activePageIndex);
       }
-      selectPage(activePageIndex);
     }
   }
+
+  // Restore active set name
+  if (activeSetId) {
+    const activeSet = allSets.find(s => s.id === activeSetId);
+    if (activeSet) {
+      activeSetName = activeSet.name;
+      updateActiveIndicator();
+    } else {
+      activeSetId = null; // Clean up stale ID
+    }
+  }
+
+  renderLibrary();
 }
 
 // ── Dark mode ──────────────────────────────────────────────────────────────
@@ -179,6 +432,278 @@ window.addEventListener('storage', (e) => {
 
 updateDarkIcon();
 
+// ── Library Management ──────────────────────────────────────────────────────
+
+async function createNewSet() {
+  pages = [];
+  activePageIndex = -1;
+  src = null;
+  activeSetId = null;
+  activeSetName = null;
+  seed = Math.random() * 9e5;
+  S = { rows: 4, cols: 4, style: 'straight', color: '#ffffff', width: 2, opacity: 1, depth: 0.5, freq: 3 };
+
+  document.getElementById('empty').classList.remove('hidden');
+  document.getElementById('canvasWrap').classList.add('hidden');
+  document.getElementById('canvasWrap').classList.remove('flex');
+  document.getElementById('pagesSection').classList.add('hidden');
+  document.getElementById('imgInfo').classList.add('hidden');
+
+  updateActiveIndicator();
+  renderPagesList();
+  renderLibrary();
+  saveState();
+}
+
+async function saveCurrentSet() {
+  const nameInput = document.getElementById('set-name-input');
+  const name = nameInput ? nameInput.value.trim() : '';
+  if (!name || name.length > 100) {
+    alert('Please enter a valid puzzle set name (1-100 characters)');
+    return;
+  }
+
+  saveState();
+  const stateData = {
+    activePageIndex,
+    pages: pages.map(p => ({
+      id: p.id,
+      name: p.name,
+      seed: p.seed,
+      S: p.S,
+      cloudUrl: p.cloudUrl
+    })),
+    S,
+    printOrientation
+  };
+
+  // Upload any images that haven't been uploaded yet (parallel for performance)
+  const uploadPromises = pages
+    .filter(p => !p.cloudUrl)
+    .map(async p => {
+      const dataUrl = await loadImageFromDB(p.id);
+      if (dataUrl) {
+        const result = await saveImageToDB(p.id, dataUrl, activeSetId || 'temp');
+        p.cloudUrl = result.cloudUrl;
+      }
+    });
+  await Promise.all(uploadPromises);
+  stateData.pages = pages.map(p => ({
+    id: p.id,
+    name: p.name,
+    seed: p.seed,
+    S: p.S,
+    cloudUrl: p.cloudUrl
+  }));
+
+  const newId = await savePuzzleSetToDB(name, stateData, activeSetId);
+  if (newId) {
+    activeSetId = newId;
+    activeSetName = name;
+    if (nameInput) nameInput.value = '';
+    updateActiveIndicator();
+    allSets = await getAllPuzzleSets();
+    renderLibrary();
+    alert(`Puzzle set "${name}" saved!`);
+  }
+}
+
+async function loadSetFromList(id) {
+  // Load from cloud or local first to get fresh data
+  let stateData = null;
+  let freshSet = null;
+  
+  if (!isSandbox() && typeof db !== 'undefined') {
+    try {
+      const { data: { user } } = await db.auth.getUser();
+      if (user) {
+        const { data, error } = await db.from('tools_puzzlemaker')
+          .select('*')
+          .eq('id', id)
+          .single();
+        if (data) {
+          stateData = data.state_data;
+          freshSet = { name: data.name, usageCount: data.usage_count || 0 };
+        }
+      }
+    } catch (e) {}
+  }
+
+  // Fallback to local
+  if (!stateData) {
+    const localSet = await loadSetFromLibrary(id);
+    if (localSet) {
+      stateData = localSet.stateData;
+      freshSet = { name: localSet.name, usageCount: localSet.usageCount || 0 };
+    }
+  }
+
+  // Update metadata using fresh data
+  if (freshSet) {
+    await updatePuzzleSetMetadata(id, { usageCount: freshSet.usageCount + 1 });
+  }
+
+  if (stateData && freshSet) {
+    loadPuzzleSet(stateData, id, freshSet.name);
+  }
+}
+
+async function loadSetFromLibrary(id) {
+  const localDb = await initDB();
+  return new Promise((res) => {
+    const tx = localDb.transaction(STORE_SETS, 'readonly');
+    const store = tx.objectStore(STORE_SETS);
+    const req = store.get(id);
+    req.onsuccess = () => res(req.result);
+    req.onerror = () => res(null);
+  });
+}
+
+function loadPuzzleSet(stateData, id = null, name = '') {
+  pages = [];
+  activePageIndex = stateData.activePageIndex || 0;
+  S = stateData.S || S;
+  printOrientation = stateData.printOrientation || 'portrait';
+  activeSetId = id;
+  activeSetName = name;
+
+  // Load images
+  const pagePromises = (stateData.pages || []).map(async (p) => {
+    const dataUrl = await loadImageFromDB(p.id, p.cloudUrl);
+    if (dataUrl) {
+      const im = new Image();
+      await new Promise((resolve) => {
+        im.onload = resolve;
+        im.onerror = resolve;
+        im.src = dataUrl;
+      });
+      return {
+        id: p.id,
+        im: im,
+        name: p.name,
+        seed: p.seed,
+        S: p.S,
+        cloudUrl: p.cloudUrl
+      };
+    }
+    return null;
+  });
+
+  Promise.all(pagePromises).then(loadedPages => {
+    pages = loadedPages.filter(p => p !== null);
+
+    if (pages.length > 0) {
+      document.getElementById('empty').classList.add('hidden');
+      document.getElementById('canvasWrap').classList.remove('hidden');
+      document.getElementById('canvasWrap').classList.add('flex');
+      document.getElementById('pagesSection').classList.remove('hidden');
+
+      if (activePageIndex < 0 || activePageIndex >= pages.length) {
+        activePageIndex = 0;
+      }
+      selectPage(activePageIndex);
+    }
+
+    updateActiveIndicator();
+    updateControlsUI();
+    renderPagesList();
+    renderLibrary();
+    saveState();
+  });
+}
+
+function updateActiveIndicator() {
+  const indicator = document.getElementById('active-set-indicator');
+  const nameEl = document.getElementById('active-set-name');
+  const saveBtn = document.getElementById('save-btn');
+
+  if (indicator && nameEl) {
+    if (activeSetId && activeSetName) {
+      indicator.classList.remove('hidden');
+      nameEl.textContent = activeSetName;
+      if (saveBtn) saveBtn.innerHTML = '<i data-lucide="copy" class="w-3 h-3"></i> SAVE AS';
+    } else {
+      indicator.classList.add('hidden');
+      if (saveBtn) saveBtn.innerHTML = '<i data-lucide="save" class="w-3 h-3"></i> SAVE';
+    }
+    lucide.createIcons();
+  }
+}
+
+function closeActiveSet() {
+  activeSetId = null;
+  activeSetName = null;
+  updateActiveIndicator();
+  renderLibrary();
+}
+
+function changeSetsSort() {
+  const sortSelect = document.getElementById('sets-sort');
+  if (sortSelect) {
+    sortMode = sortSelect.value;
+    renderLibrary();
+  }
+}
+
+let sortMode = 'recent';
+
+function renderLibrary() {
+  const list = document.getElementById('sets-list');
+  if (!list) return;
+
+  let sorted = [...allSets];
+  if (sortMode === 'recent') sorted.sort((a, b) => b.lastUsed - a.lastUsed);
+  else if (sortMode === 'alpha') sorted.sort((a, b) => a.name.localeCompare(b.name));
+  else if (sortMode === 'popular') sorted.sort((a, b) => b.usageCount - a.usageCount);
+
+  if (sorted.length === 0) {
+    list.innerHTML = '<p class="text-slate-400 text-[10px] italic p-2">No saved puzzle sets yet.</p>';
+    return;
+  }
+
+  list.innerHTML = sorted.map(set => {
+    const isActive = activeSetId === set.id;
+    const pageCount = set.stateData?.pages?.length || 0;
+    const date = new Date(set.lastUsed).toLocaleDateString();
+    return `
+      <div class="set-item ${isActive ? 'active' : ''}" data-id="${set.id}">
+        <div class="flex items-center gap-2 cursor-pointer flex-1" onclick="loadSetFromList('${set.id}')">
+          <div class="w-8 h-8 rounded-lg bg-blue/20 flex items-center justify-center text-blue font-bold text-xs">
+            ${pageCount}
+          </div>
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center gap-1">
+              <p class="text-xs font-bold truncate">${escapeHtml(set.name)}</p>
+              ${isActive ? '<span class="px-1 py-0.5 bg-blue text-white text-[7px] rounded">Active</span>' : ''}
+            </div>
+            <p class="text-[9px] text-slate-400">${date} • ${set.usageCount || 0} uses</p>
+          </div>
+        </div>
+        <button onclick="event.stopPropagation(); deletePuzzleSetPrompt('${set.id}')" class="p-1 text-slate-400 hover:text-red-500">
+          <i data-lucide="trash-2" class="w-3 h-3"></i>
+        </button>
+      </div>
+    `;
+  }).join('');
+
+  lucide.createIcons();
+}
+
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+async function deletePuzzleSetPrompt(id) {
+  if (confirm('Delete this puzzle set? This cannot be undone.')) {
+    await deletePuzzleSet(id);
+    if (activeSetId === id) closeActiveSet();
+    allSets = await getAllPuzzleSets();
+    renderLibrary();
+  }
+}
+
 // ── Upload & Page Management ────────────────────────────────────────────────
 const dz = document.getElementById('dropZone');
 const fi = document.getElementById('fileIn');
@@ -196,25 +721,28 @@ function load(f) {
   const r = new FileReader();
   r.onload = e => {
     const im = new Image();
-    im.onload = () => {
-      const pageId = Date.now() + Math.random();
+    im.onload = async () => {
+      const pageId = 'img_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
       const newPage = {
         id: pageId,
         im: im,
         name: f.name,
         seed: Math.random() * 9e5,
-        S: { ...S }
+        S: { ...S },
+        cloudUrl: null
       };
       pages.push(newPage);
-      saveImageToDB(pageId, e.target.result).then(() => {
-        saveState();
-      });
-      
+
+      // Save to DB and optionally cloud
+      const result = await saveImageToDB(pageId, e.target.result, activeSetId);
+      newPage.cloudUrl = result.cloudUrl;
+      saveState();
+
       document.getElementById('empty').classList.add('hidden');
       document.getElementById('canvasWrap').classList.remove('hidden');
       document.getElementById('canvasWrap').classList.add('flex');
       document.getElementById('pagesSection').classList.remove('hidden');
-      
+
       selectPage(pages.length - 1);
     };
     im.src = e.target.result;
