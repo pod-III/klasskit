@@ -613,6 +613,21 @@ C,A,T</textarea>
             </div>
 
             <div class="absolute bottom-6 right-6 z-20 flex gap-3 items-end">
+                <button id="prev-round-btn" onclick="loadPreviousRound()"
+                    class="hidden btn-chunky bg-white dark:bg-slate-700 !text-slate-600 dark:!text-slate-300 px-6 py-4 rounded-2xl text-xl font-black tracking-wide flex items-center gap-3 hover:scale-105 active:scale-95 shadow-neo">
+                    <i data-lucide="chevron-left" class="w-6 h-6"></i> PREV
+                </button>
+
+                <button id="freeze-btn" onclick="toggleFreeze()"
+                    class="hidden btn-chunky bg-white dark:bg-slate-700 !text-blue dark:!text-blue px-6 py-4 rounded-2xl text-xl font-black tracking-wide flex items-center gap-3 hover:scale-105 active:scale-95 shadow-neo">
+                    <i data-lucide="pause" class="w-6 h-6"></i> FREEZE
+                </button>
+
+                <button id="align-btn" onclick="toggleAlign()"
+                    class="hidden btn-chunky bg-white dark:bg-slate-700 !text-green dark:!text-green px-6 py-4 rounded-2xl text-xl font-black tracking-wide flex items-center gap-3 hover:scale-105 active:scale-95 shadow-neo">
+                    <i data-lucide="align-center" class="w-6 h-6"></i> ALIGN
+                </button>
+
                 <button id="reveal-btn" onclick="revealWord()"
                     class="hidden btn-chunky bg-blue text-white dark:text-white px-6 py-4 rounded-2xl text-xl font-black tracking-wide flex items-center gap-3 hover:scale-105 active:scale-95 shadow-neo">
                     <i data-lucide="eye" class="w-6 h-6"></i> REVEAL
@@ -651,6 +666,8 @@ C,A,T</textarea>
         let globalSpeedMultiplier = 1.5;
         let revealEase = 0.1;
         let isRevealed = false;
+        let isFrozen = false;
+        let isAligned = false;
         let collisionsEnabled = true;
         let uploadedImages = [];
 
@@ -1126,7 +1143,7 @@ C,A,T</textarea>
                     this.y += (this.targetY - this.y) * ease;
                     this.currentRotation += (0 - this.currentRotation) * ease;
                     this.scale += (1 - this.scale) * ease;
-                } else {
+                } else if (!isFrozen) {
                     this.x += this.vx * globalSpeedMultiplier;
                     this.y += this.vy * globalSpeedMultiplier;
                     this.currentRotation += this.angularVelocity * (globalSpeedMultiplier * 0.5);
@@ -1148,6 +1165,8 @@ C,A,T</textarea>
                         this.onBounce('wall-y');
                     }
 
+                    this.scale += (this.targetScale - this.scale) * 0.15;
+                } else {
                     this.scale += (this.targetScale - this.scale) * 0.15;
                 }
                 this.updatePosition();
@@ -1299,10 +1318,14 @@ C,A,T</textarea>
             });
 
             isRevealed = true;
+            isFrozen = false;
+            isAligned = false;
             calculateRevealPositions();
 
             document.getElementById('reveal-btn').classList.add('hidden');
             document.getElementById('skip-btn').classList.add('hidden');
+            document.getElementById('freeze-btn').classList.add('hidden');
+            document.getElementById('align-btn').classList.add('hidden');
             document.getElementById('next-round-btn').classList.remove('hidden');
             document.getElementById('speed-control-display').classList.add('opacity-50', 'pointer-events-none');
         }
@@ -1333,9 +1356,14 @@ C,A,T</textarea>
 
             const words = roundsData[currentRoundIndex] || [];
             isRevealed = false;
+            isFrozen = false;
+            isAligned = false;
 
             document.getElementById('reveal-btn').classList.remove('hidden');
             document.getElementById('skip-btn').classList.remove('hidden');
+            document.getElementById('prev-round-btn').classList.remove('hidden');
+            document.getElementById('freeze-btn').classList.remove('hidden');
+            document.getElementById('align-btn').classList.add('hidden');
             document.getElementById('next-round-btn').classList.add('hidden');
             document.getElementById('speed-control-display').classList.remove('opacity-50', 'pointer-events-none');
 
@@ -1370,6 +1398,54 @@ C,A,T</textarea>
         function loadNextRound() {
             if (!roundsData.length && !uploadedImages.length) return;
             loadRound(currentRoundIndex + 1);
+        }
+
+        function loadPreviousRound() {
+            if (!roundsData.length && !uploadedImages.length) return;
+            let prevIndex = currentRoundIndex - 1;
+            if (prevIndex < 0) prevIndex = Math.max(0, roundsData.length - 1);
+            loadRound(prevIndex);
+        }
+
+        function toggleFreeze() {
+            if (isRevealed || activeBouncingWords.length === 0) return;
+            isFrozen = !isFrozen;
+            const btn = document.getElementById('freeze-btn');
+            const alignBtn = document.getElementById('align-btn');
+            if (isFrozen) {
+                btn.innerHTML = '<i data-lucide="play" class="w-6 h-6"></i> RESUME';
+                btn.classList.remove('!text-blue', 'dark:!text-blue');
+                btn.classList.add('!text-orange', 'dark:!text-orange');
+                alignBtn.classList.remove('hidden');
+            } else {
+                btn.innerHTML = '<i data-lucide="pause" class="w-6 h-6"></i> FREEZE';
+                btn.classList.remove('!text-orange', 'dark:!text-orange');
+                btn.classList.add('!text-blue', 'dark:!text-blue');
+                alignBtn.classList.add('hidden');
+                isAligned = false;
+            }
+            lucide.createIcons();
+        }
+
+        function toggleAlign() {
+            if (!isFrozen || isRevealed) return;
+            isAligned = !isAligned;
+            activeBouncingWords.forEach(word => {
+                if (isAligned) {
+                    word.savedRotation = word.currentRotation;
+                    word.currentRotation = 0;
+                    word.angularVelocity = 0;
+                } else {
+                    word.currentRotation = word.savedRotation ?? word.currentRotation;
+                }
+            });
+            const btn = document.getElementById('align-btn');
+            if (isAligned) {
+                btn.innerHTML = '<i data-lucide="rotate-3d" class="w-6 h-6"></i> ROTATE';
+            } else {
+                btn.innerHTML = '<i data-lucide="align-center" class="w-6 h-6"></i> ALIGN';
+            }
+            lucide.createIcons();
         }
 
         function toggleControlPanel(forceHide = false) {
