@@ -1141,4 +1141,7 @@ function doBumpy(ctx,x0,y0,x1,y1,hz,cW,cH,depth,freq) {
 }
 
 // ── Init State ──────────────────────────────────────────────────────────────
-loadState();
+(async () => {
+  await requireAuth();
+  await loadState();
+})();
