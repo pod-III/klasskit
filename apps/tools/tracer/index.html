@@ -60,6 +60,18 @@
             transition: background-color 0.3s, color 0.3s;
         }
 
+        #sidebar {
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .sidebar-collapsed {
+            width: 0px !important;
+            min-width: 0px !important;
+            padding: 0px !important;
+            overflow: hidden !important;
+            border-right-width: 0px !important;
+        }
+
         html.dark body {
             background-color: #0b0f19;
             background-image:
@@ -323,6 +335,9 @@
 
                     <!-- TOP CORNER OVERLAYS (FULLSCREEN ACTION + CURRENT MODE BADGE) -->
                     <div class="absolute top-3 left-3 flex gap-2 pointer-events-auto z-30">
+                        <button onclick="toggleSidebar()" class="p-2 bg-white/95 border-2 border-dark rounded-xl shadow-neo-sm hover:scale-105 active:translate-y-0.5" title="Toggle Sidebar Panel">
+                            <i data-lucide="menu" id="sidebar-toggle-icon" class="w-4 h-4 text-dark"></i>
+                        </button>
                         <span id="guide-badge" class="px-2.5 py-1 bg-dark text-white text-[10px] font-black uppercase tracking-widest rounded-md flex items-center gap-1 shadow-sm border border-slate-600">
                             <span class="w-1.5 h-1.5 bg-green rounded-full animate-ping"></span>
                             Interactive Whiteboard
@@ -571,7 +586,6 @@
             // Step 2: Draw Selected Blueprint content
             tCtx.save();
             tCtx.textAlign = 'center';
-            tCtx.textBaseline = 'middle';
             tCtx.setLineDash([10, 8]); // Dashed font blueprint lines
             tCtx.lineWidth = appState.blueprintBoldness;
             tCtx.strokeStyle = 'rgba(15, 23, 42, 0.2)'; // semi-transparent dashed template
@@ -579,21 +593,32 @@
 
             if (appState.currentMode === 'letter') {
                 const letter = document.getElementById('letter-select').value;
-                const fontSize = Math.min(width, height) * 0.7;
-                tCtx.font = `bold ${fontSize}px Fredoka`;
-                tCtx.fillText(letter, centerX, centerY + (fontSize * 0.05));
-                tCtx.strokeText(letter, centerX, centerY + (fontSize * 0.05));
+                const referenceSize = Math.min(width, height);
+                const gap = referenceSize * 0.65 * 0.35;
+                const baseY = centerY + gap * 0.8;
+                const topY = centerY - gap * 0.9;
+                
+                // Set size to perfectly scale the baseline Cap Height for Nunito print letters
+                const capHeight = baseY - topY;
+                const fontSize = capHeight * 1.32; 
+
+                tCtx.font = `bold ${fontSize}px 'Nunito', sans-serif`;
+                tCtx.textBaseline = 'alphabetic'; // Snaps clean straight print lines to guidelines
+                tCtx.fillText(letter, centerX, baseY);
+                tCtx.strokeText(letter, centerX, baseY);
             } 
             else if (appState.currentMode === 'word') {
                 const word = appState.activeWordsList[appState.activeWordIndex] || 'HELLO';
                 const fontSize = Math.min(width, height) * (1.6 / Math.max(word.length, 3));
-                tCtx.font = `bold ${fontSize}px Fredoka`;
+                tCtx.font = `bold ${fontSize}px 'Nunito', sans-serif`;
+                tCtx.textBaseline = 'middle';
                 tCtx.fillText(word, centerX, centerY + (fontSize * 0.05));
                 tCtx.strokeText(word, centerX, centerY + (fontSize * 0.05));
             } 
             else if (appState.currentMode === 'shape') {
                 const shape = document.getElementById('shape-select').value;
                 const size = Math.min(width, height) * 0.5;
+                tCtx.textBaseline = 'middle';
                 
                 tCtx.beginPath();
                 if (shape === 'circle') {
@@ -806,6 +831,23 @@
             }
         }
 
+        // Toggle configuration panel slide away
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            const icon = document.getElementById('sidebar-toggle-icon');
+            sidebar.classList.toggle('sidebar-collapsed');
+            
+            if (sidebar.classList.contains('sidebar-collapsed')) {
+                icon.setAttribute('data-lucide', 'menu-toggle'); // Visual cue for hidden status
+            } else {
+                icon.setAttribute('data-lucide', 'menu');
+            }
+            lucide.createIcons();
+            
+            // Allow CSS transition to finish before recalculating drawing canvas dimensions
+            setTimeout(resizeCanvases, 310);
+        }
+
         // Parameter modifications
         function updateBlueprintBoldness(val) {
             appState.blueprintBoldness = parseInt(val);
@@ -814,6 +856,7 @@
             saveAppState();
         }
 
+        // Toggle Guidelines
         function toggleGuides(isEnabled) {
             appState.primaryGuidesEnabled = isEnabled;
             renderTemplate();
