@@ -154,7 +154,6 @@
 
 <body class="h-screen w-screen flex flex-col items-center justify-center p-3 md:p-6 overflow-hidden">
 
-    <!-- FLOATING DECORATIONS -->
     <i data-lucide="sparkles" class="bg-float-icon w-28 h-28 top-8 left-12 rotate-12"></i>
     <i data-lucide="book-open" class="bg-float-icon w-36 h-36 bottom-16 right-16 -rotate-12"></i>
     <i data-lucide="pencil" class="bg-float-icon w-24 h-24 top-1/3 right-8 rotate-45"></i>
@@ -171,7 +170,7 @@
                     <h1 class="text-3xl font-heading text-dark dark:text-white tracking-wide flex items-center gap-2">
                         TRACE<span class="text-blue">BOT</span> <i data-lucide="graduation-cap" class="w-7 h-7 text-pink"></i>
                     </h1>
-                    <p class="text-[10px] text-slate-500 font-bold uppercase tracking-wider mt-1">Klasskit Handwriting Companion</p>
+                    <p class="text-[10px] text-slate-500 font-bold uppercase tracking-wider mt-1">Classroom Handwriting Companion</p>
                 </div>
                 <button onclick="toggleTheme()" class="p-2 bg-white border-[2.5px] border-dark rounded-xl shadow-neo-sm hover:scale-105 transition-transform">
                     <i data-lucide="sun" class="w-5 h-5 dark:hidden text-orange"></i>
@@ -202,7 +201,7 @@
 
                     <!-- Letter Select Option -->
                     <div id="letter-options" class="space-y-2">
-                        <select id="letter-select" onchange="clearWhiteboardDrawing(); renderTemplate();" class="w-full p-3 bg-white text-dark font-heading text-lg border-[2.5px] border-dark rounded-xl outline-none shadow-neo-sm cursor-pointer">
+                        <select id="letter-select" onchange="clearWhiteboardDrawing(); renderTemplate(); saveAppState();" class="w-full p-3 bg-white text-dark font-heading text-lg border-[2.5px] border-dark rounded-xl outline-none shadow-neo-sm cursor-pointer">
                             <option value="A">Letter A</option>
                             <option value="B">Letter B</option>
                             <option value="C">Letter C</option>
@@ -219,7 +218,7 @@
 
                     <!-- Shape Select Option -->
                     <div id="shape-options" class="hidden space-y-2">
-                        <select id="shape-select" onchange="clearWhiteboardDrawing(); renderTemplate();" class="w-full p-3 bg-white text-dark font-heading text-lg border-[2.5px] border-dark rounded-xl outline-none shadow-neo-sm cursor-pointer">
+                        <select id="shape-select" onchange="clearWhiteboardDrawing(); renderTemplate(); saveAppState();" class="w-full p-3 bg-white text-dark font-heading text-lg border-[2.5px] border-dark rounded-xl outline-none shadow-neo-sm cursor-pointer">
                             <option value="circle">Circle ◯</option>
                             <option value="square">Square ▢</option>
                             <option value="triangle">Triangle △</option>
@@ -359,11 +358,11 @@
                         
                         <!-- Pen Swatch Colors selection -->
                         <div class="flex gap-2">
-                            <button onclick="setMarkerColor('#2979FF', this)" class="w-6 h-6 md:w-8 md:h-8 rounded-full bg-blue border-2 border-slate-300 ring-2 ring-dark hover:scale-110 active:scale-95 transition-all marker-swatch ring-offset-1 active"></button>
-                            <button onclick="setMarkerColor('#FF6B95', this)" class="w-6 h-6 md:w-8 md:h-8 rounded-full bg-pink border-2 border-slate-300 ring-1 ring-slate-400 hover:scale-110 active:scale-95 transition-all marker-swatch"></button>
-                            <button onclick="setMarkerColor('#FF8C42', this)" class="w-6 h-6 md:w-8 md:h-8 rounded-full bg-orange border-2 border-slate-300 ring-1 ring-slate-400 hover:scale-110 active:scale-95 transition-all marker-swatch"></button>
-                            <button onclick="setMarkerColor('#00E676', this)" class="w-6 h-6 md:w-8 md:h-8 rounded-full bg-green border-2 border-slate-300 ring-1 ring-slate-400 hover:scale-110 active:scale-95 transition-all marker-swatch"></button>
-                            <button onclick="setMarkerColor('#0f172a', this)" class="w-6 h-6 md:w-8 md:h-8 rounded-full bg-slate-800 border-2 border-slate-300 ring-1 ring-slate-400 hover:scale-110 active:scale-95 transition-all marker-swatch"></button>
+                            <button onclick="setMarkerColor('#2979FF', this)" data-color="#2979FF" class="w-6 h-6 md:w-8 md:h-8 rounded-full bg-blue border-2 border-slate-300 ring-2 ring-dark hover:scale-110 active:scale-95 transition-all marker-swatch ring-offset-1 active"></button>
+                            <button onclick="setMarkerColor('#FF6B95', this)" data-color="#FF6B95" class="w-6 h-6 md:w-8 md:h-8 rounded-full bg-pink border-2 border-slate-300 ring-1 ring-slate-400 hover:scale-110 active:scale-95 transition-all marker-swatch"></button>
+                            <button onclick="setMarkerColor('#FF8C42', this)" data-color="#FF8C42" class="w-6 h-6 md:w-8 md:h-8 rounded-full bg-orange border-2 border-slate-300 ring-1 ring-slate-400 hover:scale-110 active:scale-95 transition-all marker-swatch"></button>
+                            <button onclick="setMarkerColor('#00E676', this)" data-color="#00E676" class="w-6 h-6 md:w-8 md:h-8 rounded-full bg-green border-2 border-slate-300 ring-1 ring-slate-400 hover:scale-110 active:scale-95 transition-all marker-swatch"></button>
+                            <button onclick="setMarkerColor('#0f172a', this)" data-color="#0f172a" class="w-6 h-6 md:w-8 md:h-8 rounded-full bg-slate-800 border-2 border-slate-300 ring-1 ring-slate-400 hover:scale-110 active:scale-95 transition-all marker-swatch"></button>
                         </div>
                     </div>
 
@@ -407,11 +406,81 @@
         // Initialize CSV Word input with defaults
         wordCSVInput.value = appState.activeWordsList.join(', ');
 
+        // Save the current state parameters to localStorage
+        function saveAppState() {
+            try {
+                const stateToSave = {
+                    currentMode: appState.currentMode,
+                    blueprintBoldness: appState.blueprintBoldness,
+                    primaryGuidesEnabled: appState.primaryGuidesEnabled,
+                    activeWordsList: appState.activeWordsList,
+                    activeWordIndex: appState.activeWordIndex,
+                    activeBrushColor: appState.activeBrushColor,
+                    activeBrushWidth: appState.activeBrushWidth,
+                    selectedLetter: document.getElementById('letter-select').value,
+                    selectedShape: document.getElementById('shape-select').value,
+                    csvValue: wordCSVInput.value
+                };
+                localStorage.setItem('tracer_whiteboard_state', JSON.stringify(stateToSave));
+            } catch (err) {
+                console.error("Local Storage Save Error:", err);
+            }
+        }
+
+        // Load the saved state from localStorage
+        function loadAppState() {
+            try {
+                const saved = localStorage.getItem('tracer_whiteboard_state');
+                if (saved) {
+                    const parsed = JSON.parse(saved);
+                    
+                    appState.currentMode = parsed.currentMode || 'letter';
+                    appState.blueprintBoldness = parsed.blueprintBoldness !== undefined ? parsed.blueprintBoldness : 6;
+                    appState.primaryGuidesEnabled = parsed.primaryGuidesEnabled !== undefined ? parsed.primaryGuidesEnabled : true;
+                    appState.activeWordsList = parsed.activeWordsList || ['HELLO', 'CAT', 'DOG', 'STAR'];
+                    appState.activeWordIndex = parsed.activeWordIndex !== undefined ? parsed.activeWordIndex : 0;
+                    appState.activeBrushColor = parsed.activeBrushColor || '#2979FF';
+                    appState.activeBrushWidth = parsed.activeBrushWidth !== undefined ? parsed.activeBrushWidth : 12;
+
+                    // Sync form / selectors
+                    if (parsed.selectedLetter) {
+                        document.getElementById('letter-select').value = parsed.selectedLetter;
+                    }
+                    if (parsed.selectedShape) {
+                        document.getElementById('shape-select').value = parsed.selectedShape;
+                    }
+                    if (parsed.csvValue !== undefined) {
+                        wordCSVInput.value = parsed.csvValue;
+                    } else {
+                        wordCSVInput.value = appState.activeWordsList.join(', ');
+                    }
+
+                    // Sync slider elements and displays
+                    document.getElementById('bp-boldness').value = appState.blueprintBoldness;
+                    document.getElementById('bp-boldness-val').innerText = `${appState.blueprintBoldness}px`;
+
+                    document.getElementById('pen-width').value = appState.activeBrushWidth;
+                    document.getElementById('pen-width-val').innerText = `${appState.activeBrushWidth}px`;
+
+                    document.getElementById('guides-toggle').checked = appState.primaryGuidesEnabled;
+                }
+            } catch (err) {
+                console.error("Local Storage Load Error:", err);
+            }
+        }
+
         // Initialization handler
         function initApp() {
+            loadAppState(); // Restore configurations
             lucide.createIcons();
             resizeCanvases();
-            setMode('letter'); // Initial mode
+            setMode(appState.currentMode); // Initialize Mode elements
+            
+            // Restore chosen Marker Color element highlight
+            const savedSwatch = document.querySelector(`.marker-swatch[data-color="${appState.activeBrushColor}"]`);
+            if (savedSwatch) {
+                setMarkerColor(appState.activeBrushColor, savedSwatch);
+            }
         }
 
         // Handles resizing operations dynamically
@@ -655,8 +724,8 @@
             if (mode === 'word') nextBtnText.innerText = 'Next Word';
             if (mode === 'shape') nextBtnText.innerText = 'Next Shape';
 
-            clearWhiteboardDrawing();
             renderTemplate();
+            saveAppState();
         }
 
         // Handle Input and Word Playlist Navigations
@@ -671,6 +740,7 @@
             appState.activeWordIndex = 0;
             updateWordQueueUI();
             renderTemplate();
+            saveAppState();
         }
 
         function navigateWord(direction) {
@@ -678,6 +748,7 @@
             appState.activeWordIndex = (appState.activeWordIndex + direction + listSize) % listSize;
             updateWordQueueUI();
             renderTemplate();
+            saveAppState();
         }
 
         function updateWordQueueUI() {
@@ -696,6 +767,7 @@
                 if (nextIdx >= select.options.length) nextIdx = 0; // Wrap list
                 select.selectedIndex = nextIdx;
                 renderTemplate();
+                saveAppState();
             } 
             else if (appState.currentMode === 'word') {
                 navigateWord(1);
@@ -706,6 +778,7 @@
                 if (nextIdx >= select.options.length) nextIdx = 0; // Wrap list
                 select.selectedIndex = nextIdx;
                 renderTemplate();
+                saveAppState();
             }
         }
 
@@ -718,6 +791,7 @@
                 if (prevIdx < 0) prevIdx = select.options.length - 1; // Wrap list
                 select.selectedIndex = prevIdx;
                 renderTemplate();
+                saveAppState();
             } 
             else if (appState.currentMode === 'word') {
                 navigateWord(-1);
@@ -728,6 +802,7 @@
                 if (prevIdx < 0) prevIdx = select.options.length - 1; // Wrap list
                 select.selectedIndex = prevIdx;
                 renderTemplate();
+                saveAppState();
             }
         }
 
@@ -736,17 +811,20 @@
             appState.blueprintBoldness = parseInt(val);
             document.getElementById('bp-boldness-val').innerText = `${val}px`;
             renderTemplate();
+            saveAppState();
         }
 
         function toggleGuides(isEnabled) {
             appState.primaryGuidesEnabled = isEnabled;
             renderTemplate();
+            saveAppState();
         }
 
         // User ink updates
         function updatePenWidth(val) {
             appState.activeBrushWidth = parseInt(val);
             document.getElementById('pen-width-val').innerText = `${val}px`;
+            saveAppState();
         }
 
         function setMarkerColor(color, btnElement) {
@@ -758,6 +836,7 @@
             btnElement.classList.replace('ring-1', 'ring-2');
             btnElement.classList.replace('ring-slate-400', 'ring-dark');
             btnElement.classList.add('ring-offset-1', 'active');
+            saveAppState();
         }
 
         // Erase student active dry-erase ink only
