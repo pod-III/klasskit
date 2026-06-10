@@ -6,11 +6,11 @@ const CACHE_NAME = 'klasskit-v1.4.5';
 const PRE_CACHE_ASSETS = [
   './',
   './index.html',
-  './hub.html',
+  './hub/hub.html',
+  './hub/script.js',
   './admin/index.html',
   './admin/style.css',
   './admin/script.js',
-  './script.js',
   './games.json',
   './manifest.json',
   './css/base.css',

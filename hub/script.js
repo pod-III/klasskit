@@ -6,7 +6,7 @@
 // --- CONSTANTS & CONFIG ---
 const CONFIG = {
   helpUrl: "https://forms.gle/VRqg4f3KFHoJXFUu9",
-  dataSource: "games.json",
+  dataSource: "../games.json",
   maxRecentGames: 5,
   maxTabs: 20,
   debounceDelay: 300,

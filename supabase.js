@@ -70,7 +70,7 @@ async function requireAuth() {
 
 async function requireAdmin() {
   if (isSandbox()) {
-    location.href = '/hub.html';
+    location.href = '/hub/hub.html';
     return new Promise(() => { });
   }
   const user = await getUser()
