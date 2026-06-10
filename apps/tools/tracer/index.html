@@ -322,6 +322,57 @@
                     <i data-lucide="eraser" class="w-5 h-5"></i> ERASE INK DRAWINGS
                 </button>
 
+                <div class="w-full h-[2px] bg-slate-200 dark:bg-slate-600 my-2"></div>
+
+                <!-- SETS / LIBRARY MANAGEMENT -->
+                <div class="space-y-3">
+                    <label class="text-xs font-black text-slate-600 dark:text-slate-300 uppercase tracking-widest flex items-center gap-2">
+                        <i data-lucide="library" class="w-4 h-4 text-pink"></i> My Sets
+                    </label>
+
+                    <!-- Active Indicator -->
+                    <div id="active-set-indicator" class="hidden px-3 py-2 bg-blue/10 border-2 border-blue/30 rounded-xl flex items-center gap-2">
+                        <span class="w-2 h-2 bg-blue rounded-full animate-pulse"></span>
+                        <span class="text-xs font-heading font-bold text-blue truncate" id="active-set-name">Untitled</span>
+                        <span class="text-[9px] text-slate-400 ml-auto">Auto-saving</span>
+                    </div>
+
+                    <!-- Action Grid -->
+                    <div class="grid grid-cols-2 gap-2">
+                        <button onclick="newSet()" class="btn-neo bg-white text-dark py-2 text-xs rounded-xl flex items-center justify-center gap-1">
+                            <i data-lucide="file-plus" class="w-4 h-4"></i> New
+                        </button>
+                        <button onclick="saveAsNewSet()" class="btn-neo bg-pink text-white py-2 text-xs rounded-xl flex items-center justify-center gap-1">
+                            <i data-lucide="save" class="w-4 h-4"></i> Save As
+                        </button>
+                    </div>
+
+                    <!-- Save As Name Input -->
+                    <div id="save-as-panel" class="hidden space-y-2">
+                        <input type="text" id="set-name-input" placeholder="Enter set name..."
+                            class="w-full p-2 text-sm font-heading border-2 border-dark dark:border-slate-500 rounded-xl outline-none bg-white dark:bg-slate-700 text-dark dark:text-white shadow-neo-sm">
+                        <button onclick="confirmSaveAs()" class="w-full btn-neo bg-green text-dark py-2 text-xs rounded-xl">
+                            Confirm Save
+                        </button>
+                    </div>
+
+                    <!-- Sort Dropdown -->
+                    <div class="flex items-center gap-2">
+                        <span class="text-[10px] font-bold text-slate-400 uppercase">Sort</span>
+                        <select id="library-sort" onchange="renderLibrary()"
+                            class="flex-1 p-1.5 text-xs font-heading border-2 border-dark dark:border-slate-500 rounded-lg bg-white dark:bg-slate-700 text-dark dark:text-white outline-none cursor-pointer">
+                            <option value="recent">Recent</option>
+                            <option value="alpha">Alphabetical</option>
+                            <option value="popular">Popular</option>
+                        </select>
+                    </div>
+
+                    <!-- Library List -->
+                    <div id="library-list" class="space-y-2 max-h-48 overflow-y-auto pr-1">
+                        <!-- Dynamically populated -->
+                    </div>
+                </div>
+
             </div>
         </aside>
 
@@ -459,11 +510,12 @@
             };
         }
 
-        // Debounced cloud sync for settings
+        // Debounced cloud sync for settings + auto-save active set
         function debounceSaveAppState() {
             clearTimeout(settingsSaveTimeout);
             settingsSaveTimeout = setTimeout(() => {
                 saveAppState().catch(err => console.error("Save Error:", err));
+                autoSaveActiveSet().catch(err => console.error("Auto-save set Error:", err));
             }, 500);
         }
 
@@ -552,8 +604,319 @@
             }
         }
 
+        // ============================================
+        // SETS / LIBRARY MANAGEMENT (IndexedDB)
+        // ============================================
+        const TRACER_DB_NAME = 'KlassKitTracerDB';
+        const TRACER_SETS_STORE = 'tracer_sets';
+        const TRACER_DB_VERSION = 1;
+        let tracerDB = null;
+
+        let setState = { activeId: null };
+
+        function initTracerDB() {
+            return new Promise((resolve, reject) => {
+                const req = indexedDB.open(TRACER_DB_NAME, TRACER_DB_VERSION);
+                req.onerror = () => reject(req.error);
+                req.onsuccess = () => {
+                    tracerDB = req.result;
+                    resolve(tracerDB);
+                };
+                req.onupgradeneeded = (e) => {
+                    const db = e.target.result;
+                    if (!db.objectStoreNames.contains(TRACER_SETS_STORE)) {
+                        const store = db.createObjectStore(TRACER_SETS_STORE, { keyPath: 'id', autoIncrement: true });
+                        store.createIndex('name', 'name', { unique: false });
+                        store.createIndex('lastUsed', 'lastUsed', { unique: false });
+                        store.createIndex('usageCount', 'usageCount', { unique: false });
+                    }
+                };
+            });
+        }
+
+        function getCanvasSnapshot() {
+            try {
+                return drawingCanvas.toDataURL('image/png');
+            } catch (e) {
+                return null;
+            }
+        }
+
+        function restoreCanvasFromSnapshot(dataUrl) {
+            if (!dataUrl) return;
+            const img = new Image();
+            img.onload = () => {
+                dCtx.clearRect(0, 0, drawingCanvas.width / (window.devicePixelRatio || 1), drawingCanvas.height / (window.devicePixelRatio || 1));
+                dCtx.drawImage(img, 0, 0);
+            };
+            img.src = dataUrl;
+        }
+
+        function buildSetPayload() {
+            const payload = buildStatePayload();
+            return {
+                text: JSON.stringify(payload),
+                images: [getCanvasSnapshot()].filter(Boolean),
+                lastUsed: Date.now()
+            };
+        }
+
+        async function addTracerSet(name) {
+            if (!tracerDB) return;
+            const data = buildSetPayload();
+            data.name = name || 'Untitled Set';
+            data.createdAt = Date.now();
+            data.usageCount = 0;
+            return new Promise((resolve, reject) => {
+                const tx = tracerDB.transaction(TRACER_SETS_STORE, 'readwrite');
+                const store = tx.objectStore(TRACER_SETS_STORE);
+                const req = store.add(data);
+                req.onsuccess = () => resolve(req.result);
+                req.onerror = () => reject(req.error);
+            });
+        }
+
+        async function updateTracerSet(id, updates) {
+            if (!tracerDB) return;
+            return new Promise((resolve, reject) => {
+                const tx = tracerDB.transaction(TRACER_SETS_STORE, 'readwrite');
+                const store = tx.objectStore(TRACER_SETS_STORE);
+                const req = store.get(id);
+                req.onsuccess = () => {
+                    const existing = req.result;
+                    if (!existing) return resolve(null);
+                    const updated = { ...existing, ...updates, id };
+                    const putReq = store.put(updated);
+                    putReq.onsuccess = () => resolve(updated);
+                    putReq.onerror = () => reject(putReq.error);
+                };
+                req.onerror = () => reject(req.error);
+            });
+        }
+
+        async function getTracerSet(id) {
+            if (!tracerDB) return null;
+            return new Promise((resolve, reject) => {
+                const tx = tracerDB.transaction(TRACER_SETS_STORE, 'readonly');
+                const store = tx.objectStore(TRACER_SETS_STORE);
+                const req = store.get(id);
+                req.onsuccess = () => resolve(req.result);
+                req.onerror = () => reject(req.error);
+            });
+        }
+
+        async function getAllTracerSets() {
+            if (!tracerDB) return [];
+            return new Promise((resolve, reject) => {
+                const tx = tracerDB.transaction(TRACER_SETS_STORE, 'readonly');
+                const store = tx.objectStore(TRACER_SETS_STORE);
+                const req = store.getAll();
+                req.onsuccess = () => {
+                    const sets = req.result || [];
+                    sets.forEach(set => {
+                        if (!set.lastUsed) set.lastUsed = set.createdAt || Date.now();
+                        if (!set.usageCount) set.usageCount = 0;
+                    });
+                    resolve(sets);
+                };
+                req.onerror = () => reject(req.error);
+            });
+        }
+
+        async function deleteTracerSet(id) {
+            if (!tracerDB) return;
+            return new Promise((resolve, reject) => {
+                const tx = tracerDB.transaction(TRACER_SETS_STORE, 'readwrite');
+                const store = tx.objectStore(TRACER_SETS_STORE);
+                const req = store.delete(id);
+                req.onsuccess = () => resolve();
+                req.onerror = () => reject(req.error);
+            });
+        }
+
+        // --- UI Workflows ---
+
+        function newSet() {
+            clearWhiteboardDrawing();
+            appState.currentMode = 'letter';
+            appState.blueprintBoldness = 6;
+            appState.primaryGuidesEnabled = true;
+            appState.activeWordsList = ['HELLO', 'CAT', 'DOG', 'STAR'];
+            appState.activeWordIndex = 0;
+            appState.activeBrushColor = '#2979FF';
+            appState.activeBrushWidth = 12;
+            setState.activeId = null;
+
+            document.getElementById('letter-select').value = 'A';
+            document.getElementById('shape-select').value = 'circle';
+            wordCSVInput.value = appState.activeWordsList.join(', ');
+
+            document.getElementById('bp-boldness').value = 6;
+            document.getElementById('bp-boldness-val').innerText = '6px';
+            document.getElementById('pen-width').value = 12;
+            document.getElementById('pen-width-val').innerText = '12px';
+            document.getElementById('guides-toggle').checked = true;
+
+            const blueSwatch = document.querySelector('.marker-swatch[data-color="#2979FF"]');
+            if (blueSwatch) setMarkerColor('#2979FF', blueSwatch);
+
+            document.getElementById('save-as-panel').classList.add('hidden');
+            setMode('letter');
+            updateWordQueueUI();
+            updateActiveIndicator();
+            renderLibrary();
+            debounceSaveAppState();
+        }
+
+        function saveAsNewSet() {
+            const panel = document.getElementById('save-as-panel');
+            panel.classList.remove('hidden');
+            document.getElementById('set-name-input').focus();
+        }
+
+        async function confirmSaveAs() {
+            const input = document.getElementById('set-name-input');
+            const name = input.value.trim() || 'Untitled Set';
+            const id = await addTracerSet(name);
+            if (id) {
+                setState.activeId = id;
+                input.value = '';
+                document.getElementById('save-as-panel').classList.add('hidden');
+                updateActiveIndicator();
+                renderLibrary();
+                debounceSaveAppState();
+            }
+        }
+
+        async function loadSet(id) {
+            const set = await getTracerSet(id);
+            if (!set) return;
+
+            let config = {};
+            try {
+                config = JSON.parse(set.text || '{}');
+            } catch (e) {
+                console.error('Failed to parse set config', e);
+            }
+
+            appState.currentMode = config.currentMode || 'letter';
+            appState.blueprintBoldness = config.blueprintBoldness !== undefined ? config.blueprintBoldness : 6;
+            appState.primaryGuidesEnabled = config.primaryGuidesEnabled !== undefined ? config.primaryGuidesEnabled : true;
+            appState.activeWordsList = config.activeWordsList || ['HELLO', 'CAT', 'DOG', 'STAR'];
+            appState.activeWordIndex = config.activeWordIndex !== undefined ? config.activeWordIndex : 0;
+            appState.activeBrushColor = config.activeBrushColor || '#2979FF';
+            appState.activeBrushWidth = config.activeBrushWidth !== undefined ? config.activeBrushWidth : 12;
+
+            if (config.selectedLetter) document.getElementById('letter-select').value = config.selectedLetter;
+            if (config.selectedShape) document.getElementById('shape-select').value = config.selectedShape;
+            if (config.csvValue !== undefined) wordCSVInput.value = config.csvValue;
+
+            document.getElementById('bp-boldness').value = appState.blueprintBoldness;
+            document.getElementById('bp-boldness-val').innerText = appState.blueprintBoldness + 'px';
+            document.getElementById('pen-width').value = appState.activeBrushWidth;
+            document.getElementById('pen-width-val').innerText = appState.activeBrushWidth + 'px';
+            document.getElementById('guides-toggle').checked = appState.primaryGuidesEnabled;
+
+            const swatch = document.querySelector('.marker-swatch[data-color="' + appState.activeBrushColor + '"]');
+            if (swatch) setMarkerColor(appState.activeBrushColor, swatch);
+
+            if (set.images && set.images[0]) {
+                restoreCanvasFromSnapshot(set.images[0]);
+            } else {
+                clearWhiteboardDrawing();
+            }
+
+            setState.activeId = id;
+            await updateTracerSet(id, {
+                usageCount: (set.usageCount || 0) + 1,
+                lastUsed: Date.now()
+            });
+
+            setMode(appState.currentMode);
+            updateWordQueueUI();
+            updateActiveIndicator();
+            renderLibrary();
+        }
+
+        async function deleteSet(id, e) {
+            if (e) e.stopPropagation();
+            if (!confirm('Delete this set? This cannot be undone.')) return;
+            await deleteTracerSet(id);
+            if (setState.activeId === id) {
+                setState.activeId = null;
+                updateActiveIndicator();
+            }
+            renderLibrary();
+        }
+
+        function getSortedSets(sets) {
+            const sort = document.getElementById('library-sort').value;
+            const copy = [...sets];
+            if (sort === 'recent') {
+                copy.sort((a, b) => (b.lastUsed || 0) - (a.lastUsed || 0));
+            } else if (sort === 'alpha') {
+                copy.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+            } else if (sort === 'popular') {
+                copy.sort((a, b) => (b.usageCount || 0) - (a.usageCount || 0));
+            }
+            return copy;
+        }
+
+        function updateActiveIndicator() {
+            const indicator = document.getElementById('active-set-indicator');
+            const nameEl = document.getElementById('active-set-name');
+            if (setState.activeId) {
+                getTracerSet(setState.activeId).then(set => {
+                    if (set) {
+                        nameEl.innerText = set.name || 'Untitled';
+                        indicator.classList.remove('hidden');
+                    } else {
+                        indicator.classList.add('hidden');
+                    }
+                });
+            } else {
+                indicator.classList.add('hidden');
+            }
+        }
+
+        async function renderLibrary() {
+            const container = document.getElementById('library-list');
+            const sets = await getAllTracerSets();
+            const sorted = getSortedSets(sets);
+
+            if (sorted.length === 0) {
+                container.innerHTML = '<div class="text-xs text-slate-400 dark:text-slate-500 text-center py-4 italic">No saved sets yet.</div>';
+                return;
+            }
+
+            container.innerHTML = sorted.map(set => {
+                const isActive = set.id === setState.activeId;
+                return '<div onclick="loadSet(' + set.id + ')" class="cursor-pointer p-2.5 rounded-xl border-2 transition-all ' + (isActive ? 'bg-blue/5 border-blue dark:bg-blue/10' : 'bg-white border-dark hover:bg-slate-50 dark:bg-slate-700 dark:border-slate-600 dark:hover:bg-slate-600') + '">' +
+                    '<div class="flex items-center justify-between">' +
+                    '<span class="text-xs font-heading font-bold ' + (isActive ? 'text-blue' : 'text-dark dark:text-white') + ' truncate">' + (set.name || 'Untitled') + '</span>' +
+                    (isActive ? '<span class="text-[9px] font-bold text-blue bg-blue/10 px-1.5 py-0.5 rounded">Active</span>' : '') +
+                    '</div>' +
+                    '<div class="flex items-center gap-2 mt-1">' +
+                    '<span class="text-[9px] text-slate-400 dark:text-slate-400">Used ' + (set.usageCount || 0) + 'x</span>' +
+                    '<button onclick="deleteSet(' + set.id + ', event)" class="ml-auto text-slate-300 hover:text-red-400 transition-colors dark:text-slate-500" title="Delete">' +
+                    '<i data-lucide="trash-2" class="w-3.5 h-3.5"></i>' +
+                    '</button>' +
+                    '</div>' +
+                    '</div>';
+            }).join('');
+
+            lucide.createIcons();
+        }
+
+        async function autoSaveActiveSet() {
+            if (!setState.activeId || !tracerDB) return;
+            const data = buildSetPayload();
+            await updateTracerSet(setState.activeId, data);
+        }
+
         // Initialization handler
         async function initApp() {
+            await initTracerDB();
             await loadAppState(); // Restore configurations
             lucide.createIcons();
             resizeCanvases();
@@ -564,6 +927,8 @@
             if (savedSwatch) {
                 setMarkerColor(appState.activeBrushColor, savedSwatch);
             }
+
+            renderLibrary();
         }
 
         // Handles resizing operations dynamically
