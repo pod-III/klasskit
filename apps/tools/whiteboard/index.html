@@ -2,6 +2,11 @@
 <html lang="en">
 
 <head>
+    <script>
+        if (localStorage.getItem("theme_whiteboard") === "dark" || (!localStorage.getItem("theme_whiteboard") && window.matchMedia("(prefers-color-scheme:dark)").matches)) {
+            document.documentElement.classList.add("dark")
+        }
+    </script>
     <!-- Supabase Auth -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.105.4"></script>
     <script src="/supabase.js"></script>
@@ -11,7 +16,7 @@
     <link rel="icon" type="image/x-icon" href="../../../media/icon.ico" />
     <link rel="icon" type="image/webp" href="../../../media/icon.webp" />
 
-    <script src="https://unpkg.com/lucide@0.410.0"></script>
+    <script src="https://unpkg.com/lucide@1.16.0"></script>
     <script src="https://cdn.tailwindcss.com"></script>
 
     <script>
@@ -132,10 +137,10 @@
                     <div class="flex items-center gap-3 px-2 py-1 rounded-xl">
                         <div class="color-dot bg-dark dark:bg-white selected" id="dot-dark"
                             onclick="setDarkLightColor(this)"></div>
-                        <div class="color-dot bg-blue" onclick="setColor('#1ea7fd', this)"></div>
-                        <div class="color-dot bg-green" onclick="setColor('#00d063', this)"></div>
-                        <div class="color-dot bg-orange" onclick="setColor('#ff7e33', this)"></div>
-                        <div class="color-dot bg-pink" onclick="setColor('#ff4785', this)"></div>
+                        <div class="color-dot bg-blue" data-color="#1ea7fd" onclick="setColor('#1ea7fd', this)"></div>
+                        <div class="color-dot bg-green" data-color="#00d063" onclick="setColor('#00d063', this)"></div>
+                        <div class="color-dot bg-orange" data-color="#ff7e33" onclick="setColor('#ff7e33', this)"></div>
+                        <div class="color-dot bg-pink" data-color="#ff4785" onclick="setColor('#ff4785', this)"></div>
                     </div>
                 </div>
 
@@ -161,6 +166,12 @@
                     <i data-lucide="sun" id="theme-icon-sun" class="w-5 h-5 hidden dark:block"></i>
                     <i data-lucide="moon" id="theme-icon-moon" class="w-5 h-5 block dark:hidden"></i>
                 </button>
+
+                <div id="cloud-status"
+                    class="hidden items-center gap-2 px-3 py-1.5 rounded-xl bg-green/10 border border-green/30 text-green text-xs font-heading font-bold">
+                    <span class="w-2 h-2 bg-green rounded-full animate-pulse"></span>
+                    <span id="cloud-status-text">Synced</span>
+                </div>
 
                 <button onclick="toggleGrid()"
                     class="group flex items-center gap-2 px-4 py-2 rounded-xl font-heading font-bold text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 border-3 border-transparent hover:border-slate-200 dark:hover:border-slate-600 transition-all active:scale-95">
@@ -234,6 +245,14 @@
                     Yes, Wipe
                 </button>
             </div>
+        </div>
+    </div>
+
+    <div id="auth-overlay"
+        class="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-[var(--bg-primary)] transition-opacity duration-300">
+        <div class="flex flex-col items-center gap-4">
+            <div class="w-16 h-16 border-4 border-[var(--color-blue)] border-t-transparent rounded-full animate-spin"></div>
+            <p class="font-heading font-bold text-xl text-[var(--text-primary)]">Loading Whiteboard...</p>
         </div>
     </div>
 

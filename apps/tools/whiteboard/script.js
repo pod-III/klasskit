@@ -110,6 +110,89 @@ let undoIndex = -1;
 let saveTimeout;
 let rafId = null;
 
+const SETTINGS_KEY = 'whiteboard_settings';
+let settingsSaveTimeout;
+
+// --- Cloud Settings Sync ---
+function debounceSaveSettings() {
+    clearTimeout(settingsSaveTimeout);
+    settingsSaveTimeout = setTimeout(() => {
+        saveBoardSettings().catch(e => console.error('Settings save failed:', e));
+    }, 600);
+}
+
+async function saveBoardSettings() {
+    const settings = {
+        tool: state.tool,
+        color: state.color,
+        size: state.size,
+        scale: state.scale,
+        panX: state.panX,
+        panY: state.panY,
+        darkMode: document.documentElement.classList.contains('dark'),
+        grid: bodyBg.classList.contains('bg-grid')
+    };
+    try {
+        await saveProgress(SETTINGS_KEY, settings);
+        showCloudStatus();
+    } catch (e) {
+        console.error('Failed to save settings:', e);
+    }
+}
+
+async function loadBoardSettings() {
+    try {
+        const settings = await loadProgress(SETTINGS_KEY);
+        if (!settings) return;
+
+        if (settings.tool) setTool(settings.tool, true);
+        if (settings.color) {
+            setColor(settings.color, null, true);
+        }
+        if (settings.size !== undefined) {
+            updateSize(settings.size, true);
+        }
+        if (settings.scale) state.scale = settings.scale;
+        if (settings.panX !== undefined) state.panX = settings.panX;
+        if (settings.panY !== undefined) state.panY = settings.panY;
+
+        if ('darkMode' in settings) {
+            document.documentElement.classList.toggle('dark', settings.darkMode);
+        }
+        if ('grid' in settings) {
+            bodyBg.classList.toggle('bg-grid', settings.grid);
+        }
+        updateView();
+        lucide.createIcons();
+    } catch (e) {
+        console.error('Failed to load settings:', e);
+    }
+}
+
+function showCloudStatus() {
+    const el = document.getElementById('cloud-status');
+    const txt = document.getElementById('cloud-status-text');
+    if (el) {
+        el.classList.remove('hidden');
+        el.classList.add('flex');
+    }
+    if (txt) txt.innerText = 'Synced';
+    setTimeout(() => {
+        if (el) {
+            el.classList.add('hidden');
+            el.classList.remove('flex');
+        }
+    }, 2000);
+}
+
+function hideAuthOverlay() {
+    const el = document.getElementById('auth-overlay');
+    if (el) {
+        el.classList.add('opacity-0');
+        setTimeout(() => el.remove(), 300);
+    }
+}
+
 // ✨ OPTIMIZED: RAF-throttled view updates
 function updateView() {
     if (rafId) return;
@@ -568,7 +651,7 @@ textInput.addEventListener("keydown", (e) => {
 });
 
 // ✨ OPTIMIZED: Caching with early returns
-function setTool(toolName) {
+function setTool(toolName, silent = false) {
     if (state.tool === toolName) return;
 
     commitText();
@@ -582,6 +665,8 @@ function setTool(toolName) {
     const btn = document.getElementById("tool-" + toolName);
     if (btn) btn.classList.add("active");
 
+    if (!silent) debounceSaveSettings();
+
     if (toolName === "hand") {
         wrapper.style.cursor = "grab";
     } else if (toolName === "text") {
@@ -592,7 +677,7 @@ function setTool(toolName) {
 }
 
 // ✨ OPTIMIZED: Skip redundant state changes
-function setColor(color, el) {
+function setColor(color, el, silent = false) {
     if (state.color === color) return;
 
     state.color = color;
@@ -601,21 +686,26 @@ function setColor(color, el) {
     document
         .querySelectorAll(".color-dot")
         .forEach((d) => d.classList.remove("selected"));
-    el.classList.add("selected");
+    if (el) el.classList.add("selected");
+
+    if (!silent) debounceSaveSettings();
 }
 
 // ✨ OPTIMIZED: Set context immediately
-function updateSize(val) {
+function updateSize(val, silent = false) {
     const newSize = parseInt(val);
     if (state.size === newSize) return;
 
     state.size = newSize;
     ctxMain.lineWidth = newSize;
+
+    if (!silent) debounceSaveSettings();
 }
 
 function toggleGrid() {
     bodyBg.classList.toggle("bg-grid");
     updateView();
+    debounceSaveSettings();
 }
 
 // Returns the appropriate "dark/light" ink color based on current theme
@@ -634,10 +724,7 @@ function toggleTheme() {
     document.documentElement.classList.toggle("dark");
     const isDark =
         document.documentElement.classList.contains("dark");
-    localStorage.setItem(
-        isDark ? "dark" : "light",
-        isDark ? "dark" : "light",
-    );
+    localStorage.setItem("theme_whiteboard", isDark ? "dark" : "light");
 
     // If currently using the dark/white ink, swap it to stay visible
     const darkDot = document.getElementById("dot-dark");
@@ -648,6 +735,7 @@ function toggleTheme() {
     }
 
     lucide.createIcons();
+    debounceSaveSettings();
 }
 
 // ✨ OPTIMIZED: Debounced IndexedDB saves
@@ -671,10 +759,9 @@ function saveState() {
             await saveToIndexedDB(blob);
             console.log("✅ Canvas saved to IndexedDB");
 
-            // Sync to Cloud (Compressed WebP/JPEG)
-            const format = canvasMain.toDataURL("image/webp", 0.1).startsWith("data:image/webp") ? "image/webp" : "image/jpeg";
-            const dataURL = canvasMain.toDataURL(format, 0.4);
-            await saveToCloud(dataURL);
+            // Sync vector paths to cloud
+            await saveToCloud();
+            showCloudStatus();
         } catch (e) {
             console.error("❌ Save failed:", e);
         }
@@ -734,6 +821,10 @@ function generateSVG() {
 
 async function saveToCloud() {
     try {
+        // Prevent overwriting legacy image-based cloud data with empty vector paths
+        if (boardPaths.length === 0 && undoIndex < 0) {
+            return;
+        }
         await saveProgress('whiteboard_canvas_data', {
             boardPaths: boardPaths,
             width: canvasMain.width,
@@ -1019,9 +1110,12 @@ window.onload = async () => {
         await initDB();
         initView();
         await loadStorage();
+        await loadBoardSettings();
     } catch (e) {
         console.error("Initialization failed:", e);
     }
+
+    hideAuthOverlay();
 
     // Final call after everything is loaded
     if (typeof lucide !== 'undefined') {

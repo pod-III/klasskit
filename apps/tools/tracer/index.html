@@ -1,10 +1,20 @@
 <!DOCTYPE html>
-<html lang="en" class="light">
+<html lang="en">
 
 <head>
+    <script>
+        if (localStorage.getItem("theme_tracer") === "dark" || (!localStorage.getItem("theme_tracer") && window.matchMedia("(prefers-color-scheme:dark)").matches)) {
+            document.documentElement.classList.add("dark")
+        }
+    </script>
+    <!-- Supabase Auth -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.105.4"></script>
+    <script src="/supabase.js"></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Tracer Whiteboard & Letter Practice</title>
+    <link rel="icon" type="image/x-icon" href="../../../media/icon.ico" />
+    <link rel="icon" type="image/webp" href="../../../media/icon.webp" />
 
     <!-- External Assets & Libraries -->
     <script src="https://unpkg.com/lucide@1.16.0"></script>
@@ -213,7 +223,7 @@
 
                     <!-- Letter Select Option -->
                     <div id="letter-options" class="space-y-2">
-                        <select id="letter-select" onchange="clearWhiteboardDrawing(); renderTemplate(); saveAppState();" class="w-full p-3 bg-white text-dark font-heading text-lg border-[2.5px] border-dark rounded-xl outline-none shadow-neo-sm cursor-pointer">
+                        <select id="letter-select" onchange="clearWhiteboardDrawing(); renderTemplate(); debounceSaveAppState();" class="w-full p-3 bg-white text-dark font-heading text-lg border-[2.5px] border-dark rounded-xl outline-none shadow-neo-sm cursor-pointer">
                             <option value="A">Letter A</option>
                             <option value="B">Letter B</option>
                             <option value="C">Letter C</option>
@@ -230,7 +240,7 @@
 
                     <!-- Shape Select Option -->
                     <div id="shape-options" class="hidden space-y-2">
-                        <select id="shape-select" onchange="clearWhiteboardDrawing(); renderTemplate(); saveAppState();" class="w-full p-3 bg-white text-dark font-heading text-lg border-[2.5px] border-dark rounded-xl outline-none shadow-neo-sm cursor-pointer">
+                        <select id="shape-select" onchange="clearWhiteboardDrawing(); renderTemplate(); debounceSaveAppState();" class="w-full p-3 bg-white text-dark font-heading text-lg border-[2.5px] border-dark rounded-xl outline-none shadow-neo-sm cursor-pointer">
                             <option value="circle">Circle ◯</option>
                             <option value="square">Square ▢</option>
                             <option value="triangle">Triangle △</option>
@@ -395,6 +405,14 @@
         </main>
     </div>
 
+    <div id="auth-overlay"
+        class="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-[#f1f5f9] dark:bg-[#0b0f19] transition-opacity duration-300">
+        <div class="flex flex-col items-center gap-4">
+            <div class="w-16 h-16 border-4 border-[#2979FF] border-t-transparent rounded-full animate-spin"></div>
+            <p class="font-heading font-bold text-xl text-dark dark:text-white">Loading Tracer...</p>
+        </div>
+    </div>
+
     <!-- SCRIPT APPLICATION CONTROLLER -->
     <script>
         // DOM elements
@@ -421,76 +439,126 @@
         // Initialize CSV Word input with defaults
         wordCSVInput.value = appState.activeWordsList.join(', ');
 
-        // Save the current state parameters to localStorage
-        function saveAppState() {
+        const TRACER_SETTINGS_KEY = 'tracer_settings';
+        let settingsSaveTimeout;
+
+        // Build the current state payload
+        function buildStatePayload() {
+            return {
+                currentMode: appState.currentMode,
+                blueprintBoldness: appState.blueprintBoldness,
+                primaryGuidesEnabled: appState.primaryGuidesEnabled,
+                activeWordsList: appState.activeWordsList,
+                activeWordIndex: appState.activeWordIndex,
+                activeBrushColor: appState.activeBrushColor,
+                activeBrushWidth: appState.activeBrushWidth,
+                selectedLetter: document.getElementById('letter-select')?.value,
+                selectedShape: document.getElementById('shape-select')?.value,
+                csvValue: wordCSVInput.value,
+                darkMode: document.documentElement.classList.contains('dark')
+            };
+        }
+
+        // Debounced cloud sync for settings
+        function debounceSaveAppState() {
+            clearTimeout(settingsSaveTimeout);
+            settingsSaveTimeout = setTimeout(() => {
+                saveAppState().catch(err => console.error("Save Error:", err));
+            }, 500);
+        }
+
+        // Save state to localStorage + cloud
+        async function saveAppState() {
             try {
-                const stateToSave = {
-                    currentMode: appState.currentMode,
-                    blueprintBoldness: appState.blueprintBoldness,
-                    primaryGuidesEnabled: appState.primaryGuidesEnabled,
-                    activeWordsList: appState.activeWordsList,
-                    activeWordIndex: appState.activeWordIndex,
-                    activeBrushColor: appState.activeBrushColor,
-                    activeBrushWidth: appState.activeBrushWidth,
-                    selectedLetter: document.getElementById('letter-select').value,
-                    selectedShape: document.getElementById('shape-select').value,
-                    csvValue: wordCSVInput.value
-                };
-                localStorage.setItem('tracer_whiteboard_state', JSON.stringify(stateToSave));
+                const payload = buildStatePayload();
+                localStorage.setItem('tracer_whiteboard_state', JSON.stringify(payload));
+                if (typeof saveProgress === 'function') {
+                    await saveProgress(TRACER_SETTINGS_KEY, payload);
+                }
             } catch (err) {
-                console.error("Local Storage Save Error:", err);
+                console.error("Save Error:", err);
             }
         }
 
-        // Load the saved state from localStorage
-        function loadAppState() {
+        // Load state from cloud (preferred) or localStorage
+        async function loadAppState() {
+            let parsed = null;
             try {
-                const saved = localStorage.getItem('tracer_whiteboard_state');
-                if (saved) {
-                    const parsed = JSON.parse(saved);
-                    
-                    appState.currentMode = parsed.currentMode || 'letter';
-                    appState.blueprintBoldness = parsed.blueprintBoldness !== undefined ? parsed.blueprintBoldness : 6;
-                    appState.primaryGuidesEnabled = parsed.primaryGuidesEnabled !== undefined ? parsed.primaryGuidesEnabled : true;
-                    appState.activeWordsList = parsed.activeWordsList || ['HELLO', 'CAT', 'DOG', 'STAR'];
-                    appState.activeWordIndex = parsed.activeWordIndex !== undefined ? parsed.activeWordIndex : 0;
-                    appState.activeBrushColor = parsed.activeBrushColor || '#2979FF';
-                    appState.activeBrushWidth = parsed.activeBrushWidth !== undefined ? parsed.activeBrushWidth : 12;
-
-                    // Sync form / selectors
-                    if (parsed.selectedLetter) {
-                        document.getElementById('letter-select').value = parsed.selectedLetter;
+                if (typeof loadProgress === 'function') {
+                    const cloudData = await loadProgress(TRACER_SETTINGS_KEY);
+                    if (cloudData) {
+                        parsed = cloudData;
+                        console.log("[Tracer] Settings loaded from cloud");
                     }
-                    if (parsed.selectedShape) {
-                        document.getElementById('shape-select').value = parsed.selectedShape;
-                    }
-                    if (parsed.csvValue !== undefined) {
-                        wordCSVInput.value = parsed.csvValue;
-                    } else {
-                        wordCSVInput.value = appState.activeWordsList.join(', ');
-                    }
-
-                    // Sync slider elements and displays
-                    document.getElementById('bp-boldness').value = appState.blueprintBoldness;
-                    document.getElementById('bp-boldness-val').innerText = `${appState.blueprintBoldness}px`;
-
-                    document.getElementById('pen-width').value = appState.activeBrushWidth;
-                    document.getElementById('pen-width-val').innerText = `${appState.activeBrushWidth}px`;
-
-                    document.getElementById('guides-toggle').checked = appState.primaryGuidesEnabled;
                 }
             } catch (err) {
-                console.error("Local Storage Load Error:", err);
+                console.error("Cloud Load Error:", err);
+            }
+
+            // Fallback to localStorage
+            if (!parsed) {
+                try {
+                    const saved = localStorage.getItem('tracer_whiteboard_state');
+                    if (saved) parsed = JSON.parse(saved);
+                } catch (err) {
+                    console.error("Local Storage Load Error:", err);
+                }
+            }
+
+            if (parsed) {
+                appState.currentMode = parsed.currentMode || 'letter';
+                appState.blueprintBoldness = parsed.blueprintBoldness !== undefined ? parsed.blueprintBoldness : 6;
+                appState.primaryGuidesEnabled = parsed.primaryGuidesEnabled !== undefined ? parsed.primaryGuidesEnabled : true;
+                appState.activeWordsList = parsed.activeWordsList || ['HELLO', 'CAT', 'DOG', 'STAR'];
+                appState.activeWordIndex = parsed.activeWordIndex !== undefined ? parsed.activeWordIndex : 0;
+                appState.activeBrushColor = parsed.activeBrushColor || '#2979FF';
+                appState.activeBrushWidth = parsed.activeBrushWidth !== undefined ? parsed.activeBrushWidth : 12;
+
+                if (parsed.darkMode) {
+                    document.documentElement.classList.add('dark');
+                } else if (parsed.darkMode === false) {
+                    document.documentElement.classList.remove('dark');
+                }
+
+                // Sync form / selectors
+                if (parsed.selectedLetter) {
+                    document.getElementById('letter-select').value = parsed.selectedLetter;
+                }
+                if (parsed.selectedShape) {
+                    document.getElementById('shape-select').value = parsed.selectedShape;
+                }
+                if (parsed.csvValue !== undefined) {
+                    wordCSVInput.value = parsed.csvValue;
+                } else {
+                    wordCSVInput.value = appState.activeWordsList.join(', ');
+                }
+
+                // Sync slider elements and displays
+                document.getElementById('bp-boldness').value = appState.blueprintBoldness;
+                document.getElementById('bp-boldness-val').innerText = `${appState.blueprintBoldness}px`;
+
+                document.getElementById('pen-width').value = appState.activeBrushWidth;
+                document.getElementById('pen-width-val').innerText = `${appState.activeBrushWidth}px`;
+
+                document.getElementById('guides-toggle').checked = appState.primaryGuidesEnabled;
+            }
+        }
+
+        function hideAuthOverlay() {
+            const el = document.getElementById('auth-overlay');
+            if (el) {
+                el.classList.add('opacity-0');
+                setTimeout(() => el.remove(), 300);
             }
         }
 
         // Initialization handler
-        function initApp() {
-            loadAppState(); // Restore configurations
+        async function initApp() {
+            await loadAppState(); // Restore configurations
             lucide.createIcons();
             resizeCanvases();
             setMode(appState.currentMode); // Initialize Mode elements
-            
+
             // Restore chosen Marker Color element highlight
             const savedSwatch = document.querySelector(`.marker-swatch[data-color="${appState.activeBrushColor}"]`);
             if (savedSwatch) {
@@ -750,7 +818,7 @@
             if (mode === 'shape') nextBtnText.innerText = 'Next Shape';
 
             renderTemplate();
-            saveAppState();
+            debounceSaveAppState();
         }
 
         // Handle Input and Word Playlist Navigations
@@ -765,7 +833,7 @@
             appState.activeWordIndex = 0;
             updateWordQueueUI();
             renderTemplate();
-            saveAppState();
+            debounceSaveAppState();
         }
 
         function navigateWord(direction) {
@@ -773,7 +841,7 @@
             appState.activeWordIndex = (appState.activeWordIndex + direction + listSize) % listSize;
             updateWordQueueUI();
             renderTemplate();
-            saveAppState();
+            debounceSaveAppState();
         }
 
         function updateWordQueueUI() {
@@ -792,18 +860,18 @@
                 if (nextIdx >= select.options.length) nextIdx = 0; // Wrap list
                 select.selectedIndex = nextIdx;
                 renderTemplate();
-                saveAppState();
-            } 
+                debounceSaveAppState();
+            }
             else if (appState.currentMode === 'word') {
                 navigateWord(1);
-            } 
+            }
             else if (appState.currentMode === 'shape') {
                 const select = document.getElementById('shape-select');
                 let nextIdx = select.selectedIndex + 1;
                 if (nextIdx >= select.options.length) nextIdx = 0; // Wrap list
                 select.selectedIndex = nextIdx;
                 renderTemplate();
-                saveAppState();
+                debounceSaveAppState();
             }
         }
 
@@ -816,18 +884,18 @@
                 if (prevIdx < 0) prevIdx = select.options.length - 1; // Wrap list
                 select.selectedIndex = prevIdx;
                 renderTemplate();
-                saveAppState();
-            } 
+                debounceSaveAppState();
+            }
             else if (appState.currentMode === 'word') {
                 navigateWord(-1);
-            } 
+            }
             else if (appState.currentMode === 'shape') {
                 const select = document.getElementById('shape-select');
                 let prevIdx = select.selectedIndex - 1;
                 if (prevIdx < 0) prevIdx = select.options.length - 1; // Wrap list
                 select.selectedIndex = prevIdx;
                 renderTemplate();
-                saveAppState();
+                debounceSaveAppState();
             }
         }
 
@@ -853,21 +921,21 @@
             appState.blueprintBoldness = parseInt(val);
             document.getElementById('bp-boldness-val').innerText = `${val}px`;
             renderTemplate();
-            saveAppState();
+            debounceSaveAppState();
         }
 
         // Toggle Guidelines
         function toggleGuides(isEnabled) {
             appState.primaryGuidesEnabled = isEnabled;
             renderTemplate();
-            saveAppState();
+            debounceSaveAppState();
         }
 
         // User ink updates
         function updatePenWidth(val) {
             appState.activeBrushWidth = parseInt(val);
             document.getElementById('pen-width-val').innerText = `${val}px`;
-            saveAppState();
+            debounceSaveAppState();
         }
 
         function setMarkerColor(color, btnElement) {
@@ -879,7 +947,7 @@
             btnElement.classList.replace('ring-1', 'ring-2');
             btnElement.classList.replace('ring-slate-400', 'ring-dark');
             btnElement.classList.add('ring-offset-1', 'active');
-            saveAppState();
+            debounceSaveAppState();
         }
 
         // Erase student active dry-erase ink only
@@ -892,6 +960,9 @@
         // Toggle simple light/dark wrapper details
         function toggleTheme() {
             document.documentElement.classList.toggle('dark');
+            const isDark = document.documentElement.classList.contains('dark');
+            localStorage.setItem('theme_tracer', isDark ? 'dark' : 'light');
+            debounceSaveAppState();
         }
 
         // Browser Fullscreen API deployment & visual adjustment
@@ -943,9 +1014,15 @@
         });
 
         // Initialize App on DOM trigger load
-        window.onload = function() {
-            initApp();
+        window.onload = async function() {
+            try {
+                await requireAuth();
+            } catch (e) {
+                console.error("Auth failed:", e);
+            }
+            await initApp();
             updateWordQueueUI();
+            hideAuthOverlay();
         };
     </script>
 </body>
