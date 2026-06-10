@@ -3,313 +3,6 @@
 // Optimized for performance, reduced redundancy
 // ============================================
 
-// --- CONSTANTS & CONFIG ---
-const CONFIG = {
-  helpUrl: "https://forms.gle/VRqg4f3KFHoJXFUu9",
-  dataSource: "../games.json",
-  maxRecentGames: 5,
-  maxTabs: 20,
-  debounceDelay: 300,
-  loadTimeout: 5000,
-  storageKeys: {
-    theme: "theme_hub",
-    recent: "recentGameIds",
-    sound: "soundMuted",
-    favorites: "favoriteGames",
-    tabs: "openTabs",
-    tabGroups: "tabGroups",
-    pinned: "pinnedGameIds",
-    homeView: "klasskit_homeView",
-    viewMode: "klasskit_viewMode",
-    lastReadAnn: "klasskit_lastReadAnn",
-    recentCollapsed: "klasskit_recentCollapsed",
-    timerVisible: "klasskit_timerVisible",
-    timerPosition: "klasskit_timerPosition",
-    timerDuration: "klasskit_timerDuration"
-  }
-};
-
-// --- UTILITIES ---
-const Utils = {
-  debounce(fn, delay) {
-    let timer;
-    return function (...args) {
-      clearTimeout(timer);
-      timer = setTimeout(() => fn.apply(this, args), delay);
-    };
-  },
-
-  getColorClass(colorName, prefix = 'bg') {
-    const baseColor = colorName.replace('text-', '').split('-')[0];
-    const colorMap = {
-      pink: `${prefix}-pink`,
-      orange: `${prefix}-orange`,
-      green: `${prefix}-green`,
-      blue: `${prefix}-blue`,
-      red: `${prefix}-red-500`,
-      slate: `${prefix}-slate-500`
-    };
-    return colorMap[baseColor] || `${prefix}-dark dark:${prefix}-slate-700`;
-  },
-
-  _iconRefreshPending: false,
-  refreshIcons(container) {
-    if (this._iconRefreshPending) return;
-    this._iconRefreshPending = true;
-    requestAnimationFrame(() => {
-      this._iconRefreshPending = false;
-      if (container && window.lucide?.createIcons) {
-        // Scoped refresh — only process icons within the given container
-        window.lucide.createIcons({ nodes: container.querySelectorAll('[data-lucide]') });
-      } else {
-        window.lucide?.createIcons?.();
-      }
-    });
-  }
-};
-
-// --- STATE MANAGEMENT ---
-const State = {
-  games: [],
-  gameMap: new Map(), // O(1) lookup by ID
-  activeGame: null,
-  metadata: null,
-  userProfile: null,
-  filters: { category: 'all', searchTerm: '', difficulty: 'all', tags: [] },
-
-  isPro() {
-    return this.userProfile?.role === 'pro' || this.userProfile?.role === 'admin';
-  },
-
-  setGames(data) {
-    const gamesList = data.games || data;
-    this.games = gamesList.sort((a, b) => a.title.localeCompare(b.title));
-    // Build lookup map
-    this.gameMap.clear();
-    for (const game of this.games) {
-      this.gameMap.set(game.id, game);
-    }
-    if (data.metadata) this.metadata = data.metadata;
-  },
-
-  getFilteredGames() {
-    const { category, searchTerm, difficulty, tags } = this.filters;
-    const searchLower = searchTerm.toLowerCase().trim();
-
-    return this.games
-      .filter(game => {
-        if (game.active === false) return false;
-        
-        // Privilege Check: Hide pro games if user is not pro
-        if (game.pro && !this.isPro()) return false;
-        
-        // Admin Check: Hide admin-only games if user is not admin
-        if (game.adminOnly && this.userProfile?.role !== 'admin') return false;
-
-        const matchesCategory = category === 'all' ||
-          (category === 'featured' ? game.featured === true : game.category === category);
-        const matchesDifficulty = difficulty === 'all' || !game.difficulty || game.difficulty === difficulty;
-        const matchesTags = tags.length === 0 || game.tags?.some(tag => tags.includes(tag));
-
-        // Basic Filter
-        if (!matchesCategory || !matchesDifficulty || !matchesTags) return false;
-
-        // Search Filter
-        if (!searchLower) return true;
-
-        const title = game.title.toLowerCase();
-        const description = (game.description || "").toLowerCase();
-        const cat = game.category.toLowerCase();
-
-        return title.includes(searchLower) ||
-          description.includes(searchLower) ||
-          cat.includes(searchLower) ||
-          game.tags?.some(tag => tag.toLowerCase().includes(searchLower));
-      })
-      .sort((a, b) => {
-        if (searchLower) {
-          // Compute scores inline to avoid creating new objects
-          const scoreA = this._searchScore(a, searchLower);
-          const scoreB = this._searchScore(b, searchLower);
-          if (scoreB !== scoreA) return scoreB - scoreA;
-        }
-        return a.title.localeCompare(b.title);
-      });
-  },
-
-  _searchScore(game, term) {
-    const title = game.title.toLowerCase();
-    let score = 0;
-    if (title === term) score += 100;
-    else if (title.startsWith(term)) score += 80;
-    else if (title.includes(term)) score += 60;
-    if ((game.description || '').toLowerCase().includes(term)) score += 40;
-    if (game.category.toLowerCase().includes(term)) score += 30;
-    if (game.tags?.some(tag => tag.toLowerCase().includes(term))) score += 20;
-    return score;
-  },
-
-  getGameById(id) {
-    return this.gameMap.get(id) || null;
-  }
-};
-
-// --- STORAGE ---
-const Storage = {
-  get(key, fallback = null) {
-    try {
-      const item = localStorage.getItem(key);
-      return item ? JSON.parse(item) : fallback;
-    } catch (error) {
-      console.warn(`Storage read error for "${key}":`, error);
-      return fallback;
-    }
-  },
-
-  set(key, value) {
-    try {
-      localStorage.setItem(key, JSON.stringify(value));
-
-      // If this is a hub key, trigger a cloud save in background
-      const hubKeys = Object.values(CONFIG.storageKeys);
-      if (hubKeys.includes(key)) {
-        this.triggerCloudSave();
-      }
-      return true;
-    } catch (error) {
-      console.error(`Storage write error for "${key}":`, error);
-      return false;
-    }
-  },
-
-  remove(key) {
-    try {
-      localStorage.removeItem(key);
-      const hubKeys = Object.values(CONFIG.storageKeys);
-      if (hubKeys.includes(key)) {
-        this.triggerCloudSave();
-      }
-    } catch (error) {
-      console.error(`Storage remove error for "${key}":`, error);
-    }
-  },
-
-  _saveTimeout: null,
-  triggerCloudSave() {
-    if (this._saveTimeout) clearTimeout(this._saveTimeout);
-    this._saveTimeout = setTimeout(async () => {
-      if (typeof isSandbox === 'function' && isSandbox()) return;
-      const user = await getUser();
-      if (!user) return;
-
-      const hubState = {};
-      Object.keys(CONFIG.storageKeys).forEach(keyName => {
-        const key = CONFIG.storageKeys[keyName];
-        const val = this.get(key);
-        if (val !== null) hubState[key] = val;
-      });
-
-      console.log('[CloudPersistence] Saving hub state...', hubState);
-      await saveProgress('klasskit_hub', hubState);
-    }, 2000); // Debounce to avoid excessive writes
-  },
-
-  async syncWithCloud() {
-    if (typeof isSandbox === 'function' && isSandbox()) return;
-    const user = await getUser();
-    if (!user) return;
-
-    console.log('[CloudPersistence] Syncing with cloud...');
-    const cloudHubState = await loadProgress('klasskit_hub');
-
-    if (cloudHubState) {
-      console.log('[CloudPersistence] Found cloud state:', cloudHubState);
-      let changed = false;
-      Object.keys(cloudHubState).forEach(key => {
-        const localVal = localStorage.getItem(key);
-        const cloudVal = JSON.stringify(cloudHubState[key]);
-        if (localVal !== cloudVal) {
-          localStorage.setItem(key, cloudVal);
-          changed = true;
-        }
-      });
-      return changed;
-    }
-    return false;
-  }
-};
-
-// --- AUDIO ENGINE ---
-const AudioEngine = {
-  ctx: null,
-  muted: false,
-
-  init() {
-    if (this.ctx) return;
-    try {
-      const AudioContext = window.AudioContext || window.webkitAudioContext;
-      this.ctx = new AudioContext();
-      this.muted = Storage.get(CONFIG.storageKeys.sound, false);
-      this.updateUI();
-    } catch (error) {
-      console.warn('Web Audio API not supported:', error);
-    }
-  },
-
-  playTone(freq, type, duration) {
-    if (this.muted || !this.ctx) return;
-    try {
-      const osc = this.ctx.createOscillator();
-      const gain = this.ctx.createGain();
-      osc.type = type;
-      osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
-      gain.gain.setValueAtTime(0.1, this.ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + duration);
-      osc.connect(gain).connect(this.ctx.destination);
-      osc.start();
-      osc.stop(this.ctx.currentTime + duration);
-    } catch (error) {
-      console.warn('Audio error:', error);
-    }
-  },
-
-  hover() { this.playTone(400, 'sine', 0.1); },
-  click() { this.playTone(600, 'square', 0.15); },
-
-  toggle() {
-    if (!this.ctx) this.init();
-    if (this.ctx.state === 'suspended') this.ctx.resume();
-    this.muted = !this.muted;
-    Storage.set(CONFIG.storageKeys.sound, this.muted);
-    this.updateUI();
-  },
-
-  updateUI() {
-    const icon = document.getElementById('sound-btn-icon');
-    if (!icon) return;
-    const config = this.muted
-      ? { icon: 'volume-x', color: 'rgb(248 113 113)' }
-      : { icon: 'volume-2', color: 'rgb(74 222 128)' };
-    icon.setAttribute('data-lucide', config.icon);
-    icon.style.color = config.color;
-    Utils.refreshIcons();
-  }
-};
-
-// --- THEME ---
-const Theme = {
-  load() {
-    const saved = Storage.get(CONFIG.storageKeys.theme);
-    const isDark = saved === 'dark' || (saved !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches);
-    document.documentElement.classList.toggle('dark', isDark);
-  },
-
-  toggle() {
-    const isDark = document.documentElement.classList.toggle('dark');
-    Storage.set(CONFIG.storageKeys.theme, isDark ? 'dark' : 'light');
-    AudioEngine.click();
-  }
-};
 
 // --- UI ---
 const FloatingTooltip = {
@@ -2021,6 +1714,969 @@ const InputPopup = {
 };
 window.InputPopup = InputPopup;
 
+
+// --- UNIVERSAL COUNTDOWN TIMER ---
+const Timer = {
+  el: null,
+  running: false,
+  remaining: 0,    // ms remaining on countdown
+  initial: 0,      // ms total duration set
+  lastTick: 0,
+  intervalId: null,
+  alarmTimeout: null,
+  drag: { active: false, offsetX: 0, offsetY: 0, rafId: null, pendingX: 0, pendingY: 0 },
+  presets: [
+    { label: '1m', seconds: 60 },
+    { label: '2m', seconds: 120 },
+    { label: '3m', seconds: 180 },
+    { label: '5m', seconds: 300 },
+    { label: '10m', seconds: 600 },
+  ],
+  alarmAudioCtx: null,
+
+  init() {
+    if (this.el) return;
+
+    const timer = document.createElement('div');
+    timer.id = 'universal-timer';
+    timer.className = 'universal-timer hidden';
+    timer.innerHTML = `
+      <button class="timer-exit-btn" title="Close" aria-label="Close timer">
+        <i data-lucide="x" class="w-3 h-3"></i>
+      </button>
+      <div class="timer-drag-handle" title="Drag to move" touch-action="none">
+        <i data-lucide="grip-vertical" class="w-3 h-3 opacity-50"></i>
+        <span>Timer</span>
+      </div>
+      <div class="timer-ring-wrap">
+        <svg class="timer-ring" viewBox="0 0 80 80">
+          <circle class="timer-ring-bg" cx="40" cy="40" r="34" />
+          <circle class="timer-ring-fg" cx="40" cy="40" r="34" />
+        </svg>
+        <div class="timer-display">00:00</div>
+      </div>
+      <div class="timer-presets">
+        ${this.presets.map(p => `<button class="timer-preset-btn" data-seconds="${p.seconds}">${p.label}</button>`).join('')}
+        <button class="timer-preset-btn timer-custom-btn" data-seconds="custom" title="Custom time">
+          <i data-lucide="pencil" class="w-3 h-3"></i>
+        </button>
+      </div>
+      <div class="timer-custom-input hidden">
+        <div class="timer-custom-fields">
+          <div class="timer-custom-field">
+            <input type="number" class="timer-input-min" min="0" max="99" value="5" placeholder="00" />
+            <label>min</label>
+          </div>
+          <span class="timer-custom-sep">:</span>
+          <div class="timer-custom-field">
+            <input type="number" class="timer-input-sec" min="0" max="59" value="0" placeholder="00" />
+            <label>sec</label>
+          </div>
+        </div>
+        <button class="timer-preset-btn timer-set-btn">Set</button>
+      </div>
+      <div class="timer-controls">
+        <button class="timer-btn timer-play" title="Start" aria-label="Start timer">
+          <i data-lucide="play" class="w-4 h-4"></i>
+        </button>
+        <button class="timer-btn timer-pause hidden" title="Pause" aria-label="Pause timer">
+          <i data-lucide="pause" class="w-4 h-4"></i>
+        </button>
+        <button class="timer-btn timer-reset" title="Reset" aria-label="Reset timer">
+          <i data-lucide="rotate-ccw" class="w-4 h-4"></i>
+        </button>
+      </div>
+      <div class="timer-add-time">
+        <button class="timer-add-btn" data-add="30" title="Add 30 seconds">+30s</button>
+        <button class="timer-add-btn" data-add="60" title="Add 1 minute">+1m</button>
+      </div>
+    `;
+    document.getElementById('tab-content-area')?.appendChild(timer);
+    this.el = timer;
+
+    // Restore visibility
+    const visible = Storage.get(CONFIG.storageKeys.timerVisible);
+    if (visible) this.show();
+
+    // Restore position
+    const pos = Storage.get(CONFIG.storageKeys.timerPosition);
+    if (pos && typeof pos.x === 'number' && typeof pos.y === 'number') {
+      timer.style.left = `${pos.x}px`;
+      timer.style.top = `${pos.y}px`;
+      timer.style.right = 'auto';
+      timer.style.bottom = 'auto';
+      timer.style.transform = 'none';
+    }
+    // If no saved position, CSS centers it via top:50%; left:50%; transform:translate(-50%,-50%)
+
+    // Restore duration or set default 5 min
+    const savedDuration = Storage.get(CONFIG.storageKeys.timerDuration);
+    this.setDuration(savedDuration || 300);
+
+    this.bindEvents();
+    Utils.refreshIcons(timer);
+  },
+
+  bindEvents() {
+    if (!this.el) return;
+    const handle = this.el.querySelector('.timer-drag-handle');
+    const playBtn = this.el.querySelector('.timer-play');
+    const pauseBtn = this.el.querySelector('.timer-pause');
+    const resetBtn = this.el.querySelector('.timer-reset');
+    const exitBtn = this.el.querySelector('.timer-exit-btn');
+
+    exitBtn?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.hide();
+      AudioEngine.click();
+    });
+
+    // --- Pointer-based drag (mouse + touch unified, smooth via RAF) ---
+    handle.addEventListener('pointerdown', (e) => {
+      // Only primary button (left-click / single touch)
+      if (e.button !== 0) return;
+      this.drag.active = true;
+      this.el.style.transform = 'none';
+      const rect = this.el.getBoundingClientRect();
+      this.drag.offsetX = e.clientX - rect.left;
+      this.drag.offsetY = e.clientY - rect.top;
+      this.el.classList.add('timer-dragging');
+      handle.setPointerCapture(e.pointerId);
+      e.preventDefault();
+    });
+
+    handle.addEventListener('pointermove', (e) => {
+      if (!this.drag.active) return;
+      e.preventDefault();
+      
+      const container = document.getElementById('tab-content-area');
+      if (!container) return;
+      const containerRect = container.getBoundingClientRect();
+
+      this.drag.pendingX = e.clientX - this.drag.offsetX - containerRect.left;
+      this.drag.pendingY = e.clientY - this.drag.offsetY - containerRect.top;
+
+      if (!this.drag.rafId) {
+        this.drag.rafId = requestAnimationFrame(() => {
+          this.drag.rafId = null;
+          if (!this.drag.active) return;
+          let x = this.drag.pendingX;
+          let y = this.drag.pendingY;
+          const maxX = containerRect.width - this.el.offsetWidth;
+          const maxY = containerRect.height - this.el.offsetHeight;
+          x = Math.max(0, Math.min(x, maxX));
+          y = Math.max(0, Math.min(y, maxY));
+          this.el.style.left = `${x}px`;
+          this.el.style.top = `${y}px`;
+          this.el.style.right = 'auto';
+          this.el.style.bottom = 'auto';
+        });
+      }
+    });
+
+    const endDrag = () => {
+      if (this.drag.active) {
+        this.drag.active = false;
+        if (this.drag.rafId) {
+          cancelAnimationFrame(this.drag.rafId);
+          this.drag.rafId = null;
+        }
+        this.el.classList.remove('timer-dragging');
+        const rect = this.el.getBoundingClientRect();
+        Storage.set(CONFIG.storageKeys.timerPosition, { x: rect.left, y: rect.top });
+      }
+    };
+    handle.addEventListener('pointerup', endDrag);
+    handle.addEventListener('pointercancel', endDrag);
+
+    // --- Preset buttons ---
+    this.el.querySelectorAll('.timer-preset-btn:not(.timer-custom-btn):not(.timer-set-btn)').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const sec = parseInt(btn.dataset.seconds);
+        if (sec > 0) {
+          this.setDuration(sec);
+          this.el.querySelector('.timer-custom-input')?.classList.add('hidden');
+          AudioEngine.click();
+        }
+      });
+    });
+
+    // Custom button toggle
+    const customBtn = this.el.querySelector('.timer-custom-btn');
+    const customPanel = this.el.querySelector('.timer-custom-input');
+    customBtn?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      customPanel?.classList.toggle('hidden');
+      AudioEngine.click();
+    });
+
+    // Custom set button
+    const setBtn = this.el.querySelector('.timer-set-btn');
+    setBtn?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const minInput = this.el.querySelector('.timer-input-min');
+      const secInput = this.el.querySelector('.timer-input-sec');
+      const mins = Math.max(0, parseInt(minInput?.value) || 0);
+      const secs = Math.max(0, Math.min(59, parseInt(secInput?.value) || 0));
+      const totalSec = mins * 60 + secs;
+      if (totalSec > 0) {
+        this.setDuration(totalSec);
+        customPanel?.classList.add('hidden');
+        AudioEngine.click();
+      }
+    });
+
+    // Prevent input scroll from propagating
+    this.el.querySelectorAll('input[type="number"]').forEach(inp => {
+      inp.addEventListener('wheel', (e) => e.stopPropagation());
+      inp.addEventListener('pointerdown', (e) => e.stopPropagation());
+    });
+
+    // --- Timer controls ---
+    playBtn?.addEventListener('click', (e) => { e.stopPropagation(); this.start(); });
+    pauseBtn?.addEventListener('click', (e) => { e.stopPropagation(); this.pause(); });
+    resetBtn?.addEventListener('click', (e) => { e.stopPropagation(); this.reset(); });
+
+    // --- Add time buttons ---
+    this.el.querySelectorAll('.timer-add-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const sec = parseInt(btn.dataset.add);
+        if (sec > 0) this.addTime(sec);
+      });
+    });
+  },
+
+  setDuration(seconds) {
+    this.pause();
+    this.initial = seconds * 1000;
+    this.remaining = this.initial;
+    this.el?.classList.remove('timer-finished');
+    this.updateDisplay();
+    this.updateRing();
+    // Highlight active preset
+    this.el?.querySelectorAll('.timer-preset-btn:not(.timer-custom-btn):not(.timer-set-btn)').forEach(btn => {
+      btn.classList.toggle('active', parseInt(btn.dataset.seconds) === seconds);
+    });
+    // Save duration to storage
+    Storage.set(CONFIG.storageKeys.timerDuration, seconds);
+  },
+
+  toggle() {
+    const wasHidden = !this.el || this.el.classList.contains('hidden');
+    if (!this.el) this.init();
+    if (wasHidden) {
+      this.show();
+    } else {
+      this.hide();
+    }
+    AudioEngine.click();
+  },
+
+  show() {
+    if (!this.el) this.init();
+    this.el.classList.remove('hidden');
+    this.el.classList.add('animate-pop-in');
+    Storage.set(CONFIG.storageKeys.timerVisible, true);
+    Utils.refreshIcons(this.el);
+  },
+
+  hide() {
+    if (!this.el) return;
+    this.el.classList.add('hidden');
+    this.el.classList.remove('animate-pop-in');
+    Storage.set(CONFIG.storageKeys.timerVisible, false);
+  },
+
+  start() {
+    if (this.running) return;
+    if (this.remaining <= 0) {
+      // If already at zero, reset to initial first
+      this.remaining = this.initial;
+      this.el?.classList.remove('timer-finished');
+    }
+    this.running = true;
+    this.lastTick = performance.now();
+    this.intervalId = setInterval(() => this.tick(), 50);
+    this.updatePlayPauseUI();
+    AudioEngine.click();
+  },
+
+  pause() {
+    if (!this.running) return;
+    this.running = false;
+    clearInterval(this.intervalId);
+    this.intervalId = null;
+    this.updatePlayPauseUI();
+    AudioEngine.click();
+  },
+
+  reset() {
+    this.pause();
+    this.remaining = this.initial;
+    this.el?.classList.remove('timer-finished');
+    this.updateDisplay();
+    this.updateRing();
+    AudioEngine.click();
+  },
+
+  addTime(seconds) {
+    const ms = seconds * 1000;
+    this.initial += ms;
+    this.remaining += ms;
+    this.el?.classList.remove('timer-finished');
+    this.updateDisplay();
+    this.updateRing();
+    AudioEngine.click();
+  },
+
+  tick() {
+    const now = performance.now();
+    const delta = now - this.lastTick;
+    this.lastTick = now;
+    this.remaining = Math.max(0, this.remaining - delta);
+    this.updateDisplay();
+    this.updateRing();
+
+    if (this.remaining <= 0) {
+      this.running = false;
+      clearInterval(this.intervalId);
+      this.intervalId = null;
+      this.updatePlayPauseUI();
+      this.onTimerComplete();
+    }
+  },
+
+  updateDisplay() {
+    const totalSeconds = Math.ceil(this.remaining / 1000);
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+
+    const display = this.el?.querySelector('.timer-display');
+    if (!display) return;
+
+    if (hours > 0) {
+      display.textContent = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+    } else {
+      display.textContent = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+    }
+  },
+
+  updateRing() {
+    const fg = this.el?.querySelector('.timer-ring-fg');
+    if (!fg) return;
+    const circumference = 2 * Math.PI * 34; // r=34
+    const fraction = this.initial > 0 ? this.remaining / this.initial : 0;
+    const offset = circumference * (1 - fraction);
+    fg.style.strokeDasharray = `${circumference}`;
+    fg.style.strokeDashoffset = `${offset}`;
+  },
+
+  onTimerComplete() {
+    this.el?.classList.add('timer-finished');
+    this.playAlarm();
+    // Auto-stop flashing after 8 seconds
+    if (this.alarmTimeout) clearTimeout(this.alarmTimeout);
+    this.alarmTimeout = setTimeout(() => {
+      this.el?.classList.remove('timer-finished');
+    }, 8000);
+  },
+
+  playAlarm() {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const playBeep = (time, freq, dur) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, time);
+        gain.gain.setValueAtTime(0.3, time);
+        gain.gain.exponentialRampToValueAtTime(0.01, time + dur);
+        osc.start(time);
+        osc.stop(time + dur);
+      };
+      const now = ctx.currentTime;
+      // Play a triple-beep alarm pattern
+      playBeep(now, 880, 0.15);
+      playBeep(now + 0.2, 880, 0.15);
+      playBeep(now + 0.4, 1100, 0.3);
+      playBeep(now + 0.9, 880, 0.15);
+      playBeep(now + 1.1, 880, 0.15);
+      playBeep(now + 1.3, 1100, 0.3);
+    } catch (e) {
+      // Silently fail if audio context not available
+    }
+  },
+
+  updatePlayPauseUI() {
+    if (!this.el) return;
+    const playBtn = this.el.querySelector('.timer-play');
+    const pauseBtn = this.el.querySelector('.timer-pause');
+    if (playBtn) playBtn.classList.toggle('hidden', this.running);
+    if (pauseBtn) pauseBtn.classList.toggle('hidden', !this.running);
+    this.el.classList.toggle('running', this.running);
+  }
+};
+
+// --- GAME MODAL ---
+const GameModal = {
+  open(gameId, element = null) {
+    AudioEngine.click();
+    const game = State.getGameById(gameId);
+    if (!game) return console.error(`Game not found: ${gameId}`);
+
+    // Privilege Check: Unauthorized Pro Tool Access
+    if (game.pro && !State.isPro()) {
+      UI.showToast("This tool is exclusive to PRO users", "warning");
+      return;
+    }
+
+    RecentGames.add(gameId);
+    HistoryManager.trackTabOpen(gameId);
+
+    if (element) {
+      UI.animateModalOpen(element, 'game-modal');
+    } else {
+      UI.toggleModal('game-modal', true);
+    }
+
+    TabManager.createTab(game);
+  },
+
+  close() {
+    TabManager.returnToHome();
+  },
+
+  reload() {
+    TabManager.reloadCurrentTab();
+  },
+
+  toggleInfo() {
+    AudioEngine.click();
+    const overlay = document.getElementById('info-overlay');
+    if (!overlay) return;
+
+    const isHidden = overlay.classList.contains('hidden');
+    if (isHidden) {
+      const currentTab = TabManager.getCurrentTab();
+      const game = currentTab && State.getGameById(currentTab.gameId);
+      if (!game) return;
+      this.renderInfo(game);
+      overlay.classList.remove('hidden');
+      overlay.classList.add('flex');
+      overlay.querySelector('button')?.focus();
+    } else {
+      overlay.classList.add('hidden');
+      overlay.classList.remove('flex');
+      const currentTab = TabManager.getCurrentTab();
+      if (currentTab?.iframe) currentTab.iframe.focus();
+    }
+  },
+
+  renderInfo(game) {
+    const baseColor = game.color.replace('text-', '').split('-')[0];
+    const bgClass = `bg-${baseColor}`;
+
+    const iconEl = document.getElementById('info-icon');
+    const titleEl = document.getElementById('info-title-display');
+    const categoryEl = document.getElementById('info-category');
+    const difficultyEl = document.getElementById('info-difficulty');
+    const contentEl = document.getElementById('info-content');
+
+    if (iconEl) {
+      iconEl.className = `w-24 h-24 rounded-2xl border-4 border-dark dark:border-slate-500 flex items-center justify-center text-white shadow-hard dark:shadow-neon shrink-0 ${bgClass}`;
+      iconEl.innerHTML = `<i data-lucide="${game.icon}" class="w-12 h-12"></i>`;
+    }
+    if (titleEl) titleEl.textContent = game.title.toUpperCase();
+    if (categoryEl) categoryEl.textContent = game.category.toUpperCase();
+    if (difficultyEl) {
+      difficultyEl.textContent = game.difficulty?.toUpperCase() || '';
+      difficultyEl.style.display = game.difficulty ? 'inline-block' : 'none';
+    }
+    if (contentEl) contentEl.innerHTML = GameGrid.getGuideText(game);
+    Utils.refreshIcons();
+  }
+};
+
+// --- SEARCH ---
+const Search = {
+  setup() {
+    const input = document.getElementById('search-input');
+    const clearBtn = document.getElementById('clear-search-btn');
+    if (input) {
+      input.addEventListener('input', (e) => {
+        Filters.setSearch(e.target.value);
+        if (clearBtn) clearBtn.classList.toggle('hidden', e.target.value.length === 0);
+      });
+    }
+  },
+
+  clear() {
+    const input = document.getElementById('search-input');
+    const clearBtn = document.getElementById('clear-search-btn');
+    if (input) {
+      input.value = '';
+      input.focus();
+    }
+    if (clearBtn) clearBtn.classList.add('hidden');
+    Filters.setSearch('');
+  }
+};
+
+// --- DATA LOADER ---
+const DataLoader = {
+  async loadGames() {
+    const response = await fetch(CONFIG.dataSource);
+    if (!response.ok) throw new Error(`HTTP ${response.status}: Failed to load games data`);
+    const data = await response.json();
+    if (!this.validateData(data)) throw new Error('Invalid games data structure');
+    return data;
+  },
+
+  validateData(data) {
+    const games = data.games || data;
+    if (!Array.isArray(games)) {
+      console.error('Games data must be an array');
+      return false;
+    }
+    const requiredFields = ['id', 'title', 'category', 'path', 'icon', 'color'];
+    for (const game of games) {
+      for (const field of requiredFields) {
+        if (!game[field]) {
+          console.error(`Game "${game.title || 'unknown'}" missing required field: ${field}`);
+          return false;
+        }
+      }
+    }
+    return true;
+  }
+};
+
+// --- FOOTER ---
+const Footer = {
+  render() {
+    const el = document.getElementById('footer-version');
+    if (!el || !State.metadata) return;
+    const version = State.metadata.version || '';
+    const updated = State.metadata.lastUpdated || '';
+    const parts = [];
+    if (version) parts.push(`v${version}`);
+    if (updated) parts.push(`Updated ${updated}`);
+    el.innerHTML = parts.join('<br>');
+  }
+};
+
+// --- BUG REPORT ---
+const BugReport = {
+  open() {
+    AudioEngine.click();
+    const modal = document.getElementById('bug-report-modal');
+    const iframe = document.getElementById('bug-report-iframe');
+    const loader = document.getElementById('bug-report-loader');
+
+    if (!modal || !iframe) return;
+
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+
+    if (loader) loader.style.opacity = '1';
+    iframe.src = CONFIG.helpUrl;
+
+    iframe.onload = () => {
+      if (loader) loader.style.opacity = '0';
+      iframe.classList.remove('opacity-0');
+      iframe.classList.add('opacity-100');
+      setTimeout(() => { if (loader) loader.style.display = 'none'; }, 300);
+    };
+  },
+
+  close() {
+    const modal = document.getElementById('bug-report-modal');
+    const iframe = document.getElementById('bug-report-iframe');
+    const loader = document.getElementById('bug-report-loader');
+
+    if (!modal || !iframe) return;
+
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+    iframe.src = 'about:blank';
+    iframe.classList.add('opacity-0');
+    iframe.classList.remove('opacity-100');
+    if (loader) {
+      loader.style.display = 'flex';
+      loader.style.opacity = '1';
+    }
+    AudioEngine.click();
+  }
+};
+
+// --- APP CONTROLLER ---
+const App = {
+  async init() {
+    await requireAuth();
+    try {
+      FloatingTooltip.init();
+      State.userProfile = await getUserProfile();
+      Theme.load();
+      UI.updateGreeting();
+      UI.updateUserUI();
+      UI.showLoading();
+
+      // Cloud Persistence: Sync with cloud BEFORE loading games or initialization
+      // This ensures pinned/recent items are up to date
+      const dataChanged = await Storage.syncWithCloud();
+      if (dataChanged) {
+        console.log('[CloudPersistence] Local state updated from cloud. Refreshing theme...');
+        Theme.load();
+      }
+
+      // Handle migration if needed
+      if (typeof migrateLocalToCloud === 'function') {
+        migrateLocalToCloud();
+      }
+
+      const data = await DataLoader.loadGames();
+      State.setGames(data);
+      // Store top-level metadata for footer
+      if (data.version) State.metadata = { ...(State.metadata || {}), version: data.version, lastUpdated: data.lastUpdated };
+
+      ViewMode.init();
+      GameGrid.render();
+      PinnedGames.render();
+      Hero.init();
+      Footer.render();
+      Search.setup();
+      const activity = await (typeof checkUserActivity === 'function' ? checkUserActivity() : Promise.resolve(null));
+      LandingPage.init(activity);
+
+      document.body.addEventListener('click', () => AudioEngine.init(), { once: true });
+
+      TabManager.init();
+      this.setupKeyboardShortcuts();
+      this.setupEventDelegation();
+      this.setupHistoryListener();
+
+      const hash = window.location.hash.substring(1);
+      if (hash && !TabManager.tabs.find(t => t.gameId === hash)) {
+        GameModal.open(hash);
+      }
+
+      Utils.refreshIcons();
+    } catch (error) {
+      console.error('Initialization error:', error);
+      UI.showError('Failed to load activities. Please refresh the page.');
+    }
+  },
+
+  setupHistoryListener() {
+    window.addEventListener('hashchange', () => {
+      const hash = window.location.hash.substring(1);
+      if (!hash) {
+        TabManager.returnToHome();
+      } else {
+        const existingTab = TabManager.tabs.find(t => t.gameId === hash);
+        if (existingTab) {
+          TabManager.switchToTab(existingTab.id);
+          document.getElementById('game-modal')?.classList.remove('hidden');
+        } else {
+          GameModal.open(hash);
+        }
+      }
+    });
+  },
+
+  setupKeyboardShortcuts() {
+    document.addEventListener('keydown', (e) => {
+      if (e.key === '/' && document.activeElement.tagName !== 'INPUT') {
+        e.preventDefault();
+        document.getElementById('search-input')?.focus();
+      }
+
+      if (e.key === 'Escape') {
+        const infoOverlay = document.getElementById('info-overlay');
+        if (infoOverlay && !infoOverlay.classList.contains('hidden')) {
+          GameModal.toggleInfo();
+          return;
+        }
+        
+        // Exit My Space Fullscreen
+        if (document.body.classList.contains('myspace-fullscreen')) {
+          MySpace.toggleFullscreen();
+          return;
+        }
+
+        const modal = document.getElementById('game-modal');
+        if (modal && !modal.classList.contains('hidden') && modal.style.display !== 'none') {
+          TabManager.returnToHome();
+        }
+      }
+
+      // My Space Fullscreen Shortcut
+      if ((e.key === 'f' || e.key === 'F') && 
+          ViewManager.currentView === 'myspace' && 
+          document.activeElement.tagName !== 'INPUT' && 
+          document.activeElement.tagName !== 'TEXTAREA') {
+        e.preventDefault();
+        MySpace.toggleFullscreen();
+      }
+    });
+
+    // Handle Native Fullscreen Changes (Esc key, etc)
+    document.addEventListener('fullscreenchange', () => {
+      const isFs = !!document.fullscreenElement;
+      const icon = document.getElementById('myspace-fs-icon');
+      if (icon) {
+        icon.setAttribute('data-lucide', isFs ? 'minimize-2' : 'maximize');
+        Utils.refreshIcons(icon.parentElement);
+      }
+      
+      if (!isFs) {
+        document.body.classList.remove('myspace-fullscreen');
+      }
+    });
+  },
+
+  setupEventDelegation() {
+    const actions = {
+      toggleTheme: () => Theme.toggle(),
+      toggleSound: () => AudioEngine.toggle(),
+      openGame: (param) => GameModal.open(param),
+      toggleNotifications: () => Announcements.togglePanel(),
+      returnToHome: () => TabManager.returnToHome(),
+      closeAllTabs: () => TabManager.confirmCloseAllTabs(),
+      confirmDelete: () => TabManager.closeAllTabsConfirmed(),
+      confirmCancel: () => TabManager.cancelConfirmation(),
+      closeCurrentTab: () => TabManager.closeCurrentTab(),
+      reloadGame: () => TabManager.reloadCurrentTab(),
+      toggleSplitScreen: () => TabManager.toggleSplitScreen(),
+      toggleFocus: () => UI.toggleFocus(),
+      toggleSettings: () => UI.toggleSettings(),
+      toggleTimer: () => Timer.toggle(),
+      toggleInfo: () => GameModal.toggleInfo(),
+      openWorkspace: () => {
+        AudioEngine.click();
+
+        // Check if there are any active tabs
+        if (TabManager.tabs.length === 0) {
+          UI.showToast('No active tabs. Open an activity first!', 'warning', 3000);
+          return;
+        }
+
+        UI.toggleModal('game-modal', true);
+        TabManager.updateEmptyState();
+      },
+
+      toggleSidePanelMobile: () => TabManager.toggleSidePanelMobile(),
+      toggleRecentCollapse: () => RecentGames.toggleCollapse(),
+      filterGames: (param) => Filters.setCategory(param),
+      clearRecent: () => RecentGames.clear(),
+      clearSearch: () => Search.clear(),
+      togglePin: (param) => { PinnedGames.toggle(param); Hero.updateStats(); },
+      surpriseMe: () => Hero.surpriseMe(),
+      continueGame: (param) => GameModal.open(param),
+      openFeedback: () => BugReport.open(),
+      openBugReport: () => BugReport.open(),
+      closeBugReport: () => BugReport.close(),
+      showLanding: () => LandingPage.showLanding(),
+      showLibrary: () => LandingPage.showLibrary(),
+      setViewMode: (param) => ViewMode.set(param)
+    };
+
+    document.addEventListener('click', (e) => {
+      const pinBtn = e.target.closest('[data-action="togglePin"]');
+      if (pinBtn) {
+        e.stopPropagation();
+        e.preventDefault();
+      }
+
+      const target = e.target.closest('[data-action]');
+
+      const settingsContainer = document.getElementById('settings-container');
+      const settingsMenu = document.getElementById('settings-menu');
+      if (settingsContainer && settingsMenu && !settingsMenu.classList.contains('opacity-0')) {
+        const isToggleButton = target && target.dataset.action === 'toggleSettings';
+        if (!isToggleButton && (!settingsContainer.contains(e.target) || target)) {
+          settingsMenu.classList.add('opacity-0', 'pointer-events-none', 'translate-y-4');
+          settingsMenu.classList.remove('translate-y-0');
+          const icon = settingsContainer.querySelector('[data-action="toggleSettings"] i');
+          if (icon) icon.classList.remove('rotate-90');
+        }
+      }
+
+      if (!target) return;
+      const action = actions[target.dataset.action];
+      if (action) {
+        if (target.dataset.action === 'openGame') {
+          action(target.dataset.param, target);
+        } else {
+          action(target.dataset.param);
+        }
+      }
+    });
+  }
+};
+
+// --- DISPLAY NAME EDITING ---
+function initDisplayNameEditor() {
+  const editBtn = document.getElementById('auth-edit-name-btn');
+  const modal = document.getElementById('display-name-modal');
+  const input = document.getElementById('display-name-input');
+  const cancelBtn = document.getElementById('display-name-cancel');
+  const saveBtn = document.getElementById('display-name-save');
+  const errorEl = document.getElementById('display-name-error');
+  const usernameEl = document.getElementById('auth-username');
+
+  if (!editBtn || !modal || !input) return;
+
+  function openModal() {
+    const currentName = usernameEl?.textContent || '';
+    input.value = currentName;
+    errorEl.classList.add('hidden');
+    modal.classList.remove('hidden');
+    modal.style.display = 'flex';
+    input.focus();
+    input.select();
+  }
+
+  function closeModal() {
+    modal.classList.add('hidden');
+    modal.style.display = 'none';
+  }
+
+  async function saveDisplayName() {
+    const newName = input.value.trim();
+    if (!newName) {
+      errorEl.textContent = 'Please enter a display name';
+      errorEl.classList.remove('hidden');
+      return;
+    }
+
+    saveBtn.disabled = true;
+    saveBtn.innerHTML = '<i data-lucide="loader-2" class="w-5 h-5 animate-spin"></i> Saving...';
+    lucide?.createIcons?.();
+
+    const result = await updateDisplayName(newName);
+
+    saveBtn.disabled = false;
+    saveBtn.innerHTML = '<i data-lucide="check" class="w-5 h-5"></i> Save';
+    lucide?.createIcons?.();
+
+    if (result.error) {
+      errorEl.textContent = result.error;
+      errorEl.classList.remove('hidden');
+    } else {
+      if (usernameEl) usernameEl.textContent = newName;
+      closeModal();
+    }
+  }
+
+  editBtn.addEventListener('click', openModal);
+  cancelBtn?.addEventListener('click', closeModal);
+  saveBtn?.addEventListener('click', saveDisplayName);
+
+  input?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') saveDisplayName();
+    if (e.key === 'Escape') closeModal();
+  });
+
+  modal?.addEventListener('click', (e) => {
+    if (e.target === modal) closeModal();
+  });
+}
+
+// --- AUTH INDICATOR ---
+async function initAuthIndicator() {
+  const signInLink = document.getElementById('auth-signin-link');
+  const loggedInDiv = document.getElementById('auth-logged-in');
+  const usernameEl = document.getElementById('auth-username');
+
+  if (!signInLink || !loggedInDiv) return;
+
+  const user = await getUser();
+  if (user) {
+    signInLink.classList.add('hidden');
+    loggedInDiv.classList.remove('hidden');
+    
+    if (user.is_sandbox) {
+      if (usernameEl) usernameEl.innerHTML = '<span class="flex items-center gap-2"><i data-lucide="shield-check" class="w-4 h-4 text-green"></i> Sandbox Mode</span>';
+      return;
+    }
+
+    const displayName = user.user_metadata?.display_name || user.email?.split('@')[0] || 'User';
+    if (usernameEl) usernameEl.textContent = displayName;
+
+    // Check if admin and show link
+    console.log('[HubAuth] Querying role for UID:', user.id);
+    const { data: profile, error: roleError } = await db
+      .from('profiles').select('role').eq('id', user.id).single();
+    
+    if (roleError) {
+      console.error('[HubAuth] ERROR CODE:', roleError.code);
+      console.error('[HubAuth] ERROR MESSAGE:', roleError.message);
+      console.error('[HubAuth] FULL ERROR OBJECT:', roleError);
+    }
+    
+    console.log('[HubAuth] RAW PROFILE DATA:', profile);
+    console.log('[HubAuth] FINAL DETECTED ROLE:', profile?.role);
+
+    if (profile?.role === 'admin') {
+      console.log("[HubAuth] Success! Admin access granted.");
+      const adminLink = document.getElementById('auth-admin-link');
+      if (adminLink) adminLink.classList.remove('hidden');
+    }
+  } else {
+    console.log("is user")
+    signInLink.classList.remove('hidden');
+    loggedInDiv.classList.add('hidden');
+  }
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', () => {
+    App.init();
+    initAuthIndicator();
+    initDisplayNameEditor();
+  });
+} else {
+  App.init();
+  initAuthIndicator();
+  initDisplayNameEditor();
+}
+// --- MOBILE UI HELPERS ---
+const MobileUI = {
+  openSidebar() {
+    const s = document.getElementById('sidebar-nav');
+    const b = document.getElementById('sidebar-backdrop');
+    if (s && b) {
+      s.classList.remove('hidden');
+      setTimeout(() => s.classList.remove('-translate-x-full'), 10);
+      b.classList.add('active');
+    }
+  },
+  closeSidebar() {
+    const s = document.getElementById('sidebar-nav');
+    const b = document.getElementById('sidebar-backdrop');
+    if (s && b) {
+      s.classList.add('-translate-x-full');
+      setTimeout(() => s.classList.add('hidden'), 300);
+      b.classList.remove('active');
+    }
+  }
+};
+
+// --- EXPORTS ---
+window.App = App;
+window.AudioEngine = AudioEngine;
+window.TabManager = TabManager;
+window.HistoryManager = HistoryManager;
+window.Timer = Timer;
+window.LandingPage = LandingPage;
+window.MySpace = MySpace;
+window.MobileUI = MobileUI;
 // --- TAB MANAGER ---
 const TabManager = {
   tabs: [],
@@ -3358,967 +4014,3 @@ const TabManager = {
     AudioEngine.click();
   }
 };
-
-// --- UNIVERSAL COUNTDOWN TIMER ---
-const Timer = {
-  el: null,
-  running: false,
-  remaining: 0,    // ms remaining on countdown
-  initial: 0,      // ms total duration set
-  lastTick: 0,
-  intervalId: null,
-  alarmTimeout: null,
-  drag: { active: false, offsetX: 0, offsetY: 0, rafId: null, pendingX: 0, pendingY: 0 },
-  presets: [
-    { label: '1m', seconds: 60 },
-    { label: '2m', seconds: 120 },
-    { label: '3m', seconds: 180 },
-    { label: '5m', seconds: 300 },
-    { label: '10m', seconds: 600 },
-  ],
-  alarmAudioCtx: null,
-
-  init() {
-    if (this.el) return;
-
-    const timer = document.createElement('div');
-    timer.id = 'universal-timer';
-    timer.className = 'universal-timer hidden';
-    timer.innerHTML = `
-      <button class="timer-exit-btn" title="Close" aria-label="Close timer">
-        <i data-lucide="x" class="w-3 h-3"></i>
-      </button>
-      <div class="timer-drag-handle" title="Drag to move" touch-action="none">
-        <i data-lucide="grip-vertical" class="w-3 h-3 opacity-50"></i>
-        <span>Timer</span>
-      </div>
-      <div class="timer-ring-wrap">
-        <svg class="timer-ring" viewBox="0 0 80 80">
-          <circle class="timer-ring-bg" cx="40" cy="40" r="34" />
-          <circle class="timer-ring-fg" cx="40" cy="40" r="34" />
-        </svg>
-        <div class="timer-display">00:00</div>
-      </div>
-      <div class="timer-presets">
-        ${this.presets.map(p => `<button class="timer-preset-btn" data-seconds="${p.seconds}">${p.label}</button>`).join('')}
-        <button class="timer-preset-btn timer-custom-btn" data-seconds="custom" title="Custom time">
-          <i data-lucide="pencil" class="w-3 h-3"></i>
-        </button>
-      </div>
-      <div class="timer-custom-input hidden">
-        <div class="timer-custom-fields">
-          <div class="timer-custom-field">
-            <input type="number" class="timer-input-min" min="0" max="99" value="5" placeholder="00" />
-            <label>min</label>
-          </div>
-          <span class="timer-custom-sep">:</span>
-          <div class="timer-custom-field">
-            <input type="number" class="timer-input-sec" min="0" max="59" value="0" placeholder="00" />
-            <label>sec</label>
-          </div>
-        </div>
-        <button class="timer-preset-btn timer-set-btn">Set</button>
-      </div>
-      <div class="timer-controls">
-        <button class="timer-btn timer-play" title="Start" aria-label="Start timer">
-          <i data-lucide="play" class="w-4 h-4"></i>
-        </button>
-        <button class="timer-btn timer-pause hidden" title="Pause" aria-label="Pause timer">
-          <i data-lucide="pause" class="w-4 h-4"></i>
-        </button>
-        <button class="timer-btn timer-reset" title="Reset" aria-label="Reset timer">
-          <i data-lucide="rotate-ccw" class="w-4 h-4"></i>
-        </button>
-      </div>
-      <div class="timer-add-time">
-        <button class="timer-add-btn" data-add="30" title="Add 30 seconds">+30s</button>
-        <button class="timer-add-btn" data-add="60" title="Add 1 minute">+1m</button>
-      </div>
-    `;
-    document.getElementById('tab-content-area')?.appendChild(timer);
-    this.el = timer;
-
-    // Restore visibility
-    const visible = Storage.get(CONFIG.storageKeys.timerVisible);
-    if (visible) this.show();
-
-    // Restore position
-    const pos = Storage.get(CONFIG.storageKeys.timerPosition);
-    if (pos && typeof pos.x === 'number' && typeof pos.y === 'number') {
-      timer.style.left = `${pos.x}px`;
-      timer.style.top = `${pos.y}px`;
-      timer.style.right = 'auto';
-      timer.style.bottom = 'auto';
-      timer.style.transform = 'none';
-    }
-    // If no saved position, CSS centers it via top:50%; left:50%; transform:translate(-50%,-50%)
-
-    // Restore duration or set default 5 min
-    const savedDuration = Storage.get(CONFIG.storageKeys.timerDuration);
-    this.setDuration(savedDuration || 300);
-
-    this.bindEvents();
-    Utils.refreshIcons(timer);
-  },
-
-  bindEvents() {
-    if (!this.el) return;
-    const handle = this.el.querySelector('.timer-drag-handle');
-    const playBtn = this.el.querySelector('.timer-play');
-    const pauseBtn = this.el.querySelector('.timer-pause');
-    const resetBtn = this.el.querySelector('.timer-reset');
-    const exitBtn = this.el.querySelector('.timer-exit-btn');
-
-    exitBtn?.addEventListener('click', (e) => {
-      e.stopPropagation();
-      this.hide();
-      AudioEngine.click();
-    });
-
-    // --- Pointer-based drag (mouse + touch unified, smooth via RAF) ---
-    handle.addEventListener('pointerdown', (e) => {
-      // Only primary button (left-click / single touch)
-      if (e.button !== 0) return;
-      this.drag.active = true;
-      this.el.style.transform = 'none';
-      const rect = this.el.getBoundingClientRect();
-      this.drag.offsetX = e.clientX - rect.left;
-      this.drag.offsetY = e.clientY - rect.top;
-      this.el.classList.add('timer-dragging');
-      handle.setPointerCapture(e.pointerId);
-      e.preventDefault();
-    });
-
-    handle.addEventListener('pointermove', (e) => {
-      if (!this.drag.active) return;
-      e.preventDefault();
-      
-      const container = document.getElementById('tab-content-area');
-      if (!container) return;
-      const containerRect = container.getBoundingClientRect();
-
-      this.drag.pendingX = e.clientX - this.drag.offsetX - containerRect.left;
-      this.drag.pendingY = e.clientY - this.drag.offsetY - containerRect.top;
-
-      if (!this.drag.rafId) {
-        this.drag.rafId = requestAnimationFrame(() => {
-          this.drag.rafId = null;
-          if (!this.drag.active) return;
-          let x = this.drag.pendingX;
-          let y = this.drag.pendingY;
-          const maxX = containerRect.width - this.el.offsetWidth;
-          const maxY = containerRect.height - this.el.offsetHeight;
-          x = Math.max(0, Math.min(x, maxX));
-          y = Math.max(0, Math.min(y, maxY));
-          this.el.style.left = `${x}px`;
-          this.el.style.top = `${y}px`;
-          this.el.style.right = 'auto';
-          this.el.style.bottom = 'auto';
-        });
-      }
-    });
-
-    const endDrag = () => {
-      if (this.drag.active) {
-        this.drag.active = false;
-        if (this.drag.rafId) {
-          cancelAnimationFrame(this.drag.rafId);
-          this.drag.rafId = null;
-        }
-        this.el.classList.remove('timer-dragging');
-        const rect = this.el.getBoundingClientRect();
-        Storage.set(CONFIG.storageKeys.timerPosition, { x: rect.left, y: rect.top });
-      }
-    };
-    handle.addEventListener('pointerup', endDrag);
-    handle.addEventListener('pointercancel', endDrag);
-
-    // --- Preset buttons ---
-    this.el.querySelectorAll('.timer-preset-btn:not(.timer-custom-btn):not(.timer-set-btn)').forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        const sec = parseInt(btn.dataset.seconds);
-        if (sec > 0) {
-          this.setDuration(sec);
-          this.el.querySelector('.timer-custom-input')?.classList.add('hidden');
-          AudioEngine.click();
-        }
-      });
-    });
-
-    // Custom button toggle
-    const customBtn = this.el.querySelector('.timer-custom-btn');
-    const customPanel = this.el.querySelector('.timer-custom-input');
-    customBtn?.addEventListener('click', (e) => {
-      e.stopPropagation();
-      customPanel?.classList.toggle('hidden');
-      AudioEngine.click();
-    });
-
-    // Custom set button
-    const setBtn = this.el.querySelector('.timer-set-btn');
-    setBtn?.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const minInput = this.el.querySelector('.timer-input-min');
-      const secInput = this.el.querySelector('.timer-input-sec');
-      const mins = Math.max(0, parseInt(minInput?.value) || 0);
-      const secs = Math.max(0, Math.min(59, parseInt(secInput?.value) || 0));
-      const totalSec = mins * 60 + secs;
-      if (totalSec > 0) {
-        this.setDuration(totalSec);
-        customPanel?.classList.add('hidden');
-        AudioEngine.click();
-      }
-    });
-
-    // Prevent input scroll from propagating
-    this.el.querySelectorAll('input[type="number"]').forEach(inp => {
-      inp.addEventListener('wheel', (e) => e.stopPropagation());
-      inp.addEventListener('pointerdown', (e) => e.stopPropagation());
-    });
-
-    // --- Timer controls ---
-    playBtn?.addEventListener('click', (e) => { e.stopPropagation(); this.start(); });
-    pauseBtn?.addEventListener('click', (e) => { e.stopPropagation(); this.pause(); });
-    resetBtn?.addEventListener('click', (e) => { e.stopPropagation(); this.reset(); });
-
-    // --- Add time buttons ---
-    this.el.querySelectorAll('.timer-add-btn').forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        const sec = parseInt(btn.dataset.add);
-        if (sec > 0) this.addTime(sec);
-      });
-    });
-  },
-
-  setDuration(seconds) {
-    this.pause();
-    this.initial = seconds * 1000;
-    this.remaining = this.initial;
-    this.el?.classList.remove('timer-finished');
-    this.updateDisplay();
-    this.updateRing();
-    // Highlight active preset
-    this.el?.querySelectorAll('.timer-preset-btn:not(.timer-custom-btn):not(.timer-set-btn)').forEach(btn => {
-      btn.classList.toggle('active', parseInt(btn.dataset.seconds) === seconds);
-    });
-    // Save duration to storage
-    Storage.set(CONFIG.storageKeys.timerDuration, seconds);
-  },
-
-  toggle() {
-    const wasHidden = !this.el || this.el.classList.contains('hidden');
-    if (!this.el) this.init();
-    if (wasHidden) {
-      this.show();
-    } else {
-      this.hide();
-    }
-    AudioEngine.click();
-  },
-
-  show() {
-    if (!this.el) this.init();
-    this.el.classList.remove('hidden');
-    this.el.classList.add('animate-pop-in');
-    Storage.set(CONFIG.storageKeys.timerVisible, true);
-    Utils.refreshIcons(this.el);
-  },
-
-  hide() {
-    if (!this.el) return;
-    this.el.classList.add('hidden');
-    this.el.classList.remove('animate-pop-in');
-    Storage.set(CONFIG.storageKeys.timerVisible, false);
-  },
-
-  start() {
-    if (this.running) return;
-    if (this.remaining <= 0) {
-      // If already at zero, reset to initial first
-      this.remaining = this.initial;
-      this.el?.classList.remove('timer-finished');
-    }
-    this.running = true;
-    this.lastTick = performance.now();
-    this.intervalId = setInterval(() => this.tick(), 50);
-    this.updatePlayPauseUI();
-    AudioEngine.click();
-  },
-
-  pause() {
-    if (!this.running) return;
-    this.running = false;
-    clearInterval(this.intervalId);
-    this.intervalId = null;
-    this.updatePlayPauseUI();
-    AudioEngine.click();
-  },
-
-  reset() {
-    this.pause();
-    this.remaining = this.initial;
-    this.el?.classList.remove('timer-finished');
-    this.updateDisplay();
-    this.updateRing();
-    AudioEngine.click();
-  },
-
-  addTime(seconds) {
-    const ms = seconds * 1000;
-    this.initial += ms;
-    this.remaining += ms;
-    this.el?.classList.remove('timer-finished');
-    this.updateDisplay();
-    this.updateRing();
-    AudioEngine.click();
-  },
-
-  tick() {
-    const now = performance.now();
-    const delta = now - this.lastTick;
-    this.lastTick = now;
-    this.remaining = Math.max(0, this.remaining - delta);
-    this.updateDisplay();
-    this.updateRing();
-
-    if (this.remaining <= 0) {
-      this.running = false;
-      clearInterval(this.intervalId);
-      this.intervalId = null;
-      this.updatePlayPauseUI();
-      this.onTimerComplete();
-    }
-  },
-
-  updateDisplay() {
-    const totalSeconds = Math.ceil(this.remaining / 1000);
-    const hours = Math.floor(totalSeconds / 3600);
-    const minutes = Math.floor((totalSeconds % 3600) / 60);
-    const seconds = totalSeconds % 60;
-
-    const display = this.el?.querySelector('.timer-display');
-    if (!display) return;
-
-    if (hours > 0) {
-      display.textContent = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
-    } else {
-      display.textContent = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
-    }
-  },
-
-  updateRing() {
-    const fg = this.el?.querySelector('.timer-ring-fg');
-    if (!fg) return;
-    const circumference = 2 * Math.PI * 34; // r=34
-    const fraction = this.initial > 0 ? this.remaining / this.initial : 0;
-    const offset = circumference * (1 - fraction);
-    fg.style.strokeDasharray = `${circumference}`;
-    fg.style.strokeDashoffset = `${offset}`;
-  },
-
-  onTimerComplete() {
-    this.el?.classList.add('timer-finished');
-    this.playAlarm();
-    // Auto-stop flashing after 8 seconds
-    if (this.alarmTimeout) clearTimeout(this.alarmTimeout);
-    this.alarmTimeout = setTimeout(() => {
-      this.el?.classList.remove('timer-finished');
-    }, 8000);
-  },
-
-  playAlarm() {
-    try {
-      const ctx = new (window.AudioContext || window.webkitAudioContext)();
-      const playBeep = (time, freq, dur) => {
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(freq, time);
-        gain.gain.setValueAtTime(0.3, time);
-        gain.gain.exponentialRampToValueAtTime(0.01, time + dur);
-        osc.start(time);
-        osc.stop(time + dur);
-      };
-      const now = ctx.currentTime;
-      // Play a triple-beep alarm pattern
-      playBeep(now, 880, 0.15);
-      playBeep(now + 0.2, 880, 0.15);
-      playBeep(now + 0.4, 1100, 0.3);
-      playBeep(now + 0.9, 880, 0.15);
-      playBeep(now + 1.1, 880, 0.15);
-      playBeep(now + 1.3, 1100, 0.3);
-    } catch (e) {
-      // Silently fail if audio context not available
-    }
-  },
-
-  updatePlayPauseUI() {
-    if (!this.el) return;
-    const playBtn = this.el.querySelector('.timer-play');
-    const pauseBtn = this.el.querySelector('.timer-pause');
-    if (playBtn) playBtn.classList.toggle('hidden', this.running);
-    if (pauseBtn) pauseBtn.classList.toggle('hidden', !this.running);
-    this.el.classList.toggle('running', this.running);
-  }
-};
-
-// --- GAME MODAL ---
-const GameModal = {
-  open(gameId, element = null) {
-    AudioEngine.click();
-    const game = State.getGameById(gameId);
-    if (!game) return console.error(`Game not found: ${gameId}`);
-
-    // Privilege Check: Unauthorized Pro Tool Access
-    if (game.pro && !State.isPro()) {
-      UI.showToast("This tool is exclusive to PRO users", "warning");
-      return;
-    }
-
-    RecentGames.add(gameId);
-    HistoryManager.trackTabOpen(gameId);
-
-    if (element) {
-      UI.animateModalOpen(element, 'game-modal');
-    } else {
-      UI.toggleModal('game-modal', true);
-    }
-
-    TabManager.createTab(game);
-  },
-
-  close() {
-    TabManager.returnToHome();
-  },
-
-  reload() {
-    TabManager.reloadCurrentTab();
-  },
-
-  toggleInfo() {
-    AudioEngine.click();
-    const overlay = document.getElementById('info-overlay');
-    if (!overlay) return;
-
-    const isHidden = overlay.classList.contains('hidden');
-    if (isHidden) {
-      const currentTab = TabManager.getCurrentTab();
-      const game = currentTab && State.getGameById(currentTab.gameId);
-      if (!game) return;
-      this.renderInfo(game);
-      overlay.classList.remove('hidden');
-      overlay.classList.add('flex');
-      overlay.querySelector('button')?.focus();
-    } else {
-      overlay.classList.add('hidden');
-      overlay.classList.remove('flex');
-      const currentTab = TabManager.getCurrentTab();
-      if (currentTab?.iframe) currentTab.iframe.focus();
-    }
-  },
-
-  renderInfo(game) {
-    const baseColor = game.color.replace('text-', '').split('-')[0];
-    const bgClass = `bg-${baseColor}`;
-
-    const iconEl = document.getElementById('info-icon');
-    const titleEl = document.getElementById('info-title-display');
-    const categoryEl = document.getElementById('info-category');
-    const difficultyEl = document.getElementById('info-difficulty');
-    const contentEl = document.getElementById('info-content');
-
-    if (iconEl) {
-      iconEl.className = `w-24 h-24 rounded-2xl border-4 border-dark dark:border-slate-500 flex items-center justify-center text-white shadow-hard dark:shadow-neon shrink-0 ${bgClass}`;
-      iconEl.innerHTML = `<i data-lucide="${game.icon}" class="w-12 h-12"></i>`;
-    }
-    if (titleEl) titleEl.textContent = game.title.toUpperCase();
-    if (categoryEl) categoryEl.textContent = game.category.toUpperCase();
-    if (difficultyEl) {
-      difficultyEl.textContent = game.difficulty?.toUpperCase() || '';
-      difficultyEl.style.display = game.difficulty ? 'inline-block' : 'none';
-    }
-    if (contentEl) contentEl.innerHTML = GameGrid.getGuideText(game);
-    Utils.refreshIcons();
-  }
-};
-
-// --- SEARCH ---
-const Search = {
-  setup() {
-    const input = document.getElementById('search-input');
-    const clearBtn = document.getElementById('clear-search-btn');
-    if (input) {
-      input.addEventListener('input', (e) => {
-        Filters.setSearch(e.target.value);
-        if (clearBtn) clearBtn.classList.toggle('hidden', e.target.value.length === 0);
-      });
-    }
-  },
-
-  clear() {
-    const input = document.getElementById('search-input');
-    const clearBtn = document.getElementById('clear-search-btn');
-    if (input) {
-      input.value = '';
-      input.focus();
-    }
-    if (clearBtn) clearBtn.classList.add('hidden');
-    Filters.setSearch('');
-  }
-};
-
-// --- DATA LOADER ---
-const DataLoader = {
-  async loadGames() {
-    const response = await fetch(CONFIG.dataSource);
-    if (!response.ok) throw new Error(`HTTP ${response.status}: Failed to load games data`);
-    const data = await response.json();
-    if (!this.validateData(data)) throw new Error('Invalid games data structure');
-    return data;
-  },
-
-  validateData(data) {
-    const games = data.games || data;
-    if (!Array.isArray(games)) {
-      console.error('Games data must be an array');
-      return false;
-    }
-    const requiredFields = ['id', 'title', 'category', 'path', 'icon', 'color'];
-    for (const game of games) {
-      for (const field of requiredFields) {
-        if (!game[field]) {
-          console.error(`Game "${game.title || 'unknown'}" missing required field: ${field}`);
-          return false;
-        }
-      }
-    }
-    return true;
-  }
-};
-
-// --- FOOTER ---
-const Footer = {
-  render() {
-    const el = document.getElementById('footer-version');
-    if (!el || !State.metadata) return;
-    const version = State.metadata.version || '';
-    const updated = State.metadata.lastUpdated || '';
-    const parts = [];
-    if (version) parts.push(`v${version}`);
-    if (updated) parts.push(`Updated ${updated}`);
-    el.innerHTML = parts.join('<br>');
-  }
-};
-
-// --- BUG REPORT ---
-const BugReport = {
-  open() {
-    AudioEngine.click();
-    const modal = document.getElementById('bug-report-modal');
-    const iframe = document.getElementById('bug-report-iframe');
-    const loader = document.getElementById('bug-report-loader');
-
-    if (!modal || !iframe) return;
-
-    modal.classList.remove('hidden');
-    modal.classList.add('flex');
-
-    if (loader) loader.style.opacity = '1';
-    iframe.src = CONFIG.helpUrl;
-
-    iframe.onload = () => {
-      if (loader) loader.style.opacity = '0';
-      iframe.classList.remove('opacity-0');
-      iframe.classList.add('opacity-100');
-      setTimeout(() => { if (loader) loader.style.display = 'none'; }, 300);
-    };
-  },
-
-  close() {
-    const modal = document.getElementById('bug-report-modal');
-    const iframe = document.getElementById('bug-report-iframe');
-    const loader = document.getElementById('bug-report-loader');
-
-    if (!modal || !iframe) return;
-
-    modal.classList.add('hidden');
-    modal.classList.remove('flex');
-    iframe.src = 'about:blank';
-    iframe.classList.add('opacity-0');
-    iframe.classList.remove('opacity-100');
-    if (loader) {
-      loader.style.display = 'flex';
-      loader.style.opacity = '1';
-    }
-    AudioEngine.click();
-  }
-};
-
-// --- APP CONTROLLER ---
-const App = {
-  async init() {
-    await requireAuth();
-    try {
-      FloatingTooltip.init();
-      State.userProfile = await getUserProfile();
-      Theme.load();
-      UI.updateGreeting();
-      UI.updateUserUI();
-      UI.showLoading();
-
-      // Cloud Persistence: Sync with cloud BEFORE loading games or initialization
-      // This ensures pinned/recent items are up to date
-      const dataChanged = await Storage.syncWithCloud();
-      if (dataChanged) {
-        console.log('[CloudPersistence] Local state updated from cloud. Refreshing theme...');
-        Theme.load();
-      }
-
-      // Handle migration if needed
-      if (typeof migrateLocalToCloud === 'function') {
-        migrateLocalToCloud();
-      }
-
-      const data = await DataLoader.loadGames();
-      State.setGames(data);
-      // Store top-level metadata for footer
-      if (data.version) State.metadata = { ...(State.metadata || {}), version: data.version, lastUpdated: data.lastUpdated };
-
-      ViewMode.init();
-      GameGrid.render();
-      PinnedGames.render();
-      Hero.init();
-      Footer.render();
-      Search.setup();
-      const activity = await (typeof checkUserActivity === 'function' ? checkUserActivity() : Promise.resolve(null));
-      LandingPage.init(activity);
-
-      document.body.addEventListener('click', () => AudioEngine.init(), { once: true });
-
-      TabManager.init();
-      this.setupKeyboardShortcuts();
-      this.setupEventDelegation();
-      this.setupHistoryListener();
-
-      const hash = window.location.hash.substring(1);
-      if (hash && !TabManager.tabs.find(t => t.gameId === hash)) {
-        GameModal.open(hash);
-      }
-
-      Utils.refreshIcons();
-    } catch (error) {
-      console.error('Initialization error:', error);
-      UI.showError('Failed to load activities. Please refresh the page.');
-    }
-  },
-
-  setupHistoryListener() {
-    window.addEventListener('hashchange', () => {
-      const hash = window.location.hash.substring(1);
-      if (!hash) {
-        TabManager.returnToHome();
-      } else {
-        const existingTab = TabManager.tabs.find(t => t.gameId === hash);
-        if (existingTab) {
-          TabManager.switchToTab(existingTab.id);
-          document.getElementById('game-modal')?.classList.remove('hidden');
-        } else {
-          GameModal.open(hash);
-        }
-      }
-    });
-  },
-
-  setupKeyboardShortcuts() {
-    document.addEventListener('keydown', (e) => {
-      if (e.key === '/' && document.activeElement.tagName !== 'INPUT') {
-        e.preventDefault();
-        document.getElementById('search-input')?.focus();
-      }
-
-      if (e.key === 'Escape') {
-        const infoOverlay = document.getElementById('info-overlay');
-        if (infoOverlay && !infoOverlay.classList.contains('hidden')) {
-          GameModal.toggleInfo();
-          return;
-        }
-        
-        // Exit My Space Fullscreen
-        if (document.body.classList.contains('myspace-fullscreen')) {
-          MySpace.toggleFullscreen();
-          return;
-        }
-
-        const modal = document.getElementById('game-modal');
-        if (modal && !modal.classList.contains('hidden') && modal.style.display !== 'none') {
-          TabManager.returnToHome();
-        }
-      }
-
-      // My Space Fullscreen Shortcut
-      if ((e.key === 'f' || e.key === 'F') && 
-          ViewManager.currentView === 'myspace' && 
-          document.activeElement.tagName !== 'INPUT' && 
-          document.activeElement.tagName !== 'TEXTAREA') {
-        e.preventDefault();
-        MySpace.toggleFullscreen();
-      }
-    });
-
-    // Handle Native Fullscreen Changes (Esc key, etc)
-    document.addEventListener('fullscreenchange', () => {
-      const isFs = !!document.fullscreenElement;
-      const icon = document.getElementById('myspace-fs-icon');
-      if (icon) {
-        icon.setAttribute('data-lucide', isFs ? 'minimize-2' : 'maximize');
-        Utils.refreshIcons(icon.parentElement);
-      }
-      
-      if (!isFs) {
-        document.body.classList.remove('myspace-fullscreen');
-      }
-    });
-  },
-
-  setupEventDelegation() {
-    const actions = {
-      toggleTheme: () => Theme.toggle(),
-      toggleSound: () => AudioEngine.toggle(),
-      openGame: (param) => GameModal.open(param),
-      toggleNotifications: () => Announcements.togglePanel(),
-      returnToHome: () => TabManager.returnToHome(),
-      closeAllTabs: () => TabManager.confirmCloseAllTabs(),
-      confirmDelete: () => TabManager.closeAllTabsConfirmed(),
-      confirmCancel: () => TabManager.cancelConfirmation(),
-      closeCurrentTab: () => TabManager.closeCurrentTab(),
-      reloadGame: () => TabManager.reloadCurrentTab(),
-      toggleSplitScreen: () => TabManager.toggleSplitScreen(),
-      toggleFocus: () => UI.toggleFocus(),
-      toggleSettings: () => UI.toggleSettings(),
-      toggleTimer: () => Timer.toggle(),
-      toggleInfo: () => GameModal.toggleInfo(),
-      openWorkspace: () => {
-        AudioEngine.click();
-
-        // Check if there are any active tabs
-        if (TabManager.tabs.length === 0) {
-          UI.showToast('No active tabs. Open an activity first!', 'warning', 3000);
-          return;
-        }
-
-        UI.toggleModal('game-modal', true);
-        TabManager.updateEmptyState();
-      },
-
-      toggleSidePanelMobile: () => TabManager.toggleSidePanelMobile(),
-      toggleRecentCollapse: () => RecentGames.toggleCollapse(),
-      filterGames: (param) => Filters.setCategory(param),
-      clearRecent: () => RecentGames.clear(),
-      clearSearch: () => Search.clear(),
-      togglePin: (param) => { PinnedGames.toggle(param); Hero.updateStats(); },
-      surpriseMe: () => Hero.surpriseMe(),
-      continueGame: (param) => GameModal.open(param),
-      openFeedback: () => BugReport.open(),
-      openBugReport: () => BugReport.open(),
-      closeBugReport: () => BugReport.close(),
-      showLanding: () => LandingPage.showLanding(),
-      showLibrary: () => LandingPage.showLibrary(),
-      setViewMode: (param) => ViewMode.set(param)
-    };
-
-    document.addEventListener('click', (e) => {
-      const pinBtn = e.target.closest('[data-action="togglePin"]');
-      if (pinBtn) {
-        e.stopPropagation();
-        e.preventDefault();
-      }
-
-      const target = e.target.closest('[data-action]');
-
-      const settingsContainer = document.getElementById('settings-container');
-      const settingsMenu = document.getElementById('settings-menu');
-      if (settingsContainer && settingsMenu && !settingsMenu.classList.contains('opacity-0')) {
-        const isToggleButton = target && target.dataset.action === 'toggleSettings';
-        if (!isToggleButton && (!settingsContainer.contains(e.target) || target)) {
-          settingsMenu.classList.add('opacity-0', 'pointer-events-none', 'translate-y-4');
-          settingsMenu.classList.remove('translate-y-0');
-          const icon = settingsContainer.querySelector('[data-action="toggleSettings"] i');
-          if (icon) icon.classList.remove('rotate-90');
-        }
-      }
-
-      if (!target) return;
-      const action = actions[target.dataset.action];
-      if (action) {
-        if (target.dataset.action === 'openGame') {
-          action(target.dataset.param, target);
-        } else {
-          action(target.dataset.param);
-        }
-      }
-    });
-  }
-};
-
-// --- DISPLAY NAME EDITING ---
-function initDisplayNameEditor() {
-  const editBtn = document.getElementById('auth-edit-name-btn');
-  const modal = document.getElementById('display-name-modal');
-  const input = document.getElementById('display-name-input');
-  const cancelBtn = document.getElementById('display-name-cancel');
-  const saveBtn = document.getElementById('display-name-save');
-  const errorEl = document.getElementById('display-name-error');
-  const usernameEl = document.getElementById('auth-username');
-
-  if (!editBtn || !modal || !input) return;
-
-  function openModal() {
-    const currentName = usernameEl?.textContent || '';
-    input.value = currentName;
-    errorEl.classList.add('hidden');
-    modal.classList.remove('hidden');
-    modal.style.display = 'flex';
-    input.focus();
-    input.select();
-  }
-
-  function closeModal() {
-    modal.classList.add('hidden');
-    modal.style.display = 'none';
-  }
-
-  async function saveDisplayName() {
-    const newName = input.value.trim();
-    if (!newName) {
-      errorEl.textContent = 'Please enter a display name';
-      errorEl.classList.remove('hidden');
-      return;
-    }
-
-    saveBtn.disabled = true;
-    saveBtn.innerHTML = '<i data-lucide="loader-2" class="w-5 h-5 animate-spin"></i> Saving...';
-    lucide?.createIcons?.();
-
-    const result = await updateDisplayName(newName);
-
-    saveBtn.disabled = false;
-    saveBtn.innerHTML = '<i data-lucide="check" class="w-5 h-5"></i> Save';
-    lucide?.createIcons?.();
-
-    if (result.error) {
-      errorEl.textContent = result.error;
-      errorEl.classList.remove('hidden');
-    } else {
-      if (usernameEl) usernameEl.textContent = newName;
-      closeModal();
-    }
-  }
-
-  editBtn.addEventListener('click', openModal);
-  cancelBtn?.addEventListener('click', closeModal);
-  saveBtn?.addEventListener('click', saveDisplayName);
-
-  input?.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') saveDisplayName();
-    if (e.key === 'Escape') closeModal();
-  });
-
-  modal?.addEventListener('click', (e) => {
-    if (e.target === modal) closeModal();
-  });
-}
-
-// --- AUTH INDICATOR ---
-async function initAuthIndicator() {
-  const signInLink = document.getElementById('auth-signin-link');
-  const loggedInDiv = document.getElementById('auth-logged-in');
-  const usernameEl = document.getElementById('auth-username');
-
-  if (!signInLink || !loggedInDiv) return;
-
-  const user = await getUser();
-  if (user) {
-    signInLink.classList.add('hidden');
-    loggedInDiv.classList.remove('hidden');
-    
-    if (user.is_sandbox) {
-      if (usernameEl) usernameEl.innerHTML = '<span class="flex items-center gap-2"><i data-lucide="shield-check" class="w-4 h-4 text-green"></i> Sandbox Mode</span>';
-      return;
-    }
-
-    const displayName = user.user_metadata?.display_name || user.email?.split('@')[0] || 'User';
-    if (usernameEl) usernameEl.textContent = displayName;
-
-    // Check if admin and show link
-    console.log('[HubAuth] Querying role for UID:', user.id);
-    const { data: profile, error: roleError } = await db
-      .from('profiles').select('role').eq('id', user.id).single();
-    
-    if (roleError) {
-      console.error('[HubAuth] ERROR CODE:', roleError.code);
-      console.error('[HubAuth] ERROR MESSAGE:', roleError.message);
-      console.error('[HubAuth] FULL ERROR OBJECT:', roleError);
-    }
-    
-    console.log('[HubAuth] RAW PROFILE DATA:', profile);
-    console.log('[HubAuth] FINAL DETECTED ROLE:', profile?.role);
-
-    if (profile?.role === 'admin') {
-      console.log("[HubAuth] Success! Admin access granted.");
-      const adminLink = document.getElementById('auth-admin-link');
-      if (adminLink) adminLink.classList.remove('hidden');
-    }
-  } else {
-    console.log("is user")
-    signInLink.classList.remove('hidden');
-    loggedInDiv.classList.add('hidden');
-  }
-}
-
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', () => {
-    App.init();
-    initAuthIndicator();
-    initDisplayNameEditor();
-  });
-} else {
-  App.init();
-  initAuthIndicator();
-  initDisplayNameEditor();
-}
-// --- MOBILE UI HELPERS ---
-const MobileUI = {
-  openSidebar() {
-    const s = document.getElementById('sidebar-nav');
-    const b = document.getElementById('sidebar-backdrop');
-    if (s && b) {
-      s.classList.remove('hidden');
-      setTimeout(() => s.classList.remove('-translate-x-full'), 10);
-      b.classList.add('active');
-    }
-  },
-  closeSidebar() {
-    const s = document.getElementById('sidebar-nav');
-    const b = document.getElementById('sidebar-backdrop');
-    if (s && b) {
-      s.classList.add('-translate-x-full');
-      setTimeout(() => s.classList.add('hidden'), 300);
-      b.classList.remove('active');
-    }
-  }
-};
-
-// --- EXPORTS ---
-window.App = App;
-window.AudioEngine = AudioEngine;
-window.TabManager = TabManager;
-window.HistoryManager = HistoryManager;
-window.Timer = Timer;
-window.LandingPage = LandingPage;
-window.MySpace = MySpace;
-window.MobileUI = MobileUI;
-window.filterGames = (category) => Filters.setCategory(category);
