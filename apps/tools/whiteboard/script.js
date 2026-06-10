@@ -68,7 +68,7 @@ const ctxMain = canvasMain.getContext("2d", {
 const ctxTemp = canvasTemp.getContext("2d");
 
 const wrapper = document.getElementById("canvas-wrapper");
-const textInput = document.getElementById("text-input");
+const textModalInput = document.getElementById("text-modal-input");
 const bodyBg = document.getElementById("body-bg");
 
 const STORAGE_KEY = "klasskit-v2-save";
@@ -104,6 +104,7 @@ let state = {
 // 🖐️ Multi-pointer state tracking
 let activePointers = new Map();
 let boardPaths = []; // ✨ Vector storage for SVG generation
+const imageCache = new Map();
 
 let undoStack = [];
 let undoIndex = -1;
@@ -275,9 +276,19 @@ function redrawCanvas() {
             lines.forEach((line, i) => {
                 ctxMain.fillText(line, path.x + 2, path.y + yOffset + i * fontSize * 1.2);
             });
+        } else if (path.type === "image") {
+            let img = imageCache.get(path.src);
+            if (!img) {
+                img = new Image();
+                img.src = path.src;
+                imageCache.set(path.src, img);
+            }
+            if (img.complete && img.naturalWidth > 0) {
+                ctxMain.drawImage(img, path.x, path.y, path.width, path.height);
+            }
         }
     });
-    
+
     updateContextSettings();
 }
 
@@ -363,16 +374,7 @@ window.addEventListener("keyup", (e) => {
 });
 
 function startDraw(e) {
-    if (e.target === textInput) return;
     wrapper.setPointerCapture(e.pointerId);
-
-    if (
-        state.tool === "text" &&
-        textInput.style.display === "block"
-    ) {
-        commitText();
-        return;
-    }
 
     const isSpacePan =
         e.code === "Space" || (e.buttons === 1 && e.altKey);
@@ -387,7 +389,16 @@ function startDraw(e) {
     }
 
     if (state.tool === "text") {
-        startTextTool(e);
+        const coords = getCoords(e);
+        openTextModal(coords.x, coords.y);
+        return;
+    }
+
+    if (state.tool === "image") {
+        const coords = getCoords(e);
+        state.imageClickX = coords.x;
+        state.imageClickY = coords.y;
+        document.getElementById("image-upload").click();
         return;
     }
 
@@ -576,32 +587,39 @@ function drawPreviewShape(x, y) {
     }
 }
 
-function startTextTool(e) {
-    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+function openTextModal(x, y) {
+    state.textX = x;
+    state.textY = y;
+    const m = document.getElementById("text-modal");
+    const b = document.getElementById("text-modal-box");
+    const preview = document.getElementById("text-modal-color-preview");
+    const sizeDisplay = document.getElementById("text-modal-size-display");
 
-    textInput.style.display = "block";
-    textInput.style.left = clientX + "px";
-    textInput.style.top = clientY + "px";
-    textInput.style.borderColor = state.color;
+    textModalInput.value = "";
+    if (preview) preview.style.backgroundColor = state.color;
+    if (sizeDisplay) sizeDisplay.innerText = state.size;
 
-    const fontSize = state.size * 3 + 14;
-    textInput.style.fontSize = fontSize + "px";
-    textInput.style.color = state.color;
-
-    textInput.value = "";
-    textInput.focus();
-
-    const coords = getCoords(e);
-    state.textX = coords.x;
-    state.textY = coords.y;
-    activePointers.set(e.pointerId, { type: "text" });
+    m.classList.remove("hidden");
+    setTimeout(() => {
+        m.classList.remove("opacity-0");
+        b.classList.remove("scale-90");
+        b.classList.add("scale-100");
+    }, 10);
+    setTimeout(() => textModalInput.focus(), 50);
 }
 
-function commitText() {
-    if (textInput.style.display === "none") return;
+function closeTextModal() {
+    const m = document.getElementById("text-modal");
+    const b = document.getElementById("text-modal-box");
+    m.classList.add("opacity-0");
+    b.classList.remove("scale-100");
+    b.classList.add("scale-90");
+    setTimeout(() => m.classList.add("hidden"), 200);
+    textModalInput.value = "";
+}
 
-    const text = textInput.value;
+function commitTextFromModal() {
+    const text = textModalInput.value;
     if (text.trim() !== "") {
         ctxMain.globalCompositeOperation = "source-over";
         ctxMain.fillStyle = state.color;
@@ -619,7 +637,6 @@ function commitText() {
             );
         });
 
-        // Record text path
         boardPaths.push({
             type: "text",
             color: state.color,
@@ -631,30 +648,81 @@ function commitText() {
 
         saveState();
     }
-    textInput.style.display = "none";
-    textInput.value = "";
-    // Clear any text pointer state
-    for (let [id, p] of activePointers) {
-        if (p.type === "text") activePointers.delete(id);
-    }
+    closeTextModal();
 }
 
-textInput.addEventListener("keydown", (e) => {
-    if (e.key === "Enter" && !e.shiftKey) {
+textModalInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
         e.preventDefault();
-        commitText();
+        commitTextFromModal();
     }
-    setTimeout(() => {
-        textInput.style.height = "auto";
-        textInput.style.height = textInput.scrollHeight + "px";
-    }, 0);
+});
+
+// --- Image Support ---
+function handleImageUpload(input) {
+    const file = input.files[0];
+    if (!file) return;
+    loadAndDrawImageFile(file, state.imageClickX || 0, state.imageClickY || 0);
+    input.value = "";
+}
+
+function loadAndDrawImageFile(file, x, y) {
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+        const src = ev.target.result;
+        const img = new Image();
+        img.onload = () => {
+            const maxSize = 600;
+            let w = img.naturalWidth;
+            let h = img.naturalHeight;
+            if (w > maxSize || h > maxSize) {
+                const ratio = Math.min(maxSize / w, maxSize / h);
+                w = Math.round(w * ratio);
+                h = Math.round(h * ratio);
+            }
+            ctxMain.drawImage(img, x, y, w, h);
+            boardPaths.push({
+                type: "image",
+                src: src,
+                x: x,
+                y: y,
+                width: w,
+                height: h
+            });
+            imageCache.set(src, img);
+            saveState();
+        };
+        img.src = src;
+        imageCache.set(src, img);
+    };
+    reader.readAsDataURL(file);
+}
+
+// Drag & drop images onto canvas
+wrapper.addEventListener("dragover", (e) => {
+    e.preventDefault();
+    wrapper.classList.add("drag-over");
+});
+wrapper.addEventListener("dragleave", () => {
+    wrapper.classList.remove("drag-over");
+});
+wrapper.addEventListener("drop", (e) => {
+    e.preventDefault();
+    wrapper.classList.remove("drag-over");
+    const file = e.dataTransfer.files[0];
+    if (file && file.type.startsWith("image/")) {
+        const rect = canvasMain.getBoundingClientRect();
+        const x = (e.clientX - rect.left) / state.scale;
+        const y = (e.clientY - rect.top) / state.scale;
+        loadAndDrawImageFile(file, x, y);
+    }
 });
 
 // ✨ OPTIMIZED: Caching with early returns
 function setTool(toolName, silent = false) {
     if (state.tool === toolName) return;
 
-    commitText();
+    closeTextModal();
     state.tool = toolName;
 
     ctxMain.globalCompositeOperation = "source-over";
@@ -671,6 +739,8 @@ function setTool(toolName, silent = false) {
         wrapper.style.cursor = "grab";
     } else if (toolName === "text") {
         wrapper.style.cursor = "text";
+    } else if (toolName === "image") {
+        wrapper.style.cursor = "copy";
     } else {
         wrapper.style.cursor = "crosshair";
     }
@@ -812,9 +882,11 @@ function generateSVG() {
                 const safeText = line.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
                 svg += `<text x="${path.x + 2}" y="${yPos}" fill="${path.color}" font-family="Fredoka, sans-serif" font-weight="bold" font-size="${fontSize}">${safeText}</text>`;
             });
+        } else if (path.type === "image") {
+            // Images are skipped in SVG export
         }
     });
-    
+
     svg += "</svg>";
     return svg;
 }
@@ -825,8 +897,10 @@ async function saveToCloud() {
         if (boardPaths.length === 0 && undoIndex < 0) {
             return;
         }
+        // Images are local-only / temporary; don't sync base64 data to cloud
+        const cloudPaths = boardPaths.filter(p => p.type !== 'image');
         await saveProgress('whiteboard_canvas_data', {
-            boardPaths: boardPaths,
+            boardPaths: cloudPaths,
             width: canvasMain.width,
             height: canvasMain.height,
             updatedAt: Date.now()
@@ -843,7 +917,9 @@ async function loadFromCloud() {
         if (!data) return;
 
         if (data.boardPaths) {
-            boardPaths = data.boardPaths;
+            // Preserve local-only image paths when loading from cloud
+            const localImages = boardPaths.filter(p => p.type === 'image');
+            boardPaths = data.boardPaths.filter(p => p.type !== 'image').concat(localImages);
             if (data.width && data.height) {
                 resizeCanvas(data.width, data.height);
             }
