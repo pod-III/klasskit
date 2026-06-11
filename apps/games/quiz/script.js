@@ -467,7 +467,7 @@
 
             for (let blockIdx = 0; blockIdx < blocks.length; blockIdx++) {
                 const block = blocks[blockIdx];
-                const lines = block.split('\n').map(l => l.trim()).filter(l => l);
+                const lines = block.split('\n').map(l => l.trim()).filter(l => l && !l.startsWith('//') && !l.startsWith('#'));
                 if (lines.length === 0) continue;
 
                 // First line: [type] question text  OR  just question text (defaults to mc)
@@ -658,32 +658,52 @@
         }
 
         function copyTemplate() {
-            const template = `What is the capital of France?
+            const template = `// ============================================================
+//  KLASSKIT QUIZ BULK IMPORT TEMPLATE
+//  Remove these comment lines (starting with // or #) before
+//  importing, or leave them — they are ignored by the parser.
+// ============================================================
+
+// --- Multiple Choice (default) ---
+// First line = question. Prefix with [mc] is optional.
+// - dash = option. Add * at the end to mark correct.
+// > greater-than = explanation (optional).
+What is the capital of France?
 - London
 - Paris *
 - Berlin
 - Madrid
 > Paris has been the capital since the 10th century.
 
+// --- True / False ---
+// Prefix question with [tf]. Append *true or *false.
 [tf] The sun is a star. *true
 > The sun is a G-type main-sequence star.
 
+// --- Text Answer ---
+// Prefix with [text]. = equals sign = accepted answer.
+// You can list multiple accepted answers.
 [text] What color do you get mixing red and blue?
 = purple
 = Purple
 > Red and blue make purple.
 
+// --- Fill in the Blank ---
+// Prefix with [fill]. Use ___ in the question for the blank.
+// - dash = option. * marks the correct option.
 [fill] She ___ to school every day.
 - walks *
 - running
 - eat
 - sleep
 
-[order] Put these numbers smallest to largest.
-1. 1
-2. 5
-3. 10
-4. 50`;
+// --- Order / Sequence ---
+// Prefix with [order]. Number items in correct order.
+[order] Put these numbers from smallest to largest.
+1. One
+2. Five
+3. Ten
+4. Fifty`;
             navigator.clipboard.writeText(template).then(() => {
                 AudioEngine.playTone(600, 'sine', 0.1);
             });
