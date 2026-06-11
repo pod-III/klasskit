@@ -1,0 +1,1142 @@
+<!doctype html>
+<html lang="en" class="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Flashcard Displayer – KlassKit</title>
+
+  <script src="https://unpkg.com/lucide@1.16.0"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Nunito:wght@400;700;900&display=swap" rel="stylesheet" />
+
+  <script>
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            pink:   "#FF6B95",
+            orange: "#FF8C42",
+            green:  "#00E676",
+            blue:   "#2979FF",
+            dark:   "#1e293b",
+            chalk:  "#f8fafc",
+          },
+          fontFamily: {
+            heading: ["Fredoka", "sans-serif"],
+            body:    ["Nunito",  "sans-serif"],
+          },
+          boxShadow: {
+            neo:    "4px 4px 0px 0px rgba(30,41,59,1)",
+            "neo-sm":"2px 2px 0px 0px rgba(30,41,59,1)",
+            "neo-lg":"8px 8px 0px 0px rgba(30,41,59,1)",
+          },
+        },
+      },
+    };
+  </script>
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; height: 100vh; width: 100vw; overflow: hidden; }
+
+    body {
+      font-family: "Nunito", sans-serif;
+      background-color: #f8fafc;
+      background-image:
+        linear-gradient(#e2e8f0 1.5px, transparent 1.5px),
+        linear-gradient(90deg, #e2e8f0 1.5px, transparent 1.5px);
+      background-size: 30px 30px;
+      color: #1e293b;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+      transition: background-color 0.3s, color 0.3s;
+    }
+    html.dark body {
+      background-color: #020617;
+      background-image:
+        linear-gradient(#0f172a 1.5px, transparent 1.5px),
+        linear-gradient(90deg, #0f172a 1.5px, transparent 1.5px);
+      color: #e2e8f0;
+    }
+
+    /* Glass panels */
+    .glass-panel {
+      background: rgba(255,255,255,0.88);
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+    }
+    html.dark .glass-panel {
+      background: rgba(15,23,42,0.85);
+    }
+
+    /* Collapsed panels */
+    .panel-side { transition: width 0.3s ease, opacity 0.3s ease; }
+    .panel-side.collapsed { width: 0 !important; opacity: 0; overflow: hidden; pointer-events: none; }
+
+    /* Chunky buttons */
+    .btn-chunky {
+      transition: all 0.15s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+      transform: translate(0, 0);
+      border: 2px solid #1e293b;
+      box-shadow: 4px 4px 0px 0px rgba(30,41,59,1);
+      font-family: "Fredoka", sans-serif;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    html.dark .btn-chunky { border-color: rgba(255,255,255,0.25); box-shadow: 4px 4px 0px 0px rgba(0,0,0,0.6); }
+    .btn-chunky:hover:not(:disabled) { transform: translate(-2px,-2px); box-shadow: 6px 6px 0px 0px rgba(30,41,59,1); filter: brightness(105%); }
+    html.dark .btn-chunky:hover:not(:disabled) { box-shadow: 6px 6px 0px 0px rgba(0,0,0,0.6); }
+    .btn-chunky:active:not(:disabled) { transform: translate(2px,2px) !important; box-shadow: 1px 1px 0px 0px rgba(30,41,59,1) !important; }
+    .btn-chunky:disabled { opacity: 0.45; cursor: not-allowed; transform: translate(0,2px); box-shadow: none; }
+    .btn-chunky.active { background:#2979FF !important; color:white !important; border-color:#2979FF !important; }
+
+    /* Icon-only small buttons */
+    .btn-icon {
+      border: 2px solid #1e293b;
+      box-shadow: 3px 3px 0px 0px rgba(30,41,59,1);
+      transition: all 0.15s ease;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+    }
+    html.dark .btn-icon { border-color: rgba(255,255,255,0.2); box-shadow: 3px 3px 0px 0px rgba(0,0,0,0.5); }
+    .btn-icon:hover { transform: translate(-1px,-1px); box-shadow: 4px 4px 0px 0px rgba(30,41,59,1); }
+    .btn-icon:active { transform: translate(1px,1px); box-shadow: 1px 1px 0px 0px rgba(30,41,59,1); }
+
+    /* Cards */
+    .fc-card {
+      position: absolute;
+      cursor: pointer;
+      transition: box-shadow 0.2s, transform 0.3s cubic-bezier(0.34,1.56,0.64,1), opacity 0.3s;
+      border: 3px solid #1e293b;
+      box-shadow: 5px 5px 0px 0px rgba(30,41,59,1);
+      border-radius: 16px;
+      overflow: hidden;
+      background: white;
+      display: flex; align-items: center; justify-content: center;
+      flex-direction: column;
+      font-family: "Fredoka", sans-serif;
+    }
+    html.dark .fc-card { background: #1e293b; border-color: rgba(255,255,255,0.3); box-shadow: 5px 5px 0px 0px rgba(0,0,0,0.7); }
+    .fc-card:hover:not(.focused):not(.hidden-card) { z-index: 200 !important; transform: translateY(-10px) rotate(var(--rot,0deg)) scale(1.06) !important; box-shadow: 8px 8px 0px 0px rgba(30,41,59,1) !important; }
+    html.dark .fc-card:hover:not(.focused):not(.hidden-card) { box-shadow: 8px 8px 0px 0px rgba(0,0,0,0.8) !important; }
+
+    /* Grid mode overrides */
+    .grid-mode .fc-card {
+      position: relative !important;
+      transform: rotate(0deg) !important;
+      left: auto !important; top: auto !important;
+      transition: box-shadow 0.2s, transform 0.2s, opacity 0.3s;
+    }
+    .grid-mode .fc-card:hover:not(.hidden-card) { transform: translate(-2px,-4px) !important; }
+
+    /* Focused card */
+    .fc-card.focused {
+      position: fixed !important;
+      z-index: 9999 !important;
+      transition: all 0.4s cubic-bezier(0.34,1.56,0.64,1) !important;
+      box-shadow: 10px 10px 0px 0px rgba(30,41,59,1) !important;
+    }
+    html.dark .fc-card.focused { box-shadow: 10px 10px 0px 0px rgba(0,0,0,0.9) !important; }
+
+    /* Hidden card (blurred/covered) */
+    .fc-card.hidden-card .card-content { filter: blur(8px); opacity: 0.35; }
+    .fc-card.hidden-card::after {
+      content: "";
+      position: absolute; inset: 0;
+      background: repeating-linear-gradient(-45deg, transparent, transparent 10px, rgba(41,121,255,0.12) 10px, rgba(41,121,255,0.12) 20px);
+      border-radius: 13px;
+      z-index: 2;
+    }
+
+    /* Remove animation */
+    .fc-card.removing { animation: removeCard 0.35s forwards; }
+    @keyframes removeCard { to { transform: scale(0) rotate(720deg) !important; opacity: 0; } }
+
+    /* Spawn animation */
+    .fc-card.spawning { animation: spawnCard 0.4s cubic-bezier(0.34,1.56,0.64,1) forwards; }
+    @keyframes spawnCard { from { transform: scale(0) rotate(var(--rot,0deg)); opacity: 0; } }
+
+    /* Focus overlay */
+    #focus-overlay {
+      position: fixed; inset: 0; background: rgba(2,6,23,0.65);
+      z-index: 9998; display: none; backdrop-filter: blur(4px);
+    }
+    #focus-overlay.active { display: block; }
+
+    /* Card per-action buttons (shown on hover) */
+    .card-actions {
+      position: absolute; top: 6px; right: 6px;
+      display: flex; gap: 4px; z-index: 10;
+      opacity: 0; transition: opacity 0.2s;
+    }
+    .fc-card:hover .card-actions { opacity: 1; }
+    .fc-card.focused .card-actions { opacity: 1; }
+
+    .card-action-btn {
+      width: 26px; height: 26px; border-radius: 8px;
+      border: 2px solid #1e293b; background: white;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer; transition: all 0.12s;
+      box-shadow: 2px 2px 0 rgba(30,41,59,1);
+    }
+    html.dark .card-action-btn { background: #0f172a; border-color: rgba(255,255,255,0.3); box-shadow: 2px 2px 0 rgba(0,0,0,0.7); }
+    .card-action-btn:hover { transform: translate(-1px,-1px); box-shadow: 3px 3px 0 rgba(30,41,59,1); }
+    .card-action-btn:active { transform: translate(1px,1px); box-shadow: 0 0 0; }
+
+    /* Scrollbar */
+    .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+    .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(203,213,225,0.7); border-radius: 10px; }
+    html.dark .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); }
+
+    /* Section labels */
+    .section-label {
+      font-family: "Fredoka", sans-serif;
+      font-size: 10px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.1em;
+      color: #94a3b8;
+      display: flex; align-items: center; gap: 6px;
+    }
+
+    /* Panel inner sections */
+    .panel-section {
+      background: rgba(248,250,252,0.6);
+      border: 1px solid rgba(203,213,225,0.7);
+      border-radius: 12px;
+      padding: 12px;
+    }
+    html.dark .panel-section {
+      background: rgba(30,41,59,0.5);
+      border-color: rgba(255,255,255,0.08);
+    }
+
+    /* Range slider */
+    input[type=range] { accent-color: #2979FF; cursor: pointer; }
+
+    /* Toast */
+    #toast-container {
+      position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+      display: flex; flex-direction: column; gap: 8px; align-items: center;
+      z-index: 99999; pointer-events: none;
+    }
+    .toast {
+      pointer-events: auto;
+      font-family: "Fredoka", sans-serif; font-weight: 700; font-size: 14px;
+      padding: 10px 20px; border-radius: 12px; border: 2px solid;
+      box-shadow: 4px 4px 0 rgba(30,41,59,1);
+      display: flex; align-items: center; gap: 8px;
+      transition: all 0.3s ease;
+      transform: translateY(20px); opacity: 0;
+    }
+    .toast.show { transform: translateY(0); opacity: 1; }
+
+    /* Thumbnail list item */
+    .thumb-item {
+      display: flex; align-items: center; gap: 8px;
+      padding: 6px 8px; border-radius: 10px;
+      border: 1px solid rgba(203,213,225,0.5);
+      background: rgba(255,255,255,0.6);
+      cursor: pointer; transition: all 0.15s;
+    }
+    html.dark .thumb-item { background: rgba(30,41,59,0.6); border-color: rgba(255,255,255,0.1); }
+    .thumb-item:hover { background: #eff6ff; border-color: #2979FF; }
+    html.dark .thumb-item:hover { background: rgba(41,121,255,0.15); }
+
+    /* Drop zone */
+    #drop-zone {
+      border: 3px dashed rgba(41,121,255,0.35);
+      border-radius: 14px; padding: 20px 12px;
+      text-align: center; cursor: pointer;
+      transition: all 0.2s; background: rgba(41,121,255,0.04);
+    }
+    #drop-zone.dragover { border-color: #2979FF; background: rgba(41,121,255,0.1); }
+    #drop-zone:hover { border-color: #2979FF; }
+
+    /* Panel toggle side buttons */
+    .toggle-tab {
+      position: absolute; top: 50%; transform: translateY(-50%);
+      z-index: 40;
+      width: 22px; height: 60px; border-radius: 0 8px 8px 0;
+      background: white; border: 2px solid #1e293b; border-left: none;
+      box-shadow: 3px 0 0 0 rgba(30,41,59,1);
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer; transition: all 0.15s;
+    }
+    html.dark .toggle-tab { background: #1e293b; border-color: rgba(255,255,255,0.3); }
+    .toggle-tab.right { border-radius: 8px 0 0 8px; border-right: none; border-left: 2px solid #1e293b; box-shadow: -3px 0 0 0 rgba(30,41,59,1); }
+    html.dark .toggle-tab.right { border-left-color: rgba(255,255,255,0.3); }
+    .toggle-tab:hover { background: #2979FF; color: white; }
+    html.dark .toggle-tab:hover { background: #2979FF; }
+  </style>
+</head>
+<body>
+
+<!-- Focus overlay -->
+<div id="focus-overlay" onclick="unfocusCard()"></div>
+
+<!-- Toast container -->
+<div id="toast-container"></div>
+
+<!-- ROOT LAYOUT -->
+<div class="flex h-screen w-screen overflow-hidden">
+
+  <!-- ============================================================ -->
+  <!-- LEFT PANEL: Controls -->
+  <!-- ============================================================ -->
+  <aside id="left-panel" class="panel-side glass-panel border-r-2 border-dark dark:border-slate-600 w-64 flex flex-col h-full shrink-0 z-30 relative">
+
+    <!-- Header -->
+    <div class="px-4 py-3 border-b-2 border-dark dark:border-slate-600 bg-blue/10 dark:bg-blue/20 shrink-0 flex items-center gap-3">
+      <div class="w-9 h-9 rounded-xl bg-blue border-2 border-dark dark:border-slate-500 shadow-neo-sm flex items-center justify-center shrink-0">
+        <i data-lucide="layout-grid" class="w-5 h-5 text-white"></i>
+      </div>
+      <div>
+        <div class="font-heading font-bold text-dark dark:text-white text-base leading-tight">Flashcard</div>
+        <div class="font-heading text-[10px] text-blue uppercase tracking-widest font-bold">Displayer</div>
+      </div>
+    </div>
+
+    <!-- Scrollable body -->
+    <div class="flex-1 overflow-y-auto custom-scrollbar p-3 space-y-3">
+
+      <!-- DISPLAY ACTIONS -->
+      <div class="panel-section space-y-2">
+        <div class="section-label border-b border-slate-200 dark:border-white/10 pb-2 mb-2">
+          <i data-lucide="zap" class="w-3.5 h-3.5 text-orange"></i> Quick Actions
+        </div>
+        <button onclick="shuffleCards()" class="btn-chunky w-full bg-orange text-dark rounded-xl py-2.5 text-sm flex items-center justify-center gap-2">
+          <i data-lucide="shuffle" class="w-4 h-4"></i> Shuffle
+        </button>
+        <button onclick="sortCards()" class="btn-chunky w-full bg-white dark:bg-slate-800 text-dark dark:text-slate-200 rounded-xl py-2.5 text-sm flex items-center justify-center gap-2">
+          <i data-lucide="arrow-up-a-z" class="w-4 h-4"></i> Sort A–Z
+        </button>
+        <div class="grid grid-cols-2 gap-2">
+          <button onclick="hideAllCards()" id="btn-hide-all" class="btn-chunky bg-pink text-white rounded-xl py-2 text-xs flex items-center justify-center gap-1.5">
+            <i data-lucide="eye-off" class="w-3.5 h-3.5"></i> Hide All
+          </button>
+          <button onclick="showAllCards()" id="btn-show-all" class="btn-chunky bg-green text-dark rounded-xl py-2 text-xs flex items-center justify-center gap-1.5">
+            <i data-lucide="eye" class="w-3.5 h-3.5"></i> Show All
+          </button>
+        </div>
+      </div>
+
+      <!-- VIEW MODE -->
+      <div class="panel-section space-y-2">
+        <div class="section-label border-b border-slate-200 dark:border-white/10 pb-2 mb-2">
+          <i data-lucide="layout" class="w-3.5 h-3.5 text-blue"></i> View Mode
+        </div>
+        <div class="grid grid-cols-2 gap-2">
+          <button onclick="setViewMode('spread')" id="btn-spread"
+            class="btn-chunky active bg-white dark:bg-slate-800 rounded-xl py-2 text-xs flex items-center justify-center gap-1.5">
+            <i data-lucide="scatter-chart" class="w-3.5 h-3.5"></i> Spread
+          </button>
+          <button onclick="setViewMode('grid')" id="btn-grid"
+            class="btn-chunky bg-white dark:bg-slate-800 rounded-xl py-2 text-xs flex items-center justify-center gap-1.5">
+            <i data-lucide="grid-3x3" class="w-3.5 h-3.5"></i> Grid
+          </button>
+        </div>
+      </div>
+
+      <!-- CARD SIZE -->
+      <div class="panel-section space-y-2">
+        <div class="section-label border-b border-slate-200 dark:border-white/10 pb-2 mb-2">
+          <i data-lucide="move-diagonal" class="w-3.5 h-3.5 text-green"></i> Card Size
+        </div>
+        <input type="range" id="size-slider" min="80" max="260" value="140" class="w-full" oninput="updateCardSize(this.value)" />
+        <div class="flex justify-between text-[10px] font-bold text-slate-400">
+          <span>Tiny</span><span id="size-label" class="text-blue">140px</span><span>Large</span>
+        </div>
+      </div>
+
+      <!-- DECK MANAGEMENT -->
+      <div class="panel-section space-y-2">
+        <div class="section-label border-b border-slate-200 dark:border-white/10 pb-2 mb-2">
+          <i data-lucide="layers" class="w-3.5 h-3.5 text-pink"></i> Deck
+        </div>
+        <button onclick="clearAll()" class="btn-chunky w-full bg-white dark:bg-slate-800 text-pink rounded-xl py-2.5 text-sm flex items-center justify-center gap-2">
+          <i data-lucide="trash-2" class="w-4 h-4"></i> Clear All
+        </button>
+        <div class="flex items-center justify-between px-1">
+          <span class="section-label">Total cards</span>
+          <span id="card-count" class="font-heading font-bold text-blue text-lg">0</span>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Footer: dark mode + mute -->
+    <div class="px-4 py-3 border-t-2 border-dark dark:border-slate-600 bg-slate-50/50 dark:bg-slate-800/50 shrink-0 flex items-center justify-between">
+      <span class="font-heading text-[10px] uppercase tracking-widest text-slate-400 font-bold">KlassKit</span>
+      <button onclick="toggleTheme()" class="btn-icon w-9 h-9 rounded-xl bg-white dark:bg-slate-700" title="Toggle dark mode">
+        <i id="theme-icon" data-lucide="moon" class="w-4 h-4 text-slate-500 dark:text-slate-300"></i>
+      </button>
+    </div>
+
+    <!-- Collapse tab -->
+    <div id="left-tab" class="toggle-tab" style="right:-22px;" onclick="toggleLeft()" title="Toggle panel">
+      <i id="left-tab-icon" data-lucide="chevron-left" class="w-3.5 h-3.5 text-slate-500 dark:text-slate-300"></i>
+    </div>
+  </aside>
+
+  <!-- ============================================================ -->
+  <!-- MAIN BOARD -->
+  <!-- ============================================================ -->
+  <main id="main-board" class="flex-1 relative h-full overflow-hidden flex flex-col">
+
+    <!-- Cards container (spread mode) -->
+    <div id="board" class="flex-1 relative overflow-hidden"></div>
+
+    <!-- Grid container (grid mode, hidden by default) -->
+    <div id="grid-board" class="hidden flex-1 overflow-y-auto overflow-x-hidden p-6 grid-mode">
+      <!-- JS injects grid here -->
+    </div>
+
+    <!-- Empty state -->
+    <div id="empty-state" class="hidden absolute inset-0 flex flex-col items-center justify-center pointer-events-none gap-3">
+      <div class="w-24 h-24 rounded-full bg-slate-200 dark:bg-slate-700 border-2 border-dark dark:border-slate-500 shadow-neo flex items-center justify-center">
+        <i data-lucide="gallery-horizontal" class="w-12 h-12 text-slate-400"></i>
+      </div>
+      <p class="font-heading text-2xl font-bold text-slate-400">Board is empty</p>
+      <p class="font-body text-sm text-slate-400">Add words or images from the right panel →</p>
+    </div>
+
+  </main>
+
+  <!-- ============================================================ -->
+  <!-- RIGHT PANEL: Add Items -->
+  <!-- ============================================================ -->
+  <aside id="right-panel" class="panel-side glass-panel border-l-2 border-dark dark:border-slate-600 w-72 flex flex-col h-full shrink-0 z-30 relative">
+
+    <!-- Collapse tab (left side) -->
+    <div id="right-tab" class="toggle-tab right" style="left:-22px;" onclick="toggleRight()" title="Toggle panel">
+      <i id="right-tab-icon" data-lucide="chevron-right" class="w-3.5 h-3.5 text-slate-500 dark:text-slate-300"></i>
+    </div>
+
+    <!-- Header -->
+    <div class="px-4 py-3 border-b-2 border-dark dark:border-slate-600 bg-orange/10 dark:bg-orange/15 shrink-0 flex items-center gap-3">
+      <div class="w-9 h-9 rounded-xl bg-orange border-2 border-dark dark:border-slate-500 shadow-neo-sm flex items-center justify-center shrink-0">
+        <i data-lucide="plus-circle" class="w-5 h-5 text-white"></i>
+      </div>
+      <div>
+        <div class="font-heading font-bold text-dark dark:text-white text-base leading-tight">Add Cards</div>
+        <div class="font-heading text-[10px] text-orange uppercase tracking-widest font-bold">Words or Images</div>
+      </div>
+    </div>
+
+    <div class="flex-1 overflow-y-auto custom-scrollbar p-3 space-y-3">
+
+      <!-- ADD WORD -->
+      <div class="panel-section space-y-2">
+        <div class="section-label border-b border-slate-200 dark:border-white/10 pb-2 mb-2">
+          <i data-lucide="type" class="w-3.5 h-3.5 text-blue"></i> Add a Word
+        </div>
+        <div class="flex gap-2">
+          <input type="text" id="word-input"
+            placeholder="Type a word…"
+            class="flex-1 min-w-0 border-2 border-dark dark:border-slate-500 rounded-xl px-3 py-2 font-body font-bold text-dark dark:text-slate-200 text-sm bg-white/70 dark:bg-slate-900/60 focus:outline-none focus:border-blue"
+            onkeydown="if(event.key==='Enter') addWord()" />
+          <button onclick="addWord()" class="btn-chunky bg-blue text-white px-3 rounded-xl shrink-0">
+            <i data-lucide="plus" class="w-5 h-5"></i>
+          </button>
+        </div>
+        <!-- Batch input -->
+        <details class="group">
+          <summary class="text-[10px] font-bold text-blue uppercase tracking-widest cursor-pointer select-none list-none flex items-center gap-1 hover:underline">
+            <i data-lucide="list-plus" class="w-3 h-3"></i> Batch add (one per line)
+          </summary>
+          <div class="mt-2 space-y-2">
+            <textarea id="batch-input" rows="4"
+              class="w-full p-2 bg-white/60 dark:bg-slate-900/50 text-dark dark:text-slate-200 font-body text-xs border-2 border-slate-300 dark:border-slate-600 rounded-xl resize-none focus:outline-none focus:border-blue"
+              placeholder="Apple&#10;Banana&#10;Cherry"></textarea>
+            <button onclick="addBatch()" class="btn-chunky w-full bg-dark text-white rounded-xl py-2 text-xs">
+              Add All Words
+            </button>
+          </div>
+        </details>
+      </div>
+
+      <!-- ADD IMAGES -->
+      <div class="panel-section space-y-2">
+        <div class="section-label border-b border-slate-200 dark:border-white/10 pb-2 mb-2">
+          <i data-lucide="image" class="w-3.5 h-3.5 text-pink"></i> Add Images
+        </div>
+        <div id="drop-zone" onclick="document.getElementById('img-upload').click()">
+          <i data-lucide="upload-cloud" class="w-8 h-8 text-blue mx-auto mb-2"></i>
+          <p class="font-heading font-bold text-sm text-slate-500 dark:text-slate-400">Click or drop images here</p>
+          <p class="font-body text-[11px] text-slate-400 mt-1">Supports JPG, PNG, GIF, WebP</p>
+        </div>
+        <input type="file" id="img-upload" accept="image/*" multiple class="hidden" onchange="addImages(this)" />
+      </div>
+
+      <!-- CARD LIST -->
+      <div class="panel-section space-y-2">
+        <div class="section-label border-b border-slate-200 dark:border-white/10 pb-2 mb-2">
+          <i data-lucide="list" class="w-3.5 h-3.5 text-green"></i> All Cards
+          <span id="list-count" class="ml-auto text-blue font-heading font-bold text-sm">0</span>
+        </div>
+        <div id="card-list" class="space-y-1 max-h-56 overflow-y-auto custom-scrollbar pr-0.5">
+          <!-- populated by JS -->
+        </div>
+      </div>
+
+    </div>
+  </aside>
+
+</div><!-- end root layout -->
+
+<script>
+// ============================================================
+// STATE
+// ============================================================
+let cards = []; // [{id, type:'word'|'img', label, src?, hidden, posX, posY, rot}]
+let nextId = 1;
+let viewMode = 'spread'; // 'spread' | 'grid'
+let cardSize = 140;
+let focusedId = null;
+let leftOpen = true, rightOpen = true;
+const STORAGE_KEY = 'flashcard_displayer_v1';
+const DB_NAME = 'flashcard_images_db';
+const DB_STORE = 'images';
+const DB_VERSION = 1;
+let db = null;
+
+function openDB() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(DB_NAME, DB_VERSION);
+    req.onerror = () => reject(req.error);
+    req.onsuccess = () => { db = req.result; resolve(db); };
+    req.onupgradeneeded = (e) => {
+      const database = e.target.result;
+      if (!database.objectStoreNames.contains(DB_STORE)) {
+        database.createObjectStore(DB_STORE, { keyPath: 'id' });
+      }
+    };
+  });
+}
+
+function saveImage(id, src) {
+  return new Promise((resolve, reject) => {
+    if (!db) return resolve();
+    const tx = db.transaction([DB_STORE], 'readwrite');
+    const store = tx.objectStore(DB_STORE);
+    const req = store.put({ id, src });
+    req.onsuccess = () => resolve();
+    req.onerror = () => reject(req.error);
+  });
+}
+
+function getImage(id) {
+  return new Promise((resolve, reject) => {
+    if (!db) return resolve(null);
+    const tx = db.transaction([DB_STORE], 'readonly');
+    const store = tx.objectStore(DB_STORE);
+    const req = store.get(id);
+    req.onsuccess = () => resolve(req.result ? req.result.src : null);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+function deleteImage(id) {
+  return new Promise((resolve, reject) => {
+    if (!db) return resolve();
+    const tx = db.transaction([DB_STORE], 'readwrite');
+    const store = tx.objectStore(DB_STORE);
+    const req = store.delete(id);
+    req.onsuccess = () => resolve();
+    req.onerror = () => reject(req.error);
+  });
+}
+
+function clearAllImages() {
+  return new Promise((resolve, reject) => {
+    if (!db) return resolve();
+    const tx = db.transaction([DB_STORE], 'readwrite');
+    const store = tx.objectStore(DB_STORE);
+    const req = store.clear();
+    req.onsuccess = () => resolve();
+    req.onerror = () => reject(req.error);
+  });
+}
+
+// ============================================================
+// INIT
+// ============================================================
+window.onload = async function () {
+  loadTheme();
+  await openDB();
+  await loadState();
+  lucide.createIcons();
+  setupDragDrop();
+  render();
+};
+
+async function loadState() {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
+      const s = JSON.parse(saved);
+      cards = s.cards || [];
+      nextId = s.nextId || (cards.length + 1);
+      viewMode = s.viewMode || 'spread';
+      cardSize = s.cardSize || 140;
+      document.getElementById('size-slider').value = cardSize;
+      document.getElementById('size-label').textContent = cardSize + 'px';
+      for (const card of cards) {
+        if (card.type === 'img') {
+          card.src = await getImage(card.id);
+        }
+      }
+    }
+  } catch(e) {}
+}
+
+function saveState() {
+  try {
+    const cardsToSave = cards.map(c => c.type === 'img' ? { ...c, src: undefined } : c);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ cards: cardsToSave, nextId, viewMode, cardSize }));
+  } catch(e) {}
+}
+
+// ============================================================
+// ADDING CARDS
+// ============================================================
+function addWord() {
+  const input = document.getElementById('word-input');
+  const val = input.value.trim();
+  if (!val) return;
+  const card = makeCard('word', val, null);
+  cards.push(card);
+  input.value = '';
+  saveState();
+  renderCardEl(card);
+  renderCardList();
+  updateCount();
+  updateEmptyState();
+  showToast(`Added "${val}"`, 'success');
+}
+
+function addBatch() {
+  const ta = document.getElementById('batch-input');
+  const lines = ta.value.split('\n').map(l => l.trim()).filter(Boolean);
+  if (!lines.length) return;
+  lines.forEach(line => {
+    cards.push(makeCard('word', line, null));
+  });
+  ta.value = '';
+  saveState();
+  render();
+  showToast(`Added ${lines.length} card${lines.length > 1 ? 's' : ''}`, 'success');
+}
+
+function addImages(input) {
+  const files = Array.from(input.files);
+  if (!files.length) return;
+  input.value = '';
+  let loaded = 0;
+  let failed = 0;
+  files.forEach(file => {
+    const label = file.name.replace(/\.[^.]+$/, '').replace(/[-_]/g, ' ');
+    const reader = new FileReader();
+    reader.onload = async e => {
+      const card = makeCard('img', label, e.target.result);
+      cards.push(card);
+      await saveImage(card.id, card.src);
+      loaded++;
+      if (loaded + failed === files.length) {
+        saveState();
+        render();
+        if (loaded > 0) showToast(`Added ${loaded} image${loaded > 1 ? 's' : ''}`, 'success');
+      }
+    };
+    reader.onerror = () => {
+      failed++;
+      showToast(`Failed to read ${file.name}`, 'error');
+      if (loaded + failed === files.length) {
+        saveState();
+        render();
+      }
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+function makeCard(type, label, src) {
+  const { x, y } = randomPos();
+  const rot = (Math.random() * 12 - 6).toFixed(2);
+  return { id: nextId++, type, label, src, hidden: false, posX: x, posY: y, rot: parseFloat(rot) };
+}
+
+function randomPos() {
+  const board = document.getElementById('board');
+  const bw = board.clientWidth  || window.innerWidth - 600;
+  const bh = board.clientHeight || window.innerHeight;
+  const pad = 20;
+  const x = pad + Math.random() * (bw - cardSize - pad * 2);
+  const y = pad + Math.random() * (bh - cardSize - pad * 2);
+  return { x: Math.max(pad, x), y: Math.max(pad, y) };
+}
+
+// ============================================================
+// CARD ACTIONS
+// ============================================================
+async function removeCard(id) {
+  const card = cards.find(c => c.id === id);
+  if (card && card.type === 'img') {
+    await deleteImage(card.id);
+  }
+  const el = document.querySelector(`[data-id="${id}"]`);
+  if (el) {
+    el.classList.add('removing');
+    setTimeout(() => el.remove(), 370);
+  }
+  cards = cards.filter(c => c.id !== id);
+  saveState();
+  renderCardList();
+  updateCount();
+  updateEmptyState();
+}
+
+function toggleHide(id) {
+  const card = cards.find(c => c.id === id);
+  if (!card) return;
+  card.hidden = !card.hidden;
+  const el = document.querySelector(`[data-id="${id}"]`);
+  if (el) el.classList.toggle('hidden-card', card.hidden);
+  // update hide button icon
+  const btn = el?.querySelector('.btn-hide');
+  if (btn) btn.setAttribute('data-lucide', card.hidden ? 'eye' : 'eye-off');
+  saveState();
+  lucide.createIcons();
+}
+
+function hideAllCards() {
+  cards.forEach(c => c.hidden = true);
+  document.querySelectorAll('.fc-card').forEach(el => el.classList.add('hidden-card'));
+  document.querySelectorAll('.btn-hide').forEach(btn => btn.setAttribute('data-lucide', 'eye'));
+  saveState();
+  lucide.createIcons();
+  showToast('All cards hidden', 'info');
+}
+
+function showAllCards() {
+  cards.forEach(c => c.hidden = false);
+  document.querySelectorAll('.fc-card').forEach(el => el.classList.remove('hidden-card'));
+  document.querySelectorAll('.btn-hide').forEach(btn => btn.setAttribute('data-lucide', 'eye-off'));
+  saveState();
+  lucide.createIcons();
+  showToast('All cards revealed', 'success');
+}
+
+function shuffleCards() {
+  cards.forEach(card => {
+    const { x, y } = randomPos();
+    const rot = (Math.random() * 14 - 7).toFixed(2);
+    card.posX = x;
+    card.posY = y;
+    card.rot = parseFloat(rot);
+    const el = document.querySelector(`[data-id="${card.id}"]`);
+    if (el && viewMode === 'spread') {
+      el.style.left = card.posX + 'px';
+      el.style.top  = card.posY + 'px';
+      el.style.setProperty('--rot', card.rot + 'deg');
+      el.style.transform = `rotate(${card.rot}deg)`;
+    }
+  });
+  // also shuffle array order for grid
+  cards.sort(() => Math.random() - 0.5);
+  if (viewMode === 'grid') renderGrid();
+  saveState();
+  showToast('Shuffled!', 'info');
+}
+
+function sortCards() {
+  cards.sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: 'base' }));
+  if (viewMode === 'grid') renderGrid();
+  else {
+    // rearrange spread positions in a loose grid
+    const board = document.getElementById('board');
+    const bw = board.clientWidth;
+    const cols = Math.floor(bw / (cardSize + 30)) || 1;
+    const padX = 30, padY = 30, gapX = 20, gapY = 20;
+    cards.forEach((card, i) => {
+      const col = i % cols;
+      const row = Math.floor(i / cols);
+      card.posX = padX + col * (cardSize + gapX) + (Math.random() * 8 - 4);
+      card.posY = padY + row * (cardSize * 1.35 + gapY) + (Math.random() * 8 - 4);
+      card.rot  = (Math.random() * 4 - 2);
+      const el = document.querySelector(`[data-id="${card.id}"]`);
+      if (el) {
+        el.style.left = card.posX + 'px';
+        el.style.top  = card.posY + 'px';
+        el.style.setProperty('--rot', card.rot + 'deg');
+        el.style.transform = `rotate(${card.rot}deg)`;
+      }
+    });
+  }
+  saveState();
+  showToast('Sorted A–Z', 'info');
+}
+
+async function clearAll() {
+  if (!confirm('Clear all cards?')) return;
+  await clearAllImages();
+  cards = [];
+  nextId = 1;
+  saveState();
+  render();
+  showToast('Board cleared', 'info');
+}
+
+function updateCardSize(val) {
+  cardSize = parseInt(val);
+  document.getElementById('size-label').textContent = cardSize + 'px';
+  document.querySelectorAll('.fc-card').forEach(el => applyCardSize(el));
+  saveState();
+  if (viewMode === 'grid') renderGrid();
+}
+
+function applyCardSize(el) {
+  const isImg = el.dataset.type === 'img';
+  el.style.width  = cardSize + 'px';
+  el.style.height = isImg ? (cardSize * 1.2) + 'px' : (cardSize * 1.1) + 'px';
+  const label = el.querySelector('.card-label');
+  if (label) label.style.fontSize = Math.max(10, cardSize * 0.14) + 'px';
+}
+
+// ============================================================
+// FOCUS
+// ============================================================
+function focusCard(id) {
+  if (focusedId === id) { unfocusCard(); return; }
+  if (focusedId !== null) unfocusCard(false);
+  focusedId = id;
+  const el = document.querySelector(`[data-id="${id}"]`);
+  if (!el) return;
+  el.classList.add('focused');
+  const w = Math.min(320, window.innerWidth * 0.8);
+  const h = el.dataset.type === 'img' ? w * 1.2 : w * 0.85;
+  el.style.width  = w + 'px';
+  el.style.height = h + 'px';
+  el.style.left   = ((window.innerWidth - w) / 2) + 'px';
+  el.style.top    = ((window.innerHeight - h) / 2) + 'px';
+  el.style.transform = 'rotate(0deg)';
+  const label = el.querySelector('.card-label');
+  if (label) label.style.fontSize = Math.max(14, w * 0.14) + 'px';
+  document.getElementById('focus-overlay').classList.add('active');
+}
+
+function unfocusCard(show = true) {
+  if (focusedId === null) return;
+  const el = document.querySelector(`[data-id="${focusedId}"]`);
+  if (el) {
+    el.classList.remove('focused');
+    const card = cards.find(c => c.id === focusedId);
+    if (card) {
+      applyCardSize(el);
+      if (viewMode === 'spread') {
+        el.style.left = card.posX + 'px';
+        el.style.top  = card.posY + 'px';
+        el.style.transform = `rotate(${card.rot}deg)`;
+      } else {
+        el.style.left = '';
+        el.style.top  = '';
+        el.style.transform = '';
+      }
+    }
+  }
+  focusedId = null;
+  if (show) document.getElementById('focus-overlay').classList.remove('active');
+}
+
+// ============================================================
+// RENDER
+// ============================================================
+function render() {
+  if (viewMode === 'spread') renderSpread();
+  else renderGrid();
+  renderCardList();
+  updateCount();
+  updateEmptyState();
+  updateViewButtons();
+}
+
+function renderSpread() {
+  document.getElementById('board').style.display = '';
+  document.getElementById('grid-board').classList.add('hidden');
+  document.getElementById('board').classList.remove('hidden');
+  const board = document.getElementById('board');
+  board.innerHTML = '';
+  cards.forEach(card => renderCardEl(card));
+}
+
+function renderGrid() {
+  document.getElementById('board').classList.add('hidden');
+  const gb = document.getElementById('grid-board');
+  gb.classList.remove('hidden');
+  gb.innerHTML = '';
+  const cols = Math.max(1, Math.floor(gb.clientWidth / (cardSize + 24)));
+  gb.style.gridTemplateColumns = `repeat(${cols}, ${cardSize}px)`;
+  gb.style.justifyContent = 'center';
+  gb.style.display = 'grid';
+  gb.style.gap = '24px';
+  cards.forEach(card => {
+    const el = buildCardElement(card);
+    el.style.position = 'relative';
+    el.style.left = '';
+    el.style.top  = '';
+    el.style.transform = '';
+    gb.appendChild(el);
+  });
+  lucide.createIcons();
+}
+
+function renderCardEl(card) {
+  const el = buildCardElement(card);
+  document.getElementById('board').appendChild(el);
+  // trigger spawn animation
+  requestAnimationFrame(() => el.classList.add('spawning'));
+  lucide.createIcons();
+}
+
+function buildCardElement(card) {
+  const isImg = card.type === 'img';
+  const el = document.createElement('div');
+  el.className = 'fc-card' + (card.hidden ? ' hidden-card' : '');
+  el.dataset.id   = card.id;
+  el.dataset.type = card.type;
+
+  if (viewMode === 'spread') {
+    el.style.left      = card.posX + 'px';
+    el.style.top       = card.posY + 'px';
+    el.style.setProperty('--rot', card.rot + 'deg');
+    el.style.transform = `rotate(${card.rot}deg)`;
+    el.style.zIndex    = Math.floor(Math.random() * 50 + 10);
+  }
+  applyCardSize(el);
+
+  // Color accent strip at top for word cards
+  const colors = ['#FF6B95','#FF8C42','#2979FF','#00E676','#7C4DFF','#FF6B95'];
+  const accentColor = colors[card.id % colors.length];
+
+  // Build inner HTML
+  if (isImg) {
+    el.innerHTML = `
+      <div class="card-actions">
+        <button class="card-action-btn btn-hide" data-lucide="${card.hidden ? 'eye' : 'eye-off'}" onclick="event.stopPropagation();toggleHide(${card.id})"></button>
+        <button class="card-action-btn" data-lucide="x" style="color:#FF6B95" onclick="event.stopPropagation();removeCard(${card.id})"></button>
+      </div>
+      <div class="card-content w-full h-full flex flex-col">
+        <div class="flex-1 overflow-hidden rounded-t-[13px]">
+          <img src="${card.src}" alt="${card.label}" class="w-full h-full object-cover" draggable="false" />
+        </div>
+        <div class="px-2 py-1.5 text-center border-t-2 border-dark dark:border-slate-500" style="background:${accentColor}18;">
+          <span class="card-label font-heading font-bold text-dark dark:text-slate-100 leading-tight" style="font-size:${Math.max(10,cardSize*0.12)}px">${card.label}</span>
+        </div>
+      </div>`;
+  } else {
+    el.innerHTML = `
+      <div class="card-actions">
+        <button class="card-action-btn btn-hide" data-lucide="${card.hidden ? 'eye' : 'eye-off'}" onclick="event.stopPropagation();toggleHide(${card.id})"></button>
+        <button class="card-action-btn" data-lucide="x" style="color:#FF6B95" onclick="event.stopPropagation();removeCard(${card.id})"></button>
+      </div>
+      <div class="card-content w-full h-full flex flex-col items-center justify-center px-3 py-3 gap-2">
+        <div class="w-full h-1.5 rounded-full" style="background:${accentColor}"></div>
+        <span class="card-label font-heading font-bold text-center text-dark dark:text-slate-100 leading-tight" style="font-size:${Math.max(11,cardSize*0.14)}px">${card.label}</span>
+        <div class="w-full h-1.5 rounded-full" style="background:${accentColor}"></div>
+      </div>`;
+  }
+
+  el.addEventListener('click', () => {
+    if (!el.classList.contains('removing')) focusCard(card.id);
+  });
+
+  // Drag in spread mode
+  if (viewMode === 'spread') makeDraggable(el, card);
+
+  return el;
+}
+
+// ============================================================
+// DRAG
+// ============================================================
+function makeDraggable(el, card) {
+  let startX, startY, startLeft, startTop, dragging = false;
+  const onDown = e => {
+    if (e.target.closest('.card-action-btn')) return;
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    startX = clientX; startY = clientY;
+    startLeft = card.posX; startTop = card.posY;
+    dragging = false;
+    el.style.zIndex = 500;
+    el.style.transition = 'none';
+  };
+  const onMove = e => {
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    const dx = clientX - startX, dy = clientY - startY;
+    if (!dragging && Math.abs(dx) + Math.abs(dy) > 5) dragging = true;
+    if (!dragging) return;
+    card.posX = startLeft + dx;
+    card.posY = startTop  + dy;
+    el.style.left = card.posX + 'px';
+    el.style.top  = card.posY + 'px';
+    e.preventDefault();
+  };
+  const onUp = () => {
+    el.style.transition = '';
+    el.style.zIndex = Math.floor(Math.random() * 50 + 10);
+    if (dragging) saveState();
+    dragging = false;
+  };
+  el.addEventListener('mousedown', onDown);
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup', onUp);
+  el.addEventListener('touchstart', onDown, { passive: false });
+  document.addEventListener('touchmove', onMove, { passive: false });
+  document.addEventListener('touchend', onUp);
+}
+
+// ============================================================
+// CARD LIST (right panel)
+// ============================================================
+function renderCardList() {
+  const list = document.getElementById('card-list');
+  document.getElementById('list-count').textContent = cards.length;
+  if (cards.length === 0) {
+    list.innerHTML = '<p class="text-[10px] text-slate-400 text-center py-4 italic uppercase tracking-widest">No cards yet</p>';
+    return;
+  }
+  list.innerHTML = cards.map(card => `
+    <div class="thumb-item group" onclick="focusCard(${card.id})">
+      ${card.type === 'img'
+        ? `<img src="${card.src}" class="w-8 h-8 rounded-lg object-cover border-2 border-dark dark:border-slate-500 shrink-0" />`
+        : `<div class="w-8 h-8 rounded-lg border-2 border-dark dark:border-slate-500 shrink-0 flex items-center justify-center text-[10px] font-heading font-bold text-white" style="background:${['#FF6B95','#FF8C42','#2979FF','#00E676'][card.id%4]}">${card.label.charAt(0).toUpperCase()}</div>`
+      }
+      <span class="flex-1 font-body text-xs font-bold text-dark dark:text-slate-200 truncate">${card.label}</span>
+      <div class="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+        <button onclick="event.stopPropagation();toggleHide(${card.id})" class="p-1 text-slate-400 hover:text-blue" title="${card.hidden?'Show':'Hide'}">
+          <i data-lucide="${card.hidden?'eye':'eye-off'}" class="w-3.5 h-3.5"></i>
+        </button>
+        <button onclick="event.stopPropagation();removeCard(${card.id})" class="p-1 text-slate-400 hover:text-pink" title="Remove">
+          <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+        </button>
+      </div>
+    </div>`).join('');
+  lucide.createIcons();
+}
+
+// ============================================================
+// UI HELPERS
+// ============================================================
+function updateCount() {
+  document.getElementById('card-count').textContent = cards.length;
+}
+function updateEmptyState() {
+  const show = cards.length === 0;
+  document.getElementById('empty-state').classList.toggle('hidden', !show);
+}
+function updateViewButtons() {
+  document.getElementById('btn-spread').classList.toggle('active', viewMode === 'spread');
+  document.getElementById('btn-grid').classList.toggle('active', viewMode === 'grid');
+}
+
+function setViewMode(mode) {
+  viewMode = mode;
+  unfocusCard();
+  saveState();
+  render();
+}
+
+// ============================================================
+// PANEL COLLAPSE
+// ============================================================
+function toggleLeft() {
+  leftOpen = !leftOpen;
+  document.getElementById('left-panel').classList.toggle('collapsed', !leftOpen);
+  const icon = document.getElementById('left-tab-icon');
+  icon.setAttribute('data-lucide', leftOpen ? 'chevron-left' : 'chevron-right');
+  lucide.createIcons();
+}
+function toggleRight() {
+  rightOpen = !rightOpen;
+  document.getElementById('right-panel').classList.toggle('collapsed', !rightOpen);
+  const icon = document.getElementById('right-tab-icon');
+  icon.setAttribute('data-lucide', rightOpen ? 'chevron-right' : 'chevron-left');
+  lucide.createIcons();
+}
+
+// ============================================================
+// DRAG-DROP IMAGES ONTO BOARD
+// ============================================================
+function setupDragDrop() {
+  const zone = document.getElementById('drop-zone');
+  ['dragenter','dragover'].forEach(e => zone.addEventListener(e, ev => { ev.preventDefault(); zone.classList.add('dragover'); }));
+  ['dragleave','drop'].forEach(e => zone.addEventListener(e, ev => { ev.preventDefault(); zone.classList.remove('dragover'); }));
+  zone.addEventListener('drop', ev => {
+    const files = Array.from(ev.dataTransfer.files).filter(f => f.type.startsWith('image/'));
+    if (!files.length) return;
+    const mockInput = { files };
+    addImages(mockInput);
+  });
+  // also allow drop anywhere on the board
+  const board = document.getElementById('main-board');
+  board.addEventListener('dragover', e => e.preventDefault());
+  board.addEventListener('drop', e => {
+    e.preventDefault();
+    const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('image/'));
+    if (!files.length) return;
+    addImages({ files });
+  });
+}
+
+// ============================================================
+// THEME
+// ============================================================
+function loadTheme() {
+  const saved = localStorage.getItem('fcd_theme');
+  if (saved === 'dark' || (!saved && matchMedia('(prefers-color-scheme:dark)').matches)) {
+    document.documentElement.classList.add('dark');
+    document.getElementById('theme-icon').setAttribute('data-lucide', 'sun');
+  }
+}
+function toggleTheme() {
+  const isDark = document.documentElement.classList.toggle('dark');
+  localStorage.setItem('fcd_theme', isDark ? 'dark' : 'light');
+  document.getElementById('theme-icon').setAttribute('data-lucide', isDark ? 'sun' : 'moon');
+  lucide.createIcons();
+}
+
+// ============================================================
+// TOAST
+// ============================================================
+function showToast(msg, type = 'info') {
+  const colors = {
+    success: 'bg-green text-dark border-green',
+    error:   'bg-pink text-white border-pink',
+    info:    'bg-blue text-white border-blue',
+    warning: 'bg-orange text-dark border-orange',
+  };
+  const icons = { success: 'check-circle', error: 'x-circle', info: 'info', warning: 'alert-triangle' };
+  const c = document.getElementById('toast-container');
+  const t = document.createElement('div');
+  t.className = `toast ${colors[type]} text-sm`;
+  t.innerHTML = `<i data-lucide="${icons[type]}" class="w-4 h-4 shrink-0"></i>${msg}`;
+  c.appendChild(t);
+  lucide.createIcons();
+  requestAnimationFrame(() => t.classList.add('show'));
+  setTimeout(() => { t.classList.remove('show'); setTimeout(() => t.remove(), 300); }, 2400);
+}
+
+// Close focus on Escape
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') unfocusCard();
+  if (e.key === 'Enter' && document.activeElement.id !== 'word-input') {} // handled by input
+});
+</script>
+</body>
+</html>
