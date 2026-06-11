@@ -4,6 +4,12 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>Flashcard Displayer – KlassKit</title>
+  <link rel="icon" type="image/x-icon" href="../../../media/icon.ico" />
+  <link rel="icon" type="image/webp" href="../../../media/icon.webp" />
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.105.4"></script>
+  <script src="/supabase.js"></script>
+  <script src="../../../components/input-modal.js"></script>
 
   <script src="https://unpkg.com/lucide@1.16.0"></script>
   <script src="https://cdn.tailwindcss.com"></script>
@@ -61,6 +67,26 @@
         linear-gradient(#0f172a 1.5px, transparent 1.5px),
         linear-gradient(90deg, #0f172a 1.5px, transparent 1.5px);
       color: #e2e8f0;
+    }
+
+    /* Console frame */
+    .console-frame {
+      background: rgba(255,255,255,0.6);
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+      border: 1px solid rgba(203,213,225,0.6);
+      border-radius: 1.5rem;
+      box-shadow: 8px 8px 0px rgba(51,65,85,0.15);
+      overflow: hidden;
+      transition: all 0.3s ease;
+    }
+    html.dark .console-frame {
+      background: rgba(15,23,42,0.8);
+      border-color: rgba(255,255,255,0.1);
+      box-shadow: 8px 8px 0px rgba(0,0,0,0.4);
+    }
+    @media (max-width: 768px) {
+      .console-frame { border-radius: 0; border: none; box-shadow: none; }
     }
 
     /* Glass panels */
@@ -219,7 +245,7 @@
 
     /* Toast */
     #toast-container {
-      position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+      position: fixed; top: 16px; left: 50%; transform: translateX(-50%);
       display: flex; flex-direction: column; gap: 8px; align-items: center;
       z-index: 99999; pointer-events: none;
     }
@@ -256,52 +282,81 @@
     #drop-zone.dragover { border-color: #2979FF; background: rgba(41,121,255,0.1); }
     #drop-zone:hover { border-color: #2979FF; }
 
-    /* Panel toggle side buttons */
-    .toggle-tab {
-      position: absolute; top: 50%; transform: translateY(-50%);
-      z-index: 40;
-      width: 22px; height: 60px; border-radius: 0 8px 8px 0;
-      background: white; border: 2px solid #1e293b; border-left: none;
-      box-shadow: 3px 0 0 0 rgba(30,41,59,1);
-      display: flex; align-items: center; justify-content: center;
-      cursor: pointer; transition: all 0.15s;
-    }
-    html.dark .toggle-tab { background: #1e293b; border-color: rgba(255,255,255,0.3); }
-    .toggle-tab.right { border-radius: 8px 0 0 8px; border-right: none; border-left: 2px solid #1e293b; box-shadow: -3px 0 0 0 rgba(30,41,59,1); }
-    html.dark .toggle-tab.right { border-left-color: rgba(255,255,255,0.3); }
-    .toggle-tab:hover { background: #2979FF; color: white; }
-    html.dark .toggle-tab:hover { background: #2979FF; }
   </style>
 </head>
-<body>
+<body class="h-screen w-screen overflow-hidden">
 
-<!-- Focus overlay -->
-<div id="focus-overlay" onclick="unfocusCard()"></div>
+<div class="console-frame w-full h-full relative flex z-10 rounded-none md:rounded-2xl">
 
-<!-- Toast container -->
-<div id="toast-container"></div>
+  <!-- Focus overlay -->
+  <div id="focus-overlay" onclick="unfocusCard()"></div>
 
-<!-- ROOT LAYOUT -->
-<div class="flex h-screen w-screen overflow-hidden">
+  <!-- Toast container -->
+  <div id="toast-container" class="fixed top-4 left-1/2 -translate-x-1/2 z-[100] flex flex-col gap-2 pointer-events-none"></div>
 
   <!-- ============================================================ -->
   <!-- LEFT PANEL: Controls -->
   <!-- ============================================================ -->
-  <aside id="left-panel" class="panel-side glass-panel border-r-2 border-dark dark:border-slate-600 w-64 flex flex-col h-full shrink-0 z-30 relative">
+  <aside id="left-panel" class="panel-side glass-panel border-r-[1px] border-slate-300 dark:border-white/10 w-64 flex flex-col h-full shrink-0 z-30 relative">
 
     <!-- Header -->
-    <div class="px-4 py-3 border-b-2 border-dark dark:border-slate-600 bg-blue/10 dark:bg-blue/20 shrink-0 flex items-center gap-3">
-      <div class="w-9 h-9 rounded-xl bg-blue border-2 border-dark dark:border-slate-500 shadow-neo-sm flex items-center justify-center shrink-0">
-        <i data-lucide="layout-grid" class="w-5 h-5 text-white"></i>
+    <div class="px-4 py-3 border-b-[1px] border-slate-300 dark:border-white/10 bg-slate-50/50 dark:bg-slate-800/50 shrink-0 flex items-center justify-between">
+      <div class="flex items-center gap-3 flex-1 min-w-0">
+        <div class="flex-1 min-w-0">
+          <div class="font-heading font-bold text-dark dark:text-white text-base leading-tight truncate">Flashcard<span class="text-blue">Displayer</span></div>
+          <div id="active-indicator" class="flex items-center gap-1.5 mt-1 hidden">
+            <span class="relative flex h-2 w-2">
+              <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green opacity-75"></span>
+              <span class="relative inline-flex rounded-full h-2 w-2 bg-green"></span>
+            </span>
+            <span id="active-set-name" class="text-[10px] font-bold text-slate-400 truncate max-w-[120px] uppercase tracking-wider"></span>
+          </div>
+          <div id="default-subtitle" class="font-heading text-[10px] text-blue uppercase tracking-widest font-bold">Interactive Board</div>
+        </div>
       </div>
-      <div>
-        <div class="font-heading font-bold text-dark dark:text-white text-base leading-tight">Flashcard</div>
-        <div class="font-heading text-[10px] text-blue uppercase tracking-widest font-bold">Displayer</div>
-      </div>
+      <button onclick="toggleTheme()"
+        class="p-2 bg-white dark:bg-slate-700 border-[1px] border-slate-300 dark:border-white/10 rounded-lg text-slate-400 hover:text-blue transition-colors shadow-sm"
+        title="Toggle dark mode">
+        <i data-lucide="moon" class="w-4 h-4 hidden dark:block"></i>
+        <i data-lucide="sun" class="w-4 h-4 block dark:hidden"></i>
+      </button>
     </div>
 
     <!-- Scrollable body -->
     <div class="flex-1 overflow-y-auto custom-scrollbar p-3 space-y-3">
+
+      <!-- ACTION GRID -->
+      <div class="grid grid-cols-2 gap-2">
+        <button onclick="newSet()" class="btn-chunky bg-white dark:bg-slate-800 py-3 rounded-xl flex flex-col items-center justify-center gap-1 group">
+          <div class="w-8 h-8 rounded-lg bg-blue/10 flex items-center justify-center text-blue group-hover:scale-110 transition-transform">
+            <i data-lucide="file-plus-2" class="w-5 h-5"></i>
+          </div>
+          <span class="text-[10px] font-black uppercase tracking-widest text-slate-500">New Set</span>
+        </button>
+        <button onclick="openSaveAsModal()" class="btn-chunky bg-white dark:bg-slate-800 py-3 rounded-xl flex flex-col items-center justify-center gap-1 group">
+          <div class="w-8 h-8 rounded-lg bg-green/10 flex items-center justify-center text-green group-hover:scale-110 transition-transform">
+            <i data-lucide="save" class="w-5 h-5"></i>
+          </div>
+          <span class="text-[10px] font-black uppercase tracking-widest text-slate-500">Save As</span>
+        </button>
+      </div>
+
+      <!-- LIBRARY -->
+      <div class="panel-section space-y-2">
+        <div class="flex items-center justify-between">
+          <div class="section-label">
+            <i data-lucide="library" class="w-3.5 h-3.5 text-blue"></i> Your Library
+          </div>
+          <select id="library-sort" onchange="renderLibrary()" class="bg-transparent text-[10px] font-bold text-slate-500 outline-none cursor-pointer hover:text-blue transition-colors">
+            <option value="recent">Recent</option>
+            <option value="alpha">A-Z</option>
+            <option value="popular">Popular</option>
+          </select>
+        </div>
+        <div id="library-list" class="space-y-1 max-h-[140px] overflow-y-auto custom-scrollbar pr-1">
+          <!-- Populated by JS -->
+        </div>
+      </div>
 
       <!-- DISPLAY ACTIONS -->
       <div class="panel-section space-y-2">
@@ -368,24 +423,29 @@
 
     </div>
 
-    <!-- Footer: dark mode + mute -->
-    <div class="px-4 py-3 border-t-2 border-dark dark:border-slate-600 bg-slate-50/50 dark:bg-slate-800/50 shrink-0 flex items-center justify-between">
+    <!-- Footer -->
+    <div class="px-4 py-3 border-t-[1px] border-slate-300 dark:border-white/10 bg-slate-50/50 dark:bg-slate-800/50 shrink-0 flex items-center justify-between">
       <span class="font-heading text-[10px] uppercase tracking-widest text-slate-400 font-bold">KlassKit</span>
-      <button onclick="toggleTheme()" class="btn-icon w-9 h-9 rounded-xl bg-white dark:bg-slate-700" title="Toggle dark mode">
-        <i id="theme-icon" data-lucide="moon" class="w-4 h-4 text-slate-500 dark:text-slate-300"></i>
-      </button>
-    </div>
-
-    <!-- Collapse tab -->
-    <div id="left-tab" class="toggle-tab" style="right:-22px;" onclick="toggleLeft()" title="Toggle panel">
-      <i id="left-tab-icon" data-lucide="chevron-left" class="w-3.5 h-3.5 text-slate-500 dark:text-slate-300"></i>
+      <div class="font-heading font-black text-slate-400 text-[10px] uppercase tracking-wider">
+        TOTAL: <span id="footer-count" class="text-blue">0</span>
+      </div>
     </div>
   </aside>
 
   <!-- ============================================================ -->
   <!-- MAIN BOARD -->
   <!-- ============================================================ -->
-  <main id="main-board" class="flex-1 relative h-full overflow-hidden flex flex-col">
+  <main id="main-board" class="flex-1 relative h-full bg-slate-50/50 dark:bg-slate-900/50 flex flex-col overflow-hidden transition-colors duration-300">
+
+    <!-- Panel toggles -->
+    <button id="left-toggle-btn" onclick="toggleLeftPanel()" title="Toggle controls panel"
+      class="absolute top-4 left-4 z-30 p-2 glass-panel border-[1px] border-slate-300 dark:border-white/10 rounded-xl shadow-neo-sm hover:translate-y-[-2px] transition-transform text-slate-500 hover:text-dark dark:hover:text-slate-200">
+      <i data-lucide="panel-left-close" class="w-5 h-5" id="left-toggle-icon"></i>
+    </button>
+    <button id="right-toggle-btn" onclick="toggleRightPanel()" title="Toggle add cards panel"
+      class="absolute top-4 right-4 z-30 p-2 glass-panel border-[1px] border-slate-300 dark:border-white/10 rounded-xl shadow-neo-sm hover:translate-y-[-2px] transition-transform text-slate-500 hover:text-dark dark:hover:text-slate-200">
+      <i data-lucide="panel-right-close" class="w-5 h-5" id="right-toggle-icon"></i>
+    </button>
 
     <!-- Cards container (spread mode) -->
     <div id="board" class="flex-1 relative overflow-hidden"></div>
@@ -409,21 +469,18 @@
   <!-- ============================================================ -->
   <!-- RIGHT PANEL: Add Items -->
   <!-- ============================================================ -->
-  <aside id="right-panel" class="panel-side glass-panel border-l-2 border-dark dark:border-slate-600 w-72 flex flex-col h-full shrink-0 z-30 relative">
-
-    <!-- Collapse tab (left side) -->
-    <div id="right-tab" class="toggle-tab right" style="left:-22px;" onclick="toggleRight()" title="Toggle panel">
-      <i id="right-tab-icon" data-lucide="chevron-right" class="w-3.5 h-3.5 text-slate-500 dark:text-slate-300"></i>
-    </div>
+  <aside id="right-panel" class="panel-side glass-panel border-l-[1px] border-slate-300 dark:border-white/10 w-72 flex flex-col h-full shrink-0 z-30 relative">
 
     <!-- Header -->
-    <div class="px-4 py-3 border-b-2 border-dark dark:border-slate-600 bg-orange/10 dark:bg-orange/15 shrink-0 flex items-center gap-3">
-      <div class="w-9 h-9 rounded-xl bg-orange border-2 border-dark dark:border-slate-500 shadow-neo-sm flex items-center justify-center shrink-0">
-        <i data-lucide="plus-circle" class="w-5 h-5 text-white"></i>
-      </div>
-      <div>
-        <div class="font-heading font-bold text-dark dark:text-white text-base leading-tight">Add Cards</div>
-        <div class="font-heading text-[10px] text-orange uppercase tracking-widest font-bold">Words or Images</div>
+    <div class="px-4 py-3 border-b-[1px] border-slate-300 dark:border-white/10 bg-slate-50/50 dark:bg-slate-800/50 shrink-0 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 rounded-xl bg-orange border-2 border-dark dark:border-slate-500 shadow-neo-sm flex items-center justify-center shrink-0">
+          <i data-lucide="plus-circle" class="w-5 h-5 text-white"></i>
+        </div>
+        <div>
+          <div class="font-heading font-bold text-dark dark:text-white text-base leading-tight">Add Cards</div>
+          <div class="font-heading text-[10px] text-orange uppercase tracking-widest font-bold">Words or Images</div>
+        </div>
       </div>
     </div>
 
@@ -492,23 +549,49 @@
 // ============================================================
 // STATE
 // ============================================================
-let cards = []; // [{id, type:'word'|'img', label, src?, hidden, posX, posY, rot}]
-let nextId = 1;
-let viewMode = 'spread'; // 'spread' | 'grid'
-let cardSize = 140;
+const appState = {
+  data: {
+    name: '',
+    cards: [], // [{id, type:'word'|'img', label, src?, hidden, posX, posY, rot}]
+    viewMode: 'spread',
+    cardSize: 140,
+    nextId: 1
+  },
+  activeId: null
+};
+// Backward-compatible aliases
+Object.defineProperty(window, 'cards', {
+  get() { return appState.data.cards; },
+  set(v) { appState.data.cards = v; }
+});
+Object.defineProperty(window, 'viewMode', {
+  get() { return appState.data.viewMode; },
+  set(v) { appState.data.viewMode = v; }
+});
+Object.defineProperty(window, 'cardSize', {
+  get() { return appState.data.cardSize; },
+  set(v) { appState.data.cardSize = v; }
+});
+Object.defineProperty(window, 'nextId', {
+  get() { return appState.data.nextId; },
+  set(v) { appState.data.nextId = v; }
+});
+
 let focusedId = null;
 let leftOpen = true, rightOpen = true;
-const STORAGE_KEY = 'flashcard_displayer_v1';
+const SESSION_KEY = 'flashcard_displayer_session';
+const ACTIVE_ID_KEY = 'flashcard_displayer_activeId';
+const LIBRARY_KEY = 'flashcard_displayer_library_v2';
 const DB_NAME = 'flashcard_images_db';
 const DB_STORE = 'images';
 const DB_VERSION = 1;
-let db = null;
+let dataBase = null;
 
 function openDB() {
   return new Promise((resolve, reject) => {
     const req = indexedDB.open(DB_NAME, DB_VERSION);
     req.onerror = () => reject(req.error);
-    req.onsuccess = () => { db = req.result; resolve(db); };
+    req.onsuccess = () => { dataBase = req.result; resolve(dataBase); };
     req.onupgradeneeded = (e) => {
       const database = e.target.result;
       if (!database.objectStoreNames.contains(DB_STORE)) {
@@ -520,8 +603,8 @@ function openDB() {
 
 function saveImage(id, src) {
   return new Promise((resolve, reject) => {
-    if (!db) return resolve();
-    const tx = db.transaction([DB_STORE], 'readwrite');
+    if (!dataBase) return resolve();
+    const tx = dataBase.transaction([DB_STORE], 'readwrite');
     const store = tx.objectStore(DB_STORE);
     const req = store.put({ id, src });
     req.onsuccess = () => resolve();
@@ -531,8 +614,8 @@ function saveImage(id, src) {
 
 function getImage(id) {
   return new Promise((resolve, reject) => {
-    if (!db) return resolve(null);
-    const tx = db.transaction([DB_STORE], 'readonly');
+    if (!dataBase) return resolve(null);
+    const tx = dataBase.transaction([DB_STORE], 'readonly');
     const store = tx.objectStore(DB_STORE);
     const req = store.get(id);
     req.onsuccess = () => resolve(req.result ? req.result.src : null);
@@ -542,8 +625,8 @@ function getImage(id) {
 
 function deleteImage(id) {
   return new Promise((resolve, reject) => {
-    if (!db) return resolve();
-    const tx = db.transaction([DB_STORE], 'readwrite');
+    if (!dataBase) return resolve();
+    const tx = dataBase.transaction([DB_STORE], 'readwrite');
     const store = tx.objectStore(DB_STORE);
     const req = store.delete(id);
     req.onsuccess = () => resolve();
@@ -553,8 +636,8 @@ function deleteImage(id) {
 
 function clearAllImages() {
   return new Promise((resolve, reject) => {
-    if (!db) return resolve();
-    const tx = db.transaction([DB_STORE], 'readwrite');
+    if (!dataBase) return resolve();
+    const tx = dataBase.transaction([DB_STORE], 'readwrite');
     const store = tx.objectStore(DB_STORE);
     const req = store.clear();
     req.onsuccess = () => resolve();
@@ -566,39 +649,271 @@ function clearAllImages() {
 // INIT
 // ============================================================
 window.onload = async function () {
+  await requireAuth();
   loadTheme();
   await openDB();
-  await loadState();
+  await initApp();
   lucide.createIcons();
   setupDragDrop();
   render();
 };
 
-async function loadState() {
-  try {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) {
-      const s = JSON.parse(saved);
-      cards = s.cards || [];
-      nextId = s.nextId || (cards.length + 1);
-      viewMode = s.viewMode || 'spread';
-      cardSize = s.cardSize || 140;
-      document.getElementById('size-slider').value = cardSize;
-      document.getElementById('size-label').textContent = cardSize + 'px';
-      for (const card of cards) {
-        if (card.type === 'img') {
-          card.src = await getImage(card.id);
+async function initApp() {
+  // Migrate legacy single-session storage to new format
+  const legacyKey = 'flashcard_displayer_v1';
+  const legacy = localStorage.getItem(legacyKey);
+  if (legacy) {
+    try {
+      const s = JSON.parse(legacy);
+      if (s.cards && s.cards.length > 0) {
+        appState.data.cards = s.cards || [];
+        appState.data.nextId = s.nextId || (appState.data.cards.length + 1);
+        appState.data.viewMode = s.viewMode || 'spread';
+        appState.data.cardSize = s.cardSize || 140;
+        for (const card of appState.data.cards) {
+          if (card.type === 'img') card.src = await getImage(card.id);
         }
       }
+      localStorage.removeItem(legacyKey);
+    } catch (e) {}
+  }
+
+  // Initial cloud sync if local library is empty
+  if (getLibrary().length === 0) {
+    const cloudLibrary = await loadProgress(LIBRARY_KEY);
+    if (cloudLibrary && Array.isArray(cloudLibrary)) {
+      localStorage.setItem(LIBRARY_KEY, JSON.stringify(cloudLibrary));
     }
-  } catch(e) {}
+  }
+
+  const savedActiveId = localStorage.getItem(ACTIVE_ID_KEY);
+  if (savedActiveId && savedActiveId !== 'null') {
+    await loadSet(parseInt(savedActiveId));
+  } else {
+    const session = localStorage.getItem(SESSION_KEY);
+    if (session) {
+      try {
+        const s = JSON.parse(session);
+        appState.data = { ...appState.data, ...s };
+        for (const card of cards) {
+          if (card.type === 'img') card.src = await getImage(card.id);
+        }
+      } catch (e) {}
+    }
+  }
+
+  document.getElementById('size-slider').value = cardSize;
+  document.getElementById('size-label').textContent = cardSize + 'px';
+  renderLibrary();
+  updateActiveIndicator();
 }
 
+function getLibrary() {
+  const data = localStorage.getItem(LIBRARY_KEY);
+  return data ? JSON.parse(data) : [];
+}
+
+function saveLibrary(library) {
+  localStorage.setItem(LIBRARY_KEY, JSON.stringify(library));
+  saveProgress(LIBRARY_KEY, library).catch(console.error);
+}
+
+function updateSessionPersistence() {
+  const cardsToSave = cards.map(c => c.type === 'img' ? { ...c, src: undefined } : c);
+  localStorage.setItem(SESSION_KEY, JSON.stringify({
+    name: appState.data.name,
+    cards: cardsToSave,
+    viewMode: appState.data.viewMode,
+    cardSize: appState.data.cardSize,
+    nextId: appState.data.nextId
+  }));
+  localStorage.setItem(ACTIVE_ID_KEY, appState.activeId);
+}
+
+function onContentChange() {
+  updateSessionPersistence();
+  if (appState.activeId) {
+    const library = getLibrary();
+    const index = library.findIndex(item => item.id === appState.activeId);
+    if (index !== -1) {
+      const cardsToSave = cards.map(c => c.type === 'img' ? { ...c, src: undefined } : c);
+      library[index] = {
+        ...library[index],
+        name: appState.data.name,
+        cards: cardsToSave,
+        viewMode: appState.data.viewMode,
+        cardSize: appState.data.cardSize,
+        nextId: appState.data.nextId,
+        lastUsed: Date.now()
+      };
+      saveLibrary(library);
+    }
+  }
+}
+
+// Backward-compatible session-only save
 function saveState() {
-  try {
-    const cardsToSave = cards.map(c => c.type === 'img' ? { ...c, src: undefined } : c);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ cards: cardsToSave, nextId, viewMode, cardSize }));
-  } catch(e) {}
+  onContentChange();
+}
+
+// ============================================================
+// SET LIFECYCLE
+// ============================================================
+function newSet() {
+  appState.data = {
+    name: '',
+    cards: [],
+    viewMode: appState.data.viewMode,
+    cardSize: appState.data.cardSize,
+    nextId: appState.data.nextId
+  };
+  appState.activeId = null;
+  focusedId = null;
+  updateSessionPersistence();
+  updateActiveIndicator();
+  renderLibrary();
+  render();
+  showToast('New set ready', 'info');
+}
+
+async function openSaveAsModal() {
+  const name = await quickPrompt('Enter a name for this set:', appState.data.name || '');
+  if (name === null) return;
+  if (!name.trim()) {
+    showToast('Name is required', 'error');
+    return;
+  }
+  saveAsNew(name.trim());
+}
+
+function saveAsNew(name) {
+  const library = getLibrary();
+  const newId = Date.now();
+  const cardsToSave = cards.map(c => c.type === 'img' ? { ...c, src: undefined } : c);
+  const newEntry = {
+    id: newId,
+    name: name,
+    cards: cardsToSave,
+    viewMode: appState.data.viewMode,
+    cardSize: appState.data.cardSize,
+    nextId: appState.data.nextId,
+    createdAt: Date.now(),
+    lastUsed: Date.now(),
+    usageCount: 1
+  };
+  library.push(newEntry);
+  saveLibrary(library);
+
+  appState.activeId = newId;
+  appState.data.name = name;
+
+  renderLibrary();
+  updateActiveIndicator();
+  showToast(`Saved as "${name}"`, 'success');
+}
+
+async function loadSet(id) {
+  const library = getLibrary();
+  const item = library.find(i => i.id === id);
+  if (!item) return;
+
+  item.usageCount = (item.usageCount || 0) + 1;
+  item.lastUsed = Date.now();
+  saveLibrary(library);
+
+  appState.activeId = id;
+  appState.data = {
+    name: item.name,
+    cards: [...item.cards],
+    viewMode: item.viewMode || 'spread',
+    cardSize: item.cardSize || 140,
+    nextId: item.nextId || 1
+  };
+
+  // Resolve images from IndexedDB
+  for (const card of cards) {
+    if (card.type === 'img') card.src = await getImage(card.id);
+  }
+
+  focusedId = null;
+  document.getElementById('size-slider').value = cardSize;
+  document.getElementById('size-label').textContent = cardSize + 'px';
+  updateActiveIndicator();
+  renderLibrary();
+  render();
+  showToast(`Loaded ${item.name}`, 'info');
+}
+
+async function deleteLibraryItem(id, event) {
+  if (event) event.stopPropagation();
+  const confirmed = await showConfirmModal('Are you sure you want to delete this set?', {
+    title: 'Delete Set?',
+    confirmText: 'Delete',
+    cancelText: 'Keep',
+    icon: 'trash-2',
+    iconColor: 'red'
+  });
+  if (!confirmed) return;
+
+  let library = getLibrary();
+  library = library.filter(i => i.id !== id);
+  saveLibrary(library);
+
+  if (appState.activeId === id) {
+    newSet();
+  } else {
+    renderLibrary();
+  }
+  showToast('Set deleted', 'info');
+}
+
+function updateActiveIndicator() {
+  const indicator = document.getElementById('active-indicator');
+  const nameEl = document.getElementById('active-set-name');
+  const subtitle = document.getElementById('default-subtitle');
+
+  if (appState.activeId) {
+    indicator.classList.remove('hidden');
+    subtitle.classList.add('hidden');
+    nameEl.textContent = appState.data.name;
+  } else {
+    indicator.classList.add('hidden');
+    subtitle.classList.remove('hidden');
+  }
+}
+
+function renderLibrary() {
+  const list = document.getElementById('library-list');
+  const sortBy = document.getElementById('library-sort').value;
+  let library = getLibrary();
+
+  if (library.length === 0) {
+    list.innerHTML = '<p class="text-[10px] text-slate-400 text-center py-4 italic uppercase tracking-widest">Library is empty</p>';
+    return;
+  }
+
+  if (sortBy === 'recent') library.sort((a, b) => (b.lastUsed || 0) - (a.lastUsed || 0));
+  else if (sortBy === 'alpha') library.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+  else if (sortBy === 'popular') library.sort((a, b) => (b.usageCount || 0) - (a.usageCount || 0));
+
+  list.innerHTML = library.map(item => `
+    <div onclick="loadSet(${item.id})" class="group flex items-center justify-between p-2 rounded-xl border-[1px] cursor-pointer transition-all ${appState.activeId === item.id ? 'bg-blue/10 border-blue/30' : 'border-transparent hover:bg-slate-100 dark:hover:bg-slate-800'}">
+      <div class="flex items-center gap-2 overflow-hidden">
+        <div class="w-7 h-7 rounded-lg bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-xs font-black text-slate-500 shrink-0">
+          ${(item.name || 'S').charAt(0).toUpperCase()}
+        </div>
+        <div class="flex flex-col overflow-hidden">
+          <span class="text-xs font-bold truncate text-dark dark:text-slate-200">${item.name || 'Untitled'}</span>
+          <span class="text-[9px] text-slate-400 font-bold uppercase tracking-widest">${item.cards ? item.cards.length : 0} Cards</span>
+        </div>
+      </div>
+      <button onclick="deleteLibraryItem(${item.id}, event)" class="p-1.5 text-slate-300 hover:text-pink opacity-0 group-hover:opacity-100 transition-all">
+        <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+      </button>
+    </div>
+  `).join('');
+
+  lucide.createIcons();
 }
 
 // ============================================================
@@ -782,10 +1097,16 @@ function sortCards() {
 }
 
 async function clearAll() {
-  if (!confirm('Clear all cards?')) return;
+  const confirmed = await showConfirmModal('Clear all cards from the current set?', {
+    title: 'Clear Board?',
+    confirmText: 'Clear',
+    cancelText: 'Keep',
+    icon: 'rotate-ccw',
+    iconColor: 'orange'
+  });
+  if (!confirmed) return;
   await clearAllImages();
   cards = [];
-  nextId = 1;
   saveState();
   render();
   showToast('Board cleared', 'info');
@@ -865,23 +1186,31 @@ function render() {
 }
 
 function renderSpread() {
-  document.getElementById('board').style.display = '';
-  document.getElementById('grid-board').classList.add('hidden');
-  document.getElementById('board').classList.remove('hidden');
   const board = document.getElementById('board');
+  const gb = document.getElementById('grid-board');
+  // Clean up old document-level drag listeners before destroying cards
+  board.querySelectorAll('.fc-card').forEach(el => {
+    if (el._dragCleanup) el._dragCleanup();
+  });
+  gb.classList.add('hidden');
+  gb.style.display = 'none';
+  board.classList.remove('hidden');
+  board.style.display = '';
   board.innerHTML = '';
   cards.forEach(card => renderCardEl(card));
 }
 
 function renderGrid() {
-  document.getElementById('board').classList.add('hidden');
+  const board = document.getElementById('board');
   const gb = document.getElementById('grid-board');
+  board.classList.add('hidden');
+  board.style.display = 'none';
   gb.classList.remove('hidden');
+  gb.style.display = 'grid';
   gb.innerHTML = '';
   const cols = Math.max(1, Math.floor(gb.clientWidth / (cardSize + 24)));
   gb.style.gridTemplateColumns = `repeat(${cols}, ${cardSize}px)`;
   gb.style.justifyContent = 'center';
-  gb.style.display = 'grid';
   gb.style.gap = '24px';
   cards.forEach(card => {
     const el = buildCardElement(card);
@@ -964,22 +1293,24 @@ function buildCardElement(card) {
 // DRAG
 // ============================================================
 function makeDraggable(el, card) {
-  let startX, startY, startLeft, startTop, dragging = false;
+  let startX, startY, startLeft, startTop, dragging = false, hasDragged = false, pointerDown = false;
   const onDown = e => {
     if (e.target.closest('.card-action-btn')) return;
+    if (e.touches) e.preventDefault();
     const clientX = e.touches ? e.touches[0].clientX : e.clientX;
     const clientY = e.touches ? e.touches[0].clientY : e.clientY;
     startX = clientX; startY = clientY;
     startLeft = card.posX; startTop = card.posY;
-    dragging = false;
+    dragging = false; hasDragged = false; pointerDown = true;
     el.style.zIndex = 500;
     el.style.transition = 'none';
   };
   const onMove = e => {
+    if (!pointerDown) return;
     const clientX = e.touches ? e.touches[0].clientX : e.clientX;
     const clientY = e.touches ? e.touches[0].clientY : e.clientY;
     const dx = clientX - startX, dy = clientY - startY;
-    if (!dragging && Math.abs(dx) + Math.abs(dy) > 5) dragging = true;
+    if (!dragging && Math.abs(dx) + Math.abs(dy) > 5) { dragging = true; hasDragged = true; }
     if (!dragging) return;
     card.posX = startLeft + dx;
     card.posY = startTop  + dy;
@@ -988,10 +1319,14 @@ function makeDraggable(el, card) {
     e.preventDefault();
   };
   const onUp = () => {
+    pointerDown = false;
     el.style.transition = '';
     el.style.zIndex = Math.floor(Math.random() * 50 + 10);
     if (dragging) saveState();
     dragging = false;
+  };
+  const onClickBlock = e => {
+    if (hasDragged) { e.stopImmediatePropagation(); e.preventDefault(); hasDragged = false; }
   };
   el.addEventListener('mousedown', onDown);
   document.addEventListener('mousemove', onMove);
@@ -999,6 +1334,15 @@ function makeDraggable(el, card) {
   el.addEventListener('touchstart', onDown, { passive: false });
   document.addEventListener('touchmove', onMove, { passive: false });
   document.addEventListener('touchend', onUp);
+  el.addEventListener('click', onClickBlock, true);
+  // Store cleanup so renderSpread can remove stale document listeners
+  el._dragCleanup = () => {
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+    document.removeEventListener('touchmove', onMove);
+    document.removeEventListener('touchend', onUp);
+    el.removeEventListener('click', onClickBlock, true);
+  };
 }
 
 // ============================================================
@@ -1035,6 +1379,8 @@ function renderCardList() {
 // ============================================================
 function updateCount() {
   document.getElementById('card-count').textContent = cards.length;
+  const fc = document.getElementById('footer-count');
+  if (fc) fc.textContent = cards.length;
 }
 function updateEmptyState() {
   const show = cards.length === 0;
@@ -1055,18 +1401,18 @@ function setViewMode(mode) {
 // ============================================================
 // PANEL COLLAPSE
 // ============================================================
-function toggleLeft() {
+function toggleLeftPanel() {
   leftOpen = !leftOpen;
   document.getElementById('left-panel').classList.toggle('collapsed', !leftOpen);
-  const icon = document.getElementById('left-tab-icon');
-  icon.setAttribute('data-lucide', leftOpen ? 'chevron-left' : 'chevron-right');
+  const icon = document.getElementById('left-toggle-icon');
+  icon.setAttribute('data-lucide', leftOpen ? 'panel-left-close' : 'panel-left-open');
   lucide.createIcons();
 }
-function toggleRight() {
+function toggleRightPanel() {
   rightOpen = !rightOpen;
   document.getElementById('right-panel').classList.toggle('collapsed', !rightOpen);
-  const icon = document.getElementById('right-tab-icon');
-  icon.setAttribute('data-lucide', rightOpen ? 'chevron-right' : 'chevron-left');
+  const icon = document.getElementById('right-toggle-icon');
+  icon.setAttribute('data-lucide', rightOpen ? 'panel-right-close' : 'panel-right-open');
   lucide.createIcons();
 }
 
@@ -1101,13 +1447,11 @@ function loadTheme() {
   const saved = localStorage.getItem('fcd_theme');
   if (saved === 'dark' || (!saved && matchMedia('(prefers-color-scheme:dark)').matches)) {
     document.documentElement.classList.add('dark');
-    document.getElementById('theme-icon').setAttribute('data-lucide', 'sun');
   }
 }
 function toggleTheme() {
   const isDark = document.documentElement.classList.toggle('dark');
   localStorage.setItem('fcd_theme', isDark ? 'dark' : 'light');
-  document.getElementById('theme-icon').setAttribute('data-lucide', isDark ? 'sun' : 'moon');
   lucide.createIcons();
 }
 
@@ -1138,5 +1482,7 @@ document.addEventListener('keydown', e => {
   if (e.key === 'Enter' && document.activeElement.id !== 'word-input') {} // handled by input
 });
 </script>
+
+</div><!-- end console-frame -->
 </body>
 </html>
