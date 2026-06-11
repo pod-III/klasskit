@@ -801,20 +801,14 @@ async function deleteLibraryItem(id, event) {
   });
   if (!confirmed) return;
 
-  // Clean up cloud images for this set
+  // Collect cloud URLs before removing from library
   const library = getLibrary();
   const item = library.find(i => i.id === id);
-  const cloudImages = item && item.cards
-    ? item.cards.filter(c => c.type === 'img' && c.src && c.src.includes('klasskit-media'))
+  const cloudUrls = item && item.cards
+    ? item.cards.filter(c => c.type === 'img' && c.src && c.src.includes('klasskit-media')).map(c => c.src)
     : [];
-  if (cloudImages.length > 0) {
-    showLoading(`Deleting ${cloudImages.length} image${cloudImages.length > 1 ? 's' : ''}...`);
-    for (const card of cloudImages) {
-      await deleteMediaFromUrl(card.src).catch(console.error);
-    }
-    hideLoading();
-  }
 
+  // Immediate library removal
   const filtered = library.filter(i => i.id !== id);
   saveLibrary(filtered);
 
@@ -824,6 +818,11 @@ async function deleteLibraryItem(id, event) {
     renderLibrary();
   }
   showToast('Set deleted', 'info');
+
+  // Background cloud delete (fire-and-forget)
+  for (const url of cloudUrls) {
+    deleteMediaFromUrl(url).catch(console.error);
+  }
 }
 
 function updateActiveIndicator() {
@@ -910,41 +909,51 @@ async function addImages(input) {
   const files = Array.from(input.files);
   if (!files.length) return;
   input.value = '';
-  let loaded = 0;
-  let failed = 0;
-  showLoading(`Uploading 1/${files.length}...`);
+  const fileCardPairs = [];
 
-  for (let i = 0; i < files.length; i++) {
-    const file = files[i];
-    showLoading(`Uploading ${i + 1}/${files.length}...`);
+  // Phase 1: Fast local read + immediate render
+  for (const file of files) {
     const label = file.name.replace(/\.[^.]+$/, '').replace(/[-_]/g, ' ');
     try {
-      let imgSource;
-      const user = await getUser();
-      if (!isSandbox() && user) {
-        imgSource = await uploadMedia(file, 'fc-play');
-      } else {
-        imgSource = await new Promise((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = e => resolve(e.target.result);
-          reader.onerror = reject;
-          reader.readAsDataURL(file);
-        });
-      }
-      const card = makeCard('img', label, imgSource);
+      const dataUrl = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = e => resolve(e.target.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+      const card = makeCard('img', label, dataUrl);
       cards.push(card);
-      loaded++;
+      fileCardPairs.push({ file, cardId: card.id });
     } catch (err) {
-      failed++;
       showToast(`Failed to read ${file.name}`, 'error');
     }
   }
 
-  hideLoading();
   saveState();
   render();
+  if (fileCardPairs.length > 0) {
+    showToast(`Added ${fileCardPairs.length} image${fileCardPairs.length > 1 ? 's' : ''}`, 'success');
+  }
 
-  if (loaded > 0) showToast(`Added ${loaded} image${loaded > 1 ? 's' : ''}`, 'success');
+  // Phase 2: Background cloud upload (fire-and-forget)
+  const user = await getUser();
+  if (!isSandbox() && user) {
+    for (const { file, cardId } of fileCardPairs) {
+      try {
+        const cloudUrl = await uploadMedia(file, 'fc-play');
+        const card = cards.find(c => c.id === cardId);
+        if (card) {
+          card.src = cloudUrl;
+          saveState();
+          // Update visible image if rendered
+          const img = document.querySelector(`[data-id="${cardId}"] img`);
+          if (img) img.src = cloudUrl;
+        }
+      } catch (err) {
+        console.error('[Cloud] Upload failed for', file.name, err);
+      }
+    }
+  }
 }
 
 function makeCard(type, label, src) {
@@ -968,11 +977,9 @@ function randomPos() {
 // ============================================================
 async function removeCard(id) {
   const card = cards.find(c => c.id === id);
-  if (card && card.type === 'img' && card.src && card.src.includes('klasskit-media')) {
-    showLoading('Deleting image...');
-    await deleteMediaFromUrl(card.src).catch(e => console.error('Cloud delete failed', e));
-    hideLoading();
-  }
+  const cloudUrl = card && card.type === 'img' && card.src && card.src.includes('klasskit-media') ? card.src : null;
+
+  // Immediate UI removal
   const el = document.querySelector(`[data-id="${id}"]`);
   if (el) {
     el.classList.add('removing');
@@ -983,6 +990,11 @@ async function removeCard(id) {
   renderCardList();
   updateCount();
   updateEmptyState();
+
+  // Background cloud delete (fire-and-forget)
+  if (cloudUrl) {
+    deleteMediaFromUrl(cloudUrl).catch(e => console.error('Cloud delete failed', e));
+  }
 }
 
 function toggleHide(id) {
@@ -1076,18 +1088,22 @@ async function clearAll() {
   });
   if (!confirmed) return;
   unfocusCard();
-  const imageCards = cards.filter(c => c.type === 'img' && c.src && c.src.includes('klasskit-media'));
-  if (imageCards.length > 0) {
-    showLoading(`Deleting ${imageCards.length} image${imageCards.length > 1 ? 's' : ''}...`);
-    for (const c of imageCards) {
-      await deleteMediaFromUrl(c.src).catch(console.error);
-    }
-    hideLoading();
-  }
+
+  // Collect cloud URLs before clearing
+  const cloudUrls = cards
+    .filter(c => c.type === 'img' && c.src && c.src.includes('klasskit-media'))
+    .map(c => c.src);
+
+  // Immediate UI clear
   cards = [];
   saveState();
   render();
   showToast('Board cleared', 'info');
+
+  // Background cloud delete (fire-and-forget)
+  for (const url of cloudUrls) {
+    deleteMediaFromUrl(url).catch(console.error);
+  }
 }
 
 function updateCardSize(val) {
