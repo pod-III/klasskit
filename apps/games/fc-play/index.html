@@ -408,6 +408,16 @@
             <i data-lucide="grid-3x3" class="w-3.5 h-3.5"></i> Grid
           </button>
         </div>
+        <div class="grid grid-cols-2 gap-2">
+          <button onclick="setCardLayout('portrait')" id="btn-portrait"
+            class="btn-chunky active bg-white dark:bg-slate-800 rounded-xl py-2 text-xs flex items-center justify-center gap-1.5">
+            <i data-lucide="smartphone" class="w-3.5 h-3.5"></i> Portrait
+          </button>
+          <button onclick="setCardLayout('landscape')" id="btn-landscape"
+            class="btn-chunky bg-white dark:bg-slate-800 rounded-xl py-2 text-xs flex items-center justify-center gap-1.5">
+            <i data-lucide="smartphone" class="w-3.5 h-3.5 rotate-90"></i> Landscape
+          </button>
+        </div>
       </div>
 
       <!-- CARD SIZE -->
@@ -566,6 +576,7 @@ const appState = {
     cards: [], // [{id, type:'word'|'img', label, src?, hidden, posX, posY, rot}]
     viewMode: 'spread',
     cardSize: 140,
+    cardLayout: 'portrait',
     nextId: 1
   },
   activeId: null
@@ -582,6 +593,10 @@ Object.defineProperty(window, 'viewMode', {
 Object.defineProperty(window, 'cardSize', {
   get() { return appState.data.cardSize; },
   set(v) { appState.data.cardSize = v; }
+});
+Object.defineProperty(window, 'cardLayout', {
+  get() { return appState.data.cardLayout; },
+  set(v) { appState.data.cardLayout = v; }
 });
 Object.defineProperty(window, 'nextId', {
   get() { return appState.data.nextId; },
@@ -629,6 +644,7 @@ async function initApp() {
         appState.data.nextId = s.nextId || (appState.data.cards.length + 1);
         appState.data.viewMode = s.viewMode || 'spread';
         appState.data.cardSize = s.cardSize || 140;
+        appState.data.cardLayout = s.cardLayout || 'portrait';
       }
       localStorage.removeItem(legacyKey);
     } catch (e) {}
@@ -657,6 +673,7 @@ async function initApp() {
 
   document.getElementById('size-slider').value = cardSize;
   document.getElementById('size-label').textContent = cardSize + 'px';
+  updateLayoutButtons();
   renderLibrary();
   updateActiveIndicator();
 }
@@ -677,6 +694,7 @@ function updateSessionPersistence() {
     cards: cards,
     viewMode: appState.data.viewMode,
     cardSize: appState.data.cardSize,
+    cardLayout: appState.data.cardLayout,
     nextId: appState.data.nextId
   }));
   localStorage.setItem(ACTIVE_ID_KEY, appState.activeId);
@@ -694,6 +712,7 @@ function onContentChange() {
         cards: cards,
         viewMode: appState.data.viewMode,
         cardSize: appState.data.cardSize,
+        cardLayout: appState.data.cardLayout,
         nextId: appState.data.nextId,
         lastUsed: Date.now()
       };
@@ -717,6 +736,7 @@ function newSet() {
     cards: [],
     viewMode: appState.data.viewMode,
     cardSize: appState.data.cardSize,
+    cardLayout: appState.data.cardLayout,
     nextId: appState.data.nextId
   };
   appState.activeId = null;
@@ -747,6 +767,7 @@ function saveAsNew(name) {
     cards: cards,
     viewMode: appState.data.viewMode,
     cardSize: appState.data.cardSize,
+    cardLayout: appState.data.cardLayout,
     nextId: appState.data.nextId,
     createdAt: Date.now(),
     lastUsed: Date.now(),
@@ -778,12 +799,14 @@ async function loadSet(id) {
     cards: [...item.cards],
     viewMode: item.viewMode || 'spread',
     cardSize: item.cardSize || 140,
+    cardLayout: item.cardLayout || 'portrait',
     nextId: item.nextId || 1
   };
 
   focusedId = null;
   document.getElementById('size-slider').value = cardSize;
   document.getElementById('size-label').textContent = cardSize + 'px';
+  updateLayoutButtons();
   updateActiveIndicator();
   renderLibrary();
   render();
@@ -967,8 +990,9 @@ function randomPos() {
   const bw = board.clientWidth  || window.innerWidth - 600;
   const bh = board.clientHeight || window.innerHeight;
   const pad = 20;
-  const x = pad + Math.random() * (bw - cardSize - pad * 2);
-  const y = pad + Math.random() * (bh - cardSize - pad * 2);
+  const { width: cw, height: ch } = getCardMaxDimensions();
+  const x = pad + Math.random() * (bw - cw - pad * 2);
+  const y = pad + Math.random() * (bh - ch - pad * 2);
   return { x: Math.max(pad, x), y: Math.max(pad, y) };
 }
 
@@ -1057,13 +1081,14 @@ function sortCards() {
     // rearrange spread positions in a loose grid
     const board = document.getElementById('board');
     const bw = board.clientWidth;
-    const cols = Math.floor(bw / (cardSize + 30)) || 1;
+    const { width: cw, height: ch } = getCardMaxDimensions();
+    const cols = Math.floor(bw / (cw + 30)) || 1;
     const padX = 30, padY = 30, gapX = 20, gapY = 20;
     cards.forEach((card, i) => {
       const col = i % cols;
       const row = Math.floor(i / cols);
-      card.posX = padX + col * (cardSize + gapX) + (Math.random() * 8 - 4);
-      card.posY = padY + row * (cardSize * 1.35 + gapY) + (Math.random() * 8 - 4);
+      card.posX = padX + col * (cw + gapX) + (Math.random() * 8 - 4);
+      card.posY = padY + row * (ch + gapY) + (Math.random() * 8 - 4);
       card.rot  = (Math.random() * 4 - 2);
       const el = document.querySelector(`[data-id="${card.id}"]`);
       if (el) {
@@ -1116,8 +1141,13 @@ function updateCardSize(val) {
 
 function applyCardSize(el) {
   const isImg = el.dataset.type === 'img';
-  el.style.width  = cardSize + 'px';
-  el.style.height = isImg ? (cardSize * 1.2) + 'px' : (cardSize * 1.1) + 'px';
+  if (cardLayout === 'landscape') {
+    el.style.width  = isImg ? (cardSize * 1.2) + 'px' : (cardSize * 1.1) + 'px';
+    el.style.height = cardSize + 'px';
+  } else {
+    el.style.width  = cardSize + 'px';
+    el.style.height = isImg ? (cardSize * 1.2) + 'px' : (cardSize * 1.1) + 'px';
+  }
   const label = el.querySelector('.card-label');
   if (label) label.style.fontSize = Math.max(10, cardSize * 0.14) + 'px';
 }
@@ -1132,15 +1162,22 @@ function focusCard(id) {
   const el = document.querySelector(`[data-id="${id}"]`);
   if (!el) return;
   el.classList.add('focused');
-  const w = Math.min(320, window.innerWidth * 0.8);
-  const h = el.dataset.type === 'img' ? w * 1.2 : w * 0.85;
+  const isImg = el.dataset.type === 'img';
+  let w, h;
+  if (cardLayout === 'landscape') {
+    h = Math.min(280, window.innerHeight * 0.6);
+    w = isImg ? h * 1.2 : h * 1.1;
+  } else {
+    w = Math.min(320, window.innerWidth * 0.8);
+    h = isImg ? w * 1.2 : w * 0.85;
+  }
   el.style.width  = w + 'px';
   el.style.height = h + 'px';
   el.style.left   = ((window.innerWidth - w) / 2) + 'px';
   el.style.top    = ((window.innerHeight - h) / 2) + 'px';
   el.style.transform = 'rotate(0deg)';
   const label = el.querySelector('.card-label');
-  if (label) label.style.fontSize = Math.max(14, w * 0.14) + 'px';
+  if (label) label.style.fontSize = Math.max(14, Math.min(w, h) * 0.14) + 'px';
   document.getElementById('focus-overlay').classList.add('active');
 }
 
@@ -1201,8 +1238,9 @@ function renderGrid() {
   gb.classList.remove('hidden');
   gb.style.display = 'grid';
   gb.innerHTML = '';
-  const cols = Math.max(1, Math.floor(gb.clientWidth / (cardSize + 24)));
-  gb.style.gridTemplateColumns = `repeat(${cols}, ${cardSize}px)`;
+  const { width: cw } = getCardMaxDimensions();
+  const cols = Math.max(1, Math.floor(gb.clientWidth / (cw + 24)));
+  gb.style.gridTemplateColumns = `repeat(${cols}, ${cw}px)`;
   gb.style.justifyContent = 'center';
   gb.style.gap = '24px';
   cards.forEach(card => {
@@ -1283,8 +1321,9 @@ function buildCardElement(card) {
   }
 
   el.addEventListener('click', () => {
-    if (!el.classList.contains('removing')) focusCard(card.id);
+    if (!el.classList.contains('removing')) toggleHide(card.id);
   });
+  el.addEventListener('dblclick', () => focusCard(card.id));
 
   // Drag in spread mode
   if (viewMode === 'spread') makeDraggable(el, card);
@@ -1399,6 +1438,27 @@ function updateEmptyState() {
 function updateViewButtons() {
   document.getElementById('btn-spread').classList.toggle('active', viewMode === 'spread');
   document.getElementById('btn-grid').classList.toggle('active', viewMode === 'grid');
+}
+function updateLayoutButtons() {
+  document.getElementById('btn-portrait').classList.toggle('active', cardLayout === 'portrait');
+  document.getElementById('btn-landscape').classList.toggle('active', cardLayout === 'landscape');
+}
+function setCardLayout(layout) {
+  appState.data.cardLayout = layout;
+  updateLayoutButtons();
+  document.querySelectorAll('.fc-card').forEach(el => applyCardSize(el));
+  if (viewMode === 'grid') renderGrid();
+  if (viewMode === 'spread') {
+    // re-layout to avoid cards going out of bounds
+    sortCards();
+  }
+  saveState();
+}
+function getCardMaxDimensions() {
+  if (cardLayout === 'landscape') {
+    return { width: cardSize * 1.2, height: cardSize };
+  }
+  return { width: cardSize, height: cardSize * 1.2 };
 }
 
 function setViewMode(mode) {
