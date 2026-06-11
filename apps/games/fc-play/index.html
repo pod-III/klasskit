@@ -294,6 +294,14 @@
   <!-- Toast container -->
   <div id="toast-container" class="fixed top-4 left-1/2 -translate-x-1/2 z-[100] flex flex-col gap-2 pointer-events-none"></div>
 
+  <!-- Loading overlay -->
+  <div id="loading-overlay" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[200] hidden flex items-center justify-center">
+    <div class="bg-white dark:bg-slate-800 rounded-2xl p-6 shadow-2xl flex flex-col items-center gap-3 animate-bounce">
+      <div class="w-10 h-10 border-4 border-blue/20 border-t-blue rounded-full animate-spin"></div>
+      <span id="loading-text" class="font-heading font-bold text-sm text-slate-500 dark:text-slate-300">Working...</span>
+    </div>
+  </div>
+
   <!-- ============================================================ -->
   <!-- LEFT PANEL: Controls -->
   <!-- ============================================================ -->
@@ -326,7 +334,7 @@
     <div class="flex-1 overflow-y-auto custom-scrollbar p-3 space-y-3">
 
       <!-- ACTION GRID -->
-      <div class="grid grid-cols-2 gap-2">
+      <div class="grid grid-cols-3 gap-2">
         <button onclick="newSet()" class="btn-chunky bg-white dark:bg-slate-800 py-3 rounded-xl flex flex-col items-center justify-center gap-1 group">
           <div class="w-8 h-8 rounded-lg bg-blue/10 flex items-center justify-center text-blue group-hover:scale-110 transition-transform">
             <i data-lucide="file-plus-2" class="w-5 h-5"></i>
@@ -338,6 +346,12 @@
             <i data-lucide="save" class="w-5 h-5"></i>
           </div>
           <span class="text-[10px] font-black uppercase tracking-widest text-slate-500">Save As</span>
+        </button>
+        <button onclick="clearAll()" class="btn-chunky bg-white dark:bg-slate-800 py-3 rounded-xl flex flex-col items-center justify-center gap-1 group">
+          <div class="w-8 h-8 rounded-lg bg-pink/10 flex items-center justify-center text-pink group-hover:scale-110 transition-transform">
+            <i data-lucide="trash-2" class="w-5 h-5"></i>
+          </div>
+          <span class="text-[10px] font-black uppercase tracking-widest text-slate-500">Clear</span>
         </button>
       </div>
 
@@ -412,9 +426,6 @@
         <div class="section-label border-b border-slate-200 dark:border-white/10 pb-2 mb-2">
           <i data-lucide="layers" class="w-3.5 h-3.5 text-pink"></i> Deck
         </div>
-        <button onclick="clearAll()" class="btn-chunky w-full bg-white dark:bg-slate-800 text-pink rounded-xl py-2.5 text-sm flex items-center justify-center gap-2">
-          <i data-lucide="trash-2" class="w-4 h-4"></i> Clear All
-        </button>
         <div class="flex items-center justify-between px-1">
           <span class="section-label">Total cards</span>
           <span id="card-count" class="font-heading font-bold text-blue text-lg">0</span>
@@ -579,71 +590,20 @@ Object.defineProperty(window, 'nextId', {
 
 let focusedId = null;
 let leftOpen = true, rightOpen = true;
+
+function showLoading(text = 'Working...') {
+  document.getElementById('loading-text').textContent = text;
+  document.getElementById('loading-overlay').classList.remove('hidden');
+}
+function hideLoading() {
+  document.getElementById('loading-overlay').classList.add('hidden');
+}
+
 const SESSION_KEY = 'flashcard_displayer_session';
 const ACTIVE_ID_KEY = 'flashcard_displayer_activeId';
 const LIBRARY_KEY = 'flashcard_displayer_library_v2';
-const DB_NAME = 'flashcard_images_db';
-const DB_STORE = 'images';
-const DB_VERSION = 1;
-let dataBase = null;
-
-function openDB() {
-  return new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB_NAME, DB_VERSION);
-    req.onerror = () => reject(req.error);
-    req.onsuccess = () => { dataBase = req.result; resolve(dataBase); };
-    req.onupgradeneeded = (e) => {
-      const database = e.target.result;
-      if (!database.objectStoreNames.contains(DB_STORE)) {
-        database.createObjectStore(DB_STORE, { keyPath: 'id' });
-      }
-    };
-  });
-}
-
-function saveImage(id, src) {
-  return new Promise((resolve, reject) => {
-    if (!dataBase) return resolve();
-    const tx = dataBase.transaction([DB_STORE], 'readwrite');
-    const store = tx.objectStore(DB_STORE);
-    const req = store.put({ id, src });
-    req.onsuccess = () => resolve();
-    req.onerror = () => reject(req.error);
-  });
-}
-
-function getImage(id) {
-  return new Promise((resolve, reject) => {
-    if (!dataBase) return resolve(null);
-    const tx = dataBase.transaction([DB_STORE], 'readonly');
-    const store = tx.objectStore(DB_STORE);
-    const req = store.get(id);
-    req.onsuccess = () => resolve(req.result ? req.result.src : null);
-    req.onerror = () => reject(req.error);
-  });
-}
-
-function deleteImage(id) {
-  return new Promise((resolve, reject) => {
-    if (!dataBase) return resolve();
-    const tx = dataBase.transaction([DB_STORE], 'readwrite');
-    const store = tx.objectStore(DB_STORE);
-    const req = store.delete(id);
-    req.onsuccess = () => resolve();
-    req.onerror = () => reject(req.error);
-  });
-}
-
-function clearAllImages() {
-  return new Promise((resolve, reject) => {
-    if (!dataBase) return resolve();
-    const tx = dataBase.transaction([DB_STORE], 'readwrite');
-    const store = tx.objectStore(DB_STORE);
-    const req = store.clear();
-    req.onsuccess = () => resolve();
-    req.onerror = () => reject(req.error);
-  });
-}
+// Note: Images are stored directly on card.src as cloud URLs or data URLs.
+// No IndexedDB — matching the card-maker pattern.
 
 // ============================================================
 // INIT
@@ -651,7 +611,6 @@ function clearAllImages() {
 window.onload = async function () {
   await requireAuth();
   loadTheme();
-  await openDB();
   await initApp();
   lucide.createIcons();
   setupDragDrop();
@@ -670,9 +629,6 @@ async function initApp() {
         appState.data.nextId = s.nextId || (appState.data.cards.length + 1);
         appState.data.viewMode = s.viewMode || 'spread';
         appState.data.cardSize = s.cardSize || 140;
-        for (const card of appState.data.cards) {
-          if (card.type === 'img') card.src = await getImage(card.id);
-        }
       }
       localStorage.removeItem(legacyKey);
     } catch (e) {}
@@ -695,9 +651,6 @@ async function initApp() {
       try {
         const s = JSON.parse(session);
         appState.data = { ...appState.data, ...s };
-        for (const card of cards) {
-          if (card.type === 'img') card.src = await getImage(card.id);
-        }
       } catch (e) {}
     }
   }
@@ -719,10 +672,9 @@ function saveLibrary(library) {
 }
 
 function updateSessionPersistence() {
-  const cardsToSave = cards.map(c => c.type === 'img' ? { ...c, src: undefined } : c);
   localStorage.setItem(SESSION_KEY, JSON.stringify({
     name: appState.data.name,
-    cards: cardsToSave,
+    cards: cards,
     viewMode: appState.data.viewMode,
     cardSize: appState.data.cardSize,
     nextId: appState.data.nextId
@@ -736,11 +688,10 @@ function onContentChange() {
     const library = getLibrary();
     const index = library.findIndex(item => item.id === appState.activeId);
     if (index !== -1) {
-      const cardsToSave = cards.map(c => c.type === 'img' ? { ...c, src: undefined } : c);
       library[index] = {
         ...library[index],
         name: appState.data.name,
-        cards: cardsToSave,
+        cards: cards,
         viewMode: appState.data.viewMode,
         cardSize: appState.data.cardSize,
         nextId: appState.data.nextId,
@@ -760,6 +711,7 @@ function saveState() {
 // SET LIFECYCLE
 // ============================================================
 function newSet() {
+  unfocusCard();
   appState.data = {
     name: '',
     cards: [],
@@ -789,11 +741,10 @@ async function openSaveAsModal() {
 function saveAsNew(name) {
   const library = getLibrary();
   const newId = Date.now();
-  const cardsToSave = cards.map(c => c.type === 'img' ? { ...c, src: undefined } : c);
   const newEntry = {
     id: newId,
     name: name,
-    cards: cardsToSave,
+    cards: cards,
     viewMode: appState.data.viewMode,
     cardSize: appState.data.cardSize,
     nextId: appState.data.nextId,
@@ -830,11 +781,6 @@ async function loadSet(id) {
     nextId: item.nextId || 1
   };
 
-  // Resolve images from IndexedDB
-  for (const card of cards) {
-    if (card.type === 'img') card.src = await getImage(card.id);
-  }
-
   focusedId = null;
   document.getElementById('size-slider').value = cardSize;
   document.getElementById('size-label').textContent = cardSize + 'px';
@@ -855,9 +801,22 @@ async function deleteLibraryItem(id, event) {
   });
   if (!confirmed) return;
 
-  let library = getLibrary();
-  library = library.filter(i => i.id !== id);
-  saveLibrary(library);
+  // Clean up cloud images for this set
+  const library = getLibrary();
+  const item = library.find(i => i.id === id);
+  const cloudImages = item && item.cards
+    ? item.cards.filter(c => c.type === 'img' && c.src && c.src.includes('klasskit-media'))
+    : [];
+  if (cloudImages.length > 0) {
+    showLoading(`Deleting ${cloudImages.length} image${cloudImages.length > 1 ? 's' : ''}...`);
+    for (const card of cloudImages) {
+      await deleteMediaFromUrl(card.src).catch(console.error);
+    }
+    hideLoading();
+  }
+
+  const filtered = library.filter(i => i.id !== id);
+  saveLibrary(filtered);
 
   if (appState.activeId === id) {
     newSet();
@@ -947,36 +906,45 @@ function addBatch() {
   showToast(`Added ${lines.length} card${lines.length > 1 ? 's' : ''}`, 'success');
 }
 
-function addImages(input) {
+async function addImages(input) {
   const files = Array.from(input.files);
   if (!files.length) return;
   input.value = '';
   let loaded = 0;
   let failed = 0;
-  files.forEach(file => {
+  showLoading(`Uploading 1/${files.length}...`);
+
+  for (let i = 0; i < files.length; i++) {
+    const file = files[i];
+    showLoading(`Uploading ${i + 1}/${files.length}...`);
     const label = file.name.replace(/\.[^.]+$/, '').replace(/[-_]/g, ' ');
-    const reader = new FileReader();
-    reader.onload = async e => {
-      const card = makeCard('img', label, e.target.result);
-      cards.push(card);
-      await saveImage(card.id, card.src);
-      loaded++;
-      if (loaded + failed === files.length) {
-        saveState();
-        render();
-        if (loaded > 0) showToast(`Added ${loaded} image${loaded > 1 ? 's' : ''}`, 'success');
+    try {
+      let imgSource;
+      const user = await getUser();
+      if (!isSandbox() && user) {
+        imgSource = await uploadMedia(file, 'fc-play');
+      } else {
+        imgSource = await new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = e => resolve(e.target.result);
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        });
       }
-    };
-    reader.onerror = () => {
+      const card = makeCard('img', label, imgSource);
+      cards.push(card);
+      loaded++;
+    } catch (err) {
       failed++;
       showToast(`Failed to read ${file.name}`, 'error');
-      if (loaded + failed === files.length) {
-        saveState();
-        render();
-      }
-    };
-    reader.readAsDataURL(file);
-  });
+    }
+  }
+
+  hideLoading();
+  saveState();
+  render();
+
+  if (loaded > 0) showToast(`Added ${loaded} image${loaded > 1 ? 's' : ''}`, 'success');
 }
 
 function makeCard(type, label, src) {
@@ -1000,8 +968,10 @@ function randomPos() {
 // ============================================================
 async function removeCard(id) {
   const card = cards.find(c => c.id === id);
-  if (card && card.type === 'img') {
-    await deleteImage(card.id);
+  if (card && card.type === 'img' && card.src && card.src.includes('klasskit-media')) {
+    showLoading('Deleting image...');
+    await deleteMediaFromUrl(card.src).catch(e => console.error('Cloud delete failed', e));
+    hideLoading();
   }
   const el = document.querySelector(`[data-id="${id}"]`);
   if (el) {
@@ -1105,7 +1075,15 @@ async function clearAll() {
     iconColor: 'orange'
   });
   if (!confirmed) return;
-  await clearAllImages();
+  unfocusCard();
+  const imageCards = cards.filter(c => c.type === 'img' && c.src && c.src.includes('klasskit-media'));
+  if (imageCards.length > 0) {
+    showLoading(`Deleting ${imageCards.length} image${imageCards.length > 1 ? 's' : ''}...`);
+    for (const c of imageCards) {
+      await deleteMediaFromUrl(c.src).catch(console.error);
+    }
+    hideLoading();
+  }
   cards = [];
   saveState();
   render();
@@ -1151,8 +1129,7 @@ function focusCard(id) {
 }
 
 function unfocusCard(show = true) {
-  if (focusedId === null) return;
-  const el = document.querySelector(`[data-id="${focusedId}"]`);
+  const el = focusedId !== null ? document.querySelector(`[data-id="${focusedId}"]`) : null;
   if (el) {
     el.classList.remove('focused');
     const card = cards.find(c => c.id === focusedId);
@@ -1219,6 +1196,12 @@ function renderGrid() {
     el.style.top  = '';
     el.style.transform = '';
     gb.appendChild(el);
+    if (card.type === 'img' && card.src && card.src.includes('klasskit-media')) {
+      resolveMediaUrl(card.src).then(url => {
+        const img = el.querySelector('img');
+        if (img) img.src = url;
+      });
+    }
   });
   lucide.createIcons();
 }
@@ -1226,6 +1209,13 @@ function renderGrid() {
 function renderCardEl(card) {
   const el = buildCardElement(card);
   document.getElementById('board').appendChild(el);
+  // Resolve cloud image URLs after insertion
+  if (card.type === 'img' && card.src && card.src.includes('klasskit-media')) {
+    resolveMediaUrl(card.src).then(url => {
+      const img = el.querySelector('img');
+      if (img) img.src = url;
+    });
+  }
   // trigger spawn animation
   requestAnimationFrame(() => el.classList.add('spawning'));
   lucide.createIcons();
@@ -1358,7 +1348,7 @@ function renderCardList() {
   list.innerHTML = cards.map(card => `
     <div class="thumb-item group" onclick="focusCard(${card.id})">
       ${card.type === 'img'
-        ? `<img src="${card.src}" class="w-8 h-8 rounded-lg object-cover border-2 border-dark dark:border-slate-500 shrink-0" />`
+        ? `<img src="${card.src}" data-original="${card.src}" class="w-8 h-8 rounded-lg object-cover border-2 border-dark dark:border-slate-500 shrink-0" />`
         : `<div class="w-8 h-8 rounded-lg border-2 border-dark dark:border-slate-500 shrink-0 flex items-center justify-center text-[10px] font-heading font-bold text-white" style="background:${['#FF6B95','#FF8C42','#2979FF','#00E676'][card.id%4]}">${card.label.charAt(0).toUpperCase()}</div>`
       }
       <span class="flex-1 font-body text-xs font-bold text-dark dark:text-slate-200 truncate">${card.label}</span>
@@ -1372,6 +1362,13 @@ function renderCardList() {
       </div>
     </div>`).join('');
   lucide.createIcons();
+  // Resolve expired cloud URLs for thumbnails
+  list.querySelectorAll('img[data-original]').forEach(img => {
+    const original = img.dataset.original;
+    if (original && original.includes('klasskit-media')) {
+      resolveMediaUrl(original).then(url => { img.src = url; });
+    }
+  });
 }
 
 // ============================================================
