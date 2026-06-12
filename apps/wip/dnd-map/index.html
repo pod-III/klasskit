@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Fantasy VTT | Game Hub</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Lora:ital,wght@0,400;0,600;1,400&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body class="text-stone-300 h-screen w-screen overflow-hidden flex flex-col selection:bg-amber-500/30">
+
+    <header
+        class="bg-stone-900 border-b border-amber-900/50 p-4 flex justify-between items-center z-40 shrink-0 shadow-md">
+        <div class="flex items-center gap-4">
+            <a href="../index.html" class="text-amber-500 hover:text-amber-400 transition-colors" title="Back to Home">
+                <i data-lucide="home" class="w-6 h-6"></i>
+            </a>
+            <h1 class="text-xl font-bold text-amber-500 flex items-center gap-3 font-cinzel tracking-wider">
+                <i data-lucide="scroll" class="w-6 h-6"></i> Arcane Tabletop
+            </h1>
+        </div>
+        <button id="mode-toggle"
+            class="bg-amber-700 hover:bg-amber-600 text-stone-100 px-6 py-2 rounded font-semibold transition-colors shadow-lg shadow-amber-900/20 flex items-center gap-2 border border-amber-500/30 tracking-wider">
+            <i data-lucide="user" class="w-4 h-4"></i> Enter Player View
+        </button>
+    </header>
+
+    <div class="flex flex-1 overflow-hidden relative">
+        <aside id="dm-sidebar"
+            class="w-80 bg-stone-900 border-r border-amber-900/50 flex flex-col shadow-2xl z-30 shrink-0">
+            <div class="flex-1 overflow-y-auto p-6 space-y-8">
+                <section class="space-y-4">
+                    <h2
+                        class="text-xs font-semibold text-amber-600 uppercase tracking-widest flex items-center gap-2 font-cinzel">
+                        <i data-lucide="map" class="w-4 h-4"></i> Cartography
+                    </h2>
+                    <div class="flex gap-2">
+                        <select id="map-select"
+                            class="flex-1 bg-stone-950 border border-amber-900/50 rounded px-3 py-2 text-sm focus:outline-none focus:border-amber-500 text-stone-300 font-lora">
+                            <option value="">-- Select Map --</option>
+                        </select>
+                        <button id="btn-delete-map" title="Delete Current Map"
+                            class="bg-red-900/60 hover:bg-red-800 transition-colors p-2 rounded border border-red-700/50 flex items-center justify-center">
+                            <i data-lucide="trash-2" class="w-4 h-4 text-red-400"></i>
+                        </button>
+                    </div>
+                    <div class="flex gap-2">
+                        <label for="map-upload"
+                            class="flex-1 flex items-center justify-center gap-2 cursor-pointer bg-stone-800 hover:bg-stone-700 transition-colors p-3 rounded text-sm font-medium border border-stone-700 tracking-wider">
+                            <i data-lucide="image-plus" class="w-4 h-4"></i> Upload Map
+                            <input type="file" id="map-upload" accept="image/*" class="sr-only">
+                        </label>
+                        <button id="btn-fit-map" title="Fit Map to Screen"
+                            class="bg-stone-800 hover:bg-stone-700 transition-colors p-3 rounded border border-stone-700 flex items-center justify-center">
+                            <i data-lucide="maximize" class="w-4 h-4 text-stone-300"></i>
+                        </button>
+                        <button id="btn-rotate-map" title="Rotate Map 90°"
+                            class="bg-stone-800 hover:bg-stone-700 transition-colors p-3 rounded border border-stone-700 flex items-center justify-center">
+                            <i data-lucide="rotate-cw" class="w-4 h-4 text-stone-300"></i>
+                        </button>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <label class="text-xs text-stone-400 whitespace-nowrap">Grid</label>
+                        <input type="range" id="grid-size-input" min="20" max="120" value="50"
+                            class="flex-1 accent-amber-600 h-1 cursor-pointer">
+                        <span id="grid-size-value" class="text-xs text-amber-500 font-mono w-8 text-right">50</span>
+                    </div>
+                </section>
+
+                <section class="space-y-4">
+                    <h2
+                        class="text-xs font-semibold text-amber-600 uppercase tracking-widest flex items-center gap-2 font-cinzel">
+                        <i data-lucide="swords" class="w-4 h-4"></i> Miniatures
+                    </h2>
+                    <input type="text" id="token-name" placeholder="Character Name..."
+                        class="w-full bg-stone-950 border border-amber-900/50 rounded px-4 py-2 text-sm focus:outline-none focus:border-amber-500 transition-colors font-lora italic">
+                    <label for="token-upload"
+                        class="flex w-full cursor-pointer bg-amber-700 hover:bg-amber-600 transition-colors p-3 rounded text-center text-sm font-medium shadow-lg shadow-amber-900/20 items-center justify-center gap-2 border border-amber-500/30 tracking-wider">
+                        <i data-lucide="plus" class="w-4 h-4"></i> Upload & Place
+                        <input type="file" id="token-upload" accept="image/*" class="sr-only">
+                    </label>
+                </section>
+
+                <section class="space-y-4">
+                    <h2
+                        class="text-xs font-semibold text-amber-600 uppercase tracking-widest flex items-center gap-2 font-cinzel">
+                        <i data-lucide="library" class="w-4 h-4"></i> Token Library
+                    </h2>
+                    <label for="token-library-upload"
+                        class="flex w-full cursor-pointer bg-stone-800 hover:bg-stone-700 transition-colors p-2.5 rounded text-center text-sm font-medium items-center justify-center gap-2 border border-stone-700 tracking-wider">
+                        <i data-lucide="archive" class="w-4 h-4"></i> Save to Library
+                        <input type="file" id="token-library-upload" accept="image/*" class="sr-only">
+                    </label>
+                    <div id="token-library-grid" class="token-library-grid">
+                        <p id="token-library-empty"
+                            class="text-xs text-stone-500 italic col-span-full text-center py-2">No saved tokens yet</p>
+                    </div>
+                </section>
+
+                <section class="space-y-4">
+                    <h2
+                        class="text-xs font-semibold text-amber-600 uppercase tracking-widest flex items-center gap-2 font-cinzel">
+                        <i data-lucide="wand-2" class="w-4 h-4"></i> Tools
+                    </h2>
+                    <div class="grid grid-cols-1 gap-2 font-lora text-sm">
+                        <button id="tool-drag"
+                            class="bg-stone-800 hover:bg-stone-700 border border-stone-700 p-3 rounded transition-colors flex items-center justify-start gap-3 ring-2 ring-amber-500 font-lora">
+                            <i data-lucide="hand" class="w-4 h-4 text-stone-400"></i> Move Minis
+                            <span class="ml-auto text-[10px] text-stone-500 font-mono">D</span>
+                        </button>
+                        <button id="tool-pan"
+                            class="bg-stone-800 hover:bg-stone-700 border border-stone-700 p-3 rounded transition-colors flex items-center justify-start gap-3 font-lora">
+                            <i data-lucide="move" class="w-4 h-4 text-stone-400"></i> Pan Canvas
+                            <span class="ml-auto text-[10px] text-stone-500 font-mono">P</span>
+                        </button>
+                        <button id="tool-fog-draw"
+                            class="bg-stone-800 hover:bg-stone-700 border border-stone-700 p-3 rounded transition-colors flex items-center justify-start gap-3 font-lora">
+                            <i data-lucide="pentagon" class="w-4 h-4 text-stone-400"></i> Polygon Fog
+                            <span class="ml-auto text-[10px] text-stone-500 font-mono">F</span>
+                        </button>
+                        <button id="tool-fog-rect"
+                            class="bg-stone-800 hover:bg-stone-700 border border-stone-700 p-3 rounded transition-colors flex items-center justify-start gap-3 font-lora">
+                            <i data-lucide="square" class="w-4 h-4 text-stone-400"></i> Draw Rect Darkness
+                            <span class="ml-auto text-[10px] text-stone-500 font-mono">R</span>
+                        </button>
+                        <button id="tool-fog-erase"
+                            class="bg-stone-800 hover:bg-stone-700 border border-stone-700 p-3 rounded transition-colors flex items-center justify-start gap-3 font-lora">
+                            <i data-lucide="eraser" class="w-4 h-4 text-stone-400"></i> Erase Fog Shape
+                            <span class="ml-auto text-[10px] text-stone-500 font-mono">E</span>
+                        </button>
+                        <button id="tool-fog-toggle"
+                            class="bg-stone-800 hover:bg-stone-700 border border-stone-700 p-3 rounded transition-colors flex items-center justify-start gap-3 font-lora">
+                            <i data-lucide="eye" class="w-4 h-4 text-stone-400"></i> Reveal/Hide Area
+                            <span class="ml-auto text-[10px] text-stone-500 font-mono">T</span>
+                        </button>
+                        <button id="tool-grid-toggle"
+                            class="bg-stone-800 hover:bg-stone-700 border border-stone-700 p-3 rounded transition-colors flex items-center justify-start gap-3 font-lora">
+                            <i data-lucide="grid-3x3" class="w-4 h-4 text-stone-400"></i> Toggle Grid
+                            <span class="ml-auto text-[10px] text-stone-500 font-mono">G</span>
+                        </button>
+                    </div>
+                    <div class="flex gap-2 pt-2">
+                        <button id="btn-undo" title="Undo (Ctrl+Z)"
+                            class="flex-1 bg-stone-800 hover:bg-stone-700 border border-stone-700 p-2 rounded text-xs transition-colors flex items-center justify-center gap-1 disabled:opacity-30 disabled:cursor-not-allowed"
+                            disabled>
+                            <i data-lucide="undo-2" class="w-3 h-3"></i> Undo
+                        </button>
+                        <button id="btn-redo" title="Redo (Ctrl+Y)"
+                            class="flex-1 bg-stone-800 hover:bg-stone-700 border border-stone-700 p-2 rounded text-xs transition-colors flex items-center justify-center gap-1 disabled:opacity-30 disabled:cursor-not-allowed"
+                            disabled>
+                            <i data-lucide="redo-2" class="w-3 h-3"></i> Redo
+                        </button>
+                    </div>
+                </section>
+
+                <section class="space-y-4 pt-4 border-t border-amber-900/30">
+                    <h2
+                        class="text-xs font-semibold text-amber-600 uppercase tracking-widest flex items-center gap-2 font-cinzel">
+                        <i data-lucide="save" class="w-4 h-4"></i> Campaign Data
+                    </h2>
+                    <div class="flex gap-2">
+                        <button id="btn-export"
+                            class="flex-1 bg-stone-800 hover:bg-stone-700 border border-stone-700 p-2 rounded text-xs transition-colors flex items-center justify-center gap-1">
+                            <i data-lucide="download" class="w-3 h-3"></i> Export
+                        </button>
+                        <label for="campaign-import"
+                            class="flex-1 cursor-pointer bg-stone-800 hover:bg-stone-700 border border-stone-700 p-2 rounded text-xs transition-colors flex items-center justify-center gap-1 text-center">
+                            <i data-lucide="upload" class="w-3 h-3"></i> Import
+                            <input type="file" id="campaign-import" accept=".json" class="sr-only">
+                        </label>
+                    </div>
+                </section>
+            </div>
+        </aside>
+
+        <main id="canvas-wrapper">
+            <div id="canvas-container">
+                <canvas id="layer-map"></canvas>
+                <canvas id="layer-grid"></canvas>
+                <canvas id="layer-token"></canvas>
+                <canvas id="layer-fog"></canvas>
+            </div>
+        </main>
+    </div>
+
+    <div id="custom-modal"
+        class="hidden fixed inset-0 z-50 bg-black/80 flex items-center justify-center backdrop-blur-sm transition-opacity">
+        <div
+            class="bg-stone-900 border-2 border-amber-700 p-6 rounded-lg max-w-sm w-full shadow-[0_0_30px_rgba(217,119,6,0.2)]">
+            <h3 id="modal-title" class="text-amber-500 font-cinzel text-xl mb-4 font-bold tracking-wider">Notice</h3>
+            <p id="modal-message" class="text-stone-300 font-lora mb-4 text-sm hidden"></p>
+            <input type="text" id="modal-input"
+                class="w-full bg-stone-950 border border-amber-900/50 rounded px-3 py-2 text-stone-300 font-lora mb-5 hidden focus:outline-none focus:border-amber-500">
+            <div class="flex justify-end gap-3 font-cinzel text-sm tracking-wider">
+                <button id="modal-cancel"
+                    class="px-4 py-2 bg-stone-800 hover:bg-stone-700 border border-stone-600 rounded text-stone-300 transition-colors hidden">Cancel</button>
+                <button id="modal-confirm"
+                    class="px-4 py-2 bg-amber-700 hover:bg-amber-600 rounded text-white shadow-lg shadow-amber-900/20 transition-colors">Confirm</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Token Context Menu -->
+    <div id="token-context-menu" class="hidden">
+        <div class="ctx-item" data-action="rename"><i data-lucide="pencil" class="w-3.5 h-3.5"></i> Rename</div>
+        <div class="ctx-item" data-action="resize-up"><i data-lucide="arrow-up-right" class="w-3.5 h-3.5"></i> Size Up
+        </div>
+        <div class="ctx-item" data-action="resize-down"><i data-lucide="arrow-down-left" class="w-3.5 h-3.5"></i> Size
+            Down</div>
+        <div class="ctx-divider"></div>
+        <div class="ctx-item danger" data-action="delete"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i> Delete</div>
+    </div>
+
+    <!-- Player Toolbar -->
+    <div id="player-toolbar"
+        class="hidden fixed bottom-6 left-1/2 -translate-x-1/2 z-40 flex items-center gap-2 bg-stone-900 border-2 border-amber-700/80 rounded-2xl px-4 py-3 shadow-[4px_4px_0px_0px_rgba(0,0,0,0.8)]">
+        <span class="text-amber-600 text-xs font-semibold uppercase tracking-widest font-cinzel mr-1 hidden sm:block">Mode</span>
+        <div class="w-px h-6 bg-amber-900/50 hidden sm:block mr-1"></div>
+
+        <!-- Move Token -->
+        <button id="player-tool-move"
+            class="flex items-center gap-2 px-4 py-2 rounded-xl border-2 border-amber-700/60 bg-amber-700 text-stone-100 text-sm font-semibold font-cinzel tracking-wide transition-all hover:-translate-y-0.5 active:translate-y-0.5 active:shadow-none shadow-[2px_2px_0px_0px_rgba(0,0,0,0.6)] ring-2 ring-amber-400"
+            title="Move Tokens — drag characters around the map">
+            <i data-lucide="hand" class="w-4 h-4"></i>
+            <span class="hidden sm:inline">Move</span>
+        </button>
+
+        <!-- Pan Map -->
+        <button id="player-tool-pan"
+            class="flex items-center gap-2 px-4 py-2 rounded-xl border-2 border-stone-600 bg-stone-800 text-stone-300 text-sm font-semibold font-cinzel tracking-wide transition-all hover:-translate-y-0.5 active:translate-y-0.5 active:shadow-none shadow-[2px_2px_0px_0px_rgba(0,0,0,0.6)]"
+            title="Pan Map — drag the map to explore">
+            <i data-lucide="move" class="w-4 h-4"></i>
+            <span class="hidden sm:inline">Pan</span>
+        </button>
+
+        <!-- Reveal Fog -->
+        <button id="player-tool-fog"
+            class="flex items-center gap-2 px-4 py-2 rounded-xl border-2 border-stone-600 bg-stone-800 text-stone-300 text-sm font-semibold font-cinzel tracking-wide transition-all hover:-translate-y-0.5 active:translate-y-0.5 active:shadow-none shadow-[2px_2px_0px_0px_rgba(0,0,0,0.6)]"
+            title="Reveal Fog — tap a dark area to uncover it">
+            <i data-lucide="eye" class="w-4 h-4"></i>
+            <span class="hidden sm:inline">Reveal</span>
+        </button>
+
+        <!-- Hint text -->
+        <div class="w-px h-6 bg-amber-900/50 ml-1 hidden sm:block"></div>
+        <p id="player-tool-hint" class="text-stone-500 text-xs italic font-lora hidden sm:block max-w-[140px]">Drag tokens to move them</p>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+
+</html>

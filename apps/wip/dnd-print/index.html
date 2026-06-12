@@ -1,0 +1,616 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dungeon Printer - Batam Edition</title>
+
+    <!-- Fonts: Fredoka & Nunito -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Lora:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- React & ReactDOM -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+
+    <!-- Babel -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <!-- Lucide Icons (Vanilla) -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <!-- Design System Configuration -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        stone: {
+                            900: '#1c1917',
+                            950: '#0c0a09',
+                        },
+                        amber: {
+                            500: '#f59e0b',
+                            600: '#d97706',
+                            700: '#b45309',
+                            900: '#78350f',
+                        },
+                        pink: '#FF6B95',
+                        orange: '#FF8C42',
+                        green: '#00E676',
+                        blue: '#2979FF',
+                        dark: '#1c1917',
+                        chalk: '#f5f5f4',
+                    },
+                    fontFamily: {
+                        heading: ['Cinzel', 'serif'],
+                        body: ['Lora', 'serif'],
+                    },
+                    boxShadow: {
+                        'neo': '0 4px 6px -1px rgba(0, 0, 0, 0.5), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        /* Graph Paper Background */
+        body {
+            background-color: #0c0a09;
+            background-image: url('https://www.transparenttextures.com/patterns/stardust.png');
+            color: #d6d3d1; /* stone-300 */
+        }
+
+        /* Print Specific Styles */
+        @media print {
+            @page {
+                size: auto;
+                /* Allow browser to adapt, but usually requires user manual selection */
+                margin: 0;
+            }
+
+            body {
+                background: white;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
+
+            .no-print {
+                display: none !important;
+            }
+
+            .print-only {
+                display: block !important;
+            }
+
+            .page-break {
+                page-break-after: always;
+                break-after: page;
+            }
+        }
+
+        /* Screen Only */
+        @media screen {
+            .print-only {
+                display: none;
+            }
+        }
+
+        /* A4 Simulation on Screen */
+        .page-preview {
+            background: white;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            margin: 20px auto;
+            position: relative;
+            overflow: hidden;
+            border: 1px solid #e2e8f0;
+            transition: all 0.3s ease;
+        }
+    </style>
+</head>
+
+<body class="text-stone-300 font-body antialiased">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+
+        // --- Constants for Coin Sizes (in mm) ---
+        // Rp 100 (Aluminum) = ~23mm
+        // Rp 500 (Aluminum) = ~27.2mm
+        const SIZE_RP100 = 23;
+        const SIZE_RP500 = 27.2;
+
+        // Base Dimensions
+        const BASE_A4_SHORT = 210;
+        const BASE_A4_LONG = 297;
+        const PRINT_MARGIN = 10;
+
+        // --- Helper: Icon Component ---
+        const Icon = ({ name, size = 24, className }) => {
+            const ref = useRef(null);
+
+            useEffect(() => {
+                if (ref.current && window.lucide) {
+                    const iconNode = lucide.icons ? lucide.icons[name] : lucide[name];
+                    if (iconNode) {
+                        const svg = lucide.createElement(iconNode);
+                        svg.setAttribute('width', size);
+                        svg.setAttribute('height', size);
+                        svg.setAttribute('stroke-width', 2.5);
+                        if (className) {
+                            svg.setAttribute('class', className);
+                        }
+                        ref.current.innerHTML = '';
+                        ref.current.appendChild(svg);
+                    }
+                }
+            }, [name, size, className]);
+
+            return <span ref={ref} className="inline-flex items-center justify-center" />;
+        };
+
+        // --- Components ---
+
+        const Button = ({ children, onClick, color = 'blue', className = '', iconName, disabled = false }) => {
+            const colors = {
+                pink: 'bg-amber-700 text-stone-100 border-amber-900/50',
+                orange: 'bg-amber-700 text-stone-100 border-amber-900/50',
+                green: 'bg-amber-700 text-stone-100 border-amber-900/50',
+                blue: 'bg-amber-700 text-stone-100 border-amber-900/50',
+                dark: 'bg-stone-800 text-amber-500 border-amber-900/50 hover:bg-stone-700',
+                white: 'bg-stone-900 text-stone-300 border-amber-900/50',
+                gray: 'bg-stone-800 text-stone-500 border-stone-700'
+            };
+
+            const activeClass = disabled ? colors.gray : colors[color];
+            const hoverClass = disabled ? 'cursor-not-allowed opacity-50' : 'hover:-translate-y-1 active:translate-y-1 active:shadow-none';
+
+            return (
+                <button
+                    onClick={disabled ? undefined : onClick}
+                    disabled={disabled}
+                    className={`
+                        ${activeClass} 
+                        border-2 md:border-3 
+                        rounded-xl 
+                        px-6 py-3 
+                        font-heading font-bold text-lg
+                        shadow-neo 
+                        transition-all 
+                        flex items-center justify-center gap-2
+                        ${hoverClass}
+                        ${className}
+                    `}
+                >
+                    {iconName && <Icon name={iconName} size={24} />}
+                    {children}
+                </button>
+            );
+        };
+
+        const Card = ({ children, title, color = 'white', className = '' }) => (
+            <div className={`
+                bg-${color} 
+                border-3 border-amber-900/50 
+                rounded-2xl 
+                shadow-neo 
+                overflow-hidden
+                ${className}
+            `}>
+                {title && (
+                    <div className="bg-stone-800 border-b border-amber-900/50 p-3 border-b-3 border-amber-900/50">
+                        <h3 className="text-white font-heading font-bold text-xl">{title}</h3>
+                    </div>
+                )}
+                <div className="p-4 md:p-6 bg-stone-900">
+                    {children}
+                </div>
+            </div>
+        );
+
+        // --- Map Printer Tool ---
+
+        const MapPrinter = () => {
+            const [image, setImage] = useState(null);
+            const [scaleX, setScaleX] = useState(2); // Pages wide
+            const [orientation, setOrientation] = useState('portrait'); // 'portrait' | 'landscape'
+            const [slices, setSlices] = useState([]);
+            const [processing, setProcessing] = useState(false);
+            const [calculatedDimensions, setCalculatedDimensions] = useState({ rows: 0, widthMm: 0, heightMm: 0 });
+
+            const handleImageUpload = (e) => {
+                const file = e.target.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onload = (event) => setImage(event.target.result);
+                    reader.readAsDataURL(file);
+                }
+            };
+
+            // Logic to slice image into chunks
+            useEffect(() => {
+                if (!image) return;
+
+                const processImage = async () => {
+                    setProcessing(true);
+                    const img = new Image();
+                    img.src = image;
+                    await new Promise((resolve, reject) => {
+                        img.onload = resolve;
+                        img.onerror = reject;
+                    });
+
+                    const canvas = document.createElement('canvas');
+                    const ctx = canvas.getContext('2d');
+
+                    // 1. Determine Page Dimensions based on Orientation
+                    const isPortrait = orientation === 'portrait';
+                    const pageFullWidth = isPortrait ? BASE_A4_SHORT : BASE_A4_LONG;
+                    const pageFullHeight = isPortrait ? BASE_A4_LONG : BASE_A4_SHORT;
+
+                    const usableWidth = pageFullWidth - (PRINT_MARGIN * 2);
+                    const usableHeight = pageFullHeight - (PRINT_MARGIN * 2);
+
+                    // 2. Calculate Scale
+                    // We want the physical width of the map to span 'scaleX' pages
+                    const totalPhysicalWidthMm = scaleX * usableWidth;
+                    const scaleFactor = totalPhysicalWidthMm / img.width; // mm per pixel (Zoom level)
+
+                    const totalPhysicalHeightMm = img.height * scaleFactor;
+                    const scaleY = Math.ceil(totalPhysicalHeightMm / usableHeight);
+
+                    setCalculatedDimensions({
+                        rows: scaleY,
+                        widthMm: usableWidth,
+                        heightMm: usableHeight
+                    });
+
+                    // 3. Create slices
+                    const newSlices = [];
+
+                    for (let y = 0; y < scaleY; y++) {
+                        for (let x = 0; x < scaleX; x++) {
+                            // Dimensions of the slice in Source Image Pixels
+                            const sWidth = usableWidth / scaleFactor;
+                            const sHeight = usableHeight / scaleFactor;
+                            const sX = x * sWidth;
+                            const sY = y * sHeight;
+
+                            // Canvas for this specific slice (High DPI for print)
+                            const printDpiScale = 4;
+                            canvas.width = usableWidth * printDpiScale;
+                            canvas.height = usableHeight * printDpiScale;
+
+                            // Fill white first
+                            ctx.fillStyle = "white";
+                            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                            // Draw image portion
+                            // Check if we are going out of bounds of the source image to avoid stretching empty space
+                            // (drawImage handles out of bounds gracefully usually, but good to know)
+                            ctx.drawImage(img, sX, sY, sWidth, sHeight, 0, 0, canvas.width, canvas.height);
+
+                            // Draw Grid Overlay
+                            // Grid size is 23mm (Rp 100) regardless of orientation
+                            const gridSizeMm = SIZE_RP100;
+                            const gridSizePx = gridSizeMm * printDpiScale;
+
+                            ctx.strokeStyle = "rgba(0, 0, 0, 0.4)";
+                            ctx.lineWidth = 2;
+                            ctx.beginPath();
+
+                            // Vertical lines
+                            for (let gx = 0; gx <= canvas.width; gx += gridSizePx) {
+                                ctx.moveTo(gx, 0);
+                                ctx.lineTo(gx, canvas.height);
+                            }
+                            // Horizontal lines
+                            for (let gy = 0; gy <= canvas.height; gy += gridSizePx) {
+                                ctx.moveTo(0, gy);
+                                ctx.lineTo(canvas.width, gy);
+                            }
+                            ctx.stroke();
+
+                            newSlices.push(canvas.toDataURL());
+                        }
+                    }
+                    setSlices(newSlices);
+                    setProcessing(false);
+                };
+
+                processImage();
+            }, [image, scaleX, orientation]);
+
+            return (
+                <div className="space-y-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 no-print">
+                        <Card title="1. Upload Map" color="dark">
+                            <div className="flex flex-col gap-4">
+                                <label className="flex flex-col items-center justify-center w-full h-32 border-4 border-dashed border-amber-900/50 rounded-xl cursor-pointer bg-stone-800 hover:bg-stone-700 transition">
+                                    <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                                        <Icon name="Upload" className="w-8 h-8 text-amber-500 mb-2" />
+                                        <p className="text-sm text-amber-600 font-bold">Click to upload map image</p>
+                                    </div>
+                                    <input type="file" className="hidden" accept="image/*" onChange={handleImageUpload} />
+                                </label>
+
+                                {image && (
+                                    <div className="space-y-4">
+                                        {/* Page Settings Container */}
+                                        <div className="bg-stone-800 p-4 rounded-xl border-2 border-amber-900/50 flex flex-col gap-4">
+
+                                            {/* Orientation Toggle */}
+                                            <div className="flex gap-2">
+                                                <button
+                                                    onClick={() => setOrientation('portrait')}
+                                                    className={`flex-1 py-2 px-3 rounded-lg border-2 font-bold flex items-center justify-center gap-2 transition-all ${orientation === 'portrait' ? 'bg-blue text-white border-amber-900/50 shadow-neo' : 'bg-stone-900 text-slate-500 border-slate-300'}`}
+                                                >
+                                                    <Icon name="File" size={20} /> Portrait
+                                                </button>
+                                                <button
+                                                    onClick={() => setOrientation('landscape')}
+                                                    className={`flex-1 py-2 px-3 rounded-lg border-2 font-bold flex items-center justify-center gap-2 transition-all ${orientation === 'landscape' ? 'bg-blue text-white border-amber-900/50 shadow-neo' : 'bg-stone-900 text-slate-500 border-slate-300'}`}
+                                                >
+                                                    <Icon name="File" className="rotate-90" size={20} /> Landscape
+                                                </button>
+                                            </div>
+
+                                            <div className="h-px border-amber-900/50 text-amber-500"></div>
+
+                                            {/* Page Width Stepper */}
+                                            <div>
+                                                <label className="font-bold text-stone-300 block mb-2 text-sm uppercase tracking-wider">Map Width (Pages)</label>
+                                                <div className="flex items-center gap-3">
+                                                    <Button
+                                                        onClick={() => setScaleX(curr => Math.max(1, curr - 1))}
+                                                        color="white"
+                                                        className="!w-12 !h-12 !p-0 !rounded-lg"
+                                                        disabled={scaleX <= 1}
+                                                    >
+                                                        <Icon name="Minus" size={20} />
+                                                    </Button>
+
+                                                    <div className="flex-1 bg-stone-900 border-2 border-slate-300 rounded-lg h-12 flex items-center justify-center shadow-inner">
+                                                        <span className="font-heading font-bold text-2xl text-stone-300">{scaleX}</span>
+                                                        <span className="ml-2 text-stone-500 font-bold text-sm">PAGES WIDE</span>
+                                                    </div>
+
+                                                    <Button
+                                                        onClick={() => setScaleX(curr => Math.min(8, curr + 1))}
+                                                        color="white"
+                                                        className="!w-12 !h-12 !p-0 !rounded-lg"
+                                                        disabled={scaleX >= 8}
+                                                    >
+                                                        <Icon name="Plus" size={20} />
+                                                    </Button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </Card>
+
+                        <Card title="Instructions" color="dark">
+                            <ul className="list-disc list-inside space-y-3 text-stone-400 font-medium">
+                                <li><strong>Orientation:</strong> If you choose Landscape here, change your Printer Layout to Landscape too.</li>
+                                <li><strong>Scaling:</strong> Increase "Map Width" to split the image across more pieces of paper (zooms in).</li>
+                                <li><strong>Grid:</strong> The overlay grid is exactly <strong>23mm</strong> (Rp 100 Coin size).</li>
+                                <li><strong>Printing:</strong> Set Margins to "None" or "Minimum" for best fit.</li>
+                            </ul>
+
+                            {image && !processing && (
+                                <div className="mt-6 p-4 bg-green-100 border-2 border-green-400 text-green-800 rounded-xl">
+                                    <p className="font-bold flex items-center gap-2">
+                                        <Icon name="CheckCircle" size={20} />
+                                        Ready to Print!
+                                    </p>
+                                    <p className="text-sm mt-1">
+                                        Total: <strong>{slices.length} sheets</strong> of paper required.
+                                        <br />
+                                        (Layout: {scaleX} x {calculatedDimensions.rows})
+                                    </p>
+                                </div>
+                            )}
+                        </Card>
+                    </div>
+
+                    {/* Preview Area */}
+                    {processing && <div className="text-center font-bold text-xl text-blue animate-pulse py-12">Processing Map Slices...</div>}
+
+                    {!processing && slices.length > 0 && (
+                        <div className="flex flex-col items-center gap-8 bg-stone-900 p-8 rounded-2xl border-4 border-slate-300 border-dashed">
+                            <div className="no-print w-full flex justify-between items-center mb-4">
+                                <h3 className="text-2xl font-heading font-bold">Preview ({slices.length} Pages)</h3>
+                                <Button onClick={() => window.print()} color="green" iconName="Printer">Print Map</Button>
+                            </div>
+
+                            {/* Render Pages */}
+                            {slices.map((slice, idx) => (
+                                <div key={idx} className="print-page-wrapper relative group">
+                                    {/* Screen Preview Label */}
+                                    <div className="absolute -left-12 top-0 font-bold text-stone-500 no-print group-hover:text-blue transition-colors">P{idx + 1}</div>
+
+                                    {/* The page-preview class handles the visual border/shadow on screen */}
+                                    {/* The style block strictly sets mm dimensions for 1:1 screen preview */}
+                                    <div
+                                        className="page-preview bg-white flex items-center justify-center page-break"
+                                        style={{
+                                            width: `${calculatedDimensions.widthMm}mm`,
+                                            height: `${calculatedDimensions.heightMm}mm`
+                                        }}
+                                    >
+                                        <img src={slice} style={{
+                                            width: '100%',
+                                            height: '100%'
+                                        }} alt={`Map Slice ${idx}`} />
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
+        // --- Token Tool ---
+
+        const TokenTool = () => {
+            const [tokens, setTokens] = useState([]);
+
+            const addToken = (e) => {
+                const files = Array.from(e.target.files);
+                const newTokens = files.map(file => ({
+                    id: Math.random().toString(36).substr(2, 9),
+                    src: URL.createObjectURL(file),
+                    size: 'small' // 'small' (Rp100) or 'large' (Rp500)
+                }));
+                setTokens(prev => [...prev, ...newTokens]);
+            };
+
+            const toggleSize = (id) => {
+                setTokens(prev => prev.map(t =>
+                    t.id === id ? { ...t, size: t.size === 'small' ? 'large' : 'small' } : t
+                ));
+            };
+
+            return (
+                <div className="space-y-6">
+                    <div className="no-print grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <Card title="Add Tokens" color="dark">
+                            <label className="flex flex-col items-center justify-center w-full h-32 border-4 border-dashed border-amber-900/50 rounded-xl cursor-pointer bg-stone-800 hover:bg-stone-700 transition">
+                                <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                                    <Icon name="Circle" className="w-8 h-8 text-amber-500 mb-2" />
+                                    <p className="text-sm text-amber-600 font-bold">Upload Character Images</p>
+                                </div>
+                                <input type="file" multiple className="hidden" accept="image/*" onChange={addToken} />
+                            </label>
+                        </Card>
+
+                        <Card title="Token Settings" color="dark">
+                            <div className="space-y-2 text-stone-400 font-medium">
+                                <div className="flex items-center gap-2">
+                                    <div className="w-6 h-6 rounded-full bg-pink border-2 border-amber-900/50"></div>
+                                    <span>Small = Rp 100 Coin (23mm)</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <div className="w-8 h-8 rounded-full bg-blue border-2 border-amber-900/50"></div>
+                                    <span>Large = Rp 500 Coin (27mm)</span>
+                                </div>
+                                <p className="text-sm mt-2">Click a token in the preview to toggle size.</p>
+                            </div>
+                        </Card>
+                    </div>
+
+                    {tokens.length > 0 && (
+                        <div className="flex flex-col items-center bg-stone-900 p-8 rounded-2xl border-4 border-slate-300 border-dashed">
+                            <div className="no-print w-full flex justify-between items-center mb-4">
+                                <h3 className="text-2xl font-heading font-bold">Token Sheet Preview</h3>
+                                <div className="flex gap-2">
+                                    <Button onClick={() => {
+                            tokens.forEach(t => { if (t.src.startsWith('blob:')) URL.revokeObjectURL(t.src); });
+                            setTokens([]);
+                        }} color="white" className="!px-3 !py-2"><Icon name="Trash2" size={20} /></Button>
+                                    <Button onClick={() => window.print()} color="green" iconName="Printer">Print Tokens</Button>
+                                </div>
+                            </div>
+
+                            {/* A4 Sheet for Tokens - Always Portrait for tokens to keep it simple */}
+                            <div className="page-preview bg-white flex flex-wrap content-start gap-[2mm] page-break"
+                                style={{ width: '210mm', height: '297mm', padding: '10mm' }}>
+                                {tokens.map(token => {
+                                    const sizeMm = token.size === 'small' ? SIZE_RP100 : SIZE_RP500;
+                                    const ringColor = token.size === 'small' ? '#FF6B95' : '#2979FF';
+
+                                    return (
+                                        <div
+                                            key={token.id}
+                                            onClick={() => toggleSize(token.id)}
+                                            className="relative rounded-full overflow-hidden cursor-pointer hover:opacity-80 transition-opacity border-2 border-dashed border-gray-300"
+                                            style={{
+                                                width: `${sizeMm}mm`,
+                                                height: `${sizeMm}mm`,
+                                                backgroundImage: `url(${token.src})`,
+                                                backgroundSize: 'cover',
+                                                backgroundPosition: 'center',
+                                                boxShadow: `0 0 0 2px ${ringColor} inset` // Inner ring color
+                                            }}
+                                        >
+                                            <div className="absolute inset-0 rounded-full border border-black opacity-20"></div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
+        // --- Main App ---
+
+        const App = () => {
+            const [mode, setMode] = useState('map'); // 'map' or 'token'
+
+            return (
+                <div className="min-h-screen pb-20">
+                    {/* Header - Hidden on Print */}
+                    <header className="bg-stone-800 border-b border-amber-900/50 text-white p-4 border-b-4 border-slate-700 mb-8 no-print">
+                        <div className="container mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
+                            <div className="flex items-center gap-3">
+                                <a href="../index.html" className="text-stone-500 hover:text-white transition-colors mr-2 pt-1" title="Back to Home">
+                                    <Icon name="Home" size={28} />
+                                </a>
+                                <Icon name="Scissors" className="w-8 h-8 text-pink" />
+                                <h1 className="text-3xl font-heading font-bold tracking-wide">
+                                    Dungeon <span className="text-pink">Printer</span>
+                                </h1>
+                            </div>
+                            <div className="flex gap-4">
+                                <Button
+                                    onClick={() => setMode('map')}
+                                    color={mode === 'map' ? 'blue' : 'dark'}
+                                    className={mode === 'map' ? '' : 'opacity-50 hover:opacity-100'}
+                                    iconName="Map"
+                                >
+                                    Map Maker
+                                </Button>
+                                <Button
+                                    onClick={() => setMode('token')}
+                                    color={mode === 'token' ? 'pink' : 'dark'}
+                                    className={mode === 'token' ? '' : 'opacity-50 hover:opacity-100'}
+                                    iconName="Circle"
+                                >
+                                    Token Maker
+                                </Button>
+                            </div>
+                        </div>
+                    </header>
+
+                    <main className="container mx-auto px-4">
+                        <div className="max-w-4xl mx-auto">
+                            {mode === 'map' ? <MapPrinter /> : <TokenTool />}
+                        </div>
+                    </main>
+
+                    {/* Footer / Instructions */}
+                    <footer className="no-print text-center mt-12 text-stone-500 text-sm">
+                        <p>Built for Fahrul in Batam • Fits Rp 100 & Rp 500 Coins</p>
+                    </footer>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+
+</html>

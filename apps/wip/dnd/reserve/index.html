@@ -1,0 +1,755 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Character Roster - English 1 Batam Style</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600&family=Nunito:wght@400;600;700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        pink: '#FF6B95',
+                        orange: '#FF8C42',
+                        green: '#00E676',
+                        blue: '#2979FF',
+                        dark: '#1e293b',
+                        chalk: '#f8fafc',
+                        purple: '#9333ea',
+                    },
+                    fontFamily: {
+                        fredoka: ['Fredoka', 'sans-serif'],
+                        nunito: ['Nunito', 'sans-serif'],
+                    },
+                    boxShadow: {
+                        'hard': '4px 4px 0px 0px rgba(30, 41, 59, 1)',
+                        'hard-hover': '2px 2px 0px 0px rgba(30, 41, 59, 1)',
+                        'hard-sm': '2px 2px 0px 0px rgba(30, 41, 59, 1)',
+                    },
+                    borderWidth: {
+                        '3': '3px',
+                        '4': '4px',
+                    },
+                    screens: {
+                        'ipad': '820px', // Custom breakpoint for iPad Landscape transitions
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* Base Setup */
+        body {
+            background-color: #f8fafc;
+            background-image: 
+                linear-gradient(rgba(30, 41, 59, 0.05) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(30, 41, 59, 0.05) 1px, transparent 1px);
+            background-size: 24px 24px;
+            overscroll-behavior-y: none; /* Prevent bounce effect on iPad */
+        }
+        
+        /* Card Flip Mechanics */
+        .card-flip-container { perspective: 1000px; }
+        .card-inner { position: relative; width: 100%; height: 100%; transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1); transform-style: preserve-3d; }
+        .card-flip-container.flipped .card-inner { transform: rotateY(180deg); }
+        .card-front, .card-back { position: absolute; width: 100%; height: 100%; -webkit-backface-visibility: hidden; backface-visibility: hidden; }
+        .card-back { transform: rotateY(180deg); }
+
+        /* Typography Helpers */
+        .stat-label { font-size: 0.6rem; text-transform: uppercase; color: #64748b; font-weight: 800; letter-spacing: 0.05em; }
+        .stat-val { font-size: 1.35rem; font-weight: 900; color: #1e293b; display: flex; flex-direction: column; line-height: 0.9; align-items: center; }
+        .stat-mod { font-size: 0.75rem; color: #94a3b8; font-weight: 700; margin-top: 2px; }
+        
+        /* Edit Controls: Visible on hover OR on touch devices */
+        .edit-controls { 
+            position: absolute; top: 12px; right: 12px; z-index: 50; display: flex; gap: 8px; 
+            opacity: 0; transition: opacity 0.2s; pointer-events: none; 
+        }
+        .card-flip-container:hover .edit-controls { opacity: 1; pointer-events: auto; }
+        @media (hover: none) {
+            .edit-controls { opacity: 1; pointer-events: auto; } /* Always show on touch */
+        }
+        
+        .modal-backdrop { background-color: rgba(15, 23, 42, 0.9); backdrop-filter: blur(8px); }
+        .char-avatar { width: 100%; height: 100%; object-fit: cover; }
+        
+        /* Bubbles & Bars */
+        .res-bubble { width: 28px; height: 28px; border: 2px solid #1e293b; border-radius: 50%; cursor: pointer; transition: transform 0.1s; }
+        .res-bubble:active { transform: scale(0.9); }
+        
+        .hp-bar-bg { background-color: #e2e8f0; border: 2px solid #1e293b; height: 18px; border-radius: 999px; overflow: hidden; position: relative; }
+        .hp-bar-fill { height: 100%; transition: width 0.3s ease, background-color 0.3s ease; }
+
+        /* Scrollbars & Print */
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 99px; }
+        
+        @media print {
+            @page { size: A4 portrait; margin: 0.5cm; }
+            body { background: white !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; padding: 0 !important; }
+            .no-print, .edit-controls, #modal-overlay, #full-view-overlay { display: none !important; }
+            #roster-grid { display: block !important; }
+            .card-flip-container { height: auto !important; margin-bottom: 2cm !important; break-inside: avoid; }
+            .card-inner { transform: none !important; display: flex !important; flex-direction: column !important; gap: 1cm; height: auto !important; }
+            .card-front, .card-back { position: relative !important; transform: none !important; height: 350px !important; border: 2px solid #000 !important; }
+        }
+    </style>
+</head>
+<body class="p-4 md:p-6 lg:p-8 font-nunito text-dark min-h-screen flex flex-col">
+
+    <!-- Header -->
+    <div class="sticky top-4 z-40 max-w-7xl mx-auto w-full mb-6 no-print">
+        <div class="bg-white/90 backdrop-blur-md border-3 border-dark shadow-hard rounded-2xl p-3 md:p-4 flex flex-col md:flex-row justify-between items-center gap-3">
+            <h1 class="font-fredoka text-2xl md:text-3xl font-bold flex items-center gap-2 text-dark">
+                <div class="bg-blue text-white p-1.5 rounded-lg border-2 border-dark shadow-sm">
+                    <i data-lucide="shield" class="w-6 h-6"></i>
+                </div>
+                Tabletop Roster
+            </h1>
+            
+            <div class="flex flex-wrap gap-2 justify-center w-full md:w-auto">
+                <input type="file" id="import-file" accept=".json" class="hidden" onchange="importData(this)">
+                
+                <div class="flex gap-2 mr-2">
+                    <button onclick="document.getElementById('import-file').click()" class="bg-chalk hover:bg-slate-100 text-slate-700 font-bold py-2 px-3 text-sm rounded-xl border-2 border-dark shadow-sm active:translate-y-0.5 active:shadow-none transition-all flex items-center gap-2">
+                        <i data-lucide="upload" class="w-4 h-4"></i> Import
+                    </button>
+                    <button onclick="exportData()" class="bg-chalk hover:bg-slate-100 text-slate-700 font-bold py-2 px-3 text-sm rounded-xl border-2 border-dark shadow-sm active:translate-y-0.5 active:shadow-none transition-all flex items-center gap-2">
+                        <i data-lucide="download" class="w-4 h-4"></i> Export
+                    </button>
+                </div>
+
+                <button onclick="openModal()" class="flex-grow md:flex-grow-0 bg-green hover:bg-green-500 text-white font-fredoka font-bold py-2 px-5 rounded-xl border-3 border-dark shadow-hard active:translate-y-0.5 active:shadow-none transition-all flex items-center justify-center gap-2">
+                    <i data-lucide="plus" class="w-5 h-5"></i> <span class="hidden sm:inline">Add New</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Grid: Responsive Breakdown (1 col mobile, 2 col iPad Portrait, 3 col iPad Landscape) -->
+    <div id="roster-grid" class="max-w-7xl mx-auto w-full grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8 flex-grow pb-20">
+        <!-- JS populates this -->
+    </div>
+    
+    <!-- Empty State -->
+    <div id="empty-state" class="hidden col-span-full flex flex-col items-center justify-center text-center py-20 opacity-60">
+        <div class="bg-white p-6 rounded-full border-4 border-dashed border-slate-300 mb-4">
+            <i data-lucide="ghost" class="w-16 h-16 text-slate-300"></i>
+        </div>
+        <h2 class="font-fredoka text-2xl font-bold text-slate-500">No Adventurers Found</h2>
+        <p class="text-slate-400 mt-2">Tap "Add New" to begin your journey.</p>
+    </div>
+
+    <!-- EDIT MODAL -->
+    <div id="modal-overlay" class="fixed inset-0 modal-backdrop hidden z-50 flex items-end md:items-center justify-center p-0 md:p-4">
+        <div class="bg-white border-t-4 md:border-4 border-dark rounded-t-3xl md:rounded-3xl shadow-2xl w-full max-w-3xl h-[90vh] md:max-h-[85vh] flex flex-col animate-in slide-in-from-bottom-10 fade-in duration-300">
+            <!-- Modal Header -->
+            <div class="bg-dark p-4 rounded-t-2xl md:rounded-t-2xl flex justify-between items-center flex-shrink-0">
+                <h2 id="modal-title" class="text-white font-fredoka text-xl md:text-2xl font-bold flex items-center gap-2">
+                    <i data-lucide="edit-3"></i> Edit Character
+                </h2>
+                <button onclick="closeModal()" class="text-slate-400 hover:text-white transition-colors bg-white/10 p-1 rounded-full"><i data-lucide="x" class="w-6 h-6"></i></button>
+            </div>
+            
+            <form id="char-form" onsubmit="saveCharacter(event)" class="p-6 space-y-6 overflow-y-auto custom-scrollbar flex-grow bg-slate-50/50">
+                <input type="hidden" id="char-id">
+                
+                <div class="bg-white p-4 rounded-xl border-2 border-slate-200 shadow-sm space-y-4">
+                    <h3 class="font-bold text-slate-400 text-xs uppercase tracking-wider flex items-center gap-2"><i data-lucide="user" class="w-4 h-4"></i> Identity</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="font-bold text-sm block mb-1">Name</label>
+                            <input type="text" id="input-name" required class="w-full border-2 border-dark rounded-xl p-3 focus:ring-4 focus:ring-blue/20 focus:border-blue outline-none transition-all font-bold text-lg">
+                        </div>
+                        <div>
+                            <label class="font-bold text-sm block mb-1">Class / Subclass</label>
+                            <input type="text" id="input-subclass" required class="w-full border-2 border-dark rounded-xl p-3 focus:ring-4 focus:ring-blue/20 outline-none transition-all">
+                        </div>
+                    </div>
+                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                             <label class="font-bold text-sm block mb-1">Theme Color</label>
+                            <select id="input-color" class="w-full border-2 border-dark rounded-xl p-3 bg-white appearance-none font-medium">
+                                <option value="orange">Orange (Strength)</option>
+                                <option value="green">Green (Nature)</option>
+                                <option value="blue">Blue (Order)</option>
+                                <option value="pink">Pink (Charisma)</option>
+                                <option value="dark">Dark (Shadow)</option>
+                                <option value="purple">Purple (Arcane)</option>
+                            </select>
+                        </div>
+                        <div>
+                             <label class="font-bold text-sm block mb-1">Avatar</label>
+                             <div class="flex gap-2">
+                                 <label class="cursor-pointer bg-slate-100 hover:bg-slate-200 text-dark font-bold py-3 px-4 rounded-xl border-2 border-dark flex-grow text-center transition-colors flex items-center justify-center gap-2">
+                                     <i data-lucide="image-plus" class="w-4 h-4"></i> Upload
+                                     <input type="file" id="input-image-file" accept="image/*" class="hidden" onchange="previewImage(this)">
+                                 </label>
+                                 <button type="button" onclick="clearImage()" class="bg-white border-2 border-dark rounded-xl px-4 hover:bg-red-50 text-red-500" title="Remove"><i data-lucide="trash-2" class="w-5 h-5"></i></button>
+                             </div>
+                             <input type="hidden" id="input-image-base64">
+                        </div>
+                    </div>
+                    <div id="image-preview-container" class="hidden flex justify-center p-4 bg-slate-100 rounded-xl border-2 border-dashed border-slate-300">
+                        <img id="image-preview" src="" class="h-32 w-32 object-cover rounded-full border-4 border-dark shadow-sm">
+                    </div>
+                </div>
+
+                <div class="bg-white p-4 rounded-xl border-2 border-slate-200 shadow-sm space-y-4">
+                    <h3 class="font-bold text-slate-400 text-xs uppercase tracking-wider flex items-center gap-2"><i data-lucide="swords" class="w-4 h-4"></i> Combat Stats</h3>
+                    <div class="grid grid-cols-3 gap-4">
+                        <div><label class="font-bold text-xs text-slate-500 uppercase block mb-1">Level</label><input type="number" id="input-level" value="3" class="w-full border-2 border-dark rounded-xl p-2 font-black text-center text-xl"></div>
+                        <div><label class="font-bold text-xs text-slate-500 uppercase block mb-1">Max HP</label><input type="number" id="input-hp" class="w-full border-2 border-dark rounded-xl p-2 font-black text-center text-xl text-red-500"></div>
+                        <div><label class="font-bold text-xs text-slate-500 uppercase block mb-1">AC</label><input type="number" id="input-ac" class="w-full border-2 border-dark rounded-xl p-2 font-black text-center text-xl text-blue-500"></div>
+                    </div>
+                    
+                    <div class="bg-slate-50 p-3 rounded-xl border-2 border-slate-200">
+                        <div class="grid grid-cols-6 gap-2">
+                            <div><label class="text-[0.6rem] font-black text-slate-400 text-center block uppercase mb-1">str</label><input type="number" id="stat-str" class="w-full border-2 border-slate-300 focus:border-dark rounded-lg p-1 text-center font-bold"></div>
+                            <div><label class="text-[0.6rem] font-black text-slate-400 text-center block uppercase mb-1">dex</label><input type="number" id="stat-dex" class="w-full border-2 border-slate-300 focus:border-dark rounded-lg p-1 text-center font-bold"></div>
+                            <div><label class="text-[0.6rem] font-black text-slate-400 text-center block uppercase mb-1">con</label><input type="number" id="stat-con" class="w-full border-2 border-slate-300 focus:border-dark rounded-lg p-1 text-center font-bold"></div>
+                            <div><label class="text-[0.6rem] font-black text-slate-400 text-center block uppercase mb-1">int</label><input type="number" id="stat-int" class="w-full border-2 border-slate-300 focus:border-dark rounded-lg p-1 text-center font-bold"></div>
+                            <div><label class="text-[0.6rem] font-black text-slate-400 text-center block uppercase mb-1">wis</label><input type="number" id="stat-wis" class="w-full border-2 border-slate-300 focus:border-dark rounded-lg p-1 text-center font-bold"></div>
+                            <div><label class="text-[0.6rem] font-black text-slate-400 text-center block uppercase mb-1">cha</label><input type="number" id="stat-cha" class="w-full border-2 border-slate-300 focus:border-dark rounded-lg p-1 text-center font-bold"></div>
+                        </div>
+                    </div>
+                    
+                     <div>
+                         <label class="font-bold text-sm flex items-center gap-2 text-blue-600 mb-2"><i data-lucide="list-checks" class="w-4 h-4"></i> Resources (Name : Max)</label>
+                         <textarea id="input-resources" rows="3" placeholder="Action Surge: 1&#10;1st Level Slots: 4" class="w-full border-2 border-blue-200 bg-blue-50 rounded-xl p-3 font-mono text-sm focus:border-blue-500 outline-none"></textarea>
+                    </div>
+                </div>
+
+                <div class="bg-white p-4 rounded-xl border-2 border-slate-200 shadow-sm space-y-4">
+                    <h3 class="font-bold text-slate-400 text-xs uppercase tracking-wider flex items-center gap-2"><i data-lucide="book-open" class="w-4 h-4"></i> Details</h3>
+                     <div>
+                        <label class="font-bold text-sm flex items-center gap-2 mb-1">Class Features</label>
+                        <input type="text" id="input-features" placeholder="Action Surge, Wild Shape..." class="w-full border-2 border-dark rounded-xl p-3">
+                    </div>
+                     <div>
+                        <label class="font-bold text-sm flex items-center gap-2 mb-1">
+                            Spells / Attacks <span class="text-xs font-normal text-slate-400 ml-auto bg-slate-100 px-2 rounded">Supports **bold**</span>
+                        </label>
+                        <textarea id="input-spells" rows="5" placeholder="**Fireball**: 8d6 Fire Damage..." class="w-full border-2 border-dark rounded-xl p-3 font-mono text-sm"></textarea>
+                    </div>
+                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="font-bold text-sm block mb-1">Quote</label>
+                            <textarea id="input-quote" rows="3" class="w-full border-2 border-dark rounded-xl p-3"></textarea>
+                        </div>
+                        <div>
+                            <label class="font-bold text-sm block mb-1">Inventory</label>
+                            <textarea id="input-gear" rows="3" class="w-full border-2 border-dark rounded-xl p-3"></textarea>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex justify-end gap-3 pt-4 border-t-2 border-slate-200 sticky bottom-0 bg-white/95 backdrop-blur z-10 pb-2">
+                    <button type="button" onclick="closeModal()" class="px-6 py-3 font-bold text-slate-500 hover:bg-slate-100 rounded-xl transition-colors">Cancel</button>
+                    <button type="submit" class="bg-blue hover:bg-blue-600 text-white font-fredoka font-bold py-3 px-8 rounded-xl border-3 border-dark shadow-hard active:translate-y-0.5 active:shadow-none transition-all">Save</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- PLAY MODE DOSSIER -->
+    <div id="full-view-overlay" class="fixed inset-0 modal-backdrop hidden z-[60] flex items-center justify-center p-0 md:p-6 lg:p-10 animate-in zoom-in-95 duration-200">
+        <div id="full-view-content" class="bg-white border-none md:border-4 border-dark rounded-none md:rounded-3xl shadow-2xl w-full max-w-6xl h-full flex flex-col overflow-hidden relative">
+            
+            <button onclick="closeFullView()" class="absolute top-4 right-4 z-50 bg-red-500 hover:bg-red-600 text-white border-3 border-dark rounded-full p-2 shadow-sm transition-transform hover:rotate-90">
+                <i data-lucide="x" class="w-8 h-8 md:w-6 md:h-6"></i>
+            </button>
+
+            <!-- JS injects layout here -->
+            <div id="dossier-container" class="flex flex-col md:flex-row h-full overflow-hidden"></div>
+        </div>
+    </div>
+
+    <script>
+        // --- INDEXED DB ---
+        const DB_NAME = "DnDRosterDB";
+        const STORE_NAME = "characters";
+        let db;
+
+        async function initDB() {
+            return new Promise((resolve, reject) => {
+                const request = indexedDB.open(DB_NAME, 1);
+                request.onupgradeneeded = (e) => {
+                    const db = e.target.result;
+                    if (!db.objectStoreNames.contains(STORE_NAME)) db.createObjectStore(STORE_NAME, { keyPath: "id" });
+                };
+                request.onsuccess = (e) => { db = e.target.result; resolve(); };
+                request.onerror = (e) => reject(e.target.error);
+            });
+        }
+        async function getAllCharacters() {
+            return new Promise((resolve) => {
+                const tx = db.transaction(STORE_NAME, "readonly");
+                tx.objectStore(STORE_NAME).getAll().onsuccess = (e) => resolve(e.target.result);
+            });
+        }
+        async function dbSaveCharacter(char) {
+            return new Promise((resolve) => {
+                const tx = db.transaction(STORE_NAME, "readwrite");
+                tx.objectStore(STORE_NAME).put(char).onsuccess = () => resolve();
+            });
+        }
+        async function dbDeleteCharacter(id) {
+            return new Promise((resolve) => {
+                const tx = db.transaction(STORE_NAME, "readwrite");
+                tx.objectStore(STORE_NAME).delete(id).onsuccess = () => resolve();
+            });
+        }
+
+        // --- DATA ---
+        let characters = [];
+        const defaultCharacters = [
+            { id: 1, name: "Xylem", subclass: "Eldritch Knight", level: 3, hp: 28, currentHp: 28, ac: 16, color: "orange", icon: "sword", stats: { str: 18, dex: 10, con: 14, int: 16, wis: 10, cha: 8 }, features: "Great Weapon Fighting, Action Surge, Weapon Bond", resources: [{label: "Action Surge", max: 1, used: 0}, {label: "1st Level Slots", max: 2, used: 0}], quote: "Raised by a pastor, but the sword called louder than the sermon.", gear: "Chain Mail\nHandaxe x2\nScholars Pack", spells: "**Greatsword**: +6 to hit, 2d6+4 Slashing.\n\n**Magic Missile** (1st): Creates 3 darts. 1d4+1 force damage each. Auto-hit.\n\n**Shield** (Reaction): +5 AC until start of next turn.", image: null },
+            { id: 2, name: "Fumiko", subclass: "Spore Druid", level: 3, hp: 24, currentHp: 24, ac: 13, color: "green", icon: "sprout", stats: { str: 8, dex: 12, con: 14, int: 10, wis: 16, cha: 14 }, features: "Halo of Spores, Symbiotic Entity, Wild Shape", resources: [{label: "Wild Shape", max: 2, used: 0}, {label: "1st Level Slots", max: 4, used: 0}], quote: "From Mushroom Town. Her hat is a living colony.", gear: "Leather Armor\nWooden Shield", spells: "**Shillelagh**: 1d8+3 dmg.\n**Halo of Spores**: 1d4 Necrotic.", image: null },
+            { id: 3, name: "Lyesha", subclass: "Star Druid", level: 3, hp: 21, currentHp: 21, ac: 15, color: "blue", icon: "star", stats: { str: 8, dex: 14, con: 12, int: 10, wis: 18, cha: 12 }, features: "Starry Form, Star Map", resources: [{label: "Wild Shape", max: 2, used: 0}, {label: "Guiding Bolt", max: 3, used: 0}], quote: "Wields a blade reflecting the cosmos.", gear: "Leather Armor\nShield", spells: "**Star-Blade**: 1d6+2 Slashing.\n**Guiding Bolt**: 4d6 Radiant.", image: null },
+            { id: 4, name: "Merlin", subclass: "Necromancer", level: 3, hp: 20, currentHp: 20, ac: 11, color: "dark", icon: "scroll", stats: { str: 8, dex: 12, con: 14, int: 20, wis: 12, cha: 10 }, features: "Grim Harvest, Arcane Recovery", resources: [{label: "Arcane Recovery", max: 1, used: 0}, {label: "1st Level Slots", max: 4, used: 0}], quote: "700 year old member of the Seven Deadly Sins.", gear: "Dagger\nRobes", spells: "**Ray of Sickness**: 2d8 Poison.\n**Toll the Dead**: 1d8/1d12 Necrotic.", image: null },
+            { id: 5, name: "Bob", subclass: "Phantom Rogue", level: 3, hp: 27, currentHp: 27, ac: 16, color: "pink", icon: "ghost", stats: { str: 10, dex: 18, con: 16, int: 10, wis: 12, cha: 10 }, features: "Sneak Attack, Cunning Action", resources: [{label: "Wails", max: 3, used: 0}], quote: "Came back wrong.", gear: "Studded Leather", spells: "**Shortsword**: 1d6+4.\n**Sneak Attack**: 2d6.", image: null },
+            { id: 6, name: "Lovelda", subclass: "Shadow Sorc", level: 3, hp: 20, currentHp: 20, ac: 12, color: "purple", icon: "flame", stats: { str: 8, dex: 14, con: 14, int: 10, wis: 10, cha: 18 }, features: "Darkvision, Strength of Grave", resources: [{label: "Sorcery Pts", max: 3, used: 0}], quote: "Embraced the darkness.", gear: "Focus", spells: "**Fire Bolt**: 1d10 Fire.\n**Darkness**: 15ft radius.", image: null },
+            { id: 7, name: "Riff", subclass: "Spirit Bard", level: 3, hp: 24, currentHp: 24, ac: 14, color: "pink", icon: "music", stats: { str: 8, dex: 16, con: 14, int: 10, wis: 12, cha: 18 }, features: "Bardic Insp, Guiding Whispers", resources: [{label: "Bardic Insp", max: 4, used: 0}], quote: "Ribcage xylophone.", gear: "Rapier", spells: "**Rapier**: 1d8+3.\n**Dissonant Whispers**: 3d6 Psychic.", image: null }
+        ];
+
+        // --- STATE ---
+        let currentImageBase64 = null;
+
+        // --- HELPERS ---
+        function getTheme(color) {
+            const themes = {
+                orange: { header: 'bg-orange', sub: 'text-orange-100', text: 'text-orange-600', fill: 'bg-orange', border: 'border-orange' },
+                green: { header: 'bg-green', sub: 'text-green-100', text: 'text-green-600', fill: 'bg-green', border: 'border-green' },
+                blue: { header: 'bg-blue', sub: 'text-blue-100', text: 'text-blue-600', fill: 'bg-blue', border: 'border-blue' },
+                pink: { header: 'bg-pink', sub: 'text-pink-100', text: 'text-pink-600', fill: 'bg-pink', border: 'border-pink' },
+                dark: { header: 'bg-dark', sub: 'text-slate-300', text: 'text-slate-700', fill: 'bg-slate-600', border: 'border-dark' },
+                purple: { header: 'bg-purple', sub: 'text-slate-100', text: 'text-purple-600', fill: 'bg-purple', border: 'border-purple' },
+            };
+            return themes[color] || themes.orange;
+        }
+
+        function getMod(score) {
+            if (score === undefined || score === null || isNaN(score)) return '+0';
+            const mod = Math.floor((score - 10) / 2);
+            return mod >= 0 ? `+${mod}` : `${mod}`;
+        }
+
+        function formatText(text) {
+            if (!text) return "No details provided.";
+            return text.replace(/\*\*(.*?)\*\*/g, '<strong class="text-dark font-black">$1</strong>');
+        }
+
+        // --- RENDER ---
+        async function renderCards() {
+            characters = await getAllCharacters();
+            const grid = document.getElementById('roster-grid');
+            const emptyState = document.getElementById('empty-state');
+            grid.innerHTML = '';
+
+            if (characters.length === 0) {
+                emptyState.classList.remove('hidden');
+            } else {
+                emptyState.classList.add('hidden');
+            }
+
+            characters.forEach((char, index) => {
+                const t = getTheme(char.color);
+                const featuresList = char.features.split(',').slice(0, 3).map(f => `<li class="flex items-center gap-2 truncate"><i data-lucide="check-circle" class="w-3 h-3 ${t.text} flex-shrink-0"></i> ${f.trim()}</li>`).join('');
+                const avatarContent = char.image ? `<img src="${char.image}" class="char-avatar">` : `<i data-lucide="${char.icon || 'user'}" class="w-12 h-12 ${t.text}"></i>`;
+                const hpPercent = Math.min(100, Math.max(0, (char.currentHp / char.hp) * 100));
+                let barColor = "bg-green-500";
+                if(hpPercent < 50) barColor = "bg-yellow-400";
+                if(hpPercent < 20) barColor = "bg-red-500";
+
+                // Improved Button Tap Targets
+                const cardHTML = `
+                <div class="card-flip-container h-[580px]" onclick="handleCardClick(this, event)">
+                    <!-- iPad Optimized Controls: Flex row, larger spacing -->
+                    <div class="edit-controls no-print p-2 bg-white/90 rounded-xl border-2 border-dark shadow-sm backdrop-blur-sm">
+                         <button onclick="duplicateCharacter(${index}, event)" class="p-2 hover:bg-slate-100 rounded-lg transition-colors"><i data-lucide="copy" class="w-5 h-5 text-slate-600"></i></button>
+                         <button onclick="openFullView(${index})" class="p-2 bg-blue text-white rounded-lg hover:bg-blue-600 shadow-sm"><i data-lucide="play" class="w-5 h-5"></i></button>
+                        <button onclick="openModal(${index})" class="p-2 hover:bg-yellow-100 rounded-lg transition-colors"><i data-lucide="pencil" class="w-5 h-5 text-dark"></i></button>
+                        <button onclick="deleteCharacter(${index})" class="p-2 hover:bg-red-100 rounded-lg transition-colors"><i data-lucide="trash-2" class="w-5 h-5 text-red-500"></i></button>
+                    </div>
+
+                    <div class="card-inner">
+                        <!-- FRONT -->
+                        <div class="card-front bg-white border-3 border-dark rounded-3xl shadow-hard overflow-hidden flex flex-col">
+                            <div class="${t.header} p-4 border-b-3 border-dark flex justify-between items-center">
+                                <div class="overflow-hidden">
+                                    <h2 class="font-fredoka text-2xl text-white font-bold leading-none truncate pr-2 tracking-wide">${char.name}</h2>
+                                    <span class="text-xs font-bold ${t.sub} uppercase tracking-widest block mt-1">${char.subclass}</span>
+                                </div>
+                                <div class="flex gap-2 flex-shrink-0">
+                                    <div class="bg-white border-2 border-dark rounded-xl px-2 py-1 text-center min-w-[80px]">
+                                        <div class="text-[0.6rem] font-black text-slate-400 uppercase mb-0.5">HP</div>
+                                        <div class="flex items-center justify-between gap-1">
+                                             <button onclick="adjustHp(${index}, -1, event)" class="w-7 h-7 flex items-center justify-center bg-red-50 hover:bg-red-100 text-red-600 rounded-lg border border-red-200 active:scale-90 transition-transform"><i data-lucide="minus" class="w-3 h-3"></i></button>
+                                             <div class="font-black text-xl ${t.text}">${char.currentHp}</div>
+                                             <button onclick="adjustHp(${index}, 1, event)" class="w-7 h-7 flex items-center justify-center bg-green-50 hover:bg-green-100 text-green-600 rounded-lg border border-green-200 active:scale-90 transition-transform"><i data-lucide="plus" class="w-3 h-3"></i></button>
+                                        </div>
+                                    </div>
+                                    <div class="bg-white border-2 border-dark rounded-xl px-2 py-1 text-center min-w-[44px] flex flex-col justify-center">
+                                        <div class="text-[0.6rem] font-black text-slate-400 uppercase mb-0.5">AC</div>
+                                        <div class="font-black text-xl text-blue-600">${char.ac}</div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="p-5 flex-grow flex flex-col gap-4">
+                                <div class="text-center relative">
+                                    <div class="absolute top-0 right-0 bg-dark text-white text-xs font-bold px-3 py-1 rounded-lg shadow-sm">Lv. ${char.level}</div>
+                                    <div class="w-28 h-28 mx-auto bg-white rounded-full border-3 border-dark flex items-center justify-center overflow-hidden mb-3 shadow-md">
+                                        ${avatarContent}
+                                    </div>
+                                    <div class="hp-bar-bg w-3/4 mx-auto shadow-inner"><div class="hp-bar-fill ${barColor}" style="width: ${hpPercent}%"></div></div>
+                                </div>
+                                
+                                <div class="bg-slate-50 p-3 rounded-2xl border-2 border-slate-200">
+                                    <div class="grid grid-cols-6 gap-2">
+                                        ${Object.keys(char.stats).map(key => `
+                                            <div class="text-center">
+                                                <div class="stat-label">${key}</div>
+                                                <div class="stat-val">${char.stats[key]}</div> 
+                                                <div class="stat-mod">(${getMod(char.stats[key])})</div>
+                                            </div>`).join('')}
+                                    </div>
+                                </div>
+
+                                <div class="mt-auto">
+                                    <h3 class="font-fredoka font-bold border-b-2 border-slate-200 mb-2 text-sm text-slate-500 uppercase tracking-wider">Features</h3>
+                                    <ul class="text-sm space-y-1.5 text-slate-600 font-medium">${featuresList}</ul>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- BACK -->
+                        <div class="card-back bg-slate-50 border-3 border-dark rounded-3xl shadow-hard overflow-hidden flex flex-col p-6">
+                            <div class="flex justify-between items-center mb-6">
+                                <h2 class="font-fredoka text-xl font-bold flex items-center gap-2"><i data-lucide="book" class="w-5 h-5"></i> Backstory & Gear</h2>
+                                <button class="bg-white p-2 rounded-full border-2 border-slate-200 text-slate-400"><i data-lucide="rotate-cw" class="w-5 h-5"></i></button>
+                            </div>
+                            <div class="flex-grow space-y-6 text-sm overflow-y-auto custom-scrollbar">
+                                <div class="relative pl-4 border-l-4 ${t.border}">
+                                    <p class="italic text-slate-600 text-base leading-relaxed">"${char.quote}"</p>
+                                </div>
+                                <div class="bg-white border-2 border-slate-200 p-4 rounded-xl shadow-sm">
+                                    <h4 class="font-bold text-xs uppercase mb-2 text-slate-400 flex items-center gap-2"><i data-lucide="backpack" class="w-3 h-3"></i> Inventory</h4>
+                                    <p class="text-sm text-slate-700 whitespace-pre-wrap font-medium">${char.gear || "Empty"}</p>
+                                </div>
+                            </div>
+                            <div class="mt-auto pt-4 text-center">
+                                <div class="inline-flex items-center gap-2 px-4 py-2 bg-blue/10 text-blue-600 rounded-full text-xs font-bold">
+                                    <i data-lucide="play-circle" class="w-4 h-4"></i> Tap Blue Play Button for Combat
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>`;
+                grid.insertAdjacentHTML('beforeend', cardHTML);
+            });
+            lucide.createIcons();
+        }
+
+        // --- PLAY MODE DOSSIER ---
+        async function openFullView(index) {
+            if(window.event) window.event.stopPropagation();
+            const char = characters[index];
+            const t = getTheme(char.color);
+            const overlay = document.getElementById('full-view-overlay');
+            const container = document.getElementById('dossier-container');
+            
+            const hpPercent = (char.currentHp / char.hp) * 100;
+            const barColor = hpPercent < 20 ? "bg-red-500" : hpPercent < 50 ? "bg-yellow-400" : "bg-green-500";
+            
+            let resourcesHTML = "";
+            if (char.resources && char.resources.length > 0) {
+                resourcesHTML = char.resources.map((res, rIndex) => {
+                    let bubbles = "";
+                    for(let i=0; i < res.max; i++) {
+                        const isFilled = i < (res.max - res.used);
+                        const bgClass = isFilled ? t.fill : "bg-white";
+                        bubbles += `<div onclick="toggleResource(${index}, ${rIndex}, ${i})" class="res-bubble ${bgClass} shadow-sm border-2 border-dark"></div>`;
+                    }
+                    return `
+                    <div class="flex items-center justify-between bg-white p-3 rounded-xl border-2 border-slate-200 shadow-sm">
+                        <span class="font-bold text-sm text-slate-700 font-fredoka">${res.label}</span>
+                        <div class="flex gap-2">${bubbles}</div>
+                    </div>`;
+                }).join('');
+            } else {
+                resourcesHTML = `<p class="text-sm text-slate-400 italic text-center py-4 bg-slate-50 rounded-xl border-dashed border-2 border-slate-200">No resources tracked.</p>`;
+            }
+
+            container.innerHTML = `
+                <!-- Left Column (iPad: Top on Portrait, Left on Landscape) -->
+                <div class="w-full md:w-[40%] flex-shrink-0 bg-slate-900 flex flex-col justify-end p-6 relative overflow-hidden">
+                    <div class="absolute inset-0 opacity-40">
+                        ${char.image ? `<img src="${char.image}" class="w-full h-full object-cover">` : `<div class="${t.header} w-full h-full flex items-center justify-center"><i data-lucide="${char.icon || 'user'}" class="w-64 h-64 text-white opacity-20"></i></div>`}
+                    </div>
+                    <div class="absolute inset-0 bg-gradient-to-t from-slate-900 via-slate-900/60 to-transparent"></div>
+                    
+                    <div class="relative z-10 space-y-4">
+                        <div class="text-center md:text-left">
+                            <span class="${t.fill} text-white px-3 py-1 rounded-full border border-white/20 font-bold text-xs uppercase tracking-wider shadow-sm inline-block mb-2">Lv ${char.level} ${char.subclass}</span>
+                            <h1 class="font-fredoka text-4xl md:text-5xl text-white font-black drop-shadow-md">${char.name}</h1>
+                        </div>
+
+                        <div class="bg-white border-4 border-dark p-5 rounded-2xl shadow-hard">
+                            <div class="flex justify-between items-end mb-3">
+                                <span class="font-black text-xs uppercase text-slate-400 tracking-widest">Health Points</span>
+                                <span class="font-black text-2xl ${t.text}">${char.currentHp} <span class="text-base text-slate-400">/ ${char.hp}</span></span>
+                            </div>
+                            <div class="hp-bar-bg border-slate-300 h-6 mb-4 bg-slate-100 shadow-inner">
+                                <div class="hp-bar-fill ${barColor}" style="width: ${hpPercent}%"></div>
+                            </div>
+                            <div class="flex gap-3">
+                                 <button onclick="adjustHp(${index}, -1, null, true)" class="flex-grow h-12 bg-red-50 border-2 border-red-200 rounded-xl font-black text-red-600 text-xl shadow-sm hover:bg-red-100 active:translate-y-1 transition-all flex items-center justify-center gap-2"><i data-lucide="minus" class="w-6 h-6"></i></button>
+                                 <button onclick="adjustHp(${index}, 1, null, true)" class="flex-grow h-12 bg-green-50 border-2 border-green-200 rounded-xl font-black text-green-600 text-xl shadow-sm hover:bg-green-100 active:translate-y-1 transition-all flex items-center justify-center gap-2"><i data-lucide="plus" class="w-6 h-6"></i></button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right Column (Content) -->
+                <div class="flex-grow bg-white flex flex-col overflow-hidden">
+                    <!-- Stats Strip (Horizontal Scroll on Mobile) -->
+                    <div class="bg-slate-50 border-b-2 border-slate-200 p-4 md:px-8 flex items-center gap-3 overflow-x-auto no-scrollbar flex-shrink-0">
+                         ${Object.keys(char.stats).map(key => `
+                            <div class="bg-white border-2 border-slate-200 rounded-xl p-2 min-w-[70px] text-center shadow-sm">
+                                <div class="stat-label mb-1">${key}</div>
+                                <div class="text-xl font-black text-dark leading-none">${char.stats[key]}</div>
+                                <div class="text-[0.65rem] font-bold ${t.text} mt-1">${getMod(char.stats[key])}</div>
+                            </div>
+                        `).join('')}
+                    </div>
+
+                    <!-- Scrollable Content -->
+                    <div class="flex-grow overflow-y-auto p-6 md:p-8 custom-scrollbar">
+                        <div class="grid grid-cols-1 xl:grid-cols-2 gap-8">
+                             <!-- Resources & Features -->
+                             <div class="space-y-6">
+                                <div>
+                                    <h3 class="font-fredoka text-xl font-bold border-b-4 border-slate-100 mb-4 pb-2 text-dark flex items-center gap-2"><i data-lucide="layout-grid" class="w-5 h-5 text-slate-400"></i> Resources</h3>
+                                    <div class="space-y-3">${resourcesHTML}</div>
+                                    <button onclick="performLongRest(${index})" class="w-full mt-4 bg-slate-800 text-slate-200 font-bold py-4 rounded-xl border-2 border-slate-600 hover:bg-slate-700 active:translate-y-0.5 transition-all flex items-center justify-center gap-2 shadow-lg"><i data-lucide="moon" class="w-5 h-5"></i> Long Rest</button>
+                                </div>
+                                
+                                <div>
+                                     <h3 class="font-fredoka text-xl font-bold border-b-4 border-slate-100 mb-4 pb-2 text-dark flex items-center gap-2"><i data-lucide="sparkles" class="w-5 h-5 text-slate-400"></i> Features</h3>
+                                     <div class="bg-slate-50 border-2 border-slate-100 rounded-2xl p-4">
+                                         <ul class="space-y-2 text-slate-700 font-medium">
+                                            ${char.features.split(',').map(f => `<li class="flex items-start gap-2"><i data-lucide="check" class="w-5 h-5 ${t.text} mt-0.5 flex-shrink-0"></i> ${f.trim()}</li>`).join('')}
+                                        </ul>
+                                     </div>
+                                </div>
+                            </div>
+
+                            <!-- Spells / Actions -->
+                            <div>
+                                <h3 class="font-fredoka text-xl font-bold border-b-4 border-slate-100 mb-4 pb-2 text-dark flex items-center gap-2"><i data-lucide="sword" class="w-5 h-5 text-slate-400"></i> Combat Actions</h3>
+                                <div class="bg-white border-2 border-dark rounded-2xl p-5 shadow-sm text-lg leading-relaxed text-slate-700">
+                                    ${formatText(char.spells).replace(/\n/g, '<br>')}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>`;
+            overlay.classList.remove('hidden');
+            lucide.createIcons();
+        }
+
+        // --- ACTIONS ---
+        async function adjustHp(index, amount, event, isFullView = false) {
+            if(event) event.stopPropagation();
+            const char = characters[index];
+            char.currentHp = Math.min(char.hp, Math.max(0, char.currentHp + amount));
+            await dbSaveCharacter(char);
+            renderCards();
+            if(isFullView) openFullView(index);
+        }
+        
+        async function toggleResource(charIndex, resIndex, bubbleIndex) {
+            const char = characters[charIndex];
+            const res = char.resources[resIndex];
+            const currentFilled = res.max - res.used;
+            if (bubbleIndex < currentFilled) res.used++; else res.used--;
+            res.used = Math.max(0, Math.min(res.max, res.used));
+            await dbSaveCharacter(char);
+            openFullView(charIndex);
+        }
+
+        async function performLongRest(index) {
+            if(confirm("Long Rest: Reset HP and Resources?")) {
+                characters[index].currentHp = characters[index].hp;
+                characters[index].resources.forEach(r => r.used = 0);
+                await dbSaveCharacter(characters[index]);
+                renderCards();
+                openFullView(index);
+            }
+        }
+
+        async function saveCharacter(e) {
+            e.preventDefault();
+            const idVal = document.getElementById('char-id').value;
+            const isNew = idVal === "new";
+            const id = isNew ? Date.now() : parseInt(idVal);
+
+            const resText = document.getElementById('input-resources').value;
+            const resources = resText.split('\n').filter(l => l.includes(':')).map(line => {
+                const [label, max] = line.split(':');
+                return { label: label.trim(), max: parseInt(max), used: 0 };
+            });
+
+            const char = {
+                id,
+                name: document.getElementById('input-name').value,
+                subclass: document.getElementById('input-subclass').value,
+                level: parseInt(document.getElementById('input-level').value),
+                hp: parseInt(document.getElementById('input-hp').value),
+                currentHp: isNew ? parseInt(document.getElementById('input-hp').value) : Math.min(parseInt(document.getElementById('input-hp').value), (characters.find(c=>c.id === id)?.currentHp || parseInt(document.getElementById('input-hp').value))),
+                ac: parseInt(document.getElementById('input-ac').value),
+                color: document.getElementById('input-color').value,
+                stats: {
+                    str: parseInt(document.getElementById('stat-str').value),
+                    dex: parseInt(document.getElementById('stat-dex').value),
+                    con: parseInt(document.getElementById('stat-con').value),
+                    int: parseInt(document.getElementById('stat-int').value),
+                    wis: parseInt(document.getElementById('stat-wis').value),
+                    cha: parseInt(document.getElementById('stat-cha').value),
+                },
+                features: document.getElementById('input-features').value,
+                spells: document.getElementById('input-spells').value,
+                quote: document.getElementById('input-quote').value,
+                gear: document.getElementById('input-gear').value,
+                resources,
+                image: currentImageBase64
+            };
+
+            await dbSaveCharacter(char);
+            closeModal();
+            renderCards();
+        }
+
+        async function deleteCharacter(index) {
+            if (confirm("Delete this character?")) {
+                await dbDeleteCharacter(characters[index].id);
+                renderCards();
+            }
+        }
+
+        async function duplicateCharacter(index, event) {
+            event.stopPropagation();
+            const original = characters[index];
+            const copy = JSON.parse(JSON.stringify(original));
+            copy.id = Date.now();
+            copy.name += " (Copy)";
+            await dbSaveCharacter(copy);
+            renderCards();
+        }
+
+        // --- UTILS ---
+        function previewImage(input) {
+            if (input.files && input.files[0]) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const img = new Image();
+                    img.src = e.target.result;
+                    img.onload = () => {
+                        const canvas = document.createElement('canvas');
+                        const ctx = canvas.getContext('2d');
+                        const MAX = 400;
+                        let w = img.width, h = img.height;
+                        if (w > h) { if (w > MAX) { h *= MAX/w; w = MAX; } } 
+                        else { if (h > MAX) { w *= MAX/h; h = MAX; } }
+                        canvas.width = w; canvas.height = h;
+                        ctx.drawImage(img, 0, 0, w, h);
+                        currentImageBase64 = canvas.toDataURL('image/jpeg', 0.8);
+                        document.getElementById('image-preview').src = currentImageBase64;
+                        document.getElementById('image-preview-container').classList.remove('hidden');
+                    };
+                };
+                reader.readAsDataURL(input.files[0]);
+            }
+        }
+        function clearImage() { 
+            currentImageBase64 = null; 
+            document.getElementById('image-preview-container').classList.add('hidden'); 
+            document.getElementById('input-image-file').value = "";
+        }
+        function openModal(index = null) {
+            const overlay = document.getElementById('modal-overlay');
+            overlay.classList.remove('hidden');
+            if (index !== null) {
+                const char = characters[index];
+                document.getElementById('char-id').value = char.id;
+                document.getElementById('input-name').value = char.name;
+                document.getElementById('input-subclass').value = char.subclass;
+                document.getElementById('input-hp').value = char.hp;
+                document.getElementById('input-ac').value = char.ac;
+                document.getElementById('input-level').value = char.level;
+                document.getElementById('input-color').value = char.color;
+                ['str','dex','con','int','wis','cha'].forEach(s => document.getElementById(`stat-${s}`).value = char.stats[s]);
+                document.getElementById('input-features').value = char.features;
+                document.getElementById('input-spells').value = char.spells;
+                document.getElementById('input-quote').value = char.quote;
+                document.getElementById('input-gear').value = char.gear;
+                document.getElementById('input-resources').value = char.resources.map(r => `${r.label}:${r.max}`).join('\n');
+                currentImageBase64 = char.image;
+                if(char.image) {
+                    document.getElementById('image-preview').src = char.image;
+                    document.getElementById('image-preview-container').classList.remove('hidden');
+                } else clearImage();
+            } else {
+                document.getElementById('char-form').reset();
+                document.getElementById('char-id').value = "new";
+                clearImage();
+            }
+            lucide.createIcons();
+        }
+        function closeModal() { document.getElementById('modal-overlay').classList.add('hidden'); }
+        function closeFullView() { document.getElementById('full-view-overlay').classList.add('hidden'); }
+        function handleCardClick(card, event) { if (!event.target.closest('button')) card.classList.toggle('flipped'); }
+        async function exportData() {
+            const all = await getAllCharacters();
+            const blob = new Blob([JSON.stringify(all)], { type: "application/json" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url; a.download = "roster.json"; a.click();
+        }
+        function importData(input) {
+            const file = input.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                try {
+                    const data = JSON.parse(e.target.result);
+                    const chars = Array.isArray(data) ? data : (data.campaigns?.flatMap(c => c.characters) || []);
+                    if (!Array.isArray(chars) || chars.length === 0) {
+                        alert('Invalid import file format.');
+                        return;
+                    }
+                    for (const char of chars) await dbSaveCharacter(char);
+                    renderCards();
+                } catch (err) {
+                    alert('Failed to import file. Ensure it is valid JSON.');
+                    console.error(err);
+                }
+            };
+            reader.readAsText(file);
+        }
+        window.onload = async () => {
+            await initDB();
+            const existing = await getAllCharacters();
+            if (existing.length === 0) { for (const char of defaultCharacters) await dbSaveCharacter(char); }
+            renderCards();
+        };
+    </script>
+</body>
+</html>
