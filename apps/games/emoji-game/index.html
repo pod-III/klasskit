@@ -244,6 +244,18 @@
             border: 1px solid currentColor;
         }
 
+        /* --- Sets Library Sidebar --- */
+        .set-card {
+            transition: all 0.15s ease;
+        }
+        .set-card:hover {
+            transform: translateY(-1px);
+        }
+        .set-card.active {
+            border-color: #2979FF;
+            background: rgba(41, 121, 255, 0.05);
+        }
+
         /* --- Emoji Picker Popover --- */
         #emoji-picker-container {
             position: fixed;
@@ -450,15 +462,19 @@
         class="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm hidden">
         <div class="neo-card w-full max-w-5xl h-[90vh] flex flex-col animate-pop overflow-hidden">
 
-            <div class="p-5 border-b-2 border-dark bg-chalk flex justify-between items-center">
+            <!-- Header -->
+            <div class="p-5 border-b-2 border-dark bg-chalk flex justify-between items-center shrink-0">
                 <div class="flex items-center gap-4">
                     <div class="p-3 bg-blue text-white rounded-lg border-2 border-dark shadow-hard-sm">
                         <i data-lucide="settings-2" class="w-6 h-6"></i>
                     </div>
                     <div>
                         <h1 class="text-2xl font-display text-kkdark tracking-wide leading-none">Guess the Emoji</h1>
-                        <p class="text-[11px] text-slate-500 font-mono uppercase tracking-widest mt-1">Setup your
-                            questions</p>
+                        <div class="flex items-center gap-2 mt-1">
+                            <p class="text-[11px] text-slate-500 font-mono uppercase tracking-widest">Setup your
+                                questions</p>
+                            <span id="active-set-badge" class="hidden text-[9px] font-bold text-green uppercase tracking-widest bg-green/10 px-2 py-0.5 rounded-full border border-green/20">Editing: —</span>
+                        </div>
                     </div>
                 </div>
 
@@ -469,6 +485,7 @@
                             class="text-[10px] font-bold text-slate-400 uppercase tracking-wide leading-none">Timer</span>
                         <div class="flex items-center gap-1">
                             <input type="number" id="timer-setting" value="10" min="5" max="60"
+                                onchange="GameLogic.onTimerChange()"
                                 class="w-10 bg-transparent text-dark font-heading text-lg font-bold text-center outline-none border-b-2 border-slate-200 focus:border-blue p-0">
                             <span class="text-xs text-slate-400 font-bold">sec</span>
                         </div>
@@ -476,46 +493,84 @@
                 </div>
             </div>
 
-            <div class="px-6 py-3 border-b-2 border-dark bg-white flex justify-between items-center shadow-sm z-10">
-                <label class="text-xs font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2">
-                    <i data-lucide="folder-open" class="w-4 h-4"></i> Load Preset:
-                </label>
-                <select id="preset-selector" onchange="GameLogic.loadPreset(this.value)"
-                    class="py-2 pl-3 pr-8 border-2 border-dark rounded-lg bg-chalk text-dark font-heading text-sm focus:ring-0 outline-none cursor-pointer hover:bg-slate-100 transition-colors shadow-hard-sm">
-                </select>
-            </div>
+            <!-- Main body: Sets sidebar + Editor -->
+            <div class="flex-1 flex flex-col md:flex-row min-h-0">
 
-            <div class="flex-1 overflow-y-auto p-6 space-y-4 bg-slate-50 custom-scrollbar" id="editor-list">
-            </div>
-
-            <div class="p-5 border-t-2 border-dark bg-white flex flex-col md:flex-row gap-4 items-center">
-                <div class="flex gap-2 w-full md:w-auto">
-                    <button onclick="UI.addEditorRow()"
-                        class="px-5 py-3 border-2 border-dashed border-slate-300 text-slate-400 rounded-xl hover:border-blue hover:text-blue hover:bg-blue/5 transition font-bold text-sm tracking-wide flex items-center justify-center gap-2">
-                        <i data-lucide="plus" class="w-5 h-5"></i> ADD QUESTION
-                    </button>
-                    <button onclick="openImportModal()"
-                        class="px-5 py-3 bg-orange text-white rounded-xl font-bold text-sm tracking-wide flex items-center justify-center gap-2 border-2 border-dark shadow-hard-sm hover:brightness-110 transition"
-                        title="Bulk import questions">
-                        <i data-lucide="file-up" class="w-4 h-4"></i> IMPORT
-                    </button>
+                <!-- Sets Library Sidebar -->
+                <div class="md:w-64 shrink-0 border-b-2 md:border-b-0 md:border-r-2 border-dark bg-white flex flex-col min-h-0">
+                    <div class="p-4 border-b border-dark/10 shrink-0">
+                        <div class="flex gap-2 mb-3">
+                            <button onclick="GameLogic.newWorkspace()"
+                                class="flex-1 btn-icon px-3 py-2 rounded-lg text-xs font-bold tracking-wider flex items-center justify-center gap-1 shadow-hard-sm">
+                                <i data-lucide="plus" class="w-3.5 h-3.5"></i> NEW
+                            </button>
+                            <button onclick="GameLogic.promptSaveAs()"
+                                class="flex-1 px-3 py-2 rounded-lg text-xs font-bold tracking-wider flex items-center justify-center gap-1 shadow-hard-sm bg-blue/10 text-blue border-2 border-blue/30 hover:bg-blue hover:text-white transition">
+                                <i data-lucide="save" class="w-3.5 h-3.5"></i> SAVE AS
+                            </button>
+                        </div>
+                        <div class="relative">
+                            <select id="sets-sort" onchange="UI.renderSetsLibrary()"
+                                class="w-full text-[10px] font-bold uppercase tracking-widest border-2 border-slate-200 rounded-lg py-1.5 pl-2 pr-6 bg-chalk text-slate-500 focus:border-blue outline-none cursor-pointer appearance-none">
+                                <option value="recent">Recent</option>
+                                <option value="alpha">Alphabetical</option>
+                                <option value="popular">Popular</option>
+                            </select>
+                            <i data-lucide="chevron-down" class="w-3 h-3 absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"></i>
+                        </div>
+                    </div>
+                    <div id="sets-list" class="flex-1 overflow-y-auto p-3 space-y-2 custom-scrollbar min-h-0">
+                        <!-- Populated by JS -->
+                    </div>
                 </div>
 
-                <div class="flex-1 text-center hidden md:block">
-                    <span id="save-status"
-                        class="text-xs font-bold text-green opacity-0 transition-opacity uppercase tracking-widest bg-green/10 px-3 py-1 rounded-full border border-green/20">Saved
-                        Successfully!</span>
-                </div>
+                <!-- Editor Area -->
+                <div class="flex-1 flex flex-col min-h-0">
+                    <!-- Built-in Presets -->
+                    <div class="px-5 py-2 border-b-2 border-dark bg-white flex items-center gap-3 shadow-sm shrink-0">
+                        <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5 shrink-0">
+                            <i data-lucide="library" class="w-3.5 h-3.5"></i> Presets:
+                        </label>
+                        <select id="preset-selector" onchange="GameLogic.loadPreset(this.value)"
+                            class="flex-1 py-1.5 pl-2 pr-6 border-2 border-slate-200 rounded-lg bg-chalk text-dark font-heading text-xs focus:ring-0 outline-none cursor-pointer hover:bg-slate-100 transition-colors text-[11px] appearance-none">
+                        </select>
+                    </div>
 
-                <div class="flex gap-2 w-full md:w-auto">
-                    <button onclick="GameLogic.saveData(false)"
-                        class="flex-1 md:flex-none px-6 py-3 text-slate-500 font-bold text-sm hover:bg-slate-100 rounded-xl transition border-2 border-transparent hover:border-slate-200">
-                        SAVE
-                    </button>
-                    <button onclick="GameLogic.saveAndLaunch()"
-                        class="flex-1 md:flex-none btn-click-anim btn-primary px-8 py-3 rounded-xl font-bold tracking-wide flex items-center justify-center gap-2 text-lg">
-                        LAUNCH <i data-lucide="rocket" class="w-5 h-5"></i>
-                    </button>
+                    <!-- Editor list -->
+                    <div class="flex-1 overflow-y-auto p-6 space-y-4 bg-slate-50 custom-scrollbar" id="editor-list">
+                    </div>
+
+                    <!-- Footer -->
+                    <div class="p-4 border-t-2 border-dark bg-white flex flex-col md:flex-row gap-3 items-center shrink-0">
+                        <div class="flex gap-2 w-full md:w-auto">
+                            <button onclick="UI.addEditorRow()"
+                                class="px-4 py-2.5 border-2 border-dashed border-slate-300 text-slate-400 rounded-xl hover:border-blue hover:text-blue hover:bg-blue/5 transition font-bold text-sm tracking-wide flex items-center justify-center gap-2">
+                                <i data-lucide="plus" class="w-4 h-4"></i> ADD
+                            </button>
+                            <button onclick="openImportModal()"
+                                class="px-4 py-2.5 bg-orange text-white rounded-xl font-bold text-sm tracking-wide flex items-center justify-center gap-2 border-2 border-dark shadow-hard-sm hover:brightness-110 transition"
+                                title="Bulk import questions">
+                                <i data-lucide="file-up" class="w-4 h-4"></i> IMPORT
+                            </button>
+                        </div>
+
+                        <div class="flex-1 text-center hidden md:block">
+                            <span id="save-status"
+                                class="text-xs font-bold text-green opacity-0 transition-opacity uppercase tracking-widest bg-green/10 px-3 py-1 rounded-full border border-green/20">Saved
+                                Successfully!</span>
+                        </div>
+
+                        <div class="flex gap-2 w-full md:w-auto">
+                            <button onclick="GameLogic.saveData(false)"
+                                class="flex-1 md:flex-none px-5 py-2.5 text-slate-500 font-bold text-sm hover:bg-slate-100 rounded-xl transition border-2 border-transparent hover:border-slate-200">
+                                SAVE
+                            </button>
+                            <button onclick="GameLogic.saveAndLaunch()"
+                                class="flex-1 md:flex-none btn-click-anim btn-primary px-6 py-2.5 rounded-xl font-bold tracking-wide flex items-center justify-center gap-2 text-base">
+                                LAUNCH <i data-lucide="rocket" class="w-4 h-4"></i>
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -730,12 +785,14 @@ Dog | 🐶🦴🎾
                 if (!this.enabled) return;
                 const synth = new Tone.MembraneSynth().toDestination();
                 synth.triggerAttackRelease("C2", "16n");
+                setTimeout(() => synth.dispose(), 500);
             },
 
             playReveal() {
                 if (!this.enabled) return;
                 const synth = new Tone.PolySynth(Tone.Synth).toDestination();
                 synth.triggerAttackRelease(["C4", "E4", "G4", "B4"], "8n");
+                setTimeout(() => synth.dispose(), 1000);
             },
 
             playWin() {
@@ -745,6 +802,7 @@ Dog | 🐶🦴🎾
                 synth.triggerAttackRelease(["C4", "E4", "G4", "C5"], "8n", now);
                 synth.triggerAttackRelease(["G4", "B4", "D5", "G5"], "8n", now + 0.2);
                 synth.triggerAttackRelease(["C5", "E5", "G5", "C6"], "2n", now + 0.4);
+                setTimeout(() => synth.dispose(), 3000);
             }
         };
 
@@ -802,8 +860,10 @@ Dog | 🐶🦴🎾
                 document.getElementById('editor-modal').classList.remove('hidden');
 
                 // Set Selector Value
-                document.getElementById('preset-selector').value = Storage.getPresetId();
+                document.getElementById('preset-selector').value = GameLogic.currentPresetId;
                 this.renderEditorRows();
+                this.renderSetsLibrary();
+                this.updateActiveIndicator();
             },
 
             hideAll() {
@@ -869,6 +929,7 @@ Dog | 🐶🦴🎾
 
             addEditorRow() {
                 GameLogic.questions.push({ category: 'NEW', answer: '', emojis: '' });
+                GameLogic.autoSave();
                 this.renderEditorRows();
                 // Scroll to bottom
                 setTimeout(() => {
@@ -881,6 +942,72 @@ Dog | 🐶🦴🎾
                 const status = document.getElementById('save-status');
                 status.classList.remove('opacity-0');
                 setTimeout(() => status.classList.add('opacity-0'), 2000);
+            },
+
+            updateActiveIndicator() {
+                const badge = document.getElementById('active-set-badge');
+                if (GameLogic.activeId) {
+                    const set = GameLogic.sets.find(s => s.id == GameLogic.activeId);
+                    badge.textContent = `Editing: ${set?.name || 'Unnamed'}`;
+                    badge.classList.remove('hidden');
+                } else {
+                    badge.classList.add('hidden');
+                }
+            },
+
+            renderSetsLibrary() {
+                const container = document.getElementById('sets-list');
+                container.innerHTML = '';
+                const sort = document.getElementById('sets-sort').value;
+                let sorted = [...GameLogic.sets];
+
+                if (sort === 'recent') {
+                    sorted.sort((a, b) => (b.lastUsed || 0) - (a.lastUsed || 0));
+                } else if (sort === 'alpha') {
+                    sorted.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+                } else if (sort === 'popular') {
+                    sorted.sort((a, b) => (b.usageCount || 0) - (a.usageCount || 0));
+                }
+
+                sorted.forEach(set => {
+                    const isActive = set.id == GameLogic.activeId;
+                    const div = document.createElement('div');
+                    div.className = `set-card group relative p-3 rounded-xl border-2 cursor-pointer ${isActive ? 'active' : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50'}`;
+                    div.onclick = (e) => {
+                        if (e.target.closest('.delete-btn')) return;
+                        GameLogic.loadSet(set.id);
+                    };
+
+                    div.innerHTML = `
+                        <div class="flex items-center justify-between gap-2">
+                            <div class="flex items-center gap-2 min-w-0">
+                                <div class="w-2 h-2 rounded-full shrink-0 ${isActive ? 'bg-blue' : 'bg-slate-300'}"></div>
+                                <span class="font-bold text-sm truncate ${isActive ? 'text-blue' : 'text-dark'}">${escapeHtml(set.name || 'Unnamed')}</span>
+                            </div>
+                            ${isActive ? '<span class="text-[8px] font-black text-blue uppercase tracking-widest shrink-0">ACTIVE</span>' : ''}
+                        </div>
+                        <div class="flex items-center justify-between mt-1.5 pl-4">
+                            <span class="text-[10px] text-slate-400 font-mono">${set.questions?.length || 0} items</span>
+                            <div class="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button onclick="GameLogic.deleteSet(${set.id})" class="delete-btn p-1 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded transition" title="Delete">
+                                    <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                    container.appendChild(div);
+                });
+
+                if (sorted.length === 0) {
+                    container.innerHTML = `
+                        <div class="text-center py-8 text-slate-300">
+                            <i data-lucide="folder-open" class="w-8 h-8 mx-auto mb-2 opacity-50"></i>
+                            <p class="text-[10px] font-bold uppercase tracking-widest">No saved sets</p>
+                            <p class="text-[10px] mt-1">Create a new set or import questions</p>
+                        </div>
+                    `;
+                }
+                lucide.createIcons();
             },
 
             // --- Emoji Picker ---
@@ -1048,8 +1175,9 @@ Dog | 🐶🦴🎾
             const existing = GameLogic.questions.filter(q => q.answer.trim() !== '' || q.emojis.trim() !== '');
             GameLogic.questions = [...existing, ...parsedImportQuestions];
 
-            Storage.save(GameLogic.questions, GameLogic.timerDuration, GameLogic.currentPresetId);
+            GameLogic.autoSave();
             UI.renderEditorRows();
+            UI.renderSetsLibrary();
             closeImportModal();
             AudioController.playPop();
             setTimeout(() => AudioController.playPop(), 120);
@@ -1104,31 +1232,56 @@ Soccer | ⚽🏃🥅`;
          * Handles LocalStorage I/O
          */
         const Storage = {
-            KEY_DATA: 'emojiGame_Questions',
-            KEY_TIMER: 'emojiGame_Timer',
-            KEY_PRESET: 'emojiGame_PresetId',
+            // New format keys
+            KEY_SETS: 'emojiGame_Sets_v2',
+            KEY_ACTIVE_ID: 'emojiGame_ActiveSetId',
+            // Old format keys (backwards compat)
+            KEY_DATA_OLD: 'emojiGame_Questions',
+            KEY_TIMER_OLD: 'emojiGame_Timer',
+            KEY_PRESET_OLD: 'emojiGame_PresetId',
 
-            save(questions, timer, presetId) {
-                localStorage.setItem(this.KEY_DATA, JSON.stringify(questions));
-                localStorage.setItem(this.KEY_TIMER, timer);
-                localStorage.setItem(this.KEY_PRESET, presetId);
-                if (typeof syncToCloud === 'function') syncToCloud();
+            // --- Sets API ---
+            saveSets(sets) {
+                localStorage.setItem(this.KEY_SETS, JSON.stringify(sets));
+            },
+            loadSets() {
+                const data = localStorage.getItem(this.KEY_SETS);
+                if (!data) return null;
+                try {
+                    const sets = JSON.parse(data);
+                    // Backwards compat: fix missing metadata
+                    sets.forEach(s => {
+                        if (!s.lastUsed) s.lastUsed = s.createdAt || Date.now();
+                        if (!s.usageCount) s.usageCount = 0;
+                        if (!s.presetId) s.presetId = 'empty';
+                    });
+                    return sets;
+                } catch (e) { return null; }
+            },
+            saveActiveId(id) {
+                localStorage.setItem(this.KEY_ACTIVE_ID, id || '');
+            },
+            loadActiveId() {
+                const id = localStorage.getItem(this.KEY_ACTIVE_ID);
+                return id ? id : null;
             },
 
-            load() {
-                const q = localStorage.getItem(this.KEY_DATA);
-                const t = localStorage.getItem(this.KEY_TIMER);
-                const p = localStorage.getItem(this.KEY_PRESET);
-
+            // --- Old format migration ---
+            migrateOldData() {
+                const oldQuestions = localStorage.getItem(this.KEY_DATA_OLD);
+                if (!oldQuestions) return null;
+                const oldTimer = localStorage.getItem(this.KEY_TIMER_OLD);
+                const oldPreset = localStorage.getItem(this.KEY_PRESET_OLD);
                 return {
-                    questions: q ? JSON.parse(q) : null,
-                    timer: t ? parseInt(t) : 10,
-                    presetId: p || 'world'
+                    questions: JSON.parse(oldQuestions),
+                    timer: oldTimer ? parseInt(oldTimer) : 10,
+                    presetId: oldPreset || 'world'
                 };
             },
-
-            getPresetId() {
-                return localStorage.getItem(this.KEY_PRESET) || 'world';
+            clearOldData() {
+                localStorage.removeItem(this.KEY_DATA_OLD);
+                localStorage.removeItem(this.KEY_TIMER_OLD);
+                localStorage.removeItem(this.KEY_PRESET_OLD);
             }
         };
 
@@ -1137,43 +1290,142 @@ Soccer | ⚽🏃🥅`;
          * State management and interaction flow
          */
         const GameLogic = {
+            sets: [],
+            activeId: null,
             questions: [],
             currentIndex: 0,
             timerDuration: 10,
             timerRunning: false,
             currentPresetId: 'world',
             confirmCallback: null,
+            dirty: false,
+            timerTimeouts: [],
+
+            _makeId() {
+                return Date.now() + '-' + Math.random().toString(36).slice(2, 9);
+            },
+
+            _clearTimerTimeouts() {
+                this.timerTimeouts.forEach(t => clearTimeout(t));
+                this.timerTimeouts = [];
+            },
+
+            _setDirty(value) {
+                this.dirty = value;
+            },
+
+            async _confirmIfDirty(action) {
+                if (!this.dirty) { action(); return; }
+                this.confirmCallback = (yes) => {
+                    if (yes) action();
+                };
+                document.getElementById('confirm-message').innerText = 'You have unsaved changes. Discard them?';
+                document.getElementById('confirm-modal').classList.remove('hidden');
+            },
 
             async init() {
                 await requireAuth();
-                
+
+                // 1. Try cloud data (new format first, then old format)
                 const cloudData = await loadProgress('emoji_game');
-                let data;
+                let loadedSets = null;
+                let loadedActiveId = null;
+                let loadedQuestions = null;
+                let loadedTimer = 10;
+                let loadedPresetId = 'world';
 
                 if (cloudData) {
-                    data = cloudData;
-                    // Sync back to local storage
-                    Storage.save(data.questions, data.timer, data.presetId);
-                } else {
-                    data = Storage.load();
+                    if (cloudData.sets) {
+                        // New format cloud data
+                        loadedSets = cloudData.sets;
+                        loadedActiveId = cloudData.activeId || null;
+                        loadedQuestions = cloudData.questions;
+                        loadedTimer = cloudData.timer || 10;
+                        loadedPresetId = cloudData.presetId || 'world';
+                    } else if (cloudData.questions) {
+                        // Old format cloud data — migrate into a set
+                        loadedSets = [{
+                            id: this._makeId(),
+                            name: 'My Questions',
+                            questions: cloudData.questions,
+                            timer: cloudData.timer || 10,
+                            presetId: cloudData.presetId || 'world',
+                            createdAt: Date.now(),
+                            lastUsed: Date.now(),
+                            usageCount: 1
+                        }];
+                        loadedActiveId = loadedSets[0].id;
+                        loadedQuestions = cloudData.questions;
+                        loadedTimer = cloudData.timer || 10;
+                        loadedPresetId = cloudData.presetId || 'world';
+                        // Persist migrated cloud data locally so it isn't lost
+                        Storage.saveSets(loadedSets);
+                        Storage.saveActiveId(loadedActiveId);
+                    }
                 }
 
-                this.currentPresetId = data.presetId;
-                this.timerDuration = data.timer;
-                document.getElementById('timer-setting').value = this.timerDuration;
+                // 2. No cloud? Try local new format
+                if (!loadedSets) {
+                    loadedSets = Storage.loadSets();
+                    if (loadedSets) {
+                        loadedActiveId = Storage.loadActiveId();
+                    } else {
+                        // 3. Try migrating old local format
+                        const migrated = Storage.migrateOldData();
+                        if (migrated) {
+                            loadedSets = [{
+                                id: this._makeId(),
+                                name: 'My Questions',
+                                questions: migrated.questions,
+                                timer: migrated.timer,
+                                presetId: migrated.presetId,
+                                createdAt: Date.now(),
+                                lastUsed: Date.now(),
+                                usageCount: 1
+                            }];
+                            loadedActiveId = loadedSets[0].id;
+                            loadedQuestions = migrated.questions;
+                            loadedTimer = migrated.timer;
+                            loadedPresetId = migrated.presetId;
+                            // Clean up old keys after migration
+                            Storage.clearOldData();
+                            // Persist migrated local data
+                            Storage.saveSets(loadedSets);
+                            Storage.saveActiveId(loadedActiveId);
+                        } else {
+                            loadedSets = [];
+                        }
+                    }
+                }
 
-                if (data.questions && data.questions.length > 0) {
-                    this.questions = data.questions;
+                this.sets = loadedSets || [];
+                this.activeId = loadedActiveId;
+                this.timerDuration = loadedTimer;
+                this.currentPresetId = loadedPresetId;
+
+                // Load questions
+                if (loadedQuestions && loadedQuestions.length > 0) {
+                    this.questions = loadedQuestions;
+                } else if (this.activeId) {
+                    const activeSet = this.sets.find(s => s.id == this.activeId);
+                    if (activeSet) {
+                        this.questions = JSON.parse(JSON.stringify(activeSet.questions));
+                        this.timerDuration = activeSet.timer;
+                        this.currentPresetId = activeSet.presetId || 'world';
+                    }
                 } else {
-                    // Fallback to default if storage empty
                     const def = PRESETS.find(p => p.id === 'world');
                     this.questions = JSON.parse(JSON.stringify(def.questions));
                 }
 
+                document.getElementById('timer-setting').value = this.timerDuration;
+
+                // Persist to localStorage
+                Storage.saveSets(this.sets);
+                Storage.saveActiveId(this.activeId);
+
                 // Setup Listeners
                 document.getElementById('sound-toggle').addEventListener('click', () => AudioController.toggle());
-
-                // Keyboard Support
                 document.addEventListener('keydown', (e) => this.handleKey(e));
 
                 // Confirmation Modal Listeners
@@ -1196,6 +1448,123 @@ Soccer | ⚽🏃🥅`;
                 }, { once: true });
             },
 
+            // --- Sets Management ---
+            autoSave() {
+                const timerVal = document.getElementById('timer-setting').value;
+                this.timerDuration = parseInt(timerVal) || 10;
+                this.dirty = true;
+                if (!this.activeId) return;
+                const set = this.sets.find(s => s.id == this.activeId);
+                if (!set) return;
+                set.questions = JSON.parse(JSON.stringify(this.questions));
+                set.timer = this.timerDuration;
+                set.presetId = this.currentPresetId;
+                set.lastUsed = Date.now();
+                Storage.saveSets(this.sets);
+                if (typeof syncToCloud === 'function') syncToCloud();
+            },
+
+            newWorkspace() {
+                this._confirmIfDirty(() => {
+                    this._clearTimerTimeouts();
+                    this.activeId = null;
+                    this.questions = [{ category: 'NEW', answer: '', emojis: '' }];
+                    this.timerDuration = 10;
+                    this.currentPresetId = 'empty';
+                    this.dirty = false;
+                    Storage.saveActiveId(null);
+                    document.getElementById('timer-setting').value = 10;
+                    document.getElementById('preset-selector').value = 'empty';
+                    UI.renderEditorRows();
+                    UI.renderSetsLibrary();
+                    UI.updateActiveIndicator();
+                });
+            },
+
+            async promptSaveAs() {
+                const name = await quickPrompt('Enter name for this set', this.activeId ? (this.sets.find(s => s.id == this.activeId)?.name || '') : '');
+                if (name && name.trim()) {
+                    this.saveAsNew(name.trim());
+                }
+            },
+
+            saveAsNew(name) {
+                const timerVal = document.getElementById('timer-setting').value;
+                let finalName = name;
+                let counter = 1;
+                while (this.sets.some(s => s.name === finalName)) {
+                    finalName = `${name} (${counter++})`;
+                }
+                const newSet = {
+                    id: this._makeId(),
+                    name: finalName,
+                    questions: JSON.parse(JSON.stringify(this.questions)),
+                    timer: parseInt(timerVal) || 10,
+                    presetId: this.currentPresetId,
+                    createdAt: Date.now(),
+                    lastUsed: Date.now(),
+                    usageCount: 0
+                };
+                this.sets.push(newSet);
+                this.activeId = newSet.id;
+                this.dirty = false;
+                Storage.saveSets(this.sets);
+                Storage.saveActiveId(this.activeId);
+                UI.renderSetsLibrary();
+                UI.updateActiveIndicator();
+                UI.showSaveConfirmation();
+                if (typeof syncToCloud === 'function') syncToCloud();
+            },
+
+            loadSet(id) {
+                this._confirmIfDirty(() => {
+                    const set = this.sets.find(s => s.id == id);
+                    if (!set) return;
+                    this._clearTimerTimeouts();
+                    set.usageCount = (set.usageCount || 0) + 1;
+                    set.lastUsed = Date.now();
+                    this.activeId = id;
+                    this.questions = JSON.parse(JSON.stringify(set.questions));
+                    this.timerDuration = set.timer;
+                    this.currentPresetId = set.presetId || 'empty';
+                    this.dirty = false;
+                    Storage.saveSets(this.sets);
+                    Storage.saveActiveId(id);
+                    document.getElementById('timer-setting').value = this.timerDuration;
+                    document.getElementById('preset-selector').value = this.currentPresetId;
+                    UI.renderEditorRows();
+                    UI.renderSetsLibrary();
+                    UI.updateActiveIndicator();
+                    if (typeof syncToCloud === 'function') syncToCloud();
+                });
+            },
+
+            deleteSet(id) {
+                const set = this.sets.find(s => s.id == id);
+                if (!set) return;
+                this.confirmCallback = (yes) => {
+                    if (yes) {
+                        this.sets = this.sets.filter(s => s.id != id);
+                        if (this.activeId == id) {
+                            this.activeId = null;
+                            Storage.saveActiveId(null);
+                        }
+                        Storage.saveSets(this.sets);
+                        UI.renderSetsLibrary();
+                        UI.updateActiveIndicator();
+                        if (typeof syncToCloud === 'function') syncToCloud();
+                    }
+                };
+                document.getElementById('confirm-message').innerText = `Delete "${set.name}"? This cannot be undone.`;
+                document.getElementById('confirm-modal').classList.remove('hidden');
+            },
+
+            onTimerChange() {
+                const val = document.getElementById('timer-setting').value;
+                this.timerDuration = parseInt(val) || 10;
+                this.autoSave();
+            },
+
             // --- Gameplay Flow ---
             async startGame() {
                 if (this.questions.length === 0) {
@@ -1210,9 +1579,8 @@ Soccer | ⚽🏃🥅`;
 
             renderCard() {
                 const q = this.questions[this.currentIndex];
-                if (!q) return; // Safety
+                if (!q) return;
 
-                // DOM Elements
                 const els = {
                     category: document.getElementById('category-display'),
                     emoji: document.getElementById('emoji-display'),
@@ -1228,34 +1596,30 @@ Soccer | ⚽🏃🥅`;
                     btnPrev: document.getElementById('btn-prev')
                 };
 
-                // Content
                 els.category.innerHTML = `<span class="w-2 h-2 rounded-full bg-orange animate-pulse"></span> ${q.category}`;
                 els.emoji.innerText = q.emojis;
                 els.answer.innerText = q.answer;
                 els.progress.innerText = `${this.currentIndex + 1} / ${this.questions.length}`;
 
-                // Reset States
                 els.answerOverlay.classList.add('hidden');
                 els.container.style.transform = '';
                 els.container.classList.remove('opacity-20', 'blur-sm', 'scale-90');
 
-                // Button States
                 els.btnReveal.classList.remove('hidden');
                 els.btnNext.classList.add('hidden');
                 els.bonus.classList.add('hidden');
                 els.bonusBtn.classList.remove('hidden');
                 els.btnPrev.disabled = this.currentIndex === 0;
 
-                // Reset Timer Visuals
+                this._clearTimerTimeouts();
                 els.timer.style.transition = 'none';
                 els.timer.style.width = '100%';
-                els.timer.style.backgroundColor = '#00E676'; // Green
+                els.timer.style.backgroundColor = '#00E676';
                 this.timerRunning = false;
                 document.getElementById('btn-timer').classList.remove('opacity-50', 'pointer-events-none');
 
-                // Animation Re-trigger
                 els.emoji.classList.remove('animate-slide-up');
-                void els.emoji.offsetWidth; // Force Reflow
+                void els.emoji.offsetWidth;
                 els.emoji.classList.add('animate-slide-up');
             },
 
@@ -1278,6 +1642,7 @@ Soccer | ⚽🏃🥅`;
 
             nextQuestion() {
                 if (this.currentIndex < this.questions.length - 1) {
+                    this._clearTimerTimeouts();
                     this.currentIndex++;
                     this.renderCard();
                     AudioController.playPop();
@@ -1288,6 +1653,7 @@ Soccer | ⚽🏃🥅`;
 
             prevQuestion() {
                 if (this.currentIndex > 0) {
+                    this._clearTimerTimeouts();
                     this.currentIndex--;
                     this.renderCard();
                     AudioController.playPop();
@@ -1309,26 +1675,25 @@ Soccer | ⚽🏃🥅`;
             startTimer() {
                 if (this.timerRunning) return;
                 this.timerRunning = true;
+                this._clearTimerTimeouts();
 
                 const bar = document.getElementById('timer-bar');
                 const btn = document.getElementById('btn-timer');
 
                 btn.classList.add('opacity-50', 'pointer-events-none');
 
-                // Animate Width
                 bar.style.transition = `width ${this.timerDuration}s linear, background-color ${this.timerDuration}s linear`;
                 bar.style.width = '0%';
 
-                // Color shifts via JS timeout approximation
                 const ms = this.timerDuration * 1000;
-                setTimeout(() => { if (this.timerRunning) bar.style.backgroundColor = '#FF8C42'; }, ms * 0.5); // Orange at 50%
-                setTimeout(() => { if (this.timerRunning) bar.style.backgroundColor = '#FF6B95'; }, ms * 0.8); // Pink at 20%
+                this.timerTimeouts.push(setTimeout(() => { if (this.timerRunning) bar.style.backgroundColor = '#FF8C42'; }, ms * 0.5));
+                this.timerTimeouts.push(setTimeout(() => { if (this.timerRunning) bar.style.backgroundColor = '#FF6B95'; }, ms * 0.8));
 
-                setTimeout(() => {
+                this.timerTimeouts.push(setTimeout(() => {
                     this.timerRunning = false;
                     btn.classList.remove('opacity-50', 'pointer-events-none');
-                    AudioController.playPop(); // Ding!
-                }, ms);
+                    AudioController.playPop();
+                }, ms));
             },
 
             // --- Data / Editor Logic ---
@@ -1337,38 +1702,36 @@ Soccer | ⚽🏃🥅`;
                 if (!preset) return;
 
                 const doLoad = () => {
+                    this._clearTimerTimeouts();
                     this.currentPresetId = id;
-                    // Deep copy to prevent reference issues
                     this.questions = JSON.parse(JSON.stringify(preset.questions));
-                    Storage.save(this.questions, this.timerDuration, id);
+                    this.dirty = true;
+                    this.autoSave();
                     UI.renderEditorRows();
                 };
 
-                // Confirm if switching away from unsaved edits (simulated by checking if ID changed)
-                // In a real app we might check dirty flags. Here we just confirm always.
-                this.confirmCallback = (yes) => {
-                    if (yes) doLoad();
-                    else document.getElementById('preset-selector').value = this.currentPresetId;
-                };
-
-                document.getElementById('confirm-message').innerText = `Load "${preset.name}"? This will overwrite your current list.`;
-                document.getElementById('confirm-modal').classList.remove('hidden');
+                this._confirmIfDirty(() => {
+                    this.confirmCallback = (yes) => {
+                        if (yes) doLoad();
+                        else document.getElementById('preset-selector').value = this.currentPresetId;
+                    };
+                    document.getElementById('confirm-message').innerText = `Load "${preset.name}"? This will overwrite your current list.`;
+                    document.getElementById('confirm-modal').classList.remove('hidden');
+                });
             },
 
             updateQuestion(index, field, value) {
-                if (field === 'emojis') {
-                    // Strip spaces for emojis usually, but let's keep it flexible
-                    // value = value.replace(/\s/g, ''); 
-                }
                 this.questions[index][field] = value;
+                this.autoSave();
             },
 
             removeQuestion(index) {
-                if (this.questions.length <= 1) return; // Prevent empty list
+                if (this.questions.length <= 1) return;
 
                 this.confirmCallback = (yes) => {
                     if (yes) {
                         this.questions.splice(index, 1);
+                        this.autoSave();
                         UI.renderEditorRows();
                     }
                 };
@@ -1379,9 +1742,10 @@ Soccer | ⚽🏃🥅`;
             saveData(launch = false) {
                 const timerVal = document.getElementById('timer-setting').value;
                 this.timerDuration = parseInt(timerVal) || 10;
-
-                Storage.save(this.questions, this.timerDuration, this.currentPresetId);
-
+                this.autoSave();
+                this.dirty = false;
+                Storage.saveSets(this.sets);
+                Storage.saveActiveId(this.activeId);
                 if (launch) {
                     this.startGame();
                     UI.hideAll();
@@ -1398,7 +1762,6 @@ Soccer | ⚽🏃🥅`;
             handleKey(e) {
                 if (document.getElementById('game-view').classList.contains('hidden')) return;
 
-                // Helper to animate button press via JS
                 const triggerBtn = (id) => {
                     const btn = document.getElementById(id);
                     if (btn) {
@@ -1424,9 +1787,12 @@ Soccer | ⚽🏃🥅`;
 
         let syncTimeout = null;
         function syncToCloud() {
+            if (typeof saveProgress !== 'function') return;
             if (syncTimeout) clearTimeout(syncTimeout);
             syncTimeout = setTimeout(() => {
                 saveProgress('emoji_game', {
+                    sets: GameLogic.sets,
+                    activeId: GameLogic.activeId,
                     questions: GameLogic.questions,
                     timer: GameLogic.timerDuration,
                     presetId: GameLogic.currentPresetId
