@@ -45,12 +45,14 @@ if (fs.existsSync(readmePath)) {
     try {
         let readme = fs.readFileSync(readmePath, 'utf8');
         // Matches shields.io badge: version-1.2.2-blue
-        const updatedReadme = readme.replace(/(version-)(\d+\.\d+\.\d+)(-blue)/g, `$1${newVersion}$3`);
+        let updatedReadme = readme.replace(/(version-)(\d+\.\d+\.\d+)(-blue)/g, `$1${newVersion}$3`);
+        // Matches footer: *Current Version: 1.2.2 — Active Development.*
+        updatedReadme = updatedReadme.replace(/(\*Current Version:\s*)(\d+\.\d+\.\d+)(.*\*)/g, `$1${newVersion}$3`);
         if (readme !== updatedReadme) {
             fs.writeFileSync(readmePath, updatedReadme, 'utf8');
-            console.log(`✅ README.md: Version badge updated to ${newVersion}`);
+            console.log(`✅ README.md: Version updated to ${newVersion}`);
         } else {
-            console.warn('⚠️ README.md: Version badge not found or already updated.');
+            console.warn('⚠️ README.md: Version not found or already updated.');
         }
     } catch (e) {
         console.error('❌ Error updating README.md:', e.message);
