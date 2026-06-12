@@ -1,14 +1,15 @@
         // --- GAME STATE ---
         let gameState = {
             cupCount: 3,
-            ballCount: 1, 
-            shuffleSpeed: 1.0, 
+            ballCount: 1,
+            shuffleSpeed: 1.0,
             isShuffling: false,
             isPlaying: false,
-            ballPositions: [], 
+            ballPositions: [],
             cupPositions: [],
             selectedCupIndex: 1,
-            foundBallsCount: 0 
+            selectedBgIndex: 1,
+            foundBallsCount: 0
         };
 
         // --- DOM REFERENCES ---
@@ -25,12 +26,14 @@
                 gameState.ballCount = savedState.ballCount ?? 1;
                 gameState.shuffleSpeed = savedState.shuffleSpeed ?? 1.0;
                 gameState.selectedCupIndex = savedState.selectedCupIndex ?? 1;
+                gameState.selectedBgIndex = savedState.selectedBgIndex ?? 1;
             }
 
             lucide.createIcons();
             updateStepperUI();
             updateSpeedSetting(true); // pass true to avoid re-saving immediately
-            renderDesignSelector(); 
+            renderDesignSelector();
+            renderBgSelector();
             renderCups();
             updateStatus('ready');
             
@@ -48,7 +51,8 @@
                     cupCount: gameState.cupCount,
                     ballCount: gameState.ballCount,
                     shuffleSpeed: gameState.shuffleSpeed,
-                    selectedCupIndex: gameState.selectedCupIndex
+                    selectedCupIndex: gameState.selectedCupIndex,
+                    selectedBgIndex: gameState.selectedBgIndex
                 });
             }, 1000);
         }
@@ -96,8 +100,8 @@
         // --- LOGIC: RENDER ---
         function renderDesignSelector() {
             const selector = document.getElementById('cup-design-selector');
-            selector.innerHTML = ''; 
-            for (let i = 1; i <= 6; i++) {
+            selector.innerHTML = '';
+            for (let i = 1; i <= 10; i++) {
                 const button = document.createElement('button');
                 button.type = 'button';
                 button.id = `cup-select-${i}`;
@@ -127,11 +131,60 @@
         }
 
         function selectCupDesign(index) {
-            if(gameState.isPlaying) return; 
+            if(gameState.isPlaying) return;
             gameState.selectedCupIndex = index;
             highlightSelectedDesign(index);
-            renderCups(); 
+            renderCups();
             triggerCloudSave();
+        }
+
+        // --- LOGIC: BACKGROUND RENDER ---
+        function renderBgSelector() {
+            const selector = document.getElementById('bg-selector');
+            selector.innerHTML = '';
+            for (let i = 1; i <= 5; i++) {
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.id = `bg-select-${i}`;
+                button.className = 'p-1 bg-white rounded-xl border-2 border-dark shadow-hard-sm hover:-translate-y-0.5 hover:shadow-hard active:translate-y-0 transition-all duration-200 group overflow-hidden';
+                button.innerHTML = `
+                    <div class="w-full aspect-[16/10] bg-slate-50 rounded-lg relative overflow-hidden">
+                        <img src="./bg/bg-${i}.webp" class="w-full h-full object-cover transition-transform group-hover:scale-110 duration-300" alt="Theme ${i}" draggable="false">
+                        <div class="absolute inset-0 bg-blue/10 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                    </div>
+                `;
+                button.onclick = () => selectBg(i);
+                selector.appendChild(button);
+            }
+            highlightSelectedBg(gameState.selectedBgIndex);
+            applyBg();
+        }
+
+        function highlightSelectedBg(index) {
+            document.querySelectorAll('#bg-selector button').forEach(btn => {
+                btn.classList.remove('border-blue', 'ring-2', 'ring-blue/30');
+                btn.classList.add('border-dark');
+            });
+            const selectedBtn = document.getElementById(`bg-select-${index}`);
+            if(selectedBtn) {
+                selectedBtn.classList.remove('border-dark');
+                selectedBtn.classList.add('border-blue', 'ring-2', 'ring-blue/30');
+            }
+        }
+
+        function selectBg(index) {
+            if(gameState.isPlaying) return;
+            gameState.selectedBgIndex = index;
+            highlightSelectedBg(index);
+            applyBg();
+            triggerCloudSave();
+        }
+
+        function applyBg() {
+            const gameArea = document.getElementById('game-area');
+            if(gameArea) {
+                gameArea.style.backgroundImage = `url('./bg/bg-${gameState.selectedBgIndex}.webp')`;
+            }
         }
 
         function renderCups() {
@@ -411,6 +464,13 @@
 
             const designBtns = document.querySelectorAll('#cup-design-selector button');
             designBtns.forEach(btn => {
+                btn.disabled = !enable;
+                if(!enable) btn.classList.add('opacity-50');
+                else btn.classList.remove('opacity-50');
+            });
+
+            const bgBtns = document.querySelectorAll('#bg-selector button');
+            bgBtns.forEach(btn => {
                 btn.disabled = !enable;
                 if(!enable) btn.classList.add('opacity-50');
                 else btn.classList.remove('opacity-50');
