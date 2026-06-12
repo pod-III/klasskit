@@ -187,6 +187,63 @@
             background: #94a3b8;
         }
 
+        /* --- Bulk Import Modal --- */
+        .import-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 200;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 1rem;
+            background: rgba(30, 41, 59, 0.6);
+            backdrop-filter: blur(4px);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.25s ease;
+        }
+
+        .import-overlay.open {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .import-overlay.open .import-modal {
+            transform: scale(1);
+            opacity: 1;
+        }
+
+        .import-modal {
+            transform: scale(0.95);
+            opacity: 0;
+            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            max-height: 92vh;
+        }
+
+        .import-textarea {
+            font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+            font-size: 13px;
+            line-height: 1.7;
+            tab-size: 2;
+            letter-spacing: -0.01em;
+        }
+
+        .import-textarea::placeholder {
+            color: #94a3b8;
+            font-family: 'JetBrains Mono', 'Fira Code', monospace;
+        }
+
+        .import-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.25rem;
+            padding: 0.25rem 0.5rem;
+            border-radius: 0.5rem;
+            font-size: 11px;
+            font-weight: 700;
+            border: 1px solid currentColor;
+        }
+
         /* --- Emoji Picker Popover --- */
         #emoji-picker-container {
             position: fixed;
@@ -432,10 +489,17 @@
             </div>
 
             <div class="p-5 border-t-2 border-dark bg-white flex flex-col md:flex-row gap-4 items-center">
-                <button onclick="UI.addEditorRow()"
-                    class="w-full md:w-auto px-5 py-3 border-2 border-dashed border-slate-300 text-slate-400 rounded-xl hover:border-blue hover:text-blue hover:bg-blue/5 transition font-bold text-sm tracking-wide flex items-center justify-center gap-2">
-                    <i data-lucide="plus" class="w-5 h-5"></i> ADD QUESTION
-                </button>
+                <div class="flex gap-2 w-full md:w-auto">
+                    <button onclick="UI.addEditorRow()"
+                        class="px-5 py-3 border-2 border-dashed border-slate-300 text-slate-400 rounded-xl hover:border-blue hover:text-blue hover:bg-blue/5 transition font-bold text-sm tracking-wide flex items-center justify-center gap-2">
+                        <i data-lucide="plus" class="w-5 h-5"></i> ADD QUESTION
+                    </button>
+                    <button onclick="openImportModal()"
+                        class="px-5 py-3 bg-orange text-white rounded-xl font-bold text-sm tracking-wide flex items-center justify-center gap-2 border-2 border-dark shadow-hard-sm hover:brightness-110 transition"
+                        title="Bulk import questions">
+                        <i data-lucide="file-up" class="w-4 h-4"></i> IMPORT
+                    </button>
+                </div>
 
                 <div class="flex-1 text-center hidden md:block">
                     <span id="save-status"
@@ -503,6 +567,91 @@
                     class="btn-click-anim bg-pink text-white px-6 py-2 rounded-xl font-heading text-md border-2 border-dark shadow-hard-sm">
                     Yes, Do it
                 </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Import Modal -->
+    <div id="import-overlay" class="import-overlay" onclick="if(event.target===this)closeImportModal()">
+        <div class="import-modal neo-card w-full max-w-3xl flex flex-col overflow-hidden" style="max-height: 92vh;">
+            <div class="w-full h-1.5 bg-orange shrink-0"></div>
+            <div class="flex items-center gap-4 px-6 pt-5 pb-4 border-b-2 border-dark shrink-0">
+                <div class="w-10 h-10 rounded-xl bg-orange flex items-center justify-center border-2 border-dark shadow-hard-sm shrink-0">
+                    <i data-lucide="file-up" class="w-5 h-5 text-white"></i>
+                </div>
+                <div class="flex-1">
+                    <h2 class="text-xl font-heading uppercase tracking-tight text-dark">BULK IMPORT</h2>
+                    <p class="text-[9px] font-black text-orange tracking-[0.25em] uppercase">Paste questions using the template below</p>
+                </div>
+                <button onclick="closeImportModal()" class="btn-icon w-10 h-10 rounded-xl shadow-hard-sm flex items-center justify-center text-dark hover:bg-slate-100" title="Close">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            <div class="flex flex-col lg:flex-row flex-1 overflow-hidden min-h-0">
+                <!-- Template Guide -->
+                <div class="lg:w-60 shrink-0 px-5 py-4 border-b-2 lg:border-b-0 lg:border-r-2 border-dark/10 overflow-y-auto custom-scrollbar bg-slate-50">
+                    <p class="text-[9px] font-black text-slate-400 uppercase tracking-[0.25em] mb-3">Format Guide</p>
+                    <div class="space-y-2.5 text-xs">
+                        <div>
+                            <p class="text-[9px] font-black text-blue uppercase tracking-widest mb-1">Per line</p>
+                            <p class="text-slate-500 font-semibold"><code class="bg-blue/10 text-blue px-1 rounded">CATEGORY</code> | Answer | Emojis</p>
+                            <p class="text-[10px] text-slate-400 mt-0.5">Pipe <code class="bg-slate-100 text-slate-500 px-1 rounded">|</code> separates the 3 columns</p>
+                        </div>
+                        <div>
+                            <p class="text-[9px] font-black text-green uppercase tracking-widest mb-1">Multiline mode</p>
+                            <p class="text-slate-500 font-semibold"><code class="bg-green/10 text-green px-1 rounded">[CATEGORY]</code></p>
+                            <p class="text-[10px] text-slate-400 mt-0.5">Then <code class="bg-slate-100 text-slate-500 px-1 rounded">Answer | Emojis</code> on each line</p>
+                        </div>
+                    </div>
+                    <div class="mt-4 bg-white border-2 border-dark/10 rounded-xl p-3 text-[11px] leading-relaxed text-slate-500 font-semibold">
+                        <p class="mb-1"><strong class="text-dark">Tip:</strong> Separate questions with a blank line.</p>
+                        <p class="mb-1"><strong class="text-dark">Comments:</strong> Lines starting with <code class="bg-slate-100 text-slate-500 px-1 rounded">//</code> or <code class="bg-slate-100 text-slate-500 px-1 rounded">#</code> are ignored.</p>
+                        <p><strong class="text-dark">Columns:</strong> Category | Answer | Emojis</p>
+                    </div>
+                    <button onclick="copyTemplate()" class="mt-3 w-full bg-orange/10 hover:bg-orange text-orange hover:text-white py-2 rounded-xl shadow-hard-sm font-heading text-xs flex items-center justify-center gap-2 transition-colors border-2 border-orange/20 hover:border-orange">
+                        <i data-lucide="clipboard-copy" class="w-3.5 h-3.5"></i> COPY TEMPLATE
+                    </button>
+                </div>
+
+                <!-- Textarea + Preview -->
+                <div class="flex-1 flex flex-col min-h-0 overflow-hidden">
+                    <!-- Input area -->
+                    <div class="flex-1 flex flex-col min-h-0 p-5 pb-0">
+                        <textarea id="import-textarea" class="import-textarea w-full flex-1 bg-chalk border-2 border-dark/15 rounded-xl px-4 py-3 text-dark focus:outline-none focus:border-orange resize-none custom-scrollbar min-h-[160px]" placeholder="// Lines starting with // or # are comments and are ignored
+
+// One line per question — Category | Answer | Emojis
+NATIONS | Australia | 🦘🐨🌊☀️
+CITIES | Paris | 🥐🥖🍷🗼
+
+// Or use multiline mode with [CATEGORY] header
+[ANIMALS]
+Cat | 🐱🐟🥛
+Dog | 🐶🦴🎾
+
+// Mixing both styles in one paste is okay!" oninput="updateImportPreview()"></textarea>
+                    </div>
+                    <!-- Preview + Actions bar -->
+                    <div class="shrink-0 px-5 py-3 border-t border-dark/5 bg-slate-50/50">
+                        <div id="import-preview-panel" class="hidden mb-3 max-h-24 overflow-y-auto custom-scrollbar">
+                            <div id="import-preview-list" class="flex flex-wrap gap-1.5"></div>
+                            <div id="import-warnings" class="mt-2 space-y-1"></div>
+                        </div>
+                        <div class="flex items-center justify-between gap-3">
+                            <div id="import-preview-count" class="text-xs font-black text-slate-400 flex items-center gap-2">
+                                <i data-lucide="info" class="w-3.5 h-3.5"></i> <span>0 questions detected</span>
+                            </div>
+                            <div class="flex gap-2">
+                                <button onclick="closeImportModal()" class="btn-icon px-5 py-2 rounded-xl shadow-hard-sm font-heading text-sm text-dark hover:bg-slate-100">
+                                    CANCEL
+                                </button>
+                                <button id="import-confirm-btn" onclick="confirmImport()" class="btn-click-anim bg-green text-dark px-6 py-2 rounded-xl shadow-hard font-heading text-sm flex items-center gap-2 disabled:opacity-40 disabled:grayscale border-2 border-dark" disabled>
+                                    <i data-lucide="check-circle" class="w-4 h-4"></i> IMPORT
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -777,6 +926,178 @@
                 input.focus();
             }
         };
+
+        // ── Bulk Import ──
+        let parsedImportQuestions = [];
+
+        function openImportModal() {
+            document.getElementById('import-textarea').value = '';
+            parsedImportQuestions = [];
+            updateImportPreview();
+            document.getElementById('import-overlay').classList.add('open');
+            lucide.createIcons();
+            setTimeout(() => document.getElementById('import-textarea').focus(), 300);
+        }
+
+        function closeImportModal() {
+            document.getElementById('import-overlay').classList.remove('open');
+        }
+
+        function escapeHtml(str) {
+            if (!str) return '';
+            return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        }
+
+        function parseBulkImport(text) {
+            const questions = [];
+            const warnings = [];
+            const lines = text.split('\n').map(l => l.trim()).filter(l => l && !l.startsWith('//') && !l.startsWith('#'));
+
+            let currentCategory = '';
+
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i];
+
+                // Check for category header [CATEGORY]
+                const categoryMatch = line.match(/^\[(.+)\]$/);
+                if (categoryMatch) {
+                    currentCategory = categoryMatch[1].trim();
+                    continue;
+                }
+
+                // Parse line — look for pipe separators
+                const parts = line.split('|').map(p => p.trim());
+
+                if (parts.length >= 3) {
+                    // Full mode: Category | Answer | Emojis
+                    const category = parts[0];
+                    const answer = parts[1];
+                    const emojis = parts.slice(2).join(' | '); // In case emojis contain |
+                    if (category && answer && emojis) {
+                        questions.push({ category: category.toUpperCase(), answer, emojis });
+                    } else {
+                        warnings.push(`Line ${i + 1}: Missing data — all 3 columns required.`);
+                    }
+                } else if (parts.length === 2) {
+                    // Short mode: Answer | Emojis (requires a preceding [CATEGORY])
+                    const answer = parts[0];
+                    const emojis = parts[1];
+                    if (!currentCategory) {
+                        warnings.push(`Line ${i + 1}: "${escapeHtml(line)}" needs a [CATEGORY] header above it, or use 3 columns.`);
+                        continue;
+                    }
+                    if (answer && emojis) {
+                        questions.push({ category: currentCategory.toUpperCase(), answer, emojis });
+                    } else {
+                        warnings.push(`Line ${i + 1}: Missing answer or emojis.`);
+                    }
+                } else {
+                    warnings.push(`Line ${i + 1}: Could not parse "${escapeHtml(line)}". Use "Category | Answer | Emojis" or "[Category]" then "Answer | Emojis".`);
+                }
+            }
+
+            return { questions, warnings };
+        }
+
+        function updateImportPreview() {
+            const text = document.getElementById('import-textarea').value;
+            const result = parseBulkImport(text);
+            parsedImportQuestions = result.questions;
+            const warnings = result.warnings;
+            const count = parsedImportQuestions.length;
+            const previewEl = document.getElementById('import-preview-count');
+            const confirmBtn = document.getElementById('import-confirm-btn');
+            const previewPanel = document.getElementById('import-preview-panel');
+            const previewList = document.getElementById('import-preview-list');
+            const warningsEl = document.getElementById('import-warnings');
+
+            const span = previewEl.querySelector('span');
+            if (count === 0) {
+                span.textContent = '0 questions detected';
+                span.className = '';
+                confirmBtn.disabled = true;
+                previewPanel.classList.add('hidden');
+            } else {
+                let msg = `${count} question${count !== 1 ? 's' : ''} detected ✓`;
+                if (warnings.length > 0) {
+                    msg += ` (${warnings.length} warning${warnings.length !== 1 ? 's' : ''})`;
+                }
+                span.textContent = msg;
+                span.className = warnings.length > 0 ? 'text-orange' : 'text-green';
+                confirmBtn.disabled = false;
+
+                previewPanel.classList.remove('hidden');
+                previewList.innerHTML = parsedImportQuestions.map((q, i) => {
+                    const truncA = q.answer.length > 25 ? q.answer.slice(0, 25) + '…' : q.answer;
+                    return `<span class="import-badge bg-blue/15 text-blue" title="${escapeHtml(q.emojis)}">${i + 1}. <span class="opacity-60 font-semibold ml-1 truncate max-w-[140px]">${escapeHtml(truncA)}</span></span>`;
+                }).join('');
+
+                if (warnings.length > 0) {
+                    warningsEl.innerHTML = warnings.map(w => `<p class="text-[10px] font-bold text-orange flex items-center gap-1"><i data-lucide="alert-triangle" class="w-3 h-3 shrink-0"></i> ${escapeHtml(w)}</p>`).join('');
+                } else {
+                    warningsEl.innerHTML = '';
+                }
+            }
+            lucide.createIcons();
+        }
+
+        function confirmImport() {
+            if (parsedImportQuestions.length === 0) return;
+
+            // Remove empty placeholder questions
+            const existing = GameLogic.questions.filter(q => q.answer.trim() !== '' || q.emojis.trim() !== '');
+            GameLogic.questions = [...existing, ...parsedImportQuestions];
+
+            Storage.save(GameLogic.questions, GameLogic.timerDuration, GameLogic.currentPresetId);
+            UI.renderEditorRows();
+            closeImportModal();
+            AudioController.playPop();
+            setTimeout(() => AudioController.playPop(), 120);
+
+            // Scroll to bottom of editor
+            setTimeout(() => {
+                const list = document.getElementById('editor-list');
+                list.lastElementChild.scrollIntoView({ behavior: 'smooth' });
+            }, 100);
+        }
+
+        function copyTemplate() {
+            const template = `// ============================================================
+//  EMOJI GAME BULK IMPORT TEMPLATE
+//  Remove these comment lines (starting with // or #) before
+//  importing, or leave them — they are ignored by the parser.
+// ============================================================
+
+// --- Format 1: One line per question ---
+// Category | Answer | Emojis
+NATIONS | Australia | 🦘🐨🌊☀️
+CITIES | Paris | 🥐🥖🍷🗼
+FOOD | Pizza | 🍕🧀🇮🇹
+
+// --- Format 2: Multiline with category header ---
+// Put [CATEGORY] on its own line, then Answer | Emojis below
+[ANIMALS]
+Cat | 🐱🐟🥛
+Dog | 🐶🦴🎾
+
+[SPORTS]
+Basketball | 🏀⛹️🏀
+Soccer | ⚽🏃🥅`;
+            navigator.clipboard.writeText(template).then(() => {
+                const btn = document.querySelector('button[onclick="copyTemplate()"]');
+                const original = btn.innerHTML;
+                btn.innerHTML = '<i data-lucide="check" class="w-3.5 h-3.5"></i> COPIED!';
+                lucide.createIcons();
+                setTimeout(() => { btn.innerHTML = original; lucide.createIcons(); }, 1500);
+            });
+        }
+
+        // Close import modal on Escape
+        window.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && document.getElementById('import-overlay').classList.contains('open')) {
+                closeImportModal();
+            }
+        });
 
         /**
          * STORAGE MANAGER
