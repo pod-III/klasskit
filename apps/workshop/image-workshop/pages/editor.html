@@ -8,13 +8,12 @@
 
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Nunito:wght@400;600;700&display=swap" rel="stylesheet" />
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.105.4"></script>
     <script src="/supabase.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@1.16.0"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script src="../../../../components/input-modal.js"></script>
 
     <script>
@@ -23,22 +22,22 @@
             theme: {
                 extend: {
                     colors: {
-                        'pink': '#ff4785',
-                        'orange': '#ff7e33',
-                        'green': '#00d063',
-                        'blue': '#1ea7fd',
-                        'dark': '#0f172a',
-                        'chalk': '#f8fafc',
+                        pink: "#ff4785",
+                        orange: "#ff7e33",
+                        green: "#00d063",
+                        blue: "#1ea7fd",
+                        dark: "#0f172a",
+                        chalk: "#f8fafc",
                     },
                     fontFamily: {
-                        heading: ['Fredoka', 'sans-serif'],
-                        body: ['Nunito', 'sans-serif'],
+                        heading: ["Fredoka", "sans-serif"],
+                        body: ["Nunito", "sans-serif"],
                     },
                     boxShadow: {
-                        'hard': '4px 4px 0px 0px #0f172a',
-                        'hard-hover': '8px 8px 0px 0px #0f172a',
+                        hard: "4px 4px 0px 0px #0f172a",
+                        "hard-hover": "8px 8px 0px 0px #0f172a",
+                        "hard-sm": "2px 2px 0px 0px #0f172a",
                     },
-                    borderWidth: { 3: "3px", 4: "4px" },
                 },
             },
         };
@@ -47,7 +46,7 @@
     <style>
         body {
             background-color: #f8fafc;
-            background-image: 
+            background-image:
                 linear-gradient(#cbd5e1 1px, transparent 1px),
                 linear-gradient(90deg, #cbd5e1 1px, transparent 1px);
             background-size: 30px 30px;
@@ -55,7 +54,7 @@
 
         .dark body {
             background-color: #020617;
-            background-image: 
+            background-image:
                 linear-gradient(#0f172a 1px, transparent 1px),
                 linear-gradient(90deg, #0f172a 1px, transparent 1px);
         }
@@ -75,8 +74,10 @@
         /* Brutalist Range Sliders */
         input[type="range"] {
             -webkit-appearance: none;
+            appearance: none;
             background: transparent;
         }
+
         input[type="range"]::-webkit-slider-thumb {
             -webkit-appearance: none;
             height: 20px;
@@ -87,7 +88,13 @@
             cursor: pointer;
             margin-top: -8px;
             box-shadow: 2px 2px 0px 0px #0f172a;
+            transition: transform 0.1s;
         }
+
+        input[type="range"]::-webkit-slider-thumb:hover {
+            transform: scale(1.1);
+        }
+
         input[type="range"]::-webkit-slider-runnable-track {
             width: 100%;
             height: 8px;
@@ -99,65 +106,95 @@
 
         .mode-active {
             background-color: #ff4785 !important;
-            color: white !important;
+            color: #0f172a !important;
             box-shadow: inset 3px 3px 0px rgba(0,0,0,0.2) !important;
         }
 
         .canvas-checker {
-            background: repeating-conic-gradient(#e2e8f0 0% 25%, #ffffff 0% 50%) 50% / 20px 20px;
+            background: repeating-conic-gradient(#e2e8f0 0% 25%, #f8fafc 0% 50%) 50% / 20px 20px;
+            border: 3px solid #0f172a;
+            border-radius: 0.5rem;
         }
         .dark .canvas-checker {
             background: repeating-conic-gradient(#1e293b 0% 25%, #0f172a 0% 50%) 50% / 20px 20px;
+            border-color: #334155;
         }
 
+        /* Crop overlay styles */
         #cropOverlay {
             position: absolute;
-            top: 0; left: 0; width: 100%; height: 100%;
-            pointer-events: none; z-index: 20;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 20;
         }
-        #cropOverlay.active { pointer-events: auto; cursor: crosshair; }
+
+        #cropOverlay.active {
+            pointer-events: auto;
+            cursor: crosshair;
+        }
+
         .crop-rect {
             position: absolute;
             border: 2px dashed #ff4785;
             box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.45);
             z-index: 21;
         }
+
         .crop-handle {
             position: absolute;
-            width: 16px; height: 16px;
-            background: #fff; border: 3px solid #ff4785;
-            border-radius: 4px; z-index: 22;
+            width: 12px;
+            height: 12px;
+            background: #fff;
+            border: 3px solid #ff4785;
+            border-radius: 2px;
+            z-index: 22;
         }
-        .crop-handle.tl { top: -8px; left: -8px; cursor: nw-resize; }
-        .crop-handle.tr { top: -8px; right: -8px; cursor: ne-resize; }
-        .crop-handle.bl { bottom: -8px; left: -8px; cursor: sw-resize; }
-        .crop-handle.br { bottom: -8px; right: -8px; cursor: se-resize; }
-        .crop-rect-inner { width: 100%; height: 100%; cursor: move; }
+
+        .crop-handle.tl { top: -6px; left: -6px; cursor: nw-resize; }
+        .crop-handle.tr { top: -6px; right: -6px; cursor: ne-resize; }
+        .crop-handle.bl { bottom: -6px; left: -6px; cursor: sw-resize; }
+        .crop-handle.br { bottom: -6px; right: -6px; cursor: se-resize; }
+        .crop-handle.tm { top: -6px; left: 50%; transform: translateX(-50%); cursor: n-resize; }
+        .crop-handle.bm { bottom: -6px; left: 50%; transform: translateX(-50%); cursor: s-resize; }
+        .crop-handle.ml { top: 50%; left: -6px; transform: translateY(-50%); cursor: w-resize; }
+        .crop-handle.mr { top: 50%; right: -6px; transform: translateY(-50%); cursor: e-resize; }
+
+        .crop-rect-inner {
+            width: 100%;
+            height: 100%;
+            cursor: move;
+        }
+
+        /* Crop info badge */
         .crop-info {
-            position: absolute; bottom: -30px; left: 50%; transform: translateX(-50%);
-            background: #0f172a; color: #fff; font-size: 10px; font-weight: 800;
-            padding: 2px 8px; border-radius: 6px; white-space: nowrap; z-index: 23;
+            position: absolute;
+            bottom: -28px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(15, 23, 42, 0.85);
+            color: #fff;
+            font-size: 11px;
+            font-weight: 700;
+            padding: 2px 8px;
+            border-radius: 6px;
+            white-space: nowrap;
+            pointer-events: none;
+            z-index: 23;
         }
 
-        .thumb-list::-webkit-scrollbar { height: 6px; }
-        .thumb-list::-webkit-scrollbar-track { background: transparent; }
-        .thumb-list::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
-
-        @keyframes progress-shimmer {
-            0% { background-position: -200% 0; }
-            100% { background-position: 200% 0; }
-        }
-        .animate-progress {
-            background: linear-gradient(90deg, #ff7e33 25%, #ffb38a 50%, #ff7e33 75%);
-            background-size: 200% 100%;
-            animation: progress-shimmer 2s infinite linear;
+        /* Quality slider track color fill */
+        .quality-track {
+            background: linear-gradient(90deg, #ff4785 0%, #00d063 60%, #1ea7fd 100%);
         }
     </style>
 </head>
 
 <body class="font-body text-dark dark:text-chalk min-h-screen p-4 md:p-8">
 
-    <main class="max-w-7xl mx-auto">
+    <main class="max-w-6xl mx-auto">
         <!-- Header -->
         <header class="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
             <div class="flex items-center gap-4">
@@ -165,614 +202,802 @@
                     <i data-lucide="arrow-left" class="w-6 h-6"></i>
                 </a>
                 <div>
-                    <h1 class="font-heading font-bold text-3xl md:text-4xl">IMAGE <span class="text-orange">EDITOR</span></h1>
-                    <p class="text-slate-500 dark:text-slate-400 font-bold text-sm">Batch transform, rotate, and crop assets</p>
+                    <h1 class="font-heading font-bold text-3xl md:text-4xl">IMAGE <span class="text-blue">EDITOR</span></h1>
+                    <p class="text-slate-500 dark:text-slate-400 font-bold text-sm">Crop, filter, and adjust your images</p>
                 </div>
             </div>
-            
-            <div class="flex items-center gap-3">
-                <button id="resetBtn" class="bg-white dark:bg-slate-800 border-4 border-dark dark:border-slate-500 p-3 rounded-2xl shadow-hard btn-chunky text-pink" title="Reset Editor">
-                    <i data-lucide="refresh-ccw" class="w-6 h-6"></i>
-                </button>
-                <button id="themeToggle" class="bg-white dark:bg-slate-800 border-4 border-dark dark:border-slate-500 p-3 rounded-2xl shadow-hard btn-chunky">
-                    <i data-lucide="sun" class="w-6 h-6 hidden dark:block"></i>
-                    <i data-lucide="moon" class="w-6 h-6 block dark:hidden"></i>
-                </button>
-            </div>
+            <button id="themeToggle" class="bg-white dark:bg-slate-800 border-4 border-dark dark:border-slate-500 p-3 rounded-2xl shadow-hard btn-chunky">
+                <i data-lucide="sun" class="w-6 h-6 hidden dark:block"></i>
+                <i data-lucide="moon" class="w-6 h-6 block dark:hidden"></i>
+            </button>
         </header>
 
         <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
-            <!-- Sidebar: Controls -->
+
             <aside class="lg:col-span-4 flex flex-col gap-6">
-                <!-- Step 1: Load -->
-                <div class="bg-white dark:bg-slate-900 border-4 border-dark dark:border-slate-500 rounded-[2rem] p-6 shadow-hard relative overflow-hidden group">
-                    <div class="absolute top-0 right-0 bg-green text-dark font-heading font-bold px-4 py-1 border-b-4 border-l-4 border-dark rounded-bl-2xl">STEP 1</div>
-                    <h2 class="font-heading font-bold text-xl mb-4 flex items-center gap-2">
-                        <i data-lucide="upload-cloud" class="text-blue"></i> LOAD IMAGES
-                    </h2>
-                    <label class="block cursor-pointer">
-                        <input type="file" id="fileInput" accept="image/*" multiple class="hidden">
-                        <div class="border-4 border-dashed border-slate-200 dark:border-slate-700 rounded-2xl p-8 text-center hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
-                            <i data-lucide="images" class="w-12 h-12 mx-auto mb-3 text-slate-300"></i>
-                            <p class="font-bold text-slate-500">Select multiple images</p>
-                        </div>
-                    </label>
 
-                    <!-- Thumbnail List -->
-                    <div id="fileListContainer" class="mt-4 hidden">
-                        <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Selected Assets</p>
-                        <div id="thumbList" class="flex gap-3 overflow-x-auto pb-2 thumb-list">
-                            <!-- Thumbs injected here -->
-                        </div>
+            <div class="bg-white dark:bg-slate-900 border-4 border-dark dark:border-slate-500 rounded-[2rem] p-6 shadow-hard relative overflow-hidden group transition-colors">
+                <div class="absolute top-0 right-0 bg-green text-dark font-heading font-bold px-4 py-1 border-b-4 border-l-4 border-dark rounded-bl-2xl z-20">
+                    Step 1
+                </div>
+                <h2 class="font-heading font-bold text-xl mb-4 flex items-center gap-2">
+                    <i data-lucide="upload-cloud" class="w-6 h-6 text-blue"></i>
+                    Load Images
+                </h2>
+
+                <div class="border-4 border-dashed border-slate-300 dark:border-slate-700 rounded-2xl bg-slate-50 dark:bg-slate-800/50 h-28 flex flex-col items-center justify-center cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 hover:border-blue transition-colors relative group">
+                    <input type="file" id="fileInput" accept="image/*" multiple
+                        class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" />
+                    <div class="flex flex-col items-center gap-2 group-hover:scale-105 transition-transform">
+                        <i data-lucide="images" class="w-8 h-8 text-slate-400"></i>
+                        <span class="font-bold text-slate-500">Select multiple images</span>
                     </div>
                 </div>
-
-                <!-- Step 2: Controls -->
-                <div id="configCard" class="bg-white dark:bg-slate-900 border-4 border-dark dark:border-slate-500 rounded-[2rem] p-6 shadow-hard relative opacity-50 pointer-events-none transition-all">
-                    <div class="absolute top-0 right-0 bg-orange text-dark font-heading font-bold px-4 py-1 border-b-4 border-l-4 border-dark rounded-bl-2xl">STEP 2</div>
-                    <h2 class="font-heading font-bold text-xl mb-6 flex items-center gap-2">
-                        <i data-lucide="sliders" class="text-pink"></i> TRANSFORM
-                    </h2>
-
-                    <!-- Rotation -->
-                    <div class="mb-8">
-                        <label class="font-heading font-bold text-sm text-slate-400 block mb-3 uppercase tracking-widest">Rotation</label>
-                        <div class="flex gap-2 mb-4">
-                            <button id="rotateLeft" class="btn-chunky flex-1 bg-slate-50 dark:bg-slate-800 border-2 border-dark rounded-xl py-2 font-bold text-sm">-90°</button>
-                            <button id="rotateRight" class="btn-chunky flex-1 bg-slate-50 dark:bg-slate-800 border-2 border-dark rounded-xl py-2 font-bold text-sm">+90°</button>
-                            <button id="rotateReset" class="btn-chunky flex-1 bg-slate-50 dark:bg-slate-800 border-2 border-dark rounded-xl py-2 font-bold text-sm">Reset</button>
-                        </div>
-                        <input type="range" id="rotationSlider" min="0" max="360" value="0" class="w-full">
-                    </div>
-
-                    <!-- Flip & Crop -->
-                    <div class="grid grid-cols-2 gap-4 mb-8">
-                        <button id="flipH" class="btn-chunky bg-white dark:bg-slate-800 border-4 border-dark rounded-2xl py-3 font-bold">Flip H</button>
-                        <button id="flipV" class="btn-chunky bg-white dark:bg-slate-800 border-4 border-dark rounded-2xl py-3 font-bold">Flip V</button>
-                        <button id="cropToggle" class="btn-chunky col-span-2 bg-slate-50 dark:bg-slate-800 border-4 border-dark rounded-2xl py-4 font-heading font-bold text-lg flex items-center justify-center gap-2">
-                            <i data-lucide="crop"></i> <span id="cropToggleLabel">Enable Crop</span>
-                        </button>
-                    </div>
-
-                    <!-- Quality -->
-                    <div class="mb-8 bg-slate-50 dark:bg-slate-800 p-4 rounded-2xl border-2 border-dark">
-                        <div class="flex justify-between items-center mb-2">
-                            <span class="font-heading font-bold text-sm text-slate-400 uppercase tracking-widest">Quality</span>
-                            <span class="font-black text-blue"><span id="qualityVal">92</span>%</span>
-                        </div>
-                        <input type="range" id="qualitySlider" min="10" max="100" value="92" class="w-full">
-                    </div>
-
-                    <!-- Rename & Download -->
-                    <div class="mb-6">
-                        <label class="font-heading font-bold text-sm text-slate-400 block mb-2 uppercase tracking-widest">Base Filename</label>
-                        <input type="text" id="batchPrefix" placeholder="asset_name" class="w-full bg-white dark:bg-slate-800 border-4 border-dark p-4 rounded-2xl font-bold focus:outline-none focus:ring-4 focus:ring-orange/20">
-                    </div>
-
-                    <div class="flex flex-col gap-3">
-                        <button id="downloadSingleBtn" disabled class="w-full bg-blue text-white font-heading font-bold text-lg py-4 rounded-2xl border-4 border-dark shadow-hard btn-chunky flex items-center justify-center gap-2 disabled:opacity-50">
-                            <i data-lucide="download"></i> DOWNLOAD CURRENT
-                        </button>
-                        <button id="downloadBatchBtn" disabled class="w-full bg-green text-dark font-heading font-bold text-lg py-4 rounded-2xl border-4 border-dark shadow-hard btn-chunky flex items-center justify-center gap-2 disabled:opacity-50">
-                            <i data-lucide="package"></i> DOWNLOAD ALL (ZIP)
-                        </button>
-                    </div>
-                    <p id="statusMsg" class="text-center text-xs font-black text-pink mt-3 uppercase tracking-widest h-4"></p>
-                </div>
-            </aside>
-
-            <!-- Preview Panel -->
-            <section class="lg:col-span-8">
-                <div class="bg-white dark:bg-slate-900 border-4 border-dark dark:border-slate-500 rounded-[2rem] p-4 shadow-hard h-full min-h-[600px] flex flex-col relative overflow-hidden">
-                    
-                    <div class="absolute top-8 left-8 z-10 bg-white/90 dark:bg-slate-800/90 backdrop-blur border-3 border-dark px-4 py-2 rounded-2xl shadow-hard">
-                        <h2 class="font-heading font-bold flex items-center gap-2">
-                            <i data-lucide="eye" class="text-blue"></i> PREVIEW
-                        </h2>
-                    </div>
-
-                    <div class="flex-grow canvas-checker rounded-[1.5rem] border-2 border-dark flex items-center justify-center overflow-hidden relative m-1" id="previewContainer">
-                        <div id="emptyState" class="text-center">
-                            <div class="w-20 h-20 bg-slate-100 dark:bg-slate-800 rounded-3xl border-4 border-dark flex items-center justify-center mx-auto mb-4">
-                                <i data-lucide="image" class="w-10 h-10 text-slate-300"></i>
-                            </div>
-                            <p class="font-bold text-slate-400">Upload images to begin</p>
-                        </div>
-
-                        <div id="canvasWrapper" class="relative hidden">
-                            <canvas id="mainCanvas" class="shadow-2xl border-2 border-dark max-w-full max-h-[70vh] rounded-lg"></canvas>
-                            <div id="cropOverlay"></div>
-                        </div>
-                    </div>
-                    
-                    <div class="mt-4 p-3 bg-slate-50 dark:bg-slate-800 border-2 border-dark rounded-2xl flex justify-between text-xs font-black text-slate-500 uppercase tracking-widest">
-                        <span>Input: <span id="origDim" class="text-dark dark:text-white">—</span></span>
-                        <span id="batchStatus">0 images</span>
-                        <span>Output: <span id="outDim" class="text-blue">—</span></span>
-                    </div>
-                </div>
-            </section>
-        </div>
-    </main>
-
-    <!-- Processing Overlay -->
-    <div id="processingOverlay" class="fixed inset-0 z-[100] bg-dark/60 backdrop-blur-md flex items-center justify-center opacity-0 pointer-events-none transition-opacity duration-300">
-        <div class="bg-white dark:bg-slate-900 border-4 border-dark rounded-[2.5rem] p-8 max-w-sm w-full mx-4 shadow-[0_20px_50px_rgba(0,0,0,0.3)] transform scale-90 transition-transform duration-300" id="processingModal">
-            <div class="text-center">
-                <div class="w-20 h-20 bg-orange/10 rounded-3xl border-4 border-orange flex items-center justify-center mx-auto mb-6 animate-bounce">
-                    <i data-lucide="package" class="w-10 h-10 text-orange"></i>
-                </div>
-                <h3 class="font-heading font-bold text-2xl mb-2 text-dark dark:text-white">PROCESSING BATCH</h3>
-                <p class="text-slate-500 dark:text-slate-400 font-bold text-sm mb-8">Creating your ZIP archive, please wait...</p>
-                
-                <div class="w-full bg-slate-100 dark:bg-slate-800 h-4 rounded-full border-2 border-dark overflow-hidden mb-4">
-                    <div id="progressBar" class="h-full w-0 animate-progress transition-all duration-300"></div>
-                </div>
-                <p id="progressText" class="text-xs font-black text-orange uppercase tracking-widest">0 / 0 Images</p>
             </div>
-        </div>
-    </div>
+
+            <div class="bg-white dark:bg-slate-900 border-4 border-dark dark:border-slate-500 rounded-[2rem] p-6 shadow-hard relative opacity-50 pointer-events-none transition-all duration-300 group transition-colors"
+                id="configCard">
+                <div class="absolute top-0 right-0 bg-orange text-dark font-heading font-bold px-4 py-1 border-b-4 border-l-4 border-dark rounded-bl-2xl">
+                    Step 2
+                </div>
+                <h2 class="font-heading font-bold text-xl mb-6 flex items-center gap-2">
+                    <i data-lucide="sliders" class="w-6 h-6 text-pink"></i>
+                    Transform & Export
+                </h2>
+
+                <div class="mb-6">
+                    <div class="flex items-center gap-2 mb-2">
+                        <div class="w-2 h-2 rounded-full bg-blue"></div>
+                        <p class="font-heading font-semibold text-lg">Rotation</p>
+                    </div>
+                    <div class="flex gap-2 mb-3 flex-wrap">
+                        <button id="rotateLeft" class="bg-chalk dark:bg-slate-800 border-4 border-dark dark:border-slate-500 px-3 py-2 rounded-xl font-bold shadow-hard btn-chunky flex items-center gap-1"><i data-lucide="rotate-ccw" class="w-4 h-4"></i>-90°</button>
+                        <button id="rotateRight" class="bg-chalk dark:bg-slate-800 border-4 border-dark dark:border-slate-500 px-3 py-2 rounded-xl font-bold shadow-hard btn-chunky flex items-center gap-1"><i data-lucide="rotate-cw" class="w-4 h-4"></i>+90°</button>
+                        <button id="rotate180" class="bg-chalk dark:bg-slate-800 border-4 border-dark dark:border-slate-500 px-3 py-2 rounded-xl font-bold shadow-hard btn-chunky flex items-center gap-1"><i data-lucide="rotate-3d" class="w-4 h-4"></i>180°</button>
+                        <button id="rotateReset" class="bg-chalk dark:bg-slate-800 border-4 border-dark dark:border-slate-500 px-3 py-2 rounded-xl font-bold shadow-hard btn-chunky flex items-center gap-1"><i data-lucide="x" class="w-4 h-4"></i>Reset</button>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-sm font-bold text-slate-500 w-8">0°</span>
+                        <input type="range" id="rotationSlider" min="0" max="360" value="0" step="1" class="w-full" />
+                        <span class="text-sm font-bold text-slate-500 w-10 text-right">360°</span>
+                    </div>
+                </div>
+
+                <div class="mb-6">
+                    <div class="flex items-center gap-2 mb-2">
+                        <div class="w-2 h-2 rounded-full bg-pink"></div>
+                        <p class="font-heading font-semibold text-lg">Flip</p>
+                    </div>
+                    <div class="flex gap-3">
+                        <button id="flipH" class="flex-1 bg-white dark:bg-slate-800 border-4 border-dark dark:border-slate-500 py-2 rounded-xl font-bold shadow-hard btn-chunky">Horizontal</button>
+                        <button id="flipV" class="flex-1 bg-white dark:bg-slate-800 border-4 border-dark dark:border-slate-500 py-2 rounded-xl font-bold shadow-hard btn-chunky">Vertical</button>
+                    </div>
+                </div>
+
+                <!-- Crop Tool (conventional drag-on-canvas) -->
+                <div class="mb-6">
+                    <div class="flex items-center gap-2 mb-2">
+                        <div class="w-2 h-2 rounded-full bg-green"></div>
+                        <p class="font-heading font-semibold text-lg">Crop</p>
+                    </div>
+                    <div class="flex gap-2 flex-wrap">
+                        <button id="cropToggle" class="flex-1 bg-white dark:bg-slate-800 border-4 border-dark dark:border-slate-500 py-2 px-4 rounded-xl font-bold shadow-hard btn-chunky flex items-center justify-center gap-2">
+                            <i data-lucide="crop" class="w-4 h-4"></i>
+                            <span id="cropToggleLabel">Enable Crop</span>
+                        </button>
+                        <button id="resetCrop" class="bg-chalk dark:bg-slate-800 border-4 border-dark dark:border-slate-500 py-2 px-4 rounded-xl font-bold shadow-hard btn-chunky flex items-center gap-2">
+                            <i data-lucide="maximize" class="w-4 h-4"></i>Reset
+                        </button>
+                    </div>
+                    <div id="cropDimensions" class="mt-3 bg-slate-50 dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 rounded-xl p-3 text-sm font-bold text-slate-600 dark:text-slate-300 hidden">
+                        <div class="flex justify-between">
+                            <span>Region: <span id="cropRegionInfo" class="text-green">—</span></span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Image Quality Control -->
+                <div class="mb-6 bg-slate-50 dark:bg-slate-800 p-4 rounded-xl border-4 border-dark dark:border-slate-500">
+                    <div class="flex items-center gap-2 mb-3">
+                        <div class="w-2 h-2 rounded-full bg-orange"></div>
+                        <span class="font-heading font-bold text-lg">Image Quality</span>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <span class="text-sm font-bold text-slate-500 w-10">10%</span>
+                        <input type="range" id="qualitySlider" min="10" max="100" value="92" step="1" class="w-full" />
+                        <span class="text-sm font-bold text-slate-500 w-12 text-right">100%</span>
+                    </div>
+                    <div class="flex items-center justify-between mt-2">
+                        <p class="text-sm text-slate-500">Smaller file</p>
+                        <p class="text-sm font-bold"><span id="qualityVal" class="text-blue text-lg">92</span>%</p>
+                        <p class="text-sm text-slate-500">Best quality</p>
+                    </div>
+                </div>
+
+                <hr class="my-6 border-slate-300 dark:border-slate-700" />
+
+                <div class="mb-6">
+                    <div class="flex items-center gap-2 mb-2">
+                        <div class="w-2 h-2 rounded-full bg-orange"></div>
+                        <p class="font-heading font-semibold text-lg">Batch Renaming</p>
+                    </div>
+                    <input type="text" id="batchPrefix" placeholder="Base filename (e.g. lesson_asset)" class="w-full bg-white dark:bg-slate-900 border-4 border-dark dark:border-slate-500 px-4 py-3 rounded-xl font-bold shadow-hard-sm focus:outline-none focus:ring-4 focus:ring-orange/30 transition-shadow" />
+                    <p id="batchStatus" class="font-bold text-slate-500 mt-2">0 images ready</p>
+                </div>
+
+                <button id="downloadBtn" class="w-full mt-2 bg-green text-dark font-heading font-bold text-xl py-4 px-4 rounded-2xl border-4 border-dark shadow-hard btn-chunky flex items-center justify-center gap-2 group disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                    <i data-lucide="download" class="w-6 h-6"></i>
+                    Process & Download All
+                </button>
+                <p id="statusMsg" class="text-center font-bold text-pink mt-3 h-4"></p>
+            </div>
+        </aside>
+
+        <section class="lg:col-span-8">
+            <div class="bg-white dark:bg-slate-900 border-4 border-dark dark:border-slate-500 rounded-[2rem] p-3 shadow-hard h-full min-h-[500px] flex flex-col relative transition-colors">
+                <div class="absolute top-6 left-6 z-10 bg-white dark:bg-slate-800 border-4 border-dark dark:border-slate-500 px-4 py-2 rounded-2xl shadow-hard-sm">
+                    <h2 class="font-heading font-bold flex items-center gap-2 text-dark dark:text-white">
+                        <i data-lucide="eye" class="text-blue w-5 h-5"></i>
+                        Preview <span class="text-sm font-normal text-slate-500 ml-1">(First Image)</span>
+                    </h2>
+                </div>
+
+                <div class="flex-grow canvas-checker flex items-center justify-center overflow-hidden relative m-1 p-4" id="previewContainer">
+                    <div id="emptyState" class="text-center p-6 bg-white dark:bg-slate-800 border-4 border-dashed border-slate-300 dark:border-slate-700 rounded-2xl shadow-sm">
+                        <div class="inline-flex items-center justify-center bg-slate-50 dark:bg-slate-700 w-20 h-20 rounded-full border-4 border-slate-200 dark:border-slate-600 mb-4">
+                            <i data-lucide="layout-grid" class="w-10 h-10 text-slate-400"></i>
+                        </div>
+                        <p class="text-slate-500 font-bold text-lg">Waiting for images...</p>
+                    </div>
+
+                    <!-- Canvas wrapper for crop overlay -->
+                    <div id="canvasWrapper" class="relative hidden">
+                        <canvas id="mainCanvas" class="shadow-hard border-4 border-dark dark:border-slate-500 relative z-10 max-w-full max-h-full object-contain rounded-lg"></canvas>
+                        <div id="cropOverlay"></div>
+                    </div>
+                </div>
+
+                <div class="flex justify-between font-bold text-slate-500 mt-3 px-2 bg-slate-50 dark:bg-slate-800 p-2 rounded-xl border-2 border-slate-200 dark:border-slate-700">
+                    <span>Original: <span id="origDim" class="text-dark dark:text-white">—</span></span>
+                    <span>Output: <span id="outDim" class="text-blue">—</span></span>
+                </div>
+            </div>
+        </section>
+    </main>
 
     <script>
         (function () {
             lucide.createIcons();
 
-            const elements = {
-                fileInput: document.getElementById('fileInput'),
-                configCard: document.getElementById('configCard'),
-                emptyState: document.getElementById('emptyState'),
-                mainCanvas: document.getElementById('mainCanvas'),
-                canvasWrapper: document.getElementById('canvasWrapper'),
-                cropOverlay: document.getElementById('cropOverlay'),
-                downloadBtn: document.getElementById('downloadBtn'),
-                statusMsg: document.getElementById('statusMsg'),
-                origDim: document.getElementById('origDim'),
-                outDim: document.getElementById('outDim'),
-                batchStatus: document.getElementById('batchStatus'),
-                batchPrefix: document.getElementById('batchPrefix'),
-                qualitySlider: document.getElementById('qualitySlider'),
-                qualityVal: document.getElementById('qualityVal'),
-                rotationSlider: document.getElementById('rotationSlider'),
-                cropToggle: document.getElementById('cropToggle'),
-                cropToggleLabel: document.getElementById('cropToggleLabel'),
-                thumbList: document.getElementById('thumbList'),
-                fileListContainer: document.getElementById('fileListContainer'),
-                processingOverlay: document.getElementById('processingOverlay'),
-                progressBar: document.getElementById('progressBar'),
-                progressText: document.getElementById('progressText'),
-                downloadSingleBtn: document.getElementById('downloadSingleBtn'),
-                downloadBatchBtn: document.getElementById('downloadBatchBtn'),
-                resetBtn: document.getElementById('resetBtn')
+            // DOM elements
+            const fileInput = document.getElementById('fileInput');
+            const configCard = document.getElementById('configCard');
+            const emptyState = document.getElementById('emptyState');
+            const mainCanvas = document.getElementById('mainCanvas');
+            const canvasWrapper = document.getElementById('canvasWrapper');
+            const ctx = mainCanvas.getContext('2d');
+            const downloadBtn = document.getElementById('downloadBtn');
+            const statusMsg = document.getElementById('statusMsg');
+            const origDim = document.getElementById('origDim');
+            const outDim = document.getElementById('outDim');
+            const batchStatus = document.getElementById('batchStatus');
+            const batchPrefix = document.getElementById('batchPrefix');
+            const cropOverlay = document.getElementById('cropOverlay');
+            const cropToggle = document.getElementById('cropToggle');
+            const cropToggleLabel = document.getElementById('cropToggleLabel');
+            const cropDimensions = document.getElementById('cropDimensions');
+            const cropRegionInfo = document.getElementById('cropRegionInfo');
+            const qualitySlider = document.getElementById('qualitySlider');
+            const qualityVal = document.getElementById('qualityVal');
+
+            // Controls
+            const rotationSlider = document.getElementById('rotationSlider');
+            const flipH = document.getElementById('flipH');
+            const flipV = document.getElementById('flipV');
+
+            // State
+            let uploadedFiles = [];
+            let originalImage = null;
+            let originalWidth = 0, originalHeight = 0;
+            let rotation = 0;
+            let flipHorizontal = false;
+            let flipVertical = false;
+            let quality = 0.92;
+
+            // Crop state
+            let cropEnabled = false;
+            let cropRect = { x: 0, y: 0, w: 0, h: 0 }; // in original image pixels
+            let isCropped = false; // whether a custom crop region is set
+
+            // Crop interaction state
+            let cropDragging = false;
+            let cropDragType = null; // 'move', 'tl', 'tr', 'bl', 'br', 'tm', 'bm', 'ml', 'mr', 'new'
+            let cropDragStart = { x: 0, y: 0 };
+            let cropRectStart = { x: 0, y: 0, w: 0, h: 0 };
+
+            // --- Quality Control ---
+            qualitySlider.oninput = () => {
+                quality = parseInt(qualitySlider.value) / 100;
+                qualityVal.textContent = qualitySlider.value;
             };
 
-            const ctx = elements.mainCanvas.getContext('2d');
-            let uploadedFiles = [], originalImage = null;
-            let originalWidth = 0, originalHeight = 0;
-            let rotation = 0, flipH = false, flipV = false, quality = 0.92;
-            let cropEnabled = false, isCropped = false, cropRect = { x: 0, y: 0, w: 0, h: 0 };
-            let dragging = false, dragType = null, dragStart = { x: 0, y: 0 }, rectStart = { ...cropRect };
-            let currentFileIndex = 0;
+            // --- Utility: Get canvas display rect relative to overlay ---
+            function getCanvasDisplayRect() {
+                const canvasRect = mainCanvas.getBoundingClientRect();
+                const overlayRect = cropOverlay.getBoundingClientRect();
+                return {
+                    left: canvasRect.left - overlayRect.left,
+                    top: canvasRect.top - overlayRect.top,
+                    width: canvasRect.width,
+                    height: canvasRect.height
+                };
+            }
 
-            // --- INDEXEDDB HELPERS ---
-            const DB_NAME = 'KlassKit_Editor_Images';
-            const STORE_NAME = 'session_images';
+            // --- Map between image coords and display coords ---
+            function imageToDisplay(ix, iy) {
+                const dr = getCanvasDisplayRect();
+                const scaleX = dr.width / mainCanvas.width;
+                const scaleY = dr.height / mainCanvas.height;
+                return {
+                    x: dr.left + ix * scaleX,
+                    y: dr.top + iy * scaleY
+                };
+            }
 
-            function openDB() {
+            function displayToImage(dx, dy) {
+                const dr = getCanvasDisplayRect();
+                const scaleX = mainCanvas.width / dr.width;
+                const scaleY = mainCanvas.height / dr.height;
+                return {
+                    x: (dx - dr.left) * scaleX,
+                    y: (dy - dr.top) * scaleY
+                };
+            }
+
+            // --- Render crop overlay on the canvas ---
+            function renderCropOverlay() {
+                // Remove old elements
+                cropOverlay.innerHTML = '';
+
+                if (!cropEnabled || !originalImage) {
+                    cropOverlay.classList.remove('active');
+                    return;
+                }
+
+                cropOverlay.classList.add('active');
+
+                // The crop rect is in "output" canvas pixel coordinates
+                // We need to map cropRect (original image coords) to canvas coords
+                const cr = getCropInCanvasCoords();
+                const dr = getCanvasDisplayRect();
+                const scaleX = dr.width / mainCanvas.width;
+                const scaleY = dr.height / mainCanvas.height;
+
+                const dispX = dr.left + cr.x * scaleX;
+                const dispY = dr.top + cr.y * scaleY;
+                const dispW = cr.w * scaleX;
+                const dispH = cr.h * scaleY;
+
+                // Crop rectangle div
+                const rectDiv = document.createElement('div');
+                rectDiv.className = 'crop-rect';
+                rectDiv.style.left = dispX + 'px';
+                rectDiv.style.top = dispY + 'px';
+                rectDiv.style.width = dispW + 'px';
+                rectDiv.style.height = dispH + 'px';
+
+                // Inner div for move
+                const inner = document.createElement('div');
+                inner.className = 'crop-rect-inner';
+                rectDiv.appendChild(inner);
+
+                // Handles
+                const handles = ['tl', 'tr', 'bl', 'br', 'tm', 'bm', 'ml', 'mr'];
+                handles.forEach(h => {
+                    const handle = document.createElement('div');
+                    handle.className = `crop-handle ${h}`;
+                    handle.dataset.handle = h;
+                    rectDiv.appendChild(handle);
+                });
+
+                // Info badge
+                const info = document.createElement('div');
+                info.className = 'crop-info';
+                info.textContent = `${Math.round(cropRect.w)} × ${Math.round(cropRect.h)}`;
+                rectDiv.appendChild(info);
+
+                cropOverlay.appendChild(rectDiv);
+
+                // Update side panel dimensions
+                cropRegionInfo.textContent = `${Math.round(cropRect.x)}, ${Math.round(cropRect.y)} → ${Math.round(cropRect.w)} × ${Math.round(cropRect.h)}`;
+            }
+
+            // Convert cropRect (in original image coords) to canvas coords
+            // Since the canvas is drawn with rotation/flip, crop is applied to the source, so
+            // the crop rect on canvas maps 1:1 to the drawn region in the pre-transform space.
+            // For the preview, the canvas already shows the full image, so crop rect maps directly.
+            function getCropInCanvasCoords() {
+                // cropRect is in original image pixels. The canvas shows the full original image
+                // (possibly rotated). We need to map cropRect to canvas pixel coordinates.
+                // Since renderPreview draws the full image into the canvas, the canvas pixel space
+                // corresponds directly to the output. But crop is applied to the SOURCE image.
+                // So on the canvas, the crop region needs to be shown as-is in source space,
+                // but we need to account for rotation/flip in the visual.
+                // Actually, for simplicity, we'll apply the crop rect in source image space
+                // and just show the overlay mapped to the canvas display.
+                // Since renderPreview always draws the full image, crop rect in source coords
+                // maps to canvas coords via: canvas = source (when no rotation)
+                // With rotation, the mapping changes, but the crop is still in source coords.
+
+                // For the overlay, we want to show where the crop is on the displayed canvas.
+                // The canvas shows the transformed image. The crop is in source coords.
+                // We need to map source coords through the transform to get canvas coords.
+
+                let cx, cy, cw, ch;
+                const { x, y, w, h } = cropRect;
+
+                // Scale from source to canvas
+                const canvasW = mainCanvas.width;
+                const canvasH = mainCanvas.height;
+
+                // The source image is drawn centered, rotated, and flipped
+                // For 0° rotation: canvas(px,py) = source(sx,sy) * scale
+                // Scale factor from source to canvas:
+                const srcW = originalWidth;
+                const srcH = originalHeight;
+
+                if (rotation === 0 || rotation === 360) {
+                    const sx = canvasW / srcW;
+                    const sy = canvasH / srcH;
+                    cx = (flipHorizontal ? (srcW - x - w) : x) * sx;
+                    cy = (flipVertical ? (srcH - y - h) : y) * sy;
+                    cw = w * sx;
+                    ch = h * sy;
+                } else if (rotation === 90) {
+                    const sx = canvasW / srcH;
+                    const sy = canvasH / srcW;
+                    cx = (flipVertical ? (srcH - y - h) : y) * sx;
+                    cy = (flipHorizontal ? x : (srcW - x - w)) * sy;
+                    cw = h * sx;
+                    ch = w * sy;
+                } else if (rotation === 180) {
+                    const sx = canvasW / srcW;
+                    const sy = canvasH / srcH;
+                    cx = (flipHorizontal ? x : (srcW - x - w)) * sx;
+                    cy = (flipVertical ? y : (srcH - y - h)) * sy;
+                    cw = w * sx;
+                    ch = h * sy;
+                } else if (rotation === 270) {
+                    const sx = canvasW / srcH;
+                    const sy = canvasH / srcW;
+                    cx = (flipVertical ? y : (srcH - y - h)) * sx;
+                    cy = (flipHorizontal ? (srcW - x - w) : x) * sy;
+                    cw = h * sx;
+                    ch = w * sy;
+                } else {
+                    // For arbitrary rotations, just show a simple mapping
+                    const sx = canvasW / srcW;
+                    const sy = canvasH / srcH;
+                    cx = x * sx;
+                    cy = y * sy;
+                    cw = w * sx;
+                    ch = h * sy;
+                }
+
+                return { x: cx, y: cy, w: cw, h: ch };
+            }
+
+            // --- Crop overlay mouse/touch events ---
+            function getOverlayCoords(e) {
+                const rect = cropOverlay.getBoundingClientRect();
+                const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+                const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+                return { x: clientX - rect.left, y: clientY - rect.top };
+            }
+
+            function startCropInteraction(e) {
+                if (!cropEnabled || !originalImage) return;
+                e.preventDefault();
+
+                const pos = getOverlayCoords(e);
+                const cr = getCropInCanvasCoords();
+                const dr = getCanvasDisplayRect();
+                const scaleX = dr.width / mainCanvas.width;
+                const scaleY = dr.height / mainCanvas.height;
+
+                const dispX = dr.left + cr.x * scaleX;
+                const dispY = dr.top + cr.y * scaleY;
+                const dispW = cr.w * scaleX;
+                const dispH = cr.h * scaleY;
+
+                const HANDLE_SIZE = 16;
+
+                // Check handles first
+                const handlePositions = {
+                    tl: { x: dispX, y: dispY },
+                    tr: { x: dispX + dispW, y: dispY },
+                    bl: { x: dispX, y: dispY + dispH },
+                    br: { x: dispX + dispW, y: dispY + dispH },
+                    tm: { x: dispX + dispW / 2, y: dispY },
+                    bm: { x: dispX + dispW / 2, y: dispY + dispH },
+                    ml: { x: dispX, y: dispY + dispH / 2 },
+                    mr: { x: dispX + dispW, y: dispY + dispH / 2 },
+                };
+
+                for (const [key, hp] of Object.entries(handlePositions)) {
+                    if (Math.abs(pos.x - hp.x) < HANDLE_SIZE && Math.abs(pos.y - hp.y) < HANDLE_SIZE) {
+                        cropDragging = true;
+                        cropDragType = key;
+                        cropDragStart = pos;
+                        cropRectStart = { ...cropRect };
+                        return;
+                    }
+                }
+
+                // Check if inside crop rect → move
+                if (pos.x >= dispX && pos.x <= dispX + dispW && pos.y >= dispY && pos.y <= dispY + dispH) {
+                    cropDragging = true;
+                    cropDragType = 'move';
+                    cropDragStart = pos;
+                    cropRectStart = { ...cropRect };
+                    return;
+                }
+
+                // Otherwise start a new crop
+                const imgCoord = displayToImage(pos.x, pos.y);
+                // Clamp to canvas bounds
+                imgCoord.x = Math.max(0, Math.min(imgCoord.x, mainCanvas.width));
+                imgCoord.y = Math.max(0, Math.min(imgCoord.y, mainCanvas.height));
+
+                // Convert canvas coords back to source image coords (simplified for 0° rotation)
+                const srcCoord = canvasToSource(imgCoord.x, imgCoord.y);
+                cropRect = { x: srcCoord.x, y: srcCoord.y, w: 1, h: 1 };
+                isCropped = true;
+
+                cropDragging = true;
+                cropDragType = 'br'; // drag bottom-right to size the new rect
+                cropDragStart = pos;
+                cropRectStart = { ...cropRect };
+                renderCropOverlay();
+            }
+
+            function moveCropInteraction(e) {
+                if (!cropDragging) return;
+                e.preventDefault();
+
+                const pos = getOverlayCoords(e);
+                const dx = pos.x - cropDragStart.x;
+                const dy = pos.y - cropDragStart.y;
+
+                // Convert delta from display coords to source image coords
+                const dr = getCanvasDisplayRect();
+                const canvasScaleX = mainCanvas.width / dr.width;
+                const canvasScaleY = mainCanvas.height / dr.height;
+
+                // Source scale
+                const srcScaleX = originalWidth / mainCanvas.width;
+                const srcScaleY = originalHeight / mainCanvas.height;
+
+                const sdx = dx * canvasScaleX * srcScaleX;
+                const sdy = dy * canvasScaleY * srcScaleY;
+
+                const { x: sx, y: sy, w: sw, h: sh } = cropRectStart;
+
+                if (cropDragType === 'move') {
+                    cropRect.x = clamp(sx + sdx, 0, originalWidth - sw);
+                    cropRect.y = clamp(sy + sdy, 0, originalHeight - sh);
+                } else {
+                    let newX = sx, newY = sy, newW = sw, newH = sh;
+
+                    if (cropDragType.includes('l')) {
+                        newX = clamp(sx + sdx, 0, sx + sw - 1);
+                        newW = sw - (newX - sx);
+                    }
+                    if (cropDragType.includes('r')) {
+                        newW = clamp(sw + sdx, 1, originalWidth - sx);
+                    }
+                    if (cropDragType.includes('t')) {
+                        newY = clamp(sy + sdy, 0, sy + sh - 1);
+                        newH = sh - (newY - sy);
+                    }
+                    if (cropDragType.includes('b')) {
+                        newH = clamp(sh + sdy, 1, originalHeight - sy);
+                    }
+
+                    cropRect = { x: newX, y: newY, w: newW, h: newH };
+                }
+
+                isCropped = true;
+                renderCropOverlay();
+                updateOutputDimensions();
+            }
+
+            function endCropInteraction() {
+                if (!cropDragging) return;
+                cropDragging = false;
+                cropDragType = null;
+
+                // Normalize rect (ensure positive w/h)
+                if (cropRect.w < 0) {
+                    cropRect.x += cropRect.w;
+                    cropRect.w = -cropRect.w;
+                }
+                if (cropRect.h < 0) {
+                    cropRect.y += cropRect.h;
+                    cropRect.h = -cropRect.h;
+                }
+
+                // Clamp to bounds
+                cropRect.x = clamp(cropRect.x, 0, originalWidth);
+                cropRect.y = clamp(cropRect.y, 0, originalHeight);
+                cropRect.w = clamp(cropRect.w, 1, originalWidth - cropRect.x);
+                cropRect.h = clamp(cropRect.h, 1, originalHeight - cropRect.y);
+
+                renderCropOverlay();
+                updateOutputDimensions();
+            }
+
+            // Simple canvas→source coord mapping for new-crop start
+            function canvasToSource(cx, cy) {
+                return { x: (cx / mainCanvas.width) * originalWidth, y: (cy / mainCanvas.height) * originalHeight };
+            }
+
+            function clamp(v, min, max) { return Math.max(min, Math.min(v, max)); }
+
+            cropOverlay.addEventListener('mousedown', startCropInteraction);
+            cropOverlay.addEventListener('mousemove', moveCropInteraction);
+            cropOverlay.addEventListener('mouseup', endCropInteraction);
+            cropOverlay.addEventListener('mouseleave', endCropInteraction);
+            cropOverlay.addEventListener('touchstart', startCropInteraction, { passive: false });
+            cropOverlay.addEventListener('touchmove', moveCropInteraction, { passive: false });
+            cropOverlay.addEventListener('touchend', endCropInteraction);
+
+            // --- Crop toggle ---
+            cropToggle.addEventListener('click', () => {
+                cropEnabled = !cropEnabled;
+                cropToggle.classList.toggle('mode-active', cropEnabled);
+                cropToggleLabel.textContent = cropEnabled ? 'Crop Active' : 'Enable Crop';
+                cropDimensions.classList.toggle('hidden', !cropEnabled);
+
+                if (cropEnabled && !isCropped) {
+                    // Default crop to full image
+                    cropRect = { x: 0, y: 0, w: originalWidth, h: originalHeight };
+                }
+
+                renderCropOverlay();
+                updateOutputDimensions();
+            });
+
+            // --- Reset crop ---
+            document.getElementById('resetCrop').addEventListener('click', () => {
+                cropRect = { x: 0, y: 0, w: originalWidth, h: originalHeight };
+                isCropped = false;
+                renderCropOverlay();
+                updateOutputDimensions();
+            });
+
+            // --- Update output dimensions display ---
+            function updateOutputDimensions() {
+                if (!originalImage) return;
+
+                let w, h;
+                if (isCropped && cropEnabled) {
+                    w = Math.round(cropRect.w);
+                    h = Math.round(cropRect.h);
+                } else {
+                    w = originalWidth;
+                    h = originalHeight;
+                }
+
+                // Account for rotation
+                if (rotation % 180 !== 0) {
+                    [w, h] = [h, w];
+                }
+
+                outDim.textContent = `${w} × ${h}`;
+            }
+
+            function renderPreview() {
+                if (!originalImage) return;
+
+                let srcX = 0, srcY = 0, srcW = originalWidth, srcH = originalHeight;
+
+                // Always render full image on canvas (crop is shown via overlay)
+                let baseW = (rotation % 180 !== 0) ? srcH : srcW;
+                let baseH = (rotation % 180 !== 0) ? srcW : srcH;
+                let outW = baseW, outH = baseH;
+
+                mainCanvas.width = outW;
+                mainCanvas.height = outH;
+
+                ctx.clearRect(0, 0, outW, outH);
+                ctx.save();
+                ctx.translate(outW / 2, outH / 2);
+                ctx.rotate(rotation * Math.PI / 180);
+                ctx.scale(flipHorizontal ? -1 : 1, flipVertical ? -1 : 1);
+
+                // Map draw coords: source center = 0,0
+                const drawW = (rotation % 180 !== 0) ? outH : outW;
+                const drawH = (rotation % 180 !== 0) ? outW : outH;
+                ctx.drawImage(originalImage, srcX, srcY, srcW, srcH, -drawW / 2, -drawH / 2, drawW, drawH);
+                ctx.restore();
+
+                updateOutputDimensions();
+
+                if (cropEnabled) {
+                    // Delay slightly to let canvas render before overlay measures
+                    requestAnimationFrame(() => renderCropOverlay());
+                }
+            }
+
+            // Image Loaders
+            function loadImageAsPromise(file) {
                 return new Promise((resolve, reject) => {
-                    const request = indexedDB.open(DB_NAME, 1);
-                    request.onupgradeneeded = (e) => {
-                        const db = e.target.result;
-                        if (!db.objectStoreNames.contains(STORE_NAME)) db.createObjectStore(STORE_NAME);
-                    };
-                    request.onsuccess = (e) => resolve(e.target.result);
-                    request.onerror = (e) => reject(e.target.error);
-                });
-            }
-
-            async function saveImagesToIDB(files) {
-                const db = await openDB();
-                const tx = db.transaction(STORE_NAME, 'readwrite');
-                const store = tx.objectStore(STORE_NAME);
-                await store.put(files, 'current_batch');
-            }
-
-            async function loadImagesFromIDB() {
-                const db = await openDB();
-                return new Promise((resolve) => {
-                    const tx = db.transaction(STORE_NAME, 'readonly');
-                    const request = tx.objectStore(STORE_NAME).get('current_batch');
-                    request.onsuccess = () => resolve(request.result);
-                    request.onerror = () => resolve(null);
-                });
-            }
-
-            async function clearIDB() {
-                const db = await openDB();
-                const tx = db.transaction(STORE_NAME, 'readwrite');
-                await tx.objectStore(STORE_NAME).clear();
-            }
-
-            // --- PERSISTENCE ---
-            const TOOL_ID = 'workshop_editor';
-            let saveTimeout;
-
-            async function initPersistence() {
-                await requireAuth();
-                // Load Theme
-                const savedTheme = localStorage.getItem('theme_workshop_editor') || 'light';
-                if (savedTheme === 'dark') document.documentElement.classList.add('dark');
-                updateThemeIcon();
-
-                // Load Progress
-                const progress = await loadProgress(TOOL_ID);
-                if (progress) {
-                    quality = progress.quality || 0.92;
-                    rotation = progress.rotation || 0;
-                    flipH = progress.flipH || false;
-                    flipV = progress.flipV || false;
-                    cropEnabled = progress.cropEnabled || false;
-                    cropRect = progress.cropRect || { x: 0, y: 0, w: 0, h: 0 };
-                    isCropped = progress.isCropped || false;
-                    currentFileIndex = progress.currentFileIndex || 0;
-                    if (progress.batchPrefix) elements.batchPrefix.value = progress.batchPrefix;
-
-                    elements.qualitySlider.value = Math.round(quality * 100);
-                    elements.qualityVal.textContent = Math.round(quality * 100);
-                    elements.rotationSlider.value = rotation;
-                    updateUI();
-                }
-
-                // Load Images
-                const storedImages = await loadImagesFromIDB();
-                if (storedImages && storedImages.length > 0) {
-                    uploadedFiles = storedImages;
-                    elements.batchStatus.textContent = `${uploadedFiles.length} images`;
-                    elements.fileListContainer.classList.remove('hidden');
-                    renderThumbnails();
-                    
-                    await loadFile(uploadedFiles[currentFileIndex]);
-                    elements.configCard.classList.remove('opacity-50', 'pointer-events-none');
-                    elements.emptyState.classList.add('hidden');
-                    elements.canvasWrapper.classList.remove('hidden');
-                    elements.downloadSingleBtn.disabled = false;
-                    elements.downloadBatchBtn.disabled = false;
-                }
-            }
-
-            function triggerSave() {
-                clearTimeout(saveTimeout);
-                saveTimeout = setTimeout(() => {
-                    const state = {
-                        quality, rotation, flipH, flipV, 
-                        cropEnabled, cropRect, isCropped,
-                        currentFileIndex,
-                        batchPrefix: elements.batchPrefix.value
-                    };
-                    saveProgress(TOOL_ID, state);
-                }, 1000);
-            }
-
-            // Theme Handling
-            const themeToggle = document.getElementById('themeToggle');
-            
-            function updateThemeIcon() {
-                const isDark = document.documentElement.classList.contains('dark');
-                themeToggle.innerHTML = isDark 
-                    ? '<i data-lucide="sun" class="w-6 h-6"></i>' 
-                    : '<i data-lucide="moon" class="w-6 h-6"></i>';
-                lucide.createIcons();
-            }
-
-            themeToggle.addEventListener('click', () => {
-                const isDark = document.documentElement.classList.toggle('dark');
-                localStorage.setItem('theme_workshop_editor', isDark ? 'dark' : 'light');
-                updateThemeIcon();
-            });
-
-            // Initialize
-            initPersistence();
-
-            elements.fileInput.addEventListener('change', async (e) => {
-                const files = Array.from(e.target.files);
-                if (files.length === 0) return;
-                
-                uploadedFiles = files;
-                currentFileIndex = 0;
-                elements.batchStatus.textContent = `${uploadedFiles.length} images`;
-                elements.fileListContainer.classList.remove('hidden');
-                renderThumbnails();
-                
-                await loadFile(uploadedFiles[0]);
-                elements.configCard.classList.remove('opacity-50', 'pointer-events-none');
-                elements.emptyState.classList.add('hidden');
-                elements.canvasWrapper.classList.remove('hidden');
-                elements.downloadSingleBtn.disabled = false;
-                elements.downloadBatchBtn.disabled = false;
-
-                saveImagesToIDB(uploadedFiles);
-                triggerSave();
-            });
-
-            async function loadFile(file) {
-                return new Promise((resolve) => {
                     const reader = new FileReader();
                     reader.onload = (evt) => {
                         const img = new Image();
-                        img.onload = () => {
-                            originalImage = img;
-                            originalWidth = img.width; originalHeight = img.height;
-                            elements.origDim.textContent = `${img.width}×${img.height}`;
-                            if (!isCropped) cropRect = { x: 0, y: 0, w: img.width, h: img.height };
-                            renderPreview();
-                            resolve();
-                        };
+                        img.onload = () => resolve(img);
+                        img.onerror = reject;
                         img.src = evt.target.result;
                     };
+                    reader.onerror = reject;
                     reader.readAsDataURL(file);
                 });
             }
 
-            function renderThumbnails() {
-                elements.thumbList.innerHTML = '';
-                uploadedFiles.forEach((file, index) => {
-                    const div = document.createElement('div');
-                    div.className = `flex-shrink-0 w-16 h-16 rounded-xl border-4 ${index === currentFileIndex ? 'border-orange' : 'border-dark'} overflow-hidden cursor-pointer hover:scale-105 transition-transform`;
-                    div.onclick = async () => {
-                        Array.from(elements.thumbList.children).forEach(child => child.classList.replace('border-orange', 'border-dark'));
-                        div.classList.replace('border-dark', 'border-orange');
-                        currentFileIndex = index;
-                        await loadFile(uploadedFiles[index]);
-                        triggerSave();
-                    };
-                    
-                    const img = document.createElement('img');
-                    img.src = URL.createObjectURL(file);
-                    img.className = 'w-full h-full object-cover';
-                    div.appendChild(img);
-                    elements.thumbList.appendChild(div);
-                });
-            }
+            async function handleUpload(e) {
+                const files = e.target.files;
+                if (!files || files.length === 0) return;
 
-            function resetAll() {
-                rotation = 0; flipH = false; flipV = false; isCropped = false; cropEnabled = false;
-                elements.rotationSlider.value = 0;
+                uploadedFiles = Array.from(files);
+                batchStatus.innerText = `${uploadedFiles.length} image(s) ready in queue`;
+
+                originalImage = await loadImageAsPromise(uploadedFiles[0]);
+                originalWidth = originalImage.width;
+                originalHeight = originalImage.height;
+                origDim.textContent = `${originalWidth} × ${originalHeight}`;
+
+                configCard.classList.remove('opacity-50', 'pointer-events-none');
+                emptyState.classList.add('hidden');
+                canvasWrapper.classList.remove('hidden');
+                downloadBtn.disabled = false;
+
+                rotation = 0; rotationSlider.value = 0;
+                flipHorizontal = false; flipVertical = false;
+                flipH.classList.remove('mode-active'); flipV.classList.remove('mode-active');
+
+                // Reset crop
                 cropRect = { x: 0, y: 0, w: originalWidth, h: originalHeight };
-                updateUI();
+                isCropped = false;
+                cropEnabled = false;
+                cropToggle.classList.remove('mode-active');
+                cropToggleLabel.textContent = 'Enable Crop';
+                cropDimensions.classList.add('hidden');
+                cropOverlay.classList.remove('active');
+                cropOverlay.innerHTML = '';
+
+                renderPreview();
             }
 
-            function updateUI() {
-                elements.cropToggle.classList.toggle('mode-active', cropEnabled);
-                elements.cropToggleLabel.textContent = cropEnabled ? 'Crop Active' : 'Enable Crop';
-                elements.qualityVal.textContent = Math.round(quality * 100);
-            }
+            fileInput.addEventListener('change', handleUpload);
 
-            elements.rotationSlider.oninput = (e) => { rotation = parseInt(e.target.value); renderPreview(); triggerSave(); };
-            elements.qualitySlider.oninput = (e) => { 
-                quality = e.target.value / 100; 
-                elements.qualityVal.textContent = e.target.value; 
-                triggerSave();
-            };
-            document.getElementById('rotateLeft').onclick = () => { rotation = (rotation - 90 + 360) % 360; elements.rotationSlider.value = rotation; renderPreview(); triggerSave(); };
-            document.getElementById('rotateRight').onclick = () => { rotation = (rotation + 90) % 360; elements.rotationSlider.value = rotation; renderPreview(); triggerSave(); };
-            document.getElementById('rotateReset').onclick = () => { rotation = 0; elements.rotationSlider.value = 0; renderPreview(); triggerSave(); };
-            document.getElementById('flipH').onclick = () => { flipH = !flipH; renderPreview(); triggerSave(); };
-            document.getElementById('flipV').onclick = () => { flipV = !flipV; renderPreview(); triggerSave(); };
-            elements.batchPrefix.oninput = () => triggerSave();
-            
-            elements.cropToggle.onclick = () => {
-                cropEnabled = !cropEnabled;
-                if (cropEnabled && !isCropped) cropRect = { x: 0, y: 0, w: originalWidth, h: originalHeight };
-                updateUI(); renderCropOverlay(); triggerSave();
-            };
+            // Event Listeners (Transforms)
+            document.getElementById('rotateLeft').onclick = () => { rotation = (rotation - 90 + 360) % 360; rotationSlider.value = rotation; renderPreview(); };
+            document.getElementById('rotateRight').onclick = () => { rotation = (rotation + 90) % 360; rotationSlider.value = rotation; renderPreview(); };
+            document.getElementById('rotate180').onclick = () => { rotation = (rotation + 180) % 360; rotationSlider.value = rotation; renderPreview(); };
+            document.getElementById('rotateReset').onclick = () => { rotation = 0; rotationSlider.value = 0; renderPreview(); };
+            rotationSlider.oninput = (e) => { rotation = parseInt(e.target.value); renderPreview(); };
 
-            function renderPreview() {
-                if (!originalImage) return;
-                
-                let sourceX = 0, sourceY = 0, sourceW = originalWidth, sourceH = originalHeight;
-                if (cropEnabled && isCropped) {
-                    sourceX = cropRect.x; sourceY = cropRect.y;
-                    sourceW = cropRect.w; sourceH = cropRect.h;
-                }
+            flipH.onclick = () => { flipHorizontal = !flipHorizontal; flipH.classList.toggle('mode-active', flipHorizontal); renderPreview(); };
+            flipV.onclick = () => { flipVertical = !flipVertical; flipV.classList.toggle('mode-active', flipVertical); renderPreview(); };
 
-                const baseW = (rotation % 180 !== 0) ? sourceH : sourceW;
-                const baseH = (rotation % 180 !== 0) ? sourceW : sourceH;
-                elements.mainCanvas.width = baseW; elements.mainCanvas.height = baseH;
-
-                ctx.save();
-                ctx.translate(baseW / 2, baseH / 2);
-                ctx.rotate(rotation * Math.PI / 180);
-                ctx.scale(flipH ? -1 : 1, flipV ? -1 : 1);
-                ctx.drawImage(originalImage, sourceX, sourceY, sourceW, sourceH, -sourceW / 2, -sourceH / 2, sourceW, sourceH);
-                ctx.restore();
-
-                elements.outDim.textContent = `${Math.round(baseW)}×${Math.round(baseH)}`;
-                renderCropOverlay();
-            }
-
-            function renderCropOverlay() {
-                elements.cropOverlay.innerHTML = '';
-                if (!cropEnabled || !originalImage) { elements.cropOverlay.classList.remove('active'); return; }
-                elements.cropOverlay.classList.add('active');
-
-                const canvasRect = elements.mainCanvas.getBoundingClientRect();
-                const overlayRect = elements.cropOverlay.getBoundingClientRect();
-                const scaleX = canvasRect.width / elements.mainCanvas.width;
-                const scaleY = canvasRect.height / elements.mainCanvas.height;
-
-                // Visual mapping for rotation (simplified for 90deg steps)
-                let cx, cy, cw, ch;
-                const { x, y, w, h } = cropRect;
-                if (rotation === 0 || rotation === 360) {
-                    cx = (flipH ? (originalWidth - x - w) : x) * (canvasRect.width / originalWidth);
-                    cy = (flipV ? (originalHeight - y - h) : y) * (canvasRect.height / originalHeight);
-                    cw = w * (canvasRect.width / originalWidth); ch = h * (canvasRect.height / originalHeight);
-                } else {
-                    // Fallback for rotation visual (simplified)
-                    cx = x * (canvasRect.width / originalWidth); cy = y * (canvasRect.height / originalHeight);
-                    cw = w * (canvasRect.width / originalWidth); ch = h * (canvasRect.height / originalHeight);
-                }
-
-                const rectDiv = document.createElement('div');
-                rectDiv.className = 'crop-rect';
-                rectDiv.style.left = cx + (canvasRect.left - overlayRect.left) + 'px';
-                rectDiv.style.top = cy + (canvasRect.top - overlayRect.top) + 'px';
-                rectDiv.style.width = cw + 'px'; rectDiv.style.height = ch + 'px';
-
-                const inner = document.createElement('div'); inner.className = 'crop-rect-inner';
-                rectDiv.appendChild(inner);
-
-                ['tl', 'tr', 'bl', 'br'].forEach(h => {
-                    const handle = document.createElement('div'); handle.className = `crop-handle ${h}`;
-                    handle.dataset.handle = h; rectDiv.appendChild(handle);
-                });
-
-                const info = document.createElement('div'); info.className = 'crop-info';
-                info.textContent = `${Math.round(w)} × ${Math.round(h)}`;
-                rectDiv.appendChild(info);
-
-                elements.cropOverlay.appendChild(rectDiv);
-            }
-
-            // Simplified Dragging Logic
-            elements.cropOverlay.onmousedown = (e) => {
-                if (!cropEnabled) return;
-                dragging = true;
-                dragType = e.target.dataset.handle || (e.target.classList.contains('crop-rect-inner') ? 'move' : 'new');
-                dragStart = { x: e.clientX, y: e.clientY };
-                rectStart = { ...cropRect };
-            };
-
-            window.onmousemove = (e) => {
-                if (!dragging) return;
-                const canvasBox = elements.mainCanvas.getBoundingClientRect();
-                const scaleX = originalWidth / canvasBox.width;
-                const scaleY = originalHeight / canvasBox.height;
-                
-                const dx = (e.clientX - dragStart.x) * scaleX;
-                const dy = (e.clientY - dragStart.y) * scaleY;
-
-                if (dragType === 'move') {
-                    cropRect.x = Math.max(0, Math.min(rectStart.x + dx, originalWidth - rectStart.w));
-                    cropRect.y = Math.max(0, Math.min(rectStart.y + dy, originalHeight - rectStart.h));
-                } else if (dragType === 'br') {
-                    cropRect.w = Math.max(10, Math.min(rectStart.w + dx, originalWidth - rectStart.x));
-                    cropRect.h = Math.max(10, Math.min(rectStart.h + dy, originalHeight - rectStart.y));
-                } else if (dragType === 'tl') {
-                    const newW = Math.max(10, rectStart.w - dx);
-                    const newH = Math.max(10, rectStart.h - dy);
-                    cropRect.x = rectStart.x + (rectStart.w - newW);
-                    cropRect.y = rectStart.y + (rectStart.h - newH);
-                    cropRect.w = newW; cropRect.h = newH;
-                } else if (dragType === 'tr') {
-                    cropRect.y = Math.max(0, Math.min(rectStart.y + dy, rectStart.y + rectStart.h - 10));
-                    cropRect.h = rectStart.h - (cropRect.y - rectStart.y);
-                    cropRect.w = Math.max(10, Math.min(rectStart.w + dx, originalWidth - rectStart.x));
-                } else if (dragType === 'bl') {
-                    cropRect.x = Math.max(0, Math.min(rectStart.x + dx, rectStart.x + rectStart.w - 10));
-                    cropRect.w = rectStart.w - (cropRect.x - rectStart.x);
-                    cropRect.h = Math.max(10, Math.min(rectStart.h + dy, originalHeight - rectStart.y));
-                }
-                isCropped = true; renderPreview();
-            };
-
-            window.onmouseup = () => { 
-                if (dragging) triggerSave();
-                dragging = false; 
-            };
-
-            async function processImage(img, config) {
-                const offCanvas = document.createElement('canvas');
-                const octx = offCanvas.getContext('2d');
-                
-                let sx = 0, sy = 0, sw = img.width, sh = img.height;
-                if (config.cropEnabled && config.isCropped) {
-                    sx = config.cropRect.x; sy = config.cropRect.y;
-                    sw = config.cropRect.w; sh = config.cropRect.h;
-                }
-
-                const bw = (config.rotation % 180 !== 0) ? sh : sw;
-                const bh = (config.rotation % 180 !== 0) ? sw : sh;
-                offCanvas.width = bw; offCanvas.height = bh;
-
-                octx.save();
-                octx.translate(bw / 2, bh / 2);
-                octx.rotate(config.rotation * Math.PI / 180);
-                octx.scale(config.flipH ? -1 : 1, config.flipV ? -1 : 1);
-                octx.drawImage(img, sx, sy, sw, sh, -sw / 2, -sh / 2, sw, sh);
-                octx.restore();
-
-                return new Promise(r => offCanvas.toBlob(r, 'image/webp', config.quality));
-            }
-
-            elements.downloadSingleBtn.onclick = async () => {
-                if (!originalImage) return;
-                const blob = await processImage(originalImage, {
-                    quality, rotation, flipH, flipV, cropEnabled, isCropped, cropRect
-                });
-                const prefix = elements.batchPrefix.value || 'asset';
-                const link = document.createElement('a');
-                link.download = `${prefix}_${currentFileIndex + 1}.webp`;
-                link.href = URL.createObjectURL(blob);
-                link.click();
-            };
-
-            elements.downloadBatchBtn.onclick = async () => {
+            // Batch Download Logic
+            downloadBtn.addEventListener('click', async () => {
                 if (uploadedFiles.length === 0) return;
-                
-                elements.processingOverlay.classList.replace('opacity-0', 'opacity-100');
-                elements.processingOverlay.classList.remove('pointer-events-none');
-                
-                const zip = new JSZip();
-                const prefix = elements.batchPrefix.value || 'asset';
-                
+
+                downloadBtn.disabled = true;
+                const prefix = batchPrefix.value.trim() || 'image';
+
+                const useCrop = isCropped && cropEnabled;
+
                 for (let i = 0; i < uploadedFiles.length; i++) {
+                    statusMsg.innerText = `Processing ${i + 1} of ${uploadedFiles.length}...`;
                     const file = uploadedFiles[i];
-                    elements.progressText.textContent = `${i + 1} / ${uploadedFiles.length} Images`;
-                    elements.progressBar.style.width = `${((i + 1) / uploadedFiles.length) * 100}%`;
-                    
-                    const img = await new Promise((res) => {
-                        const r = new FileReader();
-                        r.onload = (e) => {
-                            const tempImg = new Image();
-                            tempImg.onload = () => res(tempImg);
-                            tempImg.src = e.target.result;
-                        };
-                        r.readAsDataURL(file);
+                    const img = await loadImageAsPromise(file);
+
+                    // Map crop rect proportionally to this image's dimensions
+                    let srcX = 0, srcY = 0, srcW = img.width, srcH = img.height;
+                    if (useCrop) {
+                        const rx = cropRect.x / originalWidth;
+                        const ry = cropRect.y / originalHeight;
+                        const rw = cropRect.w / originalWidth;
+                        const rh = cropRect.h / originalHeight;
+                        srcX = Math.round(rx * img.width);
+                        srcY = Math.round(ry * img.height);
+                        srcW = Math.round(rw * img.width);
+                        srcH = Math.round(rh * img.height);
+                    }
+
+                    srcX = Math.max(0, Math.min(srcX, img.width - 1));
+                    srcY = Math.max(0, Math.min(srcY, img.height - 1));
+                    srcW = Math.max(1, Math.min(srcW, img.width - srcX));
+                    srcH = Math.max(1, Math.min(srcH, img.height - srcY));
+
+                    let baseW = (rotation % 180 !== 0) ? srcH : srcW;
+                    let baseH = (rotation % 180 !== 0) ? srcW : srcH;
+                    let outW = baseW, outH = baseH;
+
+                    const tempCanvas = document.createElement('canvas');
+                    tempCanvas.width = outW;
+                    tempCanvas.height = outH;
+                    const tCtx = tempCanvas.getContext('2d');
+
+                    tCtx.translate(outW / 2, outH / 2);
+                    tCtx.rotate(rotation * Math.PI / 180);
+                    tCtx.scale(flipHorizontal ? -1 : 1, flipVertical ? -1 : 1);
+
+                    const drawW = (rotation % 180 !== 0) ? outH : outW;
+                    const drawH = (rotation % 180 !== 0) ? outW : outH;
+                    tCtx.drawImage(img, srcX, srcY, srcW, srcH, -drawW / 2, -drawH / 2, drawW, drawH);
+
+                    await new Promise((resolve) => {
+                        tempCanvas.toBlob((blob) => {
+                            if (blob) {
+                                const url = URL.createObjectURL(blob);
+                                const a = document.createElement('a');
+                                a.href = url;
+                                a.download = `${prefix}_${i + 1}.webp`;
+                                document.body.appendChild(a);
+                                a.click();
+                                document.body.removeChild(a);
+                                URL.revokeObjectURL(url);
+                            }
+                            resolve();
+                        }, 'image/webp', quality);
                     });
 
-                    const blob = await processImage(img, {
-                        quality, rotation, flipH, flipV, cropEnabled, isCropped, cropRect
-                    });
-                    zip.file(`${prefix}_${i + 1}.webp`, blob);
+                    // 300ms delay to prevent the browser from blocking sequential downloads
+                    await new Promise(r => setTimeout(r, 300));
                 }
 
-                const content = await zip.generateAsync({ type: "blob" });
-                const link = document.createElement('a');
-                link.download = `${prefix}_batch.zip`;
-                link.href = URL.createObjectURL(content);
-                link.click();
+                statusMsg.innerText = 'Batch export complete!';
+                setTimeout(() => (statusMsg.innerText = ''), 4000);
+                downloadBtn.disabled = false;
+            });
 
-                setTimeout(() => {
-                    elements.processingOverlay.classList.replace('opacity-100', 'opacity-0');
-                    elements.processingOverlay.classList.add('pointer-events-none');
-                }, 1000);
-            };
+            // Theme Handling
+            const themeToggle = document.getElementById('themeToggle');
 
-            elements.resetBtn.onclick = async () => {
-                const confirmed = await showConfirmModal("Are you sure you want to reset the editor? This will clear all images and settings.", {
-                    title: "Reset Editor?",
-                    confirmText: "Reset",
-                    cancelText: "Cancel",
-                    icon: "rotate-ccw",
-                    iconColor: "red"
-                });
-                if (!confirmed) return;
-                await clearIDB();
-                localStorage.removeItem(`prog_${TOOL_ID}`);
-                location.reload();
-            };
+            function updateThemeIcon() {
+                const isDark = document.documentElement.classList.contains('dark');
+                themeToggle.innerHTML = isDark
+                    ? '<i data-lucide="sun" class="w-6 h-6"></i>'
+                    : '<i data-lucide="moon" class="w-6 h-6"></i>';
+                lucide.createIcons();
+            }
 
+            async function initTheme() {
+                await requireAuth();
+                const savedTheme = localStorage.getItem('theme_workshop_image_editor') || 'light';
+                if (savedTheme === 'dark') document.documentElement.classList.add('dark');
+                updateThemeIcon();
+            }
+
+            themeToggle.addEventListener('click', () => {
+                const isDark = document.documentElement.classList.toggle('dark');
+                localStorage.setItem('theme_workshop_image_editor', isDark ? 'dark' : 'light');
+                updateThemeIcon();
+            });
+
+            initTheme();
+
+            window.addEventListener('resize', () => {
+                if (originalImage) {
+                    renderPreview();
+                }
+            });
         })();
     </script>
 </body>
+
 </html>
