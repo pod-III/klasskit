@@ -195,6 +195,18 @@
             triggerCloudSave();
         }
 
+        function cycleCupDesign() {
+            if(gameState.isPlaying) return;
+            const next = gameState.selectedCupIndex >= 10 ? 1 : gameState.selectedCupIndex + 1;
+            selectCupDesign(next);
+        }
+
+        function cycleBackground() {
+            if(gameState.isPlaying) return;
+            const next = gameState.selectedBgIndex >= 6 ? 1 : gameState.selectedBgIndex + 1;
+            selectBg(next);
+        }
+
         // --- LOGIC: BALL COLOR ---
         function renderBallColorPicker() {
             const selector = document.getElementById('ball-color-selector');
