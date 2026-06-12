@@ -145,6 +145,7 @@
       display: flex; align-items: center; justify-content: center;
       flex-direction: column;
       font-family: "Fredoka", sans-serif;
+      perspective: 1000px;
     }
     html.dark .fc-card { background: #1e293b; border-color: rgba(255,255,255,0.3); box-shadow: 5px 5px 0px 0px rgba(0,0,0,0.7); }
     .fc-card:hover:not(.focused):not(.hidden-card) { z-index: 200 !important; transform: translateY(-10px) rotate(var(--rot,0deg)) scale(1.06) !important; box-shadow: 8px 8px 0px 0px rgba(30,41,59,1) !important; }
@@ -168,14 +169,56 @@
     }
     html.dark .fc-card.focused { box-shadow: 10px 10px 0px 0px rgba(0,0,0,0.9) !important; }
 
-    /* Hidden card (blurred/covered) */
-    .fc-card.hidden-card .card-content { filter: blur(8px); opacity: 0.35; }
-    .fc-card.hidden-card::after {
-      content: "";
-      position: absolute; inset: 0;
-      background: repeating-linear-gradient(-45deg, transparent, transparent 10px, rgba(41,121,255,0.12) 10px, rgba(41,121,255,0.12) 20px);
+    /* 3D Flipper */
+    .card-flipper {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+      transform-style: preserve-3d;
+    }
+    .fc-card.hidden-card .card-flipper {
+      transform: rotateY(180deg);
+    }
+
+    /* Card faces */
+    .card-face {
+      position: absolute;
+      inset: 0;
+      backface-visibility: hidden;
       border-radius: 13px;
-      z-index: 2;
+      overflow: hidden;
+    }
+    .card-face.front {
+      background: inherit;
+    }
+    .card-face.back {
+      transform: rotateY(180deg);
+      background: #2979FF;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .card-face.back::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: repeating-linear-gradient(-45deg, transparent, transparent 10px, rgba(255,255,255,0.12) 10px, rgba(255,255,255,0.12) 20px);
+    }
+    .card-face.back::after {
+      content: "?";
+      font-family: "Fredoka", sans-serif;
+      font-size: 56px;
+      font-weight: 900;
+      color: rgba(255,255,255,0.25);
+      position: relative;
+      z-index: 1;
+    }
+    html.dark .card-face.back {
+      background: #1e3a8a;
+    }
+    html.dark .card-face.back::before {
+      background: repeating-linear-gradient(-45deg, transparent, transparent 10px, rgba(255,255,255,0.06) 10px, rgba(255,255,255,0.06) 20px);
     }
 
     /* Remove animation */
@@ -1302,10 +1345,13 @@ function buildCardElement(card) {
         <button class="card-action-btn btn-hide" data-lucide="${card.hidden ? 'eye' : 'eye-off'}" onclick="event.stopPropagation();toggleHide(${card.id})"></button>
         <button class="card-action-btn" data-lucide="x" style="color:#FF6B95" onclick="event.stopPropagation();removeCard(${card.id})"></button>
       </div>
-      <div class="card-content w-full h-full flex flex-col">
-        <div class="flex-1 overflow-hidden rounded-[13px]">
-          <img src="${card.src}" alt="${card.label}" class="w-full h-full object-cover" draggable="false" />
+      <div class="card-flipper">
+        <div class="card-face front w-full h-full flex flex-col">
+          <div class="flex-1 overflow-hidden">
+            <img src="${card.src}" alt="${card.label}" class="w-full h-full object-cover" draggable="false" />
+          </div>
         </div>
+        <div class="card-face back"></div>
       </div>`;
   } else {
     el.innerHTML = `
@@ -1313,10 +1359,13 @@ function buildCardElement(card) {
         <button class="card-action-btn btn-hide" data-lucide="${card.hidden ? 'eye' : 'eye-off'}" onclick="event.stopPropagation();toggleHide(${card.id})"></button>
         <button class="card-action-btn" data-lucide="x" style="color:#FF6B95" onclick="event.stopPropagation();removeCard(${card.id})"></button>
       </div>
-      <div class="card-content w-full h-full flex flex-col items-center justify-center px-3 py-3 gap-2">
-        <div class="w-full h-1.5 rounded-full" style="background:${accentColor}"></div>
-        <span class="card-label font-heading font-bold text-center text-dark dark:text-slate-100 leading-tight" style="font-size:${Math.max(11,cardSize*0.14)}px">${card.label}</span>
-        <div class="w-full h-1.5 rounded-full" style="background:${accentColor}"></div>
+      <div class="card-flipper">
+        <div class="card-face front w-full h-full flex flex-col items-center justify-center px-3 py-3 gap-2">
+          <div class="w-full h-1.5 rounded-full" style="background:${accentColor}"></div>
+          <span class="card-label font-heading font-bold text-center text-dark dark:text-slate-100 leading-tight" style="font-size:${Math.max(11,cardSize*0.14)}px">${card.label}</span>
+          <div class="w-full h-1.5 rounded-full" style="background:${accentColor}"></div>
+        </div>
+        <div class="card-face back"></div>
       </div>`;
   }
 
