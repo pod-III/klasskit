@@ -1,4 +1,14 @@
         // --- GAME STATE ---
+        const BALL_COLORS = [
+            { name: 'Orange',  value: '#FF8C42', light: '#FFB74D', dark: '#E65100' },
+            { name: 'Red',     value: '#FF5252', light: '#FF8A80', dark: '#C62828' },
+            { name: 'Yellow',  value: '#FFD740', light: '#FFF59D', dark: '#FBC02D' },
+            { name: 'Green',   value: '#69F0AE', light: '#B9F6CA', dark: '#2E7D32' },
+            { name: 'Blue',    value: '#448AFF', light: '#82B1FF', dark: '#1565C0' },
+            { name: 'Purple',  value: '#E040FB', light: '#EA80FC', dark: '#8E24AA' },
+            { name: 'Pink',    value: '#FF6B95', light: '#FFAB91', dark: '#C2185B' },
+        ];
+
         let gameState = {
             cupCount: 3,
             ballCount: 1,
@@ -9,6 +19,7 @@
             cupPositions: [],
             selectedCupIndex: 1,
             selectedBgIndex: 1,
+            ballColorIndex: 0,
             foundBallsCount: 0
         };
 
@@ -27,14 +38,17 @@
                 gameState.shuffleSpeed = savedState.shuffleSpeed ?? 1.0;
                 gameState.selectedCupIndex = savedState.selectedCupIndex ?? 1;
                 gameState.selectedBgIndex = savedState.selectedBgIndex ?? 1;
+                gameState.ballColorIndex = savedState.ballColorIndex ?? 0;
             }
 
             lucide.createIcons();
             updateStepperUI();
-            updateSpeedSetting(true); // pass true to avoid re-saving immediately
+            updateSpeedSetting(true);
             renderDesignSelector();
             renderBgSelector();
+            renderBallColorPicker();
             renderCups();
+            lucide.createIcons();
             updateStatus('ready');
             
             if(window.innerWidth < 768) {
@@ -52,7 +66,8 @@
                     ballCount: gameState.ballCount,
                     shuffleSpeed: gameState.shuffleSpeed,
                     selectedCupIndex: gameState.selectedCupIndex,
-                    selectedBgIndex: gameState.selectedBgIndex
+                    selectedBgIndex: gameState.selectedBgIndex,
+                    ballColorIndex: gameState.ballColorIndex
                 });
             }, 1000);
         }
@@ -61,7 +76,7 @@
         function changeCups(delta) {
             if(gameState.isPlaying) return;
             const newVal = gameState.cupCount + delta;
-            if (newVal >= 2 && newVal <= 6) {
+            if (newVal >= 2 && newVal <= 8) {
                 gameState.cupCount = newVal;
                 if(gameState.ballCount >= gameState.cupCount) gameState.ballCount = gameState.cupCount - 1;
                 updateStepperUI();
@@ -84,7 +99,7 @@
             document.getElementById('cup-count-display').innerText = gameState.cupCount;
             document.getElementById('ball-count-display').innerText = gameState.ballCount;
             document.getElementById('btn-cup-minus').disabled = (gameState.cupCount <= 2);
-            document.getElementById('btn-cup-plus').disabled = (gameState.cupCount >= 6);
+            document.getElementById('btn-cup-plus').disabled = (gameState.cupCount >= 8);
             document.getElementById('btn-ball-minus').disabled = (gameState.ballCount <= 1);
             document.getElementById('btn-ball-plus').disabled = (gameState.ballCount >= gameState.cupCount - 1);
         }
@@ -180,6 +195,47 @@
             triggerCloudSave();
         }
 
+        // --- LOGIC: BALL COLOR ---
+        function renderBallColorPicker() {
+            const selector = document.getElementById('ball-color-selector');
+            selector.innerHTML = '';
+            BALL_COLORS.forEach((color, i) => {
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.id = `ball-color-select-${i}`;
+                button.className = 'ball-swatch';
+                button.title = color.name;
+                button.innerHTML = `
+                    <div class="ball-swatch-inner" style="background: radial-gradient(circle at 30% 30%, ${color.light}, ${color.value}, ${color.dark});"></div>
+                    <div class="ball-swatch-check"><i data-lucide="check" class="w-3 h-3 text-white"></i></div>
+                `;
+                button.onclick = () => selectBallColor(i);
+                selector.appendChild(button);
+            });
+            highlightSelectedBallColor(gameState.ballColorIndex);
+        }
+
+        function highlightSelectedBallColor(index) {
+            document.querySelectorAll('#ball-color-selector .ball-swatch').forEach((btn, i) => {
+                const check = btn.querySelector('.ball-swatch-check');
+                if (i === index) {
+                    btn.classList.add('active');
+                    if(check) check.style.opacity = '1';
+                } else {
+                    btn.classList.remove('active');
+                    if(check) check.style.opacity = '0';
+                }
+            });
+        }
+
+        function selectBallColor(index) {
+            if(gameState.isPlaying) return;
+            gameState.ballColorIndex = index;
+            highlightSelectedBallColor(index);
+            renderCups();
+            triggerCloudSave();
+        }
+
         function applyBg() {
             const gameArea = document.getElementById('game-area');
             if(gameArea) {
@@ -218,10 +274,11 @@
                 cup.style.transform = `translate(${xPos}px, 0) scale(${scale})`;
                 cup.style.width = `${cupBaseWidth}px`; 
 
+                const bc = BALL_COLORS[gameState.ballColorIndex];
                 cup.innerHTML = `
                     <div class="cup-label text-xl transition-opacity duration-300 opacity-0" data-original-id="${i}">Cup ${i + 1}</div>
                     <img src="./cups/cup-${imageIndex}.webp" class="cup-img" alt="Cup ${i+1}" draggable="false">
-                    <div class="ball" id="ball-${i}"></div>
+                    <div class="ball" id="ball-${i}" style="background: radial-gradient(circle at 30% 30%, ${bc.light}, ${bc.value}, ${bc.dark});"></div>
                 `;
                 
                 cup.style.left = '0px'; 
@@ -471,6 +528,13 @@
 
             const bgBtns = document.querySelectorAll('#bg-selector button');
             bgBtns.forEach(btn => {
+                btn.disabled = !enable;
+                if(!enable) btn.classList.add('opacity-50');
+                else btn.classList.remove('opacity-50');
+            });
+
+            const ballColorBtns = document.querySelectorAll('#ball-color-selector .ball-swatch');
+            ballColorBtns.forEach(btn => {
                 btn.disabled = !enable;
                 if(!enable) btn.classList.add('opacity-50');
                 else btn.classList.remove('opacity-50');
