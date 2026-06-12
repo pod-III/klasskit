@@ -620,6 +620,28 @@
             border-radius: 0 !important;
         }
 
+        /* Theater Mode */
+        #view-player.theater-mode > .grid {
+            grid-template-columns: 1fr !important;
+            max-width: 1600px !important;
+        }
+        #view-player.theater-mode > .grid > .lg\:col-span-2 {
+            grid-column: auto !important;
+        }
+        #view-player.theater-mode #playerWrap {
+            max-height: 78vh;
+            aspect-ratio: 16 / 9;
+        }
+        #view-player.theater-mode .player-header {
+            max-width: 1600px;
+            margin-left: auto;
+            margin-right: auto;
+            width: 100%;
+        }
+        #view-player.theater-mode > .grid > .lg\:col-span-2 + div > .glass-panel {
+            max-height: none;
+        }
+
         /* Responsive */
         @media (max-width: 768px) {
             .view {
@@ -923,6 +945,9 @@
                                 <button onclick="setPlayerSpeed(1)" id="spd1" class="btn-chunky bg-white dark:bg-slate-800 rounded-lg text-xs speed-btn active">1×</button>
                                 <button onclick="setPlayerSpeed(1.5)" id="spd15" class="btn-chunky bg-white dark:bg-slate-800 rounded-lg text-xs speed-btn">1.5×</button>
                                 <button onclick="setPlayerSpeed(2)" id="spd2" class="btn-chunky bg-white dark:bg-slate-800 rounded-lg text-xs speed-btn">2×</button>
+                                <button onclick="toggleTheaterMode()" id="theater-btn" class="btn-chunky bg-white dark:bg-slate-800 p-2 rounded-lg text-xs" title="Theater Mode" aria-label="Toggle theater mode">
+                                    <i data-lucide="rectangle-horizontal" class="w-4 h-4"></i>
+                                </button>
                                 <button onclick="togglePlayerFullscreen()" class="btn-chunky bg-white dark:bg-slate-800 p-2 rounded-lg text-xs" title="Fullscreen" aria-label="Toggle fullscreen">
                                     <i data-lucide="maximize" class="w-4 h-4"></i>
                                 </button>
@@ -1256,10 +1281,18 @@
         function switchView(viewName) {
             document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
             document.getElementById(`view-${viewName}`).classList.add('active');
-            
+
             if (viewName === 'library') {
                 stopSeekPoller();
-                if (player) player.stopVideo();
+                if (player && typeof player.stopVideo === 'function') player.stopVideo();
+                // Reset theater mode
+                const playerView = document.getElementById('view-player');
+                const theaterBtn = document.getElementById('theater-btn');
+                if (playerView) playerView.classList.remove('theater-mode');
+                if (theaterBtn) {
+                    theaterBtn.classList.remove('bg-blue', 'text-white');
+                    theaterBtn.classList.add('bg-white', 'dark:bg-slate-800');
+                }
             }
         }
 
@@ -2554,8 +2587,34 @@
                 if (document.exitFullscreen) document.exitFullscreen();
                 else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
             } else {
+                // Disable theater mode when entering fullscreen
+                const view = document.getElementById('view-player');
+                const btn = document.getElementById('theater-btn');
+                if (view && view.classList.contains('theater-mode')) {
+                    view.classList.remove('theater-mode');
+                    if (btn) {
+                        btn.classList.remove('bg-blue', 'text-white');
+                        btn.classList.add('bg-white', 'dark:bg-slate-800');
+                    }
+                }
                 if (wrap.requestFullscreen) wrap.requestFullscreen();
                 else if (wrap.webkitRequestFullscreen) wrap.webkitRequestFullscreen();
+            }
+        }
+
+        function toggleTheaterMode() {
+            const view = document.getElementById('view-player');
+            const btn = document.getElementById('theater-btn');
+            if (!view) return;
+            const isTheater = view.classList.toggle('theater-mode');
+            if (btn) {
+                if (isTheater) {
+                    btn.classList.add('bg-blue', 'text-white');
+                    btn.classList.remove('bg-white', 'dark:bg-slate-800');
+                } else {
+                    btn.classList.remove('bg-blue', 'text-white');
+                    btn.classList.add('bg-white', 'dark:bg-slate-800');
+                }
             }
         }
 
