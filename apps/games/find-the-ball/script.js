@@ -142,7 +142,7 @@
         function renderBgSelector() {
             const selector = document.getElementById('bg-selector');
             selector.innerHTML = '';
-            for (let i = 1; i <= 5; i++) {
+            for (let i = 1; i <= 6; i++) {
                 const button = document.createElement('button');
                 button.type = 'button';
                 button.id = `bg-select-${i}`;
