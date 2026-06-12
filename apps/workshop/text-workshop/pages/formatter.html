@@ -189,6 +189,16 @@
                                 <option value="roman">I.</option>
                             </select>
                         </div>
+
+                        <button onclick="process('shuffle')" class="btn-chunky w-full bg-slate-50 dark:bg-slate-800 border-4 border-dark dark:border-slate-500 rounded-2xl p-4 flex items-center gap-4 group">
+                            <div class="bg-orange text-white p-2 rounded-xl border-2 border-dark group-hover:scale-110 transition-transform">
+                                <i data-lucide="shuffle" class="w-5 h-5"></i>
+                            </div>
+                            <div class="text-left">
+                                <span class="block font-heading font-bold text-lg leading-none">Shuffle</span>
+                                <span class="block text-[10px] font-bold text-slate-400 uppercase mt-1">Randomize item order</span>
+                            </div>
+                        </button>
                     </div>
                 </div>
             </div>
@@ -361,6 +371,22 @@
                     return `${marker} ${item}`;
                 }).join('\n');
                 formatType = 'Numbered List';
+            }
+            else if (action === 'shuffle') {
+                // Detect separator: newlines if present, otherwise commas
+                const hasNewlines = rawText.includes('\n');
+                const separator = hasNewlines ? '\n' : ', ';
+                let arr = hasNewlines ? rawText.split(/\n/) : rawText.split(',');
+                arr = arr.map(item => item.trim()).filter(item => item !== '');
+
+                // Fisher-Yates shuffle
+                for (let i = arr.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [arr[i], arr[j]] = [arr[j], arr[i]];
+                }
+
+                result = hasNewlines ? arr.join('\n') : arr.join(', ');
+                formatType = 'Shuffled';
             }
 
             outputEl.value = result;
