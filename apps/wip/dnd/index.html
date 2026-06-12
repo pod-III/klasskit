@@ -2,794 +2,229 @@
 <html lang="en">
 
 <head>
+    <!-- Supabase Auth -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.105.4"></script>
+    <script src="/supabase.js"></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>E1 Batam - Character Roster</title>
+    <title>D&D Hub - KlassKit</title>
+    <link rel="icon" type="image/x-icon" href="../../../media/icon.ico" />
+    <link rel="icon" type="image/webp" href="../../../media/icon.webp" />
+
+    <script src="https://unpkg.com/lucide@1.16.0"></script>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="../../../components/input-modal.js"></script>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Nunito:wght@400;700;900&display=swap"
+        rel="stylesheet">
+
+    <script>
+        // Check for saved theme or default to light
+        const st = localStorage.getItem('theme_dnd');
+        if (st === 'dark' || (!st && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+            document.documentElement.classList.add('dark');
+        } else {
+            document.documentElement.classList.remove('dark');
+        }
+
+        function toggleTheme() {
+            if (document.documentElement.classList.contains('dark')) {
+                document.documentElement.classList.remove('dark');
+                localStorage.setItem('theme_dnd', 'light');
+            } else {
+                document.documentElement.classList.add('dark');
+                localStorage.setItem('theme_dnd', 'dark');
+            }
+            lucide.createIcons();
+        }
+    </script>
+
     <script>
         tailwind.config = {
+            darkMode: 'class',
             theme: {
                 extend: {
                     colors: {
-                        stone: { 900: '#1c1917', 950: '#0c0a09' },
-                        amber: { 500: '#f59e0b', 600: '#d97706', 700: '#b45309', 900: '#78350f' }
+                        pink: '#FF6B95',
+                        orange: '#FF8C42',
+                        green: '#00E676',
+                        blue: '#2979FF',
+                        dark: '#0F172A',
+                        chalk: '#f8fafc',
+                    },
+                    fontFamily: {
+                        heading: ['Fredoka', 'sans-serif'],
+                        body: ['Nunito', 'sans-serif'],
+                    },
+                    boxShadow: {
+                        'hard': '4px 4px 0px 0px #0F172A',
+                        'hard-hover': '8px 8px 0px 0px #0F172A',
                     }
                 }
             }
         }
     </script>
-    <link
-        href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Lora:ital,wght@0,400;0,600;1,400&display=swap"
-        rel="stylesheet">
-    <script src="https://unpkg.com/lucide@latest"></script>
+
     <style>
         body {
-            font-family: 'Lora', serif;
-            background-color: #0c0a09;
-            background-image: url('https://www.transparenttextures.com/patterns/stardust.png');
-            color: #d6d3d1;
+            font-family: 'Nunito', sans-serif;
+            background-color: #F0F4F8;
+            /* Grid Pattern Background */
+            background-image:
+                linear-gradient(#CBD5E1 1.5px, transparent 1.5px),
+                linear-gradient(90deg, #CBD5E1 1.5px, transparent 1.5px);
+            background-size: 30px 30px;
+            color: #0F172A;
         }
 
-        h1,
-        h2,
-        h3,
-        button,
-        .font-title {
-            font-family: 'Cinzel', serif;
+        .dark body {
+            background-color: #020617;
+            background-image:
+                linear-gradient(#0f172a 1.5px, transparent 1.5px),
+                linear-gradient(90deg, #0f172a 1.5px, transparent 1.5px);
+            color: #F8FAFC;
         }
 
-        .neo-card {
-            background-color: #1c1917;
-            border: 1px solid rgba(120, 53, 15, 0.5);
-            box-shadow: 0 10px 15px -3px rgba(120, 53, 15, 0.2), 0 4px 6px -2px rgba(120, 53, 15, 0.1);
-            transition: all 0.2s ease;
+        .tool-card {
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
         }
 
-        .neo-button {
-            transition: all 0.2s ease;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.5);
+        .tool-card:hover {
+            transform: translate(-4px, -4px);
+            box-shadow: 8px 8px 0px 0px #0F172A;
         }
 
-        .neo-button:hover {
-            background-color: #d97706;
+        .dark .tool-card:hover {
+            box-shadow: 8px 8px 0px 0px #1E293B;
         }
 
-        .neo-button:active {
-            transform: translateY(2px);
-            box-shadow: 0 2px 4px -1px rgba(0, 0, 0, 0.5);
-        }
-
-        .stat-box {
-            border: 1px solid rgba(120, 53, 15, 0.5);
-            border-radius: 0.75rem;
-            padding: 0.5rem;
-            text-align: center;
-            background-color: #1c1917;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.5);
-        }
-
-        .editable-input {
-            background: transparent;
-            border-bottom: 2px dashed rgba(217, 119, 6, 0.5);
-            width: 100%;
-            outline: none;
-            color: #d6d3d1;
-        }
-
-        .editable-input:focus {
-            border-bottom-color: #d97706;
+        .tool-card:active {
+            transform: translate(0px, 0px);
+            box-shadow: 0px 0px 0px 0px #0F172A;
         }
     </style>
+    <link rel="stylesheet" href="../../../css/base.css" />
+    <link rel="stylesheet" href="../../../css/components.css" />
 </head>
 
-<body class="p-4 md:p-8 bg-stone-950 text-stone-300 transition-colors duration-300">
+<body class="min-h-screen flex flex-col items-center justify-center p-6">
 
-    <div class="max-w-4xl mx-auto mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div class="flex-grow">
-            <div class="flex flex-col md:flex-row gap-4 items-start md:items-center mb-2">
-                <div>
-                    <h2 class="text-xs font-bold text-amber-600 uppercase tracking-wider mb-1 font-title">Campaign:</h2>
-                    <select id="campaign-selector" onchange="changeCampaign(this.value)"
-                        class="neo-card bg-stone-900 border border-amber-900/50 rounded-xl px-4 py-2 font-bold text-stone-300 outline-none focus:ring-2 focus:ring-blue-500">
-                    </select>
+    <main class="w-full max-w-6xl mx-auto relative pt-12 md:pt-0">
+
+        <button onclick="toggleTheme()"
+            class="fixed top-6 right-6 z-50 p-3 bg-white dark:bg-slate-800 border-4 border-dark dark:border-slate-500 rounded-2xl shadow-hard hover:translate-y-[-2px] active:translate-y-[4px] active:shadow-none transition-all group">
+            <i data-lucide="sun" class="w-6 h-6 text-orange hidden dark:block"></i>
+            <i data-lucide="moon" class="w-6 h-6 text-blue block dark:hidden"></i>
+        </button>
+
+        <div
+            class="bg-white dark:bg-slate-900/80 dark:backdrop-blur-xl border-4 border-dark dark:border-slate-500 rounded-2xl p-8 mb-8 shadow-hard flex flex-col md:flex-row justify-between items-center text-center md:text-left transition-colors">
+            <div>
+                <h2
+                    class="font-heading font-bold text-slate-400 dark:text-slate-500 tracking-widest uppercase text-sm mb-1">
+                    Fantasy Tools</h2>
+                <h1 class="font-heading font-bold text-4xl md:text-5xl text-dark dark:text-white uppercase">
+                    D&D <span class="text-pink">HUB</span>
+                </h1>
+            </div>
+            <div class="mt-4 md:mt-0 flex gap-3">
+                <div
+                    class="px-4 py-2 bg-pink text-white font-heading font-bold border-2 border-dark dark:border-slate-500 rounded-lg shadow-hard -rotate-2">
+                    Workshop
                 </div>
-                <div class="flex-grow">
-                    <h2 class="text-xs font-bold text-amber-600 uppercase tracking-wider mb-1 font-title">Character:
-                    </h2>
-                    <div id="selector-container" class="flex flex-wrap gap-2">
-                    </div>
+                <div
+                    class="px-4 py-2 bg-orange text-white font-heading font-bold border-2 border-dark dark:border-slate-500 rounded-lg shadow-hard rotate-2">
+                    Teacher
                 </div>
             </div>
         </div>
-        <div class="flex gap-2">
-            <a href="../index.html"
-                class="neo-button neo-card p-3 bg-stone-900 border border-amber-900/50 rounded-xl text-stone-300 hover:bg-stone-800:bg-slate-700 transition-colors flex items-center justify-center">
-                <i data-lucide="home" class="w-5 h-5"></i>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+
+            <a href="./pages/character/index.html"
+                class="tool-card block bg-white dark:bg-slate-900/80 dark:backdrop-blur-xl border-4 border-dark dark:border-slate-500 rounded-2xl p-6 relative overflow-hidden group transition-colors">
+                <div
+                    class="absolute top-0 right-0 w-24 h-24 bg-pink/10 rounded-bl-full -mr-4 -mt-4 transition-transform group-hover:scale-150">
+                </div>
+
+                <div
+                    class="w-16 h-16 bg-pink text-white border-2 border-dark dark:border-slate-500 rounded-xl flex items-center justify-center mb-4 shadow-hard">
+                    <i data-lucide="swords" class="w-8 h-8"></i>
+                </div>
+
+                <h3 class="font-heading font-bold text-2xl text-dark dark:text-white mb-2">Character Roster</h3>
+                <p class="text-slate-500 dark:text-slate-400 font-bold text-sm leading-tight mb-6">
+                    Manage and browse player characters, stats, and backstories for your campaign sessions.
+                </p>
+
+                <div
+                    class="w-full py-3 bg-dark dark:bg-slate-800 text-white font-heading font-bold rounded-lg text-center mt-auto border-2 border-transparent group-hover:bg-pink group-hover:border-dark group-hover:text-dark transition-colors">
+                    LAUNCH
+                </div>
             </a>
 
-            <button onclick="addCharacter()"
-                class="neo-button neo-card px-5 py-2 bg-amber-700 hover:bg-amber-600 border border-amber-900/50 rounded-xl font-bold font-title text-stone-100  transition-colors flex items-center gap-2">
-                <i data-lucide="plus" class="w-5 h-5"></i> Add New
-            </button>
+            <a href="./pages/dnd-map/index.html"
+                class="tool-card block bg-white dark:bg-slate-900/80 dark:backdrop-blur-xl border-4 border-dark dark:border-slate-500 rounded-2xl p-6 relative overflow-hidden group transition-colors">
+                <div
+                    class="absolute top-0 right-0 w-24 h-24 bg-blue/10 rounded-bl-full -mr-4 -mt-4 transition-transform group-hover:scale-150">
+                </div>
+
+                <div
+                    class="w-16 h-16 bg-blue text-white border-2 border-dark dark:border-slate-500 rounded-xl flex items-center justify-center mb-4 shadow-hard">
+                    <i data-lucide="map" class="w-8 h-8"></i>
+                </div>
+
+                <h3 class="font-heading font-bold text-2xl text-dark dark:text-white mb-2">Arcane Tabletop</h3>
+                <p class="text-slate-500 dark:text-slate-400 font-bold text-sm leading-tight mb-6">
+                    Interactive fantasy VTT with fog of war, tokens, and drawing tools for immersive gameplay.
+                </p>
+
+                <div
+                    class="w-full py-3 bg-dark dark:bg-slate-800 text-white font-heading font-bold rounded-lg text-center mt-auto border-2 border-transparent group-hover:bg-blue group-hover:border-dark group-hover:text-dark transition-colors">
+                    LAUNCH
+                </div>
+            </a>
+
+            <a href="./pages/dnd-print/index.html"
+                class="tool-card block bg-white dark:bg-slate-900/80 dark:backdrop-blur-xl border-4 border-dark dark:border-slate-500 rounded-2xl p-6 relative overflow-hidden group transition-colors">
+                <div
+                    class="absolute top-0 right-0 w-24 h-24 bg-orange/10 rounded-bl-full -mr-4 -mt-4 transition-transform group-hover:scale-150">
+                </div>
+
+                <div
+                    class="w-16 h-16 bg-orange text-white border-2 border-dark dark:border-slate-500 rounded-xl flex items-center justify-center mb-4 shadow-hard">
+                    <i data-lucide="printer" class="w-8 h-8"></i>
+                </div>
+
+                <h3 class="font-heading font-bold text-2xl text-dark dark:text-white mb-2">Dungeon Printer</h3>
+                <p class="text-slate-500 dark:text-slate-400 font-bold text-sm leading-tight mb-6">
+                    Generate and print custom dungeon tiles, character sheets, and encounter cards.
+                </p>
+
+                <div
+                    class="w-full py-3 bg-dark dark:bg-slate-800 text-white font-heading font-bold rounded-lg text-center mt-auto border-2 border-transparent group-hover:bg-orange group-hover:border-dark group-hover:text-dark transition-colors">
+                    LAUNCH
+                </div>
+            </a>
+
         </div>
-    </div>
 
-    <main id="character-sheet" class="max-w-4xl mx-auto hidden">
-        <div class="grid grid-cols-1 md:grid-cols-12 gap-6">
-
-            <div class="md:col-span-4 space-y-4">
-                <div onclick="document.getElementById('image-upload').click()"
-                    class="cursor-pointer group relative neo-card bg-stone-800 border border-amber-900/50 rounded-2xl aspect-square flex items-center justify-center overflow-hidden hover:bg-stone-800:bg-slate-700 transition-colors">
-                    <img id="char-img" src="" alt="Character" class="w-full h-full object-cover hidden z-10">
-                    <div id="upload-placeholder" class="text-amber-600 flex flex-col items-center z-0 p-4 text-center">
-                        <i data-lucide="image-plus" class="w-12 h-12 mb-2 text-amber-500"></i>
-                        <span class="font-bold font-title text-stone-300">Tap to Add Picture</span>
-                    </div>
-                </div>
-                <input type="file" id="image-upload" accept="image/*" class="hidden"
-                    onchange="handleImageUpload(event)">
-
-                <div class="neo-card bg-stone-900 border border-amber-900/50 rounded-2xl p-6 relative">
-                    <div class="absolute top-4 right-4 flex gap-2">
-                        <button id="edit-btn" onclick="isEditMode ? saveChanges() : toggleEditMode()"
-                            class="p-2 text-stone-400 hover:text-amber-500 transition-colors">
-                            <i id="edit-icon" data-lucide="edit-3" class="w-5 h-5"></i>
-                        </button>
-                        <button onclick="deleteCharacter()"
-                            class="p-2 text-stone-400 hover:text-red-500 transition-colors">
-                            <i data-lucide="trash-2" class="w-5 h-5"></i>
-                        </button>
-                    </div>
-
-                    <div id="view-header">
-                        <span id="char-label"
-                            class="text-stone-100 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider font-title"></span>
-                        <h1 id="char-name" class="text-3xl font-bold text-stone-300 mt-2 font-title">
-                        </h1>
-                    </div>
-
-                    <div id="edit-header" class="hidden space-y-3 pt-4">
-                        <div class="flex gap-2">
-                            <input type="text" id="edit-name"
-                                class="editable-input text-2xl font-bold text-stone-300 font-title" placeholder="Name">
-                            <input type="number" id="edit-level" class="editable-input w-16 text-center font-bold"
-                                placeholder="Lvl">
-                        </div>
-                        <div class="flex gap-2">
-                            <input type="text" id="edit-class" class="editable-input text-sm uppercase font-bold"
-                                placeholder="Class">
-                            <input type="color" id="edit-color" class="w-8 h-8 rounded cursor-pointer border-none p-0">
-                        </div>
-                    </div>
-
-                    <div class="mt-8">
-                        <p class="text-sm text-amber-600 font-bold uppercase mb-2">Health Points</p>
-                        <div class="flex items-center gap-3 mb-3">
-                            <button onclick="updateHP(-1)"
-                                class="neo-button neo-card w-12 h-12 bg-stone-800 hover:bg-stone-700 border border-amber-900/50 rounded-xl flex items-center justify-center text-stone-100 ">
-                                <i data-lucide="minus" class="w-6 h-6 stroke-[3]"></i>
-                            </button>
-
-                            <div
-                                class="flex-1 text-center bg-stone-950 border border-amber-900/50 rounded-xl py-2 font-title text-2xl text-stone-300 relative">
-                                <span id="hp-current"></span>
-                                <span class="text-stone-400 text-lg">/
-                                    <span id="hp-max-display"></span>
-                                    <input type="number" id="edit-max-hp"
-                                        class="hidden w-16 bg-transparent text-center border-b-2 border-[#2979FF] outline-none ml-1">
-                                </span>
-                            </div>
-
-                            <button onclick="updateHP(1)"
-                                class="neo-button neo-card w-12 h-12 bg-amber-700 hover:bg-amber-600 border border-amber-900/50 rounded-xl flex items-center justify-center text-stone-100 ">
-                                <i data-lucide="plus" class="w-6 h-6 stroke-[3]"></i>
-                            </button>
-                        </div>
-
-                        <div class="w-full bg-stone-800 rounded-full h-4 border border-amber-900/50 overflow-hidden">
-                            <div id="hp-bar" class="bg-amber-700 hover:bg-amber-600 h-full transition-all duration-300">
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="md:col-span-8 space-y-4">
-                <div class="grid grid-cols-3 gap-4">
-                    <div
-                        class="neo-card bg-stone-900 border border-amber-900/50 rounded-2xl p-4 flex flex-col items-center justify-center">
-                        <i data-lucide="shield" class="w-6 h-6 text-amber-500 mb-1"></i>
-                        <span class="text-xs font-bold text-stone-400 uppercase text-center">Armor Class</span>
-                        <span id="char-ac" class="text-2xl font-bold font-title text-stone-300"></span>
-                        <input type="number" id="edit-ac"
-                            class="hidden w-full text-center bg-transparent text-2xl font-bold font-title text-stone-300 border-b-2 border-[#2979FF]">
-                    </div>
-                    <div
-                        class="neo-card bg-stone-900 border border-amber-900/50 rounded-2xl p-4 flex flex-col items-center justify-center">
-                        <i data-lucide="zap" class="w-6 h-6 text-amber-500 mb-1"></i>
-                        <span class="text-xs font-bold text-stone-400 uppercase text-center">Initiative</span>
-                        <span id="char-init" class="text-2xl font-bold font-title text-stone-300"></span>
-                        <input type="text" id="edit-init"
-                            class="hidden w-full text-center bg-transparent text-2xl font-bold font-title text-stone-300 border-b-2 border-[#2979FF]">
-                    </div>
-                    <div
-                        class="neo-card bg-stone-900 border border-amber-900/50 rounded-2xl p-4 flex flex-col items-center justify-center">
-                        <i data-lucide="footprints" class="w-6 h-6 text-amber-500 mb-1"></i>
-                        <span class="text-xs font-bold text-stone-400 uppercase text-center">Speed</span>
-                        <span id="char-speed" class="text-2xl font-bold font-title text-stone-300"></span>
-                        <input type="text" id="edit-speed"
-                            class="hidden w-full text-center bg-transparent text-2xl font-bold font-title text-stone-300 border-b-2 border-[#2979FF]">
-                    </div>
-                </div>
-
-                <div class="neo-card bg-stone-900 border border-amber-900/50 rounded-2xl p-6 space-y-6">
-                    <div id="stats-grid" class="grid grid-cols-3 sm:grid-cols-6 gap-2"></div>
-
-                    <hr class="border-t-3 border-amber-900/50">
-
-                    <div class="space-y-4">
-                        <div>
-                            <h3 class="flex items-center gap-2 text-amber-500 font-bold text-lg mb-3">
-                                <i data-lucide="layout-grid" class="w-6 h-6 stroke-[3]"></i> Resources
-                            </h3>
-                            <div id="view-resources" class="flex flex-wrap gap-2"></div>
-                            <textarea id="edit-resources"
-                                class="hidden w-full bg-stone-950 border border-amber-900/50 p-3 rounded-xl min-h-[80px] text-stone-300 text-sm"
-                                placeholder="Comma separated resources..."></textarea>
-
-                            <button onclick="takeLongRest()"
-                                class="neo-button neo-card w-full py-3 bg-stone-900 text-stone-100 border border-amber-900/50 rounded-xl font-bold font-title flex items-center justify-center gap-2 hover:bg-slate-700:bg-slate-600 transition-colors mt-4">
-                                <i data-lucide="moon" class="w-5 h-5 stroke-[3]"></i> Take a Long Rest
-                            </button>
-                        </div>
-
-                        <div>
-                            <h3 class="flex items-center gap-2 text-amber-500 font-bold text-lg mb-3">
-                                <i data-lucide="sparkles" class="w-6 h-6 stroke-[3]"></i> Features
-                            </h3>
-                            <div id="view-features"
-                                class="space-y-2 text-stone-300 font-medium bg-stone-950 border border-amber-900/50 p-4 rounded-xl">
-                            </div>
-                            <textarea id="edit-features"
-                                class="hidden w-full bg-stone-950 border border-amber-900/50 p-3 rounded-xl min-h-[100px] text-stone-300 text-sm"
-                                placeholder="One feature per line..."></textarea>
-                        </div>
-
-                        <div id="section-quote" class="hidden">
-                            <h3
-                                class="flex items-center gap-2 text-indigo-500 font-bold text-sm mb-2 uppercase tracking-wide">
-                                <i data-lucide="quote" class="w-4 h-4"></i> Quote
-                            </h3>
-                            <div id="view-quote"
-                                class="italic text-stone-400 font-medium pl-4 border-l-4 border-amber-900/50">
-                            </div>
-                        </div>
-
-                        <div id="section-gear" class="hidden">
-                            <h3
-                                class="flex items-center gap-2 text-amber-600 font-bold text-sm mb-2 uppercase tracking-wide">
-                                <i data-lucide="backpack" class="w-4 h-4"></i> Gear
-                            </h3>
-                            <div id="view-gear"
-                                class="text-stone-300 font-medium bg-stone-950 p-3 rounded-xl text-sm whitespace-pre-wrap border border-amber-900/50">
-                            </div>
-                        </div>
-
-                        <div>
-                            <h3 class="flex items-center gap-2 text-amber-500 font-bold text-lg mb-3">
-                                <i data-lucide="sword" class="w-6 h-6 stroke-[3]"></i> Combat Actions
-                            </h3>
-                            <div id="view-actions"
-                                class="bg-stone-950 border border-amber-900/50 rounded-xl p-4 text-stone-300 font-medium">
-                            </div>
-                            <textarea id="edit-actions"
-                                class="hidden w-full bg-stone-950 border border-amber-900/50 p-3 rounded-xl min-h-[100px] text-stone-300 text-sm"
-                                placeholder="HTML or Plain text for actions..."></textarea>
-                        </div>
-                    </div>
-
-                    <button id="save-btn" onclick="saveChanges()"
-                        class="hidden neo-button neo-card w-full py-4 bg-amber-700 hover:bg-amber-600 text-stone-100 border border-amber-900/50 rounded-xl font-bold font-title text-xl  transition-all flex items-center justify-center gap-3">
-                        <i data-lucide="save" class="w-6 h-6"></i> SAVE CHARACTER
-                    </button>
-                </div>
-            </div>
+        <div class="mt-8 text-center">
+            <p class="font-heading text-slate-400 dark:text-slate-500 font-bold text-sm uppercase tracking-widest">
+                KlassKit Workshop • Fantasy Tools
+            </p>
         </div>
+
     </main>
 
-    <!-- Custom Modal -->
-    <div id="custom-modal"
-        class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm hidden opacity-0 transition-opacity duration-300">
-        <div
-            class="neo-card bg-stone-900 border border-amber-900/50 rounded-2xl p-6 max-w-sm w-full transform scale-95 transition-transform duration-300">
-            <h3 id="modal-title" class="text-xl font-bold font-title text-amber-500 mb-2">Notice</h3>
-            <p id="modal-message" class="text-stone-300 mb-6 font-medium"></p>
-            <div class="flex justify-end gap-3 font-title font-bold">
-                <button id="modal-cancel-btn"
-                    class="neo-button neo-card px-4 py-2 bg-stone-800 hover:bg-stone-700 text-stone-300 border border-stone-700 rounded-xl transition-colors hidden">
-                    Cancel
-                </button>
-                <button id="modal-confirm-btn"
-                    class="neo-button neo-card px-4 py-2 bg-amber-700 hover:bg-amber-600 text-stone-100 border border-amber-900/50 rounded-xl transition-colors">
-                    Confirm
-                </button>
-            </div>
-        </div>
-    </div>
-
     <script>
-        let campaigns = [
-            {
-                "id": "e1-classic",
-                "name": "E1 Batam - Classic",
-                "characters": [
-                    {
-                        "name": "TRUMPhet", "class": "Fighter", "level": 3, "color": "#FF8C42",
-                        "vitals": { "ac": 16, "hp": 28, "maxHp": 28, "init": "+1", "speed": "30ft" },
-                        "stats": { "str": 16, "dex": 12, "con": 14, "int": 8, "wis": 10, "cha": 13 },
-                        "resources": [{ "label": "Action Surge", "max": 1, "used": 0 }, { "label": "Second Wind", "max": 1, "used": 0 }],
-                        "features": ["Fighting Style: Protection", "Second Wind (Heal 1d10+3)"],
-                        "actions": "<strong>Greatsword:</strong> +5 to hit, 2d6+3 slashing.<br><br><strong>Reaction:</strong> Impose disadvantage on an enemy attacking an ally next to you."
-                    },
-                    {
-                        "name": "Knowledge", "class": "Sorcerer", "level": 3, "color": "#2979FF",
-                        "vitals": { "ac": 12, "hp": 20, "maxHp": 20, "init": "+2", "speed": "30ft" },
-                        "stats": { "str": 8, "dex": 14, "con": 13, "int": 10, "wis": 12, "cha": 16 },
-                        "resources": [{ "label": "Sorcery Points", "max": 3, "used": 0 }, { "label": "L1 Slots", "max": 4, "used": 0 }, { "label": "L2 Slots", "max": 2, "used": 0 }],
-                        "features": ["Metamagic: Twinned Spell", "Metamagic: Quickened Spell"],
-                        "actions": "<strong>Mind Sliver:</strong> DC 13 Int Save. 1d6 psychic damage + target subtracts 1d4 from next save.<br><br><strong>Magic Missile:</strong> 3 darts, 1d4+1 force damage each (always hits)."
-                    },
-                    {
-                        "name": "Vanilla", "class": "Sorcerer", "subclass": "Wild Magic", "level": 3, "color": "#FF6B95",
-                        "vitals": { "ac": 12, "hp": 20, "maxHp": 20, "init": "+2", "speed": "30ft" },
-                        "stats": { "str": 8, "dex": 14, "con": 12, "int": 10, "wis": 13, "cha": 16 },
-                        "resources": [{ "label": "Sorcery Points", "max": 3, "used": 0 }, { "label": "Tides of Chaos", "max": 1, "used": 0 }, { "label": "L1 Slots", "max": 4, "used": 0 }, { "label": "L2 Slots", "max": 2, "used": 0 }],
-                        "features": ["Wild Magic Surge", "Tides of Chaos (Gain Advantage)"],
-                        "actions": "<strong>Fire Bolt:</strong> +5 to hit, 1d10 fire damage.<br><br><strong>Shield (Reaction):</strong> Add +5 to your AC until your next turn."
-                    }
-                ]
-            },
-            {
-                "id": "tabletop-style",
-                "name": "Tabletop Roster",
-                "characters": [
-                    {
-                        "name": "Xylem", "class": "Fighter", "subclass": "Eldritch Knight", "level": 3, "color": "orange",
-                        "vitals": { "ac": 16, "hp": 28, "maxHp": 28, "init": "+0", "speed": "30ft" },
-                        "stats": { "str": 18, "dex": 10, "con": 14, "int": 16, "wis": 10, "cha": 8 },
-                        "resources": [{ "label": "Action Surge", "max": 1, "used": 0 }, { "label": "1st Level Slots", "max": 2, "used": 0 }],
-                        "features": ["Great Weapon Fighting", "Action Surge", "Weapon Bond"],
-                        "quote": "Raised by a pastor, but the sword called louder than the sermon.",
-                        "gear": "Chain Mail\nHandaxe x2\nScholars Pack",
-                        "actions": "**Greatsword**: +6 to hit, 2d6+4 Slashing.\n\n**Magic Missile** (1st): Creates 3 darts. 1d4+1 force damage each. Auto-hit.\n\n**Shield** (Reaction): +5 AC until start of next turn."
-                    },
-                    {
-                        "name": "Fumiko", "class": "Druid", "subclass": "Spore Druid", "level": 3, "color": "green",
-                        "vitals": { "ac": 13, "hp": 24, "maxHp": 24, "init": "+1", "speed": "30ft" },
-                        "stats": { "str": 8, "dex": 12, "con": 14, "int": 10, "wis": 16, "cha": 14 },
-                        "resources": [{ "label": "Wild Shape", "max": 2, "used": 0 }, { "label": "1st Level Slots", "max": 4, "used": 0 }],
-                        "features": ["Halo of Spores", "Symbiotic Entity", "Wild Shape"],
-                        "quote": "From Mushroom Town. Her hat is a living colony.",
-                        "gear": "Leather Armor\nWooden Shield",
-                        "actions": "**Shillelagh**: 1d8+3 dmg.\n**Halo of Spores**: 1d4 Necrotic."
-                    }
-                ]
-            }
-        ];
-
-        let currentCampaignId = '';
-        let currentCharIndex = 0;
-        let isEditMode = false;
-        let characters = [];
-
-        function showModal(title, message, type = 'alert', onConfirm = null, onCancel = null) {
-            const modal = document.getElementById('custom-modal');
-            const modalBox = modal.querySelector('.neo-card');
-            const titleEl = document.getElementById('modal-title');
-            const messageEl = document.getElementById('modal-message');
-            const cancelBtn = document.getElementById('modal-cancel-btn');
-            const confirmBtn = document.getElementById('modal-confirm-btn');
-
-            titleEl.innerText = title;
-            messageEl.innerText = message;
-
-            if (type === 'confirm') {
-                cancelBtn.classList.remove('hidden');
-                confirmBtn.innerText = 'Confirm';
-                confirmBtn.classList.replace('bg-amber-700', 'bg-red-600');
-                confirmBtn.classList.replace('hover:bg-amber-600', 'hover:bg-red-500');
-            } else {
-                cancelBtn.classList.add('hidden');
-                confirmBtn.innerText = 'OK';
-                confirmBtn.classList.replace('bg-red-600', 'bg-amber-700');
-                confirmBtn.classList.replace('hover:bg-red-500', 'hover:bg-amber-600');
-            }
-
-            modal.classList.remove('hidden');
-            // Small delay to allow display:block to apply before animating opacity
-            setTimeout(() => {
-                modal.classList.remove('opacity-0');
-                modalBox.classList.remove('scale-95');
-                modalBox.classList.add('scale-100');
-            }, 10);
-
-            const closeModal = () => {
-                modal.classList.add('opacity-0');
-                modalBox.classList.remove('scale-100');
-                modalBox.classList.add('scale-95');
-                setTimeout(() => {
-                    modal.classList.add('hidden');
-                }, 300); // Wait for transition duration
-            };
-
-            confirmBtn.onclick = () => {
-                closeModal();
-                if (onConfirm) onConfirm();
-            };
-
-            cancelBtn.onclick = () => {
-                closeModal();
-                if (onCancel) onCancel();
-            };
-        }
-
-        async function initApp() {
-            const saved = localStorage.getItem('characters');
-            if (saved) {
-                try {
-                    const parsed = JSON.parse(saved);
-                    if (parsed && parsed.length > 0) {
-                        campaigns = [{ id: 'local', name: 'Local Campaign', characters: parsed }];
-                        console.log('Campaigns loaded from localStorage');
-                    }
-                } catch (e) {
-                    console.warn('Failed to parse localStorage data', e);
-                }
-            } else {
-                try {
-                    const response = await fetch('data/campaigns.json');
-                    if (response.ok) {
-                        const data = await response.json();
-                        campaigns = data.campaigns;
-                        console.log('Campaigns loaded from JSON');
-                    }
-                } catch (error) {
-                    console.warn('CORS or Fetch error. Using embedded fallback data.', error);
-                }
-            }
-
-            renderCampaignSelector();
-            currentCampaignId = campaigns[0].id;
-            loadCampaignCharacters();
-        }
-
-        function renderCampaignSelector() {
-            const selector = document.getElementById('campaign-selector');
-            selector.innerHTML = '';
-            campaigns.forEach(c => {
-                const opt = document.createElement('option');
-                opt.value = c.id;
-                opt.textContent = c.name;
-                selector.appendChild(opt);
-            });
-        }
-
-        function loadCampaignCharacters() {
-            const campaign = campaigns.find(c => c.id === currentCampaignId);
-            if (campaign) {
-                characters = campaign.characters;
-                currentCharIndex = 0;
-                renderCharacter(0);
-            }
-        }
-
-        function changeCampaign(id) {
-            if (isEditMode) {
-                showModal(
-                    "Unsaved Changes",
-                    "You have unsaved changes. Discard them?",
-                    "confirm",
-                    () => { // onConfirm: proceed with changing campaign
-                        toggleEditMode();
-                        currentCampaignId = id;
-                        loadCampaignCharacters();
-                    },
-                    () => { // onCancel: revert select element
-                        document.getElementById('campaign-selector').value = currentCampaignId;
-                    }
-                );
-                return;
-            }
-            currentCampaignId = id;
-            loadCampaignCharacters();
-        }
-
-
-
-        function saveToStorage() {
-            localStorage.setItem('characters', JSON.stringify(characters));
-        }
-
-        function renderSelector() {
-            const selector = document.getElementById('selector-container');
-            selector.innerHTML = '';
-            characters.forEach((char, i) => {
-                const btn = document.createElement('button');
-                btn.className = `neo-button neo-card px-5 py-2 border border-amber-900/50 rounded-xl font-bold font-title transition-colors ${i === currentCharIndex ? 'bg-stone-900 text-stone-100' : 'bg-stone-900 text-stone-300 hover:bg-stone-950:bg-stone-900'}`;
-                btn.innerText = char.name;
-                btn.onclick = () => {
-                    if (isEditMode) {
-                        showModal(
-                            "Unsaved Changes",
-                            "You have unsaved changes. Discard them?",
-                            "confirm",
-                            () => { // onConfirm: proceed with switching character
-                                toggleEditMode();
-                                renderCharacter(i);
-                            }
-                        );
-                        return;
-                    }
-                    renderCharacter(i);
-                };
-                selector.appendChild(btn);
-            });
-        }
-
-        function renderCharacter(index) {
-            currentCharIndex = index;
-            const char = characters[index];
-            const sheet = document.getElementById('character-sheet');
-            sheet.classList.remove('hidden');
-
-            renderSelector();
-
-            document.getElementById('char-name').innerText = char.name;
-            document.getElementById('char-label').innerText = `LV ${char.level} ${char.class}`;
-
-            const colorMap = {
-                'orange': '#FF8C42',
-                'green': '#00E676',
-                'blue': '#2979FF',
-                'pink': '#FF6B95',
-                'dark': '#1e293b',
-                'purple': '#9333ea'
-            };
-            const charColor = colorMap[char.color] || char.color;
-            document.getElementById('char-label').style.backgroundColor = charColor;
-
-            const imgEl = document.getElementById('char-img');
-            const placeholder = document.getElementById('upload-placeholder');
-            if (char.customImg) {
-                imgEl.src = char.customImg;
-                imgEl.classList.remove('hidden');
-                placeholder.classList.add('hidden');
-            } else {
-                imgEl.classList.add('hidden');
-                placeholder.classList.remove('hidden');
-            }
-
-            document.getElementById('char-ac').innerText = char.vitals.ac;
-            document.getElementById('char-init').innerText = char.vitals.init;
-            document.getElementById('char-speed').innerText = char.vitals.speed;
-            updateHPDisplay();
-
-            const statsGrid = document.getElementById('stats-grid');
-            statsGrid.innerHTML = '';
-            for (const [key, val] of Object.entries(char.stats)) {
-                const score = Array.isArray(val) ? val[0] : val;
-                const mod = Array.isArray(val) ? val[1] : (score >= 10 ? `+${Math.floor((score - 10) / 2)}` : Math.floor((score - 10) / 2));
-                statsGrid.innerHTML += `
-                    <div class="stat-box transition-transform hover:-translate-y-1">
-                        <p class="text-[10px] font-bold text-amber-600 uppercase">${key}</p>
-                        <input type="number" value="${score}" class="edit-stat-input hidden w-full text-center bg-transparent text-xl font-bold font-title text-stone-300 outline-none">
-                        <p class="view-stat-val text-xl font-bold font-title text-stone-300">${score}</p>
-                        <p class="text-xs font-bold text-amber-500">${mod}</p>
-                    </div>
-                `;
-            }
-
-            document.getElementById('view-resources').innerHTML = char.resources.map(r => {
-                const label = typeof r === 'string' ? r : r.label;
-                return `<span class="border border-amber-900/50 bg-stone-900 px-3 py-1 rounded-xl text-sm text-stone-300 font-bold">${label}</span>`;
-            }).join('');
-
-            document.getElementById('view-features').innerHTML = char.features.length ? char.features.map(f =>
-                `<div class="flex items-start gap-2"><i data-lucide="check-circle-2" class="w-5 h-5 text-amber-500 shrink-0 mt-0.5"></i> <span>${f}</span></div>`
-            ).join('') : '<p class="text-stone-400 italic">No features listed</p>';
-
-            if (char.quote) {
-                document.getElementById('section-quote').classList.remove('hidden');
-                document.getElementById('view-quote').innerText = `"${char.quote}"`;
-            } else {
-                document.getElementById('section-quote').classList.add('hidden');
-            }
-
-            if (char.gear) {
-                document.getElementById('section-gear').classList.remove('hidden');
-                document.getElementById('view-gear').innerText = char.gear;
-            } else {
-                document.getElementById('section-gear').classList.add('hidden');
-            }
-
-            const formatActions = (text) => {
-                if (!text) return '<p class="text-stone-400 italic">No actions listed</p>';
-                // Convert **bold** to <strong> and handle newlines if not HTML
-                if (!text.includes('<')) {
-                    text = text.replace(/\n/g, '<br>');
-                }
-                return text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-            };
-
-            document.getElementById('view-actions').innerHTML = formatActions(char.actions);
-
-            // UI State Management: Update visibility based on isEditMode
-            const viewElements = [
-                'view-header', 'char-ac', 'char-init', 'char-speed', 'hp-max-display',
-                'view-resources', 'view-features', 'view-actions'
-            ];
-
-            const editElements = [
-                'edit-header', 'save-btn', 'edit-ac', 'edit-init', 'edit-speed', 'edit-max-hp',
-                'edit-resources', 'edit-features', 'edit-actions'
-            ];
-
-            viewElements.forEach(id => {
-                const el = document.getElementById(id);
-                if (el) el.classList.toggle('hidden', isEditMode);
-            });
-
-            editElements.forEach(id => {
-                const el = document.getElementById(id);
-                if (el) el.classList.toggle('hidden', !isEditMode);
-            });
-
-            document.querySelectorAll('.view-stat-val').forEach(el => el.classList.toggle('hidden', isEditMode));
-            document.querySelectorAll('.edit-stat-input').forEach(el => el.classList.toggle('hidden', !isEditMode));
-
-            const editBtn = document.getElementById('edit-btn');
-            editBtn.classList.toggle('text-amber-500', isEditMode);
-            const editIcon = document.getElementById('edit-icon');
-            if (editIcon) {
-                editIcon.setAttribute('data-lucide', isEditMode ? 'check-circle' : 'edit-3');
-            }
-
-            if (isEditMode) {
-                document.getElementById('edit-name').value = char.name;
-                document.getElementById('edit-level').value = char.level;
-                document.getElementById('edit-class').value = char.class;
-                document.getElementById('edit-color').value = char.color || '#1e293b';
-                document.getElementById('edit-ac').value = char.vitals.ac;
-                document.getElementById('edit-init').value = char.vitals.init;
-                document.getElementById('edit-speed').value = char.vitals.speed;
-                document.getElementById('edit-max-hp').value = char.vitals.maxHp;
-
-                document.getElementById('edit-resources').value = (char.resources || []).map(r => typeof r === 'string' ? r : r.label).join(', ');
-                document.getElementById('edit-features').value = (char.features || []).join('\n');
-                document.getElementById('edit-actions').value = char.actions || '';
-            }
-
+        window.onload = async () => {
+            if (typeof requireAuth === 'function') await requireAuth();
             lucide.createIcons();
-        }
-
-        function toggleEditMode() {
-            isEditMode = !isEditMode;
-            renderCharacter(currentCharIndex);
-        }
-
-        function saveChanges() {
-            const char = characters[currentCharIndex];
-            char.name = document.getElementById('edit-name').value;
-            char.level = parseInt(document.getElementById('edit-level').value) || char.level;
-            char.class = document.getElementById('edit-class').value;
-            char.color = document.getElementById('edit-color').value;
-            char.vitals.ac = parseInt(document.getElementById('edit-ac').value) || char.vitals.ac;
-            char.vitals.init = document.getElementById('edit-init').value;
-            char.vitals.speed = document.getElementById('edit-speed').value;
-            char.vitals.maxHp = parseInt(document.getElementById('edit-max-hp').value) || char.vitals.maxHp;
-
-            if (char.vitals.hp > char.vitals.maxHp) char.vitals.hp = char.vitals.maxHp;
-
-            char.resources = document.getElementById('edit-resources').value.split(',').map(s => s.trim()).filter(s => s !== '');
-            char.features = document.getElementById('edit-features').value.split('\n').map(s => s.trim()).filter(s => s !== '');
-            char.actions = document.getElementById('edit-actions').value;
-
-            document.querySelectorAll('.edit-stat-input').forEach((input, i) => {
-                const statKeys = Object.keys(char.stats);
-                const key = statKeys[i];
-                const score = parseInt(input.value);
-                const mod = Math.floor((score - 10) / 2);
-                const modStr = mod >= 0 ? `+${mod}` : mod.toString();
-                char.stats[key] = [score, modStr];
-            });
-
-            saveToStorage();
-            isEditMode = false;
-            renderCharacter(currentCharIndex);
-        }
-
-        function addCharacter() {
-            const newChar = {
-                name: "New Hero", class: "Adventurer", level: 1, color: "#1e293b", customImg: null,
-                vitals: { ac: 10, init: "+0", speed: "30ft", hp: 10, maxHp: 10 },
-                stats: { STR: [10, "+0"], DEX: [10, "+0"], CON: [10, "+0"], INT: [10, "+0"], WIS: [10, "+0"], CHA: [10, "+0"] },
-                resources: [], features: [], actions: "Add actions here..."
-            };
-            characters.push(newChar);
-            currentCharIndex = characters.length - 1;
-            saveToStorage();
-            isEditMode = true;
-            renderCharacter(currentCharIndex);
-        }
-
-        function deleteCharacter() {
-            if (characters.length <= 1) {
-                showModal("Cannot Delete", "Cannot delete the last character!");
-                return;
-            }
-
-            showModal(
-                "Delete Character",
-                `Are you sure you want to delete ${characters[currentCharIndex].name}?`,
-                "confirm",
-                () => { // onConfirm: proceed with deletion
-                    characters.splice(currentCharIndex, 1);
-                    currentCharIndex = Math.max(0, currentCharIndex - 1);
-                    saveToStorage();
-                    isEditMode = false;
-                    renderCharacter(currentCharIndex);
-                }
-            );
-        }
-
-        function updateHP(amount) {
-            const char = characters[currentCharIndex];
-            char.vitals.hp += amount;
-            if (char.vitals.hp > char.vitals.maxHp) char.vitals.hp = char.vitals.maxHp;
-            if (char.vitals.hp < 0) char.vitals.hp = 0;
-            saveToStorage();
-            updateHPDisplay();
-        }
-
-        function updateHPDisplay() {
-            const char = characters[currentCharIndex];
-            document.getElementById('hp-current').innerText = char.vitals.hp;
-            document.getElementById('hp-max-display').innerText = char.vitals.maxHp;
-
-            const hpPercentage = (char.vitals.hp / char.vitals.maxHp) * 100;
-            const hpBar = document.getElementById('hp-bar');
-            hpBar.style.width = `${hpPercentage}%`;
-
-            if (hpPercentage > 50) {
-                hpBar.className = "h-full transition-all duration-300 bg-amber-700 hover:bg-amber-600";
-            } else if (hpPercentage > 20) {
-                hpBar.className = "h-full transition-all duration-300 bg-[#FF8C42]";
-            } else {
-                hpBar.className = "h-full transition-all duration-300 bg-stone-800 hover:bg-stone-700";
-            }
-        }
-
-        function takeLongRest() {
-            const char = characters[currentCharIndex];
-            char.vitals.hp = char.vitals.maxHp;
-            saveToStorage();
-            updateHPDisplay();
-        }
-
-        function handleImageUpload(event) {
-            const file = event.target.files[0];
-            if (file) {
-                const reader = new FileReader();
-                reader.onload = function (e) {
-                    characters[currentCharIndex].customImg = e.target.result;
-                    saveToStorage();
-                    renderCharacter(currentCharIndex);
-                };
-                reader.readAsDataURL(file);
-            }
-        }
-
-        initApp();
+        };
     </script>
 </body>
 
