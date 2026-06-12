@@ -1,6 +1,6 @@
 // Be sure to bump this version number whenever you change this file
 // so the browser knows to run the 'install' and 'activate' steps again.
-const CACHE_NAME = 'klasskit-v1.4.7';
+const CACHE_NAME = 'klasskit-v1.4.8';
 
 // 1. Pre-cache Core Assets (Static)
 const PRE_CACHE_ASSETS = [
