@@ -471,7 +471,7 @@ const UI = {
     const today = new Date().getDate();
     const tipIndex = today % tips.length;
     const tipEl = document.getElementById('daily-tip');
-    if (tipEl) tipEl.innerHTML = `<i data-lucide="sparkles" class="w-4 h-4 text-yellow-300"></i> Tip: ${tips[tipIndex]}`;
+    if (tipEl) tipEl.innerHTML = `<i data-lucide="lightbulb" class="w-4 h-4"></i> Tip: ${tips[tipIndex]}`;
   },
 
 
