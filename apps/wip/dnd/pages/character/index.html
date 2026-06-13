@@ -5,6 +5,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>E1 Batam - Character Roster</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.105.4"></script>
+    <script src="/supabase.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
@@ -439,27 +441,43 @@
         }
 
         async function initApp() {
-            const saved = localStorage.getItem('characters');
-            if (saved) {
-                try {
-                    const parsed = JSON.parse(saved);
-                    if (parsed && parsed.length > 0) {
-                        campaigns = [{ id: 'local', name: 'Local Campaign', characters: parsed }];
-                        console.log('Campaigns loaded from localStorage');
-                    }
-                } catch (e) {
-                    console.warn('Failed to parse localStorage data', e);
-                }
+            if (typeof requirePro === 'function') await requirePro();
+
+            let dndSaves = [];
+            if (typeof loadDndSaves === 'function') {
+                dndSaves = await loadDndSaves('character');
+            }
+
+            if (dndSaves && dndSaves.length > 0) {
+                campaigns = dndSaves.map(s => ({
+                    id: s.id,
+                    name: s.name,
+                    characters: s.state_data?.characters || []
+                }));
+                console.log('Campaigns loaded from tools_dnd');
             } else {
-                try {
-                    const response = await fetch('data/campaigns.json');
-                    if (response.ok) {
-                        const data = await response.json();
-                        campaigns = data.campaigns;
-                        console.log('Campaigns loaded from JSON');
+                const saved = localStorage.getItem('characters');
+                if (saved) {
+                    try {
+                        const parsed = JSON.parse(saved);
+                        if (parsed && parsed.length > 0) {
+                            campaigns = [{ id: 'local', name: 'Local Campaign', characters: parsed }];
+                            console.log('Campaigns loaded from localStorage');
+                        }
+                    } catch (e) {
+                        console.warn('Failed to parse localStorage data', e);
                     }
-                } catch (error) {
-                    console.warn('CORS or Fetch error. Using embedded fallback data.', error);
+                } else {
+                    try {
+                        const response = await fetch('data/campaigns.json');
+                        if (response.ok) {
+                            const data = await response.json();
+                            campaigns = data.campaigns;
+                            console.log('Campaigns loaded from JSON');
+                        }
+                    } catch (error) {
+                        console.warn('CORS or Fetch error. Using embedded fallback data.', error);
+                    }
                 }
             }
 
@@ -511,8 +529,18 @@
 
 
 
-        function saveToStorage() {
+        async function saveToStorage() {
             localStorage.setItem('characters', JSON.stringify(characters));
+            const campaign = campaigns.find(c => c.id === currentCampaignId);
+            if (campaign && typeof saveDndSave === 'function') {
+                const result = await saveDndSave('character', campaign.name, { characters }, campaign.id);
+                if (result.id && typeof isValidUuid === 'function' && !isValidUuid(campaign.id)) {
+                    const oldId = campaign.id;
+                    campaign.id = result.id;
+                    currentCampaignId = result.id;
+                    localStorage.removeItem(`dnd_character_${oldId}`);
+                }
+            }
         }
 
         function renderSelector() {
@@ -566,7 +594,11 @@
             const imgEl = document.getElementById('char-img');
             const placeholder = document.getElementById('upload-placeholder');
             if (char.customImg) {
-                imgEl.src = char.customImg;
+                if (typeof resolveMediaUrl === 'function' && char.customImg.includes('klasskit-media')) {
+                    resolveMediaUrl(char.customImg).then(url => { imgEl.src = url; });
+                } else {
+                    imgEl.src = char.customImg;
+                }
                 imgEl.classList.remove('hidden');
                 placeholder.classList.add('hidden');
             } else {
@@ -737,10 +769,14 @@
                 "Delete Character",
                 `Are you sure you want to delete ${characters[currentCharIndex].name}?`,
                 "confirm",
-                () => { // onConfirm: proceed with deletion
+                async () => { // onConfirm: proceed with deletion
+                    const deletedChar = characters[currentCharIndex];
+                    if (deletedChar.customImg && deletedChar.customImg.includes('klasskit-media')) {
+                        await deleteMediaFromUrl(deletedChar.customImg).catch(() => {});
+                    }
                     characters.splice(currentCharIndex, 1);
                     currentCharIndex = Math.max(0, currentCharIndex - 1);
-                    saveToStorage();
+                    await saveToStorage();
                     isEditMode = false;
                     renderCharacter(currentCharIndex);
                 }
@@ -781,17 +817,33 @@
             updateHPDisplay();
         }
 
-        function handleImageUpload(event) {
+        async function handleImageUpload(event) {
             const file = event.target.files[0];
-            if (file) {
-                const reader = new FileReader();
-                reader.onload = function (e) {
-                    characters[currentCharIndex].customImg = e.target.result;
-                    saveToStorage();
+            if (!file) return;
+
+            if (typeof uploadMedia === 'function') {
+                try {
+                    const oldUrl = characters[currentCharIndex].customImg;
+                    const signedUrl = await uploadMedia(file, 'dnd-character');
+                    characters[currentCharIndex].customImg = signedUrl;
+                    if (oldUrl && oldUrl.includes('klasskit-media')) {
+                        await deleteMediaFromUrl(oldUrl).catch(() => {});
+                    }
+                    await saveToStorage();
                     renderCharacter(currentCharIndex);
-                };
-                reader.readAsDataURL(file);
+                    return;
+                } catch (e) {
+                    console.warn('[Cloud] Image upload failed, falling back to local:', e);
+                }
             }
+
+            const reader = new FileReader();
+            reader.onload = function (e) {
+                characters[currentCharIndex].customImg = e.target.result;
+                saveToStorage();
+                renderCharacter(currentCharIndex);
+            };
+            reader.readAsDataURL(file);
         }
 
         initApp();

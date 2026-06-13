@@ -371,7 +371,8 @@ function snapshotState() {
             name: t.name,
             x: t.x,
             y: t.y,
-            src: t.img.src,
+            src: t.imageUrl || t.img.src,
+            imageUrl: t.imageUrl || null,
             size: t.size || 1
         })),
         fogShapes: JSON.parse(JSON.stringify(state.fogShapes)),
@@ -397,15 +398,19 @@ function restoreSnapshot(snap) {
     renderGrid();
 
     // Reload tokens asynchronously
-    const tokenPromises = snap.tokens.map(td => {
+    const tokenPromises = snap.tokens.map(async (td) => {
+        let tokenSrc = td.imageUrl || td.src;
+        if (typeof resolveMediaUrl === 'function' && tokenSrc && tokenSrc.includes('klasskit-media')) {
+            try { tokenSrc = await resolveMediaUrl(tokenSrc); } catch (e) {}
+        }
+        const img = new Image();
         return new Promise((resolve) => {
-            const img = new Image();
             img.onload = () => resolve({ ...td, img });
             img.onerror = () => {
                 console.warn(`Failed to load token: ${td.name}`);
-                resolve(null); // Skip this token
+                resolve(null);
             };
-            img.src = td.src;
+            img.src = tokenSrc;
         });
     });
 
@@ -450,10 +455,22 @@ function initDB() {
             db.createObjectStore('tokenLibrary', { keyPath: 'id' });
         }
     };
-    request.onsuccess = (e) => {
+    request.onsuccess = async (e) => {
         db = e.target.result;
-        loadMapList();
+        await new Promise((resolve) => {
+            const tx = db.transaction('maps', 'readonly');
+            const req = tx.objectStore('maps').getAll();
+            req.onsuccess = () => {
+                state.mapsList = req.result || [];
+                updateMapDropdown();
+                resolve();
+            };
+        });
         loadTokenLibrary();
+        await syncFromCloud();
+        if (state.mapsList.length > 0 && !state.currentMapData) {
+            await loadMap(state.mapsList[0].id);
+        }
     };
     request.onerror = () => showAlert('Database Error', 'Failed to open IndexedDB');
 }
@@ -461,7 +478,7 @@ function initDB() {
 function saveCurrentMap() {
     if (!state.currentMapData || !db) return;
     state.currentMapData.tokens = state.tokens.map(t => ({
-        id: t.id, name: t.name, x: t.x, y: t.y, src: t.img.src, size: t.size || 1
+        id: t.id, name: t.name, x: t.x, y: t.y, src: t.imageUrl || t.img.src, imageUrl: t.imageUrl || null, size: t.size || 1
     }));
     state.currentMapData.fogShapes = state.fogShapes;
     state.currentMapData.gridSize = state.gridSize;
@@ -472,6 +489,7 @@ function saveCurrentMap() {
     } catch (e) {
         console.warn('IndexedDB save error:', e);
     }
+    syncToCloud();
 }
 
 function loadMapList() {
@@ -480,9 +498,6 @@ function loadMapList() {
     req.onsuccess = () => {
         state.mapsList = req.result || [];
         updateMapDropdown();
-        if (state.mapsList.length > 0 && !state.currentMapData) {
-            loadMap(state.mapsList[0].id);
-        }
     };
 }
 
@@ -500,7 +515,7 @@ function updateMapDropdown() {
 }
 
 // ==================== MAP OPERATIONS ====================
-function loadMap(id) {
+async function loadMap(id) {
     state.currentMapData = state.mapsList.find(m => m.id === id);
     if (!state.currentMapData) return;
     dom.mapSelect.value = id;
@@ -513,58 +528,73 @@ function loadMap(id) {
     state.transform = { x: 50, y: 50, scale: 1 };
     updateTransform();
 
-    const img = new Image();
-    img.onload = () => {
-        state.mapImage = img;
-        const w = img.width;
-        const h = img.height;
-        dom.container.style.width = w + 'px';
-        dom.container.style.height = h + 'px';
-        [dom.mapCanvas, dom.gridCanvas, dom.tokenCanvas, dom.fogCanvas].forEach(c => {
-            c.width = w;
-            c.height = h;
-        });
+    const mapSrc = await resolveMapImage(state.currentMapData);
+    if (!mapSrc) {
+        showAlert('Error', `No image data for map "${state.currentMapData.name}".`);
+        return;
+    }
 
-        const tokenData = state.currentMapData.tokens || [];
-        if (tokenData.length === 0) {
-            renderMap();
-            renderGrid();
-            renderTokens();
-            renderFog();
-            resetHistory();
-            return;
-        }
+    return new Promise((resolve) => {
+        const img = new Image();
+        img.onload = async () => {
+            state.mapImage = img;
+            const w = img.width;
+            const h = img.height;
+            dom.container.style.width = w + 'px';
+            dom.container.style.height = h + 'px';
+            [dom.mapCanvas, dom.gridCanvas, dom.tokenCanvas, dom.fogCanvas].forEach(c => {
+                c.width = w;
+                c.height = h;
+            });
 
-        let loaded = 0;
-        tokenData.forEach(td => {
-            const tImg = new Image();
-            tImg.onload = () => {
-                state.tokens.push({ id: td.id, name: td.name, x: td.x, y: td.y, img: tImg, size: td.size || 1 });
-                loaded++;
+            const tokenData = state.currentMapData.tokens || [];
+            if (tokenData.length === 0) {
+                renderMap();
+                renderGrid();
+                renderTokens();
+                renderFog();
+                resetHistory();
+                resolve();
+                return;
+            }
+
+            let loaded = 0;
+            const checkDone = () => {
                 if (loaded === tokenData.length) {
                     renderMap();
                     renderGrid();
                     renderTokens();
                     renderFog();
                     resetHistory();
+                    resolve();
                 }
             };
-            tImg.onerror = () => {
-                console.warn(`Failed to load token: ${td.name}`);
-                loaded++;
-                if (loaded === tokenData.length) {
-                    renderMap();
-                    renderGrid();
-                    renderTokens();
-                    renderFog();
-                    resetHistory();
+
+            for (const td of tokenData) {
+                const tImg = new Image();
+                tImg.onload = () => {
+                    state.tokens.push({ id: td.id, name: td.name, x: td.x, y: td.y, img: tImg, size: td.size || 1 });
+                    loaded++;
+                    checkDone();
+                };
+                tImg.onerror = () => {
+                    console.warn(`Failed to load token: ${td.name}`);
+                    loaded++;
+                    checkDone();
+                };
+                let tokenSrc = td.imageUrl || td.src;
+                if (typeof resolveMediaUrl === 'function' && tokenSrc && tokenSrc.includes('klasskit-media')) {
+                    try { tokenSrc = await resolveMediaUrl(tokenSrc); } catch (e) {}
                 }
-            };
-            tImg.src = td.src;
-        });
-    };
-    img.onerror = () => showAlert('Error', `Failed to load map image for "${state.currentMapData.name}".`);
-    img.src = state.currentMapData.data;
+                tImg.src = tokenSrc;
+            }
+        };
+        img.onerror = () => {
+            showAlert('Error', `Failed to load map image for "${state.currentMapData.name}".`);
+            resolve();
+        };
+        img.src = mapSrc;
+    });
 }
 
 function resetHistory() {
@@ -585,7 +615,7 @@ function fitMapToScreen() {
     updateTransform();
 }
 
-function rotateMap() {
+async function rotateMap() {
     if (!state.mapImage || !state.currentMapData) return;
 
     const oldW = state.mapImage.width;
@@ -615,14 +645,32 @@ function rotateMap() {
     // Update map data
     state.currentMapData.data = tempCanvas.toDataURL();
     state.currentMapData.tokens = state.tokens.map(t => ({
-        id: t.id, name: t.name, x: t.x, y: t.y, src: t.img.src, size: t.size || 1
+        id: t.id, name: t.name, x: t.x, y: t.y, src: t.imageUrl || t.img.src, imageUrl: t.imageUrl || null, size: t.size || 1
     }));
     state.currentMapData.fogShapes = state.fogShapes;
 
     saveCurrentMap();
 
+    // If map was cloud-backed, try to re-upload rotated image to replace the old cloud file
+    if (state.currentMapData.imageUrl && typeof uploadMedia === 'function') {
+        try {
+            const blob = await new Promise((resolve, reject) => {
+                tempCanvas.toBlob((b) => b ? resolve(b) : reject(new Error('Canvas toBlob failed')), 'image/webp');
+            });
+            const file = new File([blob], 'rotated_map.webp', { type: 'image/webp' });
+            const oldUrl = state.currentMapData.imageUrl;
+            const newUrl = await uploadMedia(file, 'dnd-vtt-map');
+            await deleteMediaFromUrl(oldUrl).catch(() => {});
+            state.currentMapData.imageUrl = newUrl;
+            state.currentMapData.data = null;
+            saveCurrentMap();
+        } catch (e) {
+            console.warn('[Cloud] Failed to upload rotated map, keeping local data URL:', e);
+        }
+    }
+
     // Reload to update image dimensions and canvas
-    loadMap(state.currentMapData.id);
+    await loadMap(state.currentMapData.id);
     pushHistory(); // Record rotation as an undo step
 }
 
@@ -636,13 +684,14 @@ function loadTokenLibrary() {
     };
 }
 
-function saveTokenToLibrary(name, dataSrc) {
-    const entry = { id: Date.now(), name, src: dataSrc };
+function saveTokenToLibrary(name, src, imageUrl = null) {
+    const entry = { id: Date.now(), name, src, imageUrl };
     const tx = db.transaction('tokenLibrary', 'readwrite');
     tx.objectStore('tokenLibrary').put(entry);
     tx.oncomplete = () => {
         state.tokenLibrary.push(entry);
         renderTokenLibrary();
+        syncToCloud();
     };
 }
 
@@ -652,24 +701,29 @@ function deleteTokenFromLibrary(id) {
     tx.oncomplete = () => {
         state.tokenLibrary = state.tokenLibrary.filter(t => t.id !== id);
         renderTokenLibrary();
+        syncToCloud();
     };
 }
 
-function placeTokenFromLibrary(libToken) {
+async function placeTokenFromLibrary(libToken) {
     const nameInput = dom.tokenNameInput.value || libToken.name;
+    let tokenSrc = libToken.src;
+    if (typeof resolveMediaUrl === 'function' && tokenSrc && tokenSrc.includes('klasskit-media')) {
+        try { tokenSrc = await resolveMediaUrl(tokenSrc); } catch (e) {}
+    }
     const img = new Image();
     img.onload = () => {
         const rect = dom.wrapper.getBoundingClientRect();
         const viewX = (rect.width / 2 - state.transform.x) / state.transform.scale;
         const viewY = (rect.height / 2 - state.transform.y) / state.transform.scale;
-        state.tokens.push({ id: Date.now(), img, name: nameInput, x: viewX, y: viewY, size: 1 });
+        state.tokens.push({ id: Date.now(), img, name: nameInput, x: viewX, y: viewY, size: 1, imageUrl: libToken.imageUrl });
         renderTokens();
         pushHistory();
         saveCurrentMap();
         dom.tokenNameInput.value = '';
     };
     img.onerror = () => showAlert('Error', 'Failed to load the token image.');
-    img.src = libToken.src;
+    img.src = tokenSrc;
 }
 
 function renderTokenLibrary() {
@@ -685,7 +739,12 @@ function renderTokenLibrary() {
         div.title = libToken.name;
 
         const img = document.createElement('img');
-        img.src = libToken.src;
+        const src = libToken.src;
+        if (typeof resolveMediaUrl === 'function' && src && src.includes('klasskit-media')) {
+            resolveMediaUrl(src).then(url => { img.src = url; });
+        } else {
+            img.src = src;
+        }
         img.alt = libToken.name;
         img.loading = 'lazy';
         div.appendChild(img);
@@ -1164,8 +1223,12 @@ function initUI() {
             showAlert('No Map', 'No map is currently selected.');
             return;
         }
-        showConfirm('Delete Map', `Delete "${state.currentMapData.name}"?`, () => {
+        showConfirm('Delete Map', `Delete "${state.currentMapData.name}"?`, async () => {
             const id = state.currentMapData.id;
+            const cloudId = state.currentMapData.cloudId;
+            if (cloudId && typeof deleteDndSave === 'function') {
+                await deleteDndSave(cloudId).catch(e => console.warn('[Cloud] Failed to delete map:', e));
+            }
             const tx = db.transaction('maps', 'readwrite');
             tx.objectStore('maps').delete(id);
             tx.oncomplete = () => {
@@ -1185,84 +1248,121 @@ function initUI() {
     });
 
     // Map select
-    dom.mapSelect.addEventListener('change', (e) => {
+    dom.mapSelect.addEventListener('change', async (e) => {
         if (e.target.value) {
             saveCurrentMap();
-            loadMap(parseInt(e.target.value, 10));
+            await loadMap(parseInt(e.target.value, 10));
         }
     });
 
     // Map upload
-    $('map-upload').addEventListener('change', (e) => {
+    $('map-upload').addEventListener('change', async (e) => {
         const file = e.target.files[0];
         if (!file) return;
         const defaultName = file.name.replace(/\.[^/.]+$/, '').replace(/_/g, ' ');
-        showPrompt('Name this map:', defaultName, (mapName) => {
+        showPrompt('Name this map:', defaultName, async (mapName) => {
             if (!mapName) return;
-            const reader = new FileReader();
-            reader.onload = (ev) => {
-                const newMap = {
-                    id: Date.now(),
-                    name: mapName,
-                    data: ev.target.result,
-                    tokens: [],
-                    fogShapes: [],
-                    gridSize: state.gridSize
-                };
-                saveCurrentMap(); // Save current before switching
-                const tx = db.transaction('maps', 'readwrite');
-                tx.objectStore('maps').put(newMap);
-                tx.oncomplete = () => {
-                    state.mapsList.push(newMap);
-                    updateMapDropdown();
-                    loadMap(newMap.id);
-                };
+            let imageUrl = null;
+            let dataSrc = null;
+            if (typeof uploadMedia === 'function') {
+                try {
+                    imageUrl = await uploadMedia(file, 'dnd-vtt-map');
+                } catch (err) {
+                    console.warn('[Cloud] Map upload failed, falling back to local:', err);
+                }
+            }
+            if (!imageUrl) {
+                dataSrc = await new Promise((resolve) => {
+                    const reader = new FileReader();
+                    reader.onload = (ev) => resolve(ev.target.result);
+                    reader.readAsDataURL(file);
+                });
+            }
+            const newMap = {
+                id: Date.now(),
+                name: mapName,
+                data: dataSrc,
+                imageUrl: imageUrl,
+                tokens: [],
+                fogShapes: [],
+                gridSize: state.gridSize
             };
-            reader.readAsDataURL(file);
+            saveCurrentMap(); // Save current before switching
+            const tx = db.transaction('maps', 'readwrite');
+            tx.objectStore('maps').put(newMap);
+            tx.oncomplete = () => {
+                state.mapsList.push(newMap);
+                updateMapDropdown();
+                loadMap(newMap.id);
+            };
         });
         e.target.value = '';
     });
 
     // Token upload & place
-    $('token-upload').addEventListener('change', (e) => {
+    $('token-upload').addEventListener('change', async (e) => {
         const file = e.target.files[0];
         const nameInput = dom.tokenNameInput.value;
         if (!file) return;
         const defaultName = nameInput || file.name.replace(/\.[^/.]+$/, '').replace(/_/g, ' ');
-        const reader = new FileReader();
-        reader.onload = (ev) => {
-            const dataSrc = ev.target.result;
-            saveTokenToLibrary(defaultName, dataSrc); // Save to library
-            const img = new Image();
-            img.onload = () => {
-                const rect = dom.wrapper.getBoundingClientRect();
-                const viewX = (rect.width / 2 - state.transform.x) / state.transform.scale;
-                const viewY = (rect.height / 2 - state.transform.y) / state.transform.scale;
-                state.tokens.push({ id: Date.now(), img, name: defaultName, x: viewX, y: viewY, size: 1 });
-                renderTokens();
-                pushHistory();
-                saveCurrentMap();
-            };
-            img.onerror = () => showAlert('Error', 'Failed to load token.');
-            img.src = dataSrc;
+        let imageUrl = null;
+        let dataSrc = null;
+        if (typeof uploadMedia === 'function') {
+            try {
+                imageUrl = await uploadMedia(file, 'dnd-vtt-token');
+            } catch (err) {
+                console.warn('[Cloud] Token upload failed, falling back to local:', err);
+            }
+        }
+        if (!imageUrl) {
+            dataSrc = await new Promise((resolve) => {
+                const reader = new FileReader();
+                reader.onload = (ev) => resolve(ev.target.result);
+                reader.readAsDataURL(file);
+            });
+        }
+        const src = imageUrl || dataSrc;
+        saveTokenToLibrary(defaultName, src, imageUrl);
+        const img = new Image();
+        img.onload = () => {
+            const rect = dom.wrapper.getBoundingClientRect();
+            const viewX = (rect.width / 2 - state.transform.x) / state.transform.scale;
+            const viewY = (rect.height / 2 - state.transform.y) / state.transform.scale;
+            state.tokens.push({ id: Date.now(), img, name: defaultName, x: viewX, y: viewY, size: 1, imageUrl: imageUrl });
+            renderTokens();
+            pushHistory();
+            saveCurrentMap();
         };
-        reader.readAsDataURL(file);
+        img.onerror = () => showAlert('Error', 'Failed to load token.');
+        img.src = src;
         dom.tokenNameInput.value = '';
         e.target.value = '';
     });
 
     // Token library upload (save only)
-    $('token-library-upload').addEventListener('change', (e) => {
+    $('token-library-upload').addEventListener('change', async (e) => {
         const file = e.target.files[0];
         if (!file) return;
         const defaultName = file.name.replace(/\.[^/.]+$/, '').replace(/_/g, ' ');
-        showPrompt('Name this token:', defaultName, (tokenName) => {
+        showPrompt('Name this token:', defaultName, async (tokenName) => {
             if (!tokenName) return;
-            const reader = new FileReader();
-            reader.onload = (ev) => {
-                saveTokenToLibrary(tokenName, ev.target.result);
-            };
-            reader.readAsDataURL(file);
+            let imageUrl = null;
+            let dataSrc = null;
+            if (typeof uploadMedia === 'function') {
+                try {
+                    imageUrl = await uploadMedia(file, 'dnd-vtt-token');
+                } catch (err) {
+                    console.warn('[Cloud] Token library upload failed, falling back to local:', err);
+                }
+            }
+            if (!imageUrl) {
+                dataSrc = await new Promise((resolve) => {
+                    const reader = new FileReader();
+                    reader.onload = (ev) => resolve(ev.target.result);
+                    reader.readAsDataURL(file);
+                });
+            }
+            saveTokenToLibrary(tokenName, imageUrl || dataSrc, imageUrl);
         });
         e.target.value = '';
     });
@@ -1420,8 +1520,120 @@ function initUI() {
     }, { passive: false });
 }
 
+// ==================== CLOUD SYNC (tools_dnd table) ====================
+let syncToCloudDebounce = null;
+
+async function syncToCloud() {
+    if (typeof saveDndSave !== 'function') return;
+    if (syncToCloudDebounce) clearTimeout(syncToCloudDebounce);
+    syncToCloudDebounce = setTimeout(async () => {
+        syncToCloudDebounce = null;
+        await performCloudSync();
+    }, 500);
+}
+
+async function performCloudSync() {
+    for (const map of state.mapsList) {
+        const stateData = {
+            data: map.data || null,
+            imageUrl: map.imageUrl || null,
+            tokens: (map.tokens || []).map(t => ({
+                id: t.id, name: t.name, x: t.x, y: t.y,
+                src: t.src && !t.src.startsWith('data:') ? t.src : null,
+                imageUrl: t.imageUrl || null,
+                size: t.size || 1
+            })),
+            fogShapes: map.fogShapes || [],
+            gridSize: map.gridSize || DEFAULT_GRID
+        };
+        const result = await saveDndSave('vtt', map.name, stateData, map.cloudId || null);
+        if (result.id && !map.cloudId) {
+            map.cloudId = result.id;
+            if (db) {
+                const tx = db.transaction('maps', 'readwrite');
+                tx.objectStore('maps').put(map);
+            }
+        }
+    }
+    if (state.tokenLibrary.length > 0) {
+        const libState = { tokens: state.tokenLibrary.map(t => ({ id: t.id, name: t.name, src: t.src && !t.src.startsWith('data:') ? t.src : null, imageUrl: t.imageUrl })) };
+        const libResult = await saveDndSave('vtt_library', 'Token Library', libState, state.tokenLibraryCloudId || null);
+        if (libResult.id) state.tokenLibraryCloudId = libResult.id;
+    }
+}
+
+async function syncFromCloud() {
+    if (typeof loadDndSaves !== 'function') return;
+
+    const mapSaves = await loadDndSaves('vtt');
+    for (const save of mapSaves) {
+        const sd = save.state_data || {};
+        const existing = state.mapsList.find(m => m.cloudId === save.id);
+        const cleanCloudData = (val) => (typeof val === 'string' && val.startsWith('[STRIPPED_')) ? null : val;
+
+        if (existing) {
+            existing.name = save.name;
+            existing.data = cleanCloudData(sd.data) || existing.data;
+            existing.imageUrl = sd.imageUrl || existing.imageUrl;
+            existing.tokens = sd.tokens || existing.tokens;
+            existing.fogShapes = sd.fogShapes || existing.fogShapes;
+            existing.gridSize = sd.gridSize || existing.gridSize;
+            if (db) {
+                const tx = db.transaction('maps', 'readwrite');
+                tx.objectStore('maps').put(existing);
+            }
+        } else {
+            const newMap = {
+                id: Date.now(),
+                cloudId: save.id,
+                name: save.name,
+                data: cleanCloudData(sd.data) || null,
+                imageUrl: sd.imageUrl || null,
+                tokens: sd.tokens || [],
+                fogShapes: sd.fogShapes || [],
+                gridSize: sd.gridSize || DEFAULT_GRID
+            };
+            state.mapsList.push(newMap);
+            if (db) {
+                const tx = db.transaction('maps', 'readwrite');
+                tx.objectStore('maps').put(newMap);
+            }
+        }
+    }
+
+    const libSaves = await loadDndSaves('vtt_library');
+    if (libSaves.length > 0) {
+        const lib = libSaves[0];
+        state.tokenLibraryCloudId = lib.id;
+        const tokens = lib.state_data?.tokens || [];
+        state.tokenLibrary = tokens.map(t => ({ id: t.id, name: t.name, src: (t.src && !t.src.startsWith('[STRIPPED_')) ? t.src : (t.imageUrl || null), imageUrl: t.imageUrl }));
+        if (db) {
+            const tx = db.transaction('tokenLibrary', 'readwrite');
+            state.tokenLibrary.forEach(t => tx.objectStore('tokenLibrary').put(t));
+        }
+    }
+
+    updateMapDropdown();
+    if (state.mapsList.length > 0 && !state.currentMapData) {
+        await loadMap(state.mapsList[0].id);
+    }
+    renderTokenLibrary();
+}
+
+async function resolveMapImage(mapData) {
+    if (mapData.imageUrl && typeof resolveMediaUrl === 'function') {
+        try {
+            return await resolveMediaUrl(mapData.imageUrl);
+        } catch (e) {
+            console.warn('[Cloud] Failed to resolve map image:', e);
+        }
+    }
+    return mapData.data || null;
+}
+
 // ==================== INITIALISATION ====================
-window.addEventListener('load', () => {
+window.addEventListener('load', async () => {
+    if (typeof requirePro === 'function') await requirePro();
     lucide.createIcons();
     initDB();
     initUI();

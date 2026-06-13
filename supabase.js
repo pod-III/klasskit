@@ -176,6 +176,10 @@ function clearLocalCache() {
   }
 }
 
+function isValidUuid(str) {
+  return typeof str === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+}
+
 function sanitizeCloudPayload(data) {
   if (!data) return data
   const clean = JSON.parse(JSON.stringify(data))
@@ -302,6 +306,112 @@ async function loadProgress(toolKey) {
 
   const local = localStorage.getItem(`prog_${toolKey}`)
   return local ? JSON.parse(local) : null
+}
+
+/* ── D&D TOOL HELPERS (tools_dnd table) ── */
+async function saveDndSave(toolType, name, stateData, id = null) {
+  const localId = id || `local_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+
+  if (isSandbox()) {
+    localStorage.setItem(`dnd_${toolType}_${localId}`, JSON.stringify({ id: localId, name, state_data: stateData, tool_type: toolType }));
+    return { id: localId, success: true };
+  }
+
+  const user = await getUser();
+  if (!user) {
+    localStorage.setItem(`dnd_${toolType}_${localId}`, JSON.stringify({ id: localId, name, state_data: stateData, tool_type: toolType }));
+    return { id: localId, success: true };
+  }
+
+  const sanitizedData = sanitizeCloudPayload(stateData);
+
+  if (id && isValidUuid(id)) {
+    const { data, error } = await db.from('tools_dnd')
+      .update({ name, state_data: sanitizedData, last_used: new Date().toISOString() })
+      .eq('id', id)
+      .eq('user_id', user.id)
+      .select()
+      .single();
+    if (error) {
+      console.error('[SaveDnd] Update failed:', error);
+      return { error };
+    }
+    return { id: data.id, success: true };
+  } else {
+    const { data, error } = await db.from('tools_dnd')
+      .insert({ user_id: user.id, tool_type: toolType, name, state_data: sanitizedData })
+      .select()
+      .single();
+    if (error) {
+      console.error('[SaveDnd] Insert failed:', error);
+      return { error };
+    }
+    return { id: data.id, success: true };
+  }
+}
+
+async function loadDndSaves(toolType) {
+  const loadLocal = () => {
+    const saves = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith(`dnd_${toolType}_`)) {
+        try {
+          const item = JSON.parse(localStorage.getItem(key));
+          if (item) saves.push(item);
+        } catch (_) { /* ignore malformed entries */ }
+      }
+    }
+    return saves;
+  };
+
+  if (isSandbox()) return loadLocal();
+
+  const user = await getUser();
+  if (user) {
+    const { data, error } = await db.from('tools_dnd')
+      .select('id, name, state_data, created_at, last_used')
+      .eq('user_id', user.id)
+      .eq('tool_type', toolType)
+      .order('last_used', { ascending: false });
+
+    if (error) {
+      console.error('[LoadDnd] Error:', error);
+      return [];
+    }
+    return data || [];
+  }
+
+  return loadLocal();
+}
+
+async function deleteDndSave(id) {
+  if (isSandbox()) {
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith('dnd_')) {
+        try {
+          const item = JSON.parse(localStorage.getItem(key) || '{}');
+          if (item.id === id) localStorage.removeItem(key);
+        } catch (_) {}
+      }
+    }
+    return { success: true };
+  }
+
+  const user = await getUser();
+  if (!user) return { success: false, error: 'No user' };
+
+  const { error } = await db.from('tools_dnd')
+    .delete()
+    .eq('id', id)
+    .eq('user_id', user.id);
+
+  if (error) {
+    console.error('[DeleteDnd] Error:', error);
+    return { error };
+  }
+  return { success: true };
 }
 
 async function checkUserActivity() {
