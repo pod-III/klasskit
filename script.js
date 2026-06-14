@@ -81,6 +81,10 @@ const State = {
     return this.userProfile?.role === 'pro' || this.userProfile?.role === 'admin';
   },
 
+  isAdmin() {
+    return this.userProfile?.role === 'admin';
+  },
+
   setGames(data) {
     const gamesList = data.games || data;
     this.games = gamesList.sort((a, b) => a.title.localeCompare(b.title));
@@ -104,7 +108,7 @@ const State = {
         if (game.pro && !this.isPro()) return false;
         
         // Admin Check: Hide admin-only games if user is not admin
-        if (game.adminOnly && this.userProfile?.role !== 'admin') return false;
+        if (game.adminOnly && !this.isAdmin()) return false;
 
         const matchesCategory = category === 'all' ||
           (category === 'featured' ? game.featured === true : game.category === category);
@@ -451,9 +455,20 @@ const UI = {
         nameEl.after(badge);
       }
 
-      // Show pro-only cards on landing page
+      // Show pro-only cards and buttons on landing page
       document.querySelectorAll('.pro-only-card').forEach(card => {
         card.classList.remove('hidden');
+      });
+      document.querySelectorAll('.pro-only-btn').forEach(btn => {
+        btn.classList.remove('hidden');
+      });
+    } else {
+      // Explicitly hide pro-only elements for non-pro users
+      document.querySelectorAll('.pro-only-card').forEach(card => {
+        card.classList.add('hidden');
+      });
+      document.querySelectorAll('.pro-only-btn').forEach(btn => {
+        btn.classList.add('hidden');
       });
     }
   },
@@ -627,11 +642,21 @@ const Hero = {
   },
 
   updateStats() {
-    const active = State.games.filter(g => g.active !== false && (!g.pro || State.isPro()));
+    const active = State.games.filter(g => {
+      if (g.active === false) return false;
+      if (g.pro && !State.isPro()) return false;
+      if (g.adminOnly && !State.isAdmin()) return false;
+      return true;
+    });
     const tools = active.filter(g => g.category === 'tool').length;
     const games = active.filter(g => g.category === 'game').length;
     const workshop = active.filter(g => g.category === 'workshop').length;
-    const pinned = PinnedGames.get().length;
+    const pinned = PinnedGames.get().filter(id => {
+      const game = State.getGameById(id);
+      if (!game) return false;
+      if ((game.pro && !State.isPro()) || (game.adminOnly && !State.isAdmin())) return false;
+      return true;
+    }).length;
 
     const toolsEl = document.getElementById('stat-tools');
     const gamesEl = document.getElementById('stat-games');
@@ -659,6 +684,12 @@ const Hero = {
       return;
     }
 
+    // Privilege check: don't show continue for restricted apps
+    if ((lastGame.pro && !State.isPro()) || (lastGame.adminOnly && !State.isAdmin())) {
+      btns.forEach(btn => btn.classList.add('hidden'));
+      return;
+    }
+
     btns.forEach(btn => {
       btn.classList.remove('hidden');
       btn.dataset.param = lastGame.id;
@@ -669,7 +700,12 @@ const Hero = {
 
   surpriseMe() {
     AudioEngine.click();
-    const active = State.games.filter(g => g.active !== false);
+    const active = State.games.filter(g => {
+      if (g.active === false) return false;
+      if (g.pro && !State.isPro()) return false;
+      if (g.adminOnly && !State.isAdmin()) return false;
+      return true;
+    });
     if (active.length === 0) return;
     const random = active[Math.floor(Math.random() * active.length)];
     GameModal.open(random.id);
@@ -1017,7 +1053,17 @@ const RecentGames = {
     if (!container || !section) return;
 
     const collapsed = this.isCollapsed();
-    section.classList.toggle('hidden', recentIds.length === 0);
+
+    // Filter visible recent games based on privileges
+    const visibleGames = recentIds
+      .map(id => State.getGameById(id))
+      .filter(game => {
+        if (!game) return false;
+        if ((game.pro && !State.isPro()) || (game.adminOnly && !State.isAdmin())) return false;
+        return true;
+      });
+
+    section.classList.toggle('hidden', visibleGames.length === 0);
 
     if (toggleBtn) {
       const icon = toggleBtn.querySelector('i');
@@ -1027,15 +1073,12 @@ const RecentGames = {
       }
     }
 
-    if (recentIds.length === 0) return;
+    if (visibleGames.length === 0) return;
 
     container.classList.toggle('hidden', collapsed);
     if (collapsed) return;
 
-    container.innerHTML = recentIds.map(id => {
-      const game = State.getGameById(id);
-      if (!game) return '';
-      return `
+    container.innerHTML = visibleGames.map(game => `
         <button data-action="openGame" data-param="${game.id}"
           class="recent-pill bg-white dark:bg-slate-800 flex items-center gap-2 px-2 py-1.5 rounded-xl shrink-0 min-w-[120px] group hover:bg-slate-50 dark:hover:bg-slate-700 border-2 border-dark dark:border-slate-500 shadow-hard-sm animate-pop-in"
           aria-label="Resume ${game.title}">
@@ -1047,8 +1090,7 @@ const RecentGames = {
             <div class="text-[8px] text-slate-400 font-black uppercase tracking-tighter">RESUME</div>
           </div>
         </button>
-      `;
-    }).join('');
+      `).join('');
     Utils.refreshIcons(container);
   }
 };
@@ -1239,6 +1281,8 @@ const HistoryManager = {
     historyItems.sort((a, b) => b.timeMs - a.timeMs);
 
     const filtered = historyItems.filter(({ game }) => {
+      // Privilege check: skip restricted apps
+      if ((game.pro && !State.isPro()) || (game.adminOnly && !State.isAdmin())) return false;
       if (!this.searchTerm) return true;
       return game.title.toLowerCase().includes(this.searchTerm) ||
              game.category.toLowerCase().includes(this.searchTerm) ||
@@ -1313,16 +1357,23 @@ const PinnedGames = {
 
     if (!container || !section) return;
 
-    section.classList.toggle('hidden', pinnedIds.length === 0);
-    if (badge) badge.textContent = pinnedIds.length;
+    // Filter visible pinned games based on privileges
+    const visibleGames = pinnedIds
+      .map(id => State.getGameById(id))
+      .filter(game => {
+        if (!game) return false;
+        if ((game.pro && !State.isPro()) || (game.adminOnly && !State.isAdmin())) return false;
+        return true;
+      });
 
-    if (pinnedIds.length === 0) return;
+    section.classList.toggle('hidden', visibleGames.length === 0);
+    if (badge) badge.textContent = visibleGames.length;
+
+    if (visibleGames.length === 0) return;
 
     const categoryLabels = { tool: 'Tool', game: 'Game', workshop: 'Workshop', myspace: 'My Space', 'under-construction': 'WIP' };
 
-    container.innerHTML = pinnedIds.map(id => {
-      const game = State.getGameById(id);
-      if (!game) return '';
+    container.innerHTML = visibleGames.map(game => {
       const catLabel = categoryLabels[game.category] || game.category;
       return `
         <article class="pinned-card group relative bg-white dark:bg-slate-800 rounded-2xl border-3 border-dark dark:border-slate-500 shadow-hard-sm hover:shadow-hard hover:-translate-y-1 active:translate-y-[2px] active:shadow-none cursor-pointer transition-all duration-200 animate-pop-in overflow-hidden"
@@ -1797,6 +1848,14 @@ const ViewManager = {
       );
     }
 
+    // Privilege & Visibility Filters
+    games = games.filter(g => {
+      if (g.active === false) return false;
+      if (g.pro && !State.isPro()) return false;
+      if (g.adminOnly && !State.isAdmin()) return false;
+      return true;
+    });
+
     if (games.length === 0) {
       grid.innerHTML = `
         <div class="empty-state py-20 opacity-50 flex flex-col items-center">
@@ -1904,10 +1963,6 @@ const MySpace = {
       this.loadApp('myspace-home', true);
     }
 
-    // Show Pro-only apps if user is Pro
-    if (State.isPro()) {
-      document.querySelectorAll('.pro-only-btn').forEach(btn => btn.classList.remove('hidden'));
-    }
   },
 
   loadApp(appId, silent = false) {
@@ -1923,6 +1978,12 @@ const MySpace = {
     // Handle Pro check
     if (game.pro && !State.isPro()) {
       UI.showToast("This app is exclusive to PRO users", "warning");
+      return;
+    }
+
+    // Handle Admin-only check
+    if (game.adminOnly && !State.isAdmin()) {
+      UI.showToast("This app is exclusive to ADMIN users", "warning");
       return;
     }
 
@@ -2299,6 +2360,7 @@ const TabManager = {
       const game = State.getGameById(tabData.gameId);
       if (!game) return;
       if (game.pro && !State.isPro()) return;
+      if (game.adminOnly && !State.isAdmin()) return;
       const tab = this.createTabSilent(game, tabData.id, false, tabData.groupId);
       if (tabData.pinned) this.togglePinTab(tab.id, true);
     });
@@ -2593,6 +2655,10 @@ const TabManager = {
       if (!game) return;
       if (game.pro && !State.isPro()) {
         UI.showToast("This app is exclusive to PRO users", "warning");
+        return;
+      }
+      if (game.adminOnly && !State.isAdmin()) {
+        UI.showToast("This app is exclusive to ADMIN users", "warning");
         return;
       }
       window.open(game.path, '_blank', 'noopener,noreferrer');
@@ -3058,6 +3124,11 @@ const TabManager = {
 
     const game = State.getGameById(tab.gameId);
     if (game) {
+      // Privilege check: auto-close tab if user lost access
+      if ((game.pro && !State.isPro()) || (game.adminOnly && !State.isAdmin())) {
+        this.closeTab(tabId);
+        return;
+      }
       State.activeGame = game;
       HistoryManager.trackTabOpen(game.id);
     }
@@ -3779,6 +3850,12 @@ const GameModal = {
       return;
     }
 
+    // Admin Check: Unauthorized Admin-Only Tool Access
+    if (game.adminOnly && !State.isAdmin()) {
+      UI.showToast("This tool is exclusive to ADMIN users", "warning");
+      return;
+    }
+
     RecentGames.add(gameId);
     HistoryManager.trackTabOpen(gameId);
 
@@ -4256,7 +4333,7 @@ async function initAuthIndicator() {
     // Check if admin and show link
     console.log('[HubAuth] Querying role for UID:', user.id);
     const { data: profile, error: roleError } = await db
-      .from('profiles').select('role').eq('id', user.id).single();
+      .from('profiles').select('role, display_name').eq('id', user.id).maybeSingle();
     
     if (roleError) {
       console.error('[HubAuth] ERROR CODE:', roleError.code);
@@ -4266,6 +4343,22 @@ async function initAuthIndicator() {
     
     console.log('[HubAuth] RAW PROFILE DATA:', profile);
     console.log('[HubAuth] FINAL DETECTED ROLE:', profile?.role);
+
+    // Sync role into State.userProfile for consistent privilege checks across the app
+    if (profile?.role && State.userProfile) {
+      State.userProfile.role = profile.role;
+      if (profile.display_name) State.userProfile.display_name = profile.display_name;
+    } else if (profile) {
+      State.userProfile = profile;
+    }
+
+    // Re-render UI to reflect any privilege changes
+    UI.applyProStyles();
+    Hero.updateStats();
+    Hero.updateContinueBtn();
+    PinnedGames.render();
+    RecentGames.render();
+    ViewManager.renderAllGrids();
 
     if (profile?.role === 'admin') {
       console.log("[HubAuth] Success! Admin access granted.");
