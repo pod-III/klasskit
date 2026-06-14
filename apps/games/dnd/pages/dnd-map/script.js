@@ -33,7 +33,9 @@ const TOOLS = {
     FOG_DRAW: 'fog-draw',
     FOG_RECT: 'fog-rect',
     FOG_ERASE: 'fog-erase',
-    FOG_TOGGLE: 'fog-toggle'
+    FOG_TOGGLE: 'fog-toggle',
+    RULER: 'ruler',
+    WAYPOINT: 'waypoint'
 };
 
 // DOM element shortcuts
@@ -82,11 +84,26 @@ const state = {
     // Token library
     tokenLibrary: [],
 
-    // Player mode tool: 'move' | 'pan' | 'fog'
+    // Player mode tool: 'move' | 'pan' | 'fog' | 'ruler' | 'ping'
     playerTool: 'move',
 
     // Grid visibility
-    isGridVisible: false
+    isGridVisible: false,
+
+    // Waypoints: { id, x, y, label }
+    waypoints: [],
+
+    // Ruler state
+    rulerStart: null,    // { x, y } in canvas coords
+    rulerEnd: null,
+    rulerActive: false,
+
+    // Initiative tracker
+    initiative: {
+        combatants: [],  // { id, name, initiative, tokenId, hp, maxHp }
+        currentIndex: -1,
+        round: 1
+    }
 };
 
 // ==================== DOM CACHE ====================
@@ -128,7 +145,11 @@ const dom = {
     modalInput: $('modal-input'),
     modalCancel: $('modal-cancel'),
     modalConfirm: $('modal-confirm'),
-    tokenNameInput: $('token-name')
+    tokenNameInput: $('token-name'),
+    rulerCanvas: $('layer-ruler'),
+    initiativeList: $('initiative-list'),
+    initControls: $('init-controls'),
+    initRound: $('init-round')
 };
 
 // ==================== UTILITY FUNCTIONS ====================
@@ -150,14 +171,259 @@ function worldToScreen(worldX, worldY) {
 }
 
 function createPing(rawPos) {
+    const rect = dom.wrapper.getBoundingClientRect();
     const ping = document.createElement('div');
     ping.className = 'ping-ring';
-    ping.style.left = rawPos.rawX + 'px';
-    ping.style.top = rawPos.rawY + 'px';
+    ping.style.left = (rawPos.rawX - rect.left) + 'px';
+    ping.style.top = (rawPos.rawY - rect.top) + 'px';
     dom.wrapper.appendChild(ping);
     setTimeout(() => ping.remove(), 1000);
 }
 
+// ==================== RULER ====================
+function resizeRulerCanvas() {
+    if (!dom.rulerCanvas) return;
+    const rect = dom.wrapper.getBoundingClientRect();
+    dom.rulerCanvas.width = rect.width;
+    dom.rulerCanvas.height = rect.height;
+}
+
+function clearRuler() {
+    if (!dom.rulerCanvas) return;
+    const ctx = dom.rulerCanvas.getContext('2d');
+    ctx.clearRect(0, 0, dom.rulerCanvas.width, dom.rulerCanvas.height);
+}
+
+function drawRuler(start, end) {
+    if (!dom.rulerCanvas || !start || !end) return;
+    const ctx = dom.rulerCanvas.getContext('2d');
+    ctx.clearRect(0, 0, dom.rulerCanvas.width, dom.rulerCanvas.height);
+
+    // Convert canvas world coords → screen coords
+    const sx = start.x * state.transform.scale + state.transform.x;
+    const sy = start.y * state.transform.scale + state.transform.y;
+    const ex = end.x * state.transform.scale + state.transform.x;
+    const ey = end.y * state.transform.scale + state.transform.y;
+
+    // Measure using 5-10-5 diagonal rule
+    const gs = state.gridSize;
+    const dx = Math.abs(end.x - start.x) / gs;
+    const dy = Math.abs(end.y - start.y) / gs;
+    const straight = Math.abs(dx - dy);
+    const diag = Math.min(dx, dy);
+    // Every other diagonal step costs 10 ft instead of 5
+    const diagCost = Math.floor(diag / 2) * 2 + (diag % 2);  // alternating 1-2-1-2 steps
+    const totalSquares = straight + diagCost;
+    const feet = Math.round(totalSquares) * 5;
+
+    // Draw line
+    ctx.beginPath();
+    ctx.moveTo(sx, sy);
+    ctx.lineTo(ex, ey);
+    ctx.strokeStyle = 'rgba(251,191,36,0.85)';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([6, 4]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Dots at endpoints
+    [{ x: sx, y: sy }, { x: ex, y: ey }].forEach(p => {
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 5, 0, Math.PI * 2);
+        ctx.fillStyle = '#f59e0b';
+        ctx.fill();
+    });
+
+    // Label
+    const midX = (sx + ex) / 2;
+    const midY = (sy + ey) / 2;
+    const label = `${Math.round(totalSquares)} sq / ${feet} ft`;
+    ctx.font = 'bold 13px Cinzel, serif';
+    const tw = ctx.measureText(label).width;
+    ctx.fillStyle = 'rgba(12,10,9,0.75)';
+    ctx.beginPath();
+    ctx.roundRect(midX - tw / 2 - 6, midY - 11, tw + 12, 20, 4);
+    ctx.fill();
+    ctx.fillStyle = '#fde68a';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(label, midX, midY);
+}
+
+// ==================== WAYPOINTS ====================
+function renderWaypoints() {
+    // Waypoints are drawn on the token canvas layer, on top of tokens
+    // Called from renderTokens
+}
+
+function drawWaypointsOnCtx(ctx) {
+    state.waypoints.forEach(wp => {
+        const x = wp.x;
+        const y = wp.y;
+        // Pin body
+        ctx.beginPath();
+        ctx.arc(x, y - 14, 8, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(239,68,68,0.9)';
+        ctx.fill();
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+        // Pin needle
+        ctx.beginPath();
+        ctx.moveTo(x, y - 6);
+        ctx.lineTo(x, y);
+        ctx.strokeStyle = 'rgba(239,68,68,0.9)';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        // Label
+        if (wp.label) {
+            ctx.font = 'bold 11px Cinzel, serif';
+            const tw = ctx.measureText(wp.label).width;
+            ctx.fillStyle = 'rgba(12,10,9,0.8)';
+            ctx.beginPath();
+            ctx.roundRect(x - tw / 2 - 4, y + 3, tw + 8, 15, 3);
+            ctx.fill();
+            ctx.fillStyle = '#fde68a';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'top';
+            ctx.fillText(wp.label, x, y + 4);
+        }
+    });
+}
+
+function placeWaypoint(pos) {
+    // Check if clicking near existing waypoint → remove it
+    const REMOVE_RADIUS = 14;
+    const existing = state.waypoints.findIndex(wp =>
+        Math.hypot(pos.x - wp.x, pos.y - wp.y + 14) < REMOVE_RADIUS
+    );
+    if (existing !== -1) {
+        state.waypoints.splice(existing, 1);
+        renderTokens();
+        saveCurrentMap();
+        return;
+    }
+    // Place new waypoint — ask for optional label
+    showPrompt('Waypoint Label (optional):', '', (label) => {
+        state.waypoints.push({ id: Date.now(), x: pos.x, y: pos.y, label: label?.trim() || '' });
+        renderTokens();
+        saveCurrentMap();
+    });
+}
+
+// ==================== INITIATIVE TRACKER ====================
+function renderInitiative() {
+    const list = dom.initiativeList;
+    if (!list) return;
+    const combatants = state.initiative.combatants;
+
+    if (combatants.length === 0) {
+        list.innerHTML = '<p class="text-xs text-stone-600 italic text-center py-3">No combatants yet.</p>';
+        if (dom.initControls) dom.initControls.classList.add('hidden');
+        return;
+    }
+
+    if (dom.initControls) dom.initControls.classList.remove('hidden');
+    if (dom.initRound) dom.initRound.textContent = state.initiative.round;
+
+    list.innerHTML = '';
+    combatants.forEach((c, i) => {
+        const isActive = i === state.initiative.currentIndex;
+        const row = document.createElement('div');
+        row.className = `flex items-center gap-2 px-2 py-1.5 rounded transition-all ${
+            isActive
+                ? 'bg-amber-900/40 border border-amber-600/60 ring-1 ring-amber-500/30'
+                : 'bg-stone-950 border border-stone-800'
+        }`;
+
+        row.innerHTML = `
+            <span class="text-[10px] font-mono font-bold w-6 text-center shrink-0 ${isActive ? 'text-amber-400' : 'text-stone-600'}">${c.initiative ?? '—'}</span>
+            <span class="flex-1 text-xs font-cinzel font-bold truncate ${isActive ? 'text-amber-300' : 'text-stone-300'}" title="${c.name}">${isActive ? '▶ ' : ''}${c.name}</span>
+            ${c.hp !== undefined ? `<span class="text-[10px] font-mono text-stone-500">${c.hp}/${c.maxHp}</span>` : ''}
+            <button data-id="${c.id}" data-action="init-remove"
+                class="text-stone-700 hover:text-red-400 transition-colors p-0.5 shrink-0">
+                <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+            </button>
+        `;
+
+        row.querySelector('[data-action="init-remove"]').addEventListener('click', (e) => {
+            e.stopPropagation();
+            const id = parseInt(e.currentTarget.dataset.id, 10);
+            const idx = state.initiative.combatants.findIndex(x => x.id === id);
+            if (idx === -1) return;
+            state.initiative.combatants.splice(idx, 1);
+            if (state.initiative.currentIndex >= state.initiative.combatants.length) {
+                state.initiative.currentIndex = 0;
+            }
+            renderInitiative();
+            highlightActiveCombatant();
+        });
+
+        // Click row to set as active
+        row.addEventListener('click', (e) => {
+            if (e.target.closest('[data-action]')) return;
+            state.initiative.currentIndex = i;
+            renderInitiative();
+            highlightActiveCombatant();
+        });
+
+        list.appendChild(row);
+    });
+}
+
+function addCombatant(name, initiative, tokenId) {
+    if (!name?.trim()) return;
+    state.initiative.combatants.push({
+        id: Date.now(),
+        name: name.trim(),
+        initiative: initiative !== '' && !isNaN(initiative) ? parseInt(initiative, 10) : null,
+        tokenId: tokenId || null
+    });
+    // Sort by initiative descending (nulls last)
+    state.initiative.combatants.sort((a, b) => {
+        if (a.initiative === null) return 1;
+        if (b.initiative === null) return -1;
+        return b.initiative - a.initiative;
+    });
+    if (state.initiative.currentIndex === -1 && state.initiative.combatants.length > 0) {
+        state.initiative.currentIndex = 0;
+    }
+    renderInitiative();
+    highlightActiveCombatant();
+}
+
+function nextTurn() {
+    if (state.initiative.combatants.length === 0) return;
+    state.initiative.currentIndex = (state.initiative.currentIndex + 1) % state.initiative.combatants.length;
+    if (state.initiative.currentIndex === 0) state.initiative.round++;
+    renderInitiative();
+    highlightActiveCombatant();
+}
+
+function prevTurn() {
+    if (state.initiative.combatants.length === 0) return;
+    if (state.initiative.currentIndex === 0) {
+        state.initiative.round = Math.max(1, state.initiative.round - 1);
+        state.initiative.currentIndex = state.initiative.combatants.length - 1;
+    } else {
+        state.initiative.currentIndex--;
+    }
+    renderInitiative();
+    highlightActiveCombatant();
+}
+
+function highlightActiveCombatant() {
+    // Draw a golden ring on the active combatant's linked token
+    state.tokens.forEach(t => { t._initiativeActive = false; });
+    const active = state.initiative.combatants[state.initiative.currentIndex];
+    if (active?.tokenId) {
+        const token = state.tokens.find(t => t.id === active.tokenId);
+        if (token) token._initiativeActive = true;
+    }
+    renderTokens();
+}
+
+// ==================== ROTATE A POINT ====================
 // Rotate a point 90° clockwise around (0,0) in a w×h space
 function rotatePointCW(x, y, w, h) {
     return { x: h - y, y: x };
@@ -348,7 +614,26 @@ function renderTokensNow() {
             dom.tokenCtx.textAlign = 'center';
             dom.tokenCtx.fillText(t.name, t.x, t.y + radius + 18);
         }
+
+        // Initiative active ring: glowing amber pulse ring
+        if (t._initiativeActive) {
+            dom.tokenCtx.beginPath();
+            dom.tokenCtx.arc(t.x, t.y, radius + 5, 0, Math.PI * 2);
+            dom.tokenCtx.strokeStyle = '#f59e0b';
+            dom.tokenCtx.lineWidth = 3;
+            dom.tokenCtx.setLineDash([8, 4]);
+            dom.tokenCtx.stroke();
+            dom.tokenCtx.setLineDash([]);
+            dom.tokenCtx.beginPath();
+            dom.tokenCtx.arc(t.x, t.y, radius + 9, 0, Math.PI * 2);
+            dom.tokenCtx.strokeStyle = 'rgba(245,158,11,0.3)';
+            dom.tokenCtx.lineWidth = 6;
+            dom.tokenCtx.stroke();
+        }
     }
+
+    // Draw waypoints on top of tokens
+    drawWaypointsOnCtx(dom.tokenCtx);
 }
 
 function renderFogNow() {
@@ -549,6 +834,7 @@ function saveCurrentMap() {
     }));
     state.currentMapData.fogShapes = state.fogShapes;
     state.currentMapData.gridSize = state.gridSize;
+    state.currentMapData.waypoints = state.waypoints;
     state.currentMapData.lastUsed = Date.now();
     try {
         const tx = dataBase.transaction('maps', 'readwrite');
@@ -886,7 +1172,12 @@ async function loadMap(id) {
     state.tokens = [];
     state.fogShapes = state.currentMapData.fogShapes || [];
     state.gridSize = state.currentMapData.gridSize || DEFAULT_GRID;
+    state.waypoints = state.currentMapData.waypoints || [];
     state.transform = { x: 50, y: 50, scale: 1 };
+    // Clear ruler overlay and initiative highlight on map switch
+    state.rulerActive = false;
+    clearRuler();
+    state.tokens.forEach(t => { t._initiativeActive = false; });
     updateTransform();
 
     const mapSrc = await resolveMapImage(state.currentMapData);
@@ -1152,7 +1443,9 @@ const toolButtons = {
     'fog-draw': 'tool-fog-draw',
     'fog-rect': 'tool-fog-rect',
     'fog-erase': 'tool-fog-erase',
-    'fog-toggle': 'tool-fog-toggle'
+    'fog-toggle': 'tool-fog-toggle',
+    ruler: 'tool-ruler',
+    waypoint: 'tool-waypoint'
 };
 
 const toolCursors = {
@@ -1161,7 +1454,9 @@ const toolCursors = {
     [TOOLS.FOG_DRAW]: 'crosshair',
     [TOOLS.FOG_RECT]: 'crosshair',
     [TOOLS.FOG_ERASE]: 'cell',
-    [TOOLS.FOG_TOGGLE]: 'pointer'
+    [TOOLS.FOG_TOGGLE]: 'pointer',
+    [TOOLS.RULER]: 'crosshair',
+    [TOOLS.WAYPOINT]: 'cell'
 };
 
 function setTool(tool) {
@@ -1172,6 +1467,8 @@ function setTool(tool) {
         state.currentDrawPoints = [];
         renderFog();
     }
+    // Clear ruler when switching away
+    if (tool !== TOOLS.RULER) { state.rulerActive = false; clearRuler(); }
     // Remove ring from all tool buttons
     Object.values(toolButtons).forEach(id => {
         $(id)?.classList.remove('ring-2', 'ring-amber-500');
@@ -1187,7 +1484,9 @@ function setTool(tool) {
 const playerToolButtons = {
     move: 'player-tool-move',
     pan: 'player-tool-pan',
-    fog: 'player-tool-fog'
+    fog: 'player-tool-fog',
+    ruler: 'player-tool-ruler',
+    ping: 'player-tool-ping'
 };
 
 function setPlayerTool(tool) {
@@ -1203,10 +1502,14 @@ function setPlayerTool(tool) {
         activeEl.classList.remove('bg-stone-800', 'text-stone-300', 'border-stone-600');
         activeEl.classList.add('ring-2', 'ring-amber-400', 'bg-amber-700', 'text-stone-100', 'border-amber-700/60');
     }
+    // Clear ruler when switching player tool away from ruler
+    if (tool !== 'ruler') { state.rulerActive = false; clearRuler(); }
     const hints = {
         move: 'Drag tokens to move them',
         pan: 'Drag the map to explore',
-        fog: 'Tap a dark area to reveal it'
+        fog: 'Tap a dark area to reveal it',
+        ruler: 'Drag to measure distance',
+        ping: 'Tap to send a ping'
     };
     const hintEl = $('player-tool-hint');
     if (hintEl) hintEl.textContent = hints[tool] || '';
@@ -1238,6 +1541,26 @@ function onPointerDown(e) {
 
     const pos = getPointerPos(e);
     state.lastPointerCenter = { x: e.clientX, y: e.clientY };
+
+    // Ruler tool (DM or player ruler mode) — start drag
+    if (state.currentTool === TOOLS.RULER || (!state.isDMMode && state.playerTool === 'ruler')) {
+        state.rulerActive = true;
+        state.rulerStart = { x: pos.x, y: pos.y };
+        state.rulerEnd = { x: pos.x, y: pos.y };
+        return;
+    }
+
+    // Waypoint tool — handle on pointer down
+    if (state.isDMMode && state.currentTool === TOOLS.WAYPOINT) {
+        placeWaypoint(pos);
+        return;
+    }
+
+    // Ping tool (player mode)
+    if (!state.isDMMode && state.playerTool === 'ping') {
+        createPing(pos);
+        return;
+    }
 
     // Pan with middle mouse button, pan tool, or player pan mode
     if (e.button === 1 || state.currentTool === TOOLS.PAN ||
@@ -1303,6 +1626,7 @@ function onPointerDown(e) {
     }
 }
 
+
 function handleFogDrawStart(pos) {
     const now = Date.now();
     if (now - state.lastTapTime < DOUBLE_TAP_MS) {
@@ -1363,6 +1687,14 @@ function onPointerMove(e) {
         state.transform.y += e.clientY - state.lastPointerCenter.y;
         state.lastPointerCenter = { x: e.clientX, y: e.clientY };
         updateTransform();
+        clearRuler();
+        return;
+    }
+
+    // Ruler drag update
+    if (state.rulerActive && state.rulerStart) {
+        state.rulerEnd = { x: state.mousePos.x, y: state.mousePos.y };
+        drawRuler(state.rulerStart, state.rulerEnd);
         return;
     }
 
@@ -1449,6 +1781,12 @@ function onPointerUp(e) {
         // Player tap to reveal fog (only in fog tool mode)
         const pos = getPointerPos(e);
         processFogTapPlayer(pos);
+    }
+
+    // Ruler finish
+    if (state.rulerActive) {
+        state.rulerActive = false;
+        // Keep ruler visible until next interaction
     }
 }
 
@@ -1606,6 +1944,8 @@ function initUI() {
     $('player-tool-move')?.addEventListener('click', () => setPlayerTool('move'));
     $('player-tool-pan')?.addEventListener('click', () => setPlayerTool('pan'));
     $('player-tool-fog')?.addEventListener('click', () => setPlayerTool('fog'));
+    $('player-tool-ruler')?.addEventListener('click', () => setPlayerTool('ruler'));
+    $('player-tool-ping')?.addEventListener('click', () => setPlayerTool('ping'));
 
     // Tool buttons
     $('tool-drag').addEventListener('click', () => setTool(TOOLS.DRAG));
@@ -1614,9 +1954,45 @@ function initUI() {
     $('tool-fog-rect').addEventListener('click', () => setTool(TOOLS.FOG_RECT));
     $('tool-fog-erase').addEventListener('click', () => setTool(TOOLS.FOG_ERASE));
     $('tool-fog-toggle').addEventListener('click', () => setTool(TOOLS.FOG_TOGGLE));
+    $('tool-ruler')?.addEventListener('click', () => setTool(TOOLS.RULER));
+    $('tool-waypoint')?.addEventListener('click', () => setTool(TOOLS.WAYPOINT));
     $('tool-grid-toggle').addEventListener('click', () => {
         state.isGridVisible = !state.isGridVisible;
         renderGrid();
+    });
+
+    // Initiative tracker
+    $('btn-init-add')?.addEventListener('click', () => {
+        const name = $('init-name-input')?.value?.trim();
+        const roll = $('init-roll-input')?.value;
+        if (!name) return;
+        addCombatant(name, roll, null);
+        if ($('init-name-input')) $('init-name-input').value = '';
+        if ($('init-roll-input')) $('init-roll-input').value = '';
+        $('init-name-input')?.focus();
+    });
+    $('init-name-input')?.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') $('btn-init-add')?.click();
+    });
+    $('btn-init-next')?.addEventListener('click', nextTurn);
+    $('btn-init-prev')?.addEventListener('click', prevTurn);
+    $('btn-init-clear')?.addEventListener('click', () => {
+        showConfirm('Clear Initiative', 'Remove all combatants?', () => {
+            state.initiative.combatants = [];
+            state.initiative.currentIndex = -1;
+            state.initiative.round = 1;
+            state.tokens.forEach(t => { t._initiativeActive = false; });
+            renderInitiative();
+            renderTokens();
+        });
+    });
+    $('btn-init-from-tokens')?.addEventListener('click', () => {
+        if (state.tokens.length === 0) { showAlert('No Tokens', 'Place some tokens on the map first.'); return; }
+        state.tokens.forEach(t => {
+            if (!state.initiative.combatants.find(c => c.tokenId === t.id)) {
+                addCombatant(t.name || 'Unknown', '', t.id);
+            }
+        });
     });
 
     // Grid size fine-tune slider
@@ -1974,6 +2350,8 @@ function initUI() {
                 state.isGridVisible = !state.isGridVisible;
                 renderGrid();
                 break;
+            case 'm': setTool(TOOLS.RULER); break;
+            case 'w': setTool(TOOLS.WAYPOINT); break;
             case 'escape':
                 if (state.isDrawing) {
                     state.isDrawing = false;
@@ -2129,4 +2507,11 @@ window.addEventListener('load', async () => {
 
     // Predefine grid visible flag (default false)
     state.isGridVisible = false;
+
+    // Size ruler canvas to match wrapper and keep it synced
+    resizeRulerCanvas();
+    new ResizeObserver(resizeRulerCanvas).observe(dom.wrapper);
+
+    // Initialize initiative UI
+    renderInitiative();
 });
