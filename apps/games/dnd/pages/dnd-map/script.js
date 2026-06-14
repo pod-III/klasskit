@@ -1968,18 +1968,20 @@ function invalidateLOSCache() {
 
 function rebuildLOSCache() {
     if (!state.losEnabled || !state.mapImage) { losCache.dirty = false; return; }
-    const boundary = buildBoundarySegments(state.mapImage.width, state.mapImage.height);
-
-    // Closed openings block LOS; open openings are gaps (omitted from occluders)
-    const closedOpenings = state.openingSegments.filter(o => !o.isOpen);
-    const occluders = [...state.wallSegments, ...closedOpenings, ...boundary];
-
     losCache.polygons.clear();
-    for (const token of state.tokens) {
-        if (token.x == null) continue;
-        if (!token.isPC) continue; // DM tokens don't generate LOS
-        losCache.polygons.set(token.id, computeVisibilityPolygon(token.x, token.y, occluders));
+
+    const hasWalls = state.wallSegments.length > 0 || state.openingSegments.length > 0;
+    if (hasWalls) {
+        // Wall mode: raycasting through occluders
+        const boundary = buildBoundarySegments(state.mapImage.width, state.mapImage.height);
+        const closedOpenings = state.openingSegments.filter(o => !o.isOpen);
+        const occluders = [...state.wallSegments, ...closedOpenings, ...boundary];
+        for (const token of state.tokens) {
+            if (token.x == null || !token.isPC) continue;
+            losCache.polygons.set(token.id, computeVisibilityPolygon(token.x, token.y, occluders));
+        }
     }
+    // Open-world mode: no polygons needed — view distance circle handles it in renderLOS
     losCache.dirty = false;
 }
 
@@ -1990,33 +1992,20 @@ function renderLOS() {
     const ctx = dom.losCtx;
     ctx.clearRect(0, 0, W, H);
 
-    // Dark map overlay (independent of LOS — just dims entire map at 50%)
-    if (state.losDarkMap && !state.isDMMode) {
-        ctx.fillStyle = 'rgba(0,0,0,0.5)';
-        ctx.fillRect(0, 0, W, H);
-    }
-
     if (!state.losEnabled || !state.mapImage) return;
     const pcTokens = state.tokens.filter(t => t.isPC !== false);
     if (pcTokens.length === 0) return;
 
-    // Only recompute visibility polygons when something changed
     if (losCache.dirty) rebuildLOSCache();
 
-    // View distance in pixels: (metres / metresPerSquare) × gridSize
+    const hasWalls = state.wallSegments.length > 0 || state.openingSegments.length > 0;
     const viewDistPx = (state.losViewDistance / state.gridMetresPerSquare) * state.gridSize;
 
-    if (state.isDMMode) {
-        // DM: faint green tint showing visible areas + view distance circle
-        for (const [tokenId, poly] of losCache.polygons.entries()) {
-            const token = state.tokens.find(t => t.id === tokenId);
-            if (!token) continue;
-            // Clip to view distance circle
-            ctx.save();
-            ctx.beginPath();
-            ctx.arc(token.x, token.y, viewDistPx, 0, Math.PI * 2);
-            ctx.clip();
-            if (poly.length >= 3) {
+    if (hasWalls) {
+        // ── WALL MODE: raycasting polygons, no distance limit, no dark overlay ──
+        if (state.isDMMode) {
+            for (const [tokenId, poly] of losCache.polygons.entries()) {
+                if (poly.length < 3) continue;
                 ctx.beginPath();
                 ctx.moveTo(poly[0].x, poly[0].y);
                 for (const p of poly) ctx.lineTo(p.x, p.y);
@@ -2027,51 +2016,53 @@ function renderLOS() {
                 ctx.lineWidth = 1;
                 ctx.stroke();
             }
-            ctx.restore();
-            // Draw view distance ring
-            ctx.beginPath();
-            ctx.arc(token.x, token.y, viewDistPx, 0, Math.PI * 2);
-            ctx.strokeStyle = 'rgba(34,197,94,0.3)';
-            ctx.lineWidth = 1;
-            ctx.setLineDash([4, 4]);
-            ctx.stroke();
-            ctx.setLineDash([]);
+        } else {
+            // Player: dark overlay, punch out each LOS polygon
+            ctx.fillStyle = 'rgba(0,0,0,1)';
+            ctx.fillRect(0, 0, W, H);
+            ctx.globalCompositeOperation = 'destination-out';
+            for (const [, poly] of losCache.polygons.entries()) {
+                if (poly.length < 3) continue;
+                ctx.beginPath();
+                ctx.moveTo(poly[0].x, poly[0].y);
+                for (const p of poly) ctx.lineTo(p.x, p.y);
+                ctx.closePath();
+                ctx.fillStyle = 'rgba(0,0,0,1)';
+                ctx.fill();
+            }
+            ctx.globalCompositeOperation = 'source-over';
         }
     } else {
-        // Player: full dark overlay, cut out the intersection of LOS polygon AND view distance circle
-        ctx.fillStyle = 'rgba(0,0,0,1)';
-        ctx.fillRect(0, 0, W, H);
-
-        for (const [tokenId, poly] of losCache.polygons.entries()) {
-            const token = state.tokens.find(t => t.id === tokenId);
-            if (!token || poly.length < 3) continue;
-
-            // Draw the visible area onto a temp canvas, then punch it out of the dark overlay.
-            // Step 1: fill LOS polygon on temp canvas (source-over)
-            // Step 2: mask it with the view-distance circle (destination-in)
-            // Step 3: punch the result out of the main dark overlay (destination-out)
-            const tmp = document.createElement('canvas');
-            tmp.width = W; tmp.height = H;
-            const tCtx = tmp.getContext('2d');
-
-            // Draw LOS polygon
-            tCtx.beginPath();
-            tCtx.moveTo(poly[0].x, poly[0].y);
-            for (const p of poly) tCtx.lineTo(p.x, p.y);
-            tCtx.closePath();
-            tCtx.fillStyle = 'rgba(0,0,0,1)';
-            tCtx.fill();
-
-            // Mask to view distance circle
-            tCtx.globalCompositeOperation = 'destination-in';
-            tCtx.beginPath();
-            tCtx.arc(token.x, token.y, viewDistPx, 0, Math.PI * 2);
-            tCtx.fillStyle = 'rgba(0,0,0,1)';
-            tCtx.fill();
-
-            // Punch out of main dark overlay
+        // ── OPEN-WORLD MODE: dark overlay + view distance circle per PC token ──
+        if (state.isDMMode) {
+            // DM: show view distance rings only
+            for (const token of pcTokens) {
+                if (token.x == null) continue;
+                ctx.beginPath();
+                ctx.arc(token.x, token.y, viewDistPx, 0, Math.PI * 2);
+                ctx.fillStyle = 'rgba(34,197,94,0.06)';
+                ctx.fill();
+                ctx.strokeStyle = 'rgba(34,197,94,0.35)';
+                ctx.lineWidth = 1;
+                ctx.setLineDash([4, 4]);
+                ctx.stroke();
+                ctx.setLineDash([]);
+            }
+        } else {
+            // Player open-world:
+            // losDarkMap ON  → full black outside view circles
+            // losDarkMap OFF → 50% dim outside view circles
+            const outerAlpha = state.losDarkMap ? 1.0 : 0.5;
+            ctx.fillStyle = `rgba(0,0,0,${outerAlpha})`;
+            ctx.fillRect(0, 0, W, H);
             ctx.globalCompositeOperation = 'destination-out';
-            ctx.drawImage(tmp, 0, 0);
+            for (const token of pcTokens) {
+                if (token.x == null) continue;
+                ctx.beginPath();
+                ctx.arc(token.x, token.y, viewDistPx, 0, Math.PI * 2);
+                ctx.fillStyle = 'rgba(0,0,0,1)';
+                ctx.fill();
+            }
             ctx.globalCompositeOperation = 'source-over';
         }
     }
