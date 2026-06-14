@@ -15,7 +15,7 @@
 
 // ==================== CONSTANTS & GLOBALS ====================
 const DB_NAME = 'ArcaneVTT_DB';
-const DB_VERSION = 2;
+const DB_VERSION = 4;
 const MAX_HISTORY = 50;
 const LONG_PRESS_MS = 800;
 const DOUBLE_TAP_MS = 300;
@@ -44,6 +44,10 @@ const state = {
     // UI mode
     isDMMode: true,
     currentTool: TOOLS.DRAG,
+
+    // Campaign data
+    campaignsList: [],
+    activeCampaignId: null,
 
     // Map data
     mapsList: [],
@@ -102,6 +106,15 @@ const dom = {
     modeToggle: $('mode-toggle'),
     sidebar: $('dm-sidebar'),
     mapSelect: $('map-select'),
+    mapLibrary: $('map-library'),
+    mapSort: $('map-sort'),
+    mapActiveIndicator: $('map-active-indicator'),
+    mapActiveName: $('map-active-name'),
+    mapAutosaveStatus: $('map-autosave-status'),
+    campaignSelect: $('campaign-select'),
+    campaignActiveBadge: $('campaign-active-badge'),
+    campaignActiveName: $('campaign-active-name'),
+    campaignMapCount: $('campaign-map-count'),
     gridSizeInput: $('grid-size-input'),
     gridSizeValue: $('grid-size-value'),
     gridColsInput: $('grid-cols-input'),
@@ -490,15 +503,33 @@ function initDB() {
         if (!dataBase.objectStoreNames.contains('tokenLibrary')) {
             dataBase.createObjectStore('tokenLibrary', { keyPath: 'id' });
         }
+        if (!dataBase.objectStoreNames.contains('campaigns')) {
+            dataBase.createObjectStore('campaigns', { keyPath: 'id' });
+        }
     };
     request.onsuccess = async (e) => {
         dataBase = e.target.result;
+        // Load campaigns only if the store exists (guard for any schema edge-cases)
+        if (dataBase.objectStoreNames.contains('campaigns')) {
+            await new Promise((resolve) => {
+                const tx = dataBase.transaction('campaigns', 'readonly');
+                const req = tx.objectStore('campaigns').getAll();
+                req.onsuccess = () => {
+                    state.campaignsList = req.result || [];
+                    renderCampaignSelect();
+                    resolve();
+                };
+                req.onerror = () => resolve(); // fail silently, campaigns just stay empty
+            });
+        } else {
+            renderCampaignSelect();
+        }
         await new Promise((resolve) => {
             const tx = dataBase.transaction('maps', 'readonly');
             const req = tx.objectStore('maps').getAll();
             req.onsuccess = () => {
-                state.mapsList = req.result || [];
-                updateMapDropdown();
+                state.mapsList = (req.result || []).map(ensureMapMeta);
+                renderMapLibrary();
                 resolve();
             };
         });
@@ -518,12 +549,25 @@ function saveCurrentMap() {
     }));
     state.currentMapData.fogShapes = state.fogShapes;
     state.currentMapData.gridSize = state.gridSize;
+    state.currentMapData.lastUsed = Date.now();
     try {
         const tx = dataBase.transaction('maps', 'readwrite');
         tx.onerror = () => console.warn('IndexedDB save failed');
         tx.objectStore('maps').put(state.currentMapData);
     } catch (e) {
         console.warn('IndexedDB save error:', e);
+    }
+    // Show autosave indicator
+    if (dom.mapAutosaveStatus) {
+        dom.mapAutosaveStatus.classList.remove('hidden');
+        dom.mapAutosaveStatus.textContent = 'saving...';
+        clearTimeout(saveCurrentMap._hideTimer);
+        saveCurrentMap._hideTimer = setTimeout(() => {
+            if (dom.mapAutosaveStatus) {
+                dom.mapAutosaveStatus.textContent = 'saved';
+                setTimeout(() => dom.mapAutosaveStatus.classList.add('hidden'), 1200);
+            }
+        }, 600);
     }
     syncToCloud();
 }
@@ -532,29 +576,312 @@ function loadMapList() {
     const tx = dataBase.transaction('maps', 'readonly');
     const req = tx.objectStore('maps').getAll();
     req.onsuccess = () => {
-        state.mapsList = req.result || [];
-        updateMapDropdown();
+        state.mapsList = (req.result || []).map(ensureMapMeta);
+        renderMapLibrary();
     };
 }
 
+// Keep hidden select in sync for any legacy code paths
 function updateMapDropdown() {
+    if (!dom.mapSelect) return;
     dom.mapSelect.innerHTML = '<option value="">-- Select Map --</option>';
-    const frag = document.createDocumentFragment();
     state.mapsList.forEach(m => {
         const opt = document.createElement('option');
         opt.value = m.id;
         opt.textContent = m.name;
-        frag.appendChild(opt);
+        dom.mapSelect.appendChild(opt);
     });
-    dom.mapSelect.appendChild(frag);
     dom.mapSelect.value = state.currentMapData ? state.currentMapData.id : '';
+}
+
+function ensureMapMeta(map) {
+    const now = Date.now();
+    if (!map.createdAt) map.createdAt = now;
+    if (!map.lastUsed)  map.lastUsed  = map.createdAt;
+    if (typeof map.usageCount !== 'number') map.usageCount = 0;
+    return map;
+}
+
+function formatTimeAgo(ts) {
+    if (!ts) return 'never';
+    const diff = Date.now() - ts;
+    const mins = Math.floor(diff / 60000);
+    if (mins < 1)  return 'just now';
+    if (mins < 60) return `${mins}m ago`;
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24)  return `${hrs}h ago`;
+    return `${Math.floor(hrs / 24)}d ago`;
+}
+
+// ==================== CAMPAIGN MANAGEMENT ====================
+
+function renderCampaignSelect() {
+    if (!dom.campaignSelect) return;
+    const prev = dom.campaignSelect.value;
+    dom.campaignSelect.innerHTML = '<option value="">All Maps</option>';
+    const sorted = [...state.campaignsList].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+    sorted.forEach(c => {
+        const opt = document.createElement('option');
+        opt.value = c.id;
+        opt.textContent = c.name;
+        dom.campaignSelect.appendChild(opt);
+    });
+    // Restore selection if still valid
+    if (prev && state.campaignsList.find(c => String(c.id) === String(prev))) {
+        dom.campaignSelect.value = prev;
+    } else {
+        dom.campaignSelect.value = '';
+        state.activeCampaignId = null;
+    }
+    updateCampaignBadge();
+}
+
+function updateCampaignBadge() {
+    const cid = dom.campaignSelect?.value;
+    state.activeCampaignId = cid ? parseInt(cid, 10) : null;
+    const campaign = state.campaignsList.find(c => c.id === state.activeCampaignId);
+    if (campaign && dom.campaignActiveBadge) {
+        dom.campaignActiveBadge.classList.remove('hidden');
+        dom.campaignActiveBadge.classList.add('flex');
+        if (dom.campaignActiveName) dom.campaignActiveName.textContent = campaign.name;
+        const count = state.mapsList.filter(m => m.campaignId === campaign.id).length;
+        if (dom.campaignMapCount) dom.campaignMapCount.textContent = `${count} map${count !== 1 ? 's' : ''}`;
+    } else if (dom.campaignActiveBadge) {
+        dom.campaignActiveBadge.classList.add('hidden');
+        dom.campaignActiveBadge.classList.remove('flex');
+    }
+}
+
+function saveCampaign(campaign) {
+    if (!dataBase || !dataBase.objectStoreNames.contains('campaigns')) return;
+    const tx = dataBase.transaction('campaigns', 'readwrite');
+    tx.objectStore('campaigns').put(campaign);
+}
+
+function createCampaign(name) {
+    const campaign = { id: Date.now(), name: name.trim(), createdAt: Date.now() };
+    state.campaignsList.push(campaign);
+    saveCampaign(campaign);
+    renderCampaignSelect();
+    // Auto-select the new campaign
+    if (dom.campaignSelect) dom.campaignSelect.value = campaign.id;
+    updateCampaignBadge();
+    renderMapLibrary();
+    return campaign;
+}
+
+function renameCampaign(id, newName) {
+    const campaign = state.campaignsList.find(c => c.id === id);
+    if (!campaign) return;
+    campaign.name = newName.trim();
+    saveCampaign(campaign);
+    renderCampaignSelect();
+    if (dom.campaignSelect) dom.campaignSelect.value = id;
+    updateCampaignBadge();
+}
+
+function deleteCampaign(id) {
+    const campaign = state.campaignsList.find(c => c.id === id);
+    if (!campaign) return;
+    const mapCount = state.mapsList.filter(m => m.campaignId === id).length;
+    const msg = mapCount > 0
+        ? `Delete campaign "${campaign.name}"? Its ${mapCount} map(s) will become uncategorized.`
+        : `Delete campaign "${campaign.name}"?`;
+    showConfirm('Delete Campaign', msg, () => {
+        // Unlink maps from this campaign
+        state.mapsList.forEach(m => {
+            if (m.campaignId === id) {
+                delete m.campaignId;
+                if (dataBase) {
+                    const tx = dataBase.transaction('maps', 'readwrite');
+                    tx.objectStore('maps').put(m);
+                }
+            }
+        });
+        state.campaignsList = state.campaignsList.filter(c => c.id !== id);
+        if (dataBase) {
+            const tx = dataBase.transaction('campaigns', 'readwrite');
+            tx.objectStore('campaigns').delete(id);
+        }
+        if (state.activeCampaignId === id) state.activeCampaignId = null;
+        renderCampaignSelect();
+        renderMapLibrary();
+    });
+}
+
+function renderMapLibrary() {
+    updateMapDropdown();
+    if (!dom.mapLibrary) return;
+    dom.mapLibrary.innerHTML = '';
+
+    // Update active indicator
+    if (state.currentMapData && dom.mapActiveIndicator) {
+        dom.mapActiveIndicator.classList.remove('hidden');
+        dom.mapActiveIndicator.classList.add('flex');
+        if (dom.mapActiveName) dom.mapActiveName.textContent = state.currentMapData.name;
+    } else if (dom.mapActiveIndicator) {
+        dom.mapActiveIndicator.classList.add('hidden');
+        dom.mapActiveIndicator.classList.remove('flex');
+    }
+
+    const sortMode = dom.mapSort ? dom.mapSort.value : 'recent';
+    // Filter by active campaign; null = show all
+    const filtered = state.activeCampaignId
+        ? state.mapsList.filter(m => m.campaignId === state.activeCampaignId)
+        : state.mapsList;
+
+    const sorted = [...filtered].sort((a, b) => {
+        if (sortMode === 'alpha')   return (a.name || '').localeCompare(b.name || '');
+        if (sortMode === 'popular') return (b.usageCount || 0) - (a.usageCount || 0);
+        return (b.lastUsed || 0) - (a.lastUsed || 0);
+    });
+
+    // Update badge map count
+    updateCampaignBadge();
+
+    if (sorted.length === 0) {
+        const msg = state.activeCampaignId
+            ? 'No maps in this campaign yet. Upload one above.'
+            : 'No maps yet. Upload one above.';
+        dom.mapLibrary.innerHTML = `<p class="col-span-2 text-center text-xs text-stone-600 italic py-4">${msg}</p>`;
+        return;
+    }
+
+    const frag = document.createDocumentFragment();
+    sorted.forEach(m => {
+        const isActive = state.currentMapData && m.id === state.currentMapData.id;
+        const card = document.createElement('div');
+        card.className = `relative rounded-lg border p-2.5 cursor-pointer transition-all group ${
+            isActive
+                ? 'bg-stone-800 border-amber-500 ring-1 ring-amber-500/40'
+                : 'bg-stone-950 border-amber-900/20 hover:border-amber-900/50'
+        }`;
+
+        const cardCampaign = state.campaignsList.find(c => c.id === m.campaignId);
+        const campaignTag = cardCampaign
+            ? `<span class="text-[9px] text-amber-700 truncate block mt-0.5">${cardCampaign.name}</span>`
+            : (state.campaignsList.length > 0 ? '<span class="text-[9px] text-stone-700 italic block mt-0.5">uncategorized</span>' : '');
+
+        card.innerHTML = `
+            <p class="text-xs font-bold font-cinzel text-stone-200 truncate leading-tight pr-4" title="${m.name}">${m.name}</p>
+            ${campaignTag}
+            <p class="text-[10px] text-stone-600 mt-0.5">${formatTimeAgo(m.lastUsed)}</p>
+            ${isActive ? '<span class="absolute top-1.5 right-1.5 text-[9px] font-bold text-amber-500 bg-amber-900/40 px-1 py-0.5 rounded">ON</span>' : ''}
+            <div class="map-card-actions absolute bottom-1.5 right-1.5 hidden group-hover:flex gap-1">
+                <button data-id="${m.id}" data-action="assign" title="Assign to campaign"
+                    class="p-0.5 text-stone-500 hover:text-amber-400 transition-colors">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+                </button>
+                <button data-id="${m.id}" data-action="rename" title="Rename"
+                    class="p-0.5 text-stone-500 hover:text-amber-400 transition-colors">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
+                </button>
+                <button data-id="${m.id}" data-action="delete" title="Delete"
+                    class="p-0.5 text-stone-500 hover:text-red-400 transition-colors">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+                </button>
+            </div>
+        `;
+
+        card.addEventListener('click', (e) => {
+            if (e.target.closest('.map-card-actions')) return;
+            saveCurrentMap();
+            loadMap(m.id);
+        });
+
+        card.querySelector('[data-action="assign"]')?.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (state.campaignsList.length === 0) {
+                showAlert('No Campaigns', 'Create a campaign first using the + button above.');
+                return;
+            }
+            // Build options: "None" + each campaign
+            const options = [{ id: null, name: '(None / Uncategorized)' }, ...state.campaignsList];
+            const currentIdx = options.findIndex(c => c.id === (m.campaignId || null));
+            // Use a prompt with comma-separated names as hint, cycle via select
+            const names = options.map((c, i) => `${i}: ${c.name}`).join('\n');
+            showPrompt(
+                `Assign "${m.name}" to campaign:\n${names}\n\nEnter number:`,
+                String(currentIdx >= 0 ? currentIdx : 0),
+                (val) => {
+                    const idx = parseInt(val, 10);
+                    if (isNaN(idx) || idx < 0 || idx >= options.length) return;
+                    const chosen = options[idx];
+                    if (chosen.id === null) {
+                        delete m.campaignId;
+                    } else {
+                        m.campaignId = chosen.id;
+                    }
+                    const tx = dataBase.transaction('maps', 'readwrite');
+                    tx.objectStore('maps').put(m);
+                    tx.oncomplete = () => { renderMapLibrary(); };
+                }
+            );
+        });
+
+        card.querySelector('[data-action="rename"]')?.addEventListener('click', (e) => {
+            e.stopPropagation();
+            showPrompt('Rename Map', m.name, (newName) => {
+                if (!newName || !newName.trim()) return;
+                m.name = newName.trim();
+                const tx = dataBase.transaction('maps', 'readwrite');
+                tx.objectStore('maps').put(m);
+                tx.oncomplete = () => {
+                    renderMapLibrary();
+                    syncToCloud();
+                };
+            });
+        });
+
+        card.querySelector('[data-action="delete"]')?.addEventListener('click', (e) => {
+            e.stopPropagation();
+            deleteMap(m.id);
+        });
+
+        frag.appendChild(card);
+    });
+    dom.mapLibrary.appendChild(frag);
+}
+
+async function duplicateMap() {
+    if (!state.currentMapData) {
+        showAlert('No Map', 'Load a map first to copy it.');
+        return;
+    }
+    showPrompt('Copy Map As:', state.currentMapData.name + ' (copy)', async (newName) => {
+        if (!newName || !newName.trim()) return;
+        const now = Date.now();
+        const copy = ensureMapMeta({
+            id: now,
+            name: newName.trim(),
+            data: state.currentMapData.data || null,
+            imageUrl: state.currentMapData.imageUrl || null,
+            tokens: JSON.parse(JSON.stringify(state.currentMapData.tokens || [])),
+            fogShapes: JSON.parse(JSON.stringify(state.currentMapData.fogShapes || [])),
+            gridSize: state.currentMapData.gridSize || DEFAULT_GRID,
+            usageCount: 0,
+            ...(state.currentMapData.campaignId ? { campaignId: state.currentMapData.campaignId } : {})
+        });
+        const tx = dataBase.transaction('maps', 'readwrite');
+        tx.objectStore('maps').put(copy);
+        tx.oncomplete = async () => {
+            state.mapsList.push(copy);
+            renderMapLibrary();
+            syncToCloud();
+        };
+    });
 }
 
 // ==================== MAP OPERATIONS ====================
 async function loadMap(id) {
     state.currentMapData = state.mapsList.find(m => m.id === id);
     if (!state.currentMapData) return;
-    dom.mapSelect.value = id;
+    if (dom.mapSelect) dom.mapSelect.value = id;
+
+    // Track usage metadata
+    ensureMapMeta(state.currentMapData);
+    state.currentMapData.lastUsed = Date.now();
+    state.currentMapData.usageCount = (state.currentMapData.usageCount || 0) + 1;
 
     state.tokens = [];
     state.fogShapes = state.currentMapData.fogShapes || [];
@@ -581,6 +908,7 @@ async function loadMap(id) {
                 c.height = h;
             });
             updateGridDisplay();
+            renderMapLibrary();
 
             const tokenData = state.currentMapData.tokens || [];
             if (tokenData.length === 0) {
@@ -1220,6 +1548,34 @@ function hideContextMenu() {
     ctxTargetToken = null;
 }
 
+function deleteMap(id) {
+    const map = state.mapsList.find(m => m.id === id);
+    if (!map) return;
+    showConfirm('Delete Map', `Delete "${map.name}"?`, async () => {
+        const cloudId = map.cloudId;
+        if (cloudId && typeof deleteDndSave === 'function') {
+            await deleteDndSave(cloudId).catch(e => console.warn('[Cloud] Failed to delete map:', e));
+        }
+        const tx = dataBase.transaction('maps', 'readwrite');
+        tx.objectStore('maps').delete(id);
+        tx.oncomplete = () => {
+            state.mapsList = state.mapsList.filter(m => m.id !== id);
+            if (state.currentMapData?.id === id) {
+                state.currentMapData = null;
+                state.mapImage = null;
+                state.tokens = [];
+                state.fogShapes = [];
+                [dom.mapCanvas, dom.gridCanvas, dom.tokenCanvas, dom.fogCanvas].forEach(c => {
+                    c.getContext('2d').clearRect(0, 0, c.width, c.height);
+                });
+            }
+            renderMapLibrary();
+            if (state.mapsList.length > 0 && !state.currentMapData) loadMap(state.mapsList[0].id);
+            else if (state.mapsList.length === 0) showAlert('Deleted', 'Map removed.');
+        };
+    });
+}
+
 // ==================== UI EVENT LISTENERS ====================
 function initUI() {
     // Mode toggle
@@ -1314,43 +1670,47 @@ function initUI() {
     // Rotate map
     $('btn-rotate-map').addEventListener('click', rotateMap);
 
-    // Delete map
+    // Delete map button (deletes active map)
     $('btn-delete-map').addEventListener('click', () => {
-        if (!state.currentMapData) {
-            showAlert('No Map', 'No map is currently selected.');
-            return;
-        }
-        showConfirm('Delete Map', `Delete "${state.currentMapData.name}"?`, async () => {
-            const id = state.currentMapData.id;
-            const cloudId = state.currentMapData.cloudId;
-            if (cloudId && typeof deleteDndSave === 'function') {
-                await deleteDndSave(cloudId).catch(e => console.warn('[Cloud] Failed to delete map:', e));
-            }
-            const tx = dataBase.transaction('maps', 'readwrite');
-            tx.objectStore('maps').delete(id);
-            tx.oncomplete = () => {
-                state.mapsList = state.mapsList.filter(m => m.id !== id);
-                state.currentMapData = null;
-                state.mapImage = null;
-                state.tokens = [];
-                state.fogShapes = [];
-                [dom.mapCanvas, dom.gridCanvas, dom.tokenCanvas, dom.fogCanvas].forEach(c => {
-                    c.getContext('2d').clearRect(0, 0, c.width, c.height);
-                });
-                updateMapDropdown();
-                if (state.mapsList.length > 0) loadMap(state.mapsList[0].id);
-                else showAlert('Deleted', 'Map removed.');
-            };
+        if (!state.currentMapData) { showAlert('No Map', 'No map is currently selected.'); return; }
+        deleteMap(state.currentMapData.id);
+    });
+
+    // Campaign selector change
+    dom.campaignSelect?.addEventListener('change', () => {
+        updateCampaignBadge();
+        renderMapLibrary();
+    });
+
+    // New campaign
+    $('btn-new-campaign')?.addEventListener('click', () => {
+        showPrompt('New Campaign', 'Campaign name...', (name) => {
+            if (!name || !name.trim()) return;
+            createCampaign(name);
         });
     });
 
-    // Map select
-    dom.mapSelect.addEventListener('change', async (e) => {
-        if (e.target.value) {
-            saveCurrentMap();
-            await loadMap(parseInt(e.target.value, 10));
-        }
+    // Rename campaign
+    $('btn-rename-campaign')?.addEventListener('click', () => {
+        if (!state.activeCampaignId) { showAlert('No Campaign', 'Select a campaign to rename.'); return; }
+        const c = state.campaignsList.find(c => c.id === state.activeCampaignId);
+        showPrompt('Rename Campaign', c?.name || '', (newName) => {
+            if (!newName || !newName.trim()) return;
+            renameCampaign(state.activeCampaignId, newName);
+        });
     });
+
+    // Delete campaign
+    $('btn-delete-campaign')?.addEventListener('click', () => {
+        if (!state.activeCampaignId) { showAlert('No Campaign', 'Select a campaign to delete.'); return; }
+        deleteCampaign(state.activeCampaignId);
+    });
+
+    // Map sort
+    dom.mapSort?.addEventListener('change', () => renderMapLibrary());
+
+    // Duplicate map
+    $('btn-duplicate-map')?.addEventListener('click', duplicateMap);
 
     // Map upload
     $('map-upload').addEventListener('change', async (e) => {
@@ -1397,21 +1757,22 @@ function initUI() {
                     if (!imageUrl) {
                         dataSrc = imgDataUrl; // reuse already-read data URL
                     }
-                    const newMap = {
+                    const newMap = ensureMapMeta({
                         id: Date.now(),
                         name: mapName,
                         data: dataSrc,
                         imageUrl: imageUrl,
                         tokens: [],
                         fogShapes: [],
-                        gridSize: clampedGridSize
-                    };
+                        gridSize: clampedGridSize,
+                        ...(state.activeCampaignId ? { campaignId: state.activeCampaignId } : {})
+                    });
                     saveCurrentMap(); // Save current before switching
                     const tx = dataBase.transaction('maps', 'readwrite');
                     tx.objectStore('maps').put(newMap);
                     tx.oncomplete = () => {
                         state.mapsList.push(newMap);
-                        updateMapDropdown();
+                        renderMapLibrary();
                         loadMap(newMap.id);
                     };
                 }
@@ -1708,7 +2069,7 @@ async function syncFromCloud() {
                 tx.objectStore('maps').put(existing);
             }
         } else {
-            const newMap = {
+            const newMap = ensureMapMeta({
                 id: Date.now(),
                 cloudId: save.id,
                 name: save.name,
@@ -1717,7 +2078,7 @@ async function syncFromCloud() {
                 tokens: sd.tokens || [],
                 fogShapes: sd.fogShapes || [],
                 gridSize: sd.gridSize || DEFAULT_GRID
-            };
+            });
             state.mapsList.push(newMap);
             if (dataBase) {
                 const tx = dataBase.transaction('maps', 'readwrite');
@@ -1738,7 +2099,7 @@ async function syncFromCloud() {
         }
     }
 
-    updateMapDropdown();
+    renderMapLibrary();
     if (state.mapsList.length > 0 && !state.currentMapData) {
         await loadMap(state.mapsList[0].id);
     }
