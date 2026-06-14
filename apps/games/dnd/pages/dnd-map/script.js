@@ -1792,49 +1792,78 @@ function finishPolygonDrawing() {
 
 // ==================== LOS RAYCASTING ENGINE ====================
 
-// Ray-segment intersection. Returns t (distance along ray) or null.
+// Ray-segment intersection. Returns t along the ray, or null.
 function raySegmentIntersect(ox, oy, dx, dy, x1, y1, x2, y2) {
-    const r_px = ox, r_py = oy, r_dx = dx, r_dy = dy;
-    const s_px = x1, s_py = y1, s_dx = x2 - x1, s_dy = y2 - y1;
-    const denom = r_dx * s_dy - r_dy * s_dx;
+    const sdx = x2 - x1, sdy = y2 - y1;
+    const denom = dx * sdy - dy * sdx;
     if (Math.abs(denom) < 1e-10) return null;
-    const t = ((s_px - r_px) * s_dy - (s_py - r_py) * s_dx) / denom;
-    const u = ((s_px - r_px) * r_dy - (s_py - r_py) * r_dx) / denom;
-    if (t >= 0 && u >= 0 && u <= 1) return t;
+    const t = ((x1 - ox) * sdy - (y1 - oy) * sdx) / denom;
+    const u = ((x1 - ox) * dy  - (y1 - oy) * dx)  / denom;
+    if (t >= -1e-9 && u >= -1e-9 && u <= 1 + 1e-9) return Math.max(0, t);
     return null;
 }
 
-// Cast a single ray from origin in direction angle, return the hit point
-function castRay(ox, oy, angle, segments, maxDist) {
+// Cast one ray, return nearest hit point
+function castRay(ox, oy, angle, segments) {
     const dx = Math.cos(angle), dy = Math.sin(angle);
-    let minT = maxDist;
+    let minT = Infinity;
     for (const seg of segments) {
         const t = raySegmentIntersect(ox, oy, dx, dy, seg.x1, seg.y1, seg.x2, seg.y2);
         if (t !== null && t < minT) minT = t;
     }
+    // minT should always be finite because boundary segments are included
+    if (!isFinite(minT)) minT = 0;
     return { x: ox + dx * minT, y: oy + dy * minT };
 }
 
-// Build the visibility polygon for a single origin point
-function computeVisibilityPolygon(ox, oy, segments, maxDist) {
-    // Collect all unique angles toward segment endpoints
-    const angles = [];
-    for (const seg of segments) {
+// Normalise angle to [-π, π]
+function normaliseAngle(a) {
+    while (a >  Math.PI) a -= 2 * Math.PI;
+    while (a < -Math.PI) a += 2 * Math.PI;
+    return a;
+}
+
+// Build the map-boundary segments so rays always terminate at the edge
+function buildBoundarySegments(W, H) {
+    const pad = 1;
+    return [
+        { x1: -pad, y1: -pad,   x2: W+pad, y2: -pad   }, // top
+        { x1: W+pad, y1: -pad,  x2: W+pad, y2: H+pad  }, // right
+        { x1: W+pad, y1: H+pad, x2: -pad,  y2: H+pad  }, // bottom
+        { x1: -pad,  y1: H+pad, x2: -pad,  y2: -pad   }  // left
+    ];
+}
+
+// Compute the visibility polygon for one origin, given all occluder+boundary segments
+function computeVisibilityPolygon(ox, oy, allSegs) {
+    const EPS = 0.00005;
+
+    // Collect candidate angles toward every segment endpoint ±ε
+    const rawAngles = [];
+    for (const seg of allSegs) {
         for (const [px, py] of [[seg.x1, seg.y1], [seg.x2, seg.y2]]) {
-            const a = Math.atan2(py - oy, px - ox);
-            angles.push(a - 0.0001, a, a + 0.0001);
+            const a = Math.atan2(py - oy, px - ox); // native atan2 range [-π, π]
+            rawAngles.push(a - EPS, a, a + EPS);
         }
     }
-    // Add cardinal angles so open areas are covered
-    for (let i = 0; i < 32; i++) angles.push((i / 32) * Math.PI * 2);
 
-    // Sort and deduplicate
-    angles.sort((a, b) => a - b);
+    // Normalise all to [-π, π] and sort
+    const angles = rawAngles
+        .map(normaliseAngle)
+        .sort((a, b) => a - b);
 
-    // Cast ray at each angle
-    const points = angles.map(a => castRay(ox, oy, a, segments, maxDist));
-    // Sort by angle (already sorted) and return
-    return points;
+    // Cast ray at each angle; sort result pairs by angle from origin to guarantee
+    // correct CCW winding regardless of floating-point drift
+    const pairs = angles.map(a => {
+        const pt = castRay(ox, oy, a, allSegs);
+        // Re-derive angle from the actual hit point to avoid winding issues
+        return { a: Math.atan2(pt.y - oy, pt.x - ox), x: pt.x, y: pt.y };
+    });
+
+    // Sort strictly by angle from origin
+    pairs.sort((a, b) => a.a - b.a);
+
+    return pairs.map(p => ({ x: p.x, y: p.y }));
 }
 
 // LOS cache — visibility polygons keyed by token id, invalidated on any mutation
@@ -1850,12 +1879,13 @@ function invalidateLOSCache() {
 
 function rebuildLOSCache() {
     if (!state.losEnabled || !state.mapImage) { losCache.dirty = false; return; }
-    const segs = state.wallSegments;
-    const maxDist = Math.max(state.mapImage.width, state.mapImage.height) * 2;
+    // Combine wall segments with map boundary so rays always terminate
+    const boundary = buildBoundarySegments(state.mapImage.width, state.mapImage.height);
+    const allSegs = [...state.wallSegments, ...boundary];
     losCache.polygons.clear();
     for (const token of state.tokens) {
         if (token.x == null) continue;
-        losCache.polygons.set(token.id, computeVisibilityPolygon(token.x, token.y, segs, maxDist));
+        losCache.polygons.set(token.id, computeVisibilityPolygon(token.x, token.y, allSegs));
     }
     losCache.dirty = false;
 }
@@ -1899,7 +1929,7 @@ function renderLOS() {
             for (const p of poly) ctx.lineTo(p.x, p.y);
             ctx.closePath();
             ctx.fillStyle = 'rgba(0,0,0,1)';
-            ctx.fill();
+            ctx.fill('evenodd');
         }
         ctx.globalCompositeOperation = 'source-over';
     }
