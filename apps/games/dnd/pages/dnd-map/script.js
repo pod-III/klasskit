@@ -647,6 +647,21 @@ function renderTokensNow() {
             dom.tokenCtx.fillText(t.name, t.x, t.y + radius + 18);
         }
 
+        // Selected token ring (for arrow key movement)
+        if (state.selectedToken && t.id === state.selectedToken.id) {
+            dom.tokenCtx.beginPath();
+            dom.tokenCtx.arc(t.x, t.y, radius + 4, 0, Math.PI * 2);
+            dom.tokenCtx.strokeStyle = '#22d3ee';
+            dom.tokenCtx.lineWidth = 2.5;
+            dom.tokenCtx.setLineDash([]);
+            dom.tokenCtx.stroke();
+            dom.tokenCtx.beginPath();
+            dom.tokenCtx.arc(t.x, t.y, radius + 8, 0, Math.PI * 2);
+            dom.tokenCtx.strokeStyle = 'rgba(34,211,238,0.25)';
+            dom.tokenCtx.lineWidth = 5;
+            dom.tokenCtx.stroke();
+        }
+
         // Initiative active ring: glowing amber pulse ring
         if (t._initiativeActive) {
             dom.tokenCtx.beginPath();
@@ -1757,6 +1772,7 @@ function onPointerDown(e) {
                 tokenHit = t;
                 state.activeToken = tokenHit;
                 state.selectedToken = tokenHit;
+                renderTokens();
                 break;
             }
         }
@@ -2595,13 +2611,16 @@ function initUI() {
         btn.classList.remove('bg-amber-700', 'hover:bg-amber-600', 'bg-stone-700', 'hover:bg-stone-600');
         const playerToolbar = $('player-toolbar');
 
+        const toolSidebar = $('tool-sidebar');
         if (state.isDMMode) {
             dom.sidebar.style.display = 'flex';
+            if (toolSidebar) toolSidebar.style.display = 'flex';
             btn.innerHTML = `<i data-lucide="user" class="w-4 h-4"></i> Enter Player View`;
             btn.classList.add('bg-amber-700', 'hover:bg-amber-600');
             if (playerToolbar) playerToolbar.classList.add('hidden');
         } else {
             dom.sidebar.style.display = 'none';
+            if (toolSidebar) toolSidebar.style.display = 'none';
             btn.innerHTML = `<i data-lucide="shield" class="w-4 h-4"></i> Enter DM View`;
             btn.classList.add('bg-stone-700', 'hover:bg-stone-600');
             fitMapToScreen(); // Auto-center when entering player view
