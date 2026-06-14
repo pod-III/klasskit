@@ -610,8 +610,8 @@ function renderTokensNow() {
         dom.tokenCtx.drawImage(t.img, t.x - radius, t.y - radius, tSize, tSize);
         dom.tokenCtx.restore();
 
-        // Border
-        dom.tokenCtx.strokeStyle = '#d97706';
+        // Border — blue for PC tokens, red for DM tokens
+        dom.tokenCtx.strokeStyle = t.isPC ? '#60a5fa' : '#f87171';
         dom.tokenCtx.lineWidth = 3;
         dom.tokenCtx.beginPath();
         dom.tokenCtx.arc(t.x, t.y, radius, 0, Math.PI * 2);
@@ -856,7 +856,8 @@ function snapshotState() {
             y: t.y,
             src: t.imageUrl || t.img.src,
             imageUrl: t.imageUrl || null,
-            size: t.size || 1
+            size: t.size || 1,
+            isPC: t.isPC !== false
         })),
         fogShapes: JSON.parse(JSON.stringify(state.fogShapes)),
         gridSize: state.gridSize,
@@ -991,7 +992,7 @@ function initDB() {
 function saveCurrentMap() {
     if (!state.currentMapData || !dataBase) return;
     state.currentMapData.tokens = state.tokens.map(t => ({
-        id: t.id, name: t.name, x: t.x, y: t.y, src: t.imageUrl || t.img.src, imageUrl: t.imageUrl || null, size: t.size || 1
+        id: t.id, name: t.name, x: t.x, y: t.y, src: t.imageUrl || t.img.src, imageUrl: t.imageUrl || null, size: t.size || 1, isPC: t.isPC !== false
     }));
     state.currentMapData.fogShapes = state.fogShapes;
     state.currentMapData.gridSize = state.gridSize;
@@ -1399,7 +1400,7 @@ async function loadMap(id) {
             for (const td of tokenData) {
                 const tImg = new Image();
                 tImg.onload = () => {
-                    state.tokens.push({ id: td.id, name: td.name, x: td.x, y: td.y, img: tImg, size: td.size || 1 });
+                    state.tokens.push({ id: td.id, name: td.name, x: td.x, y: td.y, img: tImg, size: td.size || 1, isPC: td.isPC !== false });
                     loaded++;
                     checkDone();
                 };
@@ -1471,7 +1472,7 @@ async function rotateMap() {
     // Update map data
     state.currentMapData.data = tempCanvas.toDataURL();
     state.currentMapData.tokens = state.tokens.map(t => ({
-        id: t.id, name: t.name, x: t.x, y: t.y, src: t.imageUrl || t.img.src, imageUrl: t.imageUrl || null, size: t.size || 1
+        id: t.id, name: t.name, x: t.x, y: t.y, src: t.imageUrl || t.img.src, imageUrl: t.imageUrl || null, size: t.size || 1, isPC: t.isPC !== false
     }));
     state.currentMapData.fogShapes = state.fogShapes;
 
@@ -1543,7 +1544,7 @@ async function placeTokenFromLibrary(libToken) {
         const rawX = (rect.width / 2 - state.transform.x) / state.transform.scale;
         const rawY = (rect.height / 2 - state.transform.y) / state.transform.scale;
         const snapped = snapToGrid(rawX, rawY, 1);
-        state.tokens.push({ id: Date.now(), img, name: nameInput, x: snapped.x, y: snapped.y, size: 1, imageUrl: libToken.imageUrl });
+        state.tokens.push({ id: Date.now(), img, name: nameInput, x: snapped.x, y: snapped.y, size: 1, imageUrl: libToken.imageUrl, isPC: true });
         renderTokens();
         pushHistory();
         saveCurrentMap();
@@ -1973,6 +1974,7 @@ function rebuildLOSCache() {
     losCache.polygons.clear();
     for (const token of state.tokens) {
         if (token.x == null) continue;
+        if (!token.isPC) continue; // DM tokens don't generate LOS
         losCache.polygons.set(token.id, computeVisibilityPolygon(token.x, token.y, occluders));
     }
     losCache.dirty = false;
@@ -1986,7 +1988,8 @@ function renderLOS() {
     ctx.clearRect(0, 0, W, H);
 
     if (!state.losEnabled || !state.mapImage) return;
-    if (state.tokens.length === 0) return;
+    const pcTokens = state.tokens.filter(t => t.isPC !== false);
+    if (pcTokens.length === 0) return;
 
     // Only recompute visibility polygons when something changed
     if (losCache.dirty) rebuildLOSCache();
@@ -2561,6 +2564,9 @@ function showContextMenu(x, y, token) {
             el.style.fontWeight = '';
         }
     });
+    // Update PC/DM toggle label
+    const pcLabel = $('ctx-pc-label');
+    if (pcLabel) pcLabel.textContent = token.isPC ? 'Mark as DM Token' : 'Mark as PC Token';
     requestAnimationFrame(() => {
         const menuRect = dom.ctxMenu.getBoundingClientRect();
         if (menuRect.right > window.innerWidth) {
@@ -2916,7 +2922,7 @@ function initUI() {
             const rawX = (rect.width / 2 - state.transform.x) / state.transform.scale;
             const rawY = (rect.height / 2 - state.transform.y) / state.transform.scale;
             const snapped = snapToGrid(rawX, rawY, 1);
-            state.tokens.push({ id: Date.now(), img, name: defaultName, x: snapped.x, y: snapped.y, size: 1, imageUrl: imageUrl });
+            state.tokens.push({ id: Date.now(), img, name: defaultName, x: snapped.x, y: snapped.y, size: 1, imageUrl: imageUrl, isPC: true });
             renderTokens();
             pushHistory();
             saveCurrentMap();
@@ -3029,6 +3035,14 @@ function initUI() {
                     saveCurrentMap();
                     break;
                 }
+                case 'toggle-pc':
+                    ctxTargetToken.isPC = !ctxTargetToken.isPC;
+                    invalidateLOSCache();
+                    renderTokens();
+                    renderFog();
+                    pushHistory();
+                    saveCurrentMap();
+                    break;
                 case 'delete':
                     state.tokens = state.tokens.filter(t => t.id !== ctxTargetToken.id);
                     invalidateLOSCache();
@@ -3299,7 +3313,8 @@ function broadcastState() {
         tokens: state.tokens.map(t => ({
             id: t.id, name: t.name, x: t.x, y: t.y,
             size: t.size || 1, src: t.imageUrl || t.img?.src || null,
-            _initiativeActive: t._initiativeActive || false
+            _initiativeActive: t._initiativeActive || false,
+            isPC: t.isPC !== false
         })),
         fogShapes: state.fogShapes,
         wallSegments: state.wallSegments,
@@ -3360,7 +3375,17 @@ if (bc && IS_PLAYER_WINDOW) {
         if (data.mapSrc && data.mapId !== state.currentMapData?.id) {
             state.currentMapData = { id: data.mapId, data: data.mapSrc };
             const img = new Image();
-            img.onload = () => { state.mapImage = img; renderMap(); doRender(); };
+            img.onload = () => {
+                state.mapImage = img;
+                const w = img.width, h = img.height;
+                dom.container.style.width = w + 'px';
+                dom.container.style.height = h + 'px';
+                [dom.mapCanvas, dom.gridCanvas, dom.tokenCanvas, dom.fogCanvas, dom.losCanvas].forEach(c => {
+                    c.width = w; c.height = h;
+                });
+                renderMap();
+                doRender();
+            };
             img.src = data.mapSrc;
         } else {
             doRender();
@@ -3400,6 +3425,15 @@ window.addEventListener('load', async () => {
         if (playerToolbar) playerToolbar.classList.remove('hidden');
         setPlayerTool('move');
         document.title = 'Player View | Arcane Tabletop';
+        // Ask the DM window to send current state immediately
+        if (bc) bc.postMessage({ type: 'player-ready' });
+    } else {
+        // DM window: listen for player-ready pings and respond with full state
+        if (bc) {
+            bc.addEventListener('message', ({ data }) => {
+                if (data.type === 'player-ready') broadcastState();
+            });
+        }
     }
 
     // Wire the "Open Player View" button
