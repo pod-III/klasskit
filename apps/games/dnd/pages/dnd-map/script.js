@@ -97,6 +97,9 @@ const state = {
 
     // LOS
     losEnabled: false,
+    losDarkMap: false,          // 50% dark overlay on entire map regardless of LOS
+    losViewDistance: 30,        // view distance in metres
+    gridMetresPerSquare: 1.5,   // how many metres one grid square represents
 
     // Wall segments: { id, x1, y1, x2, y2 }
     wallSegments: [],
@@ -1987,6 +1990,12 @@ function renderLOS() {
     const ctx = dom.losCtx;
     ctx.clearRect(0, 0, W, H);
 
+    // Dark map overlay (independent of LOS — just dims entire map at 50%)
+    if (state.losDarkMap && !state.isDMMode) {
+        ctx.fillStyle = 'rgba(0,0,0,0.5)';
+        ctx.fillRect(0, 0, W, H);
+    }
+
     if (!state.losEnabled || !state.mapImage) return;
     const pcTokens = state.tokens.filter(t => t.isPC !== false);
     if (pcTokens.length === 0) return;
@@ -1994,35 +2003,77 @@ function renderLOS() {
     // Only recompute visibility polygons when something changed
     if (losCache.dirty) rebuildLOSCache();
 
+    // View distance in pixels: (metres / metresPerSquare) × gridSize
+    const viewDistPx = (state.losViewDistance / state.gridMetresPerSquare) * state.gridSize;
+
     if (state.isDMMode) {
-        // DM: faint green tint showing visible areas — no dark overlay
-        for (const poly of losCache.polygons.values()) {
-            if (poly.length < 3) continue;
+        // DM: faint green tint showing visible areas + view distance circle
+        for (const [tokenId, poly] of losCache.polygons.entries()) {
+            const token = state.tokens.find(t => t.id === tokenId);
+            if (!token) continue;
+            // Clip to view distance circle
+            ctx.save();
             ctx.beginPath();
-            ctx.moveTo(poly[0].x, poly[0].y);
-            for (const p of poly) ctx.lineTo(p.x, p.y);
-            ctx.closePath();
-            ctx.fillStyle = 'rgba(34,197,94,0.08)';
-            ctx.fill();
-            ctx.strokeStyle = 'rgba(34,197,94,0.25)';
+            ctx.arc(token.x, token.y, viewDistPx, 0, Math.PI * 2);
+            ctx.clip();
+            if (poly.length >= 3) {
+                ctx.beginPath();
+                ctx.moveTo(poly[0].x, poly[0].y);
+                for (const p of poly) ctx.lineTo(p.x, p.y);
+                ctx.closePath();
+                ctx.fillStyle = 'rgba(34,197,94,0.08)';
+                ctx.fill();
+                ctx.strokeStyle = 'rgba(34,197,94,0.25)';
+                ctx.lineWidth = 1;
+                ctx.stroke();
+            }
+            ctx.restore();
+            // Draw view distance ring
+            ctx.beginPath();
+            ctx.arc(token.x, token.y, viewDistPx, 0, Math.PI * 2);
+            ctx.strokeStyle = 'rgba(34,197,94,0.3)';
             ctx.lineWidth = 1;
+            ctx.setLineDash([4, 4]);
             ctx.stroke();
+            ctx.setLineDash([]);
         }
     } else {
-        // Player: full dark overlay, cut out each token's visible polygon
+        // Player: full dark overlay, cut out the intersection of LOS polygon AND view distance circle
         ctx.fillStyle = 'rgba(0,0,0,1)';
         ctx.fillRect(0, 0, W, H);
-        ctx.globalCompositeOperation = 'destination-out';
-        for (const poly of losCache.polygons.values()) {
-            if (poly.length < 3) continue;
-            ctx.beginPath();
-            ctx.moveTo(poly[0].x, poly[0].y);
-            for (const p of poly) ctx.lineTo(p.x, p.y);
-            ctx.closePath();
-            ctx.fillStyle = 'rgba(0,0,0,1)';
-            ctx.fill('evenodd');
+
+        for (const [tokenId, poly] of losCache.polygons.entries()) {
+            const token = state.tokens.find(t => t.id === tokenId);
+            if (!token || poly.length < 3) continue;
+
+            // Draw the visible area onto a temp canvas, then punch it out of the dark overlay.
+            // Step 1: fill LOS polygon on temp canvas (source-over)
+            // Step 2: mask it with the view-distance circle (destination-in)
+            // Step 3: punch the result out of the main dark overlay (destination-out)
+            const tmp = document.createElement('canvas');
+            tmp.width = W; tmp.height = H;
+            const tCtx = tmp.getContext('2d');
+
+            // Draw LOS polygon
+            tCtx.beginPath();
+            tCtx.moveTo(poly[0].x, poly[0].y);
+            for (const p of poly) tCtx.lineTo(p.x, p.y);
+            tCtx.closePath();
+            tCtx.fillStyle = 'rgba(0,0,0,1)';
+            tCtx.fill();
+
+            // Mask to view distance circle
+            tCtx.globalCompositeOperation = 'destination-in';
+            tCtx.beginPath();
+            tCtx.arc(token.x, token.y, viewDistPx, 0, Math.PI * 2);
+            tCtx.fillStyle = 'rgba(0,0,0,1)';
+            tCtx.fill();
+
+            // Punch out of main dark overlay
+            ctx.globalCompositeOperation = 'destination-out';
+            ctx.drawImage(tmp, 0, 0);
+            ctx.globalCompositeOperation = 'source-over';
         }
-        ctx.globalCompositeOperation = 'source-over';
     }
 }
 
@@ -2694,6 +2745,33 @@ function initUI() {
     $('tool-grid-toggle')?.addEventListener('click', () => {
         state.isGridVisible = !state.isGridVisible;
         renderGrid();
+        broadcastState();
+    });
+    $('btn-los-dark-map')?.addEventListener('click', () => {
+        state.losDarkMap = !state.losDarkMap;
+        const label = $('los-dark-map-label');
+        if (label) label.textContent = state.losDarkMap ? 'Dark Map: On' : 'Dark Map: Off';
+        $('btn-los-dark-map')?.classList.toggle('border-indigo-600', state.losDarkMap);
+        $('btn-los-dark-map')?.classList.toggle('text-indigo-300', state.losDarkMap);
+        renderFog();
+        broadcastState();
+    });
+    $('los-dist-slider')?.addEventListener('input', (e) => {
+        state.losViewDistance = parseInt(e.target.value, 10);
+        const label = $('los-dist-value');
+        if (label) label.textContent = state.losViewDistance + ' m';
+        invalidateLOSCache();
+        renderFog();
+        broadcastState();
+    });
+    $('grid-metres-input')?.addEventListener('change', (e) => {
+        const v = parseFloat(e.target.value);
+        if (v > 0) {
+            state.gridMetresPerSquare = v;
+            invalidateLOSCache();
+            renderFog();
+            broadcastState();
+        }
     });
 
     // Initiative tracker
@@ -3305,9 +3383,22 @@ const BROADCAST_CHANNEL = 'arcane-vtt-sync';
 const IS_PLAYER_WINDOW = new URLSearchParams(location.search).has('player');
 const bc = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel(BROADCAST_CHANNEL) : null;
 
+// Track last map id sent so we only re-send the image when it changes
+let _lastBroadcastMapId = null;
+
 // Called after any state change — serialises and sends to player window(s)
 function broadcastState() {
     if (!bc || IS_PLAYER_WINDOW) return;
+
+    const mapId = state.currentMapData?.id || null;
+
+    // Send map image in a separate message only when map changes
+    if (mapId && mapId !== _lastBroadcastMapId) {
+        _lastBroadcastMapId = mapId;
+        const mapSrc = state.currentMapData?.data || state.currentMapData?.imageUrl || null;
+        if (mapSrc) bc.postMessage({ type: 'map-image', mapId, mapSrc });
+    }
+
     const payload = {
         type: 'state-update',
         tokens: state.tokens.map(t => ({
@@ -3322,9 +3413,11 @@ function broadcastState() {
         gridSize: state.gridSize,
         transform: state.transform,
         losEnabled: state.losEnabled,
+        losDarkMap: state.losDarkMap,
+        losViewDistance: state.losViewDistance,
+        gridMetresPerSquare: state.gridMetresPerSquare,
         waypoints: state.waypoints,
-        mapSrc: state.currentMapData?.data || state.currentMapData?.imageUrl || null,
-        mapId: state.currentMapData?.id || null,
+        mapId,
         isGridVisible: state.isGridVisible,
     };
     bc.postMessage(payload);
@@ -3332,7 +3425,36 @@ function broadcastState() {
 
 // Player window: receive state and re-render
 if (bc && IS_PLAYER_WINDOW) {
+    const playerDoRender = () => {
+        invalidateLOSCache();
+        renderMap();
+        renderGrid();
+        renderFog();
+        renderTokens();
+        renderLOS();
+    };
+
     bc.onmessage = async ({ data }) => {
+        // Handle map image arriving separately (large payload sent once per map change)
+        if (data.type === 'map-image') {
+            if (data.mapId !== state.currentMapData?.id) {
+                state.currentMapData = { id: data.mapId, data: data.mapSrc };
+                const img = new Image();
+                img.onload = () => {
+                    state.mapImage = img;
+                    const w = img.width, h = img.height;
+                    dom.container.style.width = w + 'px';
+                    dom.container.style.height = h + 'px';
+                    [dom.mapCanvas, dom.gridCanvas, dom.tokenCanvas, dom.fogCanvas, dom.losCanvas].forEach(c => {
+                        c.width = w; c.height = h;
+                    });
+                    playerDoRender();
+                };
+                img.onerror = (e) => console.error('[Player] map image failed to load', e);
+                img.src = data.mapSrc;
+            }
+            return;
+        }
         if (data.type !== 'state-update') return;
 
         // Update transform
@@ -3340,10 +3462,7 @@ if (bc && IS_PLAYER_WINDOW) {
         updateTransform();
 
         // Grid
-        if (state.gridSize !== data.gridSize) {
-            state.gridSize = data.gridSize;
-            renderGrid();
-        }
+        state.gridSize = data.gridSize;
         state.isGridVisible = data.isGridVisible;
 
         // Fog/wall/opening/waypoint state
@@ -3352,6 +3471,9 @@ if (bc && IS_PLAYER_WINDOW) {
         state.openingSegments = data.openingSegments;
         state.waypoints = data.waypoints;
         state.losEnabled = data.losEnabled;
+        state.losDarkMap = data.losDarkMap;
+        state.losViewDistance = data.losViewDistance;
+        state.gridMetresPerSquare = data.gridMetresPerSquare ?? 1.5;
 
         // Tokens — re-use existing img objects where possible
         const existingImgs = new Map(state.tokens.map(t => [t.id, t.img]));
@@ -3364,41 +3486,17 @@ if (bc && IS_PLAYER_WINDOW) {
             return { ...td, img };
         }));
 
-        const doRender = () => {
-            invalidateLOSCache();
-            renderFog();
-            renderTokens();
-            renderLOS();
-        };
-
-        // Map image — only reload if map changed; defer renders until image is ready
-        if (data.mapSrc && data.mapId !== state.currentMapData?.id) {
-            state.currentMapData = { id: data.mapId, data: data.mapSrc };
-            const img = new Image();
-            img.onload = () => {
-                state.mapImage = img;
-                const w = img.width, h = img.height;
-                dom.container.style.width = w + 'px';
-                dom.container.style.height = h + 'px';
-                [dom.mapCanvas, dom.gridCanvas, dom.tokenCanvas, dom.fogCanvas, dom.losCanvas].forEach(c => {
-                    c.width = w; c.height = h;
-                });
-                renderMap();
-                doRender();
-            };
-            img.src = data.mapSrc;
-        } else {
-            doRender();
-        }
+        // Only render if map image is ready — map-image handler will re-render when it loads
+        if (state.mapImage) playerDoRender();
     };
 }
 
 // ==================== INITIALISATION ====================
 window.addEventListener('load', async () => {
-    if (typeof requirePro === 'function') await requirePro();
+    if (!IS_PLAYER_WINDOW && typeof requirePro === 'function') await requirePro();
     lucide.createIcons();
-    initDB();
-    initUI();
+    if (!IS_PLAYER_WINDOW) initDB();
+    initUI(); // always run — player window needs pointer events and toolbar buttons
 
     // Set default tool ring
     setTool(TOOLS.DRAG);
@@ -3425,13 +3523,40 @@ window.addEventListener('load', async () => {
         if (playerToolbar) playerToolbar.classList.remove('hidden');
         setPlayerTool('move');
         document.title = 'Player View | Arcane Tabletop';
-        // Ask the DM window to send current state immediately
-        if (bc) bc.postMessage({ type: 'player-ready' });
+
+        // Show loading overlay until first broadcast arrives
+        const loadingEl = document.createElement('div');
+        loadingEl.id = 'player-loading';
+        loadingEl.style.cssText = 'position:fixed;inset:0;background:#0c0a09;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:999;gap:16px;';
+        loadingEl.innerHTML = `
+            <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="animation:spin 2s linear infinite"><path d="M12 2a10 10 0 1 0 10 10"/></svg>
+            <p style="color:#a8a29e;font-family:serif;font-size:14px;letter-spacing:.1em;">Waiting for DM...</p>
+            <style>@keyframes spin{to{transform:rotate(360deg)}}</style>`;
+        document.body.appendChild(loadingEl);
+
+        // Ping DM with retries until we get a response
+        const ping = () => { if (bc) bc.postMessage({ type: 'player-ready' }); };
+        ping();
+        const retryInterval = setInterval(ping, 2000);
+
+        // Remove overlay on first state-update received
+        const origOnMessage = bc.onmessage;
+        bc.onmessage = async (evt) => {
+            if (evt.data?.type === 'state-update') {
+                clearInterval(retryInterval);
+                loadingEl.remove();
+                bc.onmessage = origOnMessage;
+            }
+            if (origOnMessage) await origOnMessage(evt);
+        };
     } else {
         // DM window: listen for player-ready pings and respond with full state
         if (bc) {
             bc.addEventListener('message', ({ data }) => {
-                if (data.type === 'player-ready') broadcastState();
+                if (data.type === 'player-ready') {
+                    _lastBroadcastMapId = null; // force map image re-send
+                    broadcastState();
+                }
             });
         }
     }
