@@ -38,7 +38,8 @@ const TOOLS = {
     WAYPOINT: 'waypoint',
     WALL: 'wall',
     WALL_ERASE: 'wall-erase',
-    WALL_EDIT: 'wall-edit'
+    WALL_EDIT: 'wall-edit',
+    WALL_FILL: 'wall-fill'
 };
 
 // DOM element shortcuts
@@ -93,16 +94,21 @@ const state = {
     // Grid visibility
     isGridVisible: false,
 
-    // Walls: { id, points[] } — closed polygons that define room boundaries
-    walls: [],
-    wallDrawPoints: [],  // points being drawn for current wall polygon
-    isWallDrawing: false,
+    // Wall segments: { id, x1, y1, x2, y2 }
+    wallSegments: [],
 
-    // Wall editing state
+    // Wall draw drag state
+    wallDrag: {
+        active: false,
+        x1: 0, y1: 0,   // start (snapped)
+        x2: 0, y2: 0    // current end (snapped)
+    },
+
+    // Wall edit drag state
     wallEdit: {
-        selectedWallId: null,  // id of wall being edited
-        selectedNodeIdx: null, // index of node being dragged
-        isDraggingNode: false
+        segId: null,       // segment being edited
+        endpoint: null,    // 'start' | 'end'
+        isDragging: false
     },
 
     // Waypoints: { id, x, y, label }
@@ -654,41 +660,8 @@ function renderTokensNow() {
 function renderFogNow() {
     dom.fogCtx.clearRect(0, 0, dom.fogCanvas.width, dom.fogCanvas.height);
 
+    // Regular fog shapes (room fills from Fill Room tool)
     for (const shape of state.fogShapes) {
-        // Wall-generated fog: each polygon interior = hidden area
-        if (shape.type === 'wall') {
-            for (const poly of shape.wallPolygons) {
-                dom.fogCtx.beginPath();
-                dom.fogCtx.moveTo(poly[0].x, poly[0].y);
-                for (const p of poly) dom.fogCtx.lineTo(p.x, p.y);
-                dom.fogCtx.closePath();
-
-                // Fill interior with fog
-                dom.fogCtx.fillStyle = state.isDMMode ? 'rgba(0,0,0,0.55)' : '#000000';
-                dom.fogCtx.fill();
-
-                // Thick stone-like wall border — visible to both DM and players
-                dom.fogCtx.lineJoin = 'round';
-                dom.fogCtx.strokeStyle = 'rgba(15, 10, 5, 0.95)';
-                dom.fogCtx.lineWidth = 10;
-                dom.fogCtx.stroke();
-                dom.fogCtx.strokeStyle = 'rgba(90, 78, 65, 0.95)';
-                dom.fogCtx.lineWidth = 5;
-                dom.fogCtx.stroke();
-
-                // DM-only: cyan dashed highlight so walls are identifiable in edit mode
-                if (state.isDMMode) {
-                    dom.fogCtx.strokeStyle = 'rgba(34,211,238,0.4)';
-                    dom.fogCtx.lineWidth = 1.5;
-                    dom.fogCtx.setLineDash([6, 4]);
-                    dom.fogCtx.stroke();
-                    dom.fogCtx.setLineDash([]);
-                }
-            }
-            continue;
-        }
-
-        // Regular fog shapes
         if (shape.isHidden || state.isDMMode) {
             dom.fogCtx.beginPath();
             dom.fogCtx.moveTo(shape.points[0].x, shape.points[0].y);
@@ -698,132 +671,90 @@ function renderFogNow() {
                 dom.fogCtx.fillStyle = state.isDMMode ? 'rgba(0,0,0,0.6)' : '#000000';
                 dom.fogCtx.fill();
             } else if (state.isDMMode) {
-                dom.fogCtx.strokeStyle = 'rgba(217, 119, 6, 0.5)';
+                dom.fogCtx.strokeStyle = 'rgba(217,119,6,0.5)';
                 dom.fogCtx.lineWidth = 2;
                 dom.fogCtx.stroke();
             }
         }
     }
 
-    // Fog polygon drawing preview
-    if (state.isDrawing && state.currentDrawPoints.length > 0) {
+    // Draw wall segments — stone-like thick lines, visible to all
+    const isWallMode = state.isDMMode && (
+        state.currentTool === TOOLS.WALL ||
+        state.currentTool === TOOLS.WALL_EDIT ||
+        state.currentTool === TOOLS.WALL_ERASE
+    );
+    for (const seg of state.wallSegments) {
+        dom.fogCtx.save();
+        dom.fogCtx.lineCap = 'round';
+        dom.fogCtx.lineJoin = 'round';
+        // Outer dark stroke
         dom.fogCtx.beginPath();
-        dom.fogCtx.moveTo(state.currentDrawPoints[0].x, state.currentDrawPoints[0].y);
-        for (const p of state.currentDrawPoints) dom.fogCtx.lineTo(p.x, p.y);
-        if (state.mousePos) dom.fogCtx.lineTo(state.mousePos.x, state.mousePos.y);
-        dom.fogCtx.strokeStyle = '#d97706';
-        dom.fogCtx.setLineDash([5, 5]);
-        dom.fogCtx.lineWidth = 2;
+        dom.fogCtx.moveTo(seg.x1, seg.y1);
+        dom.fogCtx.lineTo(seg.x2, seg.y2);
+        dom.fogCtx.strokeStyle = 'rgba(15,10,5,0.95)';
+        dom.fogCtx.lineWidth = 10;
         dom.fogCtx.stroke();
-        dom.fogCtx.setLineDash([]);
-        dom.fogCtx.fillStyle = '#d97706';
-        for (const p of state.currentDrawPoints) {
-            dom.fogCtx.beginPath();
-            dom.fogCtx.arc(p.x, p.y, 4, 0, Math.PI * 2);
-            dom.fogCtx.fill();
-        }
-    }
+        // Inner stone stroke
+        dom.fogCtx.strokeStyle = 'rgba(90,78,65,0.95)';
+        dom.fogCtx.lineWidth = 5;
+        dom.fogCtx.stroke();
+        dom.fogCtx.restore();
 
-    // Wall edit mode overlays
-    if (state.currentTool === TOOLS.WALL_EDIT || state.currentTool === TOOLS.WALL_ERASE) {
-        const we = state.wallEdit;
-        for (const wall of state.walls) {
-            const isSelected = wall.id === we.selectedWallId;
-
-            // Highlight selected wall outline
-            if (isSelected) {
+        // DM wall tool modes: draw endpoint handles
+        if (isWallMode) {
+            const r = WALL_NODE_RADIUS / state.transform.scale;
+            const isEditSeg = state.currentTool === TOOLS.WALL_EDIT && seg.id === state.wallEdit.segId;
+            for (const [px, py, ep] of [[seg.x1, seg.y1, 'start'], [seg.x2, seg.y2, 'end']]) {
                 dom.fogCtx.beginPath();
-                dom.fogCtx.moveTo(wall.points[0].x, wall.points[0].y);
-                for (const p of wall.points) dom.fogCtx.lineTo(p.x, p.y);
-                dom.fogCtx.closePath();
-                dom.fogCtx.strokeStyle = 'rgba(250,204,21,0.9)';
-                dom.fogCtx.lineWidth = 2 / state.transform.scale;
-                dom.fogCtx.setLineDash([]);
+                dom.fogCtx.arc(px, py, r, 0, Math.PI * 2);
+                dom.fogCtx.fillStyle = (isEditSeg && state.wallEdit.endpoint === ep)
+                    ? '#facc15' : (isWallMode ? 'rgba(255,255,255,0.7)' : 'transparent');
+                dom.fogCtx.fill();
+                dom.fogCtx.strokeStyle = isWallMode ? '#92400e' : 'transparent';
+                dom.fogCtx.lineWidth = 1.5 / state.transform.scale;
                 dom.fogCtx.stroke();
             }
-
-            if (state.currentTool === TOOLS.WALL_EDIT) {
-                const nr = WALL_NODE_RADIUS / state.transform.scale;
-                const er = (WALL_EDGE_RADIUS * 0.6) / state.transform.scale;
-
-                if (isSelected) {
-                    // Edge midpoint dots (insert node affordance)
-                    for (let i = 0; i < wall.points.length; i++) {
-                        const a = wall.points[i];
-                        const b = wall.points[(i + 1) % wall.points.length];
-                        dom.fogCtx.beginPath();
-                        dom.fogCtx.arc((a.x + b.x) / 2, (a.y + b.y) / 2, er, 0, Math.PI * 2);
-                        dom.fogCtx.fillStyle = 'rgba(250,204,21,0.5)';
-                        dom.fogCtx.fill();
-                    }
-                    // Node handles
-                    for (let i = 0; i < wall.points.length; i++) {
-                        const p = wall.points[i];
-                        dom.fogCtx.beginPath();
-                        dom.fogCtx.arc(p.x, p.y, nr, 0, Math.PI * 2);
-                        dom.fogCtx.fillStyle = i === we.selectedNodeIdx ? '#facc15' : '#fff';
-                        dom.fogCtx.fill();
-                        dom.fogCtx.strokeStyle = '#92400e';
-                        dom.fogCtx.lineWidth = 1.5 / state.transform.scale;
-                        dom.fogCtx.stroke();
-                    }
-                } else {
-                    // Unselected walls: small dim dots so DM can see they're editable
-                    for (const p of wall.points) {
-                        dom.fogCtx.beginPath();
-                        dom.fogCtx.arc(p.x, p.y, nr * 0.5, 0, Math.PI * 2);
-                        dom.fogCtx.fillStyle = 'rgba(250,204,21,0.25)';
-                        dom.fogCtx.fill();
-                    }
-                }
+            // Erase mode: red tint over segment on hover (handled via cursor only)
+            if (state.currentTool === TOOLS.WALL_ERASE) {
+                dom.fogCtx.beginPath();
+                dom.fogCtx.moveTo(seg.x1, seg.y1);
+                dom.fogCtx.lineTo(seg.x2, seg.y2);
+                dom.fogCtx.strokeStyle = 'rgba(239,68,68,0.3)';
+                dom.fogCtx.lineWidth = 10;
+                dom.fogCtx.stroke();
             }
         }
     }
 
-    // Wall drawing preview (cyan, live fill)
-    if (state.isWallDrawing && state.wallDrawPoints.length > 0) {
-        const pts = state.wallDrawPoints;
-        // Snap cursor to grid for preview endpoint
-        const cursor = state.mousePos || null;
-
+    // Wall drag preview (new segment being drawn)
+    if (state.wallDrag.active) {
+        const { x1, y1, x2, y2 } = state.wallDrag;
+        dom.fogCtx.save();
+        dom.fogCtx.lineCap = 'round';
         dom.fogCtx.beginPath();
-        dom.fogCtx.moveTo(pts[0].x, pts[0].y);
-        for (const p of pts) dom.fogCtx.lineTo(p.x, p.y);
-        if (cursor) dom.fogCtx.lineTo(cursor.x, cursor.y);
-        dom.fogCtx.closePath();
-
-        // Live semi-transparent fill showing the area that will be revealed
-        dom.fogCtx.fillStyle = 'rgba(34,211,238,0.12)';
-        dom.fogCtx.fill();
-
-        // Outline
-        dom.fogCtx.beginPath();
-        dom.fogCtx.moveTo(pts[0].x, pts[0].y);
-        for (const p of pts) dom.fogCtx.lineTo(p.x, p.y);
-        if (cursor) dom.fogCtx.lineTo(cursor.x, cursor.y);
-        dom.fogCtx.strokeStyle = '#22d3ee';
-        dom.fogCtx.setLineDash([6, 4]);
-        dom.fogCtx.lineWidth = 2.5;
+        dom.fogCtx.moveTo(x1, y1);
+        dom.fogCtx.lineTo(x2, y2);
+        dom.fogCtx.strokeStyle = 'rgba(15,10,5,0.7)';
+        dom.fogCtx.lineWidth = 10;
         dom.fogCtx.stroke();
-        dom.fogCtx.setLineDash([]);
-
-        // Vertices
+        dom.fogCtx.strokeStyle = 'rgba(34,211,238,0.8)';
+        dom.fogCtx.lineWidth = 5;
+        dom.fogCtx.stroke();
+        dom.fogCtx.restore();
+        // Start node
+        dom.fogCtx.beginPath();
+        dom.fogCtx.arc(x1, y1, WALL_NODE_RADIUS / state.transform.scale, 0, Math.PI * 2);
         dom.fogCtx.fillStyle = '#22d3ee';
-        for (const p of pts) {
+        dom.fogCtx.fill();
+        // End snap indicator
+        const endSnap = snapToNearestWallNode({ x: x2, y: y2 });
+        if (endSnap) {
             dom.fogCtx.beginPath();
-            dom.fogCtx.arc(p.x, p.y, 4, 0, Math.PI * 2);
-            dom.fogCtx.fill();
-        }
-        // Green ring on first point when cursor is near it (close-polygon indicator)
-        if (cursor && pts.length > 2) {
-            const d = Math.hypot(cursor.x - pts[0].x, cursor.y - pts[0].y);
-            if (d < 15 / state.transform.scale) {
-                dom.fogCtx.beginPath();
-                dom.fogCtx.arc(pts[0].x, pts[0].y, 10, 0, Math.PI * 2);
-                dom.fogCtx.strokeStyle = '#4ade80';
-                dom.fogCtx.lineWidth = 2.5;
-                dom.fogCtx.stroke();
-            }
+            dom.fogCtx.arc(endSnap.x, endSnap.y, (WALL_NODE_RADIUS + 4) / state.transform.scale, 0, Math.PI * 2);
+            dom.fogCtx.strokeStyle = '#e879f9';
+            dom.fogCtx.lineWidth = 2 / state.transform.scale;
+            dom.fogCtx.stroke();
         }
     }
 }
@@ -860,7 +791,7 @@ function snapshotState() {
         })),
         fogShapes: JSON.parse(JSON.stringify(state.fogShapes)),
         gridSize: state.gridSize,
-        walls: JSON.parse(JSON.stringify(state.walls))
+        wallSegments: JSON.parse(JSON.stringify(state.wallSegments))
     };
 }
 
@@ -877,7 +808,7 @@ function pushHistory() {
 function restoreSnapshot(snap) {
     state.fogShapes = JSON.parse(JSON.stringify(snap.fogShapes));
     state.gridSize = snap.gridSize;
-    if (snap.walls) state.walls = JSON.parse(JSON.stringify(snap.walls));
+    if (snap.wallSegments) state.wallSegments = JSON.parse(JSON.stringify(snap.wallSegments));
     updateGridDisplay();
     renderGrid();
 
@@ -985,7 +916,7 @@ function saveCurrentMap() {
     state.currentMapData.fogShapes = state.fogShapes;
     state.currentMapData.gridSize = state.gridSize;
     state.currentMapData.waypoints = state.waypoints;
-    state.currentMapData.walls = state.walls;
+    state.currentMapData.wallSegments = state.wallSegments;
     state.currentMapData.lastUsed = Date.now();
     try {
         const tx = dataBase.transaction('maps', 'readwrite');
@@ -1324,9 +1255,9 @@ async function loadMap(id) {
     state.fogShapes = state.currentMapData.fogShapes || [];
     state.gridSize = state.currentMapData.gridSize || DEFAULT_GRID;
     state.waypoints = state.currentMapData.waypoints || [];
-    state.walls = state.currentMapData.walls || [];
-    state.isWallDrawing = false;
-    state.wallDrawPoints = [];
+    state.wallSegments = state.currentMapData.wallSegments || [];
+    state.wallDrag.active = false;
+    state.wallEdit.isDragging = false;
     state.transform = { x: 50, y: 50, scale: 1 };
     // Clear ruler overlay and initiative highlight on map switch
     state.rulerActive = false;
@@ -1602,7 +1533,8 @@ const toolButtons = {
     waypoint: 'tool-waypoint',
     wall: 'tool-wall',
     'wall-erase': 'tool-wall-erase',
-    'wall-edit': 'tool-wall-edit'
+    'wall-edit': 'tool-wall-edit',
+    'wall-fill': 'tool-wall-fill'
 };
 
 const toolCursors = {
@@ -1616,7 +1548,8 @@ const toolCursors = {
     [TOOLS.WAYPOINT]: 'cell',
     [TOOLS.WALL]: 'crosshair',
     [TOOLS.WALL_ERASE]: 'pointer',
-    [TOOLS.WALL_EDIT]: 'pointer'
+    [TOOLS.WALL_EDIT]: 'pointer',
+    [TOOLS.WALL_FILL]: 'cell'
 };
 
 function setTool(tool) {
@@ -1629,17 +1562,16 @@ function setTool(tool) {
     }
     // Clear ruler when switching away
     if (tool !== TOOLS.RULER) { state.rulerActive = false; clearRuler(); }
-    // Cancel wall drawing when switching away
-    if (tool !== TOOLS.WALL && state.isWallDrawing) {
-        state.isWallDrawing = false;
-        state.wallDrawPoints = [];
+    // Cancel wall drag when switching away
+    if (tool !== TOOLS.WALL && state.wallDrag.active) {
+        state.wallDrag.active = false;
         renderFog();
     }
-    // Clear wall edit selection when switching away
+    // Clear wall edit state when switching away
     if (tool !== TOOLS.WALL_EDIT) {
-        state.wallEdit.selectedWallId = null;
-        state.wallEdit.selectedNodeIdx = null;
-        state.wallEdit.isDraggingNode = false;
+        state.wallEdit.segId = null;
+        state.wallEdit.endpoint = null;
+        state.wallEdit.isDragging = false;
         renderFog();
     }
     // Remove ring from all tool buttons
@@ -1797,13 +1729,16 @@ function onPointerDown(e) {
             processFogErase(pos);
             break;
         case TOOLS.WALL:
-            handleWallDrawStart(pos);
+            handleWallDragStart(pos);
             break;
         case TOOLS.WALL_ERASE:
             removeWallAt(pos);
             break;
         case TOOLS.WALL_EDIT:
             handleWallEditDown(pos);
+            break;
+        case TOOLS.WALL_FILL:
+            fillRoomAt(pos);
             break;
     }
 }
@@ -1848,197 +1783,248 @@ function finishPolygonDrawing() {
     renderFog();
 }
 
-// ==================== WALL TOOL ====================
-function handleWallDrawStart(pos) {
-    const now = Date.now();
-    if (now - state.lastTapTime < DOUBLE_TAP_MS) {
-        if (state.wallDrawPoints.length > 2) finishWallDrawing();
-        state.lastTapTime = 0;
-        return;
-    }
-    state.lastTapTime = now;
+// ==================== WALL SEGMENT SYSTEM ====================
+const WALL_NODE_RADIUS = 8;
+const WALL_SNAP_RADIUS = 14; // px screen space
 
-    if (!state.isWallDrawing) {
-        state.isWallDrawing = true;
-        state.wallDrawPoints = [pos];
-    } else {
-        const start = state.wallDrawPoints[0];
-        if (Math.hypot(pos.x - start.x, pos.y - start.y) < 15 / state.transform.scale
-            && state.wallDrawPoints.length > 2) {
-            finishWallDrawing();
-        } else {
-            state.wallDrawPoints.push(pos);
+// Collect all unique endpoints from all segments
+function allWallNodes() {
+    const nodes = [];
+    for (const seg of state.wallSegments) {
+        nodes.push({ x: seg.x1, y: seg.y1 });
+        nodes.push({ x: seg.x2, y: seg.y2 });
+    }
+    return nodes;
+}
+
+// Snap pos to nearest existing endpoint within WALL_SNAP_RADIUS (screen px)
+// excludeSegId + excludeEndpoint lets us skip the point being dragged
+function snapToNearestWallNode(pos, excludeSegId = null, excludeEndpoint = null) {
+    const r = WALL_SNAP_RADIUS / state.transform.scale;
+    let best = null, bestDist = r;
+    for (const seg of state.wallSegments) {
+        for (const [ep, px, py] of [['start', seg.x1, seg.y1], ['end', seg.x2, seg.y2]]) {
+            if (seg.id === excludeSegId && ep === excludeEndpoint) continue;
+            const d = Math.hypot(pos.x - px, pos.y - py);
+            if (d < bestDist) { bestDist = d; best = { x: px, y: py }; }
         }
     }
+    return best;
+}
+
+// Point-to-segment distance helper
+function distToSegment(px, py, x1, y1, x2, y2) {
+    const dx = x2 - x1, dy = y2 - y1;
+    const lenSq = dx * dx + dy * dy;
+    if (lenSq === 0) return Math.hypot(px - x1, py - y1);
+    const t = Math.max(0, Math.min(1, ((px - x1) * dx + (py - y1) * dy) / lenSq));
+    return Math.hypot(px - (x1 + t * dx), py - (y1 + t * dy));
+}
+
+// --- WALL DRAW (drag) ---
+function handleWallDragStart(pos) {
+    const snapped = snapToNearestWallNode(pos) || pos;
+    state.wallDrag.active = true;
+    state.wallDrag.x1 = snapped.x;
+    state.wallDrag.y1 = snapped.y;
+    state.wallDrag.x2 = snapped.x;
+    state.wallDrag.y2 = snapped.y;
     renderFog();
 }
 
-function finishWallDrawing() {
-    state.isWallDrawing = false;
-    if (state.wallDrawPoints.length > 2) {
-        state.walls.push({ id: Date.now(), points: [...state.wallDrawPoints] });
-        rebuildWallFog();
+function handleWallDragMove(pos) {
+    if (!state.wallDrag.active) return;
+    const snapped = snapToNearestWallNode(pos) || pos;
+    state.wallDrag.x2 = snapped.x;
+    state.wallDrag.y2 = snapped.y;
+    renderFog();
+}
+
+function handleWallDragEnd(pos) {
+    if (!state.wallDrag.active) return;
+    state.wallDrag.active = false;
+    const snappedEnd = snapToNearestWallNode(pos) || pos;
+    const x1 = state.wallDrag.x1, y1 = state.wallDrag.y1;
+    const x2 = snappedEnd.x, y2 = snappedEnd.y;
+    // Only add if the segment has some length
+    if (Math.hypot(x2 - x1, y2 - y1) > 3 / state.transform.scale) {
+        state.wallSegments.push({ id: Date.now(), x1, y1, x2, y2 });
         pushHistory();
         saveCurrentMap();
     }
-    state.wallDrawPoints = [];
     renderFog();
 }
 
-function rebuildWallFog() {
-    // Remove any previous wall-fog composite entry
-    state.fogShapes = state.fogShapes.filter(s => s.type !== 'wall');
-
-    if (state.walls.length === 0) { renderFog(); return; }
-
-    // One composite entry holds all wall polygons.
-    // Each polygon's INTERIOR is filled as fog (hidden from players).
-    state.fogShapes.unshift({
-        id: Date.now(),
-        type: 'wall',
-        isHidden: true,
-        wallPolygons: state.walls.map(wl => [...wl.points])
-    });
-    renderFog();
-}
-
-// ==================== WALL EDITING HELPERS ====================
-const WALL_NODE_RADIUS = 8;   // px in canvas space (scaled)
-const WALL_EDGE_RADIUS = 10;  // click tolerance for edge midpoint insertion
-
-function wallHitTestPolygon(wall, pos) {
-    dom.fogCtx.beginPath();
-    dom.fogCtx.moveTo(wall.points[0].x, wall.points[0].y);
-    for (const p of wall.points) dom.fogCtx.lineTo(p.x, p.y);
-    dom.fogCtx.closePath();
-    return dom.fogCtx.isPointInPath(pos.x, pos.y);
-}
-
-function wallHitTestNode(wall, pos) {
-    const r = WALL_NODE_RADIUS / state.transform.scale;
-    for (let i = 0; i < wall.points.length; i++) {
-        if (Math.hypot(pos.x - wall.points[i].x, pos.y - wall.points[i].y) < r) return i;
-    }
-    return -1;
-}
-
-function wallHitTestEdge(wall, pos) {
-    const r = WALL_EDGE_RADIUS / state.transform.scale;
-    for (let i = 0; i < wall.points.length; i++) {
-        const a = wall.points[i];
-        const b = wall.points[(i + 1) % wall.points.length];
-        const mx = (a.x + b.x) / 2;
-        const my = (a.y + b.y) / 2;
-        if (Math.hypot(pos.x - mx, pos.y - my) < r) return i; // insert after index i
-    }
-    return -1;
-}
-
+// --- WALL EDIT (drag endpoints) ---
 function handleWallEditDown(pos) {
     const we = state.wallEdit;
-
-    // If a wall is already selected, check nodes + edges first
-    if (we.selectedWallId !== null) {
-        const wall = state.walls.find(w => w.id === we.selectedWallId);
-        if (wall) {
-            // Hit a node → start dragging it
-            const ni = wallHitTestNode(wall, pos);
-            if (ni >= 0) {
-                we.selectedNodeIdx = ni;
-                we.isDraggingNode = true;
-                return;
-            }
-            // Hit an edge midpoint → insert new node
-            const ei = wallHitTestEdge(wall, pos);
-            if (ei >= 0) {
-                const a = wall.points[ei];
-                const b = wall.points[(ei + 1) % wall.points.length];
-                wall.points.splice(ei + 1, 0, { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
-                we.selectedNodeIdx = ei + 1;
-                we.isDraggingNode = true;
-                rebuildWallFog();
-                return;
-            }
+    const r = WALL_NODE_RADIUS / state.transform.scale;
+    // Find the nearest endpoint within r
+    let best = null, bestDist = r;
+    for (const seg of state.wallSegments) {
+        for (const [ep, px, py] of [['start', seg.x1, seg.y1], ['end', seg.x2, seg.y2]]) {
+            const d = Math.hypot(pos.x - px, pos.y - py);
+            if (d < bestDist) { bestDist = d; best = { seg, ep }; }
         }
     }
-
-    // Click on a different wall polygon → select it
-    for (let i = state.walls.length - 1; i >= 0; i--) {
-        if (wallHitTestPolygon(state.walls[i], pos)) {
-            we.selectedWallId = state.walls[i].id;
-            we.selectedNodeIdx = null;
-            we.isDraggingNode = false;
-            renderFog();
-            return;
-        }
+    if (best) {
+        we.segId = best.seg.id;
+        we.endpoint = best.ep;
+        we.isDragging = true;
+    } else {
+        we.segId = null; we.endpoint = null; we.isDragging = false;
     }
-
-    // Click empty space → deselect
-    we.selectedWallId = null;
-    we.selectedNodeIdx = null;
-    we.isDraggingNode = false;
     renderFog();
 }
 
 function handleWallEditMove(pos) {
     const we = state.wallEdit;
-    if (!we.isDraggingNode || we.selectedWallId === null || we.selectedNodeIdx === null) return;
-    const wall = state.walls.find(w => w.id === we.selectedWallId);
-    if (!wall) return;
-    wall.points[we.selectedNodeIdx] = { x: pos.x, y: pos.y };
-    rebuildWallFog();
+    if (!we.isDragging || !we.segId) return;
+    const seg = state.wallSegments.find(s => s.id === we.segId);
+    if (!seg) return;
+    const snapped = snapToNearestWallNode(pos, we.segId, we.endpoint) || pos;
+    if (we.endpoint === 'start') { seg.x1 = snapped.x; seg.y1 = snapped.y; }
+    else                         { seg.x2 = snapped.x; seg.y2 = snapped.y; }
+    renderFog();
 }
 
 function handleWallEditUp() {
-    if (state.wallEdit.isDraggingNode) {
-        state.wallEdit.isDraggingNode = false;
-        state.wallEdit.selectedNodeIdx = null;
+    if (state.wallEdit.isDragging) {
+        state.wallEdit.isDragging = false;
         pushHistory();
         saveCurrentMap();
     }
 }
 
-function handleWallEditRightClick(pos) {
-    const we = state.wallEdit;
-    if (we.selectedWallId === null) return;
-    const wall = state.walls.find(w => w.id === we.selectedWallId);
-    if (!wall) return;
-    const ni = wallHitTestNode(wall, pos);
-    if (ni >= 0) {
-        if (wall.points.length <= 3) {
-            // Too few points — delete the whole wall
-            state.walls = state.walls.filter(w => w.id !== we.selectedWallId);
-            we.selectedWallId = null;
-        } else {
-            wall.points.splice(ni, 1);
-        }
-        rebuildWallFog();
-        pushHistory();
-        saveCurrentMap();
-    }
-}
-
+// --- WALL ERASE ---
 function removeWallAt(pos) {
-    for (let i = state.walls.length - 1; i >= 0; i--) {
-        const wall = state.walls[i];
-        // Use offscreen canvas to test point-in-polygon
-        const oc = document.createElement('canvas');
-        oc.width = 2; oc.height = 2;
-        const octx = oc.getContext('2d');
-        octx.beginPath();
-        // Scale points into 0-2 space isn't practical; use fogCtx directly
-        dom.fogCtx.beginPath();
-        dom.fogCtx.moveTo(wall.points[0].x, wall.points[0].y);
-        for (const p of wall.points) dom.fogCtx.lineTo(p.x, p.y);
-        dom.fogCtx.closePath();
-        if (dom.fogCtx.isPointInPath(pos.x, pos.y)) {
-            state.walls.splice(i, 1);
-            rebuildWallFog();
+    const r = 8 / state.transform.scale;
+    for (let i = state.wallSegments.length - 1; i >= 0; i--) {
+        const seg = state.wallSegments[i];
+        if (distToSegment(pos.x, pos.y, seg.x1, seg.y1, seg.x2, seg.y2) < r) {
+            state.wallSegments.splice(i, 1);
             pushHistory();
             saveCurrentMap();
+            renderFog();
             return;
         }
     }
+}
+
+// --- FILL ROOM (bucket fog) ---
+function fillRoomAt(pos) {
+    if (!state.mapImage) return;
+    const W = state.mapImage.width;
+    const H = state.mapImage.height;
+
+    // 1. Build offscreen canvas at map resolution, draw all segments as thick lines
+    const oc = document.createElement('canvas');
+    oc.width = W; oc.height = H;
+    const ctx = oc.getContext('2d');
+    ctx.fillStyle = '#000000';
+    ctx.fillRect(0, 0, W, H);
+
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = Math.max(4, 8 / state.transform.scale);
+    ctx.lineCap = 'round';
+    for (const seg of state.wallSegments) {
+        ctx.beginPath();
+        ctx.moveTo(seg.x1, seg.y1);
+        ctx.lineTo(seg.x2, seg.y2);
+        ctx.stroke();
+    }
+
+    // 2. Flood fill from click position (BFS on pixels)
+    const px = Math.round(pos.x);
+    const py = Math.round(pos.y);
+    if (px < 0 || py < 0 || px >= W || py >= H) return;
+
+    const imgData = ctx.getImageData(0, 0, W, H);
+    const data = imgData.data;
+
+    // Clicked on a wall? abort
+    const startIdx = (py * W + px) * 4;
+    if (data[startIdx] > 128) return; // white = wall pixel
+
+    // Stack-based flood fill — faster than BFS queue for large areas
+    const MAX_FILL_PX = W * H * 0.5; // abort if more than 50% of map filled (open area)
+    const visited = new Uint8Array(W * H);
+    const stack = [py * W + px];
+    visited[py * W + px] = 1;
+    let minX = px, maxX = px, minY = py, maxY = py;
+    let fillCount = 0;
+
+    while (stack.length) {
+        const idx = stack.pop();
+        const x = idx % W;
+        const y = (idx / W) | 0;
+        if (x < minX) minX = x; if (x > maxX) maxX = x;
+        if (y < minY) minY = y; if (y > maxY) maxY = y;
+        fillCount++;
+        if (fillCount > MAX_FILL_PX) return; // open area — no enclosure
+        for (const [dx, dy] of [[1,0],[-1,0],[0,1],[0,-1]]) {
+            const nx = x + dx, ny = y + dy;
+            if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue;
+            const ni = ny * W + nx;
+            if (visited[ni]) continue;
+            if (data[ni * 4] > 128) continue; // wall pixel
+            visited[ni] = 1;
+            stack.push(ni);
+        }
+    }
+
+    if (fillCount === 0) return;
+
+    // 3. Build a simple bounding-box polygon from the fill extent
+    // For a more precise result we walk the border pixels
+    // Simple approach: collect border pixels (adjacent to wall or edge), then convex-hull-ish outline
+    // Practical approach: just use the tight axis-aligned bounding rect of filled pixels
+    // But for non-rectangular rooms, march the outer edge
+    // We'll use a scanline contour: for each row find leftmost/rightmost filled pixel
+    const points = [];
+    // Top edge: left to right
+    for (let x = minX; x <= maxX; x++) {
+        for (let y = minY; y <= maxY; y++) {
+            if (visited[y * W + x]) { points.push({ x, y }); break; }
+        }
+    }
+    // Right edge: top to bottom
+    for (let y = minY; y <= maxY; y++) {
+        for (let x = maxX; x >= minX; x--) {
+            if (visited[y * W + x]) { points.push({ x, y }); break; }
+        }
+    }
+    // Bottom edge: right to left
+    for (let x = maxX; x >= minX; x--) {
+        for (let y = maxY; y >= minY; y--) {
+            if (visited[y * W + x]) { points.push({ x, y }); break; }
+        }
+    }
+    // Left edge: bottom to top
+    for (let y = maxY; y >= minY; y--) {
+        for (let x = minX; x <= maxX; x++) {
+            if (visited[y * W + x]) { points.push({ x, y }); break; }
+        }
+    }
+
+    if (points.length < 3) return;
+
+    // Deduplicate consecutive identical points
+    const poly = points.filter((p, i) => i === 0 || p.x !== points[i-1].x || p.y !== points[i-1].y);
+
+    state.fogShapes.push({ id: Date.now(), type: 'wall-fill', points: poly, isHidden: true });
+    pushHistory();
+    saveCurrentMap();
+    renderFog();
+}
+
+// --- CLEAR ALL ---
+function clearAllWalls() {
+    state.wallSegments = [];
+    state.fogShapes = state.fogShapes.filter(s => s.type !== 'wall-fill');
+    pushHistory();
+    saveCurrentMap();
+    renderFog();
 }
 
 function onPointerMove(e) {
@@ -2079,10 +2065,10 @@ function onPointerMove(e) {
         state.activeToken.x = snapped.x;
         state.activeToken.y = snapped.y;
         renderTokens();
-    } else if (state.isDMMode && state.wallEdit.isDraggingNode) {
+    } else if (state.isDMMode && state.wallDrag.active) {
+        handleWallDragMove(state.mousePos);
+    } else if (state.isDMMode && state.wallEdit.isDragging) {
         handleWallEditMove(state.mousePos);
-    } else if (state.isDMMode && state.isWallDrawing) {
-        renderFog(); // Wall preview line
     } else if (state.isDMMode && state.isDrawing) {
         if (state.currentTool === TOOLS.FOG_DRAW) {
             renderFog(); // Preview line
@@ -2162,8 +2148,10 @@ function onPointerUp(e) {
         processFogTapPlayer(pos);
     }
 
-    // Wall edit node drag finish
-    if (state.currentTool === TOOLS.WALL_EDIT) {
+    // Wall drag/edit finish
+    if (state.currentTool === TOOLS.WALL) {
+        handleWallDragEnd(getPointerPos(e));
+    } else if (state.currentTool === TOOLS.WALL_EDIT) {
         handleWallEditUp();
     }
 
@@ -2341,16 +2329,13 @@ function initUI() {
     $('tool-ruler')?.addEventListener('click', () => setTool(TOOLS.RULER));
     $('tool-waypoint')?.addEventListener('click', () => setTool(TOOLS.WAYPOINT));
     $('tool-wall')?.addEventListener('click', () => setTool(TOOLS.WALL));
+    $('tool-wall-fill')?.addEventListener('click', () => setTool(TOOLS.WALL_FILL));
     $('tool-wall-edit')?.addEventListener('click', () => setTool(TOOLS.WALL_EDIT));
     $('tool-wall-erase')?.addEventListener('click', () => setTool(TOOLS.WALL_ERASE));
     $('btn-walls-clear')?.addEventListener('click', () => {
-        if (state.walls.length === 0) return;
-        showConfirm('Clear All Walls', 'Delete every wall polygon on this map?', () => {
-            state.walls = [];
-            state.wallEdit.selectedWallId = null;
-            rebuildWallFog();
-            pushHistory();
-            saveCurrentMap();
+        if (state.wallSegments.length === 0) return;
+        showConfirm('Clear All Walls', 'Delete every wall segment on this map?', () => {
+            clearAllWalls();
         });
     });
     $('tool-grid-toggle')?.addEventListener('click', () => {
@@ -2719,9 +2704,9 @@ function initUI() {
         if (!state.isDMMode) return;
         const pos = getPointerPos(e);
 
-        // Wall edit: right-click on a node deletes it
+        // Wall edit: right-click deletes the nearest segment
         if (state.currentTool === TOOLS.WALL_EDIT) {
-            handleWallEditRightClick(pos);
+            removeWallAt(pos);
             return;
         }
 
@@ -2731,20 +2716,10 @@ function initUI() {
             return;
         }
 
-        // Wall tool: right-click removes last node while drawing, or removes a finished wall
+        // Wall draw: right-click cancels the in-progress drag
         if (state.currentTool === TOOLS.WALL) {
-            if (state.isWallDrawing) {
-                if (state.wallDrawPoints.length > 1) {
-                    state.wallDrawPoints.pop();
-                } else {
-                    // Only one point left — cancel entirely
-                    state.isWallDrawing = false;
-                    state.wallDrawPoints = [];
-                }
-                renderFog();
-            } else {
-                removeWallAt(pos);
-            }
+            state.wallDrag.active = false;
+            renderFog();
             return;
         }
 
@@ -2792,12 +2767,12 @@ function initUI() {
             case 'm': setTool(TOOLS.RULER); break;
             case 'w': setTool(TOOLS.WAYPOINT); break;
             case 'v': setTool(TOOLS.WALL); break;
+            case 'f': setTool(TOOLS.WALL_FILL); break;
             case 'b': setTool(TOOLS.WALL_EDIT); break;
             case 'x': setTool(TOOLS.WALL_ERASE); break;
             case 'escape':
-                if (state.isWallDrawing) {
-                    state.isWallDrawing = false;
-                    state.wallDrawPoints = [];
+                if (state.wallDrag.active) {
+                    state.wallDrag.active = false;
                     renderFog();
                 } else if (state.isDrawing) {
                     state.isDrawing = false;
