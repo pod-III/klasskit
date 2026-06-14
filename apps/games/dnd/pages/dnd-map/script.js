@@ -35,7 +35,10 @@ const TOOLS = {
     FOG_ERASE: 'fog-erase',
     FOG_TOGGLE: 'fog-toggle',
     RULER: 'ruler',
-    WAYPOINT: 'waypoint'
+    WAYPOINT: 'waypoint',
+    WALL: 'wall',
+    WALL_ERASE: 'wall-erase',
+    WALL_EDIT: 'wall-edit'
 };
 
 // DOM element shortcuts
@@ -89,6 +92,18 @@ const state = {
 
     // Grid visibility
     isGridVisible: false,
+
+    // Walls: { id, points[] } — closed polygons that define room boundaries
+    walls: [],
+    wallDrawPoints: [],  // points being drawn for current wall polygon
+    isWallDrawing: false,
+
+    // Wall editing state
+    wallEdit: {
+        selectedWallId: null,  // id of wall being edited
+        selectedNodeIdx: null, // index of node being dragged
+        isDraggingNode: false
+    },
 
     // Waypoints: { id, x, y, label }
     waypoints: [],
@@ -638,7 +653,42 @@ function renderTokensNow() {
 
 function renderFogNow() {
     dom.fogCtx.clearRect(0, 0, dom.fogCanvas.width, dom.fogCanvas.height);
+
     for (const shape of state.fogShapes) {
+        // Wall-generated fog: each polygon interior = hidden area
+        if (shape.type === 'wall') {
+            for (const poly of shape.wallPolygons) {
+                dom.fogCtx.beginPath();
+                dom.fogCtx.moveTo(poly[0].x, poly[0].y);
+                for (const p of poly) dom.fogCtx.lineTo(p.x, p.y);
+                dom.fogCtx.closePath();
+
+                // Fill interior with fog
+                dom.fogCtx.fillStyle = state.isDMMode ? 'rgba(0,0,0,0.55)' : '#000000';
+                dom.fogCtx.fill();
+
+                // Thick stone-like wall border — visible to both DM and players
+                dom.fogCtx.lineJoin = 'round';
+                dom.fogCtx.strokeStyle = 'rgba(15, 10, 5, 0.95)';
+                dom.fogCtx.lineWidth = 10;
+                dom.fogCtx.stroke();
+                dom.fogCtx.strokeStyle = 'rgba(90, 78, 65, 0.95)';
+                dom.fogCtx.lineWidth = 5;
+                dom.fogCtx.stroke();
+
+                // DM-only: cyan dashed highlight so walls are identifiable in edit mode
+                if (state.isDMMode) {
+                    dom.fogCtx.strokeStyle = 'rgba(34,211,238,0.4)';
+                    dom.fogCtx.lineWidth = 1.5;
+                    dom.fogCtx.setLineDash([6, 4]);
+                    dom.fogCtx.stroke();
+                    dom.fogCtx.setLineDash([]);
+                }
+            }
+            continue;
+        }
+
+        // Regular fog shapes
         if (shape.isHidden || state.isDMMode) {
             dom.fogCtx.beginPath();
             dom.fogCtx.moveTo(shape.points[0].x, shape.points[0].y);
@@ -655,27 +705,125 @@ function renderFogNow() {
         }
     }
 
-    // Drawing preview
+    // Fog polygon drawing preview
     if (state.isDrawing && state.currentDrawPoints.length > 0) {
         dom.fogCtx.beginPath();
         dom.fogCtx.moveTo(state.currentDrawPoints[0].x, state.currentDrawPoints[0].y);
         for (const p of state.currentDrawPoints) dom.fogCtx.lineTo(p.x, p.y);
-        if (state.mousePos) {
-            dom.fogCtx.lineTo(state.mousePos.x, state.mousePos.y);
-        }
-
+        if (state.mousePos) dom.fogCtx.lineTo(state.mousePos.x, state.mousePos.y);
         dom.fogCtx.strokeStyle = '#d97706';
         dom.fogCtx.setLineDash([5, 5]);
         dom.fogCtx.lineWidth = 2;
         dom.fogCtx.stroke();
         dom.fogCtx.setLineDash([]);
-
-        // Draw vertices
         dom.fogCtx.fillStyle = '#d97706';
         for (const p of state.currentDrawPoints) {
             dom.fogCtx.beginPath();
             dom.fogCtx.arc(p.x, p.y, 4, 0, Math.PI * 2);
             dom.fogCtx.fill();
+        }
+    }
+
+    // Wall edit mode overlays
+    if (state.currentTool === TOOLS.WALL_EDIT || state.currentTool === TOOLS.WALL_ERASE) {
+        const we = state.wallEdit;
+        for (const wall of state.walls) {
+            const isSelected = wall.id === we.selectedWallId;
+
+            // Highlight selected wall outline
+            if (isSelected) {
+                dom.fogCtx.beginPath();
+                dom.fogCtx.moveTo(wall.points[0].x, wall.points[0].y);
+                for (const p of wall.points) dom.fogCtx.lineTo(p.x, p.y);
+                dom.fogCtx.closePath();
+                dom.fogCtx.strokeStyle = 'rgba(250,204,21,0.9)';
+                dom.fogCtx.lineWidth = 2 / state.transform.scale;
+                dom.fogCtx.setLineDash([]);
+                dom.fogCtx.stroke();
+            }
+
+            if (state.currentTool === TOOLS.WALL_EDIT) {
+                const nr = WALL_NODE_RADIUS / state.transform.scale;
+                const er = (WALL_EDGE_RADIUS * 0.6) / state.transform.scale;
+
+                if (isSelected) {
+                    // Edge midpoint dots (insert node affordance)
+                    for (let i = 0; i < wall.points.length; i++) {
+                        const a = wall.points[i];
+                        const b = wall.points[(i + 1) % wall.points.length];
+                        dom.fogCtx.beginPath();
+                        dom.fogCtx.arc((a.x + b.x) / 2, (a.y + b.y) / 2, er, 0, Math.PI * 2);
+                        dom.fogCtx.fillStyle = 'rgba(250,204,21,0.5)';
+                        dom.fogCtx.fill();
+                    }
+                    // Node handles
+                    for (let i = 0; i < wall.points.length; i++) {
+                        const p = wall.points[i];
+                        dom.fogCtx.beginPath();
+                        dom.fogCtx.arc(p.x, p.y, nr, 0, Math.PI * 2);
+                        dom.fogCtx.fillStyle = i === we.selectedNodeIdx ? '#facc15' : '#fff';
+                        dom.fogCtx.fill();
+                        dom.fogCtx.strokeStyle = '#92400e';
+                        dom.fogCtx.lineWidth = 1.5 / state.transform.scale;
+                        dom.fogCtx.stroke();
+                    }
+                } else {
+                    // Unselected walls: small dim dots so DM can see they're editable
+                    for (const p of wall.points) {
+                        dom.fogCtx.beginPath();
+                        dom.fogCtx.arc(p.x, p.y, nr * 0.5, 0, Math.PI * 2);
+                        dom.fogCtx.fillStyle = 'rgba(250,204,21,0.25)';
+                        dom.fogCtx.fill();
+                    }
+                }
+            }
+        }
+    }
+
+    // Wall drawing preview (cyan, live fill)
+    if (state.isWallDrawing && state.wallDrawPoints.length > 0) {
+        const pts = state.wallDrawPoints;
+        // Snap cursor to grid for preview endpoint
+        const cursor = state.mousePos || null;
+
+        dom.fogCtx.beginPath();
+        dom.fogCtx.moveTo(pts[0].x, pts[0].y);
+        for (const p of pts) dom.fogCtx.lineTo(p.x, p.y);
+        if (cursor) dom.fogCtx.lineTo(cursor.x, cursor.y);
+        dom.fogCtx.closePath();
+
+        // Live semi-transparent fill showing the area that will be revealed
+        dom.fogCtx.fillStyle = 'rgba(34,211,238,0.12)';
+        dom.fogCtx.fill();
+
+        // Outline
+        dom.fogCtx.beginPath();
+        dom.fogCtx.moveTo(pts[0].x, pts[0].y);
+        for (const p of pts) dom.fogCtx.lineTo(p.x, p.y);
+        if (cursor) dom.fogCtx.lineTo(cursor.x, cursor.y);
+        dom.fogCtx.strokeStyle = '#22d3ee';
+        dom.fogCtx.setLineDash([6, 4]);
+        dom.fogCtx.lineWidth = 2.5;
+        dom.fogCtx.stroke();
+        dom.fogCtx.setLineDash([]);
+
+        // Vertices
+        dom.fogCtx.fillStyle = '#22d3ee';
+        for (const p of pts) {
+            dom.fogCtx.beginPath();
+            dom.fogCtx.arc(p.x, p.y, 4, 0, Math.PI * 2);
+            dom.fogCtx.fill();
+        }
+        // Green ring on first point when cursor is near it (close-polygon indicator)
+        if (cursor && pts.length > 2) {
+            const d = Math.hypot(cursor.x - pts[0].x, cursor.y - pts[0].y);
+            if (d < 15 / state.transform.scale) {
+                dom.fogCtx.beginPath();
+                dom.fogCtx.arc(pts[0].x, pts[0].y, 10, 0, Math.PI * 2);
+                dom.fogCtx.strokeStyle = '#4ade80';
+                dom.fogCtx.lineWidth = 2.5;
+                dom.fogCtx.stroke();
+            }
         }
     }
 }
@@ -711,7 +859,8 @@ function snapshotState() {
             size: t.size || 1
         })),
         fogShapes: JSON.parse(JSON.stringify(state.fogShapes)),
-        gridSize: state.gridSize
+        gridSize: state.gridSize,
+        walls: JSON.parse(JSON.stringify(state.walls))
     };
 }
 
@@ -728,6 +877,7 @@ function pushHistory() {
 function restoreSnapshot(snap) {
     state.fogShapes = JSON.parse(JSON.stringify(snap.fogShapes));
     state.gridSize = snap.gridSize;
+    if (snap.walls) state.walls = JSON.parse(JSON.stringify(snap.walls));
     updateGridDisplay();
     renderGrid();
 
@@ -835,6 +985,7 @@ function saveCurrentMap() {
     state.currentMapData.fogShapes = state.fogShapes;
     state.currentMapData.gridSize = state.gridSize;
     state.currentMapData.waypoints = state.waypoints;
+    state.currentMapData.walls = state.walls;
     state.currentMapData.lastUsed = Date.now();
     try {
         const tx = dataBase.transaction('maps', 'readwrite');
@@ -1173,6 +1324,9 @@ async function loadMap(id) {
     state.fogShapes = state.currentMapData.fogShapes || [];
     state.gridSize = state.currentMapData.gridSize || DEFAULT_GRID;
     state.waypoints = state.currentMapData.waypoints || [];
+    state.walls = state.currentMapData.walls || [];
+    state.isWallDrawing = false;
+    state.wallDrawPoints = [];
     state.transform = { x: 50, y: 50, scale: 1 };
     // Clear ruler overlay and initiative highlight on map switch
     state.rulerActive = false;
@@ -1445,7 +1599,10 @@ const toolButtons = {
     'fog-erase': 'tool-fog-erase',
     'fog-toggle': 'tool-fog-toggle',
     ruler: 'tool-ruler',
-    waypoint: 'tool-waypoint'
+    waypoint: 'tool-waypoint',
+    wall: 'tool-wall',
+    'wall-erase': 'tool-wall-erase',
+    'wall-edit': 'tool-wall-edit'
 };
 
 const toolCursors = {
@@ -1456,7 +1613,10 @@ const toolCursors = {
     [TOOLS.FOG_ERASE]: 'cell',
     [TOOLS.FOG_TOGGLE]: 'pointer',
     [TOOLS.RULER]: 'crosshair',
-    [TOOLS.WAYPOINT]: 'cell'
+    [TOOLS.WAYPOINT]: 'cell',
+    [TOOLS.WALL]: 'crosshair',
+    [TOOLS.WALL_ERASE]: 'pointer',
+    [TOOLS.WALL_EDIT]: 'pointer'
 };
 
 function setTool(tool) {
@@ -1469,6 +1629,19 @@ function setTool(tool) {
     }
     // Clear ruler when switching away
     if (tool !== TOOLS.RULER) { state.rulerActive = false; clearRuler(); }
+    // Cancel wall drawing when switching away
+    if (tool !== TOOLS.WALL && state.isWallDrawing) {
+        state.isWallDrawing = false;
+        state.wallDrawPoints = [];
+        renderFog();
+    }
+    // Clear wall edit selection when switching away
+    if (tool !== TOOLS.WALL_EDIT) {
+        state.wallEdit.selectedWallId = null;
+        state.wallEdit.selectedNodeIdx = null;
+        state.wallEdit.isDraggingNode = false;
+        renderFog();
+    }
     // Remove ring from all tool buttons
     Object.values(toolButtons).forEach(id => {
         $(id)?.classList.remove('ring-2', 'ring-amber-500');
@@ -1623,6 +1796,15 @@ function onPointerDown(e) {
         case TOOLS.FOG_ERASE:
             processFogErase(pos);
             break;
+        case TOOLS.WALL:
+            handleWallDrawStart(pos);
+            break;
+        case TOOLS.WALL_ERASE:
+            removeWallAt(pos);
+            break;
+        case TOOLS.WALL_EDIT:
+            handleWallEditDown(pos);
+            break;
     }
 }
 
@@ -1666,6 +1848,199 @@ function finishPolygonDrawing() {
     renderFog();
 }
 
+// ==================== WALL TOOL ====================
+function handleWallDrawStart(pos) {
+    const now = Date.now();
+    if (now - state.lastTapTime < DOUBLE_TAP_MS) {
+        if (state.wallDrawPoints.length > 2) finishWallDrawing();
+        state.lastTapTime = 0;
+        return;
+    }
+    state.lastTapTime = now;
+
+    if (!state.isWallDrawing) {
+        state.isWallDrawing = true;
+        state.wallDrawPoints = [pos];
+    } else {
+        const start = state.wallDrawPoints[0];
+        if (Math.hypot(pos.x - start.x, pos.y - start.y) < 15 / state.transform.scale
+            && state.wallDrawPoints.length > 2) {
+            finishWallDrawing();
+        } else {
+            state.wallDrawPoints.push(pos);
+        }
+    }
+    renderFog();
+}
+
+function finishWallDrawing() {
+    state.isWallDrawing = false;
+    if (state.wallDrawPoints.length > 2) {
+        state.walls.push({ id: Date.now(), points: [...state.wallDrawPoints] });
+        rebuildWallFog();
+        pushHistory();
+        saveCurrentMap();
+    }
+    state.wallDrawPoints = [];
+    renderFog();
+}
+
+function rebuildWallFog() {
+    // Remove any previous wall-fog composite entry
+    state.fogShapes = state.fogShapes.filter(s => s.type !== 'wall');
+
+    if (state.walls.length === 0) { renderFog(); return; }
+
+    // One composite entry holds all wall polygons.
+    // Each polygon's INTERIOR is filled as fog (hidden from players).
+    state.fogShapes.unshift({
+        id: Date.now(),
+        type: 'wall',
+        isHidden: true,
+        wallPolygons: state.walls.map(wl => [...wl.points])
+    });
+    renderFog();
+}
+
+// ==================== WALL EDITING HELPERS ====================
+const WALL_NODE_RADIUS = 8;   // px in canvas space (scaled)
+const WALL_EDGE_RADIUS = 10;  // click tolerance for edge midpoint insertion
+
+function wallHitTestPolygon(wall, pos) {
+    dom.fogCtx.beginPath();
+    dom.fogCtx.moveTo(wall.points[0].x, wall.points[0].y);
+    for (const p of wall.points) dom.fogCtx.lineTo(p.x, p.y);
+    dom.fogCtx.closePath();
+    return dom.fogCtx.isPointInPath(pos.x, pos.y);
+}
+
+function wallHitTestNode(wall, pos) {
+    const r = WALL_NODE_RADIUS / state.transform.scale;
+    for (let i = 0; i < wall.points.length; i++) {
+        if (Math.hypot(pos.x - wall.points[i].x, pos.y - wall.points[i].y) < r) return i;
+    }
+    return -1;
+}
+
+function wallHitTestEdge(wall, pos) {
+    const r = WALL_EDGE_RADIUS / state.transform.scale;
+    for (let i = 0; i < wall.points.length; i++) {
+        const a = wall.points[i];
+        const b = wall.points[(i + 1) % wall.points.length];
+        const mx = (a.x + b.x) / 2;
+        const my = (a.y + b.y) / 2;
+        if (Math.hypot(pos.x - mx, pos.y - my) < r) return i; // insert after index i
+    }
+    return -1;
+}
+
+function handleWallEditDown(pos) {
+    const we = state.wallEdit;
+
+    // If a wall is already selected, check nodes + edges first
+    if (we.selectedWallId !== null) {
+        const wall = state.walls.find(w => w.id === we.selectedWallId);
+        if (wall) {
+            // Hit a node → start dragging it
+            const ni = wallHitTestNode(wall, pos);
+            if (ni >= 0) {
+                we.selectedNodeIdx = ni;
+                we.isDraggingNode = true;
+                return;
+            }
+            // Hit an edge midpoint → insert new node
+            const ei = wallHitTestEdge(wall, pos);
+            if (ei >= 0) {
+                const a = wall.points[ei];
+                const b = wall.points[(ei + 1) % wall.points.length];
+                wall.points.splice(ei + 1, 0, { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
+                we.selectedNodeIdx = ei + 1;
+                we.isDraggingNode = true;
+                rebuildWallFog();
+                return;
+            }
+        }
+    }
+
+    // Click on a different wall polygon → select it
+    for (let i = state.walls.length - 1; i >= 0; i--) {
+        if (wallHitTestPolygon(state.walls[i], pos)) {
+            we.selectedWallId = state.walls[i].id;
+            we.selectedNodeIdx = null;
+            we.isDraggingNode = false;
+            renderFog();
+            return;
+        }
+    }
+
+    // Click empty space → deselect
+    we.selectedWallId = null;
+    we.selectedNodeIdx = null;
+    we.isDraggingNode = false;
+    renderFog();
+}
+
+function handleWallEditMove(pos) {
+    const we = state.wallEdit;
+    if (!we.isDraggingNode || we.selectedWallId === null || we.selectedNodeIdx === null) return;
+    const wall = state.walls.find(w => w.id === we.selectedWallId);
+    if (!wall) return;
+    wall.points[we.selectedNodeIdx] = { x: pos.x, y: pos.y };
+    rebuildWallFog();
+}
+
+function handleWallEditUp() {
+    if (state.wallEdit.isDraggingNode) {
+        state.wallEdit.isDraggingNode = false;
+        state.wallEdit.selectedNodeIdx = null;
+        pushHistory();
+        saveCurrentMap();
+    }
+}
+
+function handleWallEditRightClick(pos) {
+    const we = state.wallEdit;
+    if (we.selectedWallId === null) return;
+    const wall = state.walls.find(w => w.id === we.selectedWallId);
+    if (!wall) return;
+    const ni = wallHitTestNode(wall, pos);
+    if (ni >= 0) {
+        if (wall.points.length <= 3) {
+            // Too few points — delete the whole wall
+            state.walls = state.walls.filter(w => w.id !== we.selectedWallId);
+            we.selectedWallId = null;
+        } else {
+            wall.points.splice(ni, 1);
+        }
+        rebuildWallFog();
+        pushHistory();
+        saveCurrentMap();
+    }
+}
+
+function removeWallAt(pos) {
+    for (let i = state.walls.length - 1; i >= 0; i--) {
+        const wall = state.walls[i];
+        // Use offscreen canvas to test point-in-polygon
+        const oc = document.createElement('canvas');
+        oc.width = 2; oc.height = 2;
+        const octx = oc.getContext('2d');
+        octx.beginPath();
+        // Scale points into 0-2 space isn't practical; use fogCtx directly
+        dom.fogCtx.beginPath();
+        dom.fogCtx.moveTo(wall.points[0].x, wall.points[0].y);
+        for (const p of wall.points) dom.fogCtx.lineTo(p.x, p.y);
+        dom.fogCtx.closePath();
+        if (dom.fogCtx.isPointInPath(pos.x, pos.y)) {
+            state.walls.splice(i, 1);
+            rebuildWallFog();
+            pushHistory();
+            saveCurrentMap();
+            return;
+        }
+    }
+}
+
 function onPointerMove(e) {
     if (!state.activePointers.has(e.pointerId)) return;
     state.activePointers.set(e.pointerId, e);
@@ -1704,6 +2079,10 @@ function onPointerMove(e) {
         state.activeToken.x = snapped.x;
         state.activeToken.y = snapped.y;
         renderTokens();
+    } else if (state.isDMMode && state.wallEdit.isDraggingNode) {
+        handleWallEditMove(state.mousePos);
+    } else if (state.isDMMode && state.isWallDrawing) {
+        renderFog(); // Wall preview line
     } else if (state.isDMMode && state.isDrawing) {
         if (state.currentTool === TOOLS.FOG_DRAW) {
             renderFog(); // Preview line
@@ -1781,6 +2160,11 @@ function onPointerUp(e) {
         // Player tap to reveal fog (only in fog tool mode)
         const pos = getPointerPos(e);
         processFogTapPlayer(pos);
+    }
+
+    // Wall edit node drag finish
+    if (state.currentTool === TOOLS.WALL_EDIT) {
+        handleWallEditUp();
     }
 
     // Ruler finish
@@ -1948,15 +2332,28 @@ function initUI() {
     $('player-tool-ping')?.addEventListener('click', () => setPlayerTool('ping'));
 
     // Tool buttons
-    $('tool-drag').addEventListener('click', () => setTool(TOOLS.DRAG));
-    $('tool-pan').addEventListener('click', () => setTool(TOOLS.PAN));
-    $('tool-fog-draw').addEventListener('click', () => setTool(TOOLS.FOG_DRAW));
-    $('tool-fog-rect').addEventListener('click', () => setTool(TOOLS.FOG_RECT));
-    $('tool-fog-erase').addEventListener('click', () => setTool(TOOLS.FOG_ERASE));
-    $('tool-fog-toggle').addEventListener('click', () => setTool(TOOLS.FOG_TOGGLE));
+    $('tool-drag')?.addEventListener('click', () => setTool(TOOLS.DRAG));
+    $('tool-pan')?.addEventListener('click', () => setTool(TOOLS.PAN));
+    $('tool-fog-draw')?.addEventListener('click', () => setTool(TOOLS.FOG_DRAW));
+    $('tool-fog-rect')?.addEventListener('click', () => setTool(TOOLS.FOG_RECT));
+    $('tool-fog-erase')?.addEventListener('click', () => setTool(TOOLS.FOG_ERASE));
+    $('tool-fog-toggle')?.addEventListener('click', () => setTool(TOOLS.FOG_TOGGLE));
     $('tool-ruler')?.addEventListener('click', () => setTool(TOOLS.RULER));
     $('tool-waypoint')?.addEventListener('click', () => setTool(TOOLS.WAYPOINT));
-    $('tool-grid-toggle').addEventListener('click', () => {
+    $('tool-wall')?.addEventListener('click', () => setTool(TOOLS.WALL));
+    $('tool-wall-edit')?.addEventListener('click', () => setTool(TOOLS.WALL_EDIT));
+    $('tool-wall-erase')?.addEventListener('click', () => setTool(TOOLS.WALL_ERASE));
+    $('btn-walls-clear')?.addEventListener('click', () => {
+        if (state.walls.length === 0) return;
+        showConfirm('Clear All Walls', 'Delete every wall polygon on this map?', () => {
+            state.walls = [];
+            state.wallEdit.selectedWallId = null;
+            rebuildWallFog();
+            pushHistory();
+            saveCurrentMap();
+        });
+    });
+    $('tool-grid-toggle')?.addEventListener('click', () => {
         state.isGridVisible = !state.isGridVisible;
         renderGrid();
     });
@@ -2321,6 +2718,48 @@ function initUI() {
         e.preventDefault();
         if (!state.isDMMode) return;
         const pos = getPointerPos(e);
+
+        // Wall edit: right-click on a node deletes it
+        if (state.currentTool === TOOLS.WALL_EDIT) {
+            handleWallEditRightClick(pos);
+            return;
+        }
+
+        // Wall erase: right-click also removes wall (same as left-click)
+        if (state.currentTool === TOOLS.WALL_ERASE) {
+            removeWallAt(pos);
+            return;
+        }
+
+        // Wall tool: right-click removes last node while drawing, or removes a finished wall
+        if (state.currentTool === TOOLS.WALL) {
+            if (state.isWallDrawing) {
+                if (state.wallDrawPoints.length > 1) {
+                    state.wallDrawPoints.pop();
+                } else {
+                    // Only one point left — cancel entirely
+                    state.isWallDrawing = false;
+                    state.wallDrawPoints = [];
+                }
+                renderFog();
+            } else {
+                removeWallAt(pos);
+            }
+            return;
+        }
+
+        // Fog-draw polygon: right-click removes last node
+        if (state.currentTool === TOOLS.FOG_DRAW && state.isDrawing) {
+            if (state.currentDrawPoints.length > 1) {
+                state.currentDrawPoints.pop();
+            } else {
+                state.isDrawing = false;
+                state.currentDrawPoints = [];
+            }
+            renderFog();
+            return;
+        }
+
         for (let i = state.tokens.length - 1; i >= 0; i--) {
             const t = state.tokens[i];
             const radius = ((t.size || 1) * state.gridSize) / 2;
@@ -2352,8 +2791,15 @@ function initUI() {
                 break;
             case 'm': setTool(TOOLS.RULER); break;
             case 'w': setTool(TOOLS.WAYPOINT); break;
+            case 'v': setTool(TOOLS.WALL); break;
+            case 'b': setTool(TOOLS.WALL_EDIT); break;
+            case 'x': setTool(TOOLS.WALL_ERASE); break;
             case 'escape':
-                if (state.isDrawing) {
+                if (state.isWallDrawing) {
+                    state.isWallDrawing = false;
+                    state.wallDrawPoints = [];
+                    renderFog();
+                } else if (state.isDrawing) {
                     state.isDrawing = false;
                     state.currentDrawPoints = [];
                     renderFog();
