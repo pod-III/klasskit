@@ -984,10 +984,10 @@ function initDB() {
             };
         });
         loadTokenLibrary();
-        await syncFromCloud();
-        if (state.mapsList.length > 0 && !state.currentMapData) {
-            await loadMap(state.mapsList[0].id);
-        }
+        // Boot from local immediately — don't wait for cloud
+        if (state.mapsList.length > 0) await loadMap(state.mapsList[0].id);
+        // Background cloud sync — merges cloud data silently after UI is ready
+        syncFromCloud();
     };
     request.onerror = () => showAlert('Database Error', 'Failed to open IndexedDB');
 }
@@ -1002,6 +1002,10 @@ function saveCurrentMap() {
     state.currentMapData.waypoints = state.waypoints;
     state.currentMapData.wallSegments = state.wallSegments;
     state.currentMapData.openingSegments = state.openingSegments;
+    state.currentMapData.gridMetresPerSquare = state.gridMetresPerSquare;
+    state.currentMapData.losEnabled = state.losEnabled;
+    state.currentMapData.losDarkMap = state.losDarkMap;
+    state.currentMapData.losViewDistance = state.losViewDistance;
     state.currentMapData.lastUsed = Date.now();
     try {
         const tx = dataBase.transaction('maps', 'readwrite');
@@ -1109,6 +1113,9 @@ function saveCampaign(campaign) {
     if (!dataBase || !dataBase.objectStoreNames.contains('campaigns')) return;
     const tx = dataBase.transaction('campaigns', 'readwrite');
     tx.objectStore('campaigns').put(campaign);
+    if (typeof vttSaveCampaign === 'function') vttSaveCampaign({ id: campaign.cloudId || null, name: campaign.name }).then(r => {
+        if (r?.id && !campaign.cloudId) { campaign.cloudId = r.id; const tx2 = dataBase.transaction('campaigns', 'readwrite'); tx2.objectStore('campaigns').put(campaign); }
+    });
 }
 
 function createCampaign(name) {
@@ -1151,11 +1158,13 @@ function deleteCampaign(id) {
                 }
             }
         });
+        const deletedCampaign = state.campaignsList.find(c => c.id === id);
         state.campaignsList = state.campaignsList.filter(c => c.id !== id);
         if (dataBase) {
             const tx = dataBase.transaction('campaigns', 'readwrite');
             tx.objectStore('campaigns').delete(id);
         }
+        if (deletedCampaign?.cloudId && typeof vttDeleteCampaign === 'function') vttDeleteCampaign(deletedCampaign.cloudId);
         if (state.activeCampaignId === id) state.activeCampaignId = null;
         renderCampaignSelect();
         renderMapLibrary();
@@ -1346,6 +1355,10 @@ async function loadMap(id) {
             ...(state.currentMapData.doorSegments || []).map(d => ({ ...d, isDoor: true })),
             ...(state.currentMapData.windowSegments || []).map(w => ({ ...w, isDoor: false, isOpen: w.isOpen ?? true }))
            ];
+    if (state.currentMapData.gridMetresPerSquare) state.gridMetresPerSquare = state.currentMapData.gridMetresPerSquare;
+    if (state.currentMapData.losEnabled != null)   state.losEnabled = state.currentMapData.losEnabled;
+    if (state.currentMapData.losDarkMap != null)   state.losDarkMap = state.currentMapData.losDarkMap;
+    if (state.currentMapData.losViewDistance != null) state.losViewDistance = state.currentMapData.losViewDistance;
     state.wallDrag.active = false;
     state.wallEdit.isDragging = false;
     invalidateLOSCache();
@@ -3258,104 +3271,152 @@ function initUI() {
     }, { passive: false });
 }
 
-// ==================== CLOUD SYNC (tools_dnd table) ====================
+// ==================== CLOUD SYNC (vtt_* tables) ====================
 let syncToCloudDebounce = null;
 
 async function syncToCloud() {
-    if (typeof saveDndSave !== 'function') return;
+    if (typeof vttSaveMap !== 'function') return;
     if (syncToCloudDebounce) clearTimeout(syncToCloudDebounce);
     syncToCloudDebounce = setTimeout(async () => {
         syncToCloudDebounce = null;
         await performCloudSync();
-    }, 500);
+    }, 800);
 }
 
 async function performCloudSync() {
+    if (typeof vttSaveMap !== 'function') return;
+    try {
     for (const map of state.mapsList) {
-        const stateData = {
-            data: map.data || null,
-            imageUrl: map.imageUrl || null,
-            tokens: (map.tokens || []).map(t => ({
-                id: t.id, name: t.name, x: t.x, y: t.y,
-                src: t.src && !t.src.startsWith('data:') ? t.src : null,
-                imageUrl: t.imageUrl || null,
-                size: t.size || 1
-            })),
-            fogShapes: map.fogShapes || [],
-            gridSize: map.gridSize || DEFAULT_GRID
-        };
-        const result = await saveDndSave('vtt', map.name, stateData, map.cloudId || null);
-        if (result.id && !map.cloudId) {
+        const result = await vttSaveMap({
+            id: map.cloudId || null,
+            name: map.name,
+            campaign_id: map.campaignCloudId || null,
+            grid_cols: map.gridCols || 20,
+            grid_rows: map.gridRows || 15,
+            grid_size: map.gridSize || DEFAULT_GRID,
+            grid_metres_per_square: map.gridMetresPerSquare || 1.5,
+            is_grid_visible: map.isGridVisible || false,
+            los_enabled: map.losEnabled || false,
+            los_dark_map: map.losDarkMap || false,
+            los_view_distance: map.losViewDistance || 30,
+            image_url: map.imageUrl || null,
+            image_path: map.imagePath || null,
+        });
+        if (result?.id && !map.cloudId) {
             map.cloudId = result.id;
             if (dataBase) {
                 const tx = dataBase.transaction('maps', 'readwrite');
                 tx.objectStore('maps').put(map);
             }
         }
+        if (result?.id) {
+            // Save walls and tokens under the cloud map id
+            const wallRows = [
+                ...state.wallSegments.map(w => ({ ...w, is_opening: false })),
+                ...state.openingSegments.map(w => ({ ...w, is_opening: true }))
+            ];
+            await vttSaveWalls(result.id, wallRows);
+            await vttSaveTokens(result.id, map.tokens || []);
+        }
     }
-    if (state.tokenLibrary.length > 0) {
-        const libState = { tokens: state.tokenLibrary.map(t => ({ id: t.id, name: t.name, src: t.src && !t.src.startsWith('data:') ? t.src : null, imageUrl: t.imageUrl })) };
-        const libResult = await saveDndSave('vtt_library', 'Token Library', libState, state.tokenLibraryCloudId || null);
-        if (libResult.id) state.tokenLibraryCloudId = libResult.id;
+    // Sync token library
+    if (typeof vttSaveTokenLibraryEntry === 'function') {
+        for (const t of state.tokenLibrary) {
+            if (!t.cloudId && (t.imageUrl || t.src)) {
+                const r = await vttSaveTokenLibraryEntry({ name: t.name, image_url: t.imageUrl || t.src, image_path: t.imagePath || null });
+                if (r?.id) {
+                    t.cloudId = r.id;
+                    if (dataBase) { const tx = dataBase.transaction('tokenLibrary', 'readwrite'); tx.objectStore('tokenLibrary').put(t); }
+                }
+            }
+        }
+    }
+    } catch (e) {
+        console.warn('[VTT] Cloud sync failed, local data intact:', e);
     }
 }
 
 async function syncFromCloud() {
-    if (typeof loadDndSaves !== 'function') return;
+    if (typeof vttLoadMaps !== 'function') return;
+    try {
 
-    const mapSaves = await loadDndSaves('vtt');
-    for (const save of mapSaves) {
-        const sd = save.state_data || {};
-        const existing = state.mapsList.find(m => m.cloudId === save.id);
-        const cleanCloudData = (val) => (typeof val === 'string' && val.startsWith('[STRIPPED_')) ? null : val;
-
-        if (existing) {
-            existing.name = save.name;
-            existing.data = cleanCloudData(sd.data) || existing.data;
-            existing.imageUrl = sd.imageUrl || existing.imageUrl;
-            existing.tokens = sd.tokens || existing.tokens;
-            existing.fogShapes = sd.fogShapes || existing.fogShapes;
-            existing.gridSize = sd.gridSize || existing.gridSize;
-            if (dataBase) {
-                const tx = dataBase.transaction('maps', 'readwrite');
-                tx.objectStore('maps').put(existing);
+    // Campaigns
+    if (typeof vttLoadCampaigns === 'function') {
+        const cloudCampaigns = await vttLoadCampaigns();
+        for (const cc of cloudCampaigns) {
+            const existing = state.campaignsList.find(c => c.cloudId === cc.id);
+            if (existing) {
+                existing.name = cc.name;
+            } else {
+                const local = ensureMapMeta({ id: Date.now(), cloudId: cc.id, name: cc.name, createdAt: Date.now() });
+                state.campaignsList.push(local);
+                if (dataBase) { const tx = dataBase.transaction('campaigns', 'readwrite'); tx.objectStore('campaigns').put(local); }
             }
+        }
+        renderCampaignSelect();
+    }
+
+    // Maps
+    const cloudMaps = await vttLoadMaps();
+    for (const cm of cloudMaps) {
+        const existing = state.mapsList.find(m => m.cloudId === cm.id);
+        const localCampaign = state.campaignsList.find(c => c.cloudId === cm.campaign_id);
+        if (existing) {
+            existing.name = cm.name;
+            existing.imageUrl = cm.image_url || existing.imageUrl;
+            existing.gridSize = cm.grid_size || existing.gridSize;
+            existing.gridMetresPerSquare = cm.grid_metres_per_square || existing.gridMetresPerSquare;
+            existing.losEnabled = cm.los_enabled;
+            existing.losDarkMap = cm.los_dark_map;
+            existing.losViewDistance = cm.los_view_distance;
+            if (localCampaign) existing.campaignId = localCampaign.id;
+            if (dataBase) { const tx = dataBase.transaction('maps', 'readwrite'); tx.objectStore('maps').put(existing); }
         } else {
+            const walls = await vttLoadWalls(cm.id);
+            const tokens = await vttLoadTokens(cm.id);
             const newMap = ensureMapMeta({
-                id: Date.now(),
-                cloudId: save.id,
-                name: save.name,
-                data: cleanCloudData(sd.data) || null,
-                imageUrl: sd.imageUrl || null,
-                tokens: sd.tokens || [],
-                fogShapes: sd.fogShapes || [],
-                gridSize: sd.gridSize || DEFAULT_GRID
+                id: Date.now(), cloudId: cm.id, name: cm.name,
+                imageUrl: cm.image_url || null, data: null,
+                gridSize: cm.grid_size || DEFAULT_GRID,
+                gridMetresPerSquare: cm.grid_metres_per_square || 1.5,
+                isGridVisible: cm.is_grid_visible || false,
+                losEnabled: cm.los_enabled || false,
+                losDarkMap: cm.los_dark_map || false,
+                losViewDistance: cm.los_view_distance || 30,
+                campaignId: localCampaign?.id || null,
+                wallSegments: walls.filter(w => !w.is_opening).map(w => ({ id: w.id, x1: w.x1, y1: w.y1, x2: w.x2, y2: w.y2 })),
+                openingSegments: walls.filter(w => w.is_opening).map(w => ({ id: w.id, x1: w.x1, y1: w.y1, x2: w.x2, y2: w.y2, isOpen: w.is_open, isDoor: w.is_door })),
+                tokens: tokens.map(t => ({ id: t.id, name: t.name, x: t.x, y: t.y, imageUrl: t.image_url, size: t.size, isPC: t.is_pc })),
+                fogShapes: []
             });
             state.mapsList.push(newMap);
-            if (dataBase) {
-                const tx = dataBase.transaction('maps', 'readwrite');
-                tx.objectStore('maps').put(newMap);
+            if (dataBase) { const tx = dataBase.transaction('maps', 'readwrite'); tx.objectStore('maps').put(newMap); }
+        }
+    }
+
+    // Token library
+    if (typeof vttLoadTokenLibrary === 'function') {
+        const cloudLib = await vttLoadTokenLibrary();
+        for (const ct of cloudLib) {
+            const existing = state.tokenLibrary.find(t => t.cloudId === ct.id);
+            if (!existing && ct.image_url) {
+                const entry = { id: Date.now(), cloudId: ct.id, name: ct.name, src: ct.image_url, imageUrl: ct.image_url };
+                state.tokenLibrary.push(entry);
+                if (dataBase) { const tx = dataBase.transaction('tokenLibrary', 'readwrite'); tx.objectStore('tokenLibrary').put(entry); }
             }
         }
     }
 
-    const libSaves = await loadDndSaves('vtt_library');
-    if (libSaves.length > 0) {
-        const lib = libSaves[0];
-        state.tokenLibraryCloudId = lib.id;
-        const tokens = lib.state_data?.tokens || [];
-        state.tokenLibrary = tokens.map(t => ({ id: t.id, name: t.name, src: (t.src && !t.src.startsWith('[STRIPPED_')) ? t.src : (t.imageUrl || null), imageUrl: t.imageUrl }));
-        if (dataBase) {
-            const tx = dataBase.transaction('tokenLibrary', 'readwrite');
-            state.tokenLibrary.forEach(t => tx.objectStore('tokenLibrary').put(t));
-        }
-    }
-
+    // After cloud merge: silently re-render library and token library
+    // Don't disrupt the currently loaded map unless it's not yet loaded
     renderMapLibrary();
+    renderTokenLibrary();
     if (state.mapsList.length > 0 && !state.currentMapData) {
         await loadMap(state.mapsList[0].id);
     }
-    renderTokenLibrary();
+    } catch (e) {
+        console.warn('[VTT] Background cloud sync failed, local data intact:', e);
+    }
 }
 
 async function resolveMapImage(mapData) {
