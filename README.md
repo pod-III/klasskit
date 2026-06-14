@@ -1,6 +1,6 @@
 # 🍎 KlassKit: The Ultimate Classroom Command Center
 
-![Version](https://img.shields.io/badge/version-1.4.8-blue?style=for-the-badge)
+![Version](https://img.shields.io/badge/version-1.4.9-blue?style=for-the-badge)
 ![Activities](https://img.shields.io/badge/activities-65+-green?style=for-the-badge)
 ![Status](https://img.shields.io/badge/status-Active%20Development-orange?style=for-the-badge)
 ![Aesthetic](https://img.shields.io/badge/aesthetic-Soft%20Brutalism-pink?style=for-the-badge)
@@ -292,4 +292,4 @@ Adding to the hub is as simple as adding an entry to `games.json`:
 Built with ❤️ by **Fahrul Ahyan**.
 KlassKit is a passion project dedicated to the global community of teachers. It is, and always will be, **100% Free**.
 
-*Current Version: 1.4.8 — Active Development.*
+*Current Version: 1.4.9 — Active Development.*
