@@ -104,6 +104,8 @@ const dom = {
     mapSelect: $('map-select'),
     gridSizeInput: $('grid-size-input'),
     gridSizeValue: $('grid-size-value'),
+    gridColsInput: $('grid-cols-input'),
+    gridRowsInput: $('grid-rows-input'),
     ctxMenu: $('token-context-menu'),
     tokenLibGrid: $('token-library-grid'),
     tokenLibEmpty: $('token-library-empty'),
@@ -146,6 +148,41 @@ function createPing(rawPos) {
 // Rotate a point 90° clockwise around (0,0) in a w×h space
 function rotatePointCW(x, y, w, h) {
     return { x: h - y, y: x };
+}
+
+// Snap a world coordinate so the token sits correctly on the grid.
+// Odd-sized tokens (1x1, 3x3) have a single center cell → snap to cell center.
+// Even-sized tokens (2x2, 4x4) straddle grid intersections → snap to nearest line crossing.
+function snapToGrid(x, y, size) {
+    const gs = state.gridSize;
+    const sz = size || 1;
+    if (sz % 2 === 1) {
+        // Odd: snap center to nearest cell center
+        const col = Math.floor(x / gs);
+        const row = Math.floor(y / gs);
+        return {
+            x: col * gs + gs / 2,
+            y: row * gs + gs / 2
+        };
+    } else {
+        // Even: snap center to nearest grid line intersection
+        return {
+            x: Math.round(x / gs) * gs,
+            y: Math.round(y / gs) * gs
+        };
+    }
+}
+
+// Update grid cols/rows inputs and cell-size display from current gridSize + map dims
+function updateGridDisplay() {
+    if (dom.gridSizeValue) dom.gridSizeValue.textContent = state.gridSize + ' px';
+    if (dom.gridSizeInput) dom.gridSizeInput.value = state.gridSize;
+    if (state.mapImage) {
+        const cols = Math.round(state.mapImage.width / state.gridSize);
+        const rows = Math.round(state.mapImage.height / state.gridSize);
+        if (dom.gridColsInput) dom.gridColsInput.value = cols;
+        if (dom.gridRowsInput) dom.gridRowsInput.value = rows;
+    }
 }
 
 // ==================== MODAL SYSTEM ====================
@@ -393,8 +430,7 @@ function pushHistory() {
 function restoreSnapshot(snap) {
     state.fogShapes = JSON.parse(JSON.stringify(snap.fogShapes));
     state.gridSize = snap.gridSize;
-    dom.gridSizeInput.value = state.gridSize;
-    dom.gridSizeValue.textContent = state.gridSize;
+    updateGridDisplay();
     renderGrid();
 
     // Reload tokens asynchronously
@@ -523,8 +559,6 @@ async function loadMap(id) {
     state.tokens = [];
     state.fogShapes = state.currentMapData.fogShapes || [];
     state.gridSize = state.currentMapData.gridSize || DEFAULT_GRID;
-    dom.gridSizeInput.value = state.gridSize;
-    dom.gridSizeValue.textContent = state.gridSize;
     state.transform = { x: 50, y: 50, scale: 1 };
     updateTransform();
 
@@ -546,6 +580,7 @@ async function loadMap(id) {
                 c.width = w;
                 c.height = h;
             });
+            updateGridDisplay();
 
             const tokenData = state.currentMapData.tokens || [];
             if (tokenData.length === 0) {
@@ -714,9 +749,10 @@ async function placeTokenFromLibrary(libToken) {
     const img = new Image();
     img.onload = () => {
         const rect = dom.wrapper.getBoundingClientRect();
-        const viewX = (rect.width / 2 - state.transform.x) / state.transform.scale;
-        const viewY = (rect.height / 2 - state.transform.y) / state.transform.scale;
-        state.tokens.push({ id: Date.now(), img, name: nameInput, x: viewX, y: viewY, size: 1, imageUrl: libToken.imageUrl });
+        const rawX = (rect.width / 2 - state.transform.x) / state.transform.scale;
+        const rawY = (rect.height / 2 - state.transform.y) / state.transform.scale;
+        const snapped = snapToGrid(rawX, rawY, 1);
+        state.tokens.push({ id: Date.now(), img, name: nameInput, x: snapped.x, y: snapped.y, size: 1, imageUrl: libToken.imageUrl });
         renderTokens();
         pushHistory();
         saveCurrentMap();
@@ -791,8 +827,23 @@ const toolButtons = {
     'fog-toggle': 'tool-fog-toggle'
 };
 
+const toolCursors = {
+    [TOOLS.DRAG]: 'grab',
+    [TOOLS.PAN]: 'move',
+    [TOOLS.FOG_DRAW]: 'crosshair',
+    [TOOLS.FOG_RECT]: 'crosshair',
+    [TOOLS.FOG_ERASE]: 'cell',
+    [TOOLS.FOG_TOGGLE]: 'pointer'
+};
+
 function setTool(tool) {
     state.currentTool = tool;
+    // Cancel any in-progress drawing when switching tools
+    if (state.isDrawing) {
+        state.isDrawing = false;
+        state.currentDrawPoints = [];
+        renderFog();
+    }
     // Remove ring from all tool buttons
     Object.values(toolButtons).forEach(id => {
         $(id)?.classList.remove('ring-2', 'ring-amber-500');
@@ -800,6 +851,8 @@ function setTool(tool) {
     // Add ring to current
     const btnId = toolButtons[tool];
     if (btnId) $(btnId)?.classList.add('ring-2', 'ring-amber-500');
+    // Update cursor
+    dom.container.style.cursor = toolCursors[tool] || 'default';
 }
 
 // ==================== PLAYER TOOL SELECTION ====================
@@ -986,8 +1039,10 @@ function onPointerMove(e) {
     }
 
     if (state.activeToken) {
-        state.activeToken.x = state.mousePos.x;
-        state.activeToken.y = state.mousePos.y;
+        dom.container.style.cursor = 'grabbing';
+        const snapped = snapToGrid(state.mousePos.x, state.mousePos.y, state.activeToken.size || 1);
+        state.activeToken.x = snapped.x;
+        state.activeToken.y = snapped.y;
         renderTokens();
     } else if (state.isDMMode && state.isDrawing) {
         if (state.currentTool === TOOLS.FOG_DRAW) {
@@ -1049,6 +1104,7 @@ function onPointerUp(e) {
 
     if (state.activeToken) {
         state.activeToken = null;
+        dom.container.style.cursor = toolCursors[state.currentTool] || 'default';
         pushHistory();
         saveCurrentMap();
     } else if (state.isDMMode && state.isDrawing && state.currentTool === TOOLS.FOG_RECT) {
@@ -1136,6 +1192,18 @@ function showContextMenu(x, y, token) {
     dom.ctxMenu.style.left = x + 'px';
     dom.ctxMenu.style.top = y + 'px';
     dom.ctxMenu.classList.remove('hidden');
+    // Highlight the current size option
+    const currentSize = token.size || 1;
+    dom.ctxMenu.querySelectorAll('[data-action^="set-size-"]').forEach(el => {
+        const sz = parseInt(el.dataset.action.replace('set-size-', ''), 10);
+        if (sz === currentSize) {
+            el.style.color = '#f59e0b';
+            el.style.fontWeight = 'bold';
+        } else {
+            el.style.color = '';
+            el.style.fontWeight = '';
+        }
+    });
     requestAnimationFrame(() => {
         const menuRect = dom.ctxMenu.getBoundingClientRect();
         if (menuRect.right > window.innerWidth) {
@@ -1195,20 +1263,49 @@ function initUI() {
         renderGrid();
     });
 
-    // Grid size
+    // Grid size fine-tune slider
     dom.gridSizeInput.addEventListener('input', (e) => {
         const val = parseInt(e.target.value, 10);
         state.gridSize = isNaN(val) ? DEFAULT_GRID : Math.min(Math.max(val, GRID_MIN), GRID_MAX);
-        dom.gridSizeValue.textContent = state.gridSize;
+        updateGridDisplay();
         renderGrid();
         renderTokens();
         if (state.currentMapData) {
             state.currentMapData.gridSize = state.gridSize;
             saveCurrentMap();
         }
-        // Note: grid size change not added to history automatically.
-        // Could pushHistory() here, but that might be too frequent.
-        // Instead, we could add a debounced history entry, but for simplicity, leave as is.
+    });
+
+    // Grid cols input — derive gridSize from image width / cols
+    dom.gridColsInput?.addEventListener('change', (e) => {
+        if (!state.mapImage) return;
+        const cols = parseInt(e.target.value, 10);
+        if (cols > 0) {
+            state.gridSize = Math.min(Math.max(Math.round(state.mapImage.width / cols), GRID_MIN), GRID_MAX);
+            updateGridDisplay();
+            renderGrid();
+            renderTokens();
+            if (state.currentMapData) {
+                state.currentMapData.gridSize = state.gridSize;
+                saveCurrentMap();
+            }
+        }
+    });
+
+    // Grid rows input — derive gridSize from image height / rows
+    dom.gridRowsInput?.addEventListener('change', (e) => {
+        if (!state.mapImage) return;
+        const rows = parseInt(e.target.value, 10);
+        if (rows > 0) {
+            state.gridSize = Math.min(Math.max(Math.round(state.mapImage.height / rows), GRID_MIN), GRID_MAX);
+            updateGridDisplay();
+            renderGrid();
+            renderTokens();
+            if (state.currentMapData) {
+                state.currentMapData.gridSize = state.gridSize;
+                saveCurrentMap();
+            }
+        }
     });
 
     // Fit map
@@ -1260,41 +1357,65 @@ function initUI() {
         const file = e.target.files[0];
         if (!file) return;
         const defaultName = file.name.replace(/\.[^/.]+$/, '').replace(/_/g, ' ');
+
+        // Step 1: Get image dimensions first
+        const imgDataUrl = await new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onload = (ev) => resolve(ev.target.result);
+            reader.readAsDataURL(file);
+        });
+        const imgDims = await new Promise((resolve) => {
+            const img = new Image();
+            img.onload = () => resolve({ w: img.width, h: img.height });
+            img.src = imgDataUrl;
+        });
+
+        // Step 2: Ask for map name
         showPrompt('Name this map:', defaultName, async (mapName) => {
             if (!mapName) return;
-            let imageUrl = null;
-            let dataSrc = null;
-            if (typeof uploadMedia === 'function') {
-                try {
-                    imageUrl = await uploadMedia(file, 'dnd-vtt-map');
-                } catch (err) {
-                    console.warn('[Cloud] Map upload failed, falling back to local:', err);
+
+            // Step 3: Ask for grid width in squares to auto-compute grid size
+            showPrompt(
+                `Grid squares across (image is ${imgDims.w}px wide):`,
+                '20',
+                async (squaresInput) => {
+                    const squares = parseInt(squaresInput, 10);
+                    const computedGridSize = (squares > 0)
+                        ? Math.round(imgDims.w / squares)
+                        : state.gridSize;
+                    const clampedGridSize = Math.min(Math.max(computedGridSize, GRID_MIN), GRID_MAX);
+
+                    let imageUrl = null;
+                    let dataSrc = null;
+                    if (typeof uploadMedia === 'function') {
+                        try {
+                            imageUrl = await uploadMedia(file, 'dnd-vtt-map');
+                        } catch (err) {
+                            console.warn('[Cloud] Map upload failed, falling back to local:', err);
+                        }
+                    }
+                    if (!imageUrl) {
+                        dataSrc = imgDataUrl; // reuse already-read data URL
+                    }
+                    const newMap = {
+                        id: Date.now(),
+                        name: mapName,
+                        data: dataSrc,
+                        imageUrl: imageUrl,
+                        tokens: [],
+                        fogShapes: [],
+                        gridSize: clampedGridSize
+                    };
+                    saveCurrentMap(); // Save current before switching
+                    const tx = dataBase.transaction('maps', 'readwrite');
+                    tx.objectStore('maps').put(newMap);
+                    tx.oncomplete = () => {
+                        state.mapsList.push(newMap);
+                        updateMapDropdown();
+                        loadMap(newMap.id);
+                    };
                 }
-            }
-            if (!imageUrl) {
-                dataSrc = await new Promise((resolve) => {
-                    const reader = new FileReader();
-                    reader.onload = (ev) => resolve(ev.target.result);
-                    reader.readAsDataURL(file);
-                });
-            }
-            const newMap = {
-                id: Date.now(),
-                name: mapName,
-                data: dataSrc,
-                imageUrl: imageUrl,
-                tokens: [],
-                fogShapes: [],
-                gridSize: state.gridSize
-            };
-            saveCurrentMap(); // Save current before switching
-            const tx = dataBase.transaction('maps', 'readwrite');
-            tx.objectStore('maps').put(newMap);
-            tx.oncomplete = () => {
-                state.mapsList.push(newMap);
-                updateMapDropdown();
-                loadMap(newMap.id);
-            };
+            );
         });
         e.target.value = '';
     });
@@ -1326,9 +1447,10 @@ function initUI() {
         const img = new Image();
         img.onload = () => {
             const rect = dom.wrapper.getBoundingClientRect();
-            const viewX = (rect.width / 2 - state.transform.x) / state.transform.scale;
-            const viewY = (rect.height / 2 - state.transform.y) / state.transform.scale;
-            state.tokens.push({ id: Date.now(), img, name: defaultName, x: viewX, y: viewY, size: 1, imageUrl: imageUrl });
+            const rawX = (rect.width / 2 - state.transform.x) / state.transform.scale;
+            const rawY = (rect.height / 2 - state.transform.y) / state.transform.scale;
+            const snapped = snapToGrid(rawX, rawY, 1);
+            state.tokens.push({ id: Date.now(), img, name: defaultName, x: snapped.x, y: snapped.y, size: 1, imageUrl: imageUrl });
             renderTokens();
             pushHistory();
             saveCurrentMap();
@@ -1426,18 +1548,21 @@ function initUI() {
                         }
                     });
                     break;
-                case 'resize-up':
-                    ctxTargetToken.size = Math.min((ctxTargetToken.size || 1) + 1, 4);
+                case 'set-size-1':
+                case 'set-size-2':
+                case 'set-size-3':
+                case 'set-size-4': {
+                    const newSize = parseInt(action.replace('set-size-', ''), 10);
+                    ctxTargetToken.size = newSize;
+                    // Re-snap with the new size so odd→cell-center, even→intersection
+                    const snapped = snapToGrid(ctxTargetToken.x, ctxTargetToken.y, newSize);
+                    ctxTargetToken.x = snapped.x;
+                    ctxTargetToken.y = snapped.y;
                     renderTokens();
                     pushHistory();
                     saveCurrentMap();
                     break;
-                case 'resize-down':
-                    ctxTargetToken.size = Math.max((ctxTargetToken.size || 1) - 1, 1);
-                    renderTokens();
-                    pushHistory();
-                    saveCurrentMap();
-                    break;
+                }
                 case 'delete':
                     state.tokens = state.tokens.filter(t => t.id !== ctxTargetToken.id);
                     renderTokens();
