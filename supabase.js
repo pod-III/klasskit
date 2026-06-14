@@ -787,3 +787,244 @@ async function replaceMedia(oldPath, newFile, activityId) {
   return await uploadMedia(newFile, activityId);
 }
 
+/* ── VTT HELPERS (vtt_maps, vtt_walls, vtt_tokens, vtt_token_library, vtt_campaigns) ── */
+
+// ── Campaigns ──────────────────────────────────────────────────────────────
+
+async function vttLoadCampaigns() {
+  if (isSandbox()) {
+    const raw = localStorage.getItem('vtt_campaigns');
+    return raw ? JSON.parse(raw) : [];
+  }
+  const user = await getUser();
+  if (!user) return [];
+  const { data, error } = await db.from('vtt_campaigns')
+    .select('id, name, created_at')
+    .eq('user_id', user.id)
+    .order('created_at', { ascending: true });
+  if (error) { console.error('[VTT] loadCampaigns:', error); return []; }
+  return data || [];
+}
+
+async function vttSaveCampaign(campaign) {
+  if (isSandbox()) {
+    const all = JSON.parse(localStorage.getItem('vtt_campaigns') || '[]');
+    const idx = all.findIndex(c => c.id === campaign.id);
+    if (idx >= 0) all[idx] = campaign; else all.push(campaign);
+    localStorage.setItem('vtt_campaigns', JSON.stringify(all));
+    return { id: campaign.id, success: true };
+  }
+  const user = await getUser();
+  if (!user) return { error: 'Not authenticated' };
+  if (campaign.id && isValidUuid(campaign.id)) {
+    const { error } = await db.from('vtt_campaigns')
+      .update({ name: campaign.name })
+      .eq('id', campaign.id).eq('user_id', user.id);
+    if (error) { console.error('[VTT] saveCampaign update:', error); return { error }; }
+    return { id: campaign.id, success: true };
+  }
+  const { data, error } = await db.from('vtt_campaigns')
+    .insert({ user_id: user.id, name: campaign.name })
+    .select('id').single();
+  if (error) { console.error('[VTT] saveCampaign insert:', error); return { error }; }
+  return { id: data.id, success: true };
+}
+
+async function vttDeleteCampaign(id) {
+  if (isSandbox()) {
+    const all = JSON.parse(localStorage.getItem('vtt_campaigns') || '[]');
+    localStorage.setItem('vtt_campaigns', JSON.stringify(all.filter(c => c.id !== id)));
+    return { success: true };
+  }
+  const user = await getUser();
+  if (!user) return { error: 'Not authenticated' };
+  const { error } = await db.from('vtt_campaigns').delete().eq('id', id).eq('user_id', user.id);
+  if (error) { console.error('[VTT] deleteCampaign:', error); return { error }; }
+  return { success: true };
+}
+
+// ── Maps ───────────────────────────────────────────────────────────────────
+
+async function vttLoadMaps(campaignId = null) {
+  if (isSandbox()) {
+    const raw = localStorage.getItem('vtt_maps');
+    const all = raw ? JSON.parse(raw) : [];
+    return campaignId ? all.filter(m => m.campaign_id === campaignId) : all;
+  }
+  const user = await getUser();
+  if (!user) return [];
+  let query = db.from('vtt_maps')
+    .select('id, name, campaign_id, grid_cols, grid_rows, grid_size, grid_metres_per_square, is_grid_visible, los_enabled, los_dark_map, los_view_distance, image_url, updated_at')
+    .eq('user_id', user.id)
+    .order('updated_at', { ascending: false });
+  if (campaignId) query = query.eq('campaign_id', campaignId);
+  const { data, error } = await query;
+  if (error) { console.error('[VTT] loadMaps:', error); return []; }
+  return data || [];
+}
+
+async function vttSaveMap(map) {
+  const { id, name, campaign_id, grid_cols, grid_rows, grid_size, grid_metres_per_square,
+    is_grid_visible, los_enabled, los_dark_map, los_view_distance, image_url, image_path } = map;
+
+  if (isSandbox()) {
+    const all = JSON.parse(localStorage.getItem('vtt_maps') || '[]');
+    const idx = all.findIndex(m => m.id === id);
+    const entry = { ...map };
+    if (idx >= 0) all[idx] = entry; else all.push(entry);
+    localStorage.setItem('vtt_maps', JSON.stringify(all));
+    return { id, success: true };
+  }
+  const user = await getUser();
+  if (!user) return { error: 'Not authenticated' };
+
+  const payload = { name, campaign_id: campaign_id || null, grid_cols, grid_rows, grid_size,
+    grid_metres_per_square, is_grid_visible, los_enabled, los_dark_map, los_view_distance,
+    image_url, image_path };
+
+  if (id && isValidUuid(id)) {
+    const { error } = await db.from('vtt_maps').update(payload).eq('id', id).eq('user_id', user.id);
+    if (error) { console.error('[VTT] saveMap update:', error); return { error }; }
+    return { id, success: true };
+  }
+  const { data, error } = await db.from('vtt_maps')
+    .insert({ user_id: user.id, ...payload }).select('id').single();
+  if (error) { console.error('[VTT] saveMap insert:', error); return { error }; }
+  return { id: data.id, success: true };
+}
+
+async function vttDeleteMap(id) {
+  if (isSandbox()) {
+    const all = JSON.parse(localStorage.getItem('vtt_maps') || '[]');
+    localStorage.setItem('vtt_maps', JSON.stringify(all.filter(m => m.id !== id)));
+    return { success: true };
+  }
+  const user = await getUser();
+  if (!user) return { error: 'Not authenticated' };
+  const { error } = await db.from('vtt_maps').delete().eq('id', id).eq('user_id', user.id);
+  if (error) { console.error('[VTT] deleteMap:', error); return { error }; }
+  return { success: true };
+}
+
+// ── Walls ──────────────────────────────────────────────────────────────────
+
+async function vttLoadWalls(mapId) {
+  if (isSandbox()) {
+    const raw = localStorage.getItem(`vtt_walls_${mapId}`);
+    return raw ? JSON.parse(raw) : [];
+  }
+  const user = await getUser();
+  if (!user) return [];
+  const { data, error } = await db.from('vtt_walls')
+    .select('id, x1, y1, x2, y2, is_opening, is_open, is_door')
+    .eq('map_id', mapId).eq('user_id', user.id);
+  if (error) { console.error('[VTT] loadWalls:', error); return []; }
+  return data || [];
+}
+
+async function vttSaveWalls(mapId, walls) {
+  if (isSandbox()) {
+    localStorage.setItem(`vtt_walls_${mapId}`, JSON.stringify(walls));
+    return { success: true };
+  }
+  const user = await getUser();
+  if (!user) return { error: 'Not authenticated' };
+  // Replace all walls for this map
+  await db.from('vtt_walls').delete().eq('map_id', mapId).eq('user_id', user.id);
+  if (walls.length === 0) return { success: true };
+  const rows = walls.map(w => ({
+    ...(isValidUuid(w.id) ? { id: w.id } : {}),
+    map_id: mapId, user_id: user.id,
+    x1: w.x1, y1: w.y1, x2: w.x2, y2: w.y2,
+    is_opening: w.is_opening || false,
+    is_open: w.is_open || false,
+    is_door: w.is_door !== false
+  }));
+  const { error } = await db.from('vtt_walls').insert(rows);
+  if (error) { console.error('[VTT] saveWalls:', error); return { error }; }
+  return { success: true };
+}
+
+// ── Tokens (placed on map) ─────────────────────────────────────────────────
+
+async function vttLoadTokens(mapId) {
+  if (isSandbox()) {
+    const raw = localStorage.getItem(`vtt_tokens_${mapId}`);
+    return raw ? JSON.parse(raw) : [];
+  }
+  const user = await getUser();
+  if (!user) return [];
+  const { data, error } = await db.from('vtt_tokens')
+    .select('id, name, image_url, x, y, size, is_pc')
+    .eq('map_id', mapId).eq('user_id', user.id);
+  if (error) { console.error('[VTT] loadTokens:', error); return []; }
+  return data || [];
+}
+
+async function vttSaveTokens(mapId, tokens) {
+  if (isSandbox()) {
+    localStorage.setItem(`vtt_tokens_${mapId}`, JSON.stringify(tokens));
+    return { success: true };
+  }
+  const user = await getUser();
+  if (!user) return { error: 'Not authenticated' };
+  await db.from('vtt_tokens').delete().eq('map_id', mapId).eq('user_id', user.id);
+  if (tokens.length === 0) return { success: true };
+  const rows = tokens.map(t => ({
+    ...(isValidUuid(t.id) ? { id: t.id } : {}),
+    map_id: mapId, user_id: user.id,
+    name: t.name || '', image_url: t.imageUrl || t.image_url || null,
+    x: t.x ?? null, y: t.y ?? null,
+    size: t.size || 1, is_pc: t.isPC !== false
+  }));
+  const { error } = await db.from('vtt_tokens').insert(rows);
+  if (error) { console.error('[VTT] saveTokens:', error); return { error }; }
+  return { success: true };
+}
+
+// ── Token Library ──────────────────────────────────────────────────────────
+
+async function vttLoadTokenLibrary() {
+  if (isSandbox()) {
+    const raw = localStorage.getItem('vtt_token_library');
+    return raw ? JSON.parse(raw) : [];
+  }
+  const user = await getUser();
+  if (!user) return [];
+  const { data, error } = await db.from('vtt_token_library')
+    .select('id, name, image_url, created_at')
+    .eq('user_id', user.id)
+    .order('created_at', { ascending: false });
+  if (error) { console.error('[VTT] loadTokenLibrary:', error); return []; }
+  return data || [];
+}
+
+async function vttSaveTokenLibraryEntry(entry) {
+  if (isSandbox()) {
+    const all = JSON.parse(localStorage.getItem('vtt_token_library') || '[]');
+    all.unshift(entry);
+    localStorage.setItem('vtt_token_library', JSON.stringify(all));
+    return { id: entry.id, success: true };
+  }
+  const user = await getUser();
+  if (!user) return { error: 'Not authenticated' };
+  const { data, error } = await db.from('vtt_token_library')
+    .insert({ user_id: user.id, name: entry.name, image_url: entry.image_url, image_path: entry.image_path })
+    .select('id').single();
+  if (error) { console.error('[VTT] saveTokenLibraryEntry:', error); return { error }; }
+  return { id: data.id, success: true };
+}
+
+async function vttDeleteTokenLibraryEntry(id) {
+  if (isSandbox()) {
+    const all = JSON.parse(localStorage.getItem('vtt_token_library') || '[]');
+    localStorage.setItem('vtt_token_library', JSON.stringify(all.filter(e => e.id !== id)));
+    return { success: true };
+  }
+  const user = await getUser();
+  if (!user) return { error: 'Not authenticated' };
+  const { error } = await db.from('vtt_token_library').delete().eq('id', id).eq('user_id', user.id);
+  if (error) { console.error('[VTT] deleteTokenLibraryEntry:', error); return { error }; }
+  return { success: true };
+}
+

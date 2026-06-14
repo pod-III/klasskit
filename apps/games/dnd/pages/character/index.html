@@ -86,15 +86,45 @@
 
 <body class="p-4 md:p-8 bg-stone-950 text-stone-300 transition-colors duration-300">
 
+    <!-- Campaign Library Panel -->
+    <div class="max-w-4xl mx-auto mb-6">
+        <div class="neo-card bg-stone-900 border border-amber-900/50 rounded-2xl p-4">
+            <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
+                <div class="flex items-center gap-3">
+                    <h2 class="text-lg font-bold font-title text-amber-500">Campaign Library</h2>
+                    <span id="active-campaign-badge" class="hidden text-xs font-bold bg-amber-700 text-stone-100 px-2 py-1 rounded-full"></span>
+                    <span id="auto-save-status" class="hidden text-xs text-stone-500 italic"></span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <select id="campaign-sort" onchange="renderCampaignLibrary()"
+                        class="neo-card bg-stone-950 border border-amber-900/30 rounded-lg px-3 py-1.5 text-sm text-stone-300 outline-none">
+                        <option value="recent">Sort: Recent</option>
+                        <option value="alpha">Sort: A-Z</option>
+                        <option value="popular">Sort: Popular</option>
+                    </select>
+                    <button onclick="createCampaign()"
+                        class="neo-button neo-card px-3 py-1.5 bg-amber-700 hover:bg-amber-600 border border-amber-900/50 rounded-lg text-sm font-bold font-title text-stone-100 transition-colors flex items-center gap-1">
+                        <i data-lucide="plus" class="w-4 h-4"></i> New
+                    </button>
+                    <button onclick="duplicateCampaign()"
+                        class="neo-button neo-card px-3 py-1.5 bg-stone-800 hover:bg-stone-700 border border-amber-900/50 rounded-lg text-sm font-bold font-title text-stone-300 transition-colors flex items-center gap-1"
+                        title="Save current campaign as a copy">
+                        <i data-lucide="copy" class="w-4 h-4"></i> Save As
+                    </button>
+                    <button onclick="document.getElementById('campaign-import').click()"
+                        class="neo-button neo-card px-3 py-1.5 bg-stone-800 hover:bg-stone-700 border border-amber-900/50 rounded-lg text-sm font-bold font-title text-stone-300 transition-colors flex items-center gap-1">
+                        <i data-lucide="upload" class="w-4 h-4"></i> Import
+                    </button>
+                </div>
+            </div>
+            <div id="campaign-library" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+            </div>
+        </div>
+    </div>
+
     <div class="max-w-4xl mx-auto mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div class="flex-grow">
             <div class="flex flex-col md:flex-row gap-4 items-start md:items-center mb-2">
-                <div>
-                    <h2 class="text-xs font-bold text-amber-600 uppercase tracking-wider mb-1 font-title">Campaign:</h2>
-                    <select id="campaign-selector" onchange="changeCampaign(this.value)"
-                        class="neo-card bg-stone-900 border border-amber-900/50 rounded-xl px-4 py-2 font-bold text-stone-300 outline-none focus:ring-2 focus:ring-blue-500">
-                    </select>
-                </div>
                 <div class="flex-grow">
                     <h2 class="text-xs font-bold text-amber-600 uppercase tracking-wider mb-1 font-title">Character:
                     </h2>
@@ -304,13 +334,35 @@
         </div>
     </main>
 
+    <!-- Empty State -->
+    <div id="empty-state" class="hidden max-w-4xl mx-auto">
+        <div class="neo-card bg-stone-900 border border-amber-900/50 rounded-2xl p-12 text-center">
+            <i data-lucide="scroll-text" class="w-16 h-16 text-amber-600 mx-auto mb-6"></i>
+            <h2 class="text-2xl font-bold font-title text-stone-300 mb-2">No Campaigns Yet</h2>
+            <p class="text-stone-400 mb-8 max-w-md mx-auto">Create a new campaign or import an existing one from a JSON file.</p>
+            <div class="flex flex-col sm:flex-row gap-4 justify-center">
+                <button onclick="createCampaign()"
+                    class="neo-button neo-card px-6 py-3 bg-amber-700 hover:bg-amber-600 text-stone-100 border border-amber-900/50 rounded-xl font-bold font-title transition-colors flex items-center justify-center gap-2">
+                    <i data-lucide="plus" class="w-5 h-5"></i> New Campaign
+                </button>
+                <button onclick="document.getElementById('campaign-import').click()"
+                    class="neo-button neo-card px-6 py-3 bg-stone-800 hover:bg-stone-700 text-stone-100 border border-amber-900/50 rounded-xl font-bold font-title transition-colors flex items-center justify-center gap-2">
+                    <i data-lucide="upload" class="w-5 h-5"></i> Import Campaign
+                </button>
+            </div>
+            <input type="file" id="campaign-import" accept=".json" class="hidden" onchange="importCampaign(event)">
+        </div>
+    </div>
+
     <!-- Custom Modal -->
     <div id="custom-modal"
         class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm hidden opacity-0 transition-opacity duration-300">
         <div
             class="neo-card bg-stone-900 border border-amber-900/50 rounded-2xl p-6 max-w-sm w-full transform scale-95 transition-transform duration-300">
             <h3 id="modal-title" class="text-xl font-bold font-title text-amber-500 mb-2">Notice</h3>
-            <p id="modal-message" class="text-stone-300 mb-6 font-medium"></p>
+            <p id="modal-message" class="text-stone-300 mb-4 font-medium"></p>
+            <input type="text" id="modal-input"
+                class="hidden w-full bg-stone-950 border border-amber-900/50 rounded-xl px-4 py-2 text-stone-300 mb-4 outline-none focus:ring-2 focus:ring-amber-500">
             <div class="flex justify-end gap-3 font-title font-bold">
                 <button id="modal-cancel-btn"
                     class="neo-button neo-card px-4 py-2 bg-stone-800 hover:bg-stone-700 text-stone-300 border border-stone-700 rounded-xl transition-colors hidden">
@@ -325,64 +377,7 @@
     </div>
 
     <script>
-        let campaigns = [
-            {
-                "id": "e1-classic",
-                "name": "E1 Batam - Classic",
-                "characters": [
-                    {
-                        "name": "TRUMPhet", "class": "Fighter", "level": 3, "color": "#FF8C42",
-                        "vitals": { "ac": 16, "hp": 28, "maxHp": 28, "init": "+1", "speed": "30ft" },
-                        "stats": { "str": 16, "dex": 12, "con": 14, "int": 8, "wis": 10, "cha": 13 },
-                        "resources": [{ "label": "Action Surge", "max": 1, "used": 0 }, { "label": "Second Wind", "max": 1, "used": 0 }],
-                        "features": ["Fighting Style: Protection", "Second Wind (Heal 1d10+3)"],
-                        "actions": "<strong>Greatsword:</strong> +5 to hit, 2d6+3 slashing.<br><br><strong>Reaction:</strong> Impose disadvantage on an enemy attacking an ally next to you."
-                    },
-                    {
-                        "name": "Knowledge", "class": "Sorcerer", "level": 3, "color": "#2979FF",
-                        "vitals": { "ac": 12, "hp": 20, "maxHp": 20, "init": "+2", "speed": "30ft" },
-                        "stats": { "str": 8, "dex": 14, "con": 13, "int": 10, "wis": 12, "cha": 16 },
-                        "resources": [{ "label": "Sorcery Points", "max": 3, "used": 0 }, { "label": "L1 Slots", "max": 4, "used": 0 }, { "label": "L2 Slots", "max": 2, "used": 0 }],
-                        "features": ["Metamagic: Twinned Spell", "Metamagic: Quickened Spell"],
-                        "actions": "<strong>Mind Sliver:</strong> DC 13 Int Save. 1d6 psychic damage + target subtracts 1d4 from next save.<br><br><strong>Magic Missile:</strong> 3 darts, 1d4+1 force damage each (always hits)."
-                    },
-                    {
-                        "name": "Vanilla", "class": "Sorcerer", "subclass": "Wild Magic", "level": 3, "color": "#FF6B95",
-                        "vitals": { "ac": 12, "hp": 20, "maxHp": 20, "init": "+2", "speed": "30ft" },
-                        "stats": { "str": 8, "dex": 14, "con": 12, "int": 10, "wis": 13, "cha": 16 },
-                        "resources": [{ "label": "Sorcery Points", "max": 3, "used": 0 }, { "label": "Tides of Chaos", "max": 1, "used": 0 }, { "label": "L1 Slots", "max": 4, "used": 0 }, { "label": "L2 Slots", "max": 2, "used": 0 }],
-                        "features": ["Wild Magic Surge", "Tides of Chaos (Gain Advantage)"],
-                        "actions": "<strong>Fire Bolt:</strong> +5 to hit, 1d10 fire damage.<br><br><strong>Shield (Reaction):</strong> Add +5 to your AC until your next turn."
-                    }
-                ]
-            },
-            {
-                "id": "tabletop-style",
-                "name": "Tabletop Roster",
-                "characters": [
-                    {
-                        "name": "Xylem", "class": "Fighter", "subclass": "Eldritch Knight", "level": 3, "color": "orange",
-                        "vitals": { "ac": 16, "hp": 28, "maxHp": 28, "init": "+0", "speed": "30ft" },
-                        "stats": { "str": 18, "dex": 10, "con": 14, "int": 16, "wis": 10, "cha": 8 },
-                        "resources": [{ "label": "Action Surge", "max": 1, "used": 0 }, { "label": "1st Level Slots", "max": 2, "used": 0 }],
-                        "features": ["Great Weapon Fighting", "Action Surge", "Weapon Bond"],
-                        "quote": "Raised by a pastor, but the sword called louder than the sermon.",
-                        "gear": "Chain Mail\nHandaxe x2\nScholars Pack",
-                        "actions": "**Greatsword**: +6 to hit, 2d6+4 Slashing.\n\n**Magic Missile** (1st): Creates 3 darts. 1d4+1 force damage each. Auto-hit.\n\n**Shield** (Reaction): +5 AC until start of next turn."
-                    },
-                    {
-                        "name": "Fumiko", "class": "Druid", "subclass": "Spore Druid", "level": 3, "color": "green",
-                        "vitals": { "ac": 13, "hp": 24, "maxHp": 24, "init": "+1", "speed": "30ft" },
-                        "stats": { "str": 8, "dex": 12, "con": 14, "int": 10, "wis": 16, "cha": 14 },
-                        "resources": [{ "label": "Wild Shape", "max": 2, "used": 0 }, { "label": "1st Level Slots", "max": 4, "used": 0 }],
-                        "features": ["Halo of Spores", "Symbiotic Entity", "Wild Shape"],
-                        "quote": "From Mushroom Town. Her hat is a living colony.",
-                        "gear": "Leather Armor\nWooden Shield",
-                        "actions": "**Shillelagh**: 1d8+3 dmg.\n**Halo of Spores**: 1d4 Necrotic."
-                    }
-                ]
-            }
-        ];
+        let campaigns = [];
 
         let currentCampaignId = '';
         let currentCharIndex = 0;
@@ -396,6 +391,7 @@
             const messageEl = document.getElementById('modal-message');
             const cancelBtn = document.getElementById('modal-cancel-btn');
             const confirmBtn = document.getElementById('modal-confirm-btn');
+            const inputEl = document.getElementById('modal-input');
 
             titleEl.innerText = title;
             messageEl.innerText = message;
@@ -405,15 +401,24 @@
                 confirmBtn.innerText = 'Confirm';
                 confirmBtn.classList.replace('bg-amber-700', 'bg-red-600');
                 confirmBtn.classList.replace('hover:bg-amber-600', 'hover:bg-red-500');
+                inputEl.classList.add('hidden');
+            } else if (type === 'prompt') {
+                cancelBtn.classList.remove('hidden');
+                confirmBtn.innerText = 'Create';
+                confirmBtn.classList.replace('bg-red-600', 'bg-amber-700');
+                confirmBtn.classList.replace('hover:bg-red-500', 'hover:bg-amber-600');
+                inputEl.classList.remove('hidden');
+                inputEl.value = '';
+                setTimeout(() => inputEl.focus(), 100);
             } else {
                 cancelBtn.classList.add('hidden');
                 confirmBtn.innerText = 'OK';
                 confirmBtn.classList.replace('bg-red-600', 'bg-amber-700');
                 confirmBtn.classList.replace('hover:bg-red-500', 'hover:bg-amber-600');
+                inputEl.classList.add('hidden');
             }
 
             modal.classList.remove('hidden');
-            // Small delay to allow display:block to apply before animating opacity
             setTimeout(() => {
                 modal.classList.remove('opacity-0');
                 modalBox.classList.remove('scale-95');
@@ -426,18 +431,31 @@
                 modalBox.classList.add('scale-95');
                 setTimeout(() => {
                     modal.classList.add('hidden');
-                }, 300); // Wait for transition duration
+                }, 300);
             };
 
             confirmBtn.onclick = () => {
+                const value = type === 'prompt' ? inputEl.value.trim() : null;
                 closeModal();
-                if (onConfirm) onConfirm();
+                if (onConfirm) onConfirm(value);
             };
 
             cancelBtn.onclick = () => {
                 closeModal();
                 if (onCancel) onCancel();
             };
+
+            inputEl.onkeydown = (e) => {
+                if (e.key === 'Enter') confirmBtn.click();
+            };
+        }
+
+        function ensureCampaignMeta(campaign) {
+            const now = Date.now();
+            if (!campaign.createdAt) campaign.createdAt = now;
+            if (!campaign.lastUsed) campaign.lastUsed = campaign.createdAt || now;
+            if (typeof campaign.usageCount !== 'number') campaign.usageCount = 0;
+            return campaign;
         }
 
         async function initApp() {
@@ -449,59 +467,329 @@
             }
 
             if (dndSaves && dndSaves.length > 0) {
-                campaigns = dndSaves.map(s => ({
+                campaigns = dndSaves.map(s => ensureCampaignMeta({
                     id: s.id,
                     name: s.name,
                     characters: s.state_data?.characters || []
                 }));
                 console.log('Campaigns loaded from tools_dnd');
             } else {
-                const saved = localStorage.getItem('characters');
+                const saved = localStorage.getItem('kk_dnd_campaigns');
                 if (saved) {
                     try {
                         const parsed = JSON.parse(saved);
-                        if (parsed && parsed.length > 0) {
-                            campaigns = [{ id: 'local', name: 'Local Campaign', characters: parsed }];
+                        if (Array.isArray(parsed) && parsed.length > 0) {
+                            campaigns = parsed.map(ensureCampaignMeta);
                             console.log('Campaigns loaded from localStorage');
                         }
                     } catch (e) {
                         console.warn('Failed to parse localStorage data', e);
                     }
                 } else {
-                    try {
-                        const response = await fetch('data/campaigns.json');
-                        if (response.ok) {
-                            const data = await response.json();
-                            campaigns = data.campaigns;
-                            console.log('Campaigns loaded from JSON');
+                    // Legacy fallback: old flat characters array
+                    const oldSaved = localStorage.getItem('characters');
+                    if (oldSaved) {
+                        try {
+                            const parsed = JSON.parse(oldSaved);
+                            if (Array.isArray(parsed) && parsed.length > 0) {
+                                campaigns = [ensureCampaignMeta({ id: 'local', name: 'Local Campaign', characters: parsed })];
+                                console.log('Legacy campaigns loaded from localStorage');
+                            }
+                        } catch (e) {
+                            console.warn('Failed to parse legacy localStorage data', e);
                         }
-                    } catch (error) {
-                        console.warn('CORS or Fetch error. Using embedded fallback data.', error);
                     }
                 }
             }
 
-            renderCampaignSelector();
-            currentCampaignId = campaigns[0].id;
-            loadCampaignCharacters();
+            renderCampaignLibrary();
+            if (campaigns.length > 0) {
+                currentCampaignId = campaigns[0].id;
+                loadCampaignCharacters();
+            } else {
+                showEmptyState();
+            }
         }
 
-        function renderCampaignSelector() {
-            const selector = document.getElementById('campaign-selector');
-            selector.innerHTML = '';
-            campaigns.forEach(c => {
-                const opt = document.createElement('option');
-                opt.value = c.id;
-                opt.textContent = c.name;
-                selector.appendChild(opt);
+        function formatTimeAgo(timestamp) {
+            if (!timestamp) return 'never';
+            const diff = Date.now() - timestamp;
+            const mins = Math.floor(diff / 60000);
+            if (mins < 1) return 'just now';
+            if (mins < 60) return `${mins}m ago`;
+            const hrs = Math.floor(mins / 60);
+            if (hrs < 24) return `${hrs}h ago`;
+            const days = Math.floor(hrs / 24);
+            return `${days}d ago`;
+        }
+
+        function renderCampaignLibrary() {
+            const container = document.getElementById('campaign-library');
+            container.innerHTML = '';
+
+            const sortMode = document.getElementById('campaign-sort')?.value || 'recent';
+            const sorted = [...campaigns].sort((a, b) => {
+                if (sortMode === 'alpha') return (a.name || '').localeCompare(b.name || '');
+                if (sortMode === 'popular') return (b.usageCount || 0) - (a.usageCount || 0);
+                return (b.lastUsed || 0) - (a.lastUsed || 0);
             });
+
+            const badge = document.getElementById('active-campaign-badge');
+            const activeCampaign = campaigns.find(c => c.id === currentCampaignId);
+            if (activeCampaign && badge) {
+                badge.classList.remove('hidden');
+                badge.textContent = `Editing: ${activeCampaign.name}`;
+            } else if (badge) {
+                badge.classList.add('hidden');
+            }
+
+            sorted.forEach(c => {
+                const isActive = c.id === currentCampaignId;
+                const card = document.createElement('div');
+                card.className = `neo-card cursor-pointer rounded-xl p-3 border transition-all relative ${
+                    isActive
+                        ? 'bg-stone-800 border-amber-500 ring-1 ring-amber-500/50'
+                        : 'bg-stone-900 border-amber-900/30 hover:border-amber-900/60'
+                }`;
+                card.onclick = (e) => {
+                    if (e.target.closest('.campaign-actions')) return;
+                    changeCampaign(c.id);
+                };
+
+                const charCount = (c.characters || []).length;
+                const timeAgo = formatTimeAgo(c.lastUsed);
+
+                card.innerHTML = `
+                    <div class="flex items-start justify-between">
+                        <div class="min-w-0 flex-1">
+                            <h3 class="font-bold font-title text-stone-200 text-sm truncate" title="${c.name}">${c.name}</h3>
+                            <p class="text-xs text-stone-500 mt-0.5">${charCount} character${charCount !== 1 ? 's' : ''}</p>
+                        </div>
+                        <div class="campaign-actions flex gap-1 ml-2">
+                            <button class="p-1 text-stone-500 hover:text-amber-500 transition-colors" title="Duplicate"
+                                onclick="event.stopPropagation(); duplicateCampaign('${c.id}')">
+                                <i data-lucide="copy" class="w-3.5 h-3.5"></i>
+                            </button>
+                            <button class="p-1 text-stone-500 hover:text-red-500 transition-colors" title="Delete"
+                                onclick="event.stopPropagation(); deleteCampaign('${c.id}')">
+                                <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="flex items-center justify-between mt-2 pt-2 border-t border-stone-800">
+                        <span class="text-[10px] text-stone-600">${timeAgo}</span>
+                        ${isActive ? '<span class="text-[10px] font-bold text-amber-500 bg-amber-900/30 px-1.5 py-0.5 rounded">ACTIVE</span>' : ''}
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+
+            lucide.createIcons();
+        }
+
+        function showEmptyState() {
+            document.getElementById('character-sheet').classList.add('hidden');
+            document.getElementById('empty-state').classList.remove('hidden');
+            lucide.createIcons();
+        }
+
+        function hideEmptyState() {
+            document.getElementById('empty-state').classList.add('hidden');
+        }
+
+        function createCampaign() {
+            showModal('New Campaign', 'Enter campaign name:', 'prompt',
+                (name) => {
+                    if (!name || !name.trim()) return;
+                    const now = Date.now();
+                    const newCampaign = ensureCampaignMeta({
+                        id: `local_${now}`,
+                        name: name.trim(),
+                        characters: [{
+                            name: "New Hero", class: "Adventurer", level: 1, color: "#1e293b", customImg: null,
+                            vitals: { ac: 10, init: "+0", speed: "30ft", hp: 10, maxHp: 10 },
+                            stats: { STR: [10, "+0"], DEX: [10, "+0"], CON: [10, "+0"], INT: [10, "+0"], WIS: [10, "+0"], CHA: [10, "+0"] },
+                            resources: [], features: [], actions: "Add actions here..."
+                        }],
+                        usageCount: 0
+                    });
+                    campaigns.push(newCampaign);
+                    currentCampaignId = newCampaign.id;
+                    renderCampaignLibrary();
+                    hideEmptyState();
+                    loadCampaignCharacters();
+                    saveToStorage();
+                }
+            );
+        }
+
+        function duplicateCampaign(sourceId) {
+            const source = campaigns.find(c => c.id === (sourceId || currentCampaignId));
+            if (!source) return;
+            showModal('Save As New', 'Enter name for the copy:', 'prompt',
+                (name) => {
+                    if (!name || !name.trim()) return;
+                    const now = Date.now();
+                    const copy = ensureCampaignMeta({
+                        id: `local_${now}`,
+                        name: name.trim(),
+                        characters: JSON.parse(JSON.stringify(source.characters || [])),
+                        usageCount: 0
+                    });
+                    campaigns.push(copy);
+                    currentCampaignId = copy.id;
+                    renderCampaignLibrary();
+                    hideEmptyState();
+                    loadCampaignCharacters();
+                    saveToStorage();
+                }
+            );
+        }
+
+        function deleteCampaign(id) {
+            const campaign = campaigns.find(c => c.id === id);
+            if (!campaign) return;
+            showModal('Delete Campaign', `Are you sure you want to delete "${campaign.name}"?`, 'confirm',
+                async () => {
+                    campaigns = campaigns.filter(c => c.id !== id);
+                    if (typeof deleteDndSave === 'function' && typeof isValidUuid === 'function' && isValidUuid(id)) {
+                        await deleteDndSave(id);
+                    }
+                    if (campaigns.length === 0) {
+                        currentCampaignId = '';
+                        showEmptyState();
+                    } else if (currentCampaignId === id) {
+                        currentCampaignId = campaigns[0].id;
+                        loadCampaignCharacters();
+                    }
+                    renderCampaignLibrary();
+                    saveToStorage();
+                }
+            );
+        }
+
+        function normalizeCharacter(raw) {
+            // Ensure stats are in the [score, mod] array format
+            const normalizeStats = (stats) => {
+                const result = {};
+                const keyMap = { str: 'STR', dex: 'DEX', con: 'CON', int: 'INT', wis: 'WIS', cha: 'CHA' };
+                for (const [key, val] of Object.entries(stats || {})) {
+                    const upperKey = keyMap[key.toLowerCase()] || key.toUpperCase();
+                    if (Array.isArray(val)) {
+                        result[upperKey] = val;
+                    } else {
+                        const score = parseInt(val) || 10;
+                        const mod = Math.floor((score - 10) / 2);
+                        const modStr = mod >= 0 ? `+${mod}` : mod.toString();
+                        result[upperKey] = [score, modStr];
+                    }
+                }
+                // Fill missing stats
+                ['STR', 'DEX', 'CON', 'INT', 'WIS', 'CHA'].forEach(k => {
+                    if (!result[k]) result[k] = [10, "+0"];
+                });
+                return result;
+            };
+
+            return {
+                name: raw.name || 'Unnamed',
+                class: raw.class || 'Adventurer',
+                subclass: raw.subclass || '',
+                level: parseInt(raw.level) || 1,
+                color: raw.color || '#1e293b',
+                customImg: raw.customImg || null,
+                vitals: {
+                    ac: parseInt(raw.vitals?.ac) || 10,
+                    hp: parseInt(raw.vitals?.hp) || 10,
+                    maxHp: parseInt(raw.vitals?.maxHp) || parseInt(raw.vitals?.hp) || 10,
+                    init: raw.vitals?.init || '+0',
+                    speed: raw.vitals?.speed || '30ft'
+                },
+                stats: normalizeStats(raw.stats),
+                resources: Array.isArray(raw.resources) ? raw.resources.map(r =>
+                    typeof r === 'string' ? { label: r, max: 1, used: 0 } : r
+                ) : [],
+                features: Array.isArray(raw.features) ? raw.features : [],
+                quote: raw.quote || '',
+                gear: raw.gear || '',
+                actions: raw.actions || ''
+            };
+        }
+
+        async function importCampaign(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            event.target.value = ''; // reset input
+
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                try {
+                    const data = JSON.parse(e.target.result);
+                    let importedCampaigns = [];
+
+                    if (data.campaigns && Array.isArray(data.campaigns)) {
+                        importedCampaigns = data.campaigns;
+                    } else if (Array.isArray(data)) {
+                        // Legacy flat array of characters -> wrap in one campaign
+                        importedCampaigns = [{ id: `import_${Date.now()}`, name: 'Imported Campaign', characters: data }];
+                    } else if (data.characters && Array.isArray(data.characters)) {
+                        // Single campaign object without wrapper
+                        importedCampaigns = [{ id: data.id || `import_${Date.now()}`, name: data.name || 'Imported Campaign', characters: data.characters }];
+                    } else {
+                        showModal('Import Failed', 'Unrecognized JSON format. Expected { campaigns: [...] } or an array of characters.');
+                        return;
+                    }
+
+                    for (const camp of importedCampaigns) {
+                        const normalized = ensureCampaignMeta({
+                            id: camp.id || `import_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+                            name: camp.name || 'Imported Campaign',
+                            characters: (camp.characters || []).map(normalizeCharacter),
+                            usageCount: 0
+                        });
+                        campaigns.push(normalized);
+
+                        // Save each imported campaign to cloud
+                        if (typeof saveDndSave === 'function') {
+                            const result = await saveDndSave('character', normalized.name, { characters: normalized.characters });
+                            if (result.id) normalized.id = result.id;
+                        }
+                    }
+
+                    renderCampaignLibrary();
+                    if (campaigns.length > 0) {
+                        currentCampaignId = campaigns[0].id;
+                        hideEmptyState();
+                        loadCampaignCharacters();
+                    }
+                    showModal('Import Complete', `${importedCampaigns.length} campaign(s) imported successfully.`);
+                } catch (err) {
+                    console.error('Import error:', err);
+                    showModal('Import Failed', 'Could not parse JSON file. Make sure it is valid.');
+                }
+            };
+            reader.readAsText(file);
         }
 
         function loadCampaignCharacters() {
             const campaign = campaigns.find(c => c.id === currentCampaignId);
             if (campaign) {
+                campaign.lastUsed = Date.now();
+                campaign.usageCount = (campaign.usageCount || 0) + 1;
                 characters = campaign.characters;
+                if (characters.length === 0) {
+                    // Auto-add a default character if campaign is empty
+                    characters.push({
+                        name: "New Hero", class: "Adventurer", level: 1, color: "#1e293b", customImg: null,
+                        vitals: { ac: 10, init: "+0", speed: "30ft", hp: 10, maxHp: 10 },
+                        stats: { STR: [10, "+0"], DEX: [10, "+0"], CON: [10, "+0"], INT: [10, "+0"], WIS: [10, "+0"], CHA: [10, "+0"] },
+                        resources: [], features: [], actions: "Add actions here..."
+                    });
+                    saveToStorage();
+                }
                 currentCharIndex = 0;
+                document.getElementById('character-sheet').classList.remove('hidden');
+                renderCampaignLibrary();
                 renderCharacter(0);
             }
         }
@@ -517,8 +805,8 @@
                         currentCampaignId = id;
                         loadCampaignCharacters();
                     },
-                    () => { // onCancel: revert select element
-                        document.getElementById('campaign-selector').value = currentCampaignId;
+                    () => { // onCancel: just re-render library to restore highlight
+                        renderCampaignLibrary();
                     }
                 );
                 return;
@@ -530,17 +818,42 @@
 
 
         async function saveToStorage() {
-            localStorage.setItem('characters', JSON.stringify(characters));
-            const campaign = campaigns.find(c => c.id === currentCampaignId);
-            if (campaign && typeof saveDndSave === 'function') {
-                const result = await saveDndSave('character', campaign.name, { characters }, campaign.id);
+            const currentCampaign = campaigns.find(c => c.id === currentCampaignId);
+            if (currentCampaign) {
+                currentCampaign.lastUsed = Date.now();
+            }
+            localStorage.setItem('kk_dnd_campaigns', JSON.stringify(campaigns));
+
+            // Show auto-save indicator
+            const statusEl = document.getElementById('auto-save-status');
+            if (statusEl) {
+                statusEl.classList.remove('hidden');
+                statusEl.textContent = 'Saving...';
+            }
+
+            if (typeof saveDndSave !== 'function') {
+                if (statusEl) {
+                    statusEl.textContent = 'Saved locally';
+                    setTimeout(() => statusEl.classList.add('hidden'), 2000);
+                }
+                return;
+            }
+
+            for (const campaign of campaigns) {
+                const result = await saveDndSave('character', campaign.name, { characters: campaign.characters }, campaign.id);
                 if (result.id && typeof isValidUuid === 'function' && !isValidUuid(campaign.id)) {
                     const oldId = campaign.id;
                     campaign.id = result.id;
-                    currentCampaignId = result.id;
+                    if (currentCampaignId === oldId) currentCampaignId = result.id;
                     localStorage.removeItem(`dnd_character_${oldId}`);
                 }
             }
+
+            if (statusEl) {
+                statusEl.textContent = 'Saved to cloud';
+                setTimeout(() => statusEl.classList.add('hidden'), 2000);
+            }
+            renderCampaignLibrary();
         }
 
         function renderSelector() {
@@ -746,6 +1059,18 @@
         }
 
         function addCharacter() {
+            if (campaigns.length === 0) {
+                const defaultCampaign = ensureCampaignMeta({
+                    id: `local_${Date.now()}`,
+                    name: 'My Campaign',
+                    characters: []
+                });
+                campaigns.push(defaultCampaign);
+                currentCampaignId = defaultCampaign.id;
+                characters = defaultCampaign.characters;
+                renderCampaignLibrary();
+                hideEmptyState();
+            }
             const newChar = {
                 name: "New Hero", class: "Adventurer", level: 1, color: "#1e293b", customImg: null,
                 vitals: { ac: 10, init: "+0", speed: "30ft", hp: 10, maxHp: 10 },
