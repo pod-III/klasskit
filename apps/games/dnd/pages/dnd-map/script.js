@@ -94,6 +94,9 @@ const state = {
     // Grid visibility
     isGridVisible: false,
 
+    // LOS
+    losEnabled: false,
+
     // Wall segments: { id, x1, y1, x2, y2 }
     wallSegments: [],
 
@@ -135,6 +138,8 @@ const dom = {
     gridCanvas: $('layer-grid'),
     tokenCanvas: $('layer-token'),
     fogCanvas: $('layer-fog'),
+    losCanvas: $('layer-los'),
+    losCtx: $('layer-los').getContext('2d'),
     mapCtx: $('layer-map').getContext('2d'),
     gridCtx: $('layer-grid').getContext('2d'),
     tokenCtx: $('layer-token').getContext('2d'),
@@ -545,7 +550,7 @@ function scheduleRender() {
         if (renderFlags.map) renderMapNow();
         if (renderFlags.grid) renderGridNow();
         if (renderFlags.tokens) renderTokensNow();
-        if (renderFlags.fog) renderFogNow();
+        if (renderFlags.fog) { renderFogNow(); renderLOS(); }
         renderFlags = { map: false, grid: false, tokens: false, fog: false };
         renderScheduled = false;
     });
@@ -809,6 +814,7 @@ function restoreSnapshot(snap) {
     state.fogShapes = JSON.parse(JSON.stringify(snap.fogShapes));
     state.gridSize = snap.gridSize;
     if (snap.wallSegments) state.wallSegments = JSON.parse(JSON.stringify(snap.wallSegments));
+    invalidateLOSCache();
     updateGridDisplay();
     renderGrid();
 
@@ -1258,6 +1264,7 @@ async function loadMap(id) {
     state.wallSegments = state.currentMapData.wallSegments || [];
     state.wallDrag.active = false;
     state.wallEdit.isDragging = false;
+    invalidateLOSCache();
     state.transform = { x: 50, y: 50, scale: 1 };
     // Clear ruler overlay and initiative highlight on map switch
     state.rulerActive = false;
@@ -1279,7 +1286,7 @@ async function loadMap(id) {
             const h = img.height;
             dom.container.style.width = w + 'px';
             dom.container.style.height = h + 'px';
-            [dom.mapCanvas, dom.gridCanvas, dom.tokenCanvas, dom.fogCanvas].forEach(c => {
+            [dom.mapCanvas, dom.gridCanvas, dom.tokenCanvas, dom.fogCanvas, dom.losCanvas].forEach(c => {
                 c.width = w;
                 c.height = h;
             });
@@ -1783,6 +1790,121 @@ function finishPolygonDrawing() {
     renderFog();
 }
 
+// ==================== LOS RAYCASTING ENGINE ====================
+
+// Ray-segment intersection. Returns t (distance along ray) or null.
+function raySegmentIntersect(ox, oy, dx, dy, x1, y1, x2, y2) {
+    const r_px = ox, r_py = oy, r_dx = dx, r_dy = dy;
+    const s_px = x1, s_py = y1, s_dx = x2 - x1, s_dy = y2 - y1;
+    const denom = r_dx * s_dy - r_dy * s_dx;
+    if (Math.abs(denom) < 1e-10) return null;
+    const t = ((s_px - r_px) * s_dy - (s_py - r_py) * s_dx) / denom;
+    const u = ((s_px - r_px) * r_dy - (s_py - r_py) * r_dx) / denom;
+    if (t >= 0 && u >= 0 && u <= 1) return t;
+    return null;
+}
+
+// Cast a single ray from origin in direction angle, return the hit point
+function castRay(ox, oy, angle, segments, maxDist) {
+    const dx = Math.cos(angle), dy = Math.sin(angle);
+    let minT = maxDist;
+    for (const seg of segments) {
+        const t = raySegmentIntersect(ox, oy, dx, dy, seg.x1, seg.y1, seg.x2, seg.y2);
+        if (t !== null && t < minT) minT = t;
+    }
+    return { x: ox + dx * minT, y: oy + dy * minT };
+}
+
+// Build the visibility polygon for a single origin point
+function computeVisibilityPolygon(ox, oy, segments, maxDist) {
+    // Collect all unique angles toward segment endpoints
+    const angles = [];
+    for (const seg of segments) {
+        for (const [px, py] of [[seg.x1, seg.y1], [seg.x2, seg.y2]]) {
+            const a = Math.atan2(py - oy, px - ox);
+            angles.push(a - 0.0001, a, a + 0.0001);
+        }
+    }
+    // Add cardinal angles so open areas are covered
+    for (let i = 0; i < 32; i++) angles.push((i / 32) * Math.PI * 2);
+
+    // Sort and deduplicate
+    angles.sort((a, b) => a - b);
+
+    // Cast ray at each angle
+    const points = angles.map(a => castRay(ox, oy, a, segments, maxDist));
+    // Sort by angle (already sorted) and return
+    return points;
+}
+
+// LOS cache — visibility polygons keyed by token id, invalidated on any mutation
+const losCache = {
+    polygons: new Map(), // tokenId -> [{x,y}]
+    dirty: true          // recompute needed
+};
+
+function invalidateLOSCache() {
+    losCache.dirty = true;
+    losCache.polygons.clear();
+}
+
+function rebuildLOSCache() {
+    if (!state.losEnabled || !state.mapImage) { losCache.dirty = false; return; }
+    const segs = state.wallSegments;
+    const maxDist = Math.max(state.mapImage.width, state.mapImage.height) * 2;
+    losCache.polygons.clear();
+    for (const token of state.tokens) {
+        if (token.x == null) continue;
+        losCache.polygons.set(token.id, computeVisibilityPolygon(token.x, token.y, segs, maxDist));
+    }
+    losCache.dirty = false;
+}
+
+// Render LOS — only recomputes when cache is dirty
+function renderLOS() {
+    const W = dom.losCanvas.width;
+    const H = dom.losCanvas.height;
+    const ctx = dom.losCtx;
+    ctx.clearRect(0, 0, W, H);
+
+    if (!state.losEnabled || !state.mapImage) return;
+    if (state.tokens.length === 0) return;
+
+    // Only recompute visibility polygons when something changed
+    if (losCache.dirty) rebuildLOSCache();
+
+    if (state.isDMMode) {
+        // DM: faint green tint showing visible areas — no dark overlay
+        for (const poly of losCache.polygons.values()) {
+            if (poly.length < 3) continue;
+            ctx.beginPath();
+            ctx.moveTo(poly[0].x, poly[0].y);
+            for (const p of poly) ctx.lineTo(p.x, p.y);
+            ctx.closePath();
+            ctx.fillStyle = 'rgba(34,197,94,0.08)';
+            ctx.fill();
+            ctx.strokeStyle = 'rgba(34,197,94,0.25)';
+            ctx.lineWidth = 1;
+            ctx.stroke();
+        }
+    } else {
+        // Player: full dark overlay, cut out each token's visible polygon
+        ctx.fillStyle = 'rgba(0,0,0,1)';
+        ctx.fillRect(0, 0, W, H);
+        ctx.globalCompositeOperation = 'destination-out';
+        for (const poly of losCache.polygons.values()) {
+            if (poly.length < 3) continue;
+            ctx.beginPath();
+            ctx.moveTo(poly[0].x, poly[0].y);
+            for (const p of poly) ctx.lineTo(p.x, p.y);
+            ctx.closePath();
+            ctx.fillStyle = 'rgba(0,0,0,1)';
+            ctx.fill();
+        }
+        ctx.globalCompositeOperation = 'source-over';
+    }
+}
+
 // ==================== WALL SEGMENT SYSTEM ====================
 const WALL_NODE_RADIUS = 8;
 const WALL_SNAP_RADIUS = 14; // px screen space
@@ -1849,6 +1971,7 @@ function handleWallDragEnd(pos) {
     // Only add if the segment has some length
     if (Math.hypot(x2 - x1, y2 - y1) > 3 / state.transform.scale) {
         state.wallSegments.push({ id: Date.now(), x1, y1, x2, y2 });
+        invalidateLOSCache();
         pushHistory();
         saveCurrentMap();
     }
@@ -1891,6 +2014,7 @@ function handleWallEditMove(pos) {
 function handleWallEditUp() {
     if (state.wallEdit.isDragging) {
         state.wallEdit.isDragging = false;
+        invalidateLOSCache();
         pushHistory();
         saveCurrentMap();
     }
@@ -1903,6 +2027,7 @@ function removeWallAt(pos) {
         const seg = state.wallSegments[i];
         if (distToSegment(pos.x, pos.y, seg.x1, seg.y1, seg.x2, seg.y2) < r) {
             state.wallSegments.splice(i, 1);
+            invalidateLOSCache();
             pushHistory();
             saveCurrentMap();
             renderFog();
@@ -2022,6 +2147,7 @@ function fillRoomAt(pos) {
 function clearAllWalls() {
     state.wallSegments = [];
     state.fogShapes = state.fogShapes.filter(s => s.type !== 'wall-fill');
+    invalidateLOSCache();
     pushHistory();
     saveCurrentMap();
     renderFog();
@@ -2065,6 +2191,7 @@ function onPointerMove(e) {
         state.activeToken.x = snapped.x;
         state.activeToken.y = snapped.y;
         renderTokens();
+        // LOS updates only on grid snap — not every pixel during drag
     } else if (state.isDMMode && state.wallDrag.active) {
         handleWallDragMove(state.mousePos);
     } else if (state.isDMMode && state.wallEdit.isDragging) {
@@ -2130,6 +2257,8 @@ function onPointerUp(e) {
     if (state.activeToken) {
         state.activeToken = null;
         dom.container.style.cursor = toolCursors[state.currentTool] || 'default';
+        invalidateLOSCache();
+        renderFog();
         pushHistory();
         saveCurrentMap();
     } else if (state.isDMMode && state.isDrawing && state.currentTool === TOOLS.FOG_RECT) {
@@ -2154,7 +2283,6 @@ function onPointerUp(e) {
     } else if (state.currentTool === TOOLS.WALL_EDIT) {
         handleWallEditUp();
     }
-
     // Ruler finish
     if (state.rulerActive) {
         state.rulerActive = false;
@@ -2332,6 +2460,15 @@ function initUI() {
     $('tool-wall-fill')?.addEventListener('click', () => setTool(TOOLS.WALL_FILL));
     $('tool-wall-edit')?.addEventListener('click', () => setTool(TOOLS.WALL_EDIT));
     $('tool-wall-erase')?.addEventListener('click', () => setTool(TOOLS.WALL_ERASE));
+    $('btn-los-toggle')?.addEventListener('click', () => {
+        state.losEnabled = !state.losEnabled;
+        const label = $('los-toggle-label');
+        if (label) label.textContent = state.losEnabled ? 'LOS: On' : 'LOS: Off';
+        $('btn-los-toggle')?.classList.toggle('border-green-600', state.losEnabled);
+        $('btn-los-toggle')?.classList.toggle('text-green-400', state.losEnabled);
+        invalidateLOSCache();
+        renderFog();
+    });
     $('btn-walls-clear')?.addEventListener('click', () => {
         if (state.wallSegments.length === 0) return;
         showConfirm('Clear All Walls', 'Delete every wall segment on this map?', () => {
@@ -2684,7 +2821,9 @@ function initUI() {
                 }
                 case 'delete':
                     state.tokens = state.tokens.filter(t => t.id !== ctxTargetToken.id);
+                    invalidateLOSCache();
                     renderTokens();
+                    renderFog();
                     pushHistory();
                     saveCurrentMap();
                     break;
