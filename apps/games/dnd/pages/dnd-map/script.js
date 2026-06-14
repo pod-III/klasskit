@@ -74,6 +74,7 @@ const state = {
     lastPointerCenter: null,
     isPanning: false,
     activeToken: null,
+    selectedToken: null,  // last token interacted with — moved by arrow keys
     isDrawing: false,
     currentDrawPoints: [],
     lastTapTime: 0,
@@ -1692,6 +1693,7 @@ function onPointerDown(e) {
             if (Math.hypot(pos.x - t.x, pos.y - t.y) < radius) {
                 tokenHit = t;
                 state.activeToken = tokenHit;
+                state.selectedToken = tokenHit;
                 break;
             }
         }
@@ -2917,15 +2919,36 @@ function initUI() {
     // Keyboard shortcuts
     document.addEventListener('keydown', (e) => {
         if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
-        if (!state.isDMMode) return;
 
         if (e.ctrlKey && e.key === 'z') { e.preventDefault(); undo(); return; }
         if (e.ctrlKey && e.key === 'y') { e.preventDefault(); redo(); return; }
 
+        // Arrow key token movement — works for both DM and players
+        if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.key)) {
+            const token = state.selectedToken
+                ? state.tokens.find(t => t.id === state.selectedToken.id)
+                : null;
+            if (token) {
+                e.preventDefault();
+                const step = state.gridSize;
+                if (e.key === 'ArrowUp')    token.y -= step;
+                if (e.key === 'ArrowDown')  token.y += step;
+                if (e.key === 'ArrowLeft')  token.x -= step;
+                if (e.key === 'ArrowRight') token.x += step;
+                invalidateLOSCache();
+                renderTokens();
+                renderFog();
+                pushHistory();
+                saveCurrentMap();
+            }
+            return;
+        }
+
+        if (!state.isDMMode) return;
+
         switch (e.key.toLowerCase()) {
             case 'd': setTool(TOOLS.DRAG); break;
             case 'p': setTool(TOOLS.PAN); break;
-            case 'f': setTool(TOOLS.FOG_DRAW); break;
             case 'r': setTool(TOOLS.FOG_RECT); break;
             case 'e': setTool(TOOLS.FOG_ERASE); break;
             case 't': setTool(TOOLS.FOG_TOGGLE); break;
