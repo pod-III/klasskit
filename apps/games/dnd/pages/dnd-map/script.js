@@ -873,6 +873,7 @@ function pushHistory() {
     state.historyIndex = state.history.length - 1;
     updateUndoRedoButtons();
     saveCurrentMap(); // Save after any state change
+    broadcastState();
 }
 
 function restoreSnapshot(snap) {
@@ -1604,6 +1605,7 @@ function updateTransform() {
     requestAnimationFrame(() => {
         dom.container.style.transform = `translate(${state.transform.x}px, ${state.transform.y}px) scale(${state.transform.scale})`;
         transformDirty = false;
+        if (!IS_PLAYER_WINDOW) broadcastState();
     });
 }
 
@@ -2373,6 +2375,7 @@ function onPointerMove(e) {
         state.activeToken.x = snapped.x;
         state.activeToken.y = snapped.y;
         renderTokens();
+        broadcastState();
         // LOS updates only on grid snap — not every pixel during drag
     } else if (state.isDMMode && state.wallDrag.active) {
         handleWallDragMove(state.mousePos);
@@ -2674,6 +2677,7 @@ function initUI() {
         $('btn-los-toggle')?.classList.toggle('text-green-400', state.losEnabled);
         invalidateLOSCache();
         renderFog();
+        broadcastState();
     });
     $('btn-walls-clear')?.addEventListener('click', () => {
         if (state.wallSegments.length === 0) return;
@@ -3282,6 +3286,88 @@ async function resolveMapImage(mapData) {
     return mapData.data || null;
 }
 
+// ==================== BROADCAST CHANNEL (Player View Sync) ====================
+const BROADCAST_CHANNEL = 'arcane-vtt-sync';
+const IS_PLAYER_WINDOW = new URLSearchParams(location.search).has('player');
+const bc = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel(BROADCAST_CHANNEL) : null;
+
+// Called after any state change — serialises and sends to player window(s)
+function broadcastState() {
+    if (!bc || IS_PLAYER_WINDOW) return;
+    const payload = {
+        type: 'state-update',
+        tokens: state.tokens.map(t => ({
+            id: t.id, name: t.name, x: t.x, y: t.y,
+            size: t.size || 1, src: t.imageUrl || t.img?.src || null,
+            _initiativeActive: t._initiativeActive || false
+        })),
+        fogShapes: state.fogShapes,
+        wallSegments: state.wallSegments,
+        openingSegments: state.openingSegments,
+        gridSize: state.gridSize,
+        transform: state.transform,
+        losEnabled: state.losEnabled,
+        waypoints: state.waypoints,
+        mapSrc: state.currentMapData?.data || state.currentMapData?.imageUrl || null,
+        mapId: state.currentMapData?.id || null,
+        isGridVisible: state.isGridVisible,
+    };
+    bc.postMessage(payload);
+}
+
+// Player window: receive state and re-render
+if (bc && IS_PLAYER_WINDOW) {
+    bc.onmessage = async ({ data }) => {
+        if (data.type !== 'state-update') return;
+
+        // Update transform
+        state.transform = data.transform;
+        updateTransform();
+
+        // Grid
+        if (state.gridSize !== data.gridSize) {
+            state.gridSize = data.gridSize;
+            renderGrid();
+        }
+        state.isGridVisible = data.isGridVisible;
+
+        // Fog/wall/opening/waypoint state
+        state.fogShapes = data.fogShapes;
+        state.wallSegments = data.wallSegments;
+        state.openingSegments = data.openingSegments;
+        state.waypoints = data.waypoints;
+        state.losEnabled = data.losEnabled;
+
+        // Tokens — re-use existing img objects where possible
+        const existingImgs = new Map(state.tokens.map(t => [t.id, t.img]));
+        state.tokens = await Promise.all(data.tokens.map(async td => {
+            let img = existingImgs.get(td.id);
+            if (!img && td.src) {
+                img = new Image();
+                await new Promise(res => { img.onload = res; img.onerror = res; img.src = td.src; });
+            }
+            return { ...td, img };
+        }));
+
+        const doRender = () => {
+            invalidateLOSCache();
+            renderFog();
+            renderTokens();
+            renderLOS();
+        };
+
+        // Map image — only reload if map changed; defer renders until image is ready
+        if (data.mapSrc && data.mapId !== state.currentMapData?.id) {
+            state.currentMapData = { id: data.mapId, data: data.mapSrc };
+            const img = new Image();
+            img.onload = () => { state.mapImage = img; renderMap(); doRender(); };
+            img.src = data.mapSrc;
+        } else {
+            doRender();
+        }
+    };
+}
+
 // ==================== INITIALISATION ====================
 window.addEventListener('load', async () => {
     if (typeof requirePro === 'function') await requirePro();
@@ -3301,4 +3387,24 @@ window.addEventListener('load', async () => {
 
     // Initialize initiative UI
     renderInitiative();
+
+    // Player window: auto-switch to player mode and hide all DM chrome
+    if (IS_PLAYER_WINDOW) {
+        state.isDMMode = false;
+        if (dom.sidebar) dom.sidebar.style.display = 'none';
+        const toolSidebar = $('tool-sidebar');
+        if (toolSidebar) toolSidebar.style.display = 'none';
+        const header = document.querySelector('header');
+        if (header) header.style.display = 'none';
+        const playerToolbar = $('player-toolbar');
+        if (playerToolbar) playerToolbar.classList.remove('hidden');
+        setPlayerTool('move');
+        document.title = 'Player View | Arcane Tabletop';
+    }
+
+    // Wire the "Open Player View" button
+    $('btn-open-player')?.addEventListener('click', () => {
+        window.open(location.pathname + '?player=1', 'arcane-player-view',
+            'width=1280,height=800,menubar=no,toolbar=no,location=no,status=no');
+    });
 });
