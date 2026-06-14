@@ -442,23 +442,23 @@ function updateUndoRedoButtons() {
 }
 
 // ==================== INDEXEDDB ====================
-let db;
+let dataBase;
 
 function initDB() {
     const request = indexedDB.open(DB_NAME, DB_VERSION);
     request.onupgradeneeded = (e) => {
-        db = e.target.result;
-        if (!db.objectStoreNames.contains('maps')) {
-            db.createObjectStore('maps', { keyPath: 'id' });
+        dataBase = e.target.result;
+        if (!dataBase.objectStoreNames.contains('maps')) {
+            dataBase.createObjectStore('maps', { keyPath: 'id' });
         }
-        if (!db.objectStoreNames.contains('tokenLibrary')) {
-            db.createObjectStore('tokenLibrary', { keyPath: 'id' });
+        if (!dataBase.objectStoreNames.contains('tokenLibrary')) {
+            dataBase.createObjectStore('tokenLibrary', { keyPath: 'id' });
         }
     };
     request.onsuccess = async (e) => {
-        db = e.target.result;
+        dataBase = e.target.result;
         await new Promise((resolve) => {
-            const tx = db.transaction('maps', 'readonly');
+            const tx = dataBase.transaction('maps', 'readonly');
             const req = tx.objectStore('maps').getAll();
             req.onsuccess = () => {
                 state.mapsList = req.result || [];
@@ -476,14 +476,14 @@ function initDB() {
 }
 
 function saveCurrentMap() {
-    if (!state.currentMapData || !db) return;
+    if (!state.currentMapData || !dataBase) return;
     state.currentMapData.tokens = state.tokens.map(t => ({
         id: t.id, name: t.name, x: t.x, y: t.y, src: t.imageUrl || t.img.src, imageUrl: t.imageUrl || null, size: t.size || 1
     }));
     state.currentMapData.fogShapes = state.fogShapes;
     state.currentMapData.gridSize = state.gridSize;
     try {
-        const tx = db.transaction('maps', 'readwrite');
+        const tx = dataBase.transaction('maps', 'readwrite');
         tx.onerror = () => console.warn('IndexedDB save failed');
         tx.objectStore('maps').put(state.currentMapData);
     } catch (e) {
@@ -493,7 +493,7 @@ function saveCurrentMap() {
 }
 
 function loadMapList() {
-    const tx = db.transaction('maps', 'readonly');
+    const tx = dataBase.transaction('maps', 'readonly');
     const req = tx.objectStore('maps').getAll();
     req.onsuccess = () => {
         state.mapsList = req.result || [];
@@ -676,7 +676,7 @@ async function rotateMap() {
 
 // ==================== TOKEN LIBRARY ====================
 function loadTokenLibrary() {
-    const tx = db.transaction('tokenLibrary', 'readonly');
+    const tx = dataBase.transaction('tokenLibrary', 'readonly');
     const req = tx.objectStore('tokenLibrary').getAll();
     req.onsuccess = () => {
         state.tokenLibrary = req.result || [];
@@ -686,7 +686,7 @@ function loadTokenLibrary() {
 
 function saveTokenToLibrary(name, src, imageUrl = null) {
     const entry = { id: Date.now(), name, src, imageUrl };
-    const tx = db.transaction('tokenLibrary', 'readwrite');
+    const tx = dataBase.transaction('tokenLibrary', 'readwrite');
     tx.objectStore('tokenLibrary').put(entry);
     tx.oncomplete = () => {
         state.tokenLibrary.push(entry);
@@ -696,7 +696,7 @@ function saveTokenToLibrary(name, src, imageUrl = null) {
 }
 
 function deleteTokenFromLibrary(id) {
-    const tx = db.transaction('tokenLibrary', 'readwrite');
+    const tx = dataBase.transaction('tokenLibrary', 'readwrite');
     tx.objectStore('tokenLibrary').delete(id);
     tx.oncomplete = () => {
         state.tokenLibrary = state.tokenLibrary.filter(t => t.id !== id);
@@ -1229,7 +1229,7 @@ function initUI() {
             if (cloudId && typeof deleteDndSave === 'function') {
                 await deleteDndSave(cloudId).catch(e => console.warn('[Cloud] Failed to delete map:', e));
             }
-            const tx = db.transaction('maps', 'readwrite');
+            const tx = dataBase.transaction('maps', 'readwrite');
             tx.objectStore('maps').delete(id);
             tx.oncomplete = () => {
                 state.mapsList = state.mapsList.filter(m => m.id !== id);
@@ -1288,7 +1288,7 @@ function initUI() {
                 gridSize: state.gridSize
             };
             saveCurrentMap(); // Save current before switching
-            const tx = db.transaction('maps', 'readwrite');
+            const tx = dataBase.transaction('maps', 'readwrite');
             tx.objectStore('maps').put(newMap);
             tx.oncomplete = () => {
                 state.mapsList.push(newMap);
@@ -1374,7 +1374,7 @@ function initUI() {
     // Export
     $('btn-export').addEventListener('click', () => {
         saveCurrentMap(); // Ensure current map is saved
-        const tx = db.transaction('maps', 'readonly');
+        const tx = dataBase.transaction('maps', 'readonly');
         const req = tx.objectStore('maps').getAll();
         req.onsuccess = () => {
             const blob = new Blob([JSON.stringify(req.result)], { type: 'application/json' });
@@ -1396,7 +1396,7 @@ function initUI() {
             try {
                 const importedMaps = JSON.parse(ev.target.result);
                 if (!Array.isArray(importedMaps)) throw new Error('Invalid format');
-                const tx = db.transaction('maps', 'readwrite');
+                const tx = dataBase.transaction('maps', 'readwrite');
                 importedMaps.forEach(m => tx.objectStore('maps').put(m));
                 tx.oncomplete = () => {
                     showAlert('Success', 'Campaign data imported!');
@@ -1549,8 +1549,8 @@ async function performCloudSync() {
         const result = await saveDndSave('vtt', map.name, stateData, map.cloudId || null);
         if (result.id && !map.cloudId) {
             map.cloudId = result.id;
-            if (db) {
-                const tx = db.transaction('maps', 'readwrite');
+            if (dataBase) {
+                const tx = dataBase.transaction('maps', 'readwrite');
                 tx.objectStore('maps').put(map);
             }
         }
@@ -1578,8 +1578,8 @@ async function syncFromCloud() {
             existing.tokens = sd.tokens || existing.tokens;
             existing.fogShapes = sd.fogShapes || existing.fogShapes;
             existing.gridSize = sd.gridSize || existing.gridSize;
-            if (db) {
-                const tx = db.transaction('maps', 'readwrite');
+            if (dataBase) {
+                const tx = dataBase.transaction('maps', 'readwrite');
                 tx.objectStore('maps').put(existing);
             }
         } else {
@@ -1594,8 +1594,8 @@ async function syncFromCloud() {
                 gridSize: sd.gridSize || DEFAULT_GRID
             };
             state.mapsList.push(newMap);
-            if (db) {
-                const tx = db.transaction('maps', 'readwrite');
+            if (dataBase) {
+                const tx = dataBase.transaction('maps', 'readwrite');
                 tx.objectStore('maps').put(newMap);
             }
         }
@@ -1607,8 +1607,8 @@ async function syncFromCloud() {
         state.tokenLibraryCloudId = lib.id;
         const tokens = lib.state_data?.tokens || [];
         state.tokenLibrary = tokens.map(t => ({ id: t.id, name: t.name, src: (t.src && !t.src.startsWith('[STRIPPED_')) ? t.src : (t.imageUrl || null), imageUrl: t.imageUrl }));
-        if (db) {
-            const tx = db.transaction('tokenLibrary', 'readwrite');
+        if (dataBase) {
+            const tx = dataBase.transaction('tokenLibrary', 'readwrite');
             state.tokenLibrary.forEach(t => tx.objectStore('tokenLibrary').put(t));
         }
     }
