@@ -39,7 +39,7 @@ const TOOLS = {
     WALL: 'wall',
     WALL_ERASE: 'wall-erase',
     WALL_EDIT: 'wall-edit',
-    WALL_FILL: 'wall-fill'
+    OPENING: 'opening'
 };
 
 // DOM element shortcuts
@@ -100,6 +100,11 @@ const state = {
 
     // Wall segments: { id, x1, y1, x2, y2 }
     wallSegments: [],
+
+    // Opening segments: { id, x1, y1, x2, y2, isOpen, isDoor }
+    // isDoor=true → door (brown), isDoor=false → window (cyan)
+    openingSegments: [],
+    _openingIsDoor: true, // current sub-mode for OPENING tool
 
     // Wall draw drag state
     wallDrag: {
@@ -733,9 +738,52 @@ function renderFogNow() {
         }
     }
 
-    // Wall drag preview (new segment being drawn)
+    // Draw openings (doors and windows)
+    for (const op of state.openingSegments) {
+        const ctx = dom.fogCtx;
+        ctx.save();
+        ctx.lineCap = 'round';
+        if (!op.isDoor) {
+            // Window: always dashed, cyan when open, grey when closed
+            ctx.setLineDash([4 / state.transform.scale, 3 / state.transform.scale]);
+        }
+        // Base stroke
+        ctx.beginPath();
+        ctx.moveTo(op.x1, op.y1);
+        ctx.lineTo(op.x2, op.y2);
+        if (op.isDoor) {
+            ctx.strokeStyle = op.isOpen ? 'rgba(34,197,94,0.95)' : 'rgba(180,83,9,0.95)';
+            ctx.lineWidth = 8;
+        } else {
+            ctx.strokeStyle = op.isOpen ? 'rgba(147,210,255,0.95)' : 'rgba(100,150,180,0.7)';
+            ctx.lineWidth = 5;
+        }
+        ctx.stroke();
+        // Edge highlight
+        ctx.strokeStyle = op.isOpen
+            ? (op.isDoor ? 'rgba(134,239,172,0.7)' : 'rgba(186,230,253,0.7)')
+            : (op.isDoor ? 'rgba(251,191,36,0.8)' : 'rgba(148,163,184,0.5)');
+        ctx.lineWidth = op.isDoor ? 3 : 2;
+        ctx.stroke();
+        ctx.setLineDash([]);
+        // Centre dot
+        const mx = (op.x1 + op.x2) / 2, my = (op.y1 + op.y2) / 2;
+        const iconR = Math.max(3, 5 / state.transform.scale);
+        ctx.beginPath();
+        ctx.arc(mx, my, iconR, 0, Math.PI * 2);
+        ctx.fillStyle = op.isOpen
+            ? (op.isDoor ? 'rgba(34,197,94,0.9)' : 'rgba(147,210,255,0.9)')
+            : (op.isDoor ? 'rgba(251,191,36,0.9)' : 'rgba(148,163,184,0.7)');
+        ctx.fill();
+        ctx.restore();
+    }
+
+    // Wall / door / window drag preview
     if (state.wallDrag.active) {
         const { x1, y1, x2, y2 } = state.wallDrag;
+        const previewColor = state.currentTool === TOOLS.OPENING
+            ? (state._openingIsDoor ? 'rgba(251,191,36,0.9)' : 'rgba(147,210,255,0.9)')
+            : 'rgba(34,211,238,0.8)';
         dom.fogCtx.save();
         dom.fogCtx.lineCap = 'round';
         dom.fogCtx.beginPath();
@@ -744,7 +792,7 @@ function renderFogNow() {
         dom.fogCtx.strokeStyle = 'rgba(15,10,5,0.7)';
         dom.fogCtx.lineWidth = 10;
         dom.fogCtx.stroke();
-        dom.fogCtx.strokeStyle = 'rgba(34,211,238,0.8)';
+        dom.fogCtx.strokeStyle = previewColor;
         dom.fogCtx.lineWidth = 5;
         dom.fogCtx.stroke();
         dom.fogCtx.restore();
@@ -797,7 +845,8 @@ function snapshotState() {
         })),
         fogShapes: JSON.parse(JSON.stringify(state.fogShapes)),
         gridSize: state.gridSize,
-        wallSegments: JSON.parse(JSON.stringify(state.wallSegments))
+        wallSegments: JSON.parse(JSON.stringify(state.wallSegments)),
+        openingSegments: JSON.parse(JSON.stringify(state.openingSegments))
     };
 }
 
@@ -815,6 +864,14 @@ function restoreSnapshot(snap) {
     state.fogShapes = JSON.parse(JSON.stringify(snap.fogShapes));
     state.gridSize = snap.gridSize;
     if (snap.wallSegments) state.wallSegments = JSON.parse(JSON.stringify(snap.wallSegments));
+    if (snap.openingSegments) state.openingSegments = JSON.parse(JSON.stringify(snap.openingSegments));
+    // migrate old saves
+    else if (snap.doorSegments || snap.windowSegments) {
+        state.openingSegments = [
+            ...(snap.doorSegments || []).map(d => ({ ...d, isDoor: true })),
+            ...(snap.windowSegments || []).map(w => ({ ...w, isDoor: false, isOpen: w.isOpen ?? true }))
+        ];
+    }
     invalidateLOSCache();
     updateGridDisplay();
     renderGrid();
@@ -924,6 +981,7 @@ function saveCurrentMap() {
     state.currentMapData.gridSize = state.gridSize;
     state.currentMapData.waypoints = state.waypoints;
     state.currentMapData.wallSegments = state.wallSegments;
+    state.currentMapData.openingSegments = state.openingSegments;
     state.currentMapData.lastUsed = Date.now();
     try {
         const tx = dataBase.transaction('maps', 'readwrite');
@@ -1263,6 +1321,11 @@ async function loadMap(id) {
     state.gridSize = state.currentMapData.gridSize || DEFAULT_GRID;
     state.waypoints = state.currentMapData.waypoints || [];
     state.wallSegments = state.currentMapData.wallSegments || [];
+    state.openingSegments = state.currentMapData.openingSegments
+        || [
+            ...(state.currentMapData.doorSegments || []).map(d => ({ ...d, isDoor: true })),
+            ...(state.currentMapData.windowSegments || []).map(w => ({ ...w, isDoor: false, isOpen: w.isOpen ?? true }))
+           ];
     state.wallDrag.active = false;
     state.wallEdit.isDragging = false;
     invalidateLOSCache();
@@ -1542,7 +1605,7 @@ const toolButtons = {
     wall: 'tool-wall',
     'wall-erase': 'tool-wall-erase',
     'wall-edit': 'tool-wall-edit',
-    'wall-fill': 'tool-wall-fill'
+    'opening': 'tool-opening'
 };
 
 const toolCursors = {
@@ -1557,7 +1620,7 @@ const toolCursors = {
     [TOOLS.WALL]: 'crosshair',
     [TOOLS.WALL_ERASE]: 'pointer',
     [TOOLS.WALL_EDIT]: 'pointer',
-    [TOOLS.WALL_FILL]: 'cell'
+    [TOOLS.OPENING]: 'crosshair'
 };
 
 function setTool(tool) {
@@ -1742,14 +1805,16 @@ function onPointerDown(e) {
             break;
         case TOOLS.WALL_ERASE:
             removeWallAt(pos);
+            removeOpeningAt(pos);
             break;
         case TOOLS.WALL_EDIT:
             handleWallEditDown(pos);
             break;
-        case TOOLS.WALL_FILL:
-            fillRoomAt(pos);
+        case TOOLS.OPENING:
+            handleWallDragStart(pos);
             break;
     }
+
 }
 
 
@@ -1881,13 +1946,16 @@ function invalidateLOSCache() {
 
 function rebuildLOSCache() {
     if (!state.losEnabled || !state.mapImage) { losCache.dirty = false; return; }
-    // Combine wall segments with map boundary so rays always terminate
     const boundary = buildBoundarySegments(state.mapImage.width, state.mapImage.height);
-    const allSegs = [...state.wallSegments, ...boundary];
+
+    // Closed openings block LOS; open openings are gaps (omitted from occluders)
+    const closedOpenings = state.openingSegments.filter(o => !o.isOpen);
+    const occluders = [...state.wallSegments, ...closedOpenings, ...boundary];
+
     losCache.polygons.clear();
     for (const token of state.tokens) {
         if (token.x == null) continue;
-        losCache.polygons.set(token.id, computeVisibilityPolygon(token.x, token.y, allSegs));
+        losCache.polygons.set(token.id, computeVisibilityPolygon(token.x, token.y, occluders));
     }
     losCache.dirty = false;
 }
@@ -2068,6 +2136,71 @@ function removeWallAt(pos) {
     }
 }
 
+// ==================== DOOR / WINDOW SYSTEM ====================
+
+const DOOR_HIT_RADIUS = 10; // px screen space
+
+// Closest point on segment AB to point P
+function closestPointOnSegment(px, py, x1, y1, x2, y2) {
+    const dx = x2 - x1, dy = y2 - y1;
+    const lenSq = dx * dx + dy * dy;
+    if (lenSq < 1e-10) return { x: x1, y: y1, t: 0 };
+    const t = Math.max(0, Math.min(1, ((px - x1) * dx + (py - y1) * dy) / lenSq));
+    return { x: x1 + t * dx, y: y1 + t * dy, t };
+}
+
+// Place an opening segment from drag (reuses wallDrag state)
+// isDoor: true = door, false = window
+function handleOpeningDragEnd(pos, isDoor) {
+    if (!state.wallDrag.active) return;
+    state.wallDrag.active = false;
+    const snappedEnd = snapToNearestWallNode(pos) || pos;
+    const x1 = state.wallDrag.x1, y1 = state.wallDrag.y1;
+    const x2 = snappedEnd.x, y2 = snappedEnd.y;
+    if (Math.hypot(x2 - x1, y2 - y1) > 3 / state.transform.scale) {
+        state.openingSegments.push({ id: Date.now(), x1, y1, x2, y2, isOpen: !isDoor, isDoor });
+        invalidateLOSCache();
+        pushHistory();
+        saveCurrentMap();
+    }
+    renderFog();
+}
+
+// Toggle an opening open/closed — called on any click near an opening
+function toggleOpeningAt(pos) {
+    const r = DOOR_HIT_RADIUS / state.transform.scale;
+    for (const op of state.openingSegments) {
+        const cp = closestPointOnSegment(pos.x, pos.y, op.x1, op.y1, op.x2, op.y2);
+        if (Math.hypot(cp.x - pos.x, cp.y - pos.y) < r) {
+            op.isOpen = !op.isOpen;
+            invalidateLOSCache();
+            renderFog();
+            pushHistory();
+            saveCurrentMap();
+            return true;
+        }
+    }
+    return false;
+}
+
+// Remove nearest opening at pos
+function removeOpeningAt(pos) {
+    const r = DOOR_HIT_RADIUS / state.transform.scale;
+    for (let i = state.openingSegments.length - 1; i >= 0; i--) {
+        const seg = state.openingSegments[i];
+        const cp = closestPointOnSegment(pos.x, pos.y, seg.x1, seg.y1, seg.x2, seg.y2);
+        if (Math.hypot(cp.x - pos.x, cp.y - pos.y) < r) {
+            state.openingSegments.splice(i, 1);
+            invalidateLOSCache();
+            pushHistory();
+            saveCurrentMap();
+            renderFog();
+            return true;
+        }
+    }
+    return false;
+}
+
 // --- FILL ROOM (bucket fog) ---
 function fillRoomAt(pos) {
     if (!state.mapImage) return;
@@ -2178,6 +2311,7 @@ function fillRoomAt(pos) {
 // --- CLEAR ALL ---
 function clearAllWalls() {
     state.wallSegments = [];
+    state.openingSegments = [];
     state.fogShapes = state.fogShapes.filter(s => s.type !== 'wall-fill');
     invalidateLOSCache();
     pushHistory();
@@ -2309,12 +2443,18 @@ function onPointerUp(e) {
         processFogTapPlayer(pos);
     }
 
-    // Wall drag/edit finish
+    // Wall / door / window drag finish
+    const upPos = getPointerPos(e);
     if (state.currentTool === TOOLS.WALL) {
-        handleWallDragEnd(getPointerPos(e));
+        handleWallDragEnd(upPos);
+    } else if (state.currentTool === TOOLS.OPENING) {
+        handleOpeningDragEnd(upPos, state._openingIsDoor);
     } else if (state.currentTool === TOOLS.WALL_EDIT) {
         handleWallEditUp();
     }
+
+    // Toggle opening on tap (no drag) — any tool, any mode
+    if (wasTap) toggleOpeningAt(upPos);
     // Ruler finish
     if (state.rulerActive) {
         state.rulerActive = false;
@@ -2489,9 +2629,24 @@ function initUI() {
     $('tool-ruler')?.addEventListener('click', () => setTool(TOOLS.RULER));
     $('tool-waypoint')?.addEventListener('click', () => setTool(TOOLS.WAYPOINT));
     $('tool-wall')?.addEventListener('click', () => setTool(TOOLS.WALL));
-    $('tool-wall-fill')?.addEventListener('click', () => setTool(TOOLS.WALL_FILL));
     $('tool-wall-edit')?.addEventListener('click', () => setTool(TOOLS.WALL_EDIT));
     $('tool-wall-erase')?.addEventListener('click', () => setTool(TOOLS.WALL_ERASE));
+    $('tool-opening')?.addEventListener('click', () => setTool(TOOLS.OPENING));
+    $('btn-opening-type')?.addEventListener('click', () => {
+        state._openingIsDoor = !state._openingIsDoor;
+        const isDoor = state._openingIsDoor;
+        const label = $('opening-label');
+        if (label) label.textContent = isDoor ? 'Place Door' : 'Place Window';
+        const iconSlot = document.querySelector('#tool-opening i, #tool-opening svg');
+        if (iconSlot) {
+            const newI = document.createElement('i');
+            newI.id = 'opening-icon';
+            newI.setAttribute('data-lucide', isDoor ? 'door-open' : 'scan');
+            newI.className = `w-4 h-4 ${isDoor ? 'text-amber-400' : 'text-sky-400'}`;
+            iconSlot.replaceWith(newI);
+            lucide.createIcons();
+        }
+    });
     $('btn-los-toggle')?.addEventListener('click', () => {
         state.losEnabled = !state.losEnabled;
         const label = $('los-toggle-label');
@@ -2959,9 +3114,9 @@ function initUI() {
             case 'm': setTool(TOOLS.RULER); break;
             case 'w': setTool(TOOLS.WAYPOINT); break;
             case 'v': setTool(TOOLS.WALL); break;
-            case 'f': setTool(TOOLS.WALL_FILL); break;
             case 'b': setTool(TOOLS.WALL_EDIT); break;
             case 'x': setTool(TOOLS.WALL_ERASE); break;
+            case 'o': setTool(TOOLS.OPENING); break;
             case 'escape':
                 if (state.wallDrag.active) {
                     state.wallDrag.active = false;
