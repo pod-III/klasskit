@@ -43,6 +43,7 @@ async function init() {
   checkPro();
   loadData();
   renderAll();
+  updateProVisibility();
   lucide.createIcons();
   
   // Update the current date display in the widget header
@@ -67,6 +68,17 @@ function checkPro() {
     const user = StorageUtil.load('kk_user_profile', {});
     State.isPro = user.role === 'pro' || user.role === 'admin';
   }
+}
+
+/**
+ * Hides pro-only dashboard elements for non-pro users.
+ */
+function updateProVisibility() {
+  const classBtn = document.getElementById('class-shortcut-btn');
+  if (classBtn) classBtn.style.display = State.isPro ? '' : 'none';
+
+  const classWidget = document.getElementById('class-widget');
+  if (classWidget) classWidget.style.display = State.isPro ? '' : 'none';
 }
 
 /**
@@ -426,4 +438,5 @@ window.addEventListener('load', init);
 window.addEventListener('storage', () => {
   loadData();
   renderAll();
+  updateProVisibility();
 });
