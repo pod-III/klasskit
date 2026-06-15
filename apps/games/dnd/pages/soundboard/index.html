@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Arcane Soundboard | Game Hub</title>
+    <!-- Supabase and Styles -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.105.4"></script>
+    <script src="/supabase.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        stone: { 900: '#1c1917', 950: '#0c0a09' },
+                        amber: { 500: '#f59e0b', 600: '#d97706', 700: '#b45309', 900: '#78350f' }
+                    },
+                    fontFamily: {
+                        cinzel: ['Cinzel', 'serif'],
+                        lora: ['Lora', 'serif']
+                    }
+                }
+            }
+        }
+    </script>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Lora:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body class="bg-stone-950 text-stone-300 font-lora min-h-screen flex flex-col selection:bg-amber-500/30 overflow-x-hidden pb-12">
+
+    <!-- HEADER -->
+    <header class="bg-stone-900 border-b border-amber-900/50 px-6 py-4 flex flex-col sm:flex-row justify-between items-center z-40 shrink-0 gap-4 shadow-lg">
+        <div class="flex items-center gap-4">
+            <a href="../../index.html" title="Back to Hub"
+                class="p-2 bg-stone-950 border-2 rounded-xl text-amber-500 hover:translate-y-[-1px] active:translate-y-[2px] transition-all flex items-center justify-center border-stone-800 shadow-hard"
+                id="back-btn">
+                <i data-lucide="home" class="w-5 h-5"></i>
+            </a>
+            <div>
+                <h1 class="text-xl font-bold text-amber-500 flex items-center gap-2.5 font-cinzel tracking-wider">
+                    <i data-lucide="music" class="w-5 h-5 text-amber-500"></i> Arcane Soundboard
+                </h1>
+                <p class="text-[11px] text-stone-500 font-cinzel tracking-widest mt-0.5">Epic Audio Mixer & SFX Hotkeys</p>
+            </div>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-3">
+            <!-- Panic Buttons -->
+            <button id="btn-stop-all" title="Instantly silence all playing audio"
+                class="px-4 py-2 bg-red-950 hover:bg-red-900 text-red-200 rounded-lg text-xs font-bold font-cinzel tracking-wider transition-all flex items-center gap-2 border border-red-800 shadow-sm active:translate-y-[2px]">
+                <i data-lucide="volume-x" class="w-4 h-4"></i> STOP ALL SOUNDS
+            </button>
+
+            <button id="btn-mute-sfx" title="Mute/unmute all sound effects"
+                class="px-3 py-2 bg-stone-800 hover:bg-stone-700 text-stone-300 rounded-lg text-xs font-bold font-cinzel tracking-wider transition-all flex items-center gap-1.5 border border-stone-700">
+                <i data-lucide="bell-ring" class="w-4 h-4" id="sfx-mute-icon"></i> <span id="sfx-mute-text">MUTE SFX</span>
+            </button>
+
+            <!-- Master Volume -->
+            <div class="flex items-center gap-2 bg-stone-950 border border-stone-800 rounded-lg px-3 py-1.5">
+                <i data-lucide="volume-2" class="w-4 h-4 text-amber-500"></i>
+                <input type="range" id="master-volume" min="0" max="1" step="0.01" value="0.8"
+                    class="w-24 accent-amber-500 bg-stone-800 h-1.5 rounded-lg cursor-pointer">
+                <span id="master-vol-label" class="text-xs font-bold font-cinzel text-amber-500 w-8 text-right">80%</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- MAIN BODY -->
+    <main class="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        
+        <!-- LEFT: AMBIENT MIXER (6 channels) -->
+        <section class="lg:col-span-8 space-y-6">
+            <div class="flex items-center justify-between border-b border-amber-900/30 pb-2">
+                <h2 class="text-lg font-bold font-cinzel tracking-wider text-amber-500 flex items-center gap-2">
+                    <i data-lucide="sliders-horizontal" class="w-5 h-5"></i> Soundscape Mixer
+                </h2>
+                <p class="text-xs text-stone-500 italic">Play multiple environmental loops simultaneously</p>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4" id="ambient-channels">
+                <!-- 6 Ambient channels will be generated here by Javascript -->
+                <!-- Each channel acts as a loop slot that can load presets or custom links -->
+            </div>
+        </section>
+
+        <!-- RIGHT: SCENES & SFX PADS (4 columns equivalent in 12-col grid) -->
+        <section class="lg:col-span-4 space-y-6">
+            
+            <!-- SCENES MANAGER -->
+            <div class="bg-stone-900 border-2 border-stone-800 rounded-xl p-5 shadow-hard flex flex-col gap-4">
+                <div class="border-b border-stone-800 pb-2">
+                    <h3 class="text-sm font-bold font-cinzel text-amber-500 flex items-center gap-2 tracking-wide">
+                        <i data-lucide="library" class="w-4 h-4"></i> Saved Scenes & Presets
+                    </h3>
+                    <p class="text-[11px] text-stone-500">Save your custom ambient and SFX configurations</p>
+                </div>
+
+                <!-- Scene select/list -->
+                <div class="space-y-3">
+                    <div class="flex gap-2">
+                        <select id="scene-select"
+                            class="flex-1 bg-stone-950 border border-stone-800 rounded-lg px-3 py-2 text-xs text-stone-300 focus:outline-none focus:border-amber-500">
+                            <option value="">-- Choose a Preset Scene --</option>
+                        </select>
+                        <button id="btn-save-scene" title="Save current setup as a new scene"
+                            class="bg-amber-700 hover:bg-amber-600 border border-amber-500/30 p-2 rounded-lg text-white transition-all hover:translate-y-[-1px] active:translate-y-[1px]">
+                            <i data-lucide="save" class="w-4 h-4"></i>
+                        </button>
+                        <button id="btn-delete-scene" title="Delete selected scene"
+                            class="bg-red-950/50 hover:bg-red-900/60 border border-red-900/50 p-2 rounded-lg text-red-400 transition-all hover:translate-y-[-1px] active:translate-y-[1px]">
+                            <i data-lucide="trash-2" class="w-4 h-4"></i>
+                        </button>
+                    </div>
+
+                    <div id="scene-cloud-status" class="text-[10px] text-stone-500 flex items-center gap-1">
+                        <i data-lucide="cloud" class="w-3.5 h-3.5 text-stone-500" id="sync-cloud-icon"></i>
+                        <span id="sync-status-text">Loading soundscapes...</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- SFX SOUND PADS -->
+            <div class="bg-stone-900 border-2 border-stone-800 rounded-xl p-5 shadow-hard space-y-4">
+                <div class="flex items-center justify-between border-b border-stone-800 pb-2">
+                    <h3 class="text-sm font-bold font-cinzel text-amber-500 flex items-center gap-2 tracking-wide">
+                        <i data-lucide="sparkles" class="w-4 h-4"></i> Interactive SFX Pads
+                    </h3>
+                    <div class="flex items-center gap-2">
+                        <label class="text-[10px] text-stone-400 font-cinzel flex items-center gap-1 cursor-pointer">
+                            <input type="checkbox" id="toggle-hotkeys" checked class="rounded border-stone-800 text-amber-500 bg-stone-950 focus:ring-0 accent-amber-500">
+                            Hotkeys
+                        </label>
+                    </div>
+                </div>
+
+                <!-- SFX Pads Grid -->
+                <div class="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-3 gap-3" id="sfx-pads-container">
+                    <!-- 12 SFX pads generated here by script.js -->
+                </div>
+
+                <div class="text-[10px] text-stone-500 italic text-center">
+                    Click a pad to trigger SFX. Press bound hotkey on keyboard. Right-click or press "Edit" gear to configure sound source, trigger, or volume.
+                </div>
+            </div>
+
+        </section>
+
+    </main>
+
+    <!-- CUSTOM AUDIO SLOT CONFIGURATION MODAL -->
+    <div id="config-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm opacity-0 pointer-events-none transition-all duration-200">
+        <div class="bg-stone-900 border-2 border-amber-900/50 rounded-2xl w-full max-w-md p-6 shadow-2xl relative transform scale-95 transition-all duration-200 space-y-5" id="config-modal-panel">
+            <button id="modal-close" class="absolute top-4 right-4 text-stone-400 hover:text-white p-1 rounded-full hover:bg-stone-800 transition-colors">
+                <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+
+            <div>
+                <h3 class="font-cinzel font-bold text-lg text-amber-500 tracking-wide flex items-center gap-2">
+                    <i data-lucide="settings" class="w-5 h-5"></i> Configure Audio Slot
+                </h3>
+                <p id="modal-slot-desc" class="text-xs text-stone-500">Customize loop or SFX trigger</p>
+            </div>
+
+            <!-- Settings Form -->
+            <div class="space-y-4 text-sm">
+                <!-- Custom Name -->
+                <div class="space-y-1">
+                    <label class="block text-xs font-bold text-stone-400 font-cinzel">Slot Title</label>
+                    <input type="text" id="config-name" placeholder="e.g. Scary Cave Growl"
+                        class="w-full bg-stone-950 border border-stone-800 rounded-lg px-3 py-2 text-stone-300 focus:outline-none focus:border-amber-500">
+                </div>
+
+                <!-- Curated Presets dropdown -->
+                <div class="space-y-1">
+                    <label class="block text-xs font-bold text-stone-400 font-cinzel">Load from Presets Library</label>
+                    <select id="config-preset-select"
+                        class="w-full bg-stone-950 border border-stone-800 rounded-lg px-3 py-2 text-stone-300 focus:outline-none focus:border-amber-500">
+                        <option value="">-- Choose Preset or Keep Custom --</option>
+                    </select>
+                </div>
+
+                <!-- Custom URL -->
+                <div class="space-y-1">
+                    <label class="block text-xs font-bold text-stone-400 font-cinzel">Or Direct Audio URL (MP3/OGG/WAV)</label>
+                    <input type="text" id="config-url" placeholder="https://example.com/audio.mp3"
+                        class="w-full bg-stone-950 border border-stone-800 rounded-lg px-3 py-2 text-stone-300 focus:outline-none focus:border-amber-500">
+                </div>
+
+                <!-- File Upload (Supabase storage supported) -->
+                <div class="space-y-1">
+                    <label class="block text-xs font-bold text-stone-400 font-cinzel">Or Upload Local Audio File</label>
+                    <div class="flex items-center gap-2">
+                        <label class="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-stone-950 border border-stone-800 hover:bg-stone-900 border-dashed rounded-lg cursor-pointer text-xs text-stone-400 font-medium">
+                            <i data-lucide="upload-cloud" class="w-4 h-4 text-amber-500"></i>
+                            <span id="file-upload-label">Choose File (max 10MB)</span>
+                            <input type="file" id="config-file" accept="audio/*" class="hidden">
+                        </label>
+                        <button id="btn-clear-file" class="hidden px-2.5 py-2 bg-red-950 hover:bg-red-900 border border-red-900 text-red-400 rounded-lg text-xs" title="Clear uploaded file">
+                            <i data-lucide="trash-2" class="w-4 h-4"></i>
+                        </button>
+                    </div>
+                    <p id="upload-status-text" class="text-[10px] text-stone-500 mt-1"></p>
+                </div>
+
+                <!-- Slot Hotkey (SFX only) -->
+                <div class="space-y-1 hidden" id="config-hotkey-container">
+                    <label class="block text-xs font-bold text-stone-400 font-cinzel">Trigger Hotkey</label>
+                    <input type="text" id="config-hotkey" maxlength="1" placeholder="e.g. Q"
+                        class="w-24 bg-stone-950 border border-stone-800 rounded-lg px-3 py-2 text-center text-stone-300 font-bold font-cinzel focus:outline-none focus:border-amber-500 uppercase">
+                    <p class="text-[10px] text-stone-500">Single character key to trigger SFX when soundboard window is active</p>
+                </div>
+            </div>
+
+            <!-- Actions -->
+            <div class="flex justify-end gap-3 pt-4 border-t border-stone-800">
+                <button id="config-cancel"
+                    class="px-4 py-2 bg-stone-800 hover:bg-stone-700 text-stone-400 hover:text-white rounded-lg text-xs font-bold font-cinzel tracking-wider transition-colors">
+                    CANCEL
+                </button>
+                <button id="config-save"
+                    class="px-5 py-2 bg-amber-700 hover:bg-amber-600 text-white rounded-lg text-xs font-bold font-cinzel tracking-wider transition-colors">
+                    APPLY CHANGES
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Script loading -->
+    <script src="script.js"></script>
+</body>
+
+</html>
