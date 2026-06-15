@@ -45,6 +45,15 @@ const TOOLS = {
 // DOM element shortcuts
 const $ = id => document.getElementById(id);
 
+// UUID generator — uses crypto.randomUUID when available, falls back to RFC 4122 v4
+function newId() {
+    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID();
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+        const r = Math.random() * 16 | 0;
+        return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+    });
+}
+
 // ==================== STATE MANAGEMENT ====================
 const state = {
     // UI mode
@@ -340,7 +349,7 @@ function placeWaypoint(pos) {
     }
     // Place new waypoint — ask for optional label
     showPrompt('Waypoint Label (optional):', '', (label) => {
-        state.waypoints.push({ id: Date.now(), x: pos.x, y: pos.y, label: label?.trim() || '' });
+        state.waypoints.push({ id: newId(), x: pos.x, y: pos.y, label: label?.trim() || '' });
         renderTokens();
         saveCurrentMap();
     });
@@ -409,7 +418,7 @@ function renderInitiative() {
 function addCombatant(name, initiative, tokenId) {
     if (!name?.trim()) return;
     state.initiative.combatants.push({
-        id: Date.now(),
+        id: newId(),
         name: name.trim(),
         initiative: initiative !== '' && !isNaN(initiative) ? parseInt(initiative, 10) : null,
         tokenId: tokenId || null
@@ -1003,6 +1012,7 @@ function saveCurrentMap() {
     state.currentMapData.wallSegments = state.wallSegments;
     state.currentMapData.openingSegments = state.openingSegments;
     state.currentMapData.gridMetresPerSquare = state.gridMetresPerSquare;
+    state.currentMapData.isGridVisible = state.isGridVisible;
     state.currentMapData.losEnabled = state.losEnabled;
     state.currentMapData.losDarkMap = state.losDarkMap;
     state.currentMapData.losViewDistance = state.losViewDistance;
@@ -1095,7 +1105,7 @@ function renderCampaignSelect() {
 
 function updateCampaignBadge() {
     const cid = dom.campaignSelect?.value;
-    state.activeCampaignId = cid ? parseInt(cid, 10) : null;
+    state.activeCampaignId = cid || null;
     const campaign = state.campaignsList.find(c => c.id === state.activeCampaignId);
     if (campaign && dom.campaignActiveBadge) {
         dom.campaignActiveBadge.classList.remove('hidden');
@@ -1119,7 +1129,7 @@ function saveCampaign(campaign) {
 }
 
 function createCampaign(name) {
-    const campaign = { id: Date.now(), name: name.trim(), createdAt: Date.now() };
+    const campaign = { id: newId(), name: name.trim(), createdAt: Date.now() };
     state.campaignsList.push(campaign);
     saveCampaign(campaign);
     renderCampaignSelect();
@@ -1312,9 +1322,8 @@ async function duplicateMap() {
     }
     showPrompt('Copy Map As:', state.currentMapData.name + ' (copy)', async (newName) => {
         if (!newName || !newName.trim()) return;
-        const now = Date.now();
         const copy = ensureMapMeta({
-            id: now,
+            id: newId(),
             name: newName.trim(),
             data: state.currentMapData.data || null,
             imageUrl: state.currentMapData.imageUrl || null,
@@ -1356,6 +1365,7 @@ async function loadMap(id) {
             ...(state.currentMapData.windowSegments || []).map(w => ({ ...w, isDoor: false, isOpen: w.isOpen ?? true }))
            ];
     if (state.currentMapData.gridMetresPerSquare) state.gridMetresPerSquare = state.currentMapData.gridMetresPerSquare;
+    if (state.currentMapData.isGridVisible != null) state.isGridVisible = state.currentMapData.isGridVisible;
     if (state.currentMapData.losEnabled != null)   state.losEnabled = state.currentMapData.losEnabled;
     if (state.currentMapData.losDarkMap != null)   state.losDarkMap = state.currentMapData.losDarkMap;
     if (state.currentMapData.losViewDistance != null) state.losViewDistance = state.currentMapData.losViewDistance;
@@ -1528,7 +1538,7 @@ function loadTokenLibrary() {
 }
 
 function saveTokenToLibrary(name, src, imageUrl = null) {
-    const entry = { id: Date.now(), name, src, imageUrl };
+    const entry = { id: newId(), name, src, imageUrl };
     const tx = dataBase.transaction('tokenLibrary', 'readwrite');
     tx.objectStore('tokenLibrary').put(entry);
     tx.oncomplete = () => {
@@ -1560,7 +1570,7 @@ async function placeTokenFromLibrary(libToken) {
         const rawX = (rect.width / 2 - state.transform.x) / state.transform.scale;
         const rawY = (rect.height / 2 - state.transform.y) / state.transform.scale;
         const snapped = snapToGrid(rawX, rawY, 1);
-        state.tokens.push({ id: Date.now(), img, name: nameInput, x: snapped.x, y: snapped.y, size: 1, imageUrl: libToken.imageUrl, isPC: true });
+        state.tokens.push({ id: newId(), img, name: nameInput, x: snapped.x, y: snapped.y, size: 1, imageUrl: libToken.imageUrl, isPC: true });
         renderTokens();
         pushHistory();
         saveCurrentMap();
@@ -1884,7 +1894,7 @@ function handleFogDrawStart(pos) {
 function finishPolygonDrawing() {
     state.isDrawing = false;
     if (state.currentDrawPoints.length > 2) {
-        state.fogShapes.push({ id: Date.now(), points: [...state.currentDrawPoints], isHidden: true });
+        state.fogShapes.push({ id: newId(), points: [...state.currentDrawPoints], isHidden: true });
         pushHistory();
         saveCurrentMap();
     }
@@ -2146,7 +2156,7 @@ function handleWallDragEnd(pos) {
     const x2 = snappedEnd.x, y2 = snappedEnd.y;
     // Only add if the segment has some length
     if (Math.hypot(x2 - x1, y2 - y1) > 3 / state.transform.scale) {
-        state.wallSegments.push({ id: Date.now(), x1, y1, x2, y2 });
+        state.wallSegments.push({ id: newId(), x1, y1, x2, y2 });
         invalidateLOSCache();
         pushHistory();
         saveCurrentMap();
@@ -2234,7 +2244,7 @@ function handleOpeningDragEnd(pos, isDoor) {
     const x1 = state.wallDrag.x1, y1 = state.wallDrag.y1;
     const x2 = snappedEnd.x, y2 = snappedEnd.y;
     if (Math.hypot(x2 - x1, y2 - y1) > 3 / state.transform.scale) {
-        state.openingSegments.push({ id: Date.now(), x1, y1, x2, y2, isOpen: !isDoor, isDoor });
+        state.openingSegments.push({ id: newId(), x1, y1, x2, y2, isOpen: isDoor ? false : true, isDoor });
         invalidateLOSCache();
         pushHistory();
         saveCurrentMap();
@@ -2378,7 +2388,7 @@ function fillRoomAt(pos) {
     // Deduplicate consecutive identical points
     const poly = points.filter((p, i) => i === 0 || p.x !== points[i-1].x || p.y !== points[i-1].y);
 
-    state.fogShapes.push({ id: Date.now(), type: 'wall-fill', points: poly, isHidden: true });
+    state.fogShapes.push({ id: newId(), type: 'wall-fill', points: poly, isHidden: true });
     pushHistory();
     saveCurrentMap();
     renderFog();
@@ -2508,7 +2518,7 @@ function onPointerUp(e) {
         // Finish rectangle
         state.isDrawing = false;
         if (state.currentDrawPoints.length === 4) {
-            state.fogShapes.push({ id: Date.now(), points: state.currentDrawPoints, isHidden: true });
+            state.fogShapes.push({ id: newId(), points: state.currentDrawPoints, isHidden: true });
             pushHistory();
             saveCurrentMap();
         }
@@ -2655,9 +2665,15 @@ function deleteMap(id) {
                 state.mapImage = null;
                 state.tokens = [];
                 state.fogShapes = [];
-                [dom.mapCanvas, dom.gridCanvas, dom.tokenCanvas, dom.fogCanvas].forEach(c => {
+                state.wallSegments = [];
+                state.openingSegments = [];
+                state.waypoints = [];
+                state.initiative = { combatants: [], currentIndex: -1, round: 1 };
+                invalidateLOSCache();
+                [dom.mapCanvas, dom.gridCanvas, dom.tokenCanvas, dom.fogCanvas, dom.losCanvas].forEach(c => {
                     c.getContext('2d').clearRect(0, 0, c.width, c.height);
                 });
+                renderInitiative();
             }
             renderMapLibrary();
             if (state.mapsList.length > 0 && !state.currentMapData) loadMap(state.mapsList[0].id);
@@ -2951,7 +2967,7 @@ function initUI() {
                         dataSrc = imgDataUrl; // reuse already-read data URL
                     }
                     const newMap = ensureMapMeta({
-                        id: Date.now(),
+                        id: newId(),
                         name: mapName,
                         data: dataSrc,
                         imageUrl: imageUrl,
@@ -3004,7 +3020,7 @@ function initUI() {
             const rawX = (rect.width / 2 - state.transform.x) / state.transform.scale;
             const rawY = (rect.height / 2 - state.transform.y) / state.transform.scale;
             const snapped = snapToGrid(rawX, rawY, 1);
-            state.tokens.push({ id: Date.now(), img, name: defaultName, x: snapped.x, y: snapped.y, size: 1, imageUrl: imageUrl, isPC: true });
+            state.tokens.push({ id: newId(), img, name: defaultName, x: snapped.x, y: snapped.y, size: 1, imageUrl: imageUrl, isPC: true });
             renderTokens();
             pushHistory();
             saveCurrentMap();
@@ -3287,12 +3303,16 @@ async function performCloudSync() {
     if (typeof vttSaveMap !== 'function') return;
     try {
     for (const map of state.mapsList) {
+        const campaign = state.campaignsList.find(c => c.id === map.campaignId);
+        const isActiveMap = map.id === state.currentMapData?.id;
+        const gridCols = isActiveMap && state.mapImage ? Math.round(state.mapImage.width / map.gridSize) : (map.gridCols || 20);
+        const gridRows = isActiveMap && state.mapImage ? Math.round(state.mapImage.height / map.gridSize) : (map.gridRows || 15);
         const result = await vttSaveMap({
             id: map.cloudId || null,
             name: map.name,
-            campaign_id: map.campaignCloudId || null,
-            grid_cols: map.gridCols || 20,
-            grid_rows: map.gridRows || 15,
+            campaign_id: campaign?.cloudId || null,
+            grid_cols: gridCols,
+            grid_rows: gridRows,
             grid_size: map.gridSize || DEFAULT_GRID,
             grid_metres_per_square: map.gridMetresPerSquare || 1.5,
             is_grid_visible: map.isGridVisible || false,
@@ -3310,10 +3330,13 @@ async function performCloudSync() {
             }
         }
         if (result?.id) {
-            // Save walls and tokens under the cloud map id
+            // Use live state for the active map, persisted data for others
+            const srcWalls = (map.id === state.currentMapData?.id)
+                ? { walls: state.wallSegments, openings: state.openingSegments }
+                : { walls: map.wallSegments || [], openings: map.openingSegments || [] };
             const wallRows = [
-                ...state.wallSegments.map(w => ({ ...w, is_opening: false })),
-                ...state.openingSegments.map(w => ({ ...w, is_opening: true }))
+                ...srcWalls.walls.map(w => ({ id: w.id, x1: w.x1, y1: w.y1, x2: w.x2, y2: w.y2, is_opening: false, is_open: false, is_door: null })),
+                ...srcWalls.openings.map(w => ({ id: w.id, x1: w.x1, y1: w.y1, x2: w.x2, y2: w.y2, is_opening: true, is_open: w.isOpen, is_door: w.isDoor }))
             ];
             await vttSaveWalls(result.id, wallRows);
             await vttSaveTokens(result.id, map.tokens || []);
@@ -3348,7 +3371,7 @@ async function syncFromCloud() {
             if (existing) {
                 existing.name = cc.name;
             } else {
-                const local = ensureMapMeta({ id: Date.now(), cloudId: cc.id, name: cc.name, createdAt: Date.now() });
+                const local = ensureMapMeta({ id: newId(), cloudId: cc.id, name: cc.name, createdAt: Date.now() });
                 state.campaignsList.push(local);
                 if (dataBase) { const tx = dataBase.transaction('campaigns', 'readwrite'); tx.objectStore('campaigns').put(local); }
             }
@@ -3375,7 +3398,7 @@ async function syncFromCloud() {
             const walls = await vttLoadWalls(cm.id);
             const tokens = await vttLoadTokens(cm.id);
             const newMap = ensureMapMeta({
-                id: Date.now(), cloudId: cm.id, name: cm.name,
+                id: newId(), cloudId: cm.id, name: cm.name,
                 imageUrl: cm.image_url || null, data: null,
                 gridSize: cm.grid_size || DEFAULT_GRID,
                 gridMetresPerSquare: cm.grid_metres_per_square || 1.5,
@@ -3400,7 +3423,7 @@ async function syncFromCloud() {
         for (const ct of cloudLib) {
             const existing = state.tokenLibrary.find(t => t.cloudId === ct.id);
             if (!existing && ct.image_url) {
-                const entry = { id: Date.now(), cloudId: ct.id, name: ct.name, src: ct.image_url, imageUrl: ct.image_url };
+                const entry = { id: newId(), cloudId: ct.id, name: ct.name, src: ct.image_url, imageUrl: ct.image_url };
                 state.tokenLibrary.push(entry);
                 if (dataBase) { const tx = dataBase.transaction('tokenLibrary', 'readwrite'); tx.objectStore('tokenLibrary').put(entry); }
             }
