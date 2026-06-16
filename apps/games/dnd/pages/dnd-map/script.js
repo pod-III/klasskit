@@ -587,6 +587,17 @@ function renderGrid() { renderFlags.grid = true; scheduleRender(); }
 function renderTokens() { renderFlags.tokens = true; scheduleRender(); }
 function renderFog() { renderFlags.fog = true; scheduleRender(); }
 
+// Set canvas container background color
+function setCanvasBackground(color) {
+    if (!dom.container) return;
+    dom.container.style.backgroundColor = color;
+    // Also apply to the container's parent if needed for full coverage
+    if (state.currentMapData) {
+        state.currentMapData.canvasBgColor = color;
+        saveCurrentMap();
+    }
+}
+
 function renderMapNow() {
     if (!state.mapImage) return;
     dom.mapCtx.clearRect(0, 0, dom.mapCanvas.width, dom.mapCanvas.height);
@@ -1406,6 +1417,9 @@ async function loadMap(id) {
     if (state.currentMapData.losEnabled != null)   state.losEnabled = state.currentMapData.losEnabled;
     if (state.currentMapData.losDarkMap != null)   state.losDarkMap = state.currentMapData.losDarkMap;
     if (state.currentMapData.losViewDistance != null) state.losViewDistance = state.currentMapData.losViewDistance;
+    // Restore canvas background color
+    if (state.currentMapData.canvasBgColor) dom.container.style.backgroundColor = state.currentMapData.canvasBgColor;
+    else dom.container.style.backgroundColor = '#1c1917'; // default stone
     state.wallDrag.active = false;
     state.wallEdit.isDragging = false;
     invalidateLOSCache();
@@ -3101,6 +3115,22 @@ function initUI() {
     $('btn-delete-map').addEventListener('click', () => {
         if (!state.currentMapData) { showAlert('No Map', 'No map is currently selected.'); return; }
         deleteMap(state.currentMapData.id);
+    });
+
+    // Background color picker
+    document.querySelectorAll('.bg-color-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const color = btn.dataset.bg;
+            setCanvasBackground(color);
+            // Update active ring
+            document.querySelectorAll('.bg-color-btn').forEach(b => b.classList.remove('ring-2', 'ring-amber-500'));
+            btn.classList.add('ring-2', 'ring-amber-500');
+        });
+    });
+
+    $('bg-color-picker')?.addEventListener('input', (e) => {
+        setCanvasBackground(e.target.value);
+        document.querySelectorAll('.bg-color-btn').forEach(b => b.classList.remove('ring-2', 'ring-amber-500'));
     });
 
     // Campaign selector change
