@@ -434,6 +434,7 @@ function addCombatant(name, initiative, tokenId) {
     }
     renderInitiative();
     highlightActiveCombatant();
+    broadcastState();
 }
 
 function nextTurn() {
@@ -442,6 +443,7 @@ function nextTurn() {
     if (state.initiative.currentIndex === 0) state.initiative.round++;
     renderInitiative();
     highlightActiveCombatant();
+    broadcastState();
 }
 
 function prevTurn() {
@@ -454,6 +456,7 @@ function prevTurn() {
     }
     renderInitiative();
     highlightActiveCombatant();
+    broadcastState();
 }
 
 function highlightActiveCombatant() {
@@ -1461,7 +1464,9 @@ function fitMapToScreen() {
     const rect = dom.wrapper.getBoundingClientRect();
     const scaleX = rect.width / state.mapImage.width;
     const scaleY = rect.height / state.mapImage.height;
-    const newScale = Math.min(scaleX, scaleY) * 0.95;
+    // Player view fills the screen; DM view has small margin
+    const margin = state.isDMMode ? 0.95 : 1.0;
+    const newScale = Math.min(scaleX, scaleY) * margin;
     state.transform.scale = newScale;
     state.transform.x = (rect.width - state.mapImage.width * newScale) / 2;
     state.transform.y = (rect.height - state.mapImage.height * newScale) / 2;
@@ -1703,7 +1708,6 @@ function setTool(tool) {
 // ==================== PLAYER TOOL SELECTION ====================
 const playerToolButtons = {
     move: 'player-tool-move',
-    pan: 'player-tool-pan',
     fog: 'player-tool-fog',
     ruler: 'player-tool-ruler',
     ping: 'player-tool-ping'
@@ -1724,15 +1728,6 @@ function setPlayerTool(tool) {
     }
     // Clear ruler when switching player tool away from ruler
     if (tool !== 'ruler') { state.rulerActive = false; clearRuler(); }
-    const hints = {
-        move: 'Drag tokens to move them',
-        pan: 'Drag the map to explore',
-        fog: 'Tap a dark area to reveal it',
-        ruler: 'Drag to measure distance',
-        ping: 'Tap to send a ping'
-    };
-    const hintEl = $('player-tool-hint');
-    if (hintEl) hintEl.textContent = hints[tool] || '';
 }
 
 // ==================== POINTER EVENT HANDLERS ====================
@@ -1782,9 +1777,8 @@ function onPointerDown(e) {
         return;
     }
 
-    // Pan with middle mouse button, pan tool, or player pan mode
-    if (e.button === 1 || state.currentTool === TOOLS.PAN ||
-        (!state.isDMMode && state.playerTool === 'pan')) {
+    // Pan with middle mouse button or pan tool (DM only — player view has no panning)
+    if (e.button === 1 || state.currentTool === TOOLS.PAN) {
         state.isPanning = true;
         return;
     }
@@ -2722,12 +2716,12 @@ function initUI() {
         renderFog();
     });
 
-    // Player tool buttons
+    // Player tool buttons (side panel)
     $('player-tool-move')?.addEventListener('click', () => setPlayerTool('move'));
-    $('player-tool-pan')?.addEventListener('click', () => setPlayerTool('pan'));
     $('player-tool-fog')?.addEventListener('click', () => setPlayerTool('fog'));
     $('player-tool-ruler')?.addEventListener('click', () => setPlayerTool('ruler'));
     $('player-tool-ping')?.addEventListener('click', () => setPlayerTool('ping'));
+    $('player-tool-fit')?.addEventListener('click', () => fitMapToScreen());
 
     // Tool buttons
     $('tool-drag')?.addEventListener('click', () => setTool(TOOLS.DRAG));
@@ -3505,8 +3499,39 @@ function broadcastState() {
         waypoints: state.waypoints,
         mapId,
         isGridVisible: state.isGridVisible,
+        initiative: state.initiative,
     };
     bc.postMessage(payload);
+}
+
+// Player window: render initiative overlay
+function renderPlayerInitiative() {
+    const overlay = $('player-initiative-overlay');
+    const list = $('player-init-list');
+    const round = $('player-init-round');
+    if (!overlay || !list || !round) return;
+
+    if (IS_PLAYER_WINDOW) overlay.classList.remove('hidden');
+
+    round.textContent = state.initiative.round;
+    const combatants = state.initiative.combatants || [];
+
+    if (combatants.length === 0) {
+        list.innerHTML = '<p class="text-[10px] text-stone-500 italic text-center py-1">No combatants</p>';
+        return;
+    }
+
+    list.innerHTML = '';
+    combatants.forEach((c, i) => {
+        const isActive = i === state.initiative.currentIndex;
+        const row = document.createElement('div');
+        row.className = `flex items-center gap-2 px-1.5 py-0.5 rounded ${isActive ? 'bg-amber-900/40 border border-amber-700/30' : 'text-stone-400'}`;
+        row.innerHTML = `
+            <span class="text-[10px] font-mono w-4 text-center ${isActive ? 'text-amber-400 font-bold' : 'text-stone-600'}">${c.initiative ?? '—'}</span>
+            <span class="flex-1 text-[11px] font-cinzel truncate ${isActive ? 'text-amber-300' : ''}">${isActive ? '▶ ' : ''}${c.name}</span>
+        `;
+        list.appendChild(row);
+    });
 }
 
 // Player window: receive state and re-render
@@ -3518,6 +3543,7 @@ if (bc && IS_PLAYER_WINDOW) {
         renderFog();
         renderTokens();
         renderLOS();
+        renderPlayerInitiative();
     };
 
     bc.onmessage = async ({ data }) => {
@@ -3543,9 +3569,13 @@ if (bc && IS_PLAYER_WINDOW) {
         }
         if (data.type !== 'state-update') return;
 
-        // Update transform
-        state.transform = data.transform;
-        updateTransform();
+        // Update transform — player window ignores DM panning, keeps full-screen fit
+        if (!IS_PLAYER_WINDOW) {
+            state.transform = data.transform;
+            updateTransform();
+        } else {
+            fitMapToScreen();
+        }
 
         // Grid
         state.gridSize = data.gridSize;
@@ -3560,6 +3590,12 @@ if (bc && IS_PLAYER_WINDOW) {
         state.losDarkMap = data.losDarkMap;
         state.losViewDistance = data.losViewDistance;
         state.gridMetresPerSquare = data.gridMetresPerSquare ?? 1.5;
+
+        // Initiative (for broadcast player window)
+        if (data.initiative) {
+            state.initiative = data.initiative;
+            renderPlayerInitiative();
+        }
 
         // Tokens — re-use existing img objects where possible
         const existingImgs = new Map(state.tokens.map(t => [t.id, t.img]));

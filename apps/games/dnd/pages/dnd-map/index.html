@@ -274,6 +274,14 @@
             </div>
             <!-- Ruler overlay (fixed to wrapper, not canvas-container) -->
             <canvas id="layer-ruler" style="position:absolute;top:0;left:0;pointer-events:none;z-index:20;"></canvas>
+            <!-- Player Initiative Overlay (visible only in broadcast player window) -->
+            <div id="player-initiative-overlay" class="hidden absolute top-4 right-4 z-30 bg-stone-900/90 border border-amber-700/50 rounded-lg p-3 max-w-[200px] shadow-lg">
+                <h3 class="text-[10px] font-bold text-amber-500 uppercase tracking-widest font-cinzel mb-2 flex items-center gap-1">
+                    <i data-lucide="sword" class="w-3 h-3"></i> Initiative
+                    <span class="ml-auto text-stone-500 font-mono">R<span id="player-init-round">1</span></span>
+                </h3>
+                <div id="player-init-list" class="space-y-1 text-xs"></div>
+            </div>
         </main>
 
         <!-- ===== RIGHT TOOL SIDEBAR (DM only) ===== -->
@@ -450,47 +458,46 @@
         <div class="ctx-item danger" data-action="delete"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i> Delete</div>
     </div>
 
-    <!-- Player Toolbar -->
+    <!-- Player Toolbar (Side Panel) -->
     <div id="player-toolbar"
-        class="hidden fixed bottom-6 left-1/2 -translate-x-1/2 z-40 flex items-center gap-2 bg-stone-900 border-2 border-amber-700/80 rounded-2xl px-4 py-3 shadow-[4px_4px_0px_0px_rgba(0,0,0,0.8)]">
-        <span class="text-amber-600 text-xs font-semibold uppercase tracking-widest font-cinzel mr-1 hidden sm:block">Mode</span>
-        <div class="w-px h-6 bg-amber-900/50 hidden sm:block mr-1"></div>
+        class="hidden fixed left-4 top-1/2 -translate-y-1/2 z-40 flex flex-col gap-2 bg-stone-900/95 border border-amber-700/50 rounded-xl p-2 shadow-lg backdrop-blur-sm">
 
         <!-- Move Token -->
         <button id="player-tool-move"
-            class="flex items-center gap-2 px-4 py-2 rounded-xl border-2 border-amber-700/60 bg-amber-700 text-stone-100 text-sm font-semibold font-cinzel tracking-wide transition-all hover:-translate-y-0.5 active:translate-y-0.5 active:shadow-none shadow-[2px_2px_0px_0px_rgba(0,0,0,0.6)] ring-2 ring-amber-400"
-            title="Move Tokens — drag characters around the map">
-            <i data-lucide="hand" class="w-4 h-4"></i>
-            <span class="hidden sm:inline">Move</span>
-        </button>
-
-        <!-- Pan Map -->
-        <button id="player-tool-pan"
-            class="flex items-center gap-2 px-4 py-2 rounded-xl border-2 border-stone-600 bg-stone-800 text-stone-300 text-sm font-semibold font-cinzel tracking-wide transition-all hover:-translate-y-0.5 active:translate-y-0.5 active:shadow-none shadow-[2px_2px_0px_0px_rgba(0,0,0,0.6)]"
-            title="Pan Map — drag the map to explore">
-            <i data-lucide="move" class="w-4 h-4"></i>
-            <span class="hidden sm:inline">Pan</span>
+            class="flex items-center justify-center w-10 h-10 rounded-lg border-2 border-amber-700/60 bg-amber-700 text-stone-100 transition-all hover:scale-105 active:scale-95 ring-2 ring-amber-400"
+            title="Move Tokens">
+            <i data-lucide="hand" class="w-5 h-5"></i>
         </button>
 
         <!-- Ruler -->
         <button id="player-tool-ruler"
-            class="flex items-center gap-2 px-4 py-2 rounded-xl border-2 border-stone-600 bg-stone-800 text-stone-300 text-sm font-semibold font-cinzel tracking-wide transition-all hover:-translate-y-0.5 active:translate-y-0.5 active:shadow-none shadow-[2px_2px_0px_0px_rgba(0,0,0,0.6)]"
-            title="Ruler — drag to measure distance">
-            <i data-lucide="ruler" class="w-4 h-4"></i>
-            <span class="hidden sm:inline">Ruler</span>
+            class="flex items-center justify-center w-10 h-10 rounded-lg border-2 border-stone-600 bg-stone-800 text-stone-300 transition-all hover:scale-105 active:scale-95"
+            title="Ruler — drag to measure">
+            <i data-lucide="ruler" class="w-5 h-5"></i>
         </button>
 
         <!-- Ping -->
         <button id="player-tool-ping"
-            class="flex items-center gap-2 px-4 py-2 rounded-xl border-2 border-stone-600 bg-stone-800 text-stone-300 text-sm font-semibold font-cinzel tracking-wide transition-all hover:-translate-y-0.5 active:translate-y-0.5 active:shadow-none shadow-[2px_2px_0px_0px_rgba(0,0,0,0.6)]"
-            title="Ping — tap to send an attention pulse">
-            <i data-lucide="zap" class="w-4 h-4"></i>
-            <span class="hidden sm:inline">Ping</span>
+            class="flex items-center justify-center w-10 h-10 rounded-lg border-2 border-stone-600 bg-stone-800 text-stone-300 transition-all hover:scale-105 active:scale-95"
+            title="Ping — tap to ping">
+            <i data-lucide="zap" class="w-5 h-5"></i>
         </button>
 
-        <!-- Hint text -->
-        <div class="w-px h-6 bg-amber-900/50 ml-1 hidden sm:block"></div>
-        <p id="player-tool-hint" class="text-stone-500 text-xs italic font-lora hidden sm:block max-w-[140px]">Drag tokens to move them</p>
+        <!-- Fog Reveal (Player only) -->
+        <button id="player-tool-fog"
+            class="flex items-center justify-center w-10 h-10 rounded-lg border-2 border-stone-600 bg-stone-800 text-stone-300 transition-all hover:scale-105 active:scale-95"
+            title="Fog — tap to reveal area">
+            <i data-lucide="eye" class="w-5 h-5"></i>
+        </button>
+
+        <div class="w-6 h-px bg-stone-700 my-1"></div>
+
+        <!-- Fit to Screen -->
+        <button id="player-tool-fit"
+            class="flex items-center justify-center w-10 h-10 rounded-lg border-2 border-stone-600 bg-stone-800 text-stone-300 transition-all hover:scale-105 active:scale-95"
+            title="Fit map to screen">
+            <i data-lucide="maximize" class="w-5 h-5"></i>
+        </button>
     </div>
 
     <script src="script.js"></script>
