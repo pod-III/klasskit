@@ -3345,11 +3345,11 @@ async function performCloudSync() {
             const srcWalls = (map.id === state.currentMapData?.id)
                 ? { walls: state.wallSegments, openings: state.openingSegments }
                 : { walls: map.wallSegments || [], openings: map.openingSegments || [] };
-            const wallRows = [
-                ...srcWalls.walls.map(w => ({ id: w.id, x1: w.x1, y1: w.y1, x2: w.x2, y2: w.y2, is_opening: false, is_open: false, is_door: null })),
-                ...srcWalls.openings.map(w => ({ id: w.id, x1: w.x1, y1: w.y1, x2: w.x2, y2: w.y2, is_opening: true, is_open: w.isOpen, is_door: w.isDoor }))
-            ];
-            await vttSaveWalls(result.id, wallRows);
+            const wallPayload = {
+                walls: srcWalls.walls.map(w => ({ x1: w.x1, y1: w.y1, x2: w.x2, y2: w.y2 })),
+                openings: srcWalls.openings.map(w => ({ x1: w.x1, y1: w.y1, x2: w.x2, y2: w.y2, is_open: w.isOpen, is_door: w.isDoor }))
+            };
+            await vttSaveWalls(result.id, wallPayload);
             await vttSaveTokens(result.id, map.tokens || []);
         }
     }
@@ -3418,8 +3418,8 @@ async function syncFromCloud() {
                 losDarkMap: cm.los_dark_map || false,
                 losViewDistance: cm.los_view_distance || 30,
                 campaignId: localCampaign?.id || null,
-                wallSegments: walls.filter(w => !w.is_opening).map(w => ({ id: w.id, x1: w.x1, y1: w.y1, x2: w.x2, y2: w.y2 })),
-                openingSegments: walls.filter(w => w.is_opening).map(w => ({ id: w.id, x1: w.x1, y1: w.y1, x2: w.x2, y2: w.y2, isOpen: w.is_open, isDoor: w.is_door })),
+                wallSegments: (walls.walls || []).map(w => ({ id: newId(), x1: w.x1, y1: w.y1, x2: w.x2, y2: w.y2 })),
+                openingSegments: (walls.openings || []).map(w => ({ id: newId(), x1: w.x1, y1: w.y1, x2: w.x2, y2: w.y2, isOpen: w.is_open, isDoor: w.is_door })),
                 tokens: tokens.map(t => ({ id: t.id, name: t.name, x: t.x, y: t.y, imageUrl: t.image_url, size: t.size, isPC: t.is_pc })),
                 fogShapes: []
             });

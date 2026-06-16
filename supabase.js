@@ -907,40 +907,46 @@ async function vttDeleteMap(id) {
 }
 
 // ── Walls ──────────────────────────────────────────────────────────────────
+// One row per map in vtt_wall_data; segments stored as a JSONB array.
 
 async function vttLoadWalls(mapId) {
   if (isSandbox()) {
-    const raw = localStorage.getItem(`vtt_walls_${mapId}`);
-    return raw ? JSON.parse(raw) : [];
+    const raw = localStorage.getItem(`vtt_wall_data_${mapId}`);
+    return raw ? JSON.parse(raw) : { walls: [], openings: [] };
   }
   const user = await getUser();
-  if (!user) return [];
-  const { data, error } = await db.from('vtt_walls')
-    .select('id, x1, y1, x2, y2, is_opening, is_open, is_door')
-    .eq('map_id', mapId).eq('user_id', user.id);
-  if (error) { console.error('[VTT] loadWalls:', error); return []; }
-  return data || [];
+  if (!user) return { walls: [], openings: [] };
+  const { data, error } = await db.from('vtt_wall_data')
+    .select('segments')
+    .eq('map_id', mapId).eq('user_id', user.id)
+    .maybeSingle();
+  if (error) { console.error('[VTT] loadWalls:', error); return { walls: [], openings: [] }; }
+  return data?.segments || { walls: [], openings: [] };
 }
 
-async function vttSaveWalls(mapId, walls) {
+function _roundCoords(w) {
+  return {
+    ...w,
+    x1: Math.round(w.x1 * 100) / 100,
+    y1: Math.round(w.y1 * 100) / 100,
+    x2: Math.round(w.x2 * 100) / 100,
+    y2: Math.round(w.y2 * 100) / 100,
+  };
+}
+
+async function vttSaveWalls(mapId, payload) {
+  const segments = {
+    walls:    (payload.walls    || []).map(_roundCoords),
+    openings: (payload.openings || []).map(_roundCoords),
+  };
   if (isSandbox()) {
-    localStorage.setItem(`vtt_walls_${mapId}`, JSON.stringify(walls));
+    localStorage.setItem(`vtt_wall_data_${mapId}`, JSON.stringify(segments));
     return { success: true };
   }
   const user = await getUser();
   if (!user) return { error: 'Not authenticated' };
-  // Replace all walls for this map
-  await db.from('vtt_walls').delete().eq('map_id', mapId).eq('user_id', user.id);
-  if (walls.length === 0) return { success: true };
-  const rows = walls.map(w => ({
-    ...(isValidUuid(w.id) ? { id: w.id } : {}),
-    map_id: mapId, user_id: user.id,
-    x1: w.x1, y1: w.y1, x2: w.x2, y2: w.y2,
-    is_opening: w.is_opening || false,
-    is_open: w.is_open || false,
-    is_door: w.is_door !== false
-  }));
-  const { error } = await db.from('vtt_walls').insert(rows);
+  const { error } = await db.from('vtt_wall_data')
+    .upsert({ map_id: mapId, user_id: user.id, segments }, { onConflict: 'map_id' });
   if (error) { console.error('[VTT] saveWalls:', error); return { error }; }
   return { success: true };
 }
