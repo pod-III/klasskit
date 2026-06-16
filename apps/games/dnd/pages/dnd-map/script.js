@@ -133,7 +133,8 @@ const state = {
     wallEdit: {
         segId: null,       // segment being edited
         endpoint: null,    // 'start' | 'end'
-        isDragging: false
+        isDragging: false,
+        isOpening: false   // true if editing an opening (door/window)
     },
 
     // Waypoints: { id, x, y, label }
@@ -812,6 +813,32 @@ function renderFogNow() {
             ? (op.isDoor ? 'rgba(34,197,94,0.9)' : 'rgba(147,210,255,0.9)')
             : (op.isDoor ? 'rgba(251,191,36,0.9)' : 'rgba(148,163,184,0.7)');
         ctx.fill();
+
+        // Wall edit mode: draw endpoint handles on openings too
+        if (isWallMode) {
+            const r = WALL_NODE_RADIUS / state.transform.scale;
+            const isEditSeg = state.currentTool === TOOLS.WALL_EDIT && op.id === state.wallEdit.segId;
+            for (const [px, py, ep] of [[op.x1, op.y1, 'start'], [op.x2, op.y2, 'end']]) {
+                ctx.beginPath();
+                ctx.arc(px, py, r, 0, Math.PI * 2);
+                ctx.fillStyle = (isEditSeg && state.wallEdit.endpoint === ep)
+                    ? '#facc15' : (isWallMode ? 'rgba(255,255,255,0.7)' : 'transparent');
+                ctx.fill();
+                ctx.strokeStyle = isWallMode ? '#92400e' : 'transparent';
+                ctx.lineWidth = 1.5 / state.transform.scale;
+                ctx.stroke();
+            }
+            // Erase mode: red tint over opening on hover
+            if (state.currentTool === TOOLS.WALL_ERASE) {
+                ctx.beginPath();
+                ctx.moveTo(op.x1, op.y1);
+                ctx.lineTo(op.x2, op.y2);
+                ctx.strokeStyle = 'rgba(239,68,68,0.3)';
+                ctx.lineWidth = 10;
+                ctx.stroke();
+            }
+        }
+
         ctx.restore();
     }
 
@@ -1845,6 +1872,7 @@ function setTool(tool) {
         state.wallEdit.segId = null;
         state.wallEdit.endpoint = null;
         state.wallEdit.isDragging = false;
+        state.wallEdit.isOpening = false;
         renderFog();
     }
     // Remove ring from all tool buttons
@@ -2242,10 +2270,14 @@ function renderLOS() {
 const WALL_NODE_RADIUS = 8;
 const WALL_SNAP_RADIUS = 14; // px screen space
 
-// Collect all unique endpoints from all segments
+// Collect all unique endpoints from all segments (walls + openings)
 function allWallNodes() {
     const nodes = [];
     for (const seg of state.wallSegments) {
+        nodes.push({ x: seg.x1, y: seg.y1 });
+        nodes.push({ x: seg.x2, y: seg.y2 });
+    }
+    for (const seg of state.openingSegments) {
         nodes.push({ x: seg.x1, y: seg.y1 });
         nodes.push({ x: seg.x2, y: seg.y2 });
     }
@@ -2257,7 +2289,16 @@ function allWallNodes() {
 function snapToNearestWallNode(pos, excludeSegId = null, excludeEndpoint = null) {
     const r = WALL_SNAP_RADIUS / state.transform.scale;
     let best = null, bestDist = r;
+    // Check wall segments
     for (const seg of state.wallSegments) {
+        for (const [ep, px, py] of [['start', seg.x1, seg.y1], ['end', seg.x2, seg.y2]]) {
+            if (seg.id === excludeSegId && ep === excludeEndpoint) continue;
+            const d = Math.hypot(pos.x - px, pos.y - py);
+            if (d < bestDist) { bestDist = d; best = { x: px, y: py }; }
+        }
+    }
+    // Check opening segments (doors/windows)
+    for (const seg of state.openingSegments) {
         for (const [ep, px, py] of [['start', seg.x1, seg.y1], ['end', seg.x2, seg.y2]]) {
             if (seg.id === excludeSegId && ep === excludeEndpoint) continue;
             const d = Math.hypot(pos.x - px, pos.y - py);
@@ -2315,12 +2356,20 @@ function handleWallDragEnd(pos) {
 function handleWallEditDown(pos) {
     const we = state.wallEdit;
     const r = WALL_NODE_RADIUS / state.transform.scale;
-    // Find the nearest endpoint within r
-    let best = null, bestDist = r;
+    // Find the nearest endpoint within r (check both walls and openings)
+    let best = null, bestDist = r, isOpening = false;
+    // Check wall segments first
     for (const seg of state.wallSegments) {
         for (const [ep, px, py] of [['start', seg.x1, seg.y1], ['end', seg.x2, seg.y2]]) {
             const d = Math.hypot(pos.x - px, pos.y - py);
-            if (d < bestDist) { bestDist = d; best = { seg, ep, px, py }; }
+            if (d < bestDist) { bestDist = d; best = { seg, ep, px, py }; isOpening = false; }
+        }
+    }
+    // Check opening segments (doors/windows) - they can also be edited
+    for (const seg of state.openingSegments) {
+        for (const [ep, px, py] of [['start', seg.x1, seg.y1], ['end', seg.x2, seg.y2]]) {
+            const d = Math.hypot(pos.x - px, pos.y - py);
+            if (d < bestDist) { bestDist = d; best = { seg, ep, px, py }; isOpening = true; }
         }
     }
     if (best) {
@@ -2329,8 +2378,9 @@ function handleWallEditDown(pos) {
         we.nodeX = best.px;  // world-space position of the grabbed joint
         we.nodeY = best.py;
         we.isDragging = true;
+        we.isOpening = isOpening;
     } else {
-        we.segId = null; we.endpoint = null; we.nodeX = null; we.nodeY = null; we.isDragging = false;
+        we.segId = null; we.endpoint = null; we.nodeX = null; we.nodeY = null; we.isDragging = false; we.isOpening = false;
     }
     renderFog();
 }
@@ -2341,7 +2391,17 @@ function handleWallEditMove(pos) {
     const snapped = snapToNearestWallNode(pos, we.segId, we.endpoint) || pos;
     // Move all endpoints that share the current joint position (connected nodes)
     const TOL = 1; // world-space px; snapped nodes are exactly coincident
+    // Update wall segments
     for (const seg of state.wallSegments) {
+        if (Math.hypot(seg.x1 - we.nodeX, seg.y1 - we.nodeY) < TOL) {
+            seg.x1 = snapped.x; seg.y1 = snapped.y;
+        }
+        if (Math.hypot(seg.x2 - we.nodeX, seg.y2 - we.nodeY) < TOL) {
+            seg.x2 = snapped.x; seg.y2 = snapped.y;
+        }
+    }
+    // Also update opening segments (doors/windows) - same edit behavior
+    for (const seg of state.openingSegments) {
         if (Math.hypot(seg.x1 - we.nodeX, seg.y1 - we.nodeY) < TOL) {
             seg.x1 = snapped.x; seg.y1 = snapped.y;
         }
@@ -3323,15 +3383,17 @@ function initUI() {
         if (!state.isDMMode) return;
         const pos = getPointerPos(e);
 
-        // Wall edit: right-click deletes the nearest segment
+        // Wall edit: right-click deletes the nearest segment (wall or opening)
         if (state.currentTool === TOOLS.WALL_EDIT) {
             removeWallAt(pos);
+            removeOpeningAt(pos);
             return;
         }
 
-        // Wall erase: right-click also removes wall (same as left-click)
+        // Wall erase: right-click also removes wall and openings
         if (state.currentTool === TOOLS.WALL_ERASE) {
             removeWallAt(pos);
+            removeOpeningAt(pos);
             return;
         }
 
