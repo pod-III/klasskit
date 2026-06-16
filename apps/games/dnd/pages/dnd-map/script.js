@@ -94,6 +94,7 @@ const state = {
     pointerMoved: false,
     longPressTimer: null,
     mousePos: null,
+    shiftKey: false,     // Track shift key for angle snapping
 
     // Undo/redo
     history: [],
@@ -874,8 +875,16 @@ function renderFogNow() {
         // Start node
         dom.fogCtx.beginPath();
         dom.fogCtx.arc(x1, y1, WALL_NODE_RADIUS / state.transform.scale, 0, Math.PI * 2);
-        dom.fogCtx.fillStyle = '#22d3ee';
+        dom.fogCtx.fillStyle = state.shiftKey ? '#fbbf24' : '#22d3ee'; // Amber when snapping
         dom.fogCtx.fill();
+        // Angle snapping indicator
+        if (state.shiftKey) {
+            dom.fogCtx.beginPath();
+            dom.fogCtx.arc(x2, y2, (WALL_NODE_RADIUS + 4) / state.transform.scale, 0, Math.PI * 2);
+            dom.fogCtx.strokeStyle = '#fbbf24';
+            dom.fogCtx.lineWidth = 2 / state.transform.scale;
+            dom.fogCtx.stroke();
+        }
         // End snap indicator
         const endSnap = snapToNearestWallNode({ x: x2, y: y2 });
         if (endSnap) {
@@ -2342,20 +2351,43 @@ function handleWallDragStart(pos) {
     renderFog();
 }
 
+function snapToAngle(x1, y1, x2, y2, snapDegrees = 45) {
+    const dx = x2 - x1;
+    const dy = y2 - y1;
+    const dist = Math.hypot(dx, dy);
+    if (dist < 1) return { x: x2, y: y2 };
+
+    const angle = Math.atan2(dy, dx); // radians, 0 is right (positive x)
+    const snapRad = (snapDegrees * Math.PI) / 180;
+    const snappedAngle = Math.round(angle / snapRad) * snapRad;
+
+    return {
+        x: x1 + Math.cos(snappedAngle) * dist,
+        y: y1 + Math.sin(snappedAngle) * dist
+    };
+}
+
 function handleWallDragMove(pos) {
     if (!state.wallDrag.active) return;
-    const snapped = snapToNearestWallNode(pos) || pos;
-    state.wallDrag.x2 = snapped.x;
-    state.wallDrag.y2 = snapped.y;
+    let targetPos = snapToNearestWallNode(pos) || pos;
+
+    // Angle snapping when holding Shift (snap to 90° increments for strict horizontal/vertical)
+    if (state.shiftKey) {
+        targetPos = snapToAngle(state.wallDrag.x1, state.wallDrag.y1, targetPos.x, targetPos.y, 90);
+        console.log('[AngleSnap] Snapped to:', targetPos.x.toFixed(1), targetPos.y.toFixed(1));
+    }
+
+    state.wallDrag.x2 = targetPos.x;
+    state.wallDrag.y2 = targetPos.y;
     renderFog();
 }
 
 function handleWallDragEnd(pos) {
     if (!state.wallDrag.active) return;
     state.wallDrag.active = false;
-    const snappedEnd = snapToNearestWallNode(pos) || pos;
+    // Use the preview position (already snapped during move) for consistency
     const x1 = state.wallDrag.x1, y1 = state.wallDrag.y1;
-    const x2 = snappedEnd.x, y2 = snappedEnd.y;
+    const x2 = state.wallDrag.x2, y2 = state.wallDrag.y2;
     // Only add if the segment has some length
     if (Math.hypot(x2 - x1, y2 - y1) > 3 / state.transform.scale) {
         state.wallSegments.push({ id: newId(), x1, y1, x2, y2 });
@@ -2472,9 +2504,9 @@ function closestPointOnSegment(px, py, x1, y1, x2, y2) {
 function handleOpeningDragEnd(pos, isDoor) {
     if (!state.wallDrag.active) return;
     state.wallDrag.active = false;
-    const snappedEnd = snapToNearestWallNode(pos) || pos;
+    // Use the preview position (already snapped during move) for consistency
     const x1 = state.wallDrag.x1, y1 = state.wallDrag.y1;
-    const x2 = snappedEnd.x, y2 = snappedEnd.y;
+    const x2 = state.wallDrag.x2, y2 = state.wallDrag.y2;
     if (Math.hypot(x2 - x1, y2 - y1) > 3 / state.transform.scale) {
         state.openingSegments.push({ id: newId(), x1, y1, x2, y2, isOpen: isDoor ? false : true, isDoor });
         invalidateLOSCache();
@@ -3520,6 +3552,10 @@ function initUI() {
     dom.fogCanvas.addEventListener('pointermove', onPointerMove);
     dom.fogCanvas.addEventListener('pointerup', onPointerUp);
     dom.fogCanvas.addEventListener('pointercancel', onPointerUp);
+
+    // Track shift key for angle snapping
+    document.addEventListener('keydown', (e) => { if (e.key === 'Shift') state.shiftKey = true; });
+    document.addEventListener('keyup', (e) => { if (e.key === 'Shift') state.shiftKey = false; });
 
     // Wheel zoom
     dom.wrapper.addEventListener('wheel', (e) => {
