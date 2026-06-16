@@ -726,29 +726,29 @@ async function loadScenes() {
     setSyncStatus('loading', 'Loading saved scenes...');
 
     let scenes = [];
-    if (state.isSandbox || !state.user) {
-        // Load locally
+    if (typeof loadDndSaves === 'function') {
         try {
-            const keys = Object.keys(localStorage).filter(k => k.startsWith('dnd_soundboard_local_'));
-            scenes = keys.map(key => JSON.parse(localStorage.getItem(key)));
-        } catch (e) {
-            console.warn("Could not load local scenes", e);
-        }
-    } else {
-        // Load from cloud database
-        if (typeof loadDndSaves === 'function') {
-            try {
-                const rows = await loadDndSaves('soundboard');
-                scenes = rows.map(r => ({
-                    id: r.id,
-                    name: r.name,
-                    state_data: typeof r.state_data === 'string' ? JSON.parse(r.state_data) : r.state_data
-                }));
-            } catch (err) {
-                console.error("Failed to load soundscapes from Supabase:", err);
-                setSyncStatus('error', 'Sync failed. Local fallback active.');
-                return;
-            }
+            const rows = await loadDndSaves('soundboard');
+            scenes = rows.map(r => ({
+                id: r.id,
+                name: r.name,
+                state_data: typeof r.state_data === 'string' ? JSON.parse(r.state_data) : r.state_data
+            }));
+            
+            // Support older local prefix key structures if they exist
+            const legacyKeys = Object.keys(localStorage).filter(k => k.startsWith('dnd_soundboard_local_'));
+            legacyKeys.forEach(k => {
+                try {
+                    const item = JSON.parse(localStorage.getItem(k));
+                    if (item && !scenes.some(s => s.id === item.id)) {
+                        scenes.push(item);
+                    }
+                } catch (_) {}
+            });
+        } catch (err) {
+            console.error("Failed to load soundscapes from Supabase:", err);
+            setSyncStatus('error', 'Sync failed.');
+            return;
         }
     }
 
@@ -811,22 +811,18 @@ async function applySaveScene(name) {
         id = null;
     }
 
-    if (state.isSandbox || !state.user) {
-        // Save to LocalStorage
-        const localId = id || `local_${Date.now()}`;
-        const sceneRecord = { id: localId, name, state_data: activeSetup };
-        localStorage.setItem(`dnd_soundboard_local_${localId}`, JSON.stringify(sceneRecord));
-        state.selectedSceneId = localId;
-    } else {
-        // Save to Supabase Cloud
-        if (typeof saveDndSave === 'function') {
-            const res = await saveDndSave('soundboard', name, activeSetup, id);
-            if (res.error) {
-                console.error("Cloud save failed:", res.error);
-                setSyncStatus('error', 'Cloud save failed.');
-                return;
-            }
-            state.selectedSceneId = res.id;
+    if (typeof saveDndSave === 'function') {
+        const res = await saveDndSave('soundboard', name, activeSetup, id);
+        if (res.error) {
+            console.error("Save failed:", res.error);
+            setSyncStatus('error', 'Save failed.');
+            return;
+        }
+        state.selectedSceneId = res.id;
+        
+        // Clean legacy formats if overwritten
+        if (id && id.startsWith('local_')) {
+            localStorage.removeItem(`dnd_soundboard_local_${id}`);
         }
     }
 
@@ -843,12 +839,16 @@ async function handleDeleteScene() {
 
     setSyncStatus('saving', 'Deleting scene...');
 
-    if (state.isSandbox || !state.user) {
-        localStorage.removeItem(`dnd_soundboard_local_${sceneId}`);
-    } else {
-        if (typeof deleteDndSave === 'function') {
-            await deleteDndSave(sceneId);
+    if (typeof deleteDndSave === 'function') {
+        const res = await deleteDndSave(sceneId);
+        if (res.error) {
+            console.error("Delete failed:", res.error);
+            setSyncStatus('error', 'Delete failed.');
+            return;
         }
+        
+        // Clean legacy structure if deleting legacy format
+        localStorage.removeItem(`dnd_soundboard_local_${sceneId}`);
     }
 
     state.selectedSceneId = null;
