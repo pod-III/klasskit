@@ -7,56 +7,56 @@
 // DOM Elements
 const $ = id => document.getElementById(id);
 
-// Pre-curated high-quality audio libraries (using stable Google CDN files)
+// Pre-curated high-quality audio libraries (using stable MP3 files with open CORS on GitHub & Wikimedia)
 const PRESET_AMBIENTS = [
-    { name: "Cozy Tavern Bustle", url: "https://actions.google.com/sounds/v1/ambiences/coffee_shop_atmosphere.ogg" },
-    { name: "Dark Dungeon Drone", url: "https://actions.google.com/sounds/v1/ambiences/scary_dungeon_chatter.ogg" },
-    { name: "Crackling Campfire", url: "https://actions.google.com/sounds/v1/ambiences/fire_crackling.ogg" },
-    { name: "Howling Storm Wind", url: "https://actions.google.com/sounds/v1/weather/wind_constant_howling.ogg" },
-    { name: "Lush Forest Birds", url: "https://actions.google.com/sounds/v1/ambiences/forest_morning.ogg" },
-    { name: "Heavy Rainpour", url: "https://actions.google.com/sounds/v1/weather/rain_heavy_loud.ogg" },
-    { name: "Mysterious Undersea", url: "https://actions.google.com/sounds/v1/water/underwater_ambience.ogg" }
+    { name: "Epic Fantasy Theme", url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3" },
+    { name: "Cozy Tavern Lute", url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3" },
+    { name: "Crackling Campfire", url: "https://raw.githubusercontent.com/brarcher/baby-sleep-sounds/master/app/src/main/res/raw/campfire.mp3" },
+    { name: "Gentle Rainpour", url: "https://raw.githubusercontent.com/brarcher/baby-sleep-sounds/master/app/src/main/res/raw/rain.mp3" },
+    { name: "Raging Ocean Waves", url: "https://raw.githubusercontent.com/brarcher/baby-sleep-sounds/master/app/src/main/res/raw/ocean.mp3" },
+    { name: "Winding Forest Stream", url: "https://raw.githubusercontent.com/brarcher/baby-sleep-sounds/master/app/src/main/res/raw/stream.mp3" },
+    { name: "Rumble Train / Travel", url: "https://raw.githubusercontent.com/brarcher/baby-sleep-sounds/master/app/src/main/res/raw/train.mp3" }
 ];
 
 const PRESET_SFX = [
-    { name: "Dragon Roar", url: "https://actions.google.com/sounds/v1/science_fiction/alien_creature_growl.ogg" },
-    { name: "Fireball / Spell", url: "https://actions.google.com/sounds/v1/science_fiction/teleport.ogg" },
-    { name: "Explosion", url: "https://actions.google.com/sounds/v1/explosions/medium_explosion_with_rubble.ogg" },
-    { name: "Monster Growl", url: "https://actions.google.com/sounds/v1/horror/monster_gasp.ogg" },
-    { name: "Thunder Crack", url: "https://actions.google.com/sounds/v1/weather/thunder_crack.ogg" },
-    { name: "Metal Anvil Clang", url: "https://actions.google.com/sounds/v1/impacts/anvil_impact.ogg" },
-    { name: "Man Screaming", url: "https://actions.google.com/sounds/v1/horror/man_screaming.ogg" },
-    { name: "Woman Screaming", url: "https://actions.google.com/sounds/v1/horror/female_scream_short.ogg" },
-    { name: "Wolf Howling", url: "https://actions.google.com/sounds/v1/animals/wolf_howl.ogg" },
-    { name: "Galloping Horse", url: "https://actions.google.com/sounds/v1/transportation/horse_gallop.ogg" },
-    { name: "Wood Creaking Door", url: "https://actions.google.com/sounds/v1/doors/creaky_wood_door.ogg" },
-    { name: "Glass Shattering", url: "https://actions.google.com/sounds/v1/impacts/glass_shatter.ogg" },
-    { name: "Thumping Heartbeat", url: "https://actions.google.com/sounds/v1/horror/heartbeat_slow.ogg" }
+    { name: "Sword Clash / Clang", url: "https://raw.githubusercontent.com/scottschiller/SoundManager2/master/demo/_mp3/china.mp3" },
+    { name: "Explosion / Impact", url: "https://raw.githubusercontent.com/scottschiller/SoundManager2/master/demo/_mp3/crash.mp3" },
+    { name: "Magic Zap / Spell", url: "https://raw.githubusercontent.com/scottschiller/SoundManager2/master/demo/_mp3/shot.mp3" },
+    { name: "Glass Shatter", url: "https://raw.githubusercontent.com/scottschiller/SoundManager2/master/demo/_mp3/glass-shatter.mp3" },
+    { name: "High Bell Ring", url: "https://raw.githubusercontent.com/rse/soundfx/master/soundfx.d/bell.mp3" },
+    { name: "Low UI Click", url: "https://raw.githubusercontent.com/scottschiller/SoundManager2/master/demo/_mp3/click-low.mp3" },
+    { name: "High UI Click", url: "https://raw.githubusercontent.com/scottschiller/SoundManager2/master/demo/_mp3/click-high.mp3" },
+    { name: "Beep Alert", url: "https://raw.githubusercontent.com/rse/soundfx/master/soundfx.d/beep.mp3" },
+    { name: "Ticking Clock", url: "https://raw.githubusercontent.com/brarcher/baby-sleep-sounds/master/app/src/main/res/raw/clock.mp3" },
+    { name: "Thunder Strike", url: "https://upload.wikimedia.org/wikipedia/commons/1/15/Thunder_strike_1.mp3" },
+    { name: "Alert Alert", url: "https://raw.githubusercontent.com/rse/soundfx/master/soundfx.d/alert.mp3" },
+    { name: "Success Chime", url: "https://raw.githubusercontent.com/rse/soundfx/master/soundfx.d/success.mp3" },
+    { name: "Thumping Heartbeat", url: "https://www.soundjay.com/human/heartbeat-01a.mp3" }
 ];
 
 // Fallback Default Setup
 const DEFAULT_AMBIENTS = [
-    { id: "ch1", name: "Tavern Ambience", url: PRESET_AMBIENTS[0].url, volume: 0.6, playing: false },
-    { id: "ch2", name: "Dungeon Depths", url: PRESET_AMBIENTS[1].url, volume: 0.5, playing: false },
+    { id: "ch1", name: "Tavern Ambience", url: PRESET_AMBIENTS[1].url, volume: 0.6, playing: false },
+    { id: "ch2", name: "Epic Theme", url: PRESET_AMBIENTS[0].url, volume: 0.5, playing: false },
     { id: "ch3", name: "Raging Storm", url: PRESET_AMBIENTS[3].url, volume: 0.4, playing: false },
     { id: "ch4", name: "Roaring Fireplace", url: PRESET_AMBIENTS[2].url, volume: 0.6, playing: false },
-    { id: "ch5", name: "Lush Forest", url: PRESET_AMBIENTS[4].url, volume: 0.4, playing: false },
-    { id: "ch6", name: "Cave Drips", url: PRESET_AMBIENTS[6].url, volume: 0.3, playing: false }
+    { id: "ch5", name: "Winding Stream", url: PRESET_AMBIENTS[5].url, volume: 0.4, playing: false },
+    { id: "ch6", name: "Ocean Waves", url: PRESET_AMBIENTS[4].url, volume: 0.3, playing: false }
 ];
 
 const DEFAULT_SFX_PADS = [
-    { id: "pad1", name: "Dragon Roar", url: PRESET_SFX[0].url, volume: 0.8, hotkey: "1" },
-    { id: "pad2", name: "Fireball", url: PRESET_SFX[1].url, volume: 0.7, hotkey: "2" },
-    { id: "pad3", name: "Explode", url: PRESET_SFX[2].url, volume: 0.6, hotkey: "3" },
-    { id: "pad4", name: "Scream", url: PRESET_SFX[6].url, volume: 0.7, hotkey: "Q" },
-    { id: "pad5", name: "Thunder Clap", url: PRESET_SFX[4].url, volume: 0.9, hotkey: "W" },
-    { id: "pad6", name: "Wolf Howl", url: PRESET_SFX[8].url, volume: 0.7, hotkey: "E" },
-    { id: "pad7", name: "Gold / Clang", url: PRESET_SFX[5].url, volume: 0.6, hotkey: "A" },
+    { id: "pad1", name: "Clash / Clang", url: PRESET_SFX[0].url, volume: 0.8, hotkey: "1" },
+    { id: "pad2", name: "Magic Spell", url: PRESET_SFX[2].url, volume: 0.7, hotkey: "2" },
+    { id: "pad3", name: "Explode", url: PRESET_SFX[1].url, volume: 0.6, hotkey: "3" },
+    { id: "pad4", name: "Man Shout", url: PRESET_SFX[6].url, volume: 0.7, hotkey: "Q" },
+    { id: "pad5", name: "Thunder Clap", url: PRESET_SFX[9].url, volume: 0.9, hotkey: "W" },
+    { id: "pad6", name: "Monster Snarl", url: PRESET_SFX[8].url, volume: 0.7, hotkey: "E" },
+    { id: "pad7", name: "Bell Ring", url: PRESET_SFX[4].url, volume: 0.6, hotkey: "A" },
     { id: "pad8", name: "Heartbeat", url: PRESET_SFX[12].url, volume: 0.8, hotkey: "S" },
-    { id: "pad9", name: "Creaky Door", url: PRESET_SFX[10].url, volume: 0.6, hotkey: "D" },
-    { id: "pad10", name: "Growl", url: PRESET_SFX[3].url, volume: 0.7, hotkey: "Z" },
-    { id: "pad11", name: "Shatter", url: PRESET_SFX[11].url, volume: 0.6, hotkey: "X" },
-    { id: "pad12", name: "Gallop", url: PRESET_SFX[9].url, volume: 0.5, hotkey: "C" }
+    { id: "pad9", name: "Alert Beep", url: PRESET_SFX[10].url, volume: 0.6, hotkey: "D" },
+    { id: "pad10", name: "Success Chime", url: PRESET_SFX[11].url, volume: 0.7, hotkey: "Z" },
+    { id: "pad11", name: "Shatter", url: PRESET_SFX[3].url, volume: 0.6, hotkey: "X" },
+    { id: "pad12", name: "Footsteps", url: PRESET_SFX[7].url, volume: 0.5, hotkey: "C" }
 ];
 
 // STATE MANAGEMENT
@@ -140,7 +140,6 @@ function initAudioEngine() {
         const audio = new Audio();
         audio.loop = true;
         audio.preload = "auto";
-        audio.crossOrigin = "anonymous";
         audio.src = ch.url;
         audio.volume = ch.volume * state.masterVolume;
         
@@ -160,7 +159,6 @@ function initAudioEngine() {
     state.sfxPads.forEach(pad => {
         const audio = new Audio();
         audio.preload = "auto";
-        audio.crossOrigin = "anonymous";
         audio.src = pad.url;
         audio.volume = state.sfxMuted ? 0 : pad.volume * state.masterVolume;
 
@@ -952,7 +950,7 @@ function setSyncStatus(type, msg) {
     if (!textNode || !icon) return;
 
     textNode.innerText = msg;
-    icon.className = "w-3.5 h-3.5 shrink-0";
+    icon.setAttribute('class', "w-3.5 h-3.5 shrink-0");
 
     if (type === 'loading') {
         icon.classList.add('text-stone-500', 'animate-pulse');
