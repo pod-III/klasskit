@@ -1108,13 +1108,13 @@ function renderCampaignSelect() {
 
 function updateCampaignBadge() {
     const cid = dom.campaignSelect?.value;
-    state.activeCampaignId = cid || null;
-    const campaign = state.campaignsList.find(c => c.id === state.activeCampaignId);
+    state.activeCampaignId = cid ? String(cid) : null;
+    const campaign = state.campaignsList.find(c => String(c.id) === state.activeCampaignId);
     if (campaign && dom.campaignActiveBadge) {
         dom.campaignActiveBadge.classList.remove('hidden');
         dom.campaignActiveBadge.classList.add('flex');
         if (dom.campaignActiveName) dom.campaignActiveName.textContent = campaign.name;
-        const count = state.mapsList.filter(m => m.campaignId === campaign.id).length;
+        const count = state.mapsList.filter(m => String(m.campaignId || '') === String(campaign.id)).length;
         if (dom.campaignMapCount) dom.campaignMapCount.textContent = `${count} map${count !== 1 ? 's' : ''}`;
     } else if (dom.campaignActiveBadge) {
         dom.campaignActiveBadge.classList.add('hidden');
@@ -1200,9 +1200,9 @@ function renderMapLibrary() {
     }
 
     const sortMode = dom.mapSort ? dom.mapSort.value : 'recent';
-    // Filter by active campaign; null = show all
+    // Filter by active campaign; null = show all (compare as strings to handle number/string mismatch)
     const filtered = state.activeCampaignId
-        ? state.mapsList.filter(m => m.campaignId === state.activeCampaignId)
+        ? state.mapsList.filter(m => String(m.campaignId || '') === state.activeCampaignId)
         : state.mapsList;
 
     const sorted = [...filtered].sort((a, b) => {
