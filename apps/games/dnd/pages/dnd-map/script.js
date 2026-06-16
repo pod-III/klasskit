@@ -2658,8 +2658,8 @@ function deleteMap(id) {
     if (!map) return;
     showConfirm('Delete Map', `Delete "${map.name}"?`, async () => {
         const cloudId = map.cloudId;
-        if (cloudId && typeof deleteDndSave === 'function') {
-            await deleteDndSave(cloudId).catch(e => console.warn('[Cloud] Failed to delete map:', e));
+        if (cloudId && typeof vttDeleteMap === 'function') {
+            await vttDeleteMap(cloudId).catch(e => console.warn('[Cloud] Failed to delete map:', e));
         }
         const tx = dataBase.transaction('maps', 'readwrite');
         tx.objectStore('maps').delete(id);
