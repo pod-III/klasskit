@@ -2173,27 +2173,38 @@ function handleWallEditDown(pos) {
     for (const seg of state.wallSegments) {
         for (const [ep, px, py] of [['start', seg.x1, seg.y1], ['end', seg.x2, seg.y2]]) {
             const d = Math.hypot(pos.x - px, pos.y - py);
-            if (d < bestDist) { bestDist = d; best = { seg, ep }; }
+            if (d < bestDist) { bestDist = d; best = { seg, ep, px, py }; }
         }
     }
     if (best) {
         we.segId = best.seg.id;
         we.endpoint = best.ep;
+        we.nodeX = best.px;  // world-space position of the grabbed joint
+        we.nodeY = best.py;
         we.isDragging = true;
     } else {
-        we.segId = null; we.endpoint = null; we.isDragging = false;
+        we.segId = null; we.endpoint = null; we.nodeX = null; we.nodeY = null; we.isDragging = false;
     }
     renderFog();
 }
 
 function handleWallEditMove(pos) {
     const we = state.wallEdit;
-    if (!we.isDragging || !we.segId) return;
-    const seg = state.wallSegments.find(s => s.id === we.segId);
-    if (!seg) return;
+    if (!we.isDragging || !we.segId || we.nodeX == null) return;
     const snapped = snapToNearestWallNode(pos, we.segId, we.endpoint) || pos;
-    if (we.endpoint === 'start') { seg.x1 = snapped.x; seg.y1 = snapped.y; }
-    else                         { seg.x2 = snapped.x; seg.y2 = snapped.y; }
+    // Move all endpoints that share the current joint position (connected nodes)
+    const TOL = 1; // world-space px; snapped nodes are exactly coincident
+    for (const seg of state.wallSegments) {
+        if (Math.hypot(seg.x1 - we.nodeX, seg.y1 - we.nodeY) < TOL) {
+            seg.x1 = snapped.x; seg.y1 = snapped.y;
+        }
+        if (Math.hypot(seg.x2 - we.nodeX, seg.y2 - we.nodeY) < TOL) {
+            seg.x2 = snapped.x; seg.y2 = snapped.y;
+        }
+    }
+    // Track the joint's new position for the next move event
+    we.nodeX = snapped.x;
+    we.nodeY = snapped.y;
     renderFog();
 }
 
