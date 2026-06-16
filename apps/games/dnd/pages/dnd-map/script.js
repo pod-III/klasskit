@@ -54,6 +54,10 @@ function newId() {
     });
 }
 
+// ==================== IMAGE CACHE ====================
+// In-memory cache for decoded map images - makes player view reopen instantly
+const _mapImageCache = new Map(); // mapId -> { image, width, height, timestamp }
+
 // ==================== STATE MANAGEMENT ====================
 const state = {
     // UI mode
@@ -617,6 +621,9 @@ function renderTokensNow() {
         const tSize = (t.size || 1) * state.gridSize;
         const radius = tSize / 2;
 
+        // Skip if token image not loaded yet
+        if (!t.img || !t.img.complete || t.img.naturalWidth === 0) continue;
+
         // Clip and draw image
         dom.tokenCtx.save();
         dom.tokenCtx.beginPath();
@@ -869,7 +876,7 @@ function snapshotState() {
             name: t.name,
             x: t.x,
             y: t.y,
-            src: t.imageUrl || t.img.src,
+            src: t.imageUrl || t.img?.src || null,
             imageUrl: t.imageUrl || null,
             size: t.size || 1,
             isPC: t.isPC !== false
@@ -1007,7 +1014,7 @@ function initDB() {
 function saveCurrentMap() {
     if (!state.currentMapData || !dataBase) return;
     state.currentMapData.tokens = state.tokens.map(t => ({
-        id: t.id, name: t.name, x: t.x, y: t.y, src: t.imageUrl || t.img.src, imageUrl: t.imageUrl || null, size: t.size || 1, isPC: t.isPC !== false
+        id: t.id, name: t.name, x: t.x, y: t.y, src: t.imageUrl || t.img?.src || null, imageUrl: t.imageUrl || null, size: t.size || 1, isPC: t.isPC !== false
     }));
     state.currentMapData.fogShapes = state.fogShapes;
     state.currentMapData.gridSize = state.gridSize;
@@ -1459,6 +1466,150 @@ function resetHistory() {
     updateUndoRedoButtons();
 }
 
+// Player window loads map independently from IndexedDB (instead of broadcast)
+// Uses in-memory cache for instant reloads and createImageBitmap for fast decoding
+async function loadMapForPlayer(mapLocalId, cloudMapId, loadingEl, mapIndicatorDiv) {
+    if (!dataBase) {
+        console.error('[Player] IndexedDB not available');
+        return;
+    }
+
+    try {
+        // Yield to browser first so loading indicator renders
+        await new Promise(r => requestAnimationFrame(r));
+
+        // Try to fetch map from IndexedDB
+        const map = await new Promise((resolve, reject) => {
+            const tx = dataBase.transaction('maps', 'readonly');
+            const store = tx.objectStore('maps');
+            const req = store.get(mapLocalId);
+            req.onsuccess = () => resolve(req.result);
+            req.onerror = () => reject(req.error);
+        });
+
+        if (!map) {
+            console.warn('[Player] Map not found in IndexedDB:', mapLocalId);
+            const mapLoadingText = mapIndicatorDiv?.querySelector('span');
+            if (mapLoadingText) {
+                mapLoadingText.textContent = 'Map not available';
+                mapLoadingText.style.color = '#ef4444';
+            }
+            setTimeout(() => {
+                loadingEl?.remove();
+                window._playerLoadingEl = null;
+            }, 2000);
+            return;
+        }
+
+        const mapSrc = map.data || map.imageUrl;
+        if (!mapSrc) {
+            console.error('[Player] Map has no image data');
+            return;
+        }
+
+        state.currentMapData = map;
+
+        // Apply map settings immediately (don't wait for image)
+        state.gridSize = map.gridSize || DEFAULT_GRID;
+        state.gridMetresPerSquare = map.gridMetresPerSquare || 1.5;
+        state.losEnabled = map.losEnabled || false;
+        state.losDarkMap = map.losDarkMap || false;
+        state.losViewDistance = map.losViewDistance || 30;
+        state.isGridVisible = map.isGridVisible || false;
+
+        // Check in-memory cache first (instant reload!)
+        const cached = _mapImageCache.get(mapLocalId);
+        if (cached && cached.image) {
+            console.log('[Player] Using cached map image (instant!)');
+            state.mapImage = cached.image;
+            const w = cached.width, h = cached.height;
+            dom.container.style.width = w + 'px';
+            dom.container.style.height = h + 'px';
+            [dom.mapCanvas, dom.gridCanvas, dom.tokenCanvas, dom.fogCanvas, dom.losCanvas].forEach(c => {
+                c.width = w; c.height = h;
+            });
+            loadingEl?.remove();
+            window._playerLoadingEl = null;
+            playerDoRender();
+            return;
+        }
+
+        // Use createImageBitmap for faster off-main-thread decoding
+        let img;
+        try {
+            if (mapSrc.startsWith('data:')) {
+                // Base64 data URL - fetch as blob then decode
+                const response = await fetch(mapSrc);
+                const blob = await response.blob();
+                // createImageBitmap decodes off-main-thread (much faster!)
+                const bitmap = await createImageBitmap(blob);
+                // Create an Image wrapper for compatibility with existing code
+                img = new Image(bitmap.width, bitmap.height);
+                img._bitmap = bitmap; // Store for drawImage
+                // Override draw to use bitmap
+                Object.defineProperty(img, 'src', { value: mapSrc, writable: false });
+            } else {
+                // Regular URL
+                img = new Image();
+                await new Promise((resolve, reject) => {
+                    img.onload = resolve;
+                    img.onerror = reject;
+                    img.src = mapSrc;
+                });
+            }
+        } catch (decodeErr) {
+            console.error('[Player] Image decode failed:', decodeErr);
+            // Fallback to traditional Image loading
+            img = new Image();
+            await new Promise((resolve, reject) => {
+                img.onload = resolve;
+                img.onerror = reject;
+                img.src = mapSrc;
+            });
+        }
+
+        // Cache for instant future reloads
+        _mapImageCache.set(mapLocalId, {
+            image: img,
+            width: img.width,
+            height: img.height,
+            timestamp: Date.now()
+        });
+
+        // Limit cache size (keep last 3 maps)
+        if (_mapImageCache.size > 3) {
+            const oldest = Array.from(_mapImageCache.entries())
+                .sort((a, b) => a[1].timestamp - b[1].timestamp)[0];
+            _mapImageCache.delete(oldest[0]);
+        }
+
+        state.mapImage = img;
+        const w = img.width, h = img.height;
+        dom.container.style.width = w + 'px';
+        dom.container.style.height = h + 'px';
+        [dom.mapCanvas, dom.gridCanvas, dom.tokenCanvas, dom.fogCanvas, dom.losCanvas].forEach(c => {
+            c.width = w; c.height = h;
+        });
+
+        // Remove loading overlay and render
+        loadingEl?.remove();
+        window._playerLoadingEl = null;
+        playerDoRender();
+
+    } catch (err) {
+        console.error('[Player] Error loading map from IndexedDB:', err);
+        const mapLoadingText = mapIndicatorDiv?.querySelector('p:last-child');
+        if (mapLoadingText) {
+            mapLoadingText.textContent = 'Error loading map';
+            mapLoadingText.style.color = '#ef4444';
+        }
+        setTimeout(() => {
+            loadingEl?.remove();
+            window._playerLoadingEl = null;
+        }, 1500);
+    }
+}
+
 function fitMapToScreen() {
     if (!state.mapImage) return;
     const rect = dom.wrapper.getBoundingClientRect();
@@ -1503,7 +1654,7 @@ async function rotateMap() {
     // Update map data
     state.currentMapData.data = tempCanvas.toDataURL();
     state.currentMapData.tokens = state.tokens.map(t => ({
-        id: t.id, name: t.name, x: t.x, y: t.y, src: t.imageUrl || t.img.src, imageUrl: t.imageUrl || null, size: t.size || 1, isPC: t.isPC !== false
+        id: t.id, name: t.name, x: t.x, y: t.y, src: t.imageUrl || t.img?.src || null, imageUrl: t.imageUrl || null, size: t.size || 1, isPC: t.isPC !== false
     }));
     state.currentMapData.fogShapes = state.fogShapes;
 
@@ -1599,12 +1750,14 @@ function renderTokenLibrary() {
 
         const img = document.createElement('img');
         const src = libToken.src;
-        if (typeof resolveMediaUrl === 'function' && src && src.includes('klasskit-media')) {
-            resolveMediaUrl(src).then(url => { img.src = url; });
-        } else {
-            img.src = src;
+        if (src) {
+            if (typeof resolveMediaUrl === 'function' && src.includes('klasskit-media')) {
+                resolveMediaUrl(src).then(url => { if (url) img.src = url; });
+            } else {
+                img.src = src;
+            }
         }
-        img.alt = libToken.name;
+        img.alt = libToken.name || 'Token';
         img.loading = 'lazy';
         div.appendChild(img);
 
@@ -3464,29 +3617,71 @@ const IS_PLAYER_WINDOW = new URLSearchParams(location.search).has('player');
 const bc = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel(BROADCAST_CHANNEL) : null;
 
 // Track last map id sent so we only re-send the image when it changes
+// Performance-optimized broadcast system
 let _lastBroadcastMapId = null;
+let _broadcastThrottle = null;
+let _lastBroadcastTime = 0;
+let _tokenImageCacheSent = new Set(); // Track which token images we've already sent
 
-// Called after any state change — serialises and sends to player window(s)
-function broadcastState() {
+// Called after any state change — throttled and delta-optimized
+function broadcastState(options = {}) {
     if (!bc || IS_PLAYER_WINDOW) return;
 
+    const now = performance.now();
+    const minInterval = options.immediate ? 0 : 16; // 60fps cap (16ms), or 0 for immediate
+
+    if (_broadcastThrottle) clearTimeout(_broadcastThrottle);
+
+    const doBroadcast = () => {
+        _lastBroadcastTime = performance.now();
+        _performBroadcast(options);
+    };
+
+    const elapsed = now - _lastBroadcastTime;
+    if (elapsed >= minInterval) {
+        doBroadcast();
+    } else {
+        _broadcastThrottle = setTimeout(doBroadcast, minInterval - elapsed);
+    }
+}
+
+function _performBroadcast(options) {
     const mapId = state.currentMapData?.id || null;
 
-    // Send map image in a separate message only when map changes
+    // Send map reference only (player will load independently from IndexedDB)
     if (mapId && mapId !== _lastBroadcastMapId) {
         _lastBroadcastMapId = mapId;
-        const mapSrc = state.currentMapData?.data || state.currentMapData?.imageUrl || null;
-        if (mapSrc) bc.postMessage({ type: 'map-image', mapId, mapSrc });
+        _tokenImageCacheSent.clear(); // Reset token cache on map change
+        // Send lightweight map reference instead of full image
+        bc.postMessage({
+            type: 'map-ref',
+            mapId,
+            mapLocalId: state.currentMapData?.id, // Player uses this to fetch from IndexedDB
+            mapName: state.currentMapData?.name,
+            hasImage: !!(state.currentMapData?.data || state.currentMapData?.imageUrl)
+        });
     }
+
+    // Build optimized token payload - only send src for new tokens
+    const tokenPayload = state.tokens.map(t => {
+        const tokenId = t.id;
+        const src = t.imageUrl || t.img?.src || null;
+        const isNewToken = !_tokenImageCacheSent.has(tokenId);
+
+        if (isNewToken && src) _tokenImageCacheSent.add(tokenId);
+
+        return {
+            id: tokenId, name: t.name, x: t.x, y: t.y,
+            size: t.size || 1,
+            src: isNewToken ? src : undefined, // Only include src for new tokens
+            _initiativeActive: t._initiativeActive || false,
+            isPC: t.isPC !== false
+        };
+    });
 
     const payload = {
         type: 'state-update',
-        tokens: state.tokens.map(t => ({
-            id: t.id, name: t.name, x: t.x, y: t.y,
-            size: t.size || 1, src: t.imageUrl || t.img?.src || null,
-            _initiativeActive: t._initiativeActive || false,
-            isPC: t.isPC !== false
-        })),
+        tokens: tokenPayload,
         fogShapes: state.fogShapes,
         wallSegments: state.wallSegments,
         openingSegments: state.openingSegments,
@@ -3495,13 +3690,19 @@ function broadcastState() {
         losEnabled: state.losEnabled,
         losDarkMap: state.losDarkMap,
         losViewDistance: state.losViewDistance,
-        gridMetresPerSquare: state.gridMetresPerSquare,
+        gridMetresPerSquare: state.gridMetresPerSquare ?? 1.5,
         waypoints: state.waypoints,
         mapId,
         isGridVisible: state.isGridVisible,
         initiative: state.initiative,
     };
     bc.postMessage(payload);
+}
+
+// Force full re-sync (useful for new player windows)
+function broadcastFullState() {
+    _tokenImageCacheSent.clear();
+    broadcastState({ immediate: true });
 }
 
 // Player window: render initiative overlay
@@ -3547,10 +3748,33 @@ if (bc && IS_PLAYER_WINDOW) {
     };
 
     bc.onmessage = async ({ data }) => {
-        // Handle map image arriving separately (large payload sent once per map change)
-        if (data.type === 'map-image') {
+        // Handle map reference (player loads independently from IndexedDB)
+        if (data.type === 'map-ref') {
             if (data.mapId !== state.currentMapData?.id) {
+                // Switch loading indicator
+                const loadingEl = window._playerLoadingEl;
+                const spinnerDiv = loadingEl?.querySelector('#loading-spinner');
+                const mapIndicatorDiv = loadingEl?.querySelector('#map-loading-indicator');
+                if (spinnerDiv) { spinnerDiv.classList.add('hidden'); spinnerDiv.classList.remove('flex'); }
+                if (mapIndicatorDiv) { mapIndicatorDiv.classList.remove('hidden'); mapIndicatorDiv.classList.add('flex'); }
+
+                // Player loads map independently from IndexedDB
+                await loadMapForPlayer(data.mapLocalId, data.mapId, loadingEl, mapIndicatorDiv);
+            }
+            return;
+        }
+
+        // Legacy: Handle full map image broadcast (backward compatibility)
+        if (data.type === 'map-image') {
+            if (data.mapId !== state.currentMapData?.id && data.mapSrc) {
                 state.currentMapData = { id: data.mapId, data: data.mapSrc };
+
+                const loadingEl = window._playerLoadingEl;
+                const spinnerDiv = loadingEl?.querySelector('#loading-spinner');
+                const mapIndicatorDiv = loadingEl?.querySelector('#map-loading-indicator');
+                if (spinnerDiv) { spinnerDiv.classList.add('hidden'); spinnerDiv.classList.remove('flex'); }
+                if (mapIndicatorDiv) { mapIndicatorDiv.classList.remove('hidden'); mapIndicatorDiv.classList.add('flex'); }
+
                 const img = new Image();
                 img.onload = () => {
                     state.mapImage = img;
@@ -3560,14 +3784,41 @@ if (bc && IS_PLAYER_WINDOW) {
                     [dom.mapCanvas, dom.gridCanvas, dom.tokenCanvas, dom.fogCanvas, dom.losCanvas].forEach(c => {
                         c.width = w; c.height = h;
                     });
+                    loadingEl?.remove();
+                    window._playerLoadingEl = null;
                     playerDoRender();
                 };
-                img.onerror = (e) => console.error('[Player] map image failed to load', e);
+                img.onerror = (e) => {
+                    console.error('[Player] map image failed to load', e);
+                    state.mapImage = null;
+                    const mapLoadingText = mapIndicatorDiv?.querySelector('span');
+                    if (mapLoadingText) {
+                        mapLoadingText.textContent = 'Map failed to load';
+                        mapLoadingText.style.color = '#ef4444';
+                    }
+                    setTimeout(() => {
+                        loadingEl?.remove();
+                        window._playerLoadingEl = null;
+                    }, 1500);
+                    playerDoRender();
+                };
                 img.src = data.mapSrc;
             }
             return;
         }
         if (data.type !== 'state-update') return;
+
+        // Stop retry interval and remove loading overlay on first state update
+        if (window._playerRetryInterval) {
+            clearInterval(window._playerRetryInterval);
+            window._playerRetryInterval = null;
+        }
+        // Only remove overlay if no map coming or map already loaded
+        // (map-ref handler removes overlay after loading)
+        if (!data.mapId || state.mapImage) {
+            window._playerLoadingEl?.remove();
+            window._playerLoadingEl = null;
+        }
 
         // Update transform — player window ignores DM panning, keeps full-screen fit
         if (!IS_PLAYER_WINDOW) {
@@ -3597,19 +3848,26 @@ if (bc && IS_PLAYER_WINDOW) {
             renderPlayerInitiative();
         }
 
-        // Tokens — re-use existing img objects where possible
+        // Tokens — re-use existing img objects where possible, cache by ID
         const existingImgs = new Map(state.tokens.map(t => [t.id, t.img]));
+        const tokenImageCache = window._playerTokenImageCache || (window._playerTokenImageCache = new Map());
+
         state.tokens = await Promise.all(data.tokens.map(async td => {
-            let img = existingImgs.get(td.id);
+            // Use cached image if available
+            let img = existingImgs.get(td.id) || tokenImageCache.get(td.id);
+
+            // Load new image if src provided and not cached
             if (!img && td.src) {
                 img = new Image();
                 await new Promise(res => { img.onload = res; img.onerror = res; img.src = td.src; });
+                tokenImageCache.set(td.id, img); // Cache for future updates
             }
+
             return { ...td, img };
         }));
 
-        // Only render if map image is ready — map-image handler will re-render when it loads
-        if (state.mapImage) playerDoRender();
+        // Always render what we have — tokens/fog/walls/initiative work without map
+        playerDoRender();
     };
 }
 
@@ -3617,7 +3875,8 @@ if (bc && IS_PLAYER_WINDOW) {
 window.addEventListener('load', async () => {
     if (!IS_PLAYER_WINDOW && typeof requirePro === 'function') await requirePro();
     lucide.createIcons();
-    if (!IS_PLAYER_WINDOW) initDB();
+    // Player window also needs IndexedDB to load maps independently
+    initDB();
     initUI(); // always run — player window needs pointer events and toolbar buttons
 
     // Set default tool ring
@@ -3646,40 +3905,58 @@ window.addEventListener('load', async () => {
         setPlayerTool('move');
         document.title = 'Player View | Arcane Tabletop';
 
-        // Show loading overlay until first broadcast arrives
+        // Show fantasy frame outline in player mode
+        const mapFrame = $('map-fantasy-frame');
+        if (mapFrame) mapFrame.classList.remove('hidden');
+
+        // Show loading indicator in top-right corner (compact, non-blocking)
         const loadingEl = document.createElement('div');
         loadingEl.id = 'player-loading';
-        loadingEl.style.cssText = 'position:fixed;inset:0;background:#0c0a09;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:999;gap:16px;';
+        loadingEl.className = 'fixed top-4 right-4 z-50 flex items-center gap-3 px-4 py-2.5 bg-stone-900/95 border border-amber-600/50 rounded-full shadow-xl shadow-amber-900/20 backdrop-blur-sm';
         loadingEl.innerHTML = `
-            <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="animation:spin 2s linear infinite"><path d="M12 2a10 10 0 1 0 10 10"/></svg>
-            <p style="color:#a8a29e;font-family:serif;font-size:14px;letter-spacing:.1em;">Waiting for DM...</p>
-            <style>@keyframes spin{to{transform:rotate(360deg)}}</style>`;
+            <div id="loading-spinner" class="flex items-center gap-2">
+                <svg class="w-5 h-5 text-amber-500 animate-spin" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 2a10 10 0 1 0 10 10"/>
+                </svg>
+                <span class="text-amber-200 font-cinzel text-sm tracking-wider">Connecting...</span>
+            </div>
+            <div id="map-loading-indicator" class="hidden flex items-center gap-2">
+                <svg class="w-5 h-5 text-amber-500 animate-pulse" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                    <polyline points="14 2 14 8 20 8"/>
+                    <line x1="16" y1="13" x2="8" y2="13"/>
+                    <line x1="16" y1="17" x2="8" y2="17"/>
+                </svg>
+                <span class="text-amber-200 font-cinzel text-sm tracking-wider">Loading Map...</span>
+            </div>`;
         document.body.appendChild(loadingEl);
+        window._playerLoadingEl = loadingEl; // Make accessible to map-image handler
 
         // Ping DM with retries until we get a response
-        const ping = () => { if (bc) bc.postMessage({ type: 'player-ready' }); };
+        const ping = () => {
+            if (bc) {
+                console.log('[Player] Sending player-ready ping');
+                bc.postMessage({ type: 'player-ready' });
+            }
+        };
         ping();
         const retryInterval = setInterval(ping, 2000);
 
-        // Remove overlay on first state-update received
-        const origOnMessage = bc.onmessage;
-        bc.onmessage = async (evt) => {
-            if (evt.data?.type === 'state-update') {
-                clearInterval(retryInterval);
-                loadingEl.remove();
-                bc.onmessage = origOnMessage;
-            }
-            if (origOnMessage) await origOnMessage(evt);
-        };
+        // Store references for main handler to use
+        window._playerRetryInterval = retryInterval;
+        window._playerLoadingEl = loadingEl;
     } else {
         // DM window: listen for player-ready pings and respond with full state
         if (bc) {
-            bc.addEventListener('message', ({ data }) => {
-                if (data.type === 'player-ready') {
-                    _lastBroadcastMapId = null; // force map image re-send
-                    broadcastState();
+            console.log('[DM] Setting up player-ready listener');
+            bc.onmessage = (evt) => {
+                const data = evt.data;
+                console.log('[DM] Received message:', data?.type);
+                if (data?.type === 'player-ready') {
+                    console.log('[DM] Responding to player-ready with full state');
+                    broadcastFullState(); // Full sync with all token images
                 }
-            });
+            };
         }
     }
 
