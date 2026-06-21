@@ -592,14 +592,25 @@ async function loadState() {
       audioEl.volume = saved.volume;
     }
 
-    $('loopBtn').classList.toggle('bg-orange', looping);
-    $('loopBtn').classList.toggle('text-white', looping);
-    $('autoplayBtn').classList.toggle('bg-orange', autoplay);
-    $('autoplayBtn').classList.toggle('text-white', autoplay);
-    $('muteBtn').classList.toggle('bg-orange', muted);
-    $('muteBtn').classList.toggle('text-white', muted);
+    const lb = $('loopBtn');
+    lb.style.background = looping ? '#00d063' : '';
+    lb.style.color = looping ? '#0f172a' : '';
+    lb.innerHTML = `<i data-lucide="repeat" class="w-3 h-3"></i> ${looping ? 'On' : 'Off'}`;
+    lb.classList.remove('bg-orange', 'text-white');
+
+    const ab = $('autoplayBtn');
+    ab.style.background = autoplay ? '#00d063' : '';
+    ab.style.color = autoplay ? '#0f172a' : '';
+    ab.innerHTML = `<i data-lucide="fast-forward" class="w-3 h-3"></i> ${autoplay ? 'On' : 'Off'}`;
+    ab.classList.remove('bg-orange', 'text-white');
+
+    const mb = $('muteBtn');
+    mb.classList.toggle('bg-orange', muted);
+    mb.classList.toggle('text-white', muted);
     video.muted = muted;
     audioEl.muted = muted;
+    video.loop = looping;
+    audioEl.loop = looping;
 
     for (const m of ['video', 'picture', 'audio']) {
       libs[m] = [];
@@ -1037,12 +1048,12 @@ function loadItem (i) {
       // ── Local video
       video.classList.remove('hidden'); $('vidOverlay').classList.remove('hidden')
       video.src = item.url; video.load()
+      video.loop = looping
       video.ontimeupdate = tickSeek
       video.onloadedmetadata = () => { $('durTime').textContent = fmtT(video.duration) }
       video.onended = () => {
         setPlaying(false);
-        if (looping) { video.currentTime=0; video.play(); setPlaying(true); }
-        else if (autoplay) { navLib(1); }
+        if (autoplay) { navLib(1); }
       }
     }
   }
@@ -1051,12 +1062,12 @@ function loadItem (i) {
     $('audioName').textContent = item.name.replace(/\.[^.]+$/,'')
     $('audioDur').textContent  = item.meta || ''
     audioEl.src = item.url; audioEl.load()
+    audioEl.loop = looping
     audioEl.ontimeupdate = tickSeek
     audioEl.onloadedmetadata = () => { $('durTime').textContent = fmtT(audioEl.duration) }
     audioEl.onended = () => {
       setPlaying(false); stopViz();
-      if (looping) { audioEl.currentTime=0; doPlay(); }
-      else if (autoplay) { navLib(1); }
+      if (autoplay) { navLib(1); }
     }
   }
   else if (mode==='picture') {
@@ -1202,7 +1213,10 @@ function toggleLoop () {
   const b=$('loopBtn')
   b.style.background=looping?'#00d063':''; b.style.color=looping?'#0f172a':''
   b.innerHTML=`<i data-lucide="repeat" class="w-3 h-3"></i> ${looping?'On':'Off'}`
+  if (!looping) b.classList.remove('bg-orange','text-white')
   lucide.createIcons()
+  video.loop = looping
+  audioEl.loop = looping
   saveState()
 }
 
@@ -1211,6 +1225,7 @@ function toggleAutoplay () {
   const b=$('autoplayBtn')
   b.style.background=autoplay?'#00d063':''; b.style.color=autoplay?'#0f172a':''
   b.innerHTML=`<i data-lucide="fast-forward" class="w-3 h-3"></i> ${autoplay?'On':'Off'}`
+  if (!autoplay) b.classList.remove('bg-orange','text-white')
   lucide.createIcons()
   saveState()
 }
