@@ -15,7 +15,7 @@
 
 // ==================== CONSTANTS & GLOBALS ====================
 const DB_NAME = 'ArcaneVTT_DB';
-const DB_VERSION = 4;
+const DB_VERSION = 5;
 const MAX_HISTORY = 50;
 const LONG_PRESS_MS = 800;
 const DOUBLE_TAP_MS = 300;
@@ -72,6 +72,7 @@ const state = {
     mapsList: [],
     currentMapData: null,
     mapImage: null,
+    mapImageSrc: null,
 
     // Canvas objects
     tokens: [],           // { id, name, x, y, img, size }
@@ -102,6 +103,9 @@ const state = {
 
     // Token library
     tokenLibrary: [],
+
+    // Map template library (reusable map layouts)
+    mapTemplateLibrary: [],
 
     // Player mode tool: 'move' | 'pan' | 'fog' | 'ruler' | 'ping'
     playerTool: 'move',
@@ -189,6 +193,8 @@ const dom = {
     ctxMenu: $('token-context-menu'),
     tokenLibGrid: $('token-library-grid'),
     tokenLibEmpty: $('token-library-empty'),
+    mapTemplateGrid: $('map-template-grid'),
+    mapTemplateEmpty: $('map-template-empty'),
     modal: $('custom-modal'),
     modalTitle: $('modal-title'),
     modalMessage: $('modal-message'),
@@ -519,6 +525,7 @@ function updateGridDisplay() {
 
 // ==================== MODAL SYSTEM ====================
 let modalCallback = null;
+let cancelCallback = null;
 
 function closeModal() {
     dom.modal.classList.add('hidden');
@@ -526,6 +533,8 @@ function closeModal() {
     dom.modalMessage.classList.add('hidden');
     dom.modalCancel.classList.add('hidden');
     dom.modalInput.value = '';
+    dom.modalConfirm.textContent = 'Confirm';
+    dom.modalCancel.textContent = 'Cancel';
 }
 
 function showAlert(title, message) {
@@ -546,6 +555,37 @@ function showPrompt(title, defaultValue, callback) {
     dom.modal.classList.remove('hidden');
     dom.modalInput.focus();
     modalCallback = callback;
+    cancelCallback = null;
+}
+
+// Spinner / loading indicator
+let spinnerTimeout = null;
+function showSpinner(show) {
+    let spinner = document.getElementById('app-spinner');
+    if (show) {
+        if (!spinner) {
+            spinner = document.createElement('div');
+            spinner.id = 'app-spinner';
+            spinner.className = 'fixed inset-0 z-50 flex items-center justify-center bg-stone-900/50 backdrop-blur-sm';
+            spinner.innerHTML = `
+                <div class="flex flex-col items-center gap-3 p-6 bg-stone-800 border border-amber-600/30 rounded-lg shadow-xl">
+                    <div class="w-8 h-8 border-2 border-amber-600 border-t-transparent rounded-full animate-spin"></div>
+                    <span class="text-sm text-amber-500 font-cinzel">Loading...</span>
+                </div>
+            `;
+            document.body.appendChild(spinner);
+        }
+        spinner.classList.remove('hidden');
+        // Auto-hide after 30s as failsafe
+        if (spinnerTimeout) clearTimeout(spinnerTimeout);
+        spinnerTimeout = setTimeout(() => showSpinner(false), 30000);
+    } else {
+        if (spinner) spinner.classList.add('hidden');
+        if (spinnerTimeout) {
+            clearTimeout(spinnerTimeout);
+            spinnerTimeout = null;
+        }
+    }
 }
 
 function showConfirm(title, message, callback) {
@@ -556,9 +596,28 @@ function showConfirm(title, message, callback) {
     dom.modalCancel.classList.remove('hidden');
     dom.modal.classList.remove('hidden');
     modalCallback = () => callback(true);
+    cancelCallback = null;
 }
 
-dom.modalCancel.onclick = closeModal;
+function confirmAction(title, message, onConfirm, onCancel, confirmText, cancelText) {
+    closeModal();
+    dom.modalTitle.innerText = title;
+    dom.modalMessage.innerText = message;
+    dom.modalMessage.classList.remove('hidden');
+    dom.modalCancel.classList.remove('hidden');
+    dom.modal.classList.remove('hidden');
+    dom.modalInput.classList.add('hidden');
+    if (confirmText) dom.modalConfirm.textContent = confirmText;
+    if (cancelText) dom.modalCancel.textContent = cancelText;
+    modalCallback = () => { if (onConfirm) onConfirm(); };
+    cancelCallback = () => { if (onCancel) onCancel(); };
+}
+
+dom.modalCancel.onclick = () => {
+    const cb = cancelCallback;
+    closeModal();
+    if (cb) cb();
+};
 dom.modalConfirm.onclick = () => {
     const val = dom.modalInput.value;
     const cb = modalCallback;
@@ -1022,6 +1081,9 @@ function initDB() {
         if (!dataBase.objectStoreNames.contains('campaigns')) {
             dataBase.createObjectStore('campaigns', { keyPath: 'id' });
         }
+        if (!dataBase.objectStoreNames.contains('mapTemplates')) {
+            dataBase.createObjectStore('mapTemplates', { keyPath: 'id' });
+        }
     };
     request.onsuccess = async (e) => {
         dataBase = e.target.result;
@@ -1050,6 +1112,7 @@ function initDB() {
             };
         });
         loadTokenLibrary();
+        loadMapTemplateLibrary();
         // Boot from local immediately — don't wait for cloud
         if (state.mapsList.length > 0) await loadMap(state.mapsList[0].id);
         // Background cloud sync — merges cloud data silently after UI is ready
@@ -1387,6 +1450,16 @@ async function duplicateMap() {
             tokens: JSON.parse(JSON.stringify(state.currentMapData.tokens || [])),
             fogShapes: JSON.parse(JSON.stringify(state.currentMapData.fogShapes || [])),
             gridSize: state.currentMapData.gridSize || DEFAULT_GRID,
+            gridMetresPerSquare: state.currentMapData.gridMetresPerSquare || 1.5,
+            wallSegments: JSON.parse(JSON.stringify(state.currentMapData.wallSegments || [])),
+            openingSegments: JSON.parse(JSON.stringify(state.currentMapData.openingSegments || [])),
+            losEnabled: state.currentMapData.losEnabled || false,
+            losDarkMap: state.currentMapData.losDarkMap || false,
+            losViewDistance: state.currentMapData.losViewDistance || 30,
+            canvasBgColor: state.currentMapData.canvasBgColor || '#1c1917',
+            width: state.currentMapData.width || null,
+            height: state.currentMapData.height || null,
+            isGridVisible: state.currentMapData.isGridVisible || false,
             usageCount: 0,
             ...(state.currentMapData.campaignId ? { campaignId: state.currentMapData.campaignId } : {})
         });
@@ -1402,6 +1475,10 @@ async function duplicateMap() {
 
 // ==================== MAP OPERATIONS ====================
 async function loadMap(id) {
+    if (state.mapImageSrc && state.mapImageSrc.startsWith('blob:')) {
+        URL.revokeObjectURL(state.mapImageSrc);
+        state.mapImageSrc = null;
+    }
     state.currentMapData = state.mapsList.find(m => m.id === id);
     if (!state.currentMapData) return;
     if (dom.mapSelect) dom.mapSelect.value = id;
@@ -1440,8 +1517,73 @@ async function loadMap(id) {
     updateTransform();
 
     const mapSrc = await resolveMapImage(state.currentMapData);
+
+    // Handle blank maps (no image) - create a canvas-based map
     if (!mapSrc) {
-        showAlert('Error', `No image data for map "${state.currentMapData.name}".`);
+        const w = state.currentMapData.width || 1600;
+        const h = state.currentMapData.height || 1200;
+
+        // Create blank canvas for the map
+        const blankCanvas = document.createElement('canvas');
+        blankCanvas.width = w;
+        blankCanvas.height = h;
+        const ctx = blankCanvas.getContext('2d');
+
+        // Fill with background color
+        const bgColor = state.currentMapData.canvasBgColor || '#1c1917';
+        ctx.fillStyle = bgColor;
+        ctx.fillRect(0, 0, w, h);
+
+        // Add subtle grid pattern
+        ctx.strokeStyle = 'rgba(251, 191, 36, 0.1)'; // faint amber
+        ctx.lineWidth = 1;
+        const gridSize = state.gridSize;
+        for (let x = 0; x <= w; x += gridSize) {
+            ctx.beginPath();
+            ctx.moveTo(x, 0);
+            ctx.lineTo(x, h);
+            ctx.stroke();
+        }
+        for (let y = 0; y <= h; y += gridSize) {
+            ctx.beginPath();
+            ctx.moveTo(0, y);
+            ctx.lineTo(w, y);
+            ctx.stroke();
+        }
+
+        // Convert to blob for state
+        const blob = await new Promise(resolve => blankCanvas.toBlob(resolve, 'image/png'));
+        if (state.mapImageSrc && state.mapImageSrc.startsWith('blob:')) {
+            URL.revokeObjectURL(state.mapImageSrc);
+        }
+        const blobUrl = URL.createObjectURL(blob);
+
+        state.mapImage = blankCanvas;
+        state.mapImageSrc = blobUrl;
+        state.mapNaturalWidth = w;
+        state.mapNaturalHeight = h;
+
+        // Update canvases
+        dom.container.style.width = w + 'px';
+        dom.container.style.height = h + 'px';
+        [dom.mapCanvas, dom.gridCanvas, dom.tokenCanvas, dom.fogCanvas, dom.losCanvas].forEach(c => {
+            c.width = w;
+            c.height = h;
+        });
+        updateGridDisplay();
+        updateTransform();
+        renderMap();
+        renderGrid();
+        renderTokens();
+        renderFog();
+        resetHistory();
+        saveCurrentMap();
+
+        // Broadcast to players
+        if (bc) {
+            broadcastState();
+        }
+
         return;
     }
 
@@ -1551,11 +1693,7 @@ async function loadMapForPlayer(mapLocalId, cloudMapId, loadingEl, mapIndicatorD
             return;
         }
 
-        const mapSrc = map.data || map.imageUrl;
-        if (!mapSrc) {
-            console.error('[Player] Map has no image data');
-            return;
-        }
+        let mapSrc = map.data || map.imageUrl;
 
         state.currentMapData = map;
 
@@ -1566,6 +1704,38 @@ async function loadMapForPlayer(mapLocalId, cloudMapId, loadingEl, mapIndicatorD
         state.losDarkMap = map.losDarkMap || false;
         state.losViewDistance = map.losViewDistance || 30;
         state.isGridVisible = map.isGridVisible || false;
+
+        // Handle blank maps (no image) - create a canvas-based map
+        if (!mapSrc) {
+            const w = map.width || 1600;
+            const h = map.height || 1200;
+            const blankCanvas = document.createElement('canvas');
+            blankCanvas.width = w;
+            blankCanvas.height = h;
+            const ctx = blankCanvas.getContext('2d');
+            const bgColor = map.canvasBgColor || '#1c1917';
+            ctx.fillStyle = bgColor;
+            ctx.fillRect(0, 0, w, h);
+            ctx.strokeStyle = 'rgba(251, 191, 36, 0.1)';
+            ctx.lineWidth = 1;
+            const gridSize = state.gridSize;
+            for (let x = 0; x <= w; x += gridSize) {
+                ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke();
+            }
+            for (let y = 0; y <= h; y += gridSize) {
+                ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
+            }
+            state.mapImage = blankCanvas;
+            dom.container.style.width = w + 'px';
+            dom.container.style.height = h + 'px';
+            [dom.mapCanvas, dom.gridCanvas, dom.tokenCanvas, dom.fogCanvas, dom.losCanvas].forEach(c => {
+                c.width = w; c.height = h;
+            });
+            loadingEl?.remove();
+            window._playerLoadingEl = null;
+            playerDoRender();
+            return;
+        }
 
         // Check in-memory cache first (instant reload!)
         const cached = _mapImageCache.get(mapLocalId);
@@ -1829,6 +1999,130 @@ function renderTokenLibrary() {
         frag.appendChild(div);
     }
     dom.tokenLibGrid.appendChild(frag);
+    lucide.createIcons();
+}
+
+// ==================== MAP TEMPLATE LIBRARY ====================
+function loadMapTemplateLibrary() {
+    const tx = dataBase.transaction('mapTemplates', 'readonly');
+    const req = tx.objectStore('mapTemplates').getAll();
+    req.onsuccess = () => {
+        state.mapTemplateLibrary = req.result || [];
+        renderMapTemplateLibrary();
+    };
+}
+
+function saveMapAsTemplate(name) {
+    if (!state.currentMapData) { showAlert('No Map', 'No map is currently loaded.'); return; }
+    const template = {
+        id: newId(),
+        name: name || `${state.currentMapData.name} (Template)`,
+        gridSize: state.currentMapData.gridSize,
+        gridMetres: state.currentMapData.gridMetres,
+        wallSegments: [...state.currentMapData.wallSegments || []],
+        openingSegments: [...state.currentMapData.openingSegments || []],
+        losEnabled: state.currentMapData.losEnabled || false,
+        losDarkMap: state.currentMapData.losDarkMap || false,
+        losViewDistance: state.currentMapData.losViewDistance || 30,
+        canvasBgColor: state.currentMapData.canvasBgColor || '#1c1917',
+        createdAt: Date.now()
+    };
+    const tx = dataBase.transaction('mapTemplates', 'readwrite');
+    tx.objectStore('mapTemplates').put(template);
+    tx.oncomplete = () => {
+        state.mapTemplateLibrary.push(template);
+        renderMapTemplateLibrary();
+        showAlert('Template Saved', `Map template "${template.name}" saved successfully.`);
+    };
+}
+
+function deleteMapTemplate(id) {
+    const tx = dataBase.transaction('mapTemplates', 'readwrite');
+    tx.objectStore('mapTemplates').delete(id);
+    tx.oncomplete = () => {
+        state.mapTemplateLibrary = state.mapTemplateLibrary.filter(t => t.id !== id);
+        renderMapTemplateLibrary();
+    };
+}
+
+function instantiateFromTemplate(templateId) {
+    const template = state.mapTemplateLibrary.find(t => t.id === templateId);
+    if (!template) { showAlert('Template Not Found', 'Could not find the selected template.'); return; }
+
+    // Create a new map based on the template
+    const newMapId = newId();
+    const timestamp = Date.now();
+    const mapData = {
+        id: newMapId,
+        name: `${template.name} (Copy)`,
+        gridSize: template.gridSize,
+        gridMetres: template.gridMetres,
+        canvasBgColor: template.canvasBgColor || '#1c1917',
+        wallSegments: [...template.wallSegments || []],
+        openingSegments: [...template.openingSegments || []],
+        tokens: [],
+        fogPolygons: [],
+        losEnabled: template.losEnabled || false,
+        losDarkMap: template.losDarkMap || false,
+        losViewDistance: template.losViewDistance || 30,
+        createdAt: timestamp,
+        updatedAt: timestamp,
+        ...(state.activeCampaignId ? { campaignId: state.activeCampaignId } : {})
+    };
+
+    // Save to database
+    const tx = dataBase.transaction('maps', 'readwrite');
+    tx.objectStore('maps').put(mapData);
+    tx.oncomplete = () => {
+        state.mapsList.push(mapData);
+        state.currentMapId = newMapId;
+        state.currentMapData = mapData;
+        loadMap(newMapId);
+        renderMapLibrary();
+        saveCurrentMap();
+        syncToCloud();
+        showAlert('Map Created', `New map created from template "${template.name}".`);
+    };
+}
+
+function renderMapTemplateLibrary() {
+    const items = dom.mapTemplateGrid?.querySelectorAll('.map-template-item');
+    if (items) for (const item of items) item.remove();
+
+    if (!dom.mapTemplateGrid) return;
+    dom.mapTemplateEmpty.style.display = state.mapTemplateLibrary.length === 0 ? '' : 'none';
+
+    const frag = document.createDocumentFragment();
+    for (const template of state.mapTemplateLibrary) {
+        const div = document.createElement('div');
+        div.className = 'map-template-item group relative p-2 rounded-lg bg-stone-800 hover:bg-stone-700 cursor-pointer transition-colors';
+        div.dataset.id = template.id;
+        div.title = template.name;
+        div.innerHTML = `
+            <div class="w-full aspect-video bg-stone-900 rounded mb-2 flex items-center justify-center overflow-hidden">
+                <i data-lucide="map" class="w-8 h-8 text-stone-600"></i>
+            </div>
+            <div class="flex items-center justify-between">
+                <span class="text-xs text-stone-300 truncate flex-1">${template.name}</span>
+                <button class="btn-delete-template opacity-0 group-hover:opacity-100 p-1 hover:bg-red-900/50 rounded transition-all" data-id="${template.id}" title="Delete template">
+                    <i data-lucide="trash-2" class="w-3 h-3 text-red-400"></i>
+                </button>
+            </div>
+        `;
+        // Click to instantiate
+        div.addEventListener('click', (e) => {
+            if (e.target.closest('.btn-delete-template')) return;
+            instantiateFromTemplate(template.id);
+        });
+        // Delete button
+        const delBtn = div.querySelector('.btn-delete-template');
+        delBtn?.addEventListener('click', (e) => {
+            e.stopPropagation();
+            confirmAction('Delete Template', `Delete "${template.name}"?`, () => deleteMapTemplate(template.id));
+        });
+        frag.appendChild(div);
+    }
+    dom.mapTemplateGrid.appendChild(frag);
     lucide.createIcons();
 }
 
@@ -2926,7 +3220,11 @@ function deleteMap(id) {
             state.mapsList = state.mapsList.filter(m => m.id !== id);
             if (state.currentMapData?.id === id) {
                 state.currentMapData = null;
+                if (state.mapImageSrc && state.mapImageSrc.startsWith('blob:')) {
+                    URL.revokeObjectURL(state.mapImageSrc);
+                }
                 state.mapImage = null;
+                state.mapImageSrc = null;
                 state.tokens = [];
                 state.fogShapes = [];
                 state.wallSegments = [];
@@ -3149,6 +3447,13 @@ function initUI() {
         deleteMap(state.currentMapData.id);
     });
 
+    // Save map as template button
+    $('btn-save-map-template').addEventListener('click', () => {
+        showPrompt('Save Map as Template', state.currentMapData?.name || 'Map Template', (name) => {
+            if (name) saveMapAsTemplate(name);
+        });
+    });
+
     // Background color picker
     document.querySelectorAll('.bg-color-btn').forEach(btn => {
         btn.addEventListener('click', () => {
@@ -3201,29 +3506,133 @@ function initUI() {
     // Duplicate map
     $('btn-duplicate-map')?.addEventListener('click', duplicateMap);
 
-    // Map upload
+    // New Map - create blank map first, ask for name
+    $('btn-new-map').addEventListener('click', () => {
+        showPrompt('New Map', 'New Map', async (name) => {
+            if (!name || !name.trim()) return;
+            showSpinner(true);
+            try {
+                const gridSize = DEFAULT_GRID;
+                const timestamp = Date.now();
+                const newMap = {
+                    id: newId(),
+                    name: name.trim(),
+                    width: gridSize * 20,
+                    height: gridSize * 15,
+                    gridSize: gridSize,
+                    gridMetres: 5,
+                    canvasBgColor: '#1c1917',
+                    wallSegments: [],
+                    openingSegments: [],
+                    tokens: [],
+                    fogShapes: [],
+                    losEnabled: false,
+                    losDarkMap: false,
+                    losViewDistance: 30,
+                    createdAt: timestamp,
+                    updatedAt: timestamp,
+                    ...(state.activeCampaignId ? { campaignId: state.activeCampaignId } : {})
+                };
+                saveCurrentMap();
+                const tx = dataBase.transaction('maps', 'readwrite');
+                tx.objectStore('maps').put(newMap);
+                tx.oncomplete = () => {
+                    state.mapsList.push(newMap);
+                    state.currentMapId = newMap.id;
+                    state.currentMapData = newMap;
+                    loadMap(newMap.id);
+                    renderMapLibrary();
+                    saveCurrentMap();
+                    syncToCloud();
+                };
+            }
+            catch (err) {
+                showAlert('Error', 'Failed to create new map.');
+                console.error(err);
+            }
+            finally {
+                showSpinner(false);
+            }
+        });
+    });
+
+    // Map upload - can add to current map or create new
     $('map-upload').addEventListener('change', async (e) => {
         const file = e.target.files[0];
         if (!file) return;
-        const defaultName = file.name.replace(/\.[^/.]+$/, '').replace(/_/g, ' ');
+        showSpinner(true);
+        try {
+            const imgDataUrl = await new Promise((resolve) => {
+                const reader = new FileReader();
+                reader.onload = (ev) => resolve(ev.target.result);
+                reader.readAsDataURL(file);
+            });
+            const imgDims = await new Promise((resolve) => {
+                const img = new Image();
+                img.onload = () => resolve({ w: img.width, h: img.height });
+                img.src = imgDataUrl;
+            });
 
-        // Step 1: Get image dimensions first
-        const imgDataUrl = await new Promise((resolve) => {
-            const reader = new FileReader();
-            reader.onload = (ev) => resolve(ev.target.result);
-            reader.readAsDataURL(file);
-        });
-        const imgDims = await new Promise((resolve) => {
-            const img = new Image();
-            img.onload = () => resolve({ w: img.width, h: img.height });
-            img.src = imgDataUrl;
-        });
+            const defaultName = file.name.replace(/\.[^/.]+$/, '').replace(/_/g, ' ');
 
-        // Step 2: Ask for map name
+            // If we have a current map, ask whether to add image to it or create new
+            if (state.currentMapData) {
+                confirmAction('Add Image to Map', `Add this image to "${state.currentMapData.name}" or create a new map?`, async () => {
+                    // Add to current map
+                    let imageUrl = null;
+                    let dataSrc = null;
+                    if (typeof uploadMedia === 'function') {
+                        try {
+                            imageUrl = await uploadMedia(file, 'dnd-vtt-map');
+                        } catch (err) {
+                            console.warn('[Cloud] Map upload failed, falling back to local:', err);
+                        }
+                    }
+                    if (!imageUrl) dataSrc = imgDataUrl;
+
+                    state.currentMapData.data = dataSrc;
+                    state.currentMapData.imageUrl = imageUrl;
+                    state.currentMapData.width = imgDims.w;
+                    state.currentMapData.height = imgDims.h;
+                    state.currentMapData.updatedAt = Date.now();
+
+                    // Optionally update grid size
+                    showPrompt(
+                        `Grid squares across (image is ${imgDims.w}px wide):`,
+                        Math.round(imgDims.w / state.currentMapData.gridSize).toString(),
+                        async (squaresInput) => {
+                            const squares = parseInt(squaresInput, 10);
+                            if (squares > 0) {
+                                state.currentMapData.gridSize = Math.min(Math.max(Math.round(imgDims.w / squares), GRID_MIN), GRID_MAX);
+                            }
+                            saveCurrentMap();
+                            loadMap(state.currentMapData.id);
+                            renderMapLibrary();
+                            showAlert('Image Added', `Image added to "${state.currentMapData.name}".`);
+                        }
+                    );
+                }, async () => {
+                    // Create new map with image
+                    await createNewMapWithImage(imgDataUrl, imgDims, defaultName);
+                }, 'Add to Current', 'Create New');
+            } else {
+                // No current map - create new one
+                await createNewMapWithImage(imgDataUrl, imgDims, defaultName);
+            }
+        }
+        catch (err) {
+            showAlert('Error', 'Failed to process image. Please try a different file.');
+            console.error(err);
+        }
+        finally {
+            showSpinner(false);
+            e.target.value = '';
+        }
+    });
+
+    async function createNewMapWithImage(imgDataUrl, imgDims, defaultName) {
         showPrompt('Name this map:', defaultName, async (mapName) => {
             if (!mapName) return;
-
-            // Step 3: Ask for grid width in squares to auto-compute grid size
             showPrompt(
                 `Grid squares across (image is ${imgDims.w}px wide):`,
                 '20',
@@ -3243,32 +3652,36 @@ function initUI() {
                             console.warn('[Cloud] Map upload failed, falling back to local:', err);
                         }
                     }
-                    if (!imageUrl) {
-                        dataSrc = imgDataUrl; // reuse already-read data URL
-                    }
+                    if (!imageUrl) dataSrc = imgDataUrl;
+
                     const newMap = ensureMapMeta({
                         id: newId(),
                         name: mapName,
                         data: dataSrc,
                         imageUrl: imageUrl,
+                        width: imgDims.w,
+                        height: imgDims.h,
+                        gridSize: clampedGridSize,
                         tokens: [],
                         fogShapes: [],
-                        gridSize: clampedGridSize,
                         ...(state.activeCampaignId ? { campaignId: state.activeCampaignId } : {})
                     });
-                    saveCurrentMap(); // Save current before switching
+                    saveCurrentMap();
                     const tx = dataBase.transaction('maps', 'readwrite');
                     tx.objectStore('maps').put(newMap);
                     tx.oncomplete = () => {
                         state.mapsList.push(newMap);
-                        renderMapLibrary();
+                        state.currentMapId = newMap.id;
+                        state.currentMapData = newMap;
                         loadMap(newMap.id);
+                        renderMapLibrary();
+                        saveCurrentMap();
+                        syncToCloud();
                     };
                 }
             );
         });
-        e.target.value = '';
-    });
+    }
 
     // Token upload & place
     $('token-upload').addEventListener('change', async (e) => {
