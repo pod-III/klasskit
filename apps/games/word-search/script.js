@@ -874,6 +874,17 @@ window.onload = async () => {
     if (window.innerWidth < 768) toggleControlPanel(true);
 };
 
+// --- Print Mode ---
+window.setPrintMode = function (mode) {
+    const printArea = document.getElementById('print-area');
+    if (mode === 'separate') {
+        printArea.classList.add('print-separate-pages');
+    } else {
+        printArea.classList.remove('print-separate-pages');
+    }
+    window.print();
+};
+
 // Global Print Hook
 const originalPrint = window.print;
 window.print = function () {
