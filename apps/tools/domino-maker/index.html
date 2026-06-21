@@ -79,7 +79,7 @@
     height: 297mm;
     background: #ffffff;
     box-sizing: border-box;
-    padding: 10mm;
+    padding: 0;
     display: grid;
     margin: 0 auto;
     grid-template-columns: repeat(2, 1fr);
@@ -91,16 +91,18 @@
     align-items: stretch;
     width: 100%;
     height: 100%;
-    background: #ffffff;
+    background: #f5f0e6;
     color: #1e293b;
-    border: 2px solid #1e293b;
-    border-radius: 0;
+    border: 1.5px solid #1e293b;
+    border-radius: 1.5mm;
     box-sizing: border-box;
     overflow: hidden;
     min-width: 0;
     min-height: 0;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
+    position: relative;
+    box-shadow: inset 0 1px 2px rgba(0,0,0,0.06), 0 1px 1px rgba(0,0,0,0.04);
   }
   .domino-half {
     flex: 1 1 50%;
@@ -116,7 +118,22 @@
     align-self: stretch;
     width: 0;
     flex-shrink: 0;
-    border-left: 2px solid #1e293b;
+    position: relative;
+    border-left: 1.5px solid #1e293b;
+  }
+  .domino-divider::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 2.2mm;
+    height: 2.2mm;
+    background: radial-gradient(circle at 35% 35%, #475569 0%, #1e293b 70%);
+    border-radius: 50%;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+    box-shadow: inset 0 0.5px 1px rgba(0,0,0,0.3);
   }
   .domino-half span {
     display: block;
@@ -173,13 +190,15 @@
       page-break-after: always;
       break-after: page;
     }
+    .page-frame::before { display: none !important; }
     .page-frame:last-child {
       page-break-after: auto;
       break-after: auto;
     }
     .page {
       width: 210mm;
-      height: 296mm;
+      height: 297mm;
+      padding: 0 !important;
       box-shadow: none !important;
     }
   }
@@ -193,6 +212,178 @@
     font-family: 'Fredoka', sans-serif;
     font-weight: 700;
     animation: pop-in 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+  }
+
+  /* Enhanced UI Styles */
+  .dm-card {
+    background: var(--surface-card);
+    border: var(--border-width-thick) solid var(--border-primary);
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-md);
+    transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+  }
+  .dm-card:hover {
+    transform: translate(-2px, -2px);
+    box-shadow: var(--shadow-lg);
+  }
+
+  .dm-empty-state {
+    background: linear-gradient(135deg, var(--bg-secondary) 0%, var(--surface-card) 100%);
+    border: var(--border-width-thick) dashed var(--border-secondary);
+    box-shadow: none;
+  }
+  .dm-empty-state:hover {
+    transform: none;
+    box-shadow: none;
+  }
+
+  .dm-library-item {
+    border: var(--border-width-medium) solid var(--border-secondary);
+    border-radius: var(--radius-lg);
+    padding: 0.75rem;
+    transition: all var(--transition-fast);
+    cursor: pointer;
+  }
+  .dm-library-item:hover {
+    border-color: var(--color-blue);
+    transform: translateX(4px);
+    box-shadow: var(--shadow-sm);
+  }
+  .dm-library-item.active {
+    border-color: var(--color-blue);
+    background: rgba(30, 167, 253, 0.08);
+  }
+  .dm-library-item .delete-btn {
+    opacity: 0;
+    transition: opacity var(--transition-fast);
+  }
+  .dm-library-item:hover .delete-btn {
+    opacity: 1;
+  }
+
+  .dm-input-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+  .dm-input-group label {
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-secondary);
+  }
+
+  .dm-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.375rem 0.75rem;
+    border-radius: var(--radius-md);
+    font-family: 'Fredoka', sans-serif;
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .dm-active-banner {
+    background: linear-gradient(135deg, rgba(30, 167, 253, 0.12) 0%, rgba(0, 208, 99, 0.06) 100%);
+    border: 2px solid var(--color-blue);
+    border-radius: var(--radius-lg);
+    padding: 0.875rem 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.875rem;
+  }
+
+  .dm-section-title {
+    font-family: 'Fredoka', sans-serif;
+    font-weight: 700;
+    font-size: 0.875rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.75rem;
+    color: var(--text-primary);
+  }
+
+  .dm-stats-bar {
+    background: var(--surface-card);
+    border: var(--border-width-medium) solid var(--border-secondary);
+    border-radius: var(--radius-lg);
+    padding: 0.5rem 1rem;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  /* Word count indicator animation */
+  @keyframes count-pop {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.2); }
+    100% { transform: scale(1); }
+  }
+  .count-animate {
+    animation: count-pop 0.2s ease;
+  }
+
+  /* Generate button shimmer */
+  @keyframes shimmer {
+    0% { background-position: -200% center; }
+    100% { background-position: 200% center; }
+  }
+  .dm-generate-btn {
+    background: linear-gradient(90deg, var(--color-green) 0%, #00e070 25%, var(--color-green) 50%, #00e070 75%, var(--color-green) 100%);
+    background-size: 200% auto;
+    animation: shimmer 3s linear infinite;
+  }
+
+  /* Print page hover effect */
+  .page-frame {
+    transition: transform var(--transition-base), box-shadow var(--transition-base);
+  }
+  .page-frame:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-lg);
+  }
+
+  /* Generated content entrance */
+  @keyframes fade-up {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .dm-enter {
+    animation: fade-up 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  }
+
+  /* Textarea enhanced focus */
+  #wordList {
+    transition: box-shadow 0.2s ease, border-color 0.2s ease;
+  }
+  #wordList:focus {
+    box-shadow: 0 0 0 3px rgba(30, 167, 253, 0.15), var(--shadow-sm);
+  }
+
+  /* Print page paper shadow */
+  .page-frame {
+    background: #fff;
+    position: relative;
+  }
+  .page-frame::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.05), 0 4px 12px rgba(0,0,0,0.08);
+    pointer-events: none;
+    z-index: -1;
+  }
+
+  @media (max-width: 1024px) {
+    .dm-library-item .delete-btn { opacity: 1; }
   }
 </style>
 </head>
@@ -223,16 +414,16 @@
       <!-- CONTROLS -->
       <aside class="no-print space-y-5">
 
-        <div class="hub-card bg-white dark:bg-slate-800 p-5">
-          <label class="font-heading font-semibold text-sm flex items-center gap-2 mb-2">
+        <div class="dm-card p-5">
+          <div class="dm-section-title">
             <i data-lucide="list" class="w-4 h-4 text-brand-blue"></i> Word list
-          </label>
+          </div>
           <textarea id="wordList" rows="10"
             placeholder="One word per line, or separate with commas.&#10;I'll automatically link them into a matching chain.&#10;Image URLs (.jpg/.png/.svg) work too."
             class="input-chunky w-full p-3 text-sm resize-none"></textarea>
-          <div id="dupWarning" class="hidden mt-2 text-xs font-bold text-brand-orange"></div>
-          <div class="flex items-center justify-between mt-2">
-            <span id="itemCount" class="text-xs text-slate-500 dark:text-slate-400">0 words entered</span>
+          <div id="dupWarning" class="hidden mt-3 text-xs font-bold text-brand-orange"></div>
+          <div class="flex items-center justify-between mt-3">
+            <span id="itemCount" class="text-xs font-bold text-slate-500 dark:text-slate-400">0 words entered</span>
             <div class="flex gap-2">
               <button id="clearList" class="text-xs font-semibold text-brand-pink hover:underline">Clear</button>
               <button id="loadExample" class="text-xs font-semibold text-brand-blue hover:underline">Load example</button>
@@ -240,34 +431,34 @@
           </div>
         </div>
 
-        <div class="hub-card bg-white dark:bg-slate-800 p-5 space-y-4">
-          <p class="font-heading font-semibold text-sm flex items-center gap-2">
+        <div class="dm-card p-5 space-y-4">
+          <div class="dm-section-title">
             <i data-lucide="grid-3x3" class="w-4 h-4 text-brand-orange"></i> Set layout
-          </p>
-
-          <div class="grid grid-cols-2 gap-3">
-            <label class="text-xs font-semibold text-slate-600 dark:text-slate-300">
-              Set size (tiles)
-              <input id="setSize" type="number" min="4" max="120" value="36"
-                class="input-chunky w-full mt-1 p-2 text-sm" />
-            </label>
-            <label class="text-xs font-semibold text-slate-600 dark:text-slate-300">
-              Tiles per page
-              <input id="tilesPerPage" type="number" min="2" max="40" value="18"
-                class="input-chunky w-full mt-1 p-2 text-sm" />
-            </label>
           </div>
 
-          <label class="text-xs font-semibold text-slate-600 dark:text-slate-300 block">
-            Text size
-            <select id="fontSize" class="input-chunky w-full mt-1 p-2 text-sm">
+          <div class="grid grid-cols-2 gap-3">
+            <div class="dm-input-group">
+              <label for="setSize">Set size (tiles)</label>
+              <input id="setSize" type="number" min="4" max="120" value="36"
+                class="input-chunky w-full p-2 text-sm" />
+            </div>
+            <div class="dm-input-group">
+              <label for="tilesPerPage">Tiles per page</label>
+              <input id="tilesPerPage" type="number" min="2" max="40" value="18"
+                class="input-chunky w-full p-2 text-sm" />
+            </div>
+          </div>
+
+          <div class="dm-input-group">
+            <label for="fontSize">Text size</label>
+            <select id="fontSize" class="input-chunky w-full p-2 text-sm">
               <option value="text-sm">Small</option>
               <option value="text-base" selected>Medium</option>
               <option value="text-lg">Large</option>
             </select>
-          </label>
+          </div>
 
-          <label class="flex items-center gap-2 text-xs font-semibold text-slate-600 dark:text-slate-300">
+          <label class="flex items-center gap-2 text-xs font-semibold text-slate-600 dark:text-slate-300 cursor-pointer">
             <input id="uppercase" type="checkbox" checked class="w-4 h-4 accent-brand-pink" />
             UPPERCASE text
           </label>
@@ -275,15 +466,15 @@
 
         <!-- Active Set Indicator -->
         <div id="activeSetIndicator" class="hidden animate-pop-in">
-          <div class="bg-brand-blue/10 border-2 border-brand-blue/30 rounded-xl p-3 flex items-center gap-3">
-            <div class="w-8 h-8 rounded-lg bg-brand-blue flex items-center justify-center text-white shrink-0 shadow-neo-sm">
+          <div class="dm-active-banner">
+            <div class="w-9 h-9 rounded-lg bg-brand-blue flex items-center justify-center text-white shrink-0 shadow-neo-sm">
               <i data-lucide="layers" class="w-4 h-4"></i>
             </div>
-            <div class="min-w-0">
+            <div class="min-w-0 flex-1">
               <p class="text-[10px] font-bold text-brand-blue uppercase tracking-wider leading-none mb-1">Active Set</p>
               <p id="activeSetName" class="text-sm font-bold truncate dark:text-white">Untitled</p>
             </div>
-            <button onclick="closeActiveSet()" class="ml-auto text-slate-400 hover:text-brand-pink transition-colors" title="Close active set">
+            <button onclick="closeActiveSet()" class="text-slate-400 hover:text-brand-pink transition-colors p-1 rounded-md hover:bg-slate-100 dark:hover:bg-slate-700" title="Close active set">
               <i data-lucide="x" class="w-4 h-4"></i>
             </button>
           </div>
@@ -292,7 +483,7 @@
         <!-- Action Grid -->
         <div class="grid grid-cols-2 gap-3">
           <button onclick="newWorkspace()"
-            class="btn-chunky bg-white dark:bg-slate-700 text-brand-dark dark:text-white rounded-xl py-3 font-heading font-semibold flex items-center justify-center gap-2">
+            class="btn-chunky bg-white dark:bg-slate-700 text-brand-dark dark:text-white rounded-xl py-3 font-heading font-semibold flex items-center justify-center gap-2 hover:bg-slate-50 dark:hover:bg-slate-600">
             <i data-lucide="file-plus" class="w-4 h-4"></i> New
           </button>
           <button onclick="openSaveAsModal()"
@@ -301,9 +492,9 @@
           </button>
         </div>
 
-        <div class="hub-card bg-white dark:bg-slate-800 p-5 space-y-3">
+        <div class="dm-card p-5 space-y-3">
           <button id="generateBtn"
-            class="btn-chunky w-full bg-brand-green text-brand-dark rounded-xl py-3 font-heading font-semibold flex items-center justify-center gap-2">
+            class="btn-chunky dm-generate-btn w-full text-brand-dark rounded-xl py-3 font-heading font-semibold flex items-center justify-center gap-2 border-[var(--border-primary)]">
             <i data-lucide="sparkles" class="w-4 h-4"></i> Generate set
           </button>
           <button id="shuffleBtn"
@@ -317,11 +508,11 @@
         </div>
 
         <!-- Library -->
-        <div class="hub-card bg-white dark:bg-slate-800 p-5 space-y-3">
+        <div class="dm-card p-5 space-y-3">
           <div class="flex items-center justify-between">
-            <p class="font-heading font-semibold text-sm flex items-center gap-2">
+            <div class="dm-section-title mb-0">
               <i data-lucide="library" class="w-4 h-4 text-brand-blue"></i> Library
-            </p>
+            </div>
             <select id="librarySort" onchange="renderLibrary()"
               class="text-xs font-bold bg-slate-100 dark:bg-slate-700 border-2 border-slate-200 dark:border-slate-600 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-brand-blue cursor-pointer">
               <option value="recent">Recent</option>
@@ -330,19 +521,21 @@
             </select>
           </div>
           <div id="libraryList" class="space-y-2 max-h-64 overflow-y-auto custom-scrollbar pr-1">
-            <p class="text-xs text-slate-400 text-center py-4">No saved sets yet.</p>
+            <p class="text-xs text-slate-400 text-center py-6">No saved sets yet.</p>
           </div>
         </div>
       </aside>
 
       <!-- OUTPUT -->
       <main>
-        <p id="statsLine" class="no-print text-sm text-slate-500 dark:text-slate-400 mb-3"></p>
+        <div id="statsLine" class="no-print dm-stats-bar mb-4 hidden"></div>
         <div id="output" class="space-y-8 overflow-x-auto pb-8">
-          <div id="emptyState" class="hub-card bg-white dark:bg-slate-800 p-12 text-center text-slate-400 dark:text-slate-500">
-            <i data-lucide="layout-grid" class="w-10 h-10 mx-auto mb-3"></i>
-            <p class="font-heading font-semibold">Your domino set will appear here</p>
-            <p class="text-sm mt-1">Paste a word list and hit Generate.</p>
+          <div id="emptyState" class="dm-card dm-empty-state p-12 text-center text-slate-400 dark:text-slate-500">
+            <div class="w-16 h-16 mx-auto mb-4 rounded-2xl bg-brand-green/10 border-2 border-brand-green/20 flex items-center justify-center">
+              <i data-lucide="layout-grid" class="w-8 h-8 text-brand-green"></i>
+            </div>
+            <p class="font-heading font-semibold text-lg text-brand-dark dark:text-white">Your domino set will appear here</p>
+            <p class="text-sm mt-2 max-w-xs mx-auto">Paste a word list and hit <span class="font-bold text-brand-green">Generate</span> to create printable tiles.</p>
           </div>
         </div>
       </main>
@@ -352,16 +545,17 @@
 
   <!-- Save As Modal -->
   <div id="saveAsModal" class="fixed inset-0 z-[60] hidden items-center justify-center" style="background: rgba(30,41,59,0.7); backdrop-filter: blur(4px);">
-    <div class="bg-white dark:bg-slate-800 border-[3px] border-brand-dark dark:border-slate-600 rounded-2xl p-6 w-full max-w-sm mx-4 shadow-neo-lg animate-pop-in">
-      <h3 class="font-heading font-bold text-xl mb-4 text-brand-dark dark:text-white">Save Set</h3>
+    <div class="dm-card p-6 w-full max-w-sm mx-4 animate-pop-in">
+      <h3 class="font-heading font-bold text-xl mb-1 text-brand-dark dark:text-white">Save Set</h3>
+      <p class="text-xs text-slate-500 dark:text-slate-400 mb-4">Store your current workspace to the library.</p>
       <label class="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1 block">Set Name</label>
       <input id="saveAsName" type="text" placeholder="My Domino Set"
-        class="input-chunky w-full px-3 py-2 text-sm mb-4" />
+        class="input-chunky w-full px-3 py-2.5 text-sm mb-5" />
       <div class="flex gap-3">
         <button onclick="closeSaveAsModal()"
-          class="btn-chunky flex-1 bg-slate-100 dark:bg-slate-700 text-brand-dark dark:text-white rounded-xl py-2 text-sm">Cancel</button>
+          class="btn-chunky flex-1 bg-slate-100 dark:bg-slate-700 text-brand-dark dark:text-white rounded-xl py-2.5 text-sm">Cancel</button>
         <button onclick="confirmSaveAs()"
-          class="btn-chunky flex-1 bg-brand-green text-brand-dark rounded-xl py-2 text-sm">Save</button>
+          class="btn-chunky flex-1 bg-brand-green text-brand-dark rounded-xl py-2.5 text-sm">Save</button>
       </div>
     </div>
   </div>
@@ -530,7 +724,7 @@ FALL`;
     currentTiles = [];
     outputEl.innerHTML = '';
     outputEl.appendChild(emptyStateEl);
-    statsLineEl.textContent = '';
+    statsLineEl.classList.add('hidden');
     shuffleBtn.disabled = true;
     updateActiveIndicator('');
     updateCount();
@@ -621,20 +815,24 @@ FALL`;
     }
 
     if (sets.length === 0) {
-      listEl.innerHTML = '<p class="text-xs text-slate-400 text-center py-4">No saved sets yet.</p>';
+      listEl.innerHTML = `
+        <div class="text-center py-6">
+          <i data-lucide="package-open" class="w-8 h-8 mx-auto mb-2 text-slate-300 dark:text-slate-600"></i>
+          <p class="text-xs text-slate-400">No saved sets yet.</p>
+        </div>`;
       return;
     }
 
     listEl.innerHTML = sets.map(s => {
       const isActive = s.id === activeSetId;
-      const activeBadge = isActive ? '<span class="inline-block bg-brand-blue text-white text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded ml-2">Active</span>' : '';
+      const activeBadge = isActive ? '<span class="dm-badge bg-brand-blue text-white ml-2">Active</span>' : '';
       return `
-        <div class="flex items-center gap-2 p-2 rounded-xl border-2 ${isActive ? 'border-brand-blue bg-brand-blue/5' : 'border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50'} group">
+        <div class="dm-library-item ${isActive ? 'active' : ''} flex items-center gap-2 group">
           <button onclick="loadSet(${s.id})" class="flex-1 text-left min-w-0">
             <p class="text-sm font-bold truncate dark:text-white flex items-center">${escapeHtmlAttr(s.name)}${activeBadge}</p>
             <p class="text-[10px] text-slate-400 font-medium">${new Date(s.lastUsed).toLocaleDateString()} · Used ${s.usageCount || 0}×</p>
           </button>
-          <button onclick="deleteSet(${s.id})" class="p-1.5 rounded-lg text-slate-400 hover:text-brand-pink hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors shrink-0" title="Delete">
+          <button onclick="deleteSet(${s.id})" class="delete-btn p-1.5 rounded-lg text-slate-400 hover:text-brand-pink hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors shrink-0" title="Delete">
             <i data-lucide="trash-2" class="w-4 h-4"></i>
           </button>
         </div>
@@ -721,14 +919,15 @@ FALL`;
       </div>`;
   }
 
-  function renderPage(pageTiles, opts) {
+  function renderPage(pageTiles, opts, pageIndex) {
     const pageRows = Math.ceil(pageTiles.length / COLS);
     let cellsHTML = '';
     for (let i = 0; i < pageTiles.length; i++) {
       cellsHTML += renderTile(pageTiles[i], opts);
     }
+    const delay = (pageIndex * 0.08).toFixed(2);
     return `
-      <div class="page-frame hub-card bg-white mx-auto" style="width:210mm;">
+      <div class="page-frame dm-enter bg-white mx-auto" style="width:210mm; overflow: hidden; animation-delay: ${delay}s;">
         <div class="page" style="grid-template-rows:repeat(${pageRows},1fr);">
           ${cellsHTML}
         </div>
@@ -815,8 +1014,7 @@ FALL`;
       pages.push(currentTiles.slice(i, i + tilesPerPage));
     }
     const opts = { fontSize: fontSizeEl.value, uppercase: uppercaseEl.checked };
-    outputEl.innerHTML = pages.map(p => renderPage(p, opts)).join('');
-    lucide.createIcons();
+    outputEl.innerHTML = pages.map((p, i) => renderPage(p, opts, i)).join('');
 
     const items = parseList(wordListEl.value);
     let note = '';
@@ -825,7 +1023,9 @@ FALL`;
     } else if (items.length > currentTiles.length) {
       note = ` · using first ${currentTiles.length} words`;
     }
-    statsLineEl.textContent = `${currentTiles.length} tiles · ${pages.length} page${pages.length === 1 ? '' : 's'} · ${tilesPerPage} per page (${COLS}×${rows} grid)${note}`;
+    statsLineEl.innerHTML = `<i data-lucide="info" class="w-3.5 h-3.5"></i> ${currentTiles.length} tiles · ${pages.length} page${pages.length === 1 ? '' : 's'} · ${tilesPerPage} per page (${COLS}×${rows} grid)${note}`;
+    statsLineEl.classList.remove('hidden');
+    lucide.createIcons();
   }
 
   function generate() {
@@ -837,7 +1037,7 @@ FALL`;
       currentTiles = [];
       outputEl.innerHTML = '';
       outputEl.appendChild(emptyStateEl);
-      statsLineEl.textContent = '';
+      statsLineEl.classList.add('hidden');
       shuffleBtn.disabled = true;
       lucide.createIcons();
       return;
