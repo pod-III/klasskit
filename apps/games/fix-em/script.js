@@ -65,4 +65,230 @@ window.addEventListener('keydown',(e)=>{if(isSetupMode)return;const gameScreen=d
 
 const AudioEngine={playTone(freq,type,duration,vol=0.1){try{const ctx=new(window.AudioContext||window.webkitAudioContext)();const osc=ctx.createOscillator();const gain=ctx.createGain();osc.type=type;osc.frequency.setValueAtTime(freq,ctx.currentTime);gain.gain.setValueAtTime(vol,ctx.currentTime);gain.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+duration);osc.connect(gain);gain.connect(ctx.destination);osc.start();osc.stop(ctx.currentTime+duration);}catch(e){}},correct(){this.playTone(600,'sine',0.2);setTimeout(()=>this.playTone(900,'sine',0.3),100);},wrong(){this.playTone(250,'sawtooth',0.3);}};
 
+// ── Bulk Import ──
+let parsedImportPassages = [];
+const VALID_LEVELS = ['A1','A2','B1','B1+','B2','B2+'];
+
+function openImportModal() {
+    document.getElementById('import-textarea').value = '';
+    parsedImportPassages = [];
+    updateImportPreview();
+    document.getElementById('import-overlay').classList.add('open');
+    lucide.createIcons();
+    setTimeout(() => document.getElementById('import-textarea').focus(), 300);
+}
+
+function closeImportModal() {
+    document.getElementById('import-overlay').classList.remove('open');
+}
+
+function parseBulkImport(text) {
+    const passages = [];
+    const warnings = [];
+    const blocks = text.split(/\n\s*\n/);
+
+    for (let blockIdx = 0; blockIdx < blocks.length; blockIdx++) {
+        const block = blocks[blockIdx];
+        const lines = block.split('\n').map(l => l.trim()).filter(l => l && !l.startsWith('//') && !l.startsWith('#'));
+        if (lines.length === 0) continue;
+
+        let title = '';
+        let level = 'A1';
+        let passageText = '';
+        let errors = [];
+        let currentError = null;
+
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i];
+
+            // ## Title
+            if (line.startsWith('##')) {
+                title = line.slice(2).trim();
+                continue;
+            }
+
+            // @Level
+            if (line.startsWith('@')) {
+                const lvl = line.slice(1).trim().toUpperCase();
+                if (VALID_LEVELS.includes(lvl)) {
+                    level = lvl;
+                } else {
+                    warnings.push(`Passage ${passages.length + 1}: Unknown level "@${lvl}" — defaulted to A1. Valid: ${VALID_LEVELS.join(', ')}`);
+                }
+                continue;
+            }
+
+            // > explanation (attaches to current error)
+            if (line.startsWith('>')) {
+                const expl = line.slice(1).trim();
+                if (currentError) {
+                    currentError.explanation = expl;
+                } else {
+                    warnings.push(`Passage ${passages.length + 1}: Explanation ">" found before any error line — ignored.`);
+                }
+                continue;
+            }
+
+            // - errorText = correction
+            if (line.startsWith('-')) {
+                const rest = line.slice(1).trim();
+                const eqIdx = rest.indexOf('=');
+                let errorText, correction;
+                if (eqIdx >= 0) {
+                    errorText = rest.slice(0, eqIdx).trim();
+                    correction = rest.slice(eqIdx + 1).trim();
+                } else {
+                    errorText = rest;
+                    correction = '';
+                    warnings.push(`Passage ${passages.length + 1}: Error "${errorText.slice(0, 30)}" has no "= correction" — left empty.`);
+                }
+                currentError = { errorText, correction, explanation: '' };
+                errors.push(currentError);
+                continue;
+            }
+
+            // = correction only (attaches to last error without correction)
+            if (line.startsWith('=')) {
+                const corr = line.slice(1).trim();
+                if (currentError && !currentError.correction) {
+                    currentError.correction = corr;
+                } else {
+                    warnings.push(`Passage ${passages.length + 1}: Correction "=" found without a preceding "-" error line — ignored.`);
+                }
+                continue;
+            }
+
+            // Otherwise: passage text
+            passageText += (passageText ? ' ' : '') + line;
+        }
+
+        if (!passageText && errors.length === 0 && !title) continue;
+        if (!passageText) {
+            warnings.push(`Passage ${passages.length + 1}: No passage text found — skipped.`);
+            continue;
+        }
+        if (errors.length === 0) {
+            warnings.push(`Passage ${passages.length + 1}: No errors defined — passage will have a blank error entry.`);
+            errors.push({ errorText: '', correction: '', explanation: '' });
+        }
+
+        passages.push({
+            id: 'p_imp_' + Date.now() + '_' + passages.length,
+            title: title || 'Imported Passage',
+            level,
+            text: passageText,
+            errors
+        });
+    }
+
+    return { passages, warnings };
+}
+
+function updateImportPreview() {
+    const text = document.getElementById('import-textarea').value;
+    const result = parseBulkImport(text);
+    parsedImportPassages = result.passages;
+    const warnings = result.warnings;
+    const count = parsedImportPassages.length;
+    const previewEl = document.getElementById('import-preview-count');
+    const confirmBtn = document.getElementById('import-confirm-btn');
+    const previewPanel = document.getElementById('import-preview-panel');
+    const previewList = document.getElementById('import-preview-list');
+    const warningsEl = document.getElementById('import-warnings');
+
+    const span = previewEl.querySelector('span');
+    if (count === 0) {
+        span.textContent = '0 passages detected';
+        span.className = '';
+        confirmBtn.disabled = true;
+        previewPanel.classList.add('hidden');
+    } else {
+        let msg = `${count} passage${count !== 1 ? 's' : ''} detected ✓`;
+        if (warnings.length > 0) {
+            msg += ` (${warnings.length} warning${warnings.length !== 1 ? 's' : ''})`;
+        }
+        span.textContent = msg;
+        span.className = warnings.length > 0 ? 'text-orange' : 'text-green';
+        confirmBtn.disabled = false;
+
+        previewPanel.classList.remove('hidden');
+        const levelColors = {
+            'A1': 'bg-blue/15 text-blue', 'A2': 'bg-green/15 text-green',
+            'B1': 'bg-orange/15 text-orange', 'B1+': 'bg-orange/15 text-orange',
+            'B2': 'bg-pink/15 text-pink', 'B2+': 'bg-pink/15 text-pink'
+        };
+        previewList.innerHTML = parsedImportPassages.map((p, i) => {
+            const color = levelColors[p.level] || levelColors['A1'];
+            const truncTitle = p.title.length > 25 ? p.title.slice(0, 25) + '…' : p.title;
+            const errCount = p.errors.filter(e => e.errorText.trim() && e.correction.trim()).length;
+            return `<span class="import-badge ${color}" title="${escapeHtml(p.title)}">${i + 1}. ${p.level} <span class="opacity-60 font-semibold ml-1 truncate max-w-[120px]">${escapeHtml(truncTitle)}</span> <span class="opacity-40">${errCount}E</span></span>`;
+        }).join('');
+
+        if (warnings.length > 0) {
+            warningsEl.innerHTML = warnings.map(w => `<p class="text-[10px] font-bold text-orange flex items-center gap-1"><i data-lucide="alert-triangle" class="w-3 h-3 shrink-0"></i> ${escapeHtml(w)}</p>`).join('');
+        } else {
+            warningsEl.innerHTML = '';
+        }
+    }
+    lucide.createIcons();
+}
+
+function confirmImport() {
+    if (parsedImportPassages.length === 0) return;
+
+    const set = collections.find(c => c.id === currentCollectionId);
+    if (!set) return;
+
+    const existing = set.passages.filter(p => isPassageValid(p));
+    set.passages = [...existing, ...parsedImportPassages];
+    currentPassages = set.passages;
+
+    saveData();
+    renderCollections();
+    renderEditor();
+    closeImportModal();
+    AudioEngine.playTone(700, 'sine', 0.15);
+    setTimeout(() => AudioEngine.playTone(900, 'sine', 0.15), 120);
+
+    setTimeout(() => {
+        const editor = document.getElementById('passages-editor');
+        editor.scrollTop = editor.scrollHeight;
+    }, 100);
+}
+
+function copyTemplate() {
+    const template = `// ============================================================
+//  KLASSKIT FIX-EM BULK IMPORT TEMPLATE
+//  Remove these comment lines (starting with // or #) before
+//  importing, or leave them — they are ignored by the parser.
+// ============================================================
+
+// --- Passage format ---
+// ## Title (optional, defaults to "Imported Passage")
+// @Level (optional: A1, A2, B1, B1+, B2, B2+ — defaults to A1)
+// Passage text on the next line(s).
+// - errorText = correction (one per line)
+// > explanation (optional, after each error)
+// Separate passages with a blank line.
+
+## My Daily Routine
+@A1
+Every day, I gets up at 7:00 AM. I eats breakfast with my family.
+- gets up = get up
+> Incorrect third-person -s on a first-person pronoun.
+- eats = eat
+> Same subject-verb agreement issue.
+
+## At the Supermarket
+@A1
+Today, Sarah and John is at the supermarket. They wants to buy some fruits.
+- is = are
+> Plural subject needs 'are'.
+- wants = want
+> Incorrect third-person plural form.`;
+    navigator.clipboard.writeText(template).then(() => {
+        AudioEngine.playTone(600, 'sine', 0.1);
+    });
+}
+
 window.onload=async()=>{await requireAuth();initTheme();try{const res=await fetch('presets.json');PRESETS=await res.json();}catch(e){console.warn('Could not load presets.json:',e);}await loadData();lucide.createIcons();};
