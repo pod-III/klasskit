@@ -41,6 +41,8 @@
   }
 </script>
 <script src="https://unpkg.com/lucide@1.16.0"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.105.4"></script>
+<script src="/supabase.js"></script>
 
 <link rel="stylesheet" href="../../../css/base.css" />
 <link rel="stylesheet" href="../../../css/components.css" />
@@ -395,23 +397,24 @@ FALL`;
 
   const STORAGE_KEY = 'klasskit-domino-maker-v2';
   let currentTiles = [];
+  let autoSaveTimer = null;
 
   // ===== IndexedDB Sets Management =====
   const DB_NAME = 'klasskit-domino-maker';
   const DB_VERSION = 1;
   const STORE_NAME = 'sets';
   let activeSetId = null;
-  let db = null;
+  let dataBase = null;
 
   function openDB() {
     return new Promise((resolve, reject) => {
       const request = indexedDB.open(DB_NAME, DB_VERSION);
       request.onerror = () => reject(request.error);
-      request.onsuccess = () => { db = request.result; resolve(db); };
+      request.onsuccess = () => { dataBase = request.result; resolve(dataBase); };
       request.onupgradeneeded = (e) => {
-        const db = e.target.result;
-        if (!db.objectStoreNames.contains(STORE_NAME)) {
-          const store = db.createObjectStore(STORE_NAME, { keyPath: 'id', autoIncrement: true });
+        const dataBase = e.target.result;
+        if (!dataBase.objectStoreNames.contains(STORE_NAME)) {
+          const store = dataBase.createObjectStore(STORE_NAME, { keyPath: 'id', autoIncrement: true });
           store.createIndex('name', 'name', { unique: false });
           store.createIndex('lastUsed', 'lastUsed', { unique: false });
           store.createIndex('usageCount', 'usageCount', { unique: false });
@@ -421,8 +424,8 @@ FALL`;
   }
 
   async function ensureDB() {
-    if (!db) db = await openDB();
-    return db;
+    if (!dataBase) dataBase = await openDB();
+    return dataBase;
   }
 
   async function saveSetToDB(record) {
@@ -514,6 +517,11 @@ FALL`;
     const data = getWorkspaceData();
     Object.assign(set, data, { lastUsed: Date.now() });
     await saveSetToDB(set);
+    // Debounce cloud sync to avoid API spam on every keystroke
+    clearTimeout(autoSaveTimer);
+    autoSaveTimer = setTimeout(() => {
+      syncLibraryToCloud().catch(() => {});
+    }, 800);
   }
 
   async function newWorkspace() {
@@ -560,6 +568,7 @@ FALL`;
     updateActiveIndicator(name);
     closeSaveAsModal();
     renderLibrary();
+    await syncLibraryToCloud().catch(() => {});
   }
 
   async function loadSet(id) {
@@ -574,6 +583,7 @@ FALL`;
     generate();
     updateActiveIndicator(set.name);
     renderLibrary();
+    await syncLibraryToCloud().catch(() => {});
   }
 
   async function deleteSet(id) {
@@ -584,6 +594,7 @@ FALL`;
       updateActiveIndicator('');
     }
     renderLibrary();
+    await syncLibraryToCloud().catch(() => {});
   }
 
   function closeActiveSet() {
@@ -724,28 +735,76 @@ FALL`;
       </div>`;
   }
 
+  // ===== Cloud Sync =====
+  const CLOUD_TOOL_KEY = 'domino-maker';
+
+  async function saveWorkspaceToCloud() {
+    const data = getWorkspaceData();
+    await saveProgress(CLOUD_TOOL_KEY + '-workspace', data);
+  }
+
+  async function loadWorkspaceFromCloud() {
+    const data = await loadProgress(CLOUD_TOOL_KEY + '-workspace');
+    if (data) {
+      applyWorkspaceData(data);
+      return true;
+    }
+    // Fallback to old localStorage key (one-time migration)
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) {
+        const oldData = JSON.parse(raw);
+        applyWorkspaceData(oldData);
+        await saveProgress(CLOUD_TOOL_KEY + '-workspace', oldData);
+        localStorage.removeItem(STORAGE_KEY);
+        return true;
+      }
+    } catch (e) {}
+    return false;
+  }
+
+  async function syncLibraryToCloud() {
+    const sets = await getAllSets();
+    await saveProgress(CLOUD_TOOL_KEY, { sets, activeId: activeSetId });
+  }
+
+  async function syncLibraryFromCloud() {
+    const payload = await loadProgress(CLOUD_TOOL_KEY);
+    if (!payload || !Array.isArray(payload.sets) || !payload.sets.length) return false;
+    // Validate payload before wiping local data
+    if (!payload.sets.every(s => s && typeof s.name === 'string')) return false;
+
+    const dataBase = await ensureDB();
+    const tx = dataBase.transaction(STORE_NAME, 'readwrite');
+    const store = tx.objectStore(STORE_NAME);
+
+    await new Promise((resolve, reject) => {
+      tx.oncomplete = resolve;
+      tx.onerror = () => reject(tx.error);
+      tx.onabort = () => reject(tx.error || new Error('Transaction aborted'));
+
+      const clearReq = store.clear();
+      clearReq.onerror = () => reject(clearReq.error);
+      clearReq.onsuccess = () => {
+        for (const set of payload.sets) {
+          const { id, ...data } = set;
+          // Preserve original IDs so activeSetId stays valid
+          store.put({ ...data, id: set.id });
+        }
+      };
+    });
+
+    if (typeof payload.activeId === 'number') activeSetId = payload.activeId;
+    return true;
+  }
+
+  // ===== Legacy wrappers (replaced by cloud sync) =====
   function saveSettings() {
-    const data = {
-      list: wordListEl.value,
-      setSize: setSizeEl.value,
-      tilesPerPage: tilesPerPageEl.value,
-      fontSize: fontSizeEl.value,
-      uppercase: uppercaseEl.checked,
-    };
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); } catch (e) {}
+    saveWorkspaceToCloud().catch(() => {});
   }
 
   function loadSettings() {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (!raw) return;
-      const data = JSON.parse(raw);
-      if (data.list) wordListEl.value = data.list;
-      if (data.setSize) setSizeEl.value = data.setSize;
-      if (data.tilesPerPage) tilesPerPageEl.value = data.tilesPerPage;
-      if (data.fontSize) fontSizeEl.value = data.fontSize;
-      if (typeof data.uppercase === 'boolean') uppercaseEl.checked = data.uppercase;
-    } catch (e) {}
+    loadWorkspaceFromCloud().catch(() => {});
   }
 
   function renderTiles() {
@@ -829,11 +888,15 @@ FALL`;
     if (e.target === document.getElementById('saveAsModal')) closeSaveAsModal();
   });
 
-  loadSettings();
-  updateCount();
-  shuffleBtn.disabled = currentTiles.length === 0;
-  if (parseList(wordListEl.value).length > 0) generate();
-  renderLibrary();
+  // Cloud-first startup
+  (async function init() {
+    await loadWorkspaceFromCloud().catch(() => {});
+    await syncLibraryFromCloud().catch(() => {});
+    updateCount();
+    shuffleBtn.disabled = currentTiles.length === 0;
+    if (parseList(wordListEl.value).length > 0) generate();
+    renderLibrary();
+  })();
 </script>
 </body>
 </html>
