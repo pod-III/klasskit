@@ -45,11 +45,10 @@ async function initializeData() {
         if (sessionRow) {
           cloudTime = new Date(sessionRow.last_used).getTime();
           cloudActiveId = sessionRow.usage_count || null;
-          // Note: rawText is loaded from localStorage in the next step
-          // We'll compare timestamps with local data later
           appState.current.title = sessionRow.name || "";
           appState.current.aims = sessionRow.unit_aims || "";
           appState.current.modules = sessionRow.modules || [];
+          appState.current.rawText = sessionRow.raw_text || "";
         }
 
         const cloudLibrary = libraryRows.map((row) => ({
@@ -57,7 +56,7 @@ async function initializeData() {
           name: row.name,
           unitAims: row.unit_aims,
           modules: row.modules,
-          rawText: "",
+          rawText: row.raw_text || "",
           lastUsed: new Date(row.last_used).getTime(),
           createdAt: new Date(row.created_at).getTime(),
           usageCount: row.usage_count,
@@ -83,8 +82,8 @@ async function initializeData() {
       const session = JSON.parse(local);
       const localTime = session.lastSaved || 0;
       
-      // Always restore rawText from local since it's never synced
-      if (session.data && session.data.rawText) {
+      // Restore rawText from localStorage only if cloud didn't provide it
+      if (!cloudLoaded && session.data && session.data.rawText) {
         appState.current.rawText = session.data.rawText;
       }
       
@@ -242,6 +241,7 @@ function syncToCloud() {
             name: set.name,
             unit_aims: set.unitAims,
             modules: set.modules,
+            raw_text: set.rawText || "",
             last_used: new Date(set.lastUsed || Date.now()).toISOString(),
             usage_count: set.usageCount || 1,
           }));
@@ -253,6 +253,7 @@ function syncToCloud() {
             name: appState.current.title || "Session",
             unit_aims: appState.current.aims || "",
             modules: appState.current.modules || [],
+            raw_text: appState.current.rawText || "",
             last_used: new Date().toISOString(),
             usage_count: appState.activeId || 0, // TODO: migrate to active_set_id column
           });
@@ -299,7 +300,7 @@ async function autoSaveToLibrary() {
       set.name = appState.current.title || "Untitled Lesson";
       set.unitAims = appState.current.aims;
       set.modules = appState.current.modules;
-      // set.rawText = appState.current.rawText; // Removed per requirement
+      set.rawText = appState.current.rawText || "";
       set.lastUsed = Date.now();
       store.put(set);
       
@@ -1035,7 +1036,7 @@ async function confirmSaveSet() {
     name: name,
     unitAims: appState.current.aims,
     modules: appState.current.modules,
-    // rawText: appState.current.rawText, // Removed per requirement
+    rawText: appState.current.rawText || "",
     createdAt: Date.now(),
     lastUsed: Date.now(),
     usageCount: 1,
