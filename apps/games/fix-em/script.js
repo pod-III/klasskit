@@ -3,6 +3,94 @@ let collections=[],currentCollectionId=null,currentPassages=[],isSetupMode=false
 let playPassages=[],currentStep=0,score=0,isChecking=false;
 let passageTokens=[],errorRanges=[],clickedWords=new Set();
 
+// ── Broadcast System ──
+const IS_PLAYER_WINDOW = new URLSearchParams(location.search).has('player');
+const bc = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('fix-em-sync') : null;
+let _bcThrottle = null, _bcLastTime = 0;
+
+function broadcastState(options = {}) {
+    if (!bc || IS_PLAYER_WINDOW) return;
+    const now = performance.now();
+    const minInterval = options.immediate ? 0 : 80;
+    if (_bcThrottle) clearTimeout(_bcThrottle);
+    const go = () => { _bcLastTime = performance.now(); _performBroadcast(); };
+    if (now - _bcLastTime >= minInterval) go();
+    else _bcThrottle = setTimeout(go, minInterval - (now - _bcLastTime));
+}
+function broadcastFullState() { broadcastState({ immediate: true }); }
+
+function _performBroadcast() {
+    const gameVisible = !document.getElementById('game-screen')?.classList.contains('hidden');
+    const resultVisible = !document.getElementById('result-screen')?.classList.contains('hidden');
+    // Capture word highlights state
+    const wordStates = [];
+    document.querySelectorAll('#passage-text .passage-word').forEach(el => {
+        wordStates.push({ className: el.className, text: el.textContent });
+    });
+    bc.postMessage({
+        type: 'state-update',
+        gameVisible,
+        resultVisible,
+        currentStep,
+        totalSteps: playPassages.length,
+        score,
+        passageHTML: document.getElementById('passage-text')?.innerHTML || '',
+        passageFontSize: document.getElementById('passage-text')?.style.fontSize || '',
+        passageTag: document.getElementById('passage-tag')?.textContent || '',
+        passageTitle: document.getElementById('passage-title')?.textContent || '',
+        explanationHTML: document.getElementById('explanation-content')?.innerHTML || '',
+        explanationVisible: document.getElementById('explanation-panel')?.classList.contains('visible') || false,
+        progressPct: document.getElementById('progress-bar')?.style.width || '0%',
+        finalScore: document.getElementById('final-score')?.textContent || '',
+        finalMessage: document.getElementById('final-message')?.textContent || '',
+    });
+}
+
+if (bc && IS_PLAYER_WINDOW) {
+    bc.onmessage = ({ data }) => {
+        if (data.type !== 'state-update') return;
+        if (window._playerRetryInterval) { clearInterval(window._playerRetryInterval); window._playerRetryInterval = null; }
+        window._playerLoadingEl?.remove(); window._playerLoadingEl = null;
+
+        // Show correct screen
+        document.getElementById('landing-screen')?.classList.add('hidden');
+        document.getElementById('setup-mode')?.classList.add('hidden');
+        document.getElementById('play-mode')?.classList.remove('hidden');
+
+        if (data.resultVisible) {
+            document.getElementById('game-screen')?.classList.add('hidden');
+            document.getElementById('result-screen')?.classList.remove('hidden');
+            const fm = document.getElementById('final-message'); if (fm) fm.textContent = data.finalMessage;
+            const fs = document.getElementById('final-score'); if (fs) fs.textContent = data.finalScore;
+        } else if (data.gameVisible) {
+            document.getElementById('result-screen')?.classList.add('hidden');
+            document.getElementById('game-screen')?.classList.remove('hidden');
+
+            const pt = document.getElementById('passage-text'); if (pt) { pt.innerHTML = data.passageHTML; if (data.passageFontSize) pt.style.fontSize = data.passageFontSize; pt.querySelectorAll('.passage-word').forEach(el => { el.style.pointerEvents = 'none'; el.onclick = null; }); }
+            const tag = document.getElementById('passage-tag'); if (tag) tag.textContent = data.passageTag;
+            const title = document.getElementById('passage-title'); if (title) title.textContent = data.passageTitle;
+            const pb = document.getElementById('progress-bar'); if (pb) pb.style.width = data.progressPct;
+            const st = document.getElementById('score-text'); if (st) st.textContent = data.score;
+            const pt2 = document.getElementById('progress-text'); if (pt2) pt2.textContent = `${data.currentStep + 1}/${data.totalSteps}`;
+
+            const expPanel = document.getElementById('explanation-panel');
+            if (expPanel) { if (data.explanationVisible) expPanel.classList.add('visible'); else expPanel.classList.remove('visible'); }
+            const expContent = document.getElementById('explanation-content'); if (expContent) expContent.innerHTML = data.explanationHTML;
+
+            // Hide host-only controls
+            document.getElementById('main-check-btn')?.style.setProperty('display', 'none');
+            document.getElementById('feedback-controls')?.style.setProperty('display', 'none');
+            document.getElementById('click-hint')?.style.setProperty('display', 'none');
+        } else {
+            document.getElementById('game-screen')?.classList.add('hidden');
+            document.getElementById('result-screen')?.classList.add('hidden');
+        }
+
+        const sd = document.getElementById('student-info-display');
+        if (sd) sd.textContent = data.gameVisible ? `${data.currentStep + 1} / ${data.totalSteps} · Score ${data.score}` : (data.resultVisible ? 'Done!' : 'Waiting...');
+    };
+}
+
 function initTheme(){const saved=localStorage.getItem('theme_hub');if(saved==='dark'||(!saved&&window.matchMedia('(prefers-color-scheme: dark)').matches))document.documentElement.classList.add('dark');updateThemeUI();}
 function toggleTheme(){const isDark=document.documentElement.classList.toggle('dark');localStorage.setItem('theme_hub',isDark?'dark':'light');updateThemeUI();}
 function updateThemeUI(){const isDark=document.documentElement.classList.contains('dark');const icon=document.getElementById('theme-icon');if(icon){icon.setAttribute('data-lucide',isDark?'sun':'moon');lucide.createIcons();}}
@@ -50,7 +138,7 @@ function updateProgressBar(){const bar=document.getElementById('progress-bar');i
 function fitText(el,container,max,min){if(!el||!container)return;let size=max;el.style.fontSize=size+'px';const isOverflowing=()=>el.scrollHeight>container.clientHeight||el.scrollWidth>container.clientWidth;while(isOverflowing()&&size>min){size-=1;el.style.fontSize=size+'px';}}
 
 
-function showPassage(){isChecking=false;clickedWords=new Set();const p=playPassages[currentStep];document.getElementById('progress-text').textContent=`${currentStep+1}/${playPassages.length}`;document.getElementById('score-text').textContent=score;document.getElementById('feedback-controls').classList.add('hidden');document.getElementById('main-check-btn').classList.remove('hidden');hideExplanation();const hint=document.getElementById('click-hint');if(hint)hint.classList.remove('hidden');document.getElementById('passage-tag').textContent=`#${currentStep+1} · ${p.level}`;document.getElementById('passage-title').textContent=p.title;updateDots();const passageEl=document.getElementById('passage-text');passageTokens=[];let wordIdx=0,charPos=0;const parts=p.text.split(/(\s+)/);let html='';for(const part of parts){if(/^\s+$/.test(part)){charPos+=part.length;html+=part;}else{passageTokens.push({text:part,wordIdx,charStart:charPos,charEnd:charPos+part.length});html+=`<span class="passage-word clickable" data-word-idx="${wordIdx}" onclick="toggleWord(${wordIdx})">${escapeHtml(part)}</span>`;wordIdx++;charPos+=part.length;}}passageEl.innerHTML=html;fitText(passageEl,document.getElementById('passage-fit-container'),32,14);const validErrors=p.errors.filter(e=>e.errorText.trim()&&e.correction.trim());errorRanges=findErrorRanges(p.text,validErrors,passageTokens);}
+function showPassage(){isChecking=false;clickedWords=new Set();setTimeout(()=>broadcastState(),0);const p=playPassages[currentStep];document.getElementById('progress-text').textContent=`${currentStep+1}/${playPassages.length}`;document.getElementById('score-text').textContent=score;document.getElementById('feedback-controls').classList.add('hidden');document.getElementById('main-check-btn').classList.remove('hidden');hideExplanation();const hint=document.getElementById('click-hint');if(hint)hint.classList.remove('hidden');document.getElementById('passage-tag').textContent=`#${currentStep+1} · ${p.level}`;document.getElementById('passage-title').textContent=p.title;updateDots();const passageEl=document.getElementById('passage-text');passageTokens=[];let wordIdx=0,charPos=0;const parts=p.text.split(/(\s+)/);let html='';for(const part of parts){if(/^\s+$/.test(part)){charPos+=part.length;html+=part;}else{passageTokens.push({text:part,wordIdx,charStart:charPos,charEnd:charPos+part.length});html+=`<span class="passage-word clickable" data-word-idx="${wordIdx}" onclick="toggleWord(${wordIdx})">${escapeHtml(part)}</span>`;wordIdx++;charPos+=part.length;}}passageEl.innerHTML=html;fitText(passageEl,document.getElementById('passage-fit-container'),32,14);const validErrors=p.errors.filter(e=>e.errorText.trim()&&e.correction.trim());errorRanges=findErrorRanges(p.text,validErrors,passageTokens);}
 
 function findErrorRanges(text,errors,tokens){const ranges=[];let searchStart=0;for(const error of errors){const idx=text.toLowerCase().indexOf(error.errorText.toLowerCase(),searchStart);if(idx>=0){const endIdx=idx+error.errorText.length;let startWord=-1,endWord=-1;for(const token of tokens){if(token.charEnd>idx&&token.charStart<endIdx){if(startWord===-1)startWord=token.wordIdx;endWord=token.wordIdx;}}if(startWord>=0){ranges.push({error,startWord,endWord});searchStart=endIdx;}}}return ranges;}
 
@@ -59,10 +147,10 @@ function toggleWord(idx){if(isChecking)return;const el=document.querySelector(`[
 function checkAnswers(){if(isChecking)return;isChecking=true;const hint=document.getElementById('click-hint');if(hint)hint.classList.add('hidden');let foundCount=0;const errorWordSet=new Set();errorRanges.forEach(range=>{const allClicked=[];for(let w=range.startWord;w<=range.endWord;w++){allClicked.push(clickedWords.has(w));errorWordSet.add(w);}const isFound=allClicked.every(Boolean);if(isFound)foundCount++;for(let w=range.startWord;w<=range.endWord;w++){const el=document.querySelector(`[data-word-idx="${w}"]`);if(el){el.classList.remove('clickable','selected');el.classList.add(isFound?'marked-found':'marked-missed');}}});clickedWords.forEach(w=>{if(!errorWordSet.has(w)){const el=document.querySelector(`[data-word-idx="${w}"]`);if(el){el.classList.remove('clickable','selected');el.classList.add('marked-wrong');}}});document.querySelectorAll('.passage-word.clickable').forEach(el=>el.classList.remove('clickable'));const errors=errorRanges.map(r=>r.error);const explanationContent=document.getElementById('explanation-content');const explanationHTML=errors.map((e,i)=>{const range=errorRanges[i];const isFound=range&&range.startWord>=0&&Array.from({length:range.endWord-range.startWord+1},(_,w)=>clickedWords.has(range.startWord+w)).every(Boolean);return `<div class="mb-2 last:mb-0"><div class="flex items-center gap-2 mb-0.5"><i data-lucide="${isFound?'check-circle':'x-circle'}" class="w-3.5 h-3.5 ${isFound?'text-green':'text-pink'}"></i><span class="text-xs font-black ${isFound?'text-green':'text-pink'} uppercase tracking-widest">${isFound?'FOUND':'MISSED'}</span></div><p class="text-sm font-bold text-dark dark:text-white">"${escapeHtml(e.errorText)}" → "${escapeHtml(e.correction)}"</p>${e.explanation?`<p class="text-xs text-slate-500 dark:text-slate-400 font-semibold mt-0.5">${escapeHtml(e.explanation)}</p>`:''}</div>`;}).join('');explanationContent.innerHTML=explanationHTML;showExplanation();score+=foundCount;document.getElementById('score-text').textContent=score;document.getElementById('feedback-controls').classList.remove('hidden');document.getElementById('main-check-btn').classList.add('hidden');if(foundCount>0){AudioEngine.correct();confetti({particleCount:80,spread:70,origin:{y:0.7},colors:['#00E676','#FF8C42','#2979FF']});}else{AudioEngine.wrong();}lucide.createIcons();}
 
 
-function showExplanation(){const panel=document.getElementById('explanation-panel');requestAnimationFrame(()=>panel.classList.add('visible'));}
+function showExplanation(){const panel=document.getElementById('explanation-panel');requestAnimationFrame(()=>{panel.classList.add('visible');broadcastState({immediate:true});});}
 function hideExplanation(){const panel=document.getElementById('explanation-panel');panel.classList.remove('visible');}
-function nextPassage(){currentStep++;if(currentStep<playPassages.length)showPassage();else showResult();}
-function showResult(){document.getElementById('game-screen').classList.add('hidden');document.getElementById('result-screen').classList.remove('hidden');const totalErrors=playPassages.reduce((sum,p)=>sum+p.errors.filter(e=>e.errorText.trim()&&e.correction.trim()).length,0);document.getElementById('final-score').textContent=`${score}/${totalErrors}`;const ratio=score/(totalErrors||1);let rank="F",msg="Keep Training! 💪";if(ratio>=0.9){rank="S";msg="LEGENDARY! 🏆";}else if(ratio>=0.8){rank="A";msg="EXCELLENT! ⭐";}else if(ratio>=0.6){rank="B";msg="GREAT JOB! 👍";}else if(ratio>=0.4){rank="C";msg="NOT BAD! 🎯";}const rankEl=document.getElementById('final-rank');rankEl.textContent=rank;rankEl.className='text-4xl font-heading rank-'+rank.toLowerCase();document.getElementById('final-message').textContent=msg;if(ratio>=0.8)confetti({particleCount:200,spread:80,origin:{y:0.6}});}
+function nextPassage(){currentStep++;if(currentStep<playPassages.length)showPassage();else showResult();broadcastState({immediate:true});}
+function showResult(){document.getElementById('game-screen').classList.add('hidden');document.getElementById('result-screen').classList.remove('hidden');setTimeout(()=>broadcastState({immediate:true}),0);const totalErrors=playPassages.reduce((sum,p)=>sum+p.errors.filter(e=>e.errorText.trim()&&e.correction.trim()).length,0);document.getElementById('final-score').textContent=`${score}/${totalErrors}`;const ratio=score/(totalErrors||1);let rank="F",msg="Keep Training! 💪";if(ratio>=0.9){rank="S";msg="LEGENDARY! 🏆";}else if(ratio>=0.8){rank="A";msg="EXCELLENT! ⭐";}else if(ratio>=0.6){rank="B";msg="GREAT JOB! 👍";}else if(ratio>=0.4){rank="C";msg="NOT BAD! 🎯";}const rankEl=document.getElementById('final-rank');rankEl.textContent=rank;rankEl.className='text-4xl font-heading rank-'+rank.toLowerCase();document.getElementById('final-message').textContent=msg;if(ratio>=0.8)confetti({particleCount:200,spread:80,origin:{y:0.6}});}
 
 function escapeHtml(str){if(!str)return'';return str.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#039;");}
 
@@ -296,4 +384,32 @@ Today, Sarah and John is at the supermarket. They wants to buy some fruits.
     });
 }
 
-window.onload=async()=>{await requireAuth();initTheme();try{const res=await fetch('presets.json');PRESETS=await res.json();}catch(e){console.warn('Could not load presets.json:',e);}await loadData();lucide.createIcons();};
+window.onload=async()=>{
+    if (IS_PLAYER_WINDOW) {
+        document.title = 'Student View | Fix-Em';
+        document.getElementById('btn-open-player')?.style.setProperty('display','none');
+        document.getElementById('setup-toggle')?.style.setProperty('display','none');
+        document.getElementById('player-toolbar')?.classList.remove('hidden');
+        document.getElementById('play-mode')?.classList.remove('hidden');
+        document.getElementById('setup-mode')?.classList.add('hidden');
+        initTheme();
+        lucide.createIcons();
+        const loadingEl = document.createElement('div');
+        loadingEl.className = 'fixed top-4 right-4 z-[9999] flex items-center gap-2 px-4 py-2.5 bg-white/95 border-2 border-dark rounded-full shadow-hard backdrop-blur-sm';
+        loadingEl.innerHTML = `<svg class="w-4 h-4 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M12 2a10 10 0 1 0 10 10"/></svg><span class="font-bold text-xs text-slate-500 uppercase tracking-widest">Connecting...</span>`;
+        document.body.appendChild(loadingEl);
+        window._playerLoadingEl = loadingEl;
+        const ping = () => bc?.postMessage({ type: 'player-ready' });
+        ping(); window._playerRetryInterval = setInterval(ping, 2000);
+        return;
+    }
+    await requireAuth();
+    initTheme();
+    try{const res=await fetch('presets.json');PRESETS=await res.json();}catch(e){console.warn('Could not load presets.json:',e);}
+    await loadData();
+    lucide.createIcons();
+    if (bc) bc.onmessage = (evt) => { if (evt.data?.type === 'player-ready') broadcastFullState(); };
+    document.getElementById('btn-open-player')?.addEventListener('click', () => {
+        window.open(location.pathname + '?player=1', 'fixem-student', 'width=1280,height=800,menubar=no,toolbar=no,location=no,status=no');
+    });
+};
