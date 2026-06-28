@@ -119,6 +119,122 @@ const DB = {
     }
 };
 
+// ==================== BROADCAST CHANNEL (Student View) ====================
+const BROADCAST_CHANNEL = 'reveal-picture-sync';
+const IS_PLAYER_WINDOW = new URLSearchParams(location.search).has('player');
+const bc = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel(BROADCAST_CHANNEL) : null;
+
+let _broadcastThrottle = null;
+let _lastBroadcastTime = 0;
+let _lastBroadcastImageIndex = -1; // Track which index's src we last sent
+
+function broadcastState(options = {}) {
+    if (!bc || IS_PLAYER_WINDOW) return;
+    const now = performance.now();
+    const minInterval = options.immediate ? 0 : 16;
+    if (_broadcastThrottle) clearTimeout(_broadcastThrottle);
+    const doBroadcast = () => { _lastBroadcastTime = performance.now(); _performBroadcast(); };
+    const elapsed = now - _lastBroadcastTime;
+    if (elapsed >= minInterval) { doBroadcast(); }
+    else { _broadcastThrottle = setTimeout(doBroadcast, minInterval - elapsed); }
+}
+
+function _performBroadcast() {
+    // Read the already-resolved src from the DOM (set by loadLevel via resolveMediaUrl)
+    // This is either a signed URL (cloud) or a DataURL (local) — both are usable by the student.
+    const imgEl = document.getElementById('target-image');
+    const resolvedSrc = (imgEl && imgEl.src && imgEl.src !== window.location.href) ? imgEl.src : null;
+
+    // Only send imageSrc when the index changed (avoids resending large DataURLs on every tick)
+    const indexChanged = Game.currentIndex !== _lastBroadcastImageIndex;
+    if (indexChanged) _lastBroadcastImageIndex = Game.currentIndex;
+
+    const pathname = window.location.pathname;
+    const mode = pathname.includes('zoom.html') ? 'zoom' : pathname.includes('blur.html') ? 'blur' : 'tiles';
+
+    const payload = {
+        type: 'state-update',
+        mode,
+        currentIndex: Game.currentIndex,
+        totalImages: Game.images.length,
+        imageSrc: (indexChanged && resolvedSrc) ? resolvedSrc : undefined,
+        gridSize: Game.gridSize,
+        revealedIndices: Game.revealedIndices,
+        tilesRemaining: Game.tilesRemaining,
+    };
+
+    if (mode === 'zoom' && typeof ZoomGame !== 'undefined') {
+        payload.zoomCurrentZoom = ZoomGame.currentZoom;
+        payload.zoomPosition = ZoomGame.zoomPosition;
+        payload.zoomRevealed = ZoomGame.revealed;
+    } else if (mode === 'blur' && typeof BlurGame !== 'undefined') {
+        payload.blurCurrentLevel = BlurGame.currentLevel;
+        payload.blurMaxLevel = BlurGame.maxLevel;
+        payload.blurRevealed = BlurGame.revealed;
+    }
+
+    bc.postMessage(payload);
+}
+
+function broadcastFullState() {
+    _lastBroadcastImageIndex = -1; // Force image resend on next broadcast
+    broadcastState({ immediate: true });
+}
+
+// ==================== STUDENT RECEIVER ====================
+if (bc && IS_PLAYER_WINDOW) {
+    bc.onmessage = async ({ data }) => {
+        if (data.type !== 'state-update') return;
+
+        // Stop retry pings and remove loading overlay
+        if (window._playerRetryInterval) {
+            clearInterval(window._playerRetryInterval);
+            window._playerRetryInterval = null;
+        }
+        window._playerLoadingEl?.remove();
+        window._playerLoadingEl = null;
+
+        // Update image if new src provided
+        const img = document.getElementById('target-image');
+        if (img && data.imageSrc) {
+            img.src = data.imageSrc;
+            window._studentLastImageSrc = data.imageSrc;
+            // Hide the empty-state overlay (normally hidden by Game.start() which student never calls)
+            const emptyState = document.getElementById('empty-state');
+            if (emptyState) emptyState.style.display = 'none';
+        } else if (img && !data.imageSrc && window._studentLastImageSrc) {
+            img.src = window._studentLastImageSrc;
+        }
+
+        // Update round counter (student toolbar uses id="student-round-display")
+        const roundDisplay = document.getElementById('student-round-display');
+        if (roundDisplay) roundDisplay.textContent = `${data.currentIndex + 1} / ${data.totalImages}`;
+
+        if (data.mode === 'tiles') {
+            // Sync tiles
+            Game.gridSize = data.gridSize;
+            Game.revealedIndices = data.revealedIndices || [];
+            Game.tilesRemaining = data.tilesRemaining;
+            if (img?.src && img.src !== window.location.href) Game.buildGrid();
+
+        } else if (data.mode === 'zoom' && typeof ZoomGame !== 'undefined') {
+            ZoomGame.currentZoom = data.zoomCurrentZoom;
+            ZoomGame.zoomPosition = data.zoomPosition || { x: 50, y: 50 };
+            ZoomGame.revealed = data.zoomRevealed;
+            if (img) {
+                img.style.transformOrigin = `${ZoomGame.zoomPosition.x}% ${ZoomGame.zoomPosition.y}%`;
+                img.style.transform = `scale(${ZoomGame.currentZoom})`;
+            }
+
+        } else if (data.mode === 'blur' && typeof BlurGame !== 'undefined') {
+            BlurGame.currentLevel = data.blurCurrentLevel;
+            BlurGame.maxLevel = data.blurMaxLevel;
+            BlurGame.revealed = data.blurRevealed;
+            if (img) img.style.filter = `blur(${(BlurGame.currentLevel / 5) * 20}px)`;
+        }
+    };
+}
+
 /**
  * APP STATE & PRESET MANAGER
  */
@@ -747,8 +863,9 @@ const Game = {
         if (this.currentIndex >= this.images.length) this.currentIndex = 0;
         if (this.currentIndex < 0) this.currentIndex = this.images.length - 1;
 
-        // Update Image
-        document.getElementById('target-image').src = await resolveMediaUrl(this.images[this.currentIndex]);
+        // Update Image — resolve signed/DataURL first, then set src
+        const resolvedSrc = await resolveMediaUrl(this.images[this.currentIndex]);
+        document.getElementById('target-image').src = resolvedSrc;
         document.getElementById('round-display').textContent = `${this.currentIndex + 1} / ${this.images.length}`;
 
         // Reset State
@@ -757,6 +874,9 @@ const Game = {
         if (prevBtn) prevBtn.disabled = true;
         AutoReveal.stop();
         this.buildGrid();
+
+        // Broadcast after image src is in the DOM so _performBroadcast picks up the resolved URL
+        broadcastFullState();
     },
 
     buildGrid() {
@@ -778,6 +898,8 @@ const Game = {
             tile.innerHTML = `<span class="text-3xl font-heading ${numColor} pointer-events-none select-none">${i + 1}</span>`;
 
             tile.onmousedown = () => this.revealTile(tile, i);
+            // Student view: tiles are read-only (no click)
+            if (IS_PLAYER_WINDOW) tile.onmousedown = null;
             grid.appendChild(tile);
         }
 
@@ -796,7 +918,7 @@ const Game = {
         this.tilesRemaining--;
         UI.updateCount(this.tilesRemaining);
         Audio.playPop();
-
+        broadcastState();
         app.saveCurrentState();
 
         if (this.tilesRemaining <= 0) this.win();
@@ -819,6 +941,7 @@ const Game = {
             this.tilesRemaining = 0;
             this.revealedIndices = Array.from({length: this.gridSize * this.gridSize}, (_, i) => i);
             UI.updateCount(0);
+            broadcastState({ immediate: true });
             this.win();
         }, tiles.length * 30 + 100);
     },
@@ -849,6 +972,7 @@ const Game = {
         this.revealedIndices = [];
         this.buildGrid();
         AutoReveal.stop();
+        broadcastState({ immediate: true });
         app.saveCurrentState();
     },
 
@@ -873,6 +997,7 @@ const Game = {
         this.revealedIndices = []; // Indices are invalid if grid size changes
         document.getElementById('grid-val').textContent = `${val} x ${val}`;
         if (this.images.length > 0) this.buildGrid();
+        broadcastState({ immediate: true });
         app.saveCurrentState();
     }
 };
@@ -1032,19 +1157,78 @@ window.addEventListener('resize', () => {
 
 // Init
 window.onload = async () => {
-    await app.init();
-    await Game.init();
-    
-    // Initialize mode-specific features
-    const path = window.location.pathname;
-    if (path.includes('zoom.html')) {
-        ZoomGame.init();
-    } else if (path.includes('blur.html')) {
-        BlurGame.init();
-    }
-    
     lucide.createIcons();
-    if (window.innerWidth < 768) UI.togglePanel(true);
+
+    if (IS_PLAYER_WINDOW) {
+        // ── STUDENT WINDOW ──
+        document.documentElement.classList.add('player-mode');
+        document.title = 'Student View | Reveal Picture';
+
+        // Hide teacher-only chrome
+        const controls = document.getElementById('controls');
+        if (controls) controls.style.display = 'none';
+
+        // Hide the top action bar inside <main> (PREV/NEXT/REVEAL buttons etc.)
+        const actionBar = document.getElementById('main-action-bar');
+        if (actionBar) actionBar.style.display = 'none';
+
+        // Hide student view button itself
+        const btnOpenPlayer = document.getElementById('btn-open-player');
+        if (btnOpenPlayer) btnOpenPlayer.style.display = 'none';
+
+        // Show student toolbar
+        document.getElementById('player-toolbar')?.classList.remove('hidden');
+
+        // Restore theme only
+        const savedTheme = localStorage.getItem('theme_reveal-picture');
+        if (savedTheme === 'dark' || (!savedTheme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+            document.documentElement.classList.add('dark');
+        }
+
+        // Loading overlay
+        const loadingEl = document.createElement('div');
+        loadingEl.id = 'player-loading';
+        loadingEl.className = 'fixed top-4 right-4 z-[9999] flex items-center gap-2 px-4 py-2.5 bg-white/95 dark:bg-slate-900/95 border-2 border-dark dark:border-white/20 rounded-full shadow-neo backdrop-blur-sm';
+        loadingEl.innerHTML = `
+            <svg class="w-4 h-4 text-blue animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M12 2a10 10 0 1 0 10 10"/></svg>
+            <span class="font-heading font-bold text-xs text-slate-500 uppercase tracking-widest">Connecting to teacher...</span>`;
+        document.body.appendChild(loadingEl);
+        window._playerLoadingEl = loadingEl;
+
+        // Ping host until first state-update arrives
+        const ping = () => bc?.postMessage({ type: 'player-ready' });
+        ping();
+        window._playerRetryInterval = setInterval(ping, 2000);
+
+    } else {
+        // ── HOST WINDOW ──
+        await app.init();
+        await Game.init();
+
+        const path = window.location.pathname;
+        if (path.includes('zoom.html')) ZoomGame.init();
+        else if (path.includes('blur.html')) BlurGame.init();
+
+        if (window.innerWidth < 768) UI.togglePanel(true);
+
+        // Respond to student-ready pings
+        if (bc) {
+            bc.onmessage = (evt) => {
+                if (evt.data?.type === 'player-ready') broadcastFullState();
+            };
+        }
+
+        // Wire Student View button
+        document.getElementById('btn-open-player')?.addEventListener('click', () => {
+            window.open(
+                window.location.pathname + '?player=1',
+                'reveal-picture-student-view',
+                'width=1280,height=800,menubar=no,toolbar=no,location=no,status=no'
+            );
+        });
+    }
+
+    lucide.createIcons();
 };
 
 // ==================== ZOOM MODE ====================
@@ -1122,6 +1306,7 @@ const ZoomGame = {
         const display = document.getElementById('zoom-display');
         if (display) display.textContent = scale.toFixed(1) + 'x';
         this.updateZoomBar();
+        broadcastState();
     },
 
     updateZoomBar() {
@@ -1262,6 +1447,7 @@ const BlurGame = {
             display.textContent = clarity + '%';
         }
         this.updateBlurBar();
+        broadcastState();
     },
 
     updateBlurBar() {
