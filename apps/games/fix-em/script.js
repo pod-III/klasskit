@@ -149,7 +149,7 @@ function checkAnswers(){if(isChecking)return;isChecking=true;const hint=document
 
 function showExplanation(){const panel=document.getElementById('explanation-panel');requestAnimationFrame(()=>{panel.classList.add('visible');broadcastState({immediate:true});});}
 function hideExplanation(){const panel=document.getElementById('explanation-panel');panel.classList.remove('visible');}
-function nextPassage(){currentStep++;if(currentStep<playPassages.length)showPassage();else showResult();broadcastState({immediate:true});}
+function nextPassage(){currentStep++;if(currentStep<playPassages.length)showPassage();else showResult();}
 function showResult(){document.getElementById('game-screen').classList.add('hidden');document.getElementById('result-screen').classList.remove('hidden');setTimeout(()=>broadcastState({immediate:true}),0);const totalErrors=playPassages.reduce((sum,p)=>sum+p.errors.filter(e=>e.errorText.trim()&&e.correction.trim()).length,0);document.getElementById('final-score').textContent=`${score}/${totalErrors}`;const ratio=score/(totalErrors||1);let rank="F",msg="Keep Training! 💪";if(ratio>=0.9){rank="S";msg="LEGENDARY! 🏆";}else if(ratio>=0.8){rank="A";msg="EXCELLENT! ⭐";}else if(ratio>=0.6){rank="B";msg="GREAT JOB! 👍";}else if(ratio>=0.4){rank="C";msg="NOT BAD! 🎯";}const rankEl=document.getElementById('final-rank');rankEl.textContent=rank;rankEl.className='text-4xl font-heading rank-'+rank.toLowerCase();document.getElementById('final-message').textContent=msg;if(ratio>=0.8)confetti({particleCount:200,spread:80,origin:{y:0.6}});}
 
 function escapeHtml(str){if(!str)return'';return str.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#039;");}

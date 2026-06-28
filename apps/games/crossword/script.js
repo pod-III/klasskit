@@ -618,7 +618,7 @@ function jumpToNextCell(r, c) {
     const dr = currentDir === 'across' ? 0 : 1;
     const dc = currentDir === 'across' ? 1 : 0;
     let nr = r + dr, nc = c + dc;
-    for (let i = 0; i < GRID_SIZE; i++) {
+    for (let i = 0; i < GRID_ROWS + GRID_COLS; i++) {
         const cell = document.querySelector(`.cw-cell[data-r="${nr}"][data-c="${nc}"]`);
         if (!cell || !cell.classList.contains('filled')) break;
         const input = cell.querySelector('input');
@@ -631,7 +631,7 @@ function jumpToPrevCell(r, c) {
     const dr = currentDir === 'across' ? 0 : -1;
     const dc = currentDir === 'across' ? -1 : 0;
     let pr = r + dr, pc = c + dc;
-    for (let i = 0; i < GRID_SIZE; i++) {
+    for (let i = 0; i < GRID_ROWS + GRID_COLS; i++) {
         const cell = document.querySelector(`.cw-cell[data-r="${pr}"][data-c="${pc}"]`);
         if (!cell || !cell.classList.contains('filled')) break;
         const input = cell.querySelector('input');
@@ -757,7 +757,7 @@ const BROADCAST_CHANNEL = 'crossword-sync';
 const IS_PLAYER_WINDOW = new URLSearchParams(location.search).has('player');
 const bc = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel(BROADCAST_CHANNEL) : null;
 
-let _bcThrottle = null, _bcLastTime = 0;
+let _bcThrottle = null, _bcLastTime = 0, _bcPuzzleId = null;
 
 function broadcastState(options = {}) {
     if (!bc || IS_PLAYER_WINDOW) return;
@@ -782,9 +782,16 @@ function _performBroadcast() {
             locked: cell.classList.contains('locked'),
         });
     });
+
+    // Only send the full puzzle object when it has changed — prevents the student
+    // from calling render() (full DOM rebuild) on every keystroke.
+    const currentPuzzleId = puzzle ? `${puzzle.rows}x${puzzle.cols}:${puzzle.words?.length}` : null;
+    const puzzleChanged = currentPuzzleId !== _bcPuzzleId;
+    if (puzzleChanged) _bcPuzzleId = currentPuzzleId;
+
     bc.postMessage({
         type: 'state-update',
-        puzzle,
+        puzzle: puzzleChanged ? puzzle : undefined,
         GRID_ROWS,
         GRID_COLS,
         CELL_SIZE,
@@ -792,7 +799,7 @@ function _performBroadcast() {
     });
 }
 
-function broadcastFullState() { broadcastState({ immediate: true }); }
+function broadcastFullState() { _bcPuzzleId = null; broadcastState({ immediate: true }); }
 
 if (bc && IS_PLAYER_WINDOW) {
     bc.onmessage = ({ data }) => {
@@ -815,16 +822,31 @@ if (bc && IS_PLAYER_WINDOW) {
             if (!cell) return;
             const inp = cell.querySelector('input');
             if (inp) inp.value = cs.value;
-            if (cs.locked) cell.classList.add('locked');
-            else cell.classList.remove('locked');
+            if (cs.locked) {
+                cell.classList.add('locked');
+            } else {
+                cell.classList.remove('locked');
+            }
         });
+
+        // Mark clue items solved based on whether all their cells are locked,
+        // since the student window never runs checkCurrentWordCompletion.
+        if (words.length > 0) {
+            words.forEach(w => {
+                const allLocked = Array.from({ length: w.word.length }, (_, i) => {
+                    const r = w.dir === 'across' ? w.row : w.row + i;
+                    const c = w.dir === 'across' ? w.col + i : w.col;
+                    return document.querySelector(`.cw-cell[data-r="${r}"][data-c="${c}"]`)?.classList.contains('locked');
+                }).every(Boolean);
+                const clueEl = document.getElementById(`clue-${w.num}-${w.dir}`);
+                if (clueEl) clueEl.classList.toggle('solved', allLocked);
+            });
+        }
 
         const sd = document.getElementById('student-round-display');
         if (sd) {
             const total = words.length;
-            const solved = document.querySelectorAll('.cw-cell.locked').length > 0
-                ? document.querySelectorAll('.clue-item.solved').length
-                : 0;
+            const solved = document.querySelectorAll('.clue-item.solved').length;
             sd.textContent = puzzle ? `${solved} / ${total} words` : 'Waiting...';
         }
     };

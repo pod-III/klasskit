@@ -463,11 +463,11 @@
                 cup.style.transform = `translate(${xPos}px, 0) scale(${scale})`;
                 cup.style.width = `${cupBaseWidth}px`; 
 
-                const bc = BALL_COLORS[gameState.ballColorIndex];
+                const ballColor = BALL_COLORS[gameState.ballColorIndex];
                 cup.innerHTML = `
                     <div class="cup-label text-xl transition-opacity duration-300 opacity-0" data-original-id="${i}">Cup ${i + 1}</div>
                     <img src="./cups/cup-${imageIndex}.webp" class="cup-img" alt="Cup ${i+1}" draggable="false">
-                    <div class="ball" id="ball-${i}" style="background: radial-gradient(circle at 30% 30%, ${bc.light}, ${bc.value}, ${bc.dark});"></div>
+                    <div class="ball" id="ball-${i}" style="background: radial-gradient(circle at 30% 30%, ${ballColor.light}, ${ballColor.value}, ${ballColor.dark});"></div>
                 `;
                 
                 cup.style.left = '0px'; 
