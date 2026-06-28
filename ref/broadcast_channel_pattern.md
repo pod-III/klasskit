@@ -258,19 +258,28 @@ window.addEventListener('load', async () => {
 
 ### A. "Open Student View" Button (Host UI)
 
-The button **must be prominent and immediately visible** to the teacher — not buried in a header. Place it as a full-width call-to-action at the top of the controls panel, above the primary action grid.
+The button **must be prominent and immediately visible** to the teacher — not buried in a header or next to utility buttons like dark mode.
+
+**Placement:** As its own `shrink-0` block between the panel header and the scrollable content `<div class="flex-1 ...">`. This keeps it pinned at the top and always visible, even when the settings list is scrolled.
 
 ```html
-<!-- Placed at the top of the left/controls panel, above action buttons -->
-<div class="px-3 pt-3 shrink-0">
+<!-- Placed between the panel header and the scrollable settings area -->
+<div class="px-4 pt-4 pb-2 shrink-0">
     <button id="btn-open-player" title="Open Student View"
-        class="btn-chunky w-full flex items-center justify-center gap-2 py-2.5 bg-green text-dark rounded-xl text-sm font-black uppercase tracking-widest">
-        <i data-lucide="monitor" class="w-4 h-4"></i> Open Student View
+        class="w-full py-3 rounded-xl text-sm font-black tracking-widest flex items-center justify-center gap-2 transition-all"
+        style="background:#16a34a;color:#ffffff;border:2px solid #15803d;box-shadow:0 4px 0 #14532d;">
+        <i data-lucide="monitor" class="w-5 h-5"></i> OPEN STUDENT VIEW
     </button>
 </div>
 ```
 
-> **Rule:** Never place this as an icon-only button next to other utility buttons (e.g. dark mode toggle). It must have a visible label and stand alone so teachers discover it immediately.
+> **Why inline style for color?** Tailwind's `bg-green` utility resolves to a custom theme colour that may render as a muted tone in some palettes. Using explicit hex values (`#16a34a`) guarantees a vivid, accessible green in both light and dark mode without relying on Tailwind's JIT scan.
+
+> **Rules:**
+> - Never place this as an icon-only button next to other utility buttons (e.g. dark mode toggle).
+> - Must have a visible text label ("OPEN STUDENT VIEW") and stand alone.
+> - Must be `shrink-0` so it is never scrolled out of view.
+> - Must be above the primary settings/controls scroll area.
 
 ### B. Student-Only UI Elements
 
