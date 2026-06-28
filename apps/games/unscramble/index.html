@@ -159,6 +159,11 @@
             </div>
 
             <div class="flex items-center gap-3">
+                <button id="btn-open-player" title="Open Student View"
+                    class="py-2 px-4 rounded-xl text-sm font-black tracking-widest flex items-center gap-2 transition-all"
+                    style="background:#16a34a;color:#ffffff;border:2px solid #15803d;box-shadow:0 4px 0 #14532d;">
+                    <i data-lucide="monitor" class="w-4 h-4"></i> STUDENT VIEW
+                </button>
                 <button onclick="toggleSound()" id="btn-sound"
                     class="btn-chunky w-10 h-10 flex items-center justify-center rounded-xl bg-white text-dark hover:bg-slate-100"
                     title="Toggle Sound">
@@ -369,6 +374,92 @@
             sentences: DEFAULT_SENTENCES
         };
 
+        // ==================== BROADCAST CHANNEL (Student View) ====================
+        const BROADCAST_CHANNEL = 'unscramble-sync';
+        const IS_PLAYER_WINDOW = new URLSearchParams(location.search).has('player');
+        const bc = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel(BROADCAST_CHANNEL) : null;
+        let _bcThrottle = null, _bcLastTime = 0;
+
+        function broadcastState(options = {}) {
+            if (!bc || IS_PLAYER_WINDOW) return;
+            const now = performance.now();
+            const minInterval = options.immediate ? 0 : 80;
+            if (_bcThrottle) clearTimeout(_bcThrottle);
+            const go = () => { _bcLastTime = performance.now(); _performBroadcast(); };
+            if (now - _bcLastTime >= minInterval) go();
+            else _bcThrottle = setTimeout(go, minInterval - (now - _bcLastTime));
+        }
+
+        function _performBroadcast() {
+            bc.postMessage({
+                type: 'state-update',
+                items,
+                currentIndex,
+                isRevealed,
+                currentMode,
+                scrambledHTML: document.getElementById('display-word')?.innerHTML || '',
+                scrambledClassName: document.getElementById('display-word')?.className || '',
+                realWord: document.getElementById('real-word')?.textContent || '',
+                answerVisible: !document.getElementById('answer-reveal')?.classList.contains('hidden'),
+                statusHTML: document.getElementById('status-text')?.innerHTML || '',
+                gameVisible: !document.getElementById('game-panel')?.classList.contains('hidden'),
+            });
+        }
+
+        function broadcastFullState() { broadcastState({ immediate: true }); }
+
+        if (bc && IS_PLAYER_WINDOW) {
+            bc.onmessage = ({ data }) => {
+                if (data.type !== 'state-update') return;
+                if (window._playerRetryInterval) { clearInterval(window._playerRetryInterval); window._playerRetryInterval = null; }
+                window._playerLoadingEl?.remove(); window._playerLoadingEl = null;
+
+                currentIndex = data.currentIndex;
+                isRevealed = data.isRevealed;
+                currentMode = data.currentMode;
+                items = data.items || [];
+
+                if (data.gameVisible) {
+                    document.getElementById('setup-panel')?.classList.add('hidden');
+                    document.getElementById('end-panel')?.classList.add('hidden');
+                    document.getElementById('game-panel')?.classList.remove('hidden');
+
+                    const disp = document.getElementById('display-word');
+                    if (disp) {
+                        if (data.scrambledClassName) disp.className = data.scrambledClassName;
+                        disp.innerHTML = data.scrambledHTML;
+                    }
+
+                    const rw = document.getElementById('real-word');
+                    if (rw) rw.textContent = data.realWord;
+
+                    const ar = document.getElementById('answer-reveal');
+                    if (ar) {
+                        if (data.answerVisible) {
+                            ar.classList.remove('hidden', 'opacity-0', 'translate-y-4');
+                            ar.classList.add('opacity-100', 'translate-y-0');
+                        } else {
+                            ar.classList.add('hidden', 'opacity-0', 'translate-y-4');
+                            ar.classList.remove('opacity-100', 'translate-y-0');
+                        }
+                    }
+
+                    const st = document.getElementById('status-text');
+                    if (st) st.innerHTML = data.statusHTML;
+
+                    const badge = document.getElementById('mode-badge');
+                    if (badge) badge.textContent = data.currentMode === 'word' ? 'Word Mode' : 'Sentence Mode';
+
+                    document.getElementById('current-count').textContent = data.currentIndex + 1;
+                    document.getElementById('total-count').textContent = data.items?.length || '';
+                }
+
+                const sd = document.getElementById('student-round-display');
+                if (sd) sd.textContent = data.gameVisible ? `${data.currentIndex + 1} / ${data.items?.length || '?'}` : 'SETUP';
+            };
+        }
+        // =====================================================================
+
         // DOM Elements
         const elSetup = document.getElementById('setup-panel');
         const elGame = document.getElementById('game-panel');
@@ -419,9 +510,43 @@
 
         // Init
         window.onload = async () => {
+            if (IS_PLAYER_WINDOW) {
+                document.documentElement.classList.add('player-mode');
+                document.title = 'Student View | Unscramble';
+                document.getElementById('btn-open-player')?.style.setProperty('display', 'none');
+                document.getElementById('player-toolbar')?.classList.remove('hidden');
+                // Hide setup; show game panel with waiting state
+                document.getElementById('setup-panel')?.classList.add('hidden');
+                document.getElementById('end-panel')?.classList.add('hidden');
+                document.getElementById('game-panel')?.classList.remove('hidden');
+                // Hide host-only controls
+                document.getElementById('btn-reveal')?.style.setProperty('display', 'none');
+                document.getElementById('btn-next')?.style.setProperty('display', 'none');
+                document.querySelector('button[onclick="exitGame()"]')?.style.setProperty('display', 'none');
+                // Show waiting message
+                const st = document.getElementById('status-text');
+                if (st) st.innerHTML = 'Waiting for teacher to start...';
+                lucide.createIcons();
+                const loadingEl = document.createElement('div');
+                loadingEl.className = 'fixed top-4 right-4 z-[9999] flex items-center gap-2 px-4 py-2.5 bg-white/95 border-2 border-dark rounded-full shadow-hard backdrop-blur-sm';
+                loadingEl.innerHTML = `<svg class="w-4 h-4 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M12 2a10 10 0 1 0 10 10"/></svg><span class="font-bold text-xs text-slate-500 uppercase tracking-widest">Connecting...</span>`;
+                document.body.appendChild(loadingEl);
+                window._playerLoadingEl = loadingEl;
+                const ping = () => bc?.postMessage({ type: 'player-ready' });
+                ping(); window._playerRetryInterval = setInterval(ping, 2000);
+                return;
+            }
+
             await requireAuth();
             lucide.createIcons();
             await loadFromCloud();
+
+            if (bc) {
+                bc.onmessage = (evt) => { if (evt.data?.type === 'player-ready') broadcastFullState(); };
+            }
+            document.getElementById('btn-open-player')?.addEventListener('click', () => {
+                window.open(location.pathname + '?player=1', 'unscramble-student', 'width=1280,height=800,menubar=no,toolbar=no,location=no,status=no');
+            });
 
             // Keyboard shortcuts
             document.addEventListener('keydown', (e) => {
@@ -545,6 +670,7 @@
             btnNext.classList.add('opacity-50');
 
             elStatus.innerHTML = 'Press <kbd class="bg-white px-2 py-1 rounded border-2 border-slate-300 mx-1 text-dark font-sans shadow-sm text-xs">ENTER</kbd> to Reveal';
+            setTimeout(() => broadcastFullState(), 0);
         }
 
         function revealWord() {
@@ -557,7 +683,8 @@
             setTimeout(() => {
                 elAnswerReveal.classList.remove('opacity-0', 'translate-y-4');
                 elAnswerReveal.classList.add('opacity-100', 'translate-y-0');
-            }, 10);
+                broadcastState({ immediate: true });
+            }, 20);
 
             confetti({ particleCount: 50, spread: 60, origin: { y: 0.7 }, colors: ['#FF6B95', '#FF8C42', '#00E676', '#2979FF'] });
 
@@ -589,6 +716,7 @@
             Audio.playClick();
             currentIndex++;
             loadLevel();
+            broadcastState({ immediate: true });
         }
 
         function finishGame() {
@@ -654,6 +782,13 @@
         }
 
     </script>
+
+    <!-- Student Toolbar -->
+    <div id="player-toolbar" class="hidden fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 px-5 py-3 bg-white/95 border-2 border-dark rounded-2xl shadow-hard backdrop-blur-sm">
+        <span class="font-bold text-xs uppercase tracking-widest text-slate-400">Student View</span>
+        <div class="w-px h-5 bg-slate-300"></div>
+        <span id="student-round-display" class="font-mono text-sm font-bold text-dark">SETUP</span>
+    </div>
 </body>
 
 </html>
