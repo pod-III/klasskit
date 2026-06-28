@@ -1,3 +1,127 @@
+        // ==================== BROADCAST CHANNEL (Student View) ====================
+        const BROADCAST_CHANNEL = 'find-the-ball-sync';
+        const IS_PLAYER_WINDOW = new URLSearchParams(location.search).has('player');
+        const bc = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel(BROADCAST_CHANNEL) : null;
+
+        let _broadcastThrottle = null;
+        let _lastBroadcastTime = 0;
+
+        function broadcastState(options = {}) {
+            if (!bc || IS_PLAYER_WINDOW) return;
+            const now = performance.now();
+            const minInterval = options.immediate ? 0 : 16;
+            if (_broadcastThrottle) clearTimeout(_broadcastThrottle);
+            const doBroadcast = () => { _lastBroadcastTime = performance.now(); _performBroadcast(); };
+            const elapsed = now - _lastBroadcastTime;
+            if (elapsed >= minInterval) { doBroadcast(); }
+            else { _broadcastThrottle = setTimeout(doBroadcast, minInterval - elapsed); }
+        }
+
+        function _performBroadcast() {
+            // Snapshot each cup's current visual state from the DOM
+            const cups = [];
+            for (let i = 0; i < gameState.cupCount; i++) {
+                const el = document.getElementById(`cup-${i}`);
+                if (!el) continue;
+                const style = window.getComputedStyle(el);
+                cups.push({
+                    id: i,
+                    transform: el.style.transform,
+                    transition: el.style.transition,
+                    zIndex: el.style.zIndex,
+                    lifted: el.classList.contains('lifted'),
+                    ballVisible: el.querySelector('.ball')?.classList.contains('visible') ?? false,
+                });
+            }
+
+            bc.postMessage({
+                type: 'state-update',
+                gameState: {
+                    cupCount: gameState.cupCount,
+                    ballCount: gameState.ballCount,
+                    isShuffling: gameState.isShuffling,
+                    isPlaying: gameState.isPlaying,
+                    ballPositions: gameState.ballPositions,
+                    selectedCupIndex: gameState.selectedCupIndex,
+                    selectedBgIndex: gameState.selectedBgIndex,
+                    ballColorIndex: gameState.ballColorIndex,
+                    foundBallsCount: gameState.foundBallsCount,
+                },
+                cups,
+                statusState: document.getElementById('status-text')?.innerText || '',
+            });
+        }
+
+        function broadcastFullState() {
+            broadcastState({ immediate: true });
+        }
+
+        // ==================== STUDENT RECEIVER ====================
+        if (bc && IS_PLAYER_WINDOW) {
+            bc.onmessage = ({ data }) => {
+                if (data.type !== 'state-update') return;
+
+                // Remove loading overlay
+                if (window._playerRetryInterval) {
+                    clearInterval(window._playerRetryInterval);
+                    window._playerRetryInterval = null;
+                }
+                window._playerLoadingEl?.remove();
+                window._playerLoadingEl = null;
+
+                const gs = data.gameState;
+
+                // Sync gameState scalars needed for renderCups
+                const needsRebuild = gs.cupCount !== gameState.cupCount
+                    || gs.selectedCupIndex !== gameState.selectedCupIndex
+                    || gs.selectedBgIndex !== gameState.selectedBgIndex
+                    || gs.ballColorIndex !== gameState.ballColorIndex;
+
+                gameState.cupCount = gs.cupCount;
+                gameState.ballCount = gs.ballCount;
+                gameState.isShuffling = gs.isShuffling;
+                gameState.isPlaying = gs.isPlaying;
+                gameState.ballPositions = gs.ballPositions;
+                gameState.selectedCupIndex = gs.selectedCupIndex;
+                gameState.selectedBgIndex = gs.selectedBgIndex;
+                gameState.ballColorIndex = gs.ballColorIndex;
+                gameState.foundBallsCount = gs.foundBallsCount;
+
+                // Apply background
+                applyBg();
+
+                // Rebuild cups if settings changed
+                if (needsRebuild) renderCups();
+
+                // Update label text order when shuffle ends (guessing phase)
+                const showLabels = gs.isPlaying && !gs.isShuffling;
+                if (showLabels) updateLabelsByPosition();
+                data.cups.forEach(c => {
+                    const el = document.getElementById(`cup-${c.id}`);
+                    if (!el) return;
+                    el.style.transition = c.transition;
+                    el.style.transform = c.transform;
+                    el.style.zIndex = c.zIndex;
+                    if (c.lifted) el.classList.add('lifted');
+                    else el.classList.remove('lifted');
+                    const ball = el.querySelector('.ball');
+                    if (ball) {
+                        if (c.ballVisible) ball.classList.add('visible');
+                        else ball.classList.remove('visible');
+                    }
+                    const label = el.querySelector('.cup-label');
+                    if (label) {
+                        label.classList.toggle('opacity-0', !showLabels);
+                        label.classList.toggle('opacity-100', showLabels);
+                    }
+                });
+
+                // Mirror status text in student-round-display
+                const sd = document.getElementById('student-round-display');
+                if (sd) sd.textContent = data.statusState;
+            };
+        }
+
         // --- GAME STATE ---
         const BALL_COLORS = [
             { name: 'Orange',  value: '#FF8C42', light: '#FFB74D', dark: '#E65100' },
@@ -28,6 +152,43 @@
         
         // --- INITIALIZATION ---
         async function init() {
+            if (IS_PLAYER_WINDOW) {
+                // ── STUDENT WINDOW ──
+                document.documentElement.classList.add('player-mode');
+                document.title = 'Student View | Magic Cups';
+
+                // Hide teacher-only chrome
+                document.getElementById('controls')?.style.setProperty('display', 'none');
+                document.getElementById('btn-open-player')?.style.setProperty('display', 'none');
+                document.getElementById('command-center')?.style.setProperty('display', 'none');
+                document.getElementById('quick-tools')?.style.setProperty('display', 'none');
+
+                // Show student toolbar
+                document.getElementById('player-toolbar')?.classList.remove('hidden');
+
+                // Init cups stage (empty) and background
+                applyBg();
+                renderCups();
+                lucide.createIcons();
+
+                // Loading overlay
+                const loadingEl = document.createElement('div');
+                loadingEl.id = 'player-loading';
+                loadingEl.className = 'fixed top-4 right-4 z-[9999] flex items-center gap-2 px-4 py-2.5 bg-white/95 border-2 border-dark rounded-full shadow-hard backdrop-blur-sm';
+                loadingEl.innerHTML = `
+                    <svg class="w-4 h-4 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M12 2a10 10 0 1 0 10 10"/></svg>
+                    <span class="font-heading font-bold text-xs text-slate-500 uppercase tracking-widest">Connecting to teacher...</span>`;
+                document.body.appendChild(loadingEl);
+                window._playerLoadingEl = loadingEl;
+
+                // Ping host until first state-update arrives
+                const ping = () => bc?.postMessage({ type: 'player-ready' });
+                ping();
+                window._playerRetryInterval = setInterval(ping, 2000);
+                return;
+            }
+
+            // ── HOST WINDOW ──
             await requireAuth();
             
             // Load progress from cloud
@@ -54,6 +215,22 @@
             if(window.innerWidth < 768) {
                 toggleControlPanel(true);
             }
+
+            // Respond to student-ready pings
+            if (bc) {
+                bc.onmessage = (evt) => {
+                    if (evt.data?.type === 'player-ready') broadcastFullState();
+                };
+            }
+
+            // Wire Open Student View button
+            document.getElementById('btn-open-player')?.addEventListener('click', () => {
+                window.open(
+                    location.pathname + '?player=1',
+                    'find-the-ball-student-view',
+                    'width=1280,height=800,menubar=no,toolbar=no,location=no,status=no'
+                );
+            });
         }
 
         // --- CLOUD PERSISTENCE ---
@@ -372,6 +549,7 @@
             gameState.isPlaying = true;
             gameState.foundBallsCount = 0; 
             toggleControls(false);
+            broadcastState({ immediate: true });
             
             const startBtn = document.getElementById('start-btn');
             startBtn.innerHTML = '<i data-lucide="loader-2" class="w-6 h-6 animate-spin"></i><span>PREPARING...</span>';
@@ -397,12 +575,14 @@
                 winningCup.classList.add('lifted');
                 winningCup.querySelector('.ball').classList.add('visible');
             }
+            broadcastState({ immediate: true });
             await wait(1000);
             
             // 3. Hide
             for (const ballIndex of gameState.ballPositions) {
                 document.getElementById(`cup-${ballIndex}`).classList.remove('lifted');
             }
+            broadcastState({ immediate: true });
             await wait(500);
             
             // 4. Shuffle
@@ -418,6 +598,7 @@
             });
             
             updateStatus('guessing');
+            broadcastState({ immediate: true });
             
             // Button to Reset State
             startBtn.innerHTML = '<i data-lucide="rotate-ccw" class="w-6 h-6"></i><span>RESET</span>';
@@ -454,6 +635,7 @@
                 elA.style.transform = `translate(${gameState.cupPositions[slotB]}px, 0) scale(${scale})`;
                 elB.style.transform = `translate(${gameState.cupPositions[slotA]}px, 0) scale(${scale})`;
 
+                broadcastState({ immediate: true });
                 await wait(speedMs);
 
                 currentOrder[slotA] = cupIdB;
@@ -500,6 +682,7 @@
                         if(gameState.foundBallsCount < gameState.ballCount) updateStatus('guessing');
                     }, 1500);
                 }
+                broadcastState({ immediate: true });
             }, 150);
         }
 
@@ -518,7 +701,8 @@
             
             updateStatus('ready');
             lucide.createIcons();
-            renderCups(); 
+            renderCups();
+            broadcastFullState();
         }
 
         function toggleControls(enable) {
