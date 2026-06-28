@@ -1,24 +1,24 @@
-# BroadcastChannel Player-View Pattern
+# BroadcastChannel Student-View Pattern
 
-This document outlines the standardized pattern for implementing a **Host/Player dual-window sync system** using the Web `BroadcastChannel` API, as established in the **Arcane VTT Map** tool. Adopt this pattern for any KlassKit tool that needs a "present to audience" or "player view" feature.
+This document outlines the standardized pattern for implementing a **Host/Student dual-window sync system** using the Web `BroadcastChannel` API, as established in the **Arcane VTT Map** and **Flashcard Displayer** tools. Adopt this pattern for any KlassKit tool that needs a "present to students" feature.
 
 ---
 
 ## 1. How It Works (Architecture Overview)
 
-Two same-origin tabs/windows share a named `BroadcastChannel`. One window is the **Host** (DM/Teacher) and one or more windows are **Players** (audience/students).
+Two same-origin tabs/windows share a named `BroadcastChannel`. One window is the **Host** (Teacher) and one or more windows are **Students** (audience).
 
 ```
-Host Window  ──── state-update ────►  Player Window(s)
+Host Window  ──── state-update ────►  Student Window(s)
              ◄─── player-ready ──────
 ```
 
-- The Player window detects it is a player via a `?player` URL query parameter.
-- On load, the Player pings the Host with `player-ready`.
+- The Student window detects it is a student via a `?player` URL query parameter.
+- On load, the Student pings the Host with `player-ready`.
 - The Host responds with a full state sync (`broadcastFullState`).
 - After that, every Host state change calls `broadcastState()`, which throttles outgoing messages to 60fps.
-- The Player receives `state-update` messages and re-renders itself.
-- Heavy assets (maps, images) are loaded independently by the Player from a shared local store (IndexedDB), not transferred over the channel.
+- The Student receives `state-update` messages and re-renders itself.
+- Heavy assets (maps, images) are loaded independently by the Student from a shared local store (IndexedDB), not transferred over the channel.
 
 ---
 
@@ -206,20 +206,21 @@ window.addEventListener('load', async () => {
     initUI();
 
     if (IS_PLAYER_WINDOW) {
-        // ── PLAYER WINDOW ──
-        document.title = 'Player View | My Tool';
+        // ── STUDENT WINDOW ──
+        document.documentElement.classList.add('player-mode'); // drives student-specific CSS
+        document.title = 'Student View | My Tool';
 
         // Hide all Host-only chrome
         document.querySelector('header')?.style.setProperty('display', 'none');
         document.getElementById('host-sidebar')?.style.setProperty('display', 'none');
 
-        // Show player-specific UI
+        // Show student-specific UI
         document.getElementById('player-toolbar')?.classList.remove('hidden');
 
         // Show loading indicator
         const loadingEl = document.createElement('div');
         loadingEl.id = 'player-loading';
-        loadingEl.innerHTML = `<span>Connecting...</span>`;
+        loadingEl.innerHTML = `<span>Connecting to teacher...</span>`;
         document.body.appendChild(loadingEl);
         window._playerLoadingEl = loadingEl;
 
@@ -240,11 +241,11 @@ window.addEventListener('load', async () => {
         }
     }
 
-    // Wire the "Open Player View" button
+    // Wire the "Open Student View" button
     document.getElementById('btn-open-player')?.addEventListener('click', () => {
         window.open(
             location.pathname + '?player=1',
-            'player-view',
+            'my-tool-student-view',
             'width=1280,height=800,menubar=no,toolbar=no,location=no,status=no'
         );
     });
@@ -255,34 +256,43 @@ window.addEventListener('load', async () => {
 
 ## 6. HTML Requirements
 
-### A. "Open Player View" Button (Host UI)
+### A. "Open Student View" Button (Host UI)
+
+The button **must be prominent and immediately visible** to the teacher — not buried in a header. Place it as a full-width call-to-action at the top of the controls panel, above the primary action grid.
 
 ```html
-<button id="btn-open-player" title="Open Player View">
-    Open Player View
-</button>
+<!-- Placed at the top of the left/controls panel, above action buttons -->
+<div class="px-3 pt-3 shrink-0">
+    <button id="btn-open-player" title="Open Student View"
+        class="btn-chunky w-full flex items-center justify-center gap-2 py-2.5 bg-green text-dark rounded-xl text-sm font-black uppercase tracking-widest">
+        <i data-lucide="monitor" class="w-4 h-4"></i> Open Student View
+    </button>
+</div>
 ```
 
-### B. Player-Only UI Elements
+> **Rule:** Never place this as an icon-only button next to other utility buttons (e.g. dark mode toggle). It must have a visible label and stand alone so teachers discover it immediately.
 
-Mark player-only elements with `class="hidden"` — the init code removes `hidden` when `IS_PLAYER_WINDOW` is true.
+### B. Student-Only UI Elements
+
+Mark student-only elements with `class="hidden"` — the init code removes `hidden` when `IS_PLAYER_WINDOW` is true.
 
 ```html
-<!-- Hidden by default; shown only in player window -->
-<div id="player-toolbar" class="hidden fixed left-4 top-1/2 -translate-y-1/2 z-40 ...">
-    <!-- player controls -->
+<!-- Hidden by default; shown only in student window -->
+<div id="player-toolbar" class="hidden fixed bottom-6 left-1/2 -translate-x-1/2 z-50 ...">
+    <span>Student View</span>
+    <!-- student controls (fit to screen, etc.) -->
 </div>
 ```
 
 ---
 
-## 7. Loading State (Player Window)
+## 7. Loading State (Student Window)
 
-The Player shows a loading overlay until the first `state-update` arrives. Two-phase design:
+The Student shows a loading overlay until the first `state-update` arrives. Two-phase design:
 
 | Phase | Indicator | Trigger |
 | :--- | :--- | :--- |
-| **Connecting** | Spinning icon + "Connecting..." | Immediately on player load |
+| **Connecting** | Spinning icon + "Connecting to teacher..." | Immediately on student load |
 | **Loading Resource** | Pulsing icon + "Loading..." | On receiving `resource-ref` |
 | **Done** | Overlay removed | On receiving first `state-update` |
 
@@ -294,10 +304,10 @@ The overlay element is stored in `window._playerLoadingEl` so any async handler 
 
 | `type` | Direction | Purpose |
 | :--- | :--- | :--- |
-| `player-ready` | Player → Host | Initial ping; requests full state dump |
-| `resource-ref` | Host → Player | Lightweight ID for a new resource to load |
-| `state-update` | Host → Player | Full scalar state + delta-optimized item payload |
-| `map-image` *(legacy)* | Host → Player | Full image blob — kept for backward compat only |
+| `player-ready` | Student → Host | Initial ping; requests full state dump |
+| `resource-ref` | Host → Student | Lightweight ID for a new resource to load |
+| `state-update` | Host → Student | Full scalar state + delta-optimized item payload |
+| `map-image` *(legacy)* | Host → Student | Full image blob — kept for backward compat only |
 
 ---
 
@@ -309,6 +319,32 @@ The overlay element is stored in `window._playerLoadingEl` so any async handler 
 4. **Clear caches on resource change.** `_assetCacheSent.clear()` whenever the active resource/map switches.
 5. **Reuse images on the Player.** Keep `window._playerImageCache` (Map) across messages to avoid re-decoding the same image.
 6. **Cap in-memory image cache size.** If you cache map bitmaps, evict the oldest when size > N (e.g., keep last 3).
+
+---
+
+## 9. Hidden Content Behaviour
+
+Hosts and students must see different states for hidden/revealed items. Use the `.player-mode` class (added to `<html>` on student load) to drive this via pure CSS — no JS branching needed at render time.
+
+```css
+/* Host view: hidden items are dimmed + badged — content still visible to teacher */
+.fc-card.hidden-card {
+    opacity: 0.45;
+    outline: 2.5px dashed #FF6B95;
+}
+.fc-card.hidden-card .card-flipper { transform: none; }
+
+/* Student view: hidden items show the flipped back face — content concealed */
+.player-mode .fc-card.hidden-card {
+    opacity: 1 !important;
+    outline: none !important;
+}
+.player-mode .fc-card.hidden-card .card-flipper {
+    transform: rotateY(180deg) !important;
+}
+```
+
+> **Rule:** Never use `display: none` on hidden items in student view — the item should remain spatially present (occupying space, showing a back face) so students don't get confused by the layout shifting.
 
 ---
 
