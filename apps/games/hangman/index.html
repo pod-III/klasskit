@@ -173,6 +173,11 @@
             </div>
 
             <div class="flex items-center gap-3">
+                <button id="btn-open-player" title="Open Student View"
+                    class="py-2 px-4 rounded-xl text-sm font-black tracking-widest flex items-center gap-2 transition-all"
+                    style="background:#16a34a;color:#ffffff;border:2px solid #15803d;box-shadow:0 4px 0 #14532d;">
+                    <i data-lucide="monitor" class="w-4 h-4"></i> STUDENT VIEW
+                </button>
                 <button onclick="toggleTheme()" id="themeBtn" class="btn-chunky bg-white w-10 h-10 flex items-center justify-center rounded-xl text-dark hover:bg-slate-100" title="Toggle Dark Mode">
                     <i data-lucide="moon" class="w-5 h-5"></i>
                 </button>
@@ -518,6 +523,80 @@
         let currentPlayerIndex = 0;
         let gameActive = false;
         let turnMode = 'auto';
+
+        // ==================== BROADCAST CHANNEL (Student View) ====================
+        const BROADCAST_CHANNEL = 'hangman-sync';
+        const IS_PLAYER_WINDOW = new URLSearchParams(location.search).has('player');
+        const bc = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel(BROADCAST_CHANNEL) : null;
+        let _bcThrottle = null, _bcLastTime = 0;
+
+        function broadcastState(options = {}) {
+            if (!bc || IS_PLAYER_WINDOW) return;
+            const now = performance.now();
+            const minInterval = options.immediate ? 0 : 80;
+            if (_bcThrottle) clearTimeout(_bcThrottle);
+            const go = () => { _bcLastTime = performance.now(); _performBroadcast(); };
+            if (now - _bcLastTime >= minInterval) go();
+            else _bcThrottle = setTimeout(go, minInterval - (now - _bcLastTime));
+        }
+
+        function _performBroadcast() {
+            bc.postMessage({
+                type: 'state-update',
+                wordToGuess,
+                guessedLetters: [...guessedLetters],
+                players: players.map(p => ({ name: p.name, health: p.health, maxHealth: p.maxHealth, score: p.score, eliminated: p.eliminated })),
+                currentPlayerIndex,
+                gameActive,
+                turnMode,
+                currentWordIndex,
+                totalWords: words.length,
+                messageText: document.getElementById('message-box')?.textContent || '',
+            });
+        }
+
+        function broadcastFullState() { broadcastState({ immediate: true }); }
+
+        if (bc && IS_PLAYER_WINDOW) {
+            bc.onmessage = ({ data }) => {
+                if (data.type !== 'state-update') return;
+                if (window._playerRetryInterval) { clearInterval(window._playerRetryInterval); window._playerRetryInterval = null; }
+                window._playerLoadingEl?.remove(); window._playerLoadingEl = null;
+
+                wordToGuess = data.wordToGuess;
+                guessedLetters = new Set(data.guessedLetters);
+                players = data.players.map(p => ({ ...p }));
+                currentPlayerIndex = data.currentPlayerIndex;
+                gameActive = data.gameActive;
+                turnMode = data.turnMode;
+
+                // Always hide setup, always show game field
+                document.getElementById('teacher-console')?.classList.add('hidden');
+                document.getElementById('game-section')?.classList.remove('hidden');
+                // Hide host-only controls
+                document.getElementById('next-round-btn')?.classList.add('hidden');
+                const exitBtn = document.querySelector('#game-section .flex.gap-4.mt-8 button[onclick="returnToConsole()"]');
+                if (exitBtn) exitBtn.style.display = 'none';
+                const bottomBar = document.querySelector('#game-section .flex.gap-4.mt-8');
+                if (bottomBar) bottomBar.style.display = 'none';
+
+                if (players.length > 0 && wordToGuess) {
+                    renderUI();
+                    renderKeyboard();
+                    if (data.messageText) {
+                        const box = document.getElementById('message-box');
+                        if (box) box.textContent = data.messageText;
+                    }
+                } else {
+                    const box = document.getElementById('message-box');
+                    if (box) box.textContent = 'Waiting for game to start...';
+                }
+
+                const sd = document.getElementById('student-round-display');
+                if (sd) sd.textContent = data.gameActive ? `Round ${data.currentWordIndex + 1} / ${data.totalWords}` : 'READY';
+            };
+        }
+        // =====================================================================
         
         // --- DOM Elements ---
         const teacherConsole = document.getElementById('teacher-console');
@@ -632,6 +711,7 @@
             renderKeyboard();
             updateMessage(`Round ${currentWordIndex + 1}: Start!`, 'text-dark');
             document.getElementById('next-round-btn').classList.add('hidden');
+            broadcastFullState();
         }
 
         function renderUI() {
@@ -732,6 +812,7 @@
             }
 
             lucide.createIcons();
+            broadcastState();
 
             // Render Word (Non-Flip Logic)
             const wordDisplay = document.getElementById('word-display');
@@ -811,6 +892,7 @@
             if (gameActive && turnMode === 'auto') advanceTurn();
             renderUI();
             renderKeyboard();
+            broadcastState({ immediate: true });
         }
 
         function damageCurrentPlayer() {
@@ -926,6 +1008,30 @@
 
         // Init
         window.onload = async () => {
+            if (IS_PLAYER_WINDOW) {
+                document.documentElement.classList.add('player-mode');
+                document.title = 'Student View | Hangman';
+                document.getElementById('btn-open-player')?.style.setProperty('display', 'none');
+                document.getElementById('player-toolbar')?.classList.remove('hidden');
+                // Show game field immediately, hide setup
+                document.getElementById('teacher-console')?.classList.add('hidden');
+                document.getElementById('game-section')?.classList.remove('hidden');
+                // Pre-hide bottom host-only bar
+                const bottomBar = document.querySelector('#game-section .flex.gap-4.mt-8');
+                if (bottomBar) bottomBar.style.display = 'none';
+                const msgBox = document.getElementById('message-box');
+                if (msgBox) msgBox.textContent = 'Waiting for game to start...';
+                lucide.createIcons();
+                const loadingEl = document.createElement('div');
+                loadingEl.className = 'fixed top-4 right-4 z-[9999] flex items-center gap-2 px-4 py-2.5 bg-white/95 border-2 border-dark rounded-full shadow-hard backdrop-blur-sm';
+                loadingEl.innerHTML = `<svg class="w-4 h-4 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M12 2a10 10 0 1 0 10 10"/></svg><span class="font-bold text-xs text-slate-500 uppercase tracking-widest">Connecting...</span>`;
+                document.body.appendChild(loadingEl);
+                window._playerLoadingEl = loadingEl;
+                const ping = () => bc?.postMessage({ type: 'player-ready' });
+                ping(); window._playerRetryInterval = setInterval(ping, 2000);
+                return;
+            }
+
             await requireAuth();
             
             initTheme();
@@ -954,6 +1060,13 @@
             selectPlayers(2);
             lucide.createIcons();
             teacherConsole.classList.remove('hidden');
+
+            if (bc) {
+                bc.onmessage = (evt) => { if (evt.data?.type === 'player-ready') broadcastFullState(); };
+            }
+            document.getElementById('btn-open-player')?.addEventListener('click', () => {
+                window.open(location.pathname + '?player=1', 'hangman-student', 'width=1280,height=800,menubar=no,toolbar=no,location=no,status=no');
+            });
         };
 
         // Keyboard Listener
@@ -967,5 +1080,12 @@
         wordListInput.addEventListener('input', (e) => saveWords(e.target.value));
 
     </script>
+
+    <!-- Student Toolbar -->
+    <div id="player-toolbar" class="hidden fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 px-5 py-3 bg-white/95 border-2 border-dark rounded-2xl shadow-hard backdrop-blur-sm">
+        <span class="font-bold text-xs uppercase tracking-widest text-slate-400">Student View</span>
+        <div class="w-px h-5 bg-slate-300"></div>
+        <span id="student-round-display" class="font-mono text-sm font-bold text-dark">READY</span>
+    </div>
 </body>
 </html>

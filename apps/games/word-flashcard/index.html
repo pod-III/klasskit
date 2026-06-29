@@ -278,6 +278,11 @@
                 <h1 class="font-heading text-3xl sm:text-4xl text-dark leading-none">Flashcards</h1>
                 <p class="text-xs sm:text-sm font-bold text-slate-500 tracking-wider">TEACHER'S COMPANION</p>
             </div>
+            <button id="btn-open-player" title="Open Student View"
+                class="btn-brutal w-10 h-10 flex items-center justify-center rounded-lg"
+                style="background:#16a34a;color:#fff;">
+                <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+            </button>
             <button id="theme-toggle-btn" class="btn-brutal bg-white text-dark w-10 h-10 flex items-center justify-center rounded-lg" title="Toggle Dark Mode">
                 <svg id="theme-icon-moon" class="w-5 h-5 dark:hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
@@ -760,6 +765,7 @@
         };
 
         const updateGameUI = () => {
+            broadcastState();
             // Update Timer Text
             dom.gameUI.timer.textContent = state.timeLeft;
 
@@ -900,6 +906,7 @@
 
             savePersistedData();
             startPrep();
+            broadcastState({ immediate: true });
         };
 
         const togglePause = () => {
@@ -968,8 +975,88 @@
             }
         });
 
+        // ── Broadcast System ──
+        const IS_PLAYER_WINDOW = new URLSearchParams(location.search).has('player');
+        const bcFlash = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('word-flashcard-sync') : null;
+        let _bcThrottle = null, _bcLastTime = 0;
+
+        function broadcastState(options = {}) {
+            if (!bcFlash || IS_PLAYER_WINDOW) return;
+            const now = performance.now();
+            const minInterval = options.immediate ? 0 : 80;
+            if (_bcThrottle) clearTimeout(_bcThrottle);
+            const go = () => { _bcLastTime = performance.now(); _performBroadcast(); };
+            if (now - _bcLastTime >= minInterval) go();
+            else _bcThrottle = setTimeout(go, minInterval - (now - _bcLastTime));
+        }
+        function broadcastFullState() { broadcastState({ immediate: true }); }
+
+        function _performBroadcast() {
+            const gameVisible = !dom.game.classList.contains('hidden');
+            bcFlash.postMessage({
+                type: 'state-update',
+                gameVisible,
+                wordText: dom.gameUI.word?.textContent || '',
+                wordClassName: dom.gameUI.word?.className || '',
+                timerText: dom.gameUI.timer?.textContent || '',
+                timerPct: dom.gameUI.progressBar?.style.width || '100%',
+                progressBarClass: dom.gameUI.progressBar?.className || '',
+                phaseBadgeText: dom.gameUI.phaseBadge?.textContent || '',
+                phaseBadgeClass: dom.gameUI.phaseBadge?.className || '',
+                countBadgeText: dom.gameUI.countBadge?.textContent || '',
+                isPaused: state.isPaused,
+            });
+        }
+
+        if (bcFlash && IS_PLAYER_WINDOW) {
+            bcFlash.onmessage = ({ data }) => {
+                if (data.type !== 'state-update') return;
+                if (window._playerRetryInterval) { clearInterval(window._playerRetryInterval); window._playerRetryInterval = null; }
+                window._playerLoadingEl?.remove(); window._playerLoadingEl = null;
+
+                if (data.gameVisible) {
+                    dom.console.classList.add('hidden');
+                    dom.results.classList.add('hidden');
+                    dom.game.classList.remove('hidden');
+
+                    if (dom.gameUI.word) { dom.gameUI.word.textContent = data.wordText; dom.gameUI.word.className = data.wordClassName; }
+                    if (dom.gameUI.timer) dom.gameUI.timer.textContent = data.timerText;
+                    if (dom.gameUI.progressBar) { dom.gameUI.progressBar.style.width = data.timerPct; dom.gameUI.progressBar.className = data.progressBarClass; }
+                    if (dom.gameUI.phaseBadge) { dom.gameUI.phaseBadge.textContent = data.phaseBadgeText; dom.gameUI.phaseBadge.className = data.phaseBadgeClass; }
+                    if (dom.gameUI.countBadge) dom.gameUI.countBadge.textContent = data.countBadgeText;
+                    if (data.isPaused && dom.gameUI.pauseOverlay) dom.gameUI.pauseOverlay.classList.remove('opacity-0');
+                    else if (dom.gameUI.pauseOverlay) dom.gameUI.pauseOverlay.classList.add('opacity-0');
+                    // Hide host-only controls
+                    dom.buttons.pause?.style.setProperty('display', 'none');
+                    dom.buttons.skip?.style.setProperty('display', 'none');
+                    dom.buttons.abort?.style.setProperty('display', 'none');
+                } else {
+                    dom.game.classList.add('hidden');
+                }
+
+                const sd = document.getElementById('student-info-display');
+                if (sd) sd.textContent = data.gameVisible ? data.countBadgeText : 'Waiting...';
+            };
+        }
+
         // Initialize
         window.addEventListener('load', async () => {
+            if (IS_PLAYER_WINDOW) {
+                document.title = 'Student View | Flashcards';
+                document.getElementById('btn-open-player')?.style.setProperty('display', 'none');
+                document.getElementById('player-toolbar')?.classList.remove('hidden');
+                dom.console.classList.add('hidden');
+                dom.results.classList.add('hidden');
+                initTheme();
+                const loadingEl = document.createElement('div');
+                loadingEl.className = 'fixed top-4 right-4 z-[9999] flex items-center gap-2 px-4 py-2.5 bg-white/95 border-2 border-dark rounded-full shadow-hard-sm';
+                loadingEl.innerHTML = `<svg class="w-4 h-4 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M12 2a10 10 0 1 0 10 10"/></svg><span class="font-bold text-xs text-slate-500 uppercase tracking-widest">Connecting...</span>`;
+                document.body.appendChild(loadingEl);
+                window._playerLoadingEl = loadingEl;
+                const ping = () => bcFlash?.postMessage({ type: 'player-ready' });
+                ping(); window._playerRetryInterval = setInterval(ping, 2000);
+                return;
+            }
             await requireAuth();
             initTheme();
             document.getElementById('theme-toggle-btn').addEventListener('click', toggleTheme);
@@ -977,9 +1064,20 @@
             initPresets();
             await loadPersistedData();
             await renderWordSets();
+            if (bcFlash) bcFlash.onmessage = (evt) => { if (evt.data?.type === 'player-ready') broadcastFullState(); };
+            document.getElementById('btn-open-player')?.addEventListener('click', () => {
+                window.open(location.pathname + '?player=1', 'flash-student', 'width=1280,height=800,menubar=no,toolbar=no,location=no,status=no');
+            });
         });
 
     </script>
+
+    <!-- Student Toolbar -->
+    <div id="player-toolbar" class="hidden fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 px-5 py-3 bg-white/95 border-2 border-dark rounded-2xl shadow-hard-sm backdrop-blur-sm">
+        <span class="font-heading font-bold text-xs uppercase tracking-widest text-slate-400">Student View</span>
+        <div class="w-px h-5 bg-slate-300"></div>
+        <span id="student-info-display" class="font-mono text-sm font-bold text-dark">Waiting...</span>
+    </div>
 </body>
 
 </html>

@@ -104,6 +104,11 @@
 <body class="font-body text-dark dark:text-white min-h-screen flex flex-col transition-colors duration-300 overflow-x-hidden">
 
     <div class="fixed top-4 right-4 flex gap-3 z-20">
+        <button id="btn-open-player" title="Open Student View"
+            class="btn-brutal p-2 md:p-3 rounded-xl border-4 border-dark flex items-center justify-center"
+            style="background:#16a34a;color:#fff;box-shadow:3px 3px 0 #14532d;">
+            <i data-lucide="monitor" class="w-5 h-5 md:w-6 md:h-6 stroke-[3]"></i>
+        </button>
         <button onclick="toggleReachMode()" class="btn-brutal bg-pink text-dark p-2 md:p-3 rounded-xl border-4 border-dark shadow-brutal dark:shadow-brutal_dark dark:border-slate-400 flex items-center justify-center group" aria-label="Toggle Reach Mode">
             <i data-lucide="arrow-down" id="reach-icon" class="w-5 h-5 md:w-6 md:h-6 stroke-[3] transition-transform group-hover:scale-110"></i>
         </button>
@@ -159,23 +164,47 @@
         </div>
     </div>
 
-    <div id="settings-modal" class="hidden fixed inset-0 bg-dark/60 backdrop-blur-md flex items-center justify-center z-50 p-4">
-        <div class="bg-chalk dark:bg-slate-800 border-4 border-dark dark:border-slate-400 rounded-3xl shadow-[8px_8px_0px_0px_rgba(30,41,59,1)] dark:shadow-[8px_8px_0px_0px_rgba(148,163,184,1)] p-8 md:p-10 max-w-lg w-full animate-pop">
-            <div class="flex items-center gap-3 mb-4">
-                <i data-lucide="settings" class="w-6 h-6 md:w-8 md:h-8 stroke-[3] text-blue"></i>
-                <h2 class="font-heading text-3xl md:text-4xl font-bold text-blue">Settings</h2>
+    <!-- Sets Manager Modal -->
+    <div id="settings-modal" class="hidden fixed inset-0 bg-dark/70 backdrop-blur-md flex items-center justify-center z-50 p-4">
+        <div class="bg-chalk dark:bg-slate-800 border-4 border-dark dark:border-slate-400 rounded-3xl shadow-[8px_8px_0px_0px_rgba(30,41,59,1)] dark:shadow-[8px_8px_0px_0px_rgba(148,163,184,1)] w-full max-w-2xl max-h-[90vh] flex flex-col animate-pop">
+            <!-- Header -->
+            <div class="flex items-center gap-3 p-6 border-b-4 border-dark dark:border-slate-600 shrink-0">
+                <div class="bg-blue text-white p-2 rounded-xl border-3 border-dark"><i data-lucide="layers" class="w-6 h-6 stroke-[3]"></i></div>
+                <div class="flex-1">
+                    <h2 class="font-heading text-2xl font-bold text-blue">Word Sets</h2>
+                    <p id="sm-active-label" class="text-xs font-bold text-slate-400 uppercase tracking-widest">No set loaded</p>
+                </div>
+                <button onclick="closeSettings()" class="btn-brutal bg-slate-200 dark:bg-slate-600 w-10 h-10 flex items-center justify-center rounded-xl border-4 border-dark">
+                    <i data-lucide="x" class="w-5 h-5 stroke-[3]"></i>
+                </button>
             </div>
-            <p class="mb-6 md:mb-8 font-bold opacity-70 text-base md:text-lg">Enter word list separated by commas.</p>
-            
-            <textarea id="words-input" rows="4" class="w-full bg-white dark:bg-slate-700 border-4 border-dark dark:border-slate-400 rounded-2xl p-4 md:p-6 font-heading text-xl md:text-2xl uppercase font-bold text-left mb-6 md:mb-8 focus:outline-none focus:border-pink transition-colors resize-none shadow-brutal_inset dark:shadow-brutal_inset_dark" placeholder="e.g. ENGLISH, KLASSKIT, CODING"></textarea>
-            
-            <div class="flex gap-4">
-                <button onclick="closeSettings()" class="btn-brutal bg-slate-200 dark:bg-slate-600 text-dark dark:text-white font-heading font-bold text-xl md:text-2xl py-3 md:py-4 px-4 rounded-2xl border-4 border-dark dark:border-slate-400 shadow-brutal dark:shadow-brutal_dark flex-1">
-                    Cancel
+            <!-- Editor -->
+            <div class="p-5 border-b-4 border-dark dark:border-slate-600 shrink-0">
+                <div class="flex gap-2 mb-2">
+                    <input id="sm-set-name" type="text" placeholder="Set name…" class="flex-1 bg-white dark:bg-slate-700 border-4 border-dark dark:border-slate-500 rounded-xl px-4 py-2 font-heading text-base font-bold focus:outline-none focus:border-blue" />
+                    <button onclick="smSaveAsNew()" class="btn-brutal bg-green text-dark font-heading font-bold text-sm px-4 py-2 rounded-xl border-4 border-dark shadow-brutal flex items-center gap-1">
+                        <i data-lucide="plus" class="w-4 h-4 stroke-[3]"></i> SAVE AS NEW
+                    </button>
+                    <button onclick="smSaveCurrent()" class="btn-brutal bg-blue text-white font-heading font-bold text-sm px-4 py-2 rounded-xl border-4 border-dark shadow-brutal flex items-center gap-1">
+                        <i data-lucide="save" class="w-4 h-4 stroke-[3]"></i> UPDATE
+                    </button>
+                </div>
+                <textarea id="words-input" rows="3" class="w-full bg-white dark:bg-slate-700 border-4 border-dark dark:border-slate-400 rounded-2xl p-4 font-heading text-lg uppercase font-bold text-left focus:outline-none focus:border-pink transition-colors resize-none shadow-brutal_inset dark:shadow-brutal_inset_dark" placeholder="e.g. ENGLISH, KLASSKIT, CODING"></textarea>
+                <button onclick="smPlayCurrent()" class="mt-2 btn-brutal bg-pink text-dark font-heading font-bold text-base w-full py-2.5 rounded-xl border-4 border-dark shadow-brutal flex items-center justify-center gap-2">
+                    <i data-lucide="play" class="w-5 h-5 stroke-[3] ml-1"></i> PLAY THIS LIST NOW
                 </button>
-                <button onclick="saveWords()" class="btn-brutal bg-blue text-white font-heading font-bold text-xl md:text-2xl py-3 md:py-4 px-4 rounded-2xl border-4 border-dark dark:border-slate-400 shadow-brutal dark:shadow-brutal_dark flex-1">
-                    Save List
-                </button>
+            </div>
+            <!-- Library -->
+            <div class="flex-1 min-h-0 overflow-y-auto p-5">
+                <div class="flex items-center justify-between mb-3">
+                    <p class="font-heading font-bold text-xs uppercase tracking-widest text-slate-400">Saved Sets</p>
+                    <select id="sm-sort" onchange="smRenderLibrary()" class="text-xs font-bold bg-white dark:bg-slate-700 border-2 border-dark rounded-lg px-2 py-1 focus:outline-none">
+                        <option value="recent">Recent</option>
+                        <option value="alpha">A–Z</option>
+                        <option value="popular">Popular</option>
+                    </select>
+                </div>
+                <div id="sm-library" class="flex flex-col gap-2"></div>
             </div>
         </div>
     </div>
@@ -322,6 +351,7 @@
 
         function renderBoard(animateTileId = null) {
             slotsContainer.innerHTML = '';
+            setTimeout(() => broadcastState(), 0);
             placedLetters.forEach((tileId, index) => {
                 const slotDiv = document.createElement('div');
                 slotDiv.className = `w-14 h-16 md:w-20 md:h-24 flex items-center justify-center border-4 rounded-2xl transition-all cursor-pointer bg-white dark:bg-slate-800 ${
@@ -454,30 +484,182 @@
 
         function openSettings() {
             wordsInput.value = wordList.join(', ');
+            const nameInput = document.getElementById('sm-set-name');
+            if (nameInput) nameInput.value = smState.activeId ? (smState.activeName || '') : '';
+            smUpdateActiveLabel();
+            smRenderLibrary();
             settingsModal.classList.remove('hidden');
-            wordsInput.focus();
+            lucide.createIcons();
         }
 
         function closeSettings() {
             settingsModal.classList.add('hidden');
         }
 
-        async function saveWords() {
-            const rawText = wordsInput.value;
-            const newList = rawText.split(',')
+        // ── Sets Manager ──
+        const smState = { activeId: null, activeName: null, db: null };
+
+        async function smOpenDB() {
+            if (smState.db) return smState.db;
+            return new Promise((res, rej) => {
+                const req = indexedDB.open('spell_sets_db', 1);
+                req.onupgradeneeded = e => {
+                    const db = e.target.result;
+                    if (!db.objectStoreNames.contains('sets')) {
+                        db.createObjectStore('sets', { keyPath: 'id', autoIncrement: true });
+                    }
+                };
+                req.onsuccess = e => { smState.db = e.target.result; res(smState.db); };
+                req.onerror = e => rej(e);
+            });
+        }
+
+        async function smGetAll() {
+            const db = await smOpenDB();
+            return new Promise((res, rej) => {
+                const tx = db.transaction('sets', 'readonly');
+                const req = tx.objectStore('sets').getAll();
+                req.onsuccess = () => res(req.result || []);
+                req.onerror = e => rej(e);
+            });
+        }
+
+        async function smPut(set) {
+            const db = await smOpenDB();
+            return new Promise((res, rej) => {
+                const tx = db.transaction('sets', 'readwrite');
+                const req = tx.objectStore('sets').put(set);
+                req.onsuccess = () => res(req.result);
+                req.onerror = e => rej(e);
+            });
+        }
+
+        async function smDelete(id) {
+            const db = await smOpenDB();
+            return new Promise((res, rej) => {
+                const tx = db.transaction('sets', 'readwrite');
+                const req = tx.objectStore('sets').delete(id);
+                req.onsuccess = () => res();
+                req.onerror = e => rej(e);
+            });
+        }
+
+        function smParseWords() {
+            return (wordsInput.value || '').split(',')
                 .map(w => w.trim().toUpperCase().replace(/[^A-Z]/g, ''))
                 .filter(w => w.length > 0);
-
-            if (newList.length > 0) {
-                wordList = newList;
-                saveToCloud();
-                closeSettings();
-                initGame();
-                await showAlert("Success!", "New word list saved.", true, "close");
-            } else {
-                await showAlert("Error", "Please enter valid words.", false, "close");
-            }
         }
+
+        async function smSaveAsNew() {
+            const name = document.getElementById('sm-set-name').value.trim() || 'Untitled Set';
+            const words = smParseWords();
+            if (!words.length) { await showAlert('No Words', 'Enter at least one word.', false, 'close'); return; }
+            const now = Date.now();
+            const id = await smPut({ name, text: wordsInput.value, createdAt: now, lastUsed: now, usageCount: 0 });
+            smState.activeId = id;
+            smState.activeName = name;
+            smUpdateActiveLabel();
+            smRenderLibrary();
+            await showAlert('Saved!', `"${name}" saved to library.`, true, 'close');
+        }
+
+        async function smSaveCurrent() {
+            const words = smParseWords();
+            if (!words.length) { await showAlert('No Words', 'Enter at least one word.', false, 'close'); return; }
+            if (!smState.activeId) { await smSaveAsNew(); return; }
+            const name = document.getElementById('sm-set-name').value.trim() || smState.activeName;
+            await smPut({ id: smState.activeId, name, text: wordsInput.value, lastUsed: Date.now(), usageCount: 0 });
+            smState.activeName = name;
+            smUpdateActiveLabel();
+            smRenderLibrary();
+            await showAlert('Updated!', `"${name}" updated.`, true, 'close');
+        }
+
+        function smPlayCurrent() {
+            const words = smParseWords();
+            if (!words.length) { showAlert('No Words', 'Enter at least one word first.', false, 'close'); return; }
+            wordList = words;
+            saveToCloud();
+            closeSettings();
+            currentWordIndex = 0;
+            loadCurrentWord();
+            broadcastState({ immediate: true });
+        }
+
+        async function smLoadSet(set) {
+            smState.activeId = set.id;
+            smState.activeName = set.name;
+            wordsInput.value = set.text || '';
+            document.getElementById('sm-set-name').value = set.name;
+            smUpdateActiveLabel();
+            set.usageCount = (set.usageCount || 0) + 1;
+            set.lastUsed = Date.now();
+            await smPut(set);
+            smRenderLibrary();
+        }
+
+        async function smDeleteSet(id, name) {
+            if (!confirm(`Delete "${name}"?`)) return;
+            await smDelete(id);
+            if (smState.activeId === id) { smState.activeId = null; smState.activeName = null; smUpdateActiveLabel(); }
+            smRenderLibrary();
+        }
+
+        function smUpdateActiveLabel() {
+            const el = document.getElementById('sm-active-label');
+            if (el) el.textContent = smState.activeId ? `Editing: ${smState.activeName}` : 'No set loaded';
+        }
+
+        let _smSetsCache = [];
+
+        async function smRenderLibrary() {
+            const container = document.getElementById('sm-library');
+            if (!container) return;
+            let sets = await smGetAll();
+            const sort = document.getElementById('sm-sort')?.value || 'recent';
+            if (sort === 'recent') sets.sort((a, b) => (b.lastUsed || 0) - (a.lastUsed || 0));
+            else if (sort === 'alpha') sets.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+            else if (sort === 'popular') sets.sort((a, b) => (b.usageCount || 0) - (a.usageCount || 0));
+            _smSetsCache = sets;
+
+            if (!sets.length) {
+                container.innerHTML = `<p class="text-center text-slate-400 font-bold py-6">No saved sets yet.</p>`;
+                return;
+            }
+            container.innerHTML = sets.map(s => {
+                const isActive = s.id === smState.activeId;
+                const words = (s.text || '').split(',').map(w => w.trim()).filter(Boolean);
+                return `<div class="flex items-center gap-3 p-3 rounded-2xl border-4 ${isActive ? 'border-blue bg-blue/10' : 'border-dark/20 dark:border-slate-600 bg-white dark:bg-slate-700'} cursor-pointer sm-load-row" data-sm-id="${s.id}">
+                    <div class="flex-1 min-w-0 pointer-events-none">
+                        <p class="font-heading font-bold text-base ${isActive ? 'text-blue' : 'text-dark dark:text-white'} flex items-center gap-2">${s.name}${isActive ? ' <span class="text-[10px] bg-blue text-white px-2 py-0.5 rounded-full uppercase tracking-widest">Active</span>' : ''}</p>
+                        <p class="text-xs text-slate-400 font-bold mt-0.5">${words.length} word${words.length !== 1 ? 's' : ''} · Used ${s.usageCount || 0}×</p>
+                    </div>
+                    <button class="sm-del-btn btn-brutal bg-pink/10 hover:bg-pink text-pink hover:text-dark w-8 h-8 flex items-center justify-center rounded-lg border-2 border-pink/40 hover:border-pink shrink-0" data-sm-del="${s.id}">
+                        <i data-lucide="trash-2" class="w-4 h-4 stroke-[2.5] pointer-events-none"></i>
+                    </button>
+                </div>`;
+            }).join('');
+            lucide.createIcons();
+            container.querySelectorAll('.sm-load-row').forEach(row => {
+                row.addEventListener('click', async (e) => {
+                    if (e.target.closest('.sm-del-btn')) return;
+                    const id = parseInt(row.dataset.smId);
+                    const set = _smSetsCache.find(s => s.id === id);
+                    if (set) await smLoadSet(set);
+                });
+            });
+            container.querySelectorAll('.sm-del-btn').forEach(btn => {
+                btn.addEventListener('click', async (e) => {
+                    e.stopPropagation();
+                    const id = parseInt(btn.dataset.smDel);
+                    const set = _smSetsCache.find(s => s.id === id);
+                    if (set) await smDeleteSet(set.id, set.name);
+                });
+            });
+        }
+
+        // legacy compat — old saveWords still used in old code path
+        async function saveWords() { await smSaveCurrent(); }
         // --- REACH MODE & THEME FUNCTIONS ---
 
 function applyReachMode() {
@@ -514,9 +696,79 @@ function toggleDarkMode() {
     saveToCloud();
 }
 
+        // ── Broadcast System ──
+        const IS_PLAYER_WINDOW = new URLSearchParams(location.search).has('player');
+        const bc = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('spell-the-word-sync') : null;
+        let _bcThrottle = null, _bcLastTime = 0;
+
+        function broadcastState(options = {}) {
+            if (!bc || IS_PLAYER_WINDOW) return;
+            const now = performance.now();
+            const minInterval = options.immediate ? 0 : 80;
+            if (_bcThrottle) clearTimeout(_bcThrottle);
+            const go = () => { _bcLastTime = performance.now(); _performBroadcast(); };
+            if (now - _bcLastTime >= minInterval) go();
+            else _bcThrottle = setTimeout(go, minInterval - (now - _bcLastTime));
+        }
+        function broadcastFullState() { broadcastState({ immediate: true }); }
+
+        function _performBroadcast() {
+            bc.postMessage({
+                type: 'state-update',
+                slotsHTML: document.getElementById('slots-container')?.innerHTML || '',
+                lettersHTML: document.getElementById('letters-container')?.innerHTML || '',
+                progressText: progressBadge?.textContent || '',
+                targetWord,
+                currentWordIndex,
+                totalWords: wordList.length,
+            });
+        }
+
+        if (bc && IS_PLAYER_WINDOW) {
+            bc.onmessage = ({ data }) => {
+                if (data.type !== 'state-update') return;
+                if (window._playerRetryInterval) { clearInterval(window._playerRetryInterval); window._playerRetryInterval = null; }
+                window._playerLoadingEl?.remove(); window._playerLoadingEl = null;
+
+                const sc = document.getElementById('slots-container');
+                if (sc) { sc.innerHTML = data.slotsHTML; sc.querySelectorAll('button,div').forEach(el => { el.onclick = null; el.style.pointerEvents = 'none'; }); }
+                const lc = document.getElementById('letters-container');
+                if (lc) { lc.innerHTML = data.lettersHTML; lc.querySelectorAll('button').forEach(el => { el.onclick = null; el.disabled = true; el.style.opacity = '0.7'; }); }
+                if (progressBadge) progressBadge.textContent = data.progressText;
+
+                const sd = document.getElementById('student-word-display');
+                if (sd) sd.textContent = data.totalWords > 0 ? `${data.currentWordIndex + 1} / ${data.totalWords}` : '—';
+            };
+        }
+
         // Boot
-        loadPreferences();
-        initGame();
+        if (IS_PLAYER_WINDOW) {
+            document.title = 'Student View | Spell It';
+            document.getElementById('btn-open-player')?.style.setProperty('display', 'none');
+            document.querySelector('button[onclick="openSettings()"]')?.style.setProperty('display', 'none');
+            document.getElementById('player-toolbar')?.classList.remove('hidden');
+            lucide.createIcons();
+            const loadingEl = document.createElement('div');
+            loadingEl.className = 'fixed top-4 left-4 z-[9999] flex items-center gap-2 px-4 py-2.5 bg-white/95 border-2 border-dark rounded-full shadow-brutal';
+            loadingEl.innerHTML = `<svg class="w-4 h-4 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M12 2a10 10 0 1 0 10 10"/></svg><span class="font-bold text-xs text-slate-500 uppercase tracking-widest">Connecting...</span>`;
+            document.body.appendChild(loadingEl);
+            window._playerLoadingEl = loadingEl;
+            const ping = () => bc?.postMessage({ type: 'player-ready' });
+            ping(); window._playerRetryInterval = setInterval(ping, 2000);
+        } else {
+            initGame();
+            if (bc) bc.onmessage = (evt) => { if (evt.data?.type === 'player-ready') broadcastFullState(); };
+            document.getElementById('btn-open-player')?.addEventListener('click', () => {
+                window.open(location.pathname + '?player=1', 'spell-student', 'width=1280,height=800,menubar=no,toolbar=no,location=no,status=no');
+            });
+        }
     </script>
+
+    <!-- Student Toolbar -->
+    <div id="player-toolbar" class="hidden fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 px-5 py-3 bg-white/95 dark:bg-slate-900/95 border-4 border-dark rounded-2xl shadow-brutal backdrop-blur-sm">
+        <span class="font-heading font-bold text-xs uppercase tracking-widest text-slate-400">Student View</span>
+        <div class="w-px h-5 bg-slate-300"></div>
+        <span id="student-word-display" class="font-mono text-sm font-bold text-dark dark:text-slate-200">— / —</span>
+    </div>
 </body>
 </html>

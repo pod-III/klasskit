@@ -366,6 +366,7 @@ function startGame() {
     renderGameBoard();
     renderWordPool();
     updateStats();
+    broadcastFullState();
 
     if (window.innerWidth < 768) toggleControlPanel(true);
 }
@@ -527,6 +528,8 @@ function dropWord(chip, zone) {
     chip.classList.add("animate-pulse-once");
     setTimeout(() => chip.classList.remove("animate-pulse-once"), 500);
 
+    broadcastState({ immediate: true });
+
     if (instantCheck) {
         const isCorrect = word.category === zoneCategory;
         if (isCorrect) {
@@ -563,6 +566,7 @@ function returnToPool(chip) {
             // New chip will be created by renderWordPool
         }
         renderWordPool();
+        broadcastState({ immediate: true });
     }, 300);
 }
 
@@ -639,6 +643,7 @@ function resetGame() {
     renderWordPool();
     updateStats();
     document.getElementById("status-display").innerHTML = 'STATUS: <span class="text-blue">RESTARTED</span>';
+    broadcastFullState();
 }
 
 function newGame() {
@@ -785,7 +790,133 @@ function updateGameMode() {
     instantCheck = document.getElementById("instant-check").checked;
 }
 
+// ==================== BROADCAST CHANNEL (Student View) ====================
+const BROADCAST_CHANNEL = 'word-sort-sync';
+const IS_PLAYER_WINDOW = new URLSearchParams(location.search).has('player');
+const bc = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel(BROADCAST_CHANNEL) : null;
+
+let _bcThrottle = null, _bcLastTime = 0;
+
+function broadcastState(options = {}) {
+    if (!bc || IS_PLAYER_WINDOW) return;
+    const now = performance.now();
+    const minInterval = options.immediate ? 0 : 80;
+    if (_bcThrottle) clearTimeout(_bcThrottle);
+    const go = () => { _bcLastTime = performance.now(); _performBroadcast(); };
+    if (now - _bcLastTime >= minInterval) go();
+    else _bcThrottle = setTimeout(go, minInterval - (now - _bcLastTime));
+}
+
+function _performBroadcast() {
+    // Snapshot per-zone chip states from DOM
+    const zoneDump = [];
+    document.querySelectorAll('.category-zone').forEach(zone => {
+        const chips = [];
+        zone.querySelectorAll('.word-chip').forEach(chip => {
+            chips.push({
+                wordId: chip.dataset.wordId,
+                text: chip.textContent,
+                colorClass: [...chip.classList].find(c => c.startsWith('bg-')) || '',
+                borderColor: chip.style.border,
+            });
+        });
+        zoneDump.push({ category: zone.dataset.category, chips });
+    });
+    const poolChips = [];
+    document.querySelectorAll('#word-pool .word-chip').forEach(chip => {
+        poolChips.push({
+            wordId: chip.dataset.wordId,
+            text: chip.textContent,
+            colorClass: [...chip.classList].find(c => c.startsWith('bg-')) || '',
+        });
+    });
+    const statusText = document.getElementById('status-display')?.innerText || '';
+    bc.postMessage({
+        type: 'state-update',
+        categories: categories.map(c => ({ name: c.name, color: c.color })),
+        zoneDump,
+        poolChips,
+        gameActive,
+        statusText,
+    });
+}
+
+function broadcastFullState() { broadcastState({ immediate: true }); }
+
+if (bc && IS_PLAYER_WINDOW) {
+    bc.onmessage = ({ data }) => {
+        if (data.type !== 'state-update') return;
+        if (window._playerRetryInterval) { clearInterval(window._playerRetryInterval); window._playerRetryInterval = null; }
+        window._playerLoadingEl?.remove(); window._playerLoadingEl = null;
+
+        // Rebuild game board if needed
+        if (data.categories.length) {
+            categories = data.categories.map((c, i) => ({ id: i, name: c.name, color: c.color, words: [] }));
+            if (data.gameActive) {
+                renderGameBoard();
+                // Fill zones
+                data.zoneDump.forEach(zd => {
+                    const zone = document.querySelector(`.category-zone[data-category="${CSS.escape(zd.category)}"]`);
+                    if (!zone) return;
+                    const zoneWords = zone.querySelector('.zone-words');
+                    zoneWords.innerHTML = '';
+                    zd.chips.forEach(ch => {
+                        const chip = document.createElement('div');
+                        chip.className = `word-chip placed sticker ${ch.colorClass} text-white px-6 py-3 rounded-2xl text-xl font-black shadow-hard border-4 border-dark`;
+                        chip.textContent = ch.text;
+                        if (ch.borderColor) chip.style.border = ch.borderColor;
+                        chip.dataset.wordId = ch.wordId;
+                        zoneWords.appendChild(chip);
+                    });
+                    zone.querySelector('.word-counter').textContent = zoneWords.children.length;
+                });
+                // Fill pool
+                const pool = document.getElementById('word-pool');
+                pool.innerHTML = '';
+                data.poolChips.forEach(ch => {
+                    const chip = document.createElement('div');
+                    chip.className = `word-chip sticker ${ch.colorClass} text-white px-6 py-3 rounded-2xl text-xl font-black shadow-hard border-4 border-dark`;
+                    chip.textContent = ch.text;
+                    chip.dataset.wordId = ch.wordId;
+                    pool.appendChild(chip);
+                });
+                document.getElementById('game-stats')?.classList.remove('opacity-0');
+            }
+        }
+        // Update status
+        const sd = document.getElementById('student-round-display');
+        if (sd) sd.textContent = data.statusText;
+    };
+}
+
 // ------------------------------------------
 // Start the App
 // ------------------------------------------
-init();
+async function _initPlayer() {
+    document.documentElement.classList.add('player-mode');
+    document.title = 'Student View | Word Sort';
+    document.getElementById('controls')?.style.setProperty('display', 'none');
+    document.getElementById('btn-open-player')?.style.setProperty('display', 'none');
+    document.getElementById('player-toolbar')?.classList.remove('hidden');
+    lucide.createIcons();
+    const loadingEl = document.createElement('div');
+    loadingEl.className = 'fixed top-4 right-4 z-[9999] flex items-center gap-2 px-4 py-2.5 bg-white/95 border-2 border-dark rounded-full shadow-neo backdrop-blur-sm';
+    loadingEl.innerHTML = `<svg class="w-4 h-4 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M12 2a10 10 0 1 0 10 10"/></svg><span class="font-bold text-xs text-slate-500 uppercase tracking-widest">Connecting...</span>`;
+    document.body.appendChild(loadingEl);
+    window._playerLoadingEl = loadingEl;
+    const ping = () => bc?.postMessage({ type: 'player-ready' });
+    ping(); window._playerRetryInterval = setInterval(ping, 2000);
+}
+
+if (IS_PLAYER_WINDOW) {
+    _initPlayer();
+} else {
+    init().then(() => {
+        if (bc) {
+            bc.onmessage = (evt) => { if (evt.data?.type === 'player-ready') broadcastFullState(); };
+        }
+        document.getElementById('btn-open-player')?.addEventListener('click', () => {
+            window.open(location.pathname + '?player=1', 'word-sort-student', 'width=1280,height=800,menubar=no,toolbar=no,location=no,status=no');
+        });
+    });
+}

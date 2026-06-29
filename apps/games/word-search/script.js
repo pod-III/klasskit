@@ -637,6 +637,7 @@ function initGame(size, words) {
     fitGridToDisplay(); // Auto-fit on generation
     Sound.success();
     confetti({ particleCount: 50, spread: 60, origin: { y: 0.6 } });
+    broadcastFullState();
 }
 
 function placeWord(word, size) {
@@ -768,6 +769,7 @@ function checkMatch(start, end) {
         if (tag) tag.classList.add('found');
         State.foundWords.add(match);
         updateHUD();
+        broadcastState({ immediate: true });
     } else {
         Sound.error();
         path.forEach(p => {
@@ -803,6 +805,7 @@ function revealSolutions() {
     });
     State.isActive = false;
     Sound.success();
+    broadcastState({ immediate: true });
 }
 
 function endGame(success) {
@@ -814,9 +817,105 @@ function endGame(success) {
     }
 }
 
+// ==================== BROADCAST CHANNEL (Student View) ====================
+const BROADCAST_CHANNEL = 'word-search-sync';
+const IS_PLAYER_WINDOW = new URLSearchParams(location.search).has('player');
+const bc = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel(BROADCAST_CHANNEL) : null;
+
+let _bcThrottle = null, _bcLastTime = 0;
+
+function broadcastState(options = {}) {
+    if (!bc || IS_PLAYER_WINDOW) return;
+    const now = performance.now();
+    const minInterval = options.immediate ? 0 : 50;
+    if (_bcThrottle) clearTimeout(_bcThrottle);
+    const go = () => { _bcLastTime = performance.now(); _performBroadcast(); };
+    if (now - _bcLastTime >= minInterval) go();
+    else _bcThrottle = setTimeout(go, minInterval - (now - _bcLastTime));
+}
+
+function _performBroadcast() {
+    // Snapshot found cells and revealed cells from DOM
+    const foundCells = [], revealedCells = [];
+    document.querySelectorAll('.grid-cell').forEach(cell => {
+        const key = `${cell.dataset.r},${cell.dataset.c}`;
+        if (cell.classList.contains('found')) foundCells.push(key);
+        if (cell.classList.contains('revealed')) revealedCells.push(key);
+    });
+    bc.postMessage({
+        type: 'state-update',
+        grid: State.grid,
+        validWords: [...State.validWords],
+        foundWords: [...State.foundWords],
+        foundCells,
+        revealedCells,
+        isActive: State.isActive,
+        totalWords: State.totalWords,
+        CELL_SIZE,
+    });
+}
+
+function broadcastFullState() { broadcastState({ immediate: true }); }
+
+if (bc && IS_PLAYER_WINDOW) {
+    bc.onmessage = ({ data }) => {
+        if (data.type !== 'state-update') return;
+        if (window._playerRetryInterval) { clearInterval(window._playerRetryInterval); window._playerRetryInterval = null; }
+        window._playerLoadingEl?.remove(); window._playerLoadingEl = null;
+
+        // Sync state
+        State.grid = data.grid;
+        State.validWords = new Set(data.validWords);
+        State.foundWords = new Set(data.foundWords);
+        State.isActive = data.isActive;
+        State.totalWords = data.totalWords;
+        CELL_SIZE = data.CELL_SIZE || CELL_SIZE;
+
+        if (data.grid.length) {
+            renderGrid(data.grid.length);
+            renderWordBank([...data.validWords]);
+            updateHUD();
+            fitGridToDisplay();
+        }
+        // Apply found + revealed CSS
+        data.foundCells.forEach(key => {
+            const [r, c] = key.split(',');
+            getCell(r, c)?.classList.add('found');
+        });
+        data.revealedCells.forEach(key => {
+            const [r, c] = key.split(',');
+            getCell(r, c)?.classList.add('revealed');
+        });
+        // Mark found words in bank
+        data.foundWords.forEach(w => document.getElementById(`tag-${w}`)?.classList.add('found'));
+
+        const sd = document.getElementById('student-round-display');
+        if (sd) sd.textContent = `${data.foundWords.length} / ${data.totalWords}`;
+    };
+}
+
 // --- INIT ---
 
 window.onload = async () => {
+    if (IS_PLAYER_WINDOW) {
+        document.documentElement.classList.add('player-mode');
+        document.title = 'Student View | Word Search';
+        document.getElementById('controls')?.style.setProperty('display', 'none');
+        document.getElementById('btn-open-player')?.style.setProperty('display', 'none');
+        document.getElementById('give-up-btn')?.style.setProperty('display', 'none');
+        document.getElementById('confirm-modal')?.style.setProperty('display', 'none');
+        document.getElementById('player-toolbar')?.classList.remove('hidden');
+        lucide.createIcons();
+        const loadingEl = document.createElement('div');
+        loadingEl.className = 'fixed top-4 right-4 z-[9999] flex items-center gap-2 px-4 py-2.5 bg-white/95 border-2 border-dark rounded-full shadow-neo backdrop-blur-sm';
+        loadingEl.innerHTML = `<svg class="w-4 h-4 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M12 2a10 10 0 1 0 10 10"/></svg><span class="font-bold text-xs text-slate-500 uppercase tracking-widest">Connecting...</span>`;
+        document.body.appendChild(loadingEl);
+        window._playerLoadingEl = loadingEl;
+        const ping = () => bc?.postMessage({ type: 'player-ready' });
+        ping(); window._playerRetryInterval = setInterval(ping, 2000);
+        return;
+    }
+
     await requireAuth();
     await initDB();
     const sid = await getCurrentPresetId();
@@ -872,6 +971,14 @@ window.onload = async () => {
     window.onresize = () => { if (State.grid.length) fitGridToDisplay(); };
 
     if (window.innerWidth < 768) toggleControlPanel(true);
+
+    // Respond to student-ready pings
+    if (bc) {
+        bc.onmessage = (evt) => { if (evt.data?.type === 'player-ready') broadcastFullState(); };
+    }
+    document.getElementById('btn-open-player')?.addEventListener('click', () => {
+        window.open(location.pathname + '?player=1', 'word-search-student', 'width=1280,height=800,menubar=no,toolbar=no,location=no,status=no');
+    });
 };
 
 // --- Print Mode ---

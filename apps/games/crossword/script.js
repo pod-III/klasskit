@@ -599,11 +599,12 @@ function handleKeyDown(e, r, c) {
         e.target.value = key;
         checkCurrentWordCompletion(r, c);
         jumpToNextCell(r, c);
+        broadcastState();
         return;
     }
     if (e.key === 'Backspace' || e.key === 'Delete') {
         e.preventDefault(); if (e.target.parentElement.classList.contains('locked')) return;
-        if (e.target.value) { e.target.value = ''; Sound.back(); }
+        if (e.target.value) { e.target.value = ''; Sound.back(); broadcastState(); }
         else { Sound.back(); jumpToPrevCell(r, c); }
     }
     else if (e.key === 'ArrowRight') focusCell(r, c + 1);
@@ -617,7 +618,7 @@ function jumpToNextCell(r, c) {
     const dr = currentDir === 'across' ? 0 : 1;
     const dc = currentDir === 'across' ? 1 : 0;
     let nr = r + dr, nc = c + dc;
-    for (let i = 0; i < GRID_SIZE; i++) {
+    for (let i = 0; i < GRID_ROWS + GRID_COLS; i++) {
         const cell = document.querySelector(`.cw-cell[data-r="${nr}"][data-c="${nc}"]`);
         if (!cell || !cell.classList.contains('filled')) break;
         const input = cell.querySelector('input');
@@ -630,7 +631,7 @@ function jumpToPrevCell(r, c) {
     const dr = currentDir === 'across' ? 0 : -1;
     const dc = currentDir === 'across' ? -1 : 0;
     let pr = r + dr, pc = c + dc;
-    for (let i = 0; i < GRID_SIZE; i++) {
+    for (let i = 0; i < GRID_ROWS + GRID_COLS; i++) {
         const cell = document.querySelector(`.cw-cell[data-r="${pr}"][data-c="${pc}"]`);
         if (!cell || !cell.classList.contains('filled')) break;
         const input = cell.querySelector('input');
@@ -751,6 +752,106 @@ function preparePrintVersion() {
     });
 }
 
+// ==================== BROADCAST CHANNEL (Student View) ====================
+const BROADCAST_CHANNEL = 'crossword-sync';
+const IS_PLAYER_WINDOW = new URLSearchParams(location.search).has('player');
+const bc = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel(BROADCAST_CHANNEL) : null;
+
+let _bcThrottle = null, _bcLastTime = 0, _bcPuzzleId = null;
+
+function broadcastState(options = {}) {
+    if (!bc || IS_PLAYER_WINDOW) return;
+    const now = performance.now();
+    const minInterval = options.immediate ? 0 : 100;
+    if (_bcThrottle) clearTimeout(_bcThrottle);
+    const go = () => { _bcLastTime = performance.now(); _performBroadcast(); };
+    if (now - _bcLastTime >= minInterval) go();
+    else _bcThrottle = setTimeout(go, minInterval - (now - _bcLastTime));
+}
+
+function _performBroadcast() {
+    // Snapshot all cell values + locked states
+    const cellStates = [];
+    document.querySelectorAll('.cw-cell.filled').forEach(cell => {
+        const inp = cell.querySelector('input');
+        if (!inp) return;
+        cellStates.push({
+            r: cell.dataset.r,
+            c: cell.dataset.c,
+            value: inp.value,
+            locked: cell.classList.contains('locked'),
+        });
+    });
+
+    // Only send the full puzzle object when it has changed — prevents the student
+    // from calling render() (full DOM rebuild) on every keystroke.
+    const currentPuzzleId = puzzle ? `${puzzle.rows}x${puzzle.cols}:${puzzle.words?.length}` : null;
+    const puzzleChanged = currentPuzzleId !== _bcPuzzleId;
+    if (puzzleChanged) _bcPuzzleId = currentPuzzleId;
+
+    bc.postMessage({
+        type: 'state-update',
+        puzzle: puzzleChanged ? puzzle : undefined,
+        GRID_ROWS,
+        GRID_COLS,
+        CELL_SIZE,
+        cellStates,
+    });
+}
+
+function broadcastFullState() { _bcPuzzleId = null; broadcastState({ immediate: true }); }
+
+if (bc && IS_PLAYER_WINDOW) {
+    bc.onmessage = ({ data }) => {
+        if (data.type !== 'state-update') return;
+        if (window._playerRetryInterval) { clearInterval(window._playerRetryInterval); window._playerRetryInterval = null; }
+        window._playerLoadingEl?.remove(); window._playerLoadingEl = null;
+
+        if (data.puzzle) {
+            puzzle = data.puzzle;
+            grid = puzzle.grid;
+            words = puzzle.words;
+            GRID_ROWS = data.GRID_ROWS || puzzle.rows || GRID_ROWS;
+            GRID_COLS = data.GRID_COLS || puzzle.cols || GRID_COLS;
+            CELL_SIZE = data.CELL_SIZE || CELL_SIZE;
+            render();
+        }
+        // Apply cell values + locked state
+        data.cellStates?.forEach(cs => {
+            const cell = document.querySelector(`.cw-cell[data-r="${cs.r}"][data-c="${cs.c}"]`);
+            if (!cell) return;
+            const inp = cell.querySelector('input');
+            if (inp) inp.value = cs.value;
+            if (cs.locked) {
+                cell.classList.add('locked');
+            } else {
+                cell.classList.remove('locked');
+            }
+        });
+
+        // Mark clue items solved based on whether all their cells are locked,
+        // since the student window never runs checkCurrentWordCompletion.
+        if (words.length > 0) {
+            words.forEach(w => {
+                const allLocked = Array.from({ length: w.word.length }, (_, i) => {
+                    const r = w.dir === 'across' ? w.row : w.row + i;
+                    const c = w.dir === 'across' ? w.col + i : w.col;
+                    return document.querySelector(`.cw-cell[data-r="${r}"][data-c="${c}"]`)?.classList.contains('locked');
+                }).every(Boolean);
+                const clueEl = document.getElementById(`clue-${w.num}-${w.dir}`);
+                if (clueEl) clueEl.classList.toggle('solved', allLocked);
+            });
+        }
+
+        const sd = document.getElementById('student-round-display');
+        if (sd) {
+            const total = words.length;
+            const solved = document.querySelectorAll('.clue-item.solved').length;
+            sd.textContent = puzzle ? `${solved} / ${total} words` : 'Waiting...';
+        }
+    };
+}
+
 // --- INIT & EVENTS ---
 document.getElementById('generate-btn').onclick = () => {
     const lines = els.input.value.split('\n').filter(l => l.includes(':'));
@@ -763,6 +864,7 @@ document.getElementById('generate-btn').onclick = () => {
     if (generateLayout(inputData)) {
         if (window.innerWidth < 768) toggleControlPanel(true);
         confetti({ particleCount: 50, spread: 60, origin: { y: 0.6 }, colors: ['#2979FF', '#FF6B95'] });
+        broadcastFullState();
     } else {
         const btn = document.getElementById('generate-btn');
         btn.classList.add('bg-pink', 'animate-shake');
@@ -777,6 +879,7 @@ document.getElementById('solution-btn').onclick = () => {
     });
     document.querySelectorAll('.clue-item').forEach(el => el.classList.add('solved'));
     Sound.success();
+    broadcastFullState();
 };
 
 document.querySelectorAll('.preset-btn').forEach(b => {
@@ -816,6 +919,25 @@ document.getElementById('save-set-btn').onclick = async () => {
 };
 
 window.onload = async () => {
+    if (IS_PLAYER_WINDOW) {
+        document.documentElement.classList.add('player-mode');
+        document.title = 'Student View | Crossword';
+        document.getElementById('controls')?.style.setProperty('display', 'none');
+        document.getElementById('btn-open-player')?.style.setProperty('display', 'none');
+        document.getElementById('solution-btn')?.style.setProperty('display', 'none');
+        document.getElementById('generate-btn')?.style.setProperty('display', 'none');
+        document.getElementById('player-toolbar')?.classList.remove('hidden');
+        lucide.createIcons();
+        const loadingEl = document.createElement('div');
+        loadingEl.className = 'fixed top-4 right-4 z-[9999] flex items-center gap-2 px-4 py-2.5 bg-white/95 border-2 border-dark rounded-full shadow-neo backdrop-blur-sm';
+        loadingEl.innerHTML = `<svg class="w-4 h-4 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M12 2a10 10 0 1 0 10 10"/></svg><span class="font-bold text-xs text-slate-500 uppercase tracking-widest">Connecting...</span>`;
+        document.body.appendChild(loadingEl);
+        window._playerLoadingEl = loadingEl;
+        const ping = () => bc?.postMessage({ type: 'player-ready' });
+        ping(); window._playerRetryInterval = setInterval(ping, 2000);
+        return;
+    }
+
     await requireAuth();
     initTheme();
     const themeBtn = document.getElementById('theme-toggle');
@@ -824,4 +946,11 @@ window.onload = async () => {
     await loadFromCloud();
     await renderWordSets();
     if (window.innerWidth < 768) toggleControlPanel(true);
+
+    if (bc) {
+        bc.onmessage = (evt) => { if (evt.data?.type === 'player-ready') broadcastFullState(); };
+    }
+    document.getElementById('btn-open-player')?.addEventListener('click', () => {
+        window.open(location.pathname + '?player=1', 'crossword-student', 'width=1280,height=800,menubar=no,toolbar=no,location=no,status=no');
+    });
 };

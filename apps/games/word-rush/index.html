@@ -130,9 +130,16 @@
             </div>
         </div>
         
-        <button onclick="toggleTheme()" class="btn-neo bg-eng_dark text-white p-3 rounded-xl border-4 border-white shadow-neo hover:bg-slate-700">
-            <i data-lucide="moon" class="w-6 h-6"></i>
-        </button>
+        <div class="flex gap-2 items-center">
+            <button id="btn-open-player" title="Open Student View"
+                class="btn-neo p-3 rounded-xl border-4 border-white"
+                style="background:#16a34a;color:#fff;">
+                <i data-lucide="monitor" class="w-6 h-6"></i>
+            </button>
+            <button onclick="toggleTheme()" class="btn-neo bg-eng_dark text-white p-3 rounded-xl border-4 border-white shadow-neo hover:bg-slate-700">
+                <i data-lucide="moon" class="w-6 h-6"></i>
+            </button>
+        </div>
     </nav>
 
     <main id="setup-screen" class="w-full max-w-3xl px-4 block relative">
@@ -387,11 +394,10 @@
 
         function randomizeCategory() {
             const randomCat = categories[Math.floor(Math.random() * categories.length)];
-            document.getElementById('categoryInput').value = randomCat;
-            // Add a little spin animation to the dice icon
+            const catInput = document.getElementById('categoryInput');
+            if (catInput) catInput.value = randomCat;
             const btn = document.querySelector('button[title="Random Category"] i');
-            btn.classList.add('animate-spin');
-            setTimeout(() => btn.classList.remove('animate-spin'), 500);
+            if (btn) { btn.classList.add('animate-spin'); setTimeout(() => btn.classList.remove('animate-spin'), 500); }
         }
 
         // --- Game Logic ---
@@ -419,6 +425,7 @@
             playSound('start');
             generateGrid();
             resetTurnTimer();
+            broadcastState({ immediate: true });
         }
 
         function restartGame() {
@@ -470,6 +477,7 @@
             lucide.createIcons();
             
             gameState.lettersLeft--;
+            broadcastState();
 
             // Sudden Death Logic
             if (settings.suddenDeath && gameState.currentTurnTime > 3) {
@@ -560,17 +568,115 @@
                 const percentage = (gameState.remainingTime / gameState.currentTurnTime) * 100;
                 bar.style.width = percentage + "%";
             }
+            broadcastState();
+        }
+
+        // ── Broadcast System ──
+        const IS_PLAYER_WINDOW = new URLSearchParams(location.search).has('player');
+        const bc = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('word-rush-sync') : null;
+        let _bcThrottle = null, _bcLastTime = 0;
+
+        function broadcastState(options = {}) {
+            if (!bc || IS_PLAYER_WINDOW) return;
+            const now = performance.now();
+            const minInterval = options.immediate ? 0 : 80;
+            if (_bcThrottle) clearTimeout(_bcThrottle);
+            const go = () => { _bcLastTime = performance.now(); _performBroadcast(); };
+            if (now - _bcLastTime >= minInterval) go();
+            else _bcThrottle = setTimeout(go, minInterval - (now - _bcLastTime));
+        }
+        function broadcastFullState() { broadcastState({ immediate: true }); }
+
+        function _performBroadcast() {
+            const gameVisible = !document.getElementById('game-screen')?.classList.contains('hidden');
+            const letterBtns = [];
+            document.querySelectorAll('#letterGrid button').forEach(btn => {
+                letterBtns.push({ text: btn.innerText, disabled: btn.disabled, className: btn.className });
+            });
+            bc.postMessage({
+                type: 'state-update',
+                gameVisible,
+                category: document.getElementById('displayCategory')?.innerText || '',
+                timerDisplay: document.getElementById('timerDisplay')?.innerText || '',
+                timerPct: (() => { const bar = document.getElementById('timerBar'); return bar ? bar.style.width : '100%'; })(),
+                letterBtns,
+            });
+        }
+
+        if (bc && IS_PLAYER_WINDOW) {
+            bc.onmessage = ({ data }) => {
+                if (data.type !== 'state-update') return;
+                if (window._playerRetryInterval) { clearInterval(window._playerRetryInterval); window._playerRetryInterval = null; }
+                window._playerLoadingEl?.remove(); window._playerLoadingEl = null;
+
+                if (data.gameVisible) {
+                    document.getElementById('setup-screen')?.classList.add('hidden');
+                    document.getElementById('game-screen')?.classList.remove('hidden');
+                    document.getElementById('game-screen')?.classList.add('block');
+
+                    const cat = document.getElementById('displayCategory');
+                    if (cat) cat.innerText = data.category;
+                    const td = document.getElementById('timerDisplay');
+                    if (td) td.innerText = data.timerDisplay;
+                    const bar = document.getElementById('timerBar');
+                    if (bar) bar.style.width = data.timerPct;
+
+                    const grid = document.getElementById('letterGrid');
+                    if (grid && data.letterBtns.length > 0) {
+                        if (grid.children.length !== data.letterBtns.length) { grid.innerHTML = ''; }
+                        data.letterBtns.forEach((btn, i) => {
+                            let el = grid.children[i];
+                            if (!el) { el = document.createElement('button'); grid.appendChild(el); }
+                            el.className = btn.className;
+                            el.innerHTML = btn.text;
+                            el.disabled = btn.disabled;
+                            el.style.pointerEvents = 'none';
+                        });
+                    }
+                } else {
+                    document.getElementById('game-screen')?.classList.add('hidden');
+                }
+
+                const sd = document.getElementById('student-info-display');
+                if (sd) sd.textContent = data.gameVisible ? data.category : 'Waiting...';
+            };
         }
 
         // Initialize Defaults
         async function initialize() {
+            if (IS_PLAYER_WINDOW) {
+                document.title = 'Student View | Word Rush';
+                document.getElementById('btn-open-player')?.style.setProperty('display', 'none');
+                document.getElementById('player-toolbar')?.classList.remove('hidden');
+                document.getElementById('setup-screen')?.classList.add('hidden');
+                lucide.createIcons();
+                const loadingEl = document.createElement('div');
+                loadingEl.className = 'fixed top-4 right-4 z-[9999] flex items-center gap-2 px-4 py-2.5 bg-white/95 border-4 border-eng_dark rounded-full shadow-neo';
+                loadingEl.innerHTML = `<svg class="w-4 h-4 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M12 2a10 10 0 1 0 10 10"/></svg><span class="font-bold text-xs text-slate-500 uppercase tracking-widest">Connecting...</span>`;
+                document.body.appendChild(loadingEl);
+                window._playerLoadingEl = loadingEl;
+                const ping = () => bc?.postMessage({ type: 'player-ready' });
+                ping(); window._playerRetryInterval = setInterval(ping, 2000);
+                return;
+            }
             await requireAuth();
             randomizeCategory();
             await loadFromCloud();
+            if (bc) bc.onmessage = (evt) => { if (evt.data?.type === 'player-ready') broadcastFullState(); };
+            document.getElementById('btn-open-player')?.addEventListener('click', () => {
+                window.open(location.pathname + '?player=1', 'rush-student', 'width=1280,height=800,menubar=no,toolbar=no,location=no,status=no');
+            });
         }
 
         initialize();
 
     </script>
+
+    <!-- Student Toolbar -->
+    <div id="player-toolbar" class="hidden fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 px-5 py-3 bg-white/95 dark:bg-slate-800/95 border-4 border-eng_dark rounded-2xl shadow-neo backdrop-blur-sm">
+        <span class="font-fredoka font-bold text-xs uppercase tracking-widest text-slate-400">Student View</span>
+        <div class="w-px h-5 bg-slate-300"></div>
+        <span id="student-info-display" class="font-fredoka text-sm font-bold text-eng_dark dark:text-white">Waiting...</span>
+    </div>
 </body>
 </html>
