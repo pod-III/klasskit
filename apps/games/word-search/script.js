@@ -707,7 +707,7 @@ function updateHUD() {
 }
 
 function handleInput(r, c, el) {
-    if (!State.isActive) return;
+    if (IS_PLAYER_WINDOW || !State.isActive) return;
     if (!State.selectionStart) {
         State.selectionStart = { r, c, el };
         el.classList.add('active-start');
@@ -724,7 +724,7 @@ function handleInput(r, c, el) {
 let lastHovered = { r: -1, c: -1 };
 
 function handleHover(r, c) {
-    if (!State.selectionStart || !State.isActive) return;
+    if (IS_PLAYER_WINDOW || !State.selectionStart || !State.isActive) return;
     if (r === lastHovered.r && c === lastHovered.c) return;
     lastHovered = { r, c };
 

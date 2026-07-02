@@ -1137,7 +1137,7 @@ window.addEventListener('drop', (e) => {
 
 // 4. Keyboard Shortcuts
 document.addEventListener('keydown', (e) => {
-    if (Game.images.length === 0) return;
+    if (IS_PLAYER_WINDOW || Game.images.length === 0) return;
     switch (e.code) {
         case 'Space':
             e.preventDefault();

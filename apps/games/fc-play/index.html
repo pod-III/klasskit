@@ -899,14 +899,15 @@ function broadcastState(options = {}) {
 }
 
 function _performBroadcast() {
-  // Delta-optimize: only send src for cards the player hasn't seen yet
+  // Delta-optimize: only send src when it has changed for a given card
   const cardPayload = appState.data.cards.map(c => {
-    const isNew = !_cardSrcCacheSent.has(c.id);
-    if (isNew && c.src) _cardSrcCacheSent.add(c.id);
+    const lastSentSrc = _cardSrcCacheSent.get(c.id);
+    const srcChanged = c.src !== lastSentSrc;
+    if (srcChanged) _cardSrcCacheSent.set(c.id, c.src);
     return {
       id: c.id, type: c.type, label: c.label,
       hidden: c.hidden, posX: c.posX, posY: c.posY, rot: c.rot,
-      src: isNew ? c.src : undefined,
+      src: srcChanged ? c.src : undefined,
     };
   });
 
@@ -944,6 +945,7 @@ function newSet() {
   updateActiveIndicator();
   renderLibrary();
   render();
+  broadcastFullState();
   showToast('New set ready', 'info');
 }
 
@@ -1009,6 +1011,7 @@ async function loadSet(id) {
   updateActiveIndicator();
   renderLibrary();
   render();
+  broadcastFullState();
   showToast(`Loaded ${item.name}`, 'info');
 }
 
@@ -1038,6 +1041,7 @@ async function deleteLibraryItem(id, event) {
     newSet();
   } else {
     renderLibrary();
+    broadcastFullState();
   }
   showToast('Set deleted', 'info');
 
@@ -1797,8 +1801,6 @@ function playerFitToScreen() {
 // BROADCAST — Player receiver
 // ============================================================
 if (bc && IS_PLAYER_WINDOW) {
-  const _playerImgCache = new Map();
-
   bc.onmessage = async ({ data }) => {
     if (data.type !== 'state-update') return;
 
@@ -1825,16 +1827,13 @@ if (bc && IS_PLAYER_WINDOW) {
       const existing = existingMap.get(cd.id);
       let src = cd.src !== undefined ? cd.src : (existing?.src ?? null);
 
-      // Pre-load image blob into cache if new src provided
-      if (cd.src && !_playerImgCache.has(cd.id)) {
+      // Pre-load image blob if a non-empty src is provided
+      if (cd.src) {
         await new Promise(res => {
           const img = new Image();
           img.onload = img.onerror = res;
           img.src = cd.src;
         });
-        _playerImgCache.set(cd.id, cd.src);
-      } else if (!cd.src && _playerImgCache.has(cd.id)) {
-        src = _playerImgCache.get(cd.id);
       }
 
       return { ...cd, src };

@@ -924,6 +924,7 @@
             clearInterval(state.timerId);
             dom.game.classList.add('hidden');
             dom.results.classList.remove('hidden');
+            broadcastFullState();
 
             // Populate Result List
             dom.finalList.innerHTML = '';
@@ -946,6 +947,7 @@
         const resetToConsole = () => {
             dom.results.classList.add('hidden');
             dom.console.classList.remove('hidden');
+            broadcastFullState();
         };
 
         // --- EVENT LISTENERS ---
@@ -965,7 +967,7 @@
         // Keyboard Controls
         document.addEventListener('keydown', (e) => {
             // Only active if game screen is visible
-            if (dom.game.classList.contains('hidden')) return;
+            if (IS_PLAYER_WINDOW || dom.game.classList.contains('hidden')) return;
 
             if (e.code === 'Space') {
                 e.preventDefault(); // Prevent scrolling
@@ -993,9 +995,11 @@
 
         function _performBroadcast() {
             const gameVisible = !dom.game.classList.contains('hidden');
+            const resultsVisible = !dom.results.classList.contains('hidden');
             bcFlash.postMessage({
                 type: 'state-update',
                 gameVisible,
+                resultsVisible,
                 wordText: dom.gameUI.word?.textContent || '',
                 wordClassName: dom.gameUI.word?.className || '',
                 timerText: dom.gameUI.timer?.textContent || '',
@@ -1014,7 +1018,11 @@
                 if (window._playerRetryInterval) { clearInterval(window._playerRetryInterval); window._playerRetryInterval = null; }
                 window._playerLoadingEl?.remove(); window._playerLoadingEl = null;
 
-                if (data.gameVisible) {
+                if (data.resultsVisible) {
+                    dom.console.classList.add('hidden');
+                    dom.game.classList.add('hidden');
+                    dom.results.classList.remove('hidden');
+                } else if (data.gameVisible) {
                     dom.console.classList.add('hidden');
                     dom.results.classList.add('hidden');
                     dom.game.classList.remove('hidden');
@@ -1032,16 +1040,19 @@
                     dom.buttons.abort?.style.setProperty('display', 'none');
                 } else {
                     dom.game.classList.add('hidden');
+                    dom.results.classList.add('hidden');
+                    dom.console.classList.remove('hidden');
                 }
 
                 const sd = document.getElementById('student-info-display');
-                if (sd) sd.textContent = data.gameVisible ? data.countBadgeText : 'Waiting...';
+                if (sd) sd.textContent = data.gameVisible ? data.countBadgeText : (data.resultsVisible ? 'Finished' : 'Waiting...');
             };
         }
 
         // Initialize
         window.addEventListener('load', async () => {
             if (IS_PLAYER_WINDOW) {
+                document.documentElement.classList.add('player-mode');
                 document.title = 'Student View | Flashcards';
                 document.getElementById('btn-open-player')?.style.setProperty('display', 'none');
                 document.getElementById('player-toolbar')?.classList.remove('hidden');

@@ -894,7 +894,8 @@ document.querySelectorAll('.grid-btn').forEach(b => {
         });
         e.target.classList.remove('bg-slate-100', 'dark:bg-slate-800', 'text-slate-400', 'dark:text-slate-500');
         e.target.classList.add('bg-blue', 'text-white', 'shadow-neo-sm');
-        GRID_SIZE = parseInt(e.target.dataset.size);
+        GRID_ROWS = parseInt(e.target.dataset.size);
+        GRID_COLS = parseInt(e.target.dataset.size);
         saveGameState();
     }
 });

@@ -391,10 +391,13 @@
         }
 
         function _performBroadcast() {
+            const setupPanel = document.getElementById('setup-panel');
+            const gamePanel = document.getElementById('game-panel');
+            const endPanel = document.getElementById('end-panel');
             bc.postMessage({
                 type: 'state-update',
-                items,
                 currentIndex,
+                totalItems: items.length,
                 isRevealed,
                 currentMode,
                 scrambledHTML: document.getElementById('display-word')?.innerHTML || '',
@@ -402,7 +405,9 @@
                 realWord: document.getElementById('real-word')?.textContent || '',
                 answerVisible: !document.getElementById('answer-reveal')?.classList.contains('hidden'),
                 statusHTML: document.getElementById('status-text')?.innerHTML || '',
-                gameVisible: !document.getElementById('game-panel')?.classList.contains('hidden'),
+                setupVisible: setupPanel && !setupPanel.classList.contains('hidden'),
+                gameVisible: gamePanel && !gamePanel.classList.contains('hidden'),
+                endVisible: endPanel && !endPanel.classList.contains('hidden'),
             });
         }
 
@@ -417,13 +422,15 @@
                 currentIndex = data.currentIndex;
                 isRevealed = data.isRevealed;
                 currentMode = data.currentMode;
-                items = data.items || [];
+
+                const setupPanel = document.getElementById('setup-panel');
+                const gamePanel = document.getElementById('game-panel');
+                const endPanel = document.getElementById('end-panel');
+                if (setupPanel) setupPanel.classList.toggle('hidden', !data.setupVisible);
+                if (gamePanel) gamePanel.classList.toggle('hidden', !data.gameVisible);
+                if (endPanel) endPanel.classList.toggle('hidden', !data.endVisible);
 
                 if (data.gameVisible) {
-                    document.getElementById('setup-panel')?.classList.add('hidden');
-                    document.getElementById('end-panel')?.classList.add('hidden');
-                    document.getElementById('game-panel')?.classList.remove('hidden');
-
                     const disp = document.getElementById('display-word');
                     if (disp) {
                         if (data.scrambledClassName) disp.className = data.scrambledClassName;
@@ -451,11 +458,15 @@
                     if (badge) badge.textContent = data.currentMode === 'word' ? 'Word Mode' : 'Sentence Mode';
 
                     document.getElementById('current-count').textContent = data.currentIndex + 1;
-                    document.getElementById('total-count').textContent = data.items?.length || '';
+                    document.getElementById('total-count').textContent = data.totalItems || '';
                 }
 
                 const sd = document.getElementById('student-round-display');
-                if (sd) sd.textContent = data.gameVisible ? `${data.currentIndex + 1} / ${data.items?.length || '?'}` : 'SETUP';
+                if (sd) {
+                    if (data.gameVisible) sd.textContent = `${data.currentIndex + 1} / ${data.totalItems || '?'}`;
+                    else if (data.endVisible) sd.textContent = 'Finished';
+                    else sd.textContent = 'SETUP';
+                }
             };
         }
         // =====================================================================
@@ -550,7 +561,7 @@
 
             // Keyboard shortcuts
             document.addEventListener('keydown', (e) => {
-                if (elGame.classList.contains('hidden')) return;
+                if (IS_PLAYER_WINDOW || elGame.classList.contains('hidden')) return;
 
                 if (e.key === 'Enter' || e.code === 'Space') {
                     if (!isRevealed) revealWord();
@@ -724,6 +735,7 @@
             elGame.classList.add('hidden');
             elEnd.classList.remove('hidden');
             confetti({ particleCount: 150, spread: 100, origin: { y: 0.6 } });
+            broadcastFullState();
         }
 
         function resetGame() {
@@ -732,6 +744,7 @@
             elSetup.classList.remove('hidden');
             btnNext.onclick = nextWord;
             btnNext.innerText = "NEXT";
+            broadcastFullState();
         }
 
         async function exitGame() {
@@ -746,6 +759,7 @@
                 elGame.classList.add('hidden');
                 elEnd.classList.add('hidden');
                 elSetup.classList.remove('hidden');
+                broadcastFullState();
             }
         }
 

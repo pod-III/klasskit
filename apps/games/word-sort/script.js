@@ -433,7 +433,7 @@ function createWordChip(word, colorIndex) {
 
 // Drag & Drop Handlers
 function handleDragStart(e) {
-    if (!gameActive) return;
+    if (IS_PLAYER_WINDOW || !gameActive) return;
     e.preventDefault();
     e.stopPropagation();
 

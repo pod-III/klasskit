@@ -552,6 +552,7 @@
                 currentWordIndex,
                 totalWords: words.length,
                 messageText: document.getElementById('message-box')?.textContent || '',
+                consoleVisible: !teacherConsole.classList.contains('hidden'),
             });
         }
 
@@ -570,9 +571,15 @@
                 gameActive = data.gameActive;
                 turnMode = data.turnMode;
 
-                // Always hide setup, always show game field
-                document.getElementById('teacher-console')?.classList.add('hidden');
-                document.getElementById('game-section')?.classList.remove('hidden');
+                // Show/hide setup vs game field based on host
+                const consoleVisible = data.consoleVisible;
+                const tc = document.getElementById('teacher-console');
+                const gs = document.getElementById('game-section');
+                if (tc) tc.classList.toggle('hidden', !consoleVisible);
+                if (gs) {
+                    gs.classList.toggle('hidden', consoleVisible);
+                    gs.classList.toggle('flex', !consoleVisible);
+                }
                 // Hide host-only controls
                 document.getElementById('next-round-btn')?.classList.add('hidden');
                 const exitBtn = document.querySelector('#game-section .flex.gap-4.mt-8 button[onclick="returnToConsole()"]');
@@ -693,6 +700,8 @@
                 document.getElementById('word-display').innerHTML = "";
                 AudioEngine.win();
                 confetti({ particleCount: 150, spread: 100, origin: { y: 0.6 } });
+                gameActive = false;
+                broadcastFullState();
                 return;
             }
 
@@ -1004,6 +1013,7 @@
         function returnToConsole() {
             gameSection.classList.add('hidden');
             teacherConsole.classList.remove('hidden');
+            broadcastFullState();
         }
 
         // Init
@@ -1071,7 +1081,7 @@
 
         // Keyboard Listener
         document.addEventListener('keydown', (e) => {
-            if(!gameActive) return;
+            if (IS_PLAYER_WINDOW || !gameActive) return;
             const key = e.key.toUpperCase();
             if (key.match(/^[A-Z]$/)) handleGuess(key);
         });
