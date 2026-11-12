@@ -4,61 +4,32 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Running Dictation Generator — KlassKit</title>
+    <title>Running Dictation — KlassKit</title>
     <link rel="icon" type="image/x-icon" href="../../../media/icon.ico" />
     <link rel="icon" type="image/webp" href="../../../media/icon.webp" />
 
-    <!-- Apply the saved theme before first paint (syncs with KlassKit Hub) -->
-    <script>
-        (function () {
-            function readTheme(key) {
-                try {
-                    var raw = localStorage.getItem(key);
-                    if (raw == null) return null;
-                    try { return JSON.parse(raw); } catch (e) { return raw; }
-                } catch (e) { return null; }
-            }
-            function syncTheme() {
-                var toolTheme = readTheme('theme_running-dictation') || readTheme('klasskit-theme');
-                var hubTheme = readTheme('theme_hub');
-                var isDark = toolTheme
-                    ? toolTheme === 'dark'
-                    : hubTheme
-                        ? hubTheme === 'dark'
-                        : window.matchMedia('(prefers-color-scheme: dark)').matches;
-                document.documentElement.classList.toggle('dark', isDark);
-            }
-            syncTheme();
-            window.addEventListener('storage', function (e) {
-                if (e.key === 'theme_hub' || e.key === 'theme_running-dictation' || e.key === 'klasskit-theme') {
-                    syncTheme();
-                }
-            });
-        })();
-    </script>
+    <!-- Fonts: Fredoka (Headings) & Nunito (Body) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@600;700&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
 
-    <!-- Supabase Auth & Cloud Persistence -->
+    <!-- Supabase Auth & Persistence -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.105.4"></script>
     <script src="/supabase.js"></script>
 
-    <!-- Fonts -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
-
-    <!-- Libraries -->
+    <!-- Tailwind CSS & Lucide Icons -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@1.16.0"></script>
-
-    <!-- Shared KlassKit Styles -->
-    <link rel="stylesheet" href="../../../css/base.css" />
-    <link rel="stylesheet" href="../../../css/components.css" />
 
     <script>
         tailwind.config = {
             darkMode: 'class',
             theme: {
                 extend: {
+                    fontFamily: {
+                        heading: ['Fredoka', 'sans-serif'],
+                        body: ['Nunito', 'sans-serif'],
+                    },
                     colors: {
                         pink: '#ff4785',
                         orange: '#ff7e33',
@@ -66,67 +37,108 @@
                         blue: '#1ea7fd',
                         dark: '#1e293b',
                         chalk: '#f8fafc',
-                        brand: {
-                            pink: '#ff4785',
-                            orange: '#ff7e33',
-                            green: '#00d063',
-                            blue: '#1ea7fd',
-                            dark: '#1e293b',
-                            chalk: '#f8fafc',
-                        }
                     },
-                    fontFamily: {
-                        heading: ['Fredoka', 'sans-serif'],
-                        body: ['Nunito', 'sans-serif'],
+                    borderWidth: {
+                        '3': '3px',
                     },
                     boxShadow: {
-                        'hard': '4px 4px 0 0 var(--shadow)',
-                        'hard-md': '6px 6px 0 0 var(--shadow)',
-                        'hard-lg': '8px 8px 0 0 var(--shadow)',
-                        'hard-sm': '2px 2px 0 0 var(--shadow)',
-                        'inner-hard': 'inset 3px 3px 0 0 rgba(30, 41, 59, 0.12)',
+                        'hard': '0 4px 0 var(--shadow)',
+                        'hard-sm': '0 2px 0 var(--shadow)',
+                        'hard-lg': '0 8px 0 var(--shadow)',
+                    },
+                    keyframes: {
+                        'pop-in': {
+                            '0%': { opacity: '0', transform: 'scale(0.88)' },
+                            '70%': { transform: 'scale(1.02)' },
+                            '100%': { opacity: '1', transform: 'scale(1)' },
+                        },
+                        'slide-down': {
+                            '0%': { opacity: '0', transform: 'translateY(-8px)' },
+                            '100%': { opacity: '1', transform: 'translateY(0)' },
+                        },
                     },
                     animation: {
-                        'pop-in': 'pop-in 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards',
-                        'slide-down': 'slide-down 0.25s cubic-bezier(0.2, 0.8, 0.2, 1) forwards',
-                    }
-                },
-            },
-        };
+                        'pop-in': 'pop-in 0.25s cubic-bezier(0.2, 1.3, 0.4, 1) both',
+                        'slide-down': 'slide-down 0.2s ease-out both',
+                    },
+                }
+            }
+        }
     </script>
 
+    <!-- Theme synchronization with KlassKit Hub -->
+    <script>
+        (function () {
+            function syncTheme() {
+                try {
+                    const toolTheme = localStorage.getItem('theme_running-dictation');
+                    const hubTheme = localStorage.getItem('theme_hub');
+                    const legacyTheme = localStorage.getItem('klasskit-theme');
+                    const chosen = toolTheme || hubTheme || legacyTheme;
+                    if (chosen === 'dark' || (!chosen && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+                        document.documentElement.classList.add('dark');
+                    } else {
+                        document.documentElement.classList.remove('dark');
+                    }
+                } catch (e) { /* ignore */ }
+            }
+            syncTheme();
+            window.addEventListener('storage', (e) => {
+                if (e.key === 'theme_hub' || e.key === 'theme_running-dictation') syncTheme();
+            });
+        })();
+    </script>
+
+    <!-- Global KlassKit Design System CSS -->
+    <link rel="stylesheet" href="../../../css/base.css">
+    <link rel="stylesheet" href="../../../css/components.css">
+
     <style>
-        /* ---------- Theme tokens (light = chalk paper, dark = OLED slate) ---------- */
+        /* ---------- Theme tokens ---------- */
         :root {
+            --color-pink: #ff4785;
+            --color-orange: #ff7e33;
+            --color-green: #00d063;
+            --color-blue: #1ea7fd;
+            --bg-primary: #f8fafc;
+            --bg-secondary: rgba(255, 255, 255, 0.85);
+            --border-primary: #1e293b;
             --line: #1e293b;
-            --ink: #1e293b;
-            --surface: #ffffff;
-            --muted: #64748b;
             --shadow: #1e293b;
+            --surface: #ffffff;
+            --ink: #1e293b;
+            --muted: #64748b;
+            --track: #e2e8f0;
             --dots: #cbd5e1;
             --word-hover: #e2e8f0;
-            --track: #f1f5f9;
         }
 
-        .dark {
+        html.dark {
+            --bg-primary: #020617;
+            --bg-secondary: rgba(15, 23, 42, 0.85);
+            --border-primary: #64748b;
             --line: #64748b;
-            --ink: #f8fafc;
+            --shadow: #020617;
             --surface: #1e293b;
+            --ink: #f8fafc;
             --muted: #94a3b8;
-            --shadow: #000000;
+            --track: #0f172a;
             --dots: #334155;
             --word-hover: #334155;
-            --track: #0f172a;
         }
 
-        body {
-            overflow: hidden;
-            -webkit-tap-highlight-color: transparent;
-        }
-
+        /* Prevent mobile bottom-nav padding from base.css on full-screen tool */
         @media (max-width: 768px) {
             body { padding-bottom: 0 !important; }
         }
+
+        /* ---------- Glassmorphism ---------- */
+        .glass {
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+        }
+
+        .glass-edge { border: 1px solid rgba(255, 255, 255, 0.3); }
 
         /* ---------- Chunky physical buttons ---------- */
         .btn-chunky {
@@ -157,21 +169,58 @@
         }
 
         .btn-chunky:focus-visible,
-        .chunky-range:focus-visible {
+        .chunky-range:focus-visible,
+        .view-tab:focus-visible,
+        .link-btn:focus-visible,
+        input[type="checkbox"]:focus-visible,
+        input[type="number"]:focus-visible {
             outline: 3px solid var(--color-blue);
             outline-offset: 2px;
         }
 
-        /* ---------- Segmented radio buttons ---------- */
+        /* ---------- Step badges & labels ---------- */
+        .step-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 1.35rem;
+            height: 1.35rem;
+            border-radius: 0.45rem;
+            font-family: 'Fredoka', sans-serif;
+            font-size: 0.72rem;
+            font-weight: 700;
+            background: var(--color-blue);
+            color: #fff;
+            border: 2px solid var(--line);
+            box-shadow: 1px 1px 0 var(--shadow);
+            flex-shrink: 0;
+        }
+
         .field-label {
             font-family: 'Fredoka', sans-serif;
             font-size: 0.75rem;
             font-weight: 700;
-            letter-spacing: 0.08em;
+            letter-spacing: 0.06em;
             text-transform: uppercase;
+            color: var(--ink);
+        }
+
+        .sub-label {
+            font-size: 11px;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: #94a3b8;
+        }
+
+        .step-help {
+            font-size: 11.5px;
+            font-weight: 600;
+            line-height: 1.45;
             color: var(--muted);
         }
 
+        /* ---------- Segmented radio buttons ---------- */
         .seg { position: relative; display: block; }
         .seg input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
 
@@ -180,9 +229,9 @@
             align-items: center;
             justify-content: center;
             gap: 0.35rem;
-            padding: 0.5rem 0.25rem;
+            padding: 0.45rem 0.25rem;
             font-family: 'Fredoka', sans-serif;
-            font-size: 0.75rem;
+            font-size: 0.72rem;
             font-weight: 700;
             letter-spacing: 0.04em;
             text-transform: uppercase;
@@ -244,9 +293,7 @@
             transition: transform 0.1s ease;
         }
 
-        .chunky-range::-webkit-slider-thumb:hover {
-            transform: scale(1.1);
-        }
+        .chunky-range::-webkit-slider-thumb:hover { transform: scale(1.1); }
 
         .chunky-range::-moz-range-thumb {
             width: 18px;
@@ -264,23 +311,39 @@
             user-select: text;
         }
 
-        /* ---------- Interactive text (screen) ---------- */
-        #interactive-area {
-            font-size: 1.45rem;
-            line-height: 2.05;
+        /* ---------- View tabs ---------- */
+        .view-tab {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            padding: 0.4rem 0.7rem;
+            border-radius: 0.75rem;
+            font-family: 'Fredoka', sans-serif;
+            font-size: 0.72rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            border: 2px solid transparent;
+            color: var(--ink);
+            transition: background-color 0.15s ease, transform 0.12s ease, border-color 0.15s ease;
+        }
+        .view-tab:hover { transform: translateY(-1px); background: var(--word-hover); }
+        .view-tab[aria-selected="true"] {
+            background: var(--color-green);
+            color: #1e293b;
+            border-color: var(--line);
+            box-shadow: 0 2px 0 var(--shadow);
         }
 
+        /* ---------- Interactive text (screen) ---------- */
         .ln {
             white-space: pre-wrap;
             overflow-wrap: anywhere;
+            margin-bottom: 0.5rem;
+            line-height: 2.05;
         }
 
         .ln-gap { height: 1.5rem; }
-
-        #interactive-area.lazy .ln {
-            content-visibility: auto;
-            contain-intrinsic-size: auto 3rem;
-        }
 
         .word {
             cursor: pointer;
@@ -289,7 +352,8 @@
             border: 2px solid transparent;
             border-radius: 8px;
             user-select: none;
-            touch-action: manipulation;
+            -webkit-user-select: none;
+            touch-action: none;
             transition: background-color 0.15s ease, border-color 0.15s ease, transform 0.12s ease;
         }
 
@@ -309,6 +373,27 @@
             transform: translateY(-2px);
         }
 
+        #interactive-area.painting { cursor: grabbing; }
+
+        /* ---------- A4 Sheet Preview Card (on screen) ---------- */
+        .sheet-card {
+            box-sizing: border-box;
+            width: 100%;
+            max-width: 210mm;
+            min-height: 297mm;
+            margin: 0 auto;
+            border: 3px solid var(--line);
+            border-radius: 1.5rem;
+            background: var(--surface);
+            box-shadow: 4px 4px 0 0 var(--shadow);
+            padding: clamp(18px, 3.5vw, 15mm);
+        }
+
+        html[data-orient="landscape"] .sheet-card {
+            max-width: 297mm;
+            min-height: 210mm;
+        }
+
         /* ---------- Printed & Preview text styles ---------- */
         .wall-text {
             white-space: pre-wrap;
@@ -317,14 +402,83 @@
             font-weight: 700;
         }
 
+        /* Numbered Sentence Strips (Cut-out cards) */
+        .strips-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+        }
+
+        .strip-card {
+            position: relative;
+            display: flex;
+            align-items: flex-start;
+            gap: 14px;
+            padding: 14px 18px;
+            border: 3px dashed #1e293b;
+            border-radius: 14px;
+            background: #ffffff;
+            color: #1e293b;
+            break-inside: avoid;
+            page-break-inside: avoid;
+        }
+
+        .dark .sheet-card .strip-card {
+            border-color: #64748b;
+            background: #0f172a;
+            color: #f8fafc;
+        }
+
+        .strip-num {
+            flex-shrink: 0;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 44px;
+            height: 44px;
+            padding: 0 10px;
+            border-radius: 12px;
+            border: 3px solid #1e293b;
+            background: #ff7e33;
+            color: #1e293b;
+            font-family: 'Fredoka', sans-serif;
+            font-size: 1.25rem;
+            font-weight: 700;
+            box-shadow: 2px 2px 0 #1e293b;
+        }
+
+        .strip-body {
+            flex: 1;
+            font-weight: 800;
+            line-height: 1.5;
+            overflow-wrap: anywhere;
+        }
+
+        .strip-cut-tag {
+            position: absolute;
+            top: -11px;
+            right: 14px;
+            padding: 1px 8px;
+            font-family: 'Fredoka', sans-serif;
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            background: #f8fafc;
+            color: #64748b;
+            border: 1.5px solid #94a3b8;
+            border-radius: 999px;
+        }
+
         .ws-text {
             white-space: pre-wrap;
             overflow-wrap: break-word;
-            line-height: 2.25;
+            line-height: 2.3;
             font-weight: 600;
         }
 
         .ws-text .blank {
+            position: relative;
             display: inline-block;
             min-width: 3.5em;
             padding: 0 4px;
@@ -335,22 +489,81 @@
             user-select: none;
         }
 
-        #print-area .ws-text .blank {
-            border-bottom-color: #1e293b;
+        .ws-text .blank::before {
+            content: attr(data-n);
+            position: absolute;
+            left: 2px;
+            top: -0.15em;
+            font-family: 'Fredoka', sans-serif;
+            font-size: 0.55em;
+            font-weight: 700;
+            line-height: 1;
+            color: var(--ink);
+        }
+
+        /* Clue-visible blanks (first-letter or letter-count dashes) */
+        .ws-text .blank-clue {
+            position: relative;
+            display: inline-block;
+            padding: 0 4px 0 18px;
+            margin: 0 2px;
+            font-weight: 800;
+            letter-spacing: 0.08em;
+            color: var(--ink);
+            border-bottom: 3px solid currentColor;
+            user-select: none;
+        }
+
+        .ws-text .blank-clue::before {
+            content: attr(data-n);
+            position: absolute;
+            left: 2px;
+            top: -0.15em;
+            font-family: 'Fredoka', sans-serif;
+            font-size: 0.55em;
+            font-weight: 700;
+            letter-spacing: 0;
+            line-height: 1;
+            color: #ff4785;
+        }
+
+        .ws-text .blank-dashes {
+            border-bottom: none;
+            letter-spacing: 0.14em;
+            font-family: 'Fredoka', sans-serif;
+        }
+
+        /* Teacher Answer Key word pill */
+        .key-word {
+            display: inline-block;
+            line-height: 1.35;
+            padding: 0 6px;
+            margin: 0 1px;
+            font-weight: 800;
+            border-radius: 7px;
+            border: 2px solid var(--line);
+            background: #ff4785;
+            color: #fff;
+        }
+        .key-word sup {
+            font-family: 'Fredoka', sans-serif;
+            font-size: 0.62em;
+            margin-right: 3px;
+            opacity: 0.92;
         }
 
         .word-bank-box {
             margin-top: 1.5rem;
             padding: 1rem 1.25rem;
-            border: 3px solid #1e293b;
-            border-radius: 0.75rem;
+            border: 3px solid var(--line);
+            border-radius: 0.9rem;
             break-inside: avoid;
         }
 
         .word-bank-box h3 {
             margin: 0 0 0.6rem;
             font-family: 'Fredoka', sans-serif;
-            font-size: 1rem;
+            font-size: 0.95rem;
             text-transform: uppercase;
             letter-spacing: 0.05em;
         }
@@ -375,67 +588,162 @@
             overflow: hidden !important;
         }
 
-        /* ---------- PRINT (always light, whatever the on-screen theme) ---------- */
-        @page { size: A4 portrait; margin: 15mm; }
+        /* ---------- PRINT (always light, strict A4 dimensions whatever the on-screen theme) ---------- */
+        @page { size: A4 portrait; margin: 0; }
 
         #print-area { color: #1e293b; font-family: 'Nunito', sans-serif; }
 
         @media print {
             html, body {
                 display: block !important;
-                width: auto !important;
+                width: 210mm !important;
                 height: auto !important;
                 padding: 0 !important;
                 margin: 0 !important;
                 overflow: visible !important;
                 background: #fff !important;
                 background-image: none !important;
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
             }
 
-            #print-area { display: block !important; width: 100%; }
+            html[data-orient="landscape"],
+            html[data-orient="landscape"] body {
+                width: 297mm !important;
+            }
+
+            body > :not(#print-area) {
+                display: none !important;
+            }
+
+            #print-area {
+                display: block !important;
+                width: 100% !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+            }
+
+            .page-wall-text,
+            .page-worksheet,
+            .page-teacher-key {
+                width: 210mm !important;
+                min-height: 297mm !important;
+                padding: 15mm !important;
+                margin: 0 auto !important;
+                box-sizing: border-box !important;
+                background: #fff !important;
+            }
+
+            html[data-orient="landscape"] .page-wall-text,
+            html[data-orient="landscape"] .page-worksheet,
+            html[data-orient="landscape"] .page-teacher-key {
+                width: 297mm !important;
+                min-height: 210mm !important;
+            }
 
             html[data-print="wall"] .page-worksheet,
-            html[data-print="sheet"] .page-wall-text { display: none !important; }
+            html[data-print="wall"] .page-teacher-key,
+            html[data-print="sheet"] .page-wall-text,
+            html[data-print="sheet"] .page-teacher-key,
+            html[data-print="key"] .page-wall-text,
+            html[data-print="key"] .page-worksheet { display: none !important; }
 
-            html[data-print="both"] .page-wall-text { break-after: page; page-break-after: always; }
+            html[data-print="all"] .page-wall-text,
+            html[data-print="all"] .page-worksheet { break-after: page; page-break-after: always; }
 
-            .page-wall-text h1,
-            .worksheet-title h1 {
-                font-family: 'Fredoka', sans-serif;
-                text-transform: uppercase;
-                margin: 0;
+            #print-area .ws-text .blank,
+            #print-area .ws-text .blank-clue {
+                border-bottom-color: #1e293b;
+                color: #1e293b;
+            }
+            #print-area .ws-text .blank { color: transparent; }
+            #print-area .ws-text .blank::before,
+            #print-area .ws-text .blank-clue::before { color: #1e293b; }
+
+            #print-area .word-bank-box { border-color: #1e293b; }
+            #print-area .strip-card { border-color: #1e293b; background: #fff; color: #1e293b; }
+            #print-area .key-word {
+                background: #ffe0ea;
+                color: #1e293b;
+                border-color: #ff4785;
             }
 
-            .page-wall-text h1 {
-                font-size: 2rem;
-                margin-bottom: 1.75rem;
+            .wall-header {
+                margin-bottom: 1.25rem;
                 padding-bottom: 10px;
                 border-bottom: 4px solid #1e293b;
-            }
-
-            .worksheet-header {
                 display: flex;
                 justify-content: space-between;
                 align-items: flex-end;
-                margin-bottom: 1.75rem;
-                padding-bottom: 10px;
-                border-bottom: 4px solid #1e293b;
-                break-inside: avoid;
+                gap: 1rem;
             }
 
-            .worksheet-title h1 { font-size: 2.3rem; }
+            .wall-header h1,
+            .ws-title h1 {
+                font-family: 'Fredoka', sans-serif;
+                text-transform: uppercase;
+                font-size: 2.2rem;
+                line-height: 1.05;
+                margin: 0;
+            }
 
-            .worksheet-meta {
+            .wall-badge {
+                display: inline-block;
+                margin-top: 6px;
+                padding: 2px 12px;
+                font-family: 'Fredoka', sans-serif;
+                font-size: 0.95rem;
+                font-weight: 700;
+                text-transform: uppercase;
+                letter-spacing: 0.05em;
+                border: 2.5px solid #1e293b;
+                border-radius: 999px;
+                background: #ffedd5;
+            }
+
+            .ws-header {
+                display: flex;
+                justify-content: space-between;
+                align-items: flex-end;
+                gap: 1rem;
+                margin-bottom: 1.25rem;
+                padding-bottom: 10px;
+                border-bottom: 4px solid #1e293b;
+            }
+
+            .ws-title p {
+                font-size: 0.95rem;
+                font-weight: 800;
+                color: #475569;
+                margin: 6px 0 0;
+            }
+
+            .ws-meta {
                 display: flex;
                 flex-direction: column;
-                gap: 12px;
-                min-width: 240px;
-                font-size: 1.15rem;
+                gap: 8px;
+                min-width: 230px;
+                font-size: 1.05rem;
                 font-weight: 700;
             }
 
             .meta-line { display: flex; justify-content: space-between; align-items: flex-end; }
             .meta-line span:last-child { flex-grow: 1; margin-left: 10px; border-bottom: 2px solid #1e293b; }
+
+            .key-list {
+                margin-top: 1.25rem;
+                padding-top: 0.75rem;
+                border-top: 3px solid #1e293b;
+                columns: 3;
+                column-gap: 1.5rem;
+                list-style: decimal;
+                padding-left: 1.5rem;
+                font-weight: 700;
+                font-size: 11.5pt;
+                line-height: 1.75;
+            }
         }
     </style>
     <style id="page-style"></style>
@@ -447,24 +755,30 @@
     <div class="print:hidden relative w-full max-w-[1550px] h-full flex flex-col md:flex-row overflow-hidden bg-white dark:bg-slate-900 border-4 border-dark dark:border-slate-500 rounded-[2rem] shadow-hard-lg">
 
         <!-- SIDEBAR: TEACHER CONTROLS -->
-        <aside id="sidebar" class="w-full md:w-[400px] h-[46%] md:h-full shrink-0 flex flex-col bg-white dark:bg-slate-900 border-b-4 md:border-b-0 md:border-r-4 border-dark dark:border-slate-500">
+        <aside id="sidebar" class="w-full md:w-[400px] lg:w-[430px] h-[46%] md:h-full shrink-0 flex flex-col bg-white dark:bg-slate-900 border-b-4 md:border-b-0 md:border-r-4 border-dark dark:border-slate-500">
 
             <!-- Header -->
-            <div class="p-4 lg:p-5 shrink-0 flex justify-between items-center gap-3 bg-blue/10 dark:bg-slate-800/80 border-b-4 border-dark dark:border-slate-500">
+            <div class="glass p-4 lg:p-5 shrink-0 flex justify-between items-center gap-3 bg-blue/10 dark:bg-slate-800/80 border-b-4 border-dark dark:border-slate-500">
                 <div class="flex items-center gap-3 min-w-0">
-                    <div class="w-11 h-11 rounded-2xl bg-blue border-3 border-dark flex items-center justify-center shadow-hard-sm shrink-0 -rotate-2">
-                        <i data-lucide="footprints" stroke-width="2.75" class="w-6 h-6 text-white"></i>
+                    <div class="w-11 h-11 rounded-2xl bg-orange border-3 border-dark flex items-center justify-center shadow-hard-sm shrink-0 -rotate-2">
+                        <i data-lucide="footprints" stroke-width="2.75" class="w-6 h-6 text-dark"></i>
                     </div>
                     <div class="min-w-0">
                         <h1 class="font-heading text-2xl uppercase leading-none tracking-tight truncate">Running Dictation</h1>
-                        <p class="mt-1 text-[11px] font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-widest">KlassKit Tools</p>
+                        <p class="mt-1 text-[11px] font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-widest">Wall Poster &amp; Worksheet Maker</p>
                     </div>
                 </div>
-                <button id="theme-btn" type="button" aria-pressed="false" aria-label="Toggle dark mode" title="Toggle Dark Mode"
-                    class="btn-chunky shrink-0 w-10 h-10 rounded-xl flex items-center justify-center bg-white dark:bg-slate-800 text-dark dark:text-white">
-                    <i data-lucide="moon" stroke-width="2.5" class="w-5 h-5 dark:hidden"></i>
-                    <i data-lucide="sun" stroke-width="2.5" class="w-5 h-5 hidden dark:block text-orange"></i>
-                </button>
+                <div class="flex items-center gap-2 shrink-0">
+                    <button id="help-btn" type="button" title="How to Play Running Dictation" aria-label="How to play"
+                        class="btn-chunky w-10 h-10 rounded-xl flex items-center justify-center bg-orange/20 text-dark dark:text-white">
+                        <i data-lucide="help-circle" stroke-width="2.5" class="w-5 h-5 text-orange"></i>
+                    </button>
+                    <button id="theme-btn" type="button" aria-pressed="false" aria-label="Toggle dark mode" title="Toggle Dark Mode"
+                        class="btn-chunky w-10 h-10 rounded-xl flex items-center justify-center bg-white dark:bg-slate-800 text-dark dark:text-white">
+                        <i data-lucide="moon" stroke-width="2.5" class="w-5 h-5 dark:hidden"></i>
+                        <i data-lucide="sun" stroke-width="2.5" class="w-5 h-5 hidden dark:block text-orange"></i>
+                    </button>
+                </div>
             </div>
 
             <!-- Scrollable controls -->
@@ -486,121 +800,192 @@
                     </button>
                 </div>
 
-                <!-- Source text -->
-                <div class="flex-1 flex flex-col gap-2 min-h-[175px]">
-                    <div class="flex items-center justify-between">
-                        <label for="source-text" class="field-label flex items-center gap-1.5">
-                            <i data-lucide="file-text" stroke-width="2.5" class="w-4 h-4 text-blue"></i> Source Text / Dialogue
-                        </label>
-                    </div>
-                    <!-- Presets -->
-                    <div class="flex flex-wrap items-center gap-1.5">
-                        <span class="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 mr-0.5">Presets:</span>
-                        <button type="button" data-preset="dialogue" class="px-2 py-0.5 rounded-lg text-[11px] font-extrabold bg-blue/15 hover:bg-blue/25 text-dark dark:text-white border border-blue/40 transition-colors">Dialogue</button>
-                        <button type="button" data-preset="story" class="px-2 py-0.5 rounded-lg text-[11px] font-extrabold bg-pink/15 hover:bg-pink/25 text-dark dark:text-white border border-pink/40 transition-colors">Story</button>
-                        <button type="button" data-preset="science" class="px-2 py-0.5 rounded-lg text-[11px] font-extrabold bg-green/15 hover:bg-green/25 text-dark dark:text-white border border-green/40 transition-colors">Science</button>
-                    </div>
-                    <textarea id="source-text" spellcheck="false"
-                        class="input-chunky w-full flex-1 min-h-[130px] p-3.5 rounded-xl resize-none font-body text-sm bg-slate-50 dark:bg-slate-800 text-dark dark:text-white border-2 border-dark dark:border-slate-500 outline-none focus:border-blue"
-                        placeholder="Paste or type your text here. Long texts are fine.">Vic: Hello, Vic!
-Ben: Hi, Ben
-Vic: Who is she?
-Ben: She is a doctor. Who is he?
-Vic: He is a farmer.</textarea>
-                </div>
-
-                <button id="build-btn" type="button" title="Ctrl + Enter"
-                    class="btn-chunky w-full shrink-0 py-3.5 rounded-xl text-base flex items-center justify-center gap-2 bg-green text-dark">
-                    <i data-lucide="blocks" stroke-width="2.75" class="w-5 h-5"></i> Build Interactive Text
-                </button>
-
-                <!-- Blanks -->
-                <div class="shrink-0 pt-4 flex flex-col gap-3.5 border-t-3 border-dashed border-slate-200 dark:border-slate-700">
-                    <div class="space-y-1.5">
-                        <div class="flex justify-between items-end">
-                            <label for="pct-slider" class="field-label flex items-center gap-1.5">
-                                <i data-lucide="sliders-horizontal" class="w-3.5 h-3.5 text-pink"></i> Random Blanks
-                            </label>
-                            <output id="pct-display" for="pct-slider" class="font-heading text-lg font-bold text-blue">25%</output>
+                <!-- STEP 1: SOURCE TEXT & TITLE -->
+                <section class="p-3.5 rounded-2xl bg-slate-50/80 dark:bg-slate-800/50 border-3 border-dark dark:border-slate-600 space-y-3">
+                    <div>
+                        <div class="field-label flex items-center gap-2">
+                            <span class="step-badge">1</span> Source Text &amp; Title
                         </div>
-                        <input type="range" id="pct-slider" class="chunky-range" min="5" max="60" step="5" value="25">
+                        <p class="step-help mt-1.5">Paste a passage or numbered sentences. The full text prints on the <b>Wall Poster / Strips</b>, and the gapped version prints on the <b>Student Worksheet</b>.</p>
                     </div>
 
-                    <label class="flex items-center gap-2.5 cursor-pointer text-xs font-extrabold">
-                        <input type="checkbox" id="skip-short" checked class="w-4 h-4 shrink-0 accent-blue cursor-pointer">
-                        <span>Skip short words <span class="font-semibold text-slate-500 dark:text-slate-400">(3 letters or fewer)</span></span>
-                    </label>
-
-                    <label class="flex items-center gap-2.5 cursor-pointer text-xs font-extrabold">
-                        <input type="checkbox" id="show-word-bank" class="w-4 h-4 shrink-0 accent-pink cursor-pointer">
-                        <span>Include Word Bank box on worksheet</span>
-                    </label>
-
-                    <div class="grid grid-cols-2 gap-2.5">
-                        <button id="random-btn" type="button"
-                            class="btn-chunky py-2.5 rounded-xl text-xs flex items-center justify-center gap-1.5 bg-pink text-white">
-                            <i data-lucide="dices" stroke-width="2.5" class="w-4 h-4"></i> Randomize
-                        </button>
-                        <button id="clear-btn" type="button"
-                            class="btn-chunky py-2.5 rounded-xl text-xs flex items-center justify-center gap-1.5 bg-orange text-dark">
-                            <i data-lucide="eraser" stroke-width="2.5" class="w-4 h-4"></i> Clear All
-                        </button>
+                    <div class="space-y-1">
+                        <label for="activity-title" class="sub-label block">Activity Title</label>
+                        <input id="activity-title" type="text" maxlength="80" placeholder="e.g., The Secret Garden"
+                            class="input-chunky w-full px-3 py-2 text-xs font-bold bg-white dark:bg-slate-900 text-dark dark:text-white" />
                     </div>
-                </div>
 
-                <!-- Reading page (wall text) -->
-                <section class="shrink-0 pt-4 flex flex-col gap-2.5 border-t-3 border-dashed border-slate-200 dark:border-slate-700">
-                    <h2 class="field-label flex items-center gap-1.5">
-                        <i data-lucide="book-open" stroke-width="2.5" class="w-4 h-4 text-blue"></i> Reading Page
-                        <span class="font-body text-[11px] font-bold normal-case tracking-normal text-slate-400">(for the wall)</span>
-                    </h2>
+                    <div class="space-y-1">
+                        <div class="flex items-center justify-between gap-2">
+                            <label for="source-text" class="sub-label">Passage Text</label>
+                            <div class="flex items-center gap-3">
+                                <button type="button" id="load-example-btn" class="link-btn rounded text-[11px] font-extrabold text-blue hover:underline">Load Example</button>
+                                <button type="button" id="clear-text-btn" class="link-btn rounded text-[11px] font-extrabold text-pink hover:underline">Clear Text</button>
+                            </div>
+                        </div>
+                        <textarea id="source-text" spellcheck="false" rows="6"
+                            class="input-chunky w-full min-h-[140px] p-3 rounded-xl resize-y font-body text-sm bg-white dark:bg-slate-900 text-dark dark:text-white"
+                            placeholder="Paste or type your passage here..."></textarea>
+                        <p id="passage-meta" class="text-[11px] font-bold text-slate-400 text-right" aria-live="polite"></p>
+                    </div>
+                </section>
+
+                <!-- STEP 2: BLANK & CLUE MECHANICS -->
+                <section class="p-3.5 rounded-2xl bg-slate-50/80 dark:bg-slate-800/50 border-3 border-dark dark:border-slate-600 space-y-3.5">
+                    <div>
+                        <div class="field-label flex items-center gap-2">
+                            <span class="step-badge">2</span> Blank &amp; Clue Mechanics
+                        </div>
+                        <p class="step-help mt-1.5">Click or drag across words in the Interactive Editor to toggle <b class="text-pink">pink blanks</b>, or auto-pick content words below (skips small words like <i>the, and, is</i>).</p>
+                    </div>
+
+                    <!-- Auto-blank mode -->
                     <fieldset>
-                        <legend class="field-label mb-1">Text Size</legend>
-                        <div class="grid grid-cols-4 gap-1.5">
-                            <label class="seg" title="Largest size that fits one page"><input type="radio" name="wall-size" value="auto" checked><span>Auto</span></label>
-                            <label class="seg" title="36 pt"><input type="radio" name="wall-size" value="large"><span>Large</span></label>
-                            <label class="seg" title="24 pt"><input type="radio" name="wall-size" value="medium"><span>Med</span></label>
-                            <label class="seg" title="16 pt"><input type="radio" name="wall-size" value="small"><span>Small</span></label>
+                        <legend class="sub-label mb-1.5">Auto-Blank Rule</legend>
+                        <div class="grid grid-cols-2 gap-1.5">
+                            <label class="seg" title="Blank a random percentage of content words">
+                                <input type="radio" name="blank-mode" value="percent" checked>
+                                <span><i data-lucide="percent" class="w-3.5 h-3.5"></i>Random %</span>
+                            </label>
+                            <label class="seg" title="Blank every N-th content word">
+                                <input type="radio" name="blank-mode" value="nth">
+                                <span><i data-lucide="hash" class="w-3.5 h-3.5"></i>Every N-th Word</span>
+                            </label>
                         </div>
                     </fieldset>
+
+                    <!-- Random % slider -->
+                    <div id="percent-box" class="p-3 rounded-xl bg-white dark:bg-slate-900 border-2 border-dark dark:border-slate-600 space-y-2">
+                        <div class="flex justify-between items-end">
+                            <label for="rand-slider" class="sub-label">Target Blank Density</label>
+                            <output id="rand-display" for="rand-slider" class="font-heading text-base font-bold text-pink uppercase">25%</output>
+                        </div>
+                        <input type="range" id="rand-slider" class="chunky-range" min="10" max="60" step="5" value="25">
+                    </div>
+
+                    <!-- Every N-th word stepper -->
+                    <div id="nth-box" class="hidden p-3 rounded-xl bg-white dark:bg-slate-900 border-2 border-dark dark:border-slate-600 flex items-center justify-between gap-3">
+                        <div>
+                            <label for="nth-input" class="sub-label block">Blank Every N-th Content Word</label>
+                            <p class="text-[11px] font-semibold text-slate-400">e.g., 4 = every 4th content word</p>
+                        </div>
+                        <input id="nth-input" type="number" min="2" max="12" value="4"
+                            class="input-chunky w-20 px-3 py-1.5 text-center font-heading text-base bg-slate-50 dark:bg-slate-800 text-dark dark:text-white" />
+                    </div>
+
+                    <div class="grid grid-cols-3 gap-2">
+                        <button id="reroll-btn" type="button" title="Apply the Auto-Blank rule"
+                            class="btn-chunky py-2.5 rounded-xl text-[11px] flex items-center justify-center gap-1 bg-pink text-white">
+                            <i data-lucide="dices" stroke-width="2.5" class="w-3.5 h-3.5"></i> Re-Roll
+                        </button>
+                        <button id="undo-btn" type="button" title="Undo last blank change (Ctrl+Z)"
+                            class="btn-chunky py-2.5 rounded-xl text-[11px] flex items-center justify-center gap-1 bg-white dark:bg-slate-800 text-dark dark:text-white">
+                            <i data-lucide="undo-2" stroke-width="2.5" class="w-3.5 h-3.5"></i> Undo
+                        </button>
+                        <button id="clear-btn" type="button" title="Remove all blanks"
+                            class="btn-chunky py-2.5 rounded-xl text-[11px] flex items-center justify-center gap-1 bg-orange text-dark">
+                            <i data-lucide="trash-2" stroke-width="2.5" class="w-3.5 h-3.5"></i> Clear All
+                        </button>
+                    </div>
+                </section>
+
+                <!-- STEP 3: WALL POSTER SETUP -->
+                <section class="p-3.5 rounded-2xl bg-slate-50/80 dark:bg-slate-800/50 border-3 border-dark dark:border-slate-600 space-y-3">
+                    <div>
+                        <div class="field-label flex items-center gap-2">
+                            <span class="step-badge">3</span> Wall Poster Setup
+                        </div>
+                        <p class="step-help mt-1.5">Choose a single poster to tape on the wall, or numbered cut-out sentence strips to hide around the classroom.</p>
+                    </div>
+
                     <fieldset>
-                        <legend class="field-label mb-1">Page</legend>
-                        <div class="grid grid-cols-2 gap-2">
-                            <label class="seg"><input type="radio" name="wall-orient" value="portrait" checked><span><i data-lucide="rectangle-vertical" stroke-width="2.5" class="w-4 h-4"></i> Portrait</span></label>
-                            <label class="seg"><input type="radio" name="wall-orient" value="landscape"><span><i data-lucide="rectangle-horizontal" stroke-width="2.5" class="w-4 h-4"></i> Landscape</span></label>
+                        <legend class="sub-label mb-1.5">Wall Reading Format</legend>
+                        <div class="grid grid-cols-2 gap-1.5">
+                            <label class="seg" title="Full passage on a single wall sheet">
+                                <input type="radio" name="wall-format" value="poster" checked>
+                                <span><i data-lucide="file-text" class="w-3.5 h-3.5"></i>Single Poster</span>
+                            </label>
+                            <label class="seg" title="Numbered sentence cards with dashed scissor cut-lines">
+                                <input type="radio" name="wall-format" value="strips">
+                                <span><i data-lucide="scissors" class="w-3.5 h-3.5"></i>Sentence Strips</span>
+                            </label>
+                        </div>
+                    </fieldset>
+
+                    <label id="shuffle-strips-row" class="hidden items-center justify-between gap-2 p-2.5 rounded-xl bg-white dark:bg-slate-900 border-2 border-dark dark:border-slate-600 cursor-pointer">
+                        <span class="text-xs font-extrabold flex items-center gap-2">
+                            <i data-lucide="shuffle" class="w-4 h-4 text-orange"></i> Shuffle Strip Print Order
+                        </span>
+                        <input type="checkbox" id="shuffle-strips" class="w-4 h-4 accent-orange rounded cursor-pointer">
+                    </label>
+
+                    <fieldset>
+                        <legend class="sub-label mb-1.5">Wall Text Size</legend>
+                        <div class="grid grid-cols-3 gap-2">
+                            <label class="seg" title="34 pt"><input type="radio" name="wall-size" value="huge"><span>Huge</span></label>
+                            <label class="seg" title="26 pt"><input type="radio" name="wall-size" value="large" checked><span>Large</span></label>
+                            <label class="seg" title="20 pt"><input type="radio" name="wall-size" value="medium"><span>Medium</span></label>
                         </div>
                     </fieldset>
                 </section>
 
-                <!-- Worksheet (fill in the blanks) -->
-                <section class="shrink-0 pt-4 flex flex-col gap-2.5 border-t-3 border-dashed border-slate-200 dark:border-slate-700">
-                    <h2 class="field-label flex items-center gap-1.5">
-                        <i data-lucide="pencil-line" stroke-width="2.5" class="w-4 h-4 text-pink"></i> Worksheet
-                        <span class="font-body text-[11px] font-bold normal-case tracking-normal text-slate-400">(fill in the blanks)</span>
-                    </h2>
+                <!-- STEP 4: WORKSHEET SETUP -->
+                <section class="p-3.5 rounded-2xl bg-slate-50/80 dark:bg-slate-800/50 border-3 border-dark dark:border-slate-600 space-y-3">
+                    <div>
+                        <div class="field-label flex items-center gap-2">
+                            <span class="step-badge">4</span> Worksheet Setup
+                        </div>
+                        <p class="step-help mt-1.5">Customize how blanks appear on the Writer's A4 worksheet to scaffold for your class level.</p>
+                    </div>
+
                     <fieldset>
-                        <legend class="field-label mb-1">Text Size</legend>
-                        <div class="grid grid-cols-4 gap-1.5">
-                            <label class="seg" title="Largest size that fits one page"><input type="radio" name="sheet-size" value="auto" checked><span>Auto</span></label>
-                            <label class="seg" title="22 pt"><input type="radio" name="sheet-size" value="large"><span>Large</span></label>
-                            <label class="seg" title="18 pt"><input type="radio" name="sheet-size" value="medium"><span>Med</span></label>
-                            <label class="seg" title="14 pt"><input type="radio" name="sheet-size" value="small"><span>Small</span></label>
+                        <legend class="sub-label mb-1.5">Worksheet Blank Style</legend>
+                        <div class="grid grid-cols-3 gap-1.5">
+                            <label class="seg" title="Standard blank line (________)">
+                                <input type="radio" name="blank-style" value="line" checked>
+                                <span>Line ____</span>
+                            </label>
+                            <label class="seg" title="Shows the first letter of the missing word (d_______)">
+                                <input type="radio" name="blank-style" value="first">
+                                <span>1st Letter</span>
+                            </label>
+                            <label class="seg" title="Shows one dash per letter (_ _ _ _ _)">
+                                <input type="radio" name="blank-style" value="dashes">
+                                <span>_ _ _ Count</span>
+                            </label>
                         </div>
                     </fieldset>
+
+                    <label class="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-white dark:bg-slate-900 border-2 border-dark dark:border-slate-600 cursor-pointer">
+                        <span class="text-xs font-extrabold flex items-center gap-2">
+                            <i data-lucide="list-checks" class="w-4 h-4 text-green"></i> Include Shuffled Word Bank
+                        </span>
+                        <input type="checkbox" id="word-bank-toggle" class="w-4 h-4 accent-green rounded cursor-pointer">
+                    </label>
+
                     <fieldset>
-                        <legend class="field-label mb-1">Page</legend>
+                        <legend class="sub-label mb-1.5">Worksheet Text Size</legend>
+                        <div class="grid grid-cols-3 gap-2">
+                            <label class="seg" title="20 pt"><input type="radio" name="ws-size" value="large"><span>Large</span></label>
+                            <label class="seg" title="16 pt"><input type="radio" name="ws-size" value="medium" checked><span>Medium</span></label>
+                            <label class="seg" title="13 pt"><input type="radio" name="ws-size" value="small"><span>Small</span></label>
+                        </div>
+                    </fieldset>
+
+                    <fieldset>
+                        <legend class="sub-label mb-1.5">A4 Page Orientation</legend>
                         <div class="grid grid-cols-2 gap-2">
-                            <label class="seg"><input type="radio" name="sheet-orient" value="portrait" checked><span><i data-lucide="rectangle-vertical" stroke-width="2.5" class="w-4 h-4"></i> Portrait</span></label>
-                            <label class="seg"><input type="radio" name="sheet-orient" value="landscape"><span><i data-lucide="rectangle-horizontal" stroke-width="2.5" class="w-4 h-4"></i> Landscape</span></label>
+                            <label class="seg"><input type="radio" name="page-orient" value="portrait" checked><span><i data-lucide="rectangle-vertical" stroke-width="2.5" class="w-4 h-4"></i> Portrait</span></label>
+                            <label class="seg"><input type="radio" name="page-orient" value="landscape"><span><i data-lucide="rectangle-horizontal" stroke-width="2.5" class="w-4 h-4"></i> Landscape</span></label>
                         </div>
                     </fieldset>
                 </section>
 
                 <!-- Saved Sets Library -->
-                <section class="shrink-0 pt-4 border-t-3 border-dashed border-slate-200 dark:border-slate-700 space-y-3">
+                <section class="pt-3 border-t-3 border-dashed border-slate-200 dark:border-slate-700 space-y-2.5">
                     <div class="flex items-center justify-between">
                         <span class="field-label flex items-center gap-1.5">
-                            <i data-lucide="folder-heart" class="w-4 h-4 text-orange"></i> Saved Sets
+                            <i data-lucide="folder-heart" class="w-3.5 h-3.5 text-orange"></i> Saved Passages
                         </span>
                         <select id="library-sort" aria-label="Sort saved sets"
                             class="text-[11px] font-extrabold bg-slate-100 dark:bg-slate-800 border-2 border-slate-300 dark:border-slate-600 rounded-lg px-2 py-0.5 text-dark dark:text-white">
@@ -625,20 +1010,23 @@ Vic: He is a farmer.</textarea>
 
             <!-- Print actions -->
             <div class="p-4 shrink-0 border-t-4 border-dark dark:border-slate-500 bg-slate-100 dark:bg-slate-800/90 space-y-2">
-                <p id="print-hint" role="status" class="hidden text-xs font-extrabold text-center text-pink"></p>
-                <div class="grid grid-cols-2 gap-2">
-                    <button id="print-wall-btn" type="button" title="Print the reading page"
-                        class="btn-chunky py-2.5 rounded-xl text-xs flex items-center justify-center gap-1.5 bg-white dark:bg-slate-900 text-dark dark:text-white">
-                        <i data-lucide="printer" stroke-width="2.5" class="w-4 h-4 text-blue"></i> Reading Page
+                <div class="grid grid-cols-3 gap-2">
+                    <button id="print-wall-btn" type="button" title="Print the Wall Poster or Sentence Strips (A4)"
+                        class="btn-chunky py-2.5 rounded-xl text-xs flex items-center justify-center gap-1 bg-white dark:bg-slate-900 text-dark dark:text-white">
+                        <i data-lucide="printer" stroke-width="2.5" class="w-3.5 h-3.5 text-orange"></i> Wall
                     </button>
-                    <button id="print-sheet-btn" type="button" title="Print the worksheet"
-                        class="btn-chunky py-2.5 rounded-xl text-xs flex items-center justify-center gap-1.5 bg-white dark:bg-slate-900 text-dark dark:text-white">
-                        <i data-lucide="printer" stroke-width="2.5" class="w-4 h-4 text-pink"></i> Worksheet
+                    <button id="print-sheet-btn" type="button" title="Print the Student Worksheet (A4)"
+                        class="btn-chunky py-2.5 rounded-xl text-xs flex items-center justify-center gap-1 bg-white dark:bg-slate-900 text-dark dark:text-white">
+                        <i data-lucide="printer" stroke-width="2.5" class="w-3.5 h-3.5 text-pink"></i> Sheet
+                    </button>
+                    <button id="print-key-btn" type="button" title="Print the Teacher Answer Key (A4)"
+                        class="btn-chunky py-2.5 rounded-xl text-xs flex items-center justify-center gap-1 bg-white dark:bg-slate-900 text-dark dark:text-white">
+                        <i data-lucide="key-round" stroke-width="2.5" class="w-3.5 h-3.5 text-green"></i> Key
                     </button>
                 </div>
-                <button id="print-both-btn" type="button" title="Print both Reading Page and Worksheet"
+                <button id="print-all-btn" type="button" title="Print Wall Poster, Student Worksheet, and Answer Key (A4)"
                     class="btn-chunky w-full py-2.5 rounded-xl text-xs flex items-center justify-center gap-1.5 bg-blue text-white">
-                    <i data-lucide="layers" stroke-width="2.5" class="w-4 h-4"></i> Print Both Pages
+                    <i data-lucide="layers" stroke-width="2.5" class="w-4 h-4"></i> Print All 3 Sheets (Wall + Sheet + Key)
                 </button>
             </div>
         </aside>
@@ -647,68 +1035,123 @@ Vic: He is a farmer.</textarea>
         <main id="preview" class="flex-1 min-h-0 overflow-y-auto custom-scrollbar p-4 md:p-6 flex flex-col items-center gap-5 bg-slate-200/70 dark:bg-slate-950">
 
             <!-- Top Toolbar -->
-            <div class="w-full max-w-[880px] flex flex-wrap items-center justify-between gap-2">
+            <div class="sticky top-0 z-20 w-full max-w-[920px] flex flex-wrap items-center justify-between gap-2">
                 <button id="toggle-sidebar-btn" type="button" title="Toggle Controls Sidebar"
-                    class="btn-chunky hidden md:inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs bg-white/90 dark:bg-slate-800/90 backdrop-blur-md text-dark dark:text-white">
+                    class="btn-chunky glass hidden md:inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs bg-white/80 dark:bg-slate-800/80 text-dark dark:text-white">
                     <i data-lucide="panel-left-close" id="sidebar-toggle-icon" class="w-4 h-4"></i>
                     <span>Controls</span>
                 </button>
 
-                <!-- Preview Mode Switcher -->
-                <div class="flex flex-wrap items-center gap-1.5 ml-auto bg-white/85 dark:bg-slate-800/85 backdrop-blur-md p-1.5 rounded-2xl border-3 border-dark dark:border-slate-500 shadow-hard-sm">
-                    <button type="button" data-view="builder" class="view-tab px-3 py-1.5 rounded-xl font-heading text-xs uppercase font-bold bg-green text-dark border-2 border-dark transition-all">
-                        Text Builder
-                    </button>
-                    <button type="button" data-view="worksheet" class="view-tab px-3 py-1.5 rounded-xl font-heading text-xs uppercase font-bold text-dark dark:text-white border-2 border-transparent hover:bg-slate-100 dark:hover:bg-slate-700 transition-all">
-                        Worksheet Preview
-                    </button>
-                    <button type="button" data-view="wall" class="view-tab px-3 py-1.5 rounded-xl font-heading text-xs uppercase font-bold text-dark dark:text-white border-2 border-transparent hover:bg-slate-100 dark:hover:bg-slate-700 transition-all">
-                        Wall Poster Preview
-                    </button>
+                <!-- View tabs -->
+                <div role="tablist" aria-label="Preview mode" class="glass flex flex-wrap items-center gap-1 ml-auto bg-white/80 dark:bg-slate-800/80 p-1.5 rounded-2xl border-3 border-dark dark:border-slate-500 shadow-hard-sm">
+                    <button type="button" role="tab" data-view="editor" class="view-tab"><i data-lucide="mouse-pointer-click" class="w-3.5 h-3.5"></i>Interactive Editor</button>
+                    <button type="button" role="tab" data-view="wall" class="view-tab"><i data-lucide="scroll-text" class="w-3.5 h-3.5 text-orange"></i>Wall Poster</button>
+                    <button type="button" role="tab" data-view="worksheet" class="view-tab"><i data-lucide="file-pen" class="w-3.5 h-3.5 text-pink"></i>Student Worksheet</button>
+                    <button type="button" role="tab" data-view="key" class="view-tab"><i data-lucide="key-round" class="w-3.5 h-3.5 text-green"></i>Teacher Key</button>
                 </div>
             </div>
 
-            <div class="w-full max-w-[880px] flex-1 p-6 md:p-10 flex flex-col bg-white dark:bg-slate-800 text-dark dark:text-white border-4 border-dark dark:border-slate-500 rounded-[2rem] shadow-hard-lg">
-                <div class="mb-6 pb-4 shrink-0 flex flex-wrap justify-between items-center gap-3 border-b-4 border-dark dark:border-slate-500">
-                    <div>
-                        <h2 id="preview-heading" class="mb-1 font-heading text-2xl md:text-3xl uppercase tracking-tight leading-none">Text Builder</h2>
-                        <p id="preview-subheading" class="text-xs md:text-sm font-bold text-slate-500 dark:text-slate-400">Click words to blank them out for the student worksheet.</p>
+            <!-- Preview Card -->
+            <div class="w-full max-w-[920px] p-5 md:p-8 flex flex-col bg-white dark:bg-slate-800 text-dark dark:text-white border-4 border-dark dark:border-slate-500 rounded-[2rem] shadow-hard-lg">
+                <div class="mb-4 pb-3 flex flex-wrap justify-between items-start gap-3 border-b-4 border-dark dark:border-slate-500">
+                    <div class="min-w-0 flex-1">
+                        <h2 id="preview-title" class="font-heading text-2xl uppercase tracking-tight leading-none">Interactive Editor</h2>
+                        <p id="preview-subtitle" class="mt-2 text-xs font-bold leading-relaxed text-slate-500 dark:text-slate-400"></p>
                     </div>
-                    <p id="stats" class="sticker px-3 py-1 rounded-full text-xs font-extrabold bg-pink/15 text-dark dark:text-white border-2 border-dark dark:border-slate-500 rotate-1" aria-live="polite"></p>
+                    <p id="stats" class="shrink-0 px-3 py-1 rounded-full text-xs font-extrabold bg-pink text-white border-2 border-dark dark:border-slate-500 rotate-1" aria-live="polite"></p>
                 </div>
 
-                <p id="preview-empty" class="hidden mt-10 text-center text-lg font-bold italic text-slate-500 dark:text-slate-400">
-                    Add some text on the left, then click "Build Interactive Text".
-                </p>
-                <div id="interactive-area" class="flex-1 font-body"></div>
-
-                <!-- On-screen Word Bank Preview -->
-                <div id="screen-word-bank" class="hidden mt-6 p-4 rounded-2xl bg-slate-50 dark:bg-slate-900 border-3 border-dark dark:border-slate-500 shadow-hard-sm">
-                    <h3 class="mb-2 font-heading text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
-                        <i data-lucide="list-checks" class="w-4 h-4 text-pink"></i> Word Bank (Included on Worksheet)
-                    </h3>
-                    <div id="screen-word-bank-items" class="flex flex-wrap gap-2"></div>
+                <!-- Empty state -->
+                <div id="preview-empty" class="hidden my-8 flex flex-col items-center text-center px-4">
+                    <div class="w-20 h-20 mb-4 rounded-2xl flex items-center justify-center bg-white dark:bg-slate-900 border-4 border-dark dark:border-slate-500 shadow-hard rotate-2">
+                        <i data-lucide="footprints" stroke-width="2.75" class="w-10 h-10 text-orange"></i>
+                    </div>
+                    <h3 class="font-heading text-2xl uppercase">No passage yet</h3>
+                    <p class="mt-2 max-w-md text-sm font-semibold text-slate-500 dark:text-slate-400">Paste a reading passage in <b>Step 1</b>, or load the example to try Running Dictation right away.</p>
+                    <button id="empty-example-btn" type="button" class="btn-chunky mt-4 px-5 py-2.5 rounded-xl text-xs bg-green text-dark inline-flex items-center gap-1.5">
+                        <i data-lucide="book-open" class="w-4 h-4"></i> Load Example
+                    </button>
                 </div>
+
+                <!-- Notice -->
+                <div id="view-notice" class="hidden mb-4 p-3 rounded-2xl flex items-start gap-2 text-xs font-extrabold bg-orange/15 border-2 border-orange animate-slide-down">
+                    <i data-lucide="info" class="w-4 h-4 shrink-0 text-orange mt-0.5"></i>
+                    <span id="view-notice-text"></span>
+                </div>
+
+                <div id="interactive-area" class="font-body text-xl"></div>
             </div>
         </main>
     </div>
 
+    <!-- HOW TO PLAY / HELP MODAL -->
+    <div id="helpModal" role="dialog" aria-modal="true" aria-labelledby="help-title" class="hidden fixed inset-0 bg-dark/60 glass z-[500] items-center justify-center p-4">
+        <div class="glass glass-edge bg-white/90 dark:bg-slate-800/90 w-full max-w-2xl rounded-[2rem] border-4 border-dark dark:border-slate-500 shadow-hard-lg animate-pop-in overflow-hidden">
+            <div class="p-5 border-b-4 border-dark dark:border-slate-500 bg-orange/15 flex items-center justify-between gap-3">
+                <div class="flex items-center gap-3">
+                    <div class="w-11 h-11 rounded-2xl bg-orange flex items-center justify-center border-3 border-dark shadow-hard-sm shrink-0 -rotate-2">
+                        <i data-lucide="footprints" class="w-6 h-6 text-dark"></i>
+                    </div>
+                    <div>
+                        <h3 id="help-title" class="text-xl font-heading font-bold text-dark dark:text-white uppercase leading-tight">How to Play Running Dictation</h3>
+                        <p class="text-xs font-semibold text-slate-500 dark:text-slate-400">A high-energy 4-skills classroom favourite (Reading, Speaking, Listening &amp; Writing)</p>
+                    </div>
+                </div>
+                <button id="help-close-btn" type="button" aria-label="Close help" class="btn-chunky w-9 h-9 rounded-xl bg-white dark:bg-slate-700 flex items-center justify-center">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
+            </div>
+            <div class="p-6 space-y-4 text-sm font-semibold text-slate-600 dark:text-slate-300 max-h-[70vh] overflow-y-auto custom-scrollbar">
+                <div class="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-900 border-2 border-dark dark:border-slate-600">
+                    <h4 class="font-heading text-sm uppercase text-dark dark:text-white mb-1 flex items-center gap-1.5">
+                        <i data-lucide="users" class="w-4 h-4 text-orange"></i> Classroom Roles: Runner &amp; Writer
+                    </h4>
+                    <p class="text-xs leading-relaxed">Put students in pairs (or small teams). One student is the <b>Writer</b> (sits at the desk with the gapped Worksheet) and the other is the <b>Runner</b>. Tape the <b>Wall Poster</b> (or cut-out <b>Sentence Strips</b>) on the walls away from the desks. The Runner walks/runs to the wall, reads and memorizes a chunk, returns to the desk, and <b>dictates it aloud</b> (no shouting across the room, no photos!). Swap roles halfway through!</p>
+                </div>
+                <div class="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-900 border-2 border-dark dark:border-slate-600">
+                    <h4 class="font-heading text-sm uppercase text-dark dark:text-white mb-1 flex items-center gap-1.5">
+                        <i data-lucide="sliders-horizontal" class="w-4 h-4 text-blue"></i> Preparing Your Handouts
+                    </h4>
+                    <ol class="text-xs leading-relaxed list-decimal pl-5 space-y-1">
+                        <li><b>Source Text &amp; Title:</b> Paste a short story or numbered sentences in Step 1.</li>
+                        <li><b>Blanks:</b> Click or drag across words in the Interactive Editor to make <b class="text-pink">pink blanks</b>, or use <b>Random %</b> / <b>Every N-th Word</b> (which automatically skips tiny stop words like <i>the, and, is</i>).</li>
+                        <li><b>Wall Format:</b> Choose a <b>Single Poster</b> or <b>Sentence Strips</b> (numbered cut-out cards `#1, #2…` with dashed scissor lines to post around the room).</li>
+                        <li><b>Worksheet Clues:</b> Scaffold for younger learners with <b>1st Letter Clues</b> (<code>d_______</code>), <b>Letter Count Dashes</b> (<code>_ _ _ _ _</code>), or a <b>Shuffled Word Bank</b>.</li>
+                    </ol>
+                </div>
+                <div class="p-3.5 rounded-2xl bg-green/10 border-2 border-green">
+                    <h4 class="font-heading text-sm uppercase text-dark dark:text-white mb-1 flex items-center gap-1.5">
+                        <i data-lucide="sparkles" class="w-4 h-4 text-green"></i> Teacher Pro-Tips
+                    </h4>
+                    <ul class="text-xs leading-relaxed list-disc pl-5 space-y-1">
+                        <li>Print 2–3 copies of the Wall Poster for larger classes so runners don't crowd one spot.</li>
+                        <li>When using <b>Sentence Strips</b>, scatter them around the room so pairs hunt for `#1`, `#2`, `#3` in order.</li>
+                        <li>When a pair finishes, check their spelling against the <b>Teacher Key</b>!</li>
+                    </ul>
+                </div>
+                <div class="flex justify-end pt-1">
+                    <button id="help-got-it-btn" type="button" class="btn-chunky px-6 py-2.5 rounded-xl text-xs bg-green text-dark">Got It!</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- SAVE AS MODAL -->
-    <div id="saveModal" class="hidden fixed inset-0 bg-dark/60 backdrop-blur-md z-[500] items-center justify-center p-4">
-        <div class="bg-white dark:bg-slate-800 w-full max-w-sm rounded-[2rem] border-4 border-dark dark:border-slate-500 shadow-hard-lg animate-pop-in overflow-hidden">
+    <div id="saveModal" class="hidden fixed inset-0 bg-dark/60 glass z-[500] items-center justify-center p-4">
+        <div class="glass glass-edge bg-white/90 dark:bg-slate-800/90 w-full max-w-sm rounded-[2rem] border-4 border-dark dark:border-slate-500 shadow-hard-lg animate-pop-in overflow-hidden">
             <div class="p-5 border-b-4 border-dark dark:border-slate-500 bg-blue/10 flex items-center gap-3">
                 <div class="w-11 h-11 rounded-2xl bg-blue flex items-center justify-center border-3 border-dark shadow-hard-sm shrink-0">
                     <i data-lucide="bookmark-plus" class="w-5 h-5 text-white"></i>
                 </div>
                 <div>
-                    <h3 class="text-lg font-heading font-bold text-dark dark:text-white uppercase leading-tight">Save Dictation</h3>
-                    <p class="text-xs font-semibold text-slate-500 dark:text-slate-400">Save passage & blanks to your library</p>
+                    <h3 class="text-lg font-heading font-bold text-dark dark:text-white uppercase leading-tight">Save Dictation Set</h3>
+                    <p class="text-xs font-semibold text-slate-500 dark:text-slate-400">Save passage &amp; selected blanks to library</p>
                 </div>
             </div>
             <div class="p-5 space-y-4">
                 <div>
                     <label for="save-set-input" class="field-label block mb-1.5">Set Name</label>
-                    <input id="save-set-input" type="text" placeholder="e.g., Jobs & Occupations Dialogue"
+                    <input id="save-set-input" type="text" placeholder="e.g., Unit 3 Past Tense Story"
                         class="input-chunky w-full px-3.5 py-2.5 text-sm bg-slate-50 dark:bg-slate-900 text-dark dark:text-white" />
                 </div>
                 <div class="flex gap-3">
@@ -720,8 +1163,8 @@ Vic: He is a farmer.</textarea>
     </div>
 
     <!-- CONFIRM MODAL -->
-    <div id="confirmModal" class="hidden fixed inset-0 bg-dark/60 backdrop-blur-md z-[500] items-center justify-center p-4">
-        <div class="bg-white dark:bg-slate-800 w-full max-w-sm rounded-[2rem] border-4 border-dark dark:border-slate-500 shadow-hard-lg animate-pop-in overflow-hidden">
+    <div id="confirmModal" class="hidden fixed inset-0 bg-dark/60 glass z-[600] items-center justify-center p-4">
+        <div class="glass glass-edge bg-white/90 dark:bg-slate-800/90 w-full max-w-sm rounded-[2rem] border-4 border-dark dark:border-slate-500 shadow-hard-lg animate-pop-in overflow-hidden">
             <div class="p-6 text-center">
                 <div class="w-14 h-14 rounded-2xl bg-pink/15 flex items-center justify-center border-3 border-dark mx-auto mb-3">
                     <i data-lucide="alert-triangle" class="w-7 h-7 text-pink"></i>
@@ -737,28 +1180,51 @@ Vic: He is a farmer.</textarea>
     </div>
 
     <!-- TOAST CONTAINER -->
-    <div id="toast-container" class="print:hidden fixed bottom-6 left-1/2 -translate-x-1/2 z-[400] flex flex-col gap-2 pointer-events-none"></div>
+    <div id="toast-container" class="print:hidden fixed bottom-6 left-1/2 -translate-x-1/2 z-[700] flex flex-col gap-2 pointer-events-none"></div>
 
-    <!-- PRINT LAYOUT (hidden on screen, filled just before printing) -->
+    <!-- PRINT LAYOUT (hidden on screen, filled just before printing; strict A4 pages) -->
     <div id="print-area" class="hidden">
+        <!-- Page 1: Wall Poster / Sentence Strips -->
         <section class="page-wall-text">
-            <h1>Read this text:</h1>
-            <div id="wall-text-content" class="wall-text"></div>
+            <div class="wall-header">
+                <div>
+                    <h1 class="print-title-text">Running Dictation</h1>
+                    <span id="print-wall-badge" class="wall-badge">Wall Reading Poster</span>
+                </div>
+            </div>
+            <div id="print-wall-content"></div>
         </section>
 
+        <!-- Page 2: Student Worksheet -->
         <section class="page-worksheet">
-            <div class="worksheet-header">
-                <div class="worksheet-title"><h1>Complete this text:</h1></div>
-                <div class="worksheet-meta">
-                    <div class="meta-line"><span>Name:</span><span></span></div>
+            <div class="ws-header">
+                <div class="ws-title">
+                    <h1 class="print-title-text">Running Dictation</h1>
+                    <p>Listen to your runner and write the missing words in the numbered blanks.</p>
+                </div>
+                <div class="ws-meta">
+                    <div class="meta-line"><span>Runner:</span><span></span></div>
+                    <div class="meta-line"><span>Writer:</span><span></span></div>
                     <div class="meta-line"><span>Date:</span><span></span></div>
                 </div>
             </div>
-            <div id="worksheet-content" class="ws-text"></div>
+            <div id="print-ws-content" class="ws-text"></div>
             <div id="print-word-bank" class="word-bank-box hidden">
                 <h3>Word Bank</h3>
                 <div id="print-word-bank-items" class="word-bank-items"></div>
             </div>
+        </section>
+
+        <!-- Page 3: Teacher Answer Key -->
+        <section class="page-teacher-key">
+            <div class="wall-header">
+                <div>
+                    <h1 class="print-title-text">Running Dictation</h1>
+                    <span class="wall-badge" style="background:#d9f8e7;">Teacher Answer Key</span>
+                </div>
+            </div>
+            <div id="print-key-passage" class="ws-text"></div>
+            <ol id="print-key-list" class="key-list"></ol>
         </section>
     </div>
 
@@ -766,17 +1232,24 @@ Vic: He is a farmer.</textarea>
         (() => {
             'use strict';
 
-            // ===== PURE LOGIC (no DOM access) ===================================
+            // ===== PURE LOGIC ===================================================
 
             const WORD_RE = /[\p{L}\p{N}]+(?:['’][\p{L}\p{N}]+)*/gu;
             const ESCAPES = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
             const esc = (s) => (s || '').replace(/[&<>"']/g, (c) => ESCAPES[c]);
 
-            const PRESETS = {
-                dialogue: `Vic: Hello, Vic!\nBen: Hi, Ben!\nVic: Who is she?\nBen: She is a doctor. Who is he?\nVic: He is a farmer.`,
-                story: `Last Saturday, Maya and Leo walked into the old forest behind their school. They found a small wooden box under a giant oak tree. Inside the box, there was a golden compass and a mysterious map of the town.`,
-                science: `The water cycle describes how water moves around the Earth. First, the sun heats water in oceans and rivers, turning it into vapor. Next, the water vapor rises into the sky and cools down to form clouds.`
-            };
+            const DEFAULT_TITLE = 'The Secret Garden';
+            const DEFAULT_PASSAGE = `Last Saturday, Mia and Leo found an old wooden door behind the school library. Inside, there was a quiet garden full of bright sunflowers and small stone benches.
+
+They brought a watering can, planted fresh strawberry seeds, and painted a colourful sign for their classmates.`;
+
+            const STOP_WORDS = new Set((
+                'the and a an of to in on at is are was were it for with that this by as be or but from he she they we you i my his her our their not do does did can will so if into'
+            ).split(' '));
+
+            const WALL_PT = { huge: 34, large: 26, medium: 20 };
+            const WS_PT = { large: 20, medium: 16, small: 13 };
+            const VIEWS = ['editor', 'wall', 'worksheet', 'key'];
 
             function parse(raw) {
                 const text = (raw || '').replace(/\r\n?/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
@@ -800,41 +1273,107 @@ Vic: He is a farmer.</textarea>
                 return { text, lines, words };
             }
 
-            function previewHTML(doc, flags) {
-                return doc.lines.map((items) => {
-                    if (!items.length) return '<div class="ln ln-gap"></div>';
-                    const inner = items.map((it) =>
-                        typeof it === 'number'
-                            ? `<span class="word${flags[it] ? ' blanked' : ''}" data-i="${it}">${esc(doc.words[it])}</span>`
-                            : esc(it)
-                    ).join('');
-                    return `<div class="ln">${inner}</div>`;
-                }).join('');
-            }
-
-            function worksheetHTML(doc, flags) {
-                return doc.lines.map((items) => items.map((it) => {
-                    if (typeof it !== 'number') return esc(it);
-                    const w = esc(doc.words[it]);
-                    return flags[it] ? `<span class="blank">${w}</span>` : w;
-                }).join('')).join('\n');
-            }
-
-            function pickRandom(pool, k) {
-                const idx = pool.slice();
-                for (let i = 0; i < k; i++) {
-                    const j = i + Math.floor(Math.random() * (idx.length - i));
-                    [idx[i], idx[j]] = [idx[j], idx[i]];
+            /** Split passage into clean sentences for Sentence Strips mode. */
+            function splitSentences(text) {
+                if (!text) return [];
+                const out = [];
+                for (const para of text.split(/\n+/)) {
+                    const trimmed = para.trim();
+                    if (!trimmed) continue;
+                    const matches = trimmed.match(/[^.!?]+[.!?]+["'”’)]*|[^.!?]+$/g) || [trimmed];
+                    for (const s of matches) {
+                        const clean = s.trim().replace(/^\d+[\).\s-]+/, '').trim();
+                        if (clean) out.push(clean);
+                    }
                 }
-                return idx.slice(0, k);
+                return out;
             }
 
-            function getBlankedWords(doc, flags) {
-                const list = [];
-                for (let i = 0; i < doc.words.length; i++) {
-                    if (flags[i]) list.push(doc.words[i]);
+            /** Carry blanks across text edits by matching unchanged words (LCS). */
+            function remapBlanked(oldWords, oldBlanked, newWords) {
+                const n = oldWords.length, m = newWords.length;
+                const out = new Uint8Array(m);
+                if (!n || !m || !oldBlanked || !oldBlanked.some((x) => x)) return out;
+                if (n * m > 4e6) {
+                    for (let i = 0; i < Math.min(n, m); i++) if (oldWords[i] === newWords[i]) out[i] = oldBlanked[i];
+                    return out;
                 }
-                return list.sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+                const W = m + 1;
+                const dp = new Uint16Array((n + 1) * W);
+                for (let i = n - 1; i >= 0; i--) {
+                    for (let j = m - 1; j >= 0; j--) {
+                        dp[i * W + j] = oldWords[i] === newWords[j]
+                            ? dp[(i + 1) * W + j + 1] + 1
+                            : Math.max(dp[(i + 1) * W + j], dp[i * W + j + 1]);
+                    }
+                }
+                let i = 0, j = 0;
+                while (i < n && j < m) {
+                    if (oldWords[i] === newWords[j]) {
+                        out[j] = oldBlanked[i];
+                        i++; j++;
+                    } else if (dp[(i + 1) * W + j] >= dp[i * W + j + 1]) {
+                        i++;
+                    } else {
+                        j++;
+                    }
+                }
+                return out;
+            }
+
+            function isContentWord(w) {
+                const clean = (w || '').toLowerCase().replace(/['’]/g, '');
+                return clean.length >= 3 && !STOP_WORDS.has(clean);
+            }
+
+            function renderLines(lines, renderWord) {
+                return lines.map((items) => items.length
+                    ? `<div class="ln">${items.map((x) => typeof x === 'number' ? renderWord(x) : esc(x)).join('')}</div>`
+                    : '<div class="ln-gap"></div>'
+                ).join('');
+            }
+
+            const editorHTML = (doc, blanked) =>
+                renderLines(doc.lines, (i) => `<span class="word${blanked[i] ? ' blanked' : ''}" data-i="${i}">${esc(doc.words[i])}</span>`);
+
+            function formatBlankToken(word, num, style) {
+                if (style === 'first') {
+                    const first = esc(word.slice(0, 1));
+                    const rest = '_'.repeat(Math.max(4, word.length - 1));
+                    return `<span class="blank-clue" data-n="${num}">${first}${rest}</span>`;
+                }
+                if (style === 'dashes') {
+                    const chars = Array.from(word).map((ch) => (ch === "'" || ch === '’' || ch === '-') ? ch : '_').join(' ');
+                    return `<span class="blank-clue blank-dashes" data-n="${num}">${esc(chars)}</span>`;
+                }
+                return `<span class="blank" data-n="${num}">${esc(word)}</span>`;
+            }
+
+            function worksheetHTML(doc, blanked, style) {
+                let n = 0;
+                return renderLines(doc.lines, (i) => {
+                    if (!blanked[i]) return esc(doc.words[i]);
+                    n++;
+                    return formatBlankToken(doc.words[i], n, style);
+                });
+            }
+
+            function keyPassageHTML(doc, blanked) {
+                let n = 0;
+                return renderLines(doc.lines, (i) => {
+                    if (!blanked[i]) return esc(doc.words[i]);
+                    n++;
+                    return `<span class="key-word"><sup>${n}</sup>${esc(doc.words[i])}</span>`;
+                });
+            }
+
+            function shuffleArray(arr) {
+                const copy = [...arr];
+                for (let i = copy.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [copy[i], copy[j]] = [copy[j], copy[i]];
+                }
+                return copy;
             }
 
             // ===== UI & PERSISTENCE =============================================
@@ -848,29 +1387,44 @@ Vic: He is a farmer.</textarea>
                 sidebar: $('sidebar'),
                 toggleSidebar: $('toggle-sidebar-btn'),
                 toggleSidebarIcon: $('sidebar-toggle-icon'),
+                title: $('activity-title'),
                 source: $('source-text'),
-                build: $('build-btn'),
-                random: $('random-btn'),
+                passageMeta: $('passage-meta'),
+                percentBox: $('percent-box'),
+                nthBox: $('nth-box'),
+                slider: $('rand-slider'),
+                display: $('rand-display'),
+                nthInput: $('nth-input'),
+                reroll: $('reroll-btn'),
+                undo: $('undo-btn'),
                 clear: $('clear-btn'),
-                skipShort: $('skip-short'),
-                showWordBank: $('show-word-bank'),
+                shuffleStripsRow: $('shuffle-strips-row'),
+                shuffleStrips: $('shuffle-strips'),
+                wordBankToggle: $('word-bank-toggle'),
                 printWall: $('print-wall-btn'),
                 printSheet: $('print-sheet-btn'),
-                printBoth: $('print-both-btn'),
-                printHint: $('print-hint'),
+                printKey: $('print-key-btn'),
+                printAll: $('print-all-btn'),
                 theme: $('theme-btn'),
-                pct: $('pct-slider'),
-                pctDisplay: $('pct-display'),
-                preview: $('preview'),
-                previewHeading: $('preview-heading'),
-                previewSubheading: $('preview-subheading'),
-                area: $('interactive-area'),
-                empty: $('preview-empty'),
+                help: $('help-btn'),
+                loadExample: $('load-example-btn'),
+                emptyExample: $('empty-example-btn'),
+                clearText: $('clear-text-btn'),
+                previewTitle: $('preview-title'),
+                previewSubtitle: $('preview-subtitle'),
                 stats: $('stats'),
-                screenWordBank: $('screen-word-bank'),
-                screenWordBankItems: $('screen-word-bank-items'),
+                empty: $('preview-empty'),
+                notice: $('view-notice'),
+                noticeText: $('view-notice-text'),
+                area: $('interactive-area'),
+                printArea: $('print-area'),
+                printWallBadge: $('print-wall-badge'),
+                printWallContent: $('print-wall-content'),
+                printWsContent: $('print-ws-content'),
                 printWordBank: $('print-word-bank'),
                 printWordBankItems: $('print-word-bank-items'),
+                printKeyPassage: $('print-key-passage'),
+                printKeyList: $('print-key-list'),
                 pageStyle: $('page-style'),
                 newSet: $('new-set-btn'),
                 saveSet: $('save-set-btn'),
@@ -881,52 +1435,28 @@ Vic: He is a farmer.</textarea>
                 closeSet: $('close-set-btn'),
             };
 
-            let doc = parse('');
-            let flags = new Uint8Array(0);
+            let doc = { text: '', lines: [], words: [] };
+            let blanked = new Uint8Array(0);
             let spans = [];
             let blankCount = 0;
             let builtSource = '';
-            let version = 0;
+            let rebuildTimer = null;
+            let currentView = 'editor';
+            let undoStack = [];
+            let stroke = null;
             let printMode = null;
-            let preparedKey = null;
-            let currentView = 'builder'; // 'builder' | 'worksheet' | 'wall'
             let activeSetId = null;
             let cloudSaveTimer = null;
 
-            const LAZY_THRESHOLD = 2000;
-            const MIN_BLANK_LEN = 4;
-
-            const WIDTH_MM = { portrait: 180, landscape: 267 };
-            const SECTIONS = {
-                wall: {
-                    cls: 'wall-text',
-                    target: $('wall-text-content'),
-                    html: () => esc(doc.text),
-                    sizeName: 'wall-size',
-                    orientName: 'wall-orient',
-                    sizes: { large: 36, medium: 24, small: 16 },
-                    fit: [14, 36],
-                    heightMm: { portrait: 232, landscape: 150 },
-                },
-                sheet: {
-                    cls: 'ws-text',
-                    target: $('worksheet-content'),
-                    html: () => worksheetHTML(doc, flags),
-                    sizeName: 'sheet-size',
-                    orientName: 'sheet-orient',
-                    sizes: { large: 22, medium: 18, small: 14 },
-                    fit: [12, 22],
-                    heightMm: { portrait: 215, landscape: 135 },
-                },
-            };
-
-            const choice = (name) => document.querySelector(`input[name="${name}"]:checked`)?.value;
+            const choice = (name, fallback = '') => document.querySelector(`input[name="${name}"]:checked`)?.value || fallback;
             const setRadio = (name, val) => {
                 const r = document.querySelector(`input[name="${name}"][value="${val}"]`);
                 if (r) r.checked = true;
             };
 
-            // ----- Toast & Confirm Modal -----
+            const titleText = () => el.title.value.trim() || 'Running Dictation';
+
+            // ----- Toast & Modals -----
             function showToast(message, type = 'info') {
                 const container = $('toast-container');
                 if (!container) return;
@@ -956,11 +1486,12 @@ Vic: He is a farmer.</textarea>
                 }, 2600);
             }
 
-            function showConfirm(title, message) {
+            function showConfirm(title, message, yesLabel = 'Yes, Continue') {
                 return new Promise((resolve) => {
                     const modal = $('confirmModal');
                     $('confirmTitle').textContent = title;
                     $('confirmMessage').textContent = message;
+                    $('confirmBtnYes').textContent = yesLabel;
                     modal.classList.remove('hidden');
                     modal.classList.add('flex');
                     if (window.lucide) window.lucide.createIcons({ nodes: [modal] });
@@ -979,45 +1510,57 @@ Vic: He is a farmer.</textarea>
                 });
             }
 
-            // ----- Persistence -----
+            // ----- Persistence (LocalStorage + Cloud) -----
             function getWorkspaceData() {
                 return {
+                    title: el.title.value,
                     source: el.source.value,
-                    flags: Array.from(flags),
-                    pct: Number(el.pct.value),
-                    skipShort: el.skipShort.checked,
-                    showWordBank: el.showWordBank.checked,
-                    wallSize: choice('wall-size') || 'auto',
-                    wallOrient: choice('wall-orient') || 'portrait',
-                    sheetSize: choice('sheet-size') || 'auto',
-                    sheetOrient: choice('sheet-orient') || 'portrait',
-                    activeSetId
+                    blanked: Array.from(blanked),
+                    blankMode: choice('blank-mode', 'percent'),
+                    randPct: parseInt(el.slider.value, 10) || 25,
+                    nthStep: parseInt(el.nthInput.value, 10) || 4,
+                    wallFormat: choice('wall-format', 'poster'),
+                    shuffleStrips: el.shuffleStrips.checked,
+                    wallSize: choice('wall-size', 'large'),
+                    blankStyle: choice('blank-style', 'line'),
+                    wordBank: el.wordBankToggle.checked,
+                    wsSize: choice('ws-size', 'medium'),
+                    orient: choice('page-orient', 'portrait'),
+                    view: currentView,
+                    activeSetId,
                 };
             }
 
-            function applyWorkspaceData(data) {
+            function applyWorkspaceData(data, opts = {}) {
                 if (!data) return;
+                if (typeof data.title === 'string') el.title.value = data.title;
                 if (typeof data.source === 'string') el.source.value = data.source;
-                if (typeof data.pct === 'number') {
-                    el.pct.value = data.pct;
-                    el.pctDisplay.textContent = data.pct + '%';
+                if (!opts.keepPrefs) {
+                    if (data.blankMode) setRadio('blank-mode', data.blankMode);
+                    if (typeof data.randPct === 'number') el.slider.value = data.randPct;
+                    if (typeof data.nthStep === 'number') el.nthInput.value = data.nthStep;
+                    if (data.wallFormat) setRadio('wall-format', data.wallFormat);
+                    if (typeof data.shuffleStrips === 'boolean') el.shuffleStrips.checked = data.shuffleStrips;
+                    if (data.wallSize) setRadio('wall-size', data.wallSize);
+                    if (data.blankStyle) setRadio('blank-style', data.blankStyle);
+                    if (typeof data.wordBank === 'boolean') el.wordBankToggle.checked = data.wordBank;
+                    if (data.wsSize) setRadio('ws-size', data.wsSize);
+                    if (data.orient) setRadio('page-orient', data.orient);
+                    if (data.view && VIEWS.includes(data.view)) currentView = data.view;
                 }
-                if (typeof data.skipShort === 'boolean') el.skipShort.checked = data.skipShort;
-                if (typeof data.showWordBank === 'boolean') el.showWordBank.checked = data.showWordBank;
-                if (data.wallSize) setRadio('wall-size', data.wallSize);
-                if (data.wallOrient) setRadio('wall-orient', data.wallOrient);
-                if (data.sheetSize) setRadio('sheet-size', data.sheetSize);
-                if (data.sheetOrient) setRadio('sheet-orient', data.sheetOrient);
                 if (data.activeSetId !== undefined) activeSetId = data.activeSetId;
 
-                build(Array.isArray(data.flags) ? data.flags : null, true);
+                syncModeVisibility();
+                syncPageSetup();
+                updateSliderLabel();
+                updateTabs();
+                build(Array.isArray(data.blanked) ? data.blanked : null, true);
             }
 
             function readSets() {
                 try {
                     const raw = localStorage.getItem(SETS_KEY);
-                    const sets = raw ? JSON.parse(raw) : [];
-                    return Array.isArray(sets) ? sets : [];
+                    return raw ? JSON.parse(raw) : [];
                 } catch (e) { return []; }
             }
 
@@ -1026,26 +1569,31 @@ Vic: He is a farmer.</textarea>
             }
 
             function persistState() {
-                const ws = getWorkspaceData();
-                try { localStorage.setItem(STORAGE_KEY, JSON.stringify(ws)); } catch (e) { /* ignore */ }
+                const data = getWorkspaceData();
+                try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); } catch (e) { /* ignore */ }
 
                 if (activeSetId) {
                     const sets = readSets();
                     const idx = sets.findIndex((s) => s.id === activeSetId);
                     if (idx !== -1) {
-                        sets[idx] = { ...sets[idx], ...ws, lastUsed: Date.now() };
+                        sets[idx] = {
+                            ...sets[idx],
+                            title: data.title,
+                            source: data.source,
+                            blanked: data.blanked,
+                            wordBank: data.wordBank,
+                            wallFormat: data.wallFormat,
+                            blankStyle: data.blankStyle,
+                            lastUsed: Date.now(),
+                        };
                         writeSets(sets);
-                        renderLibrary();
                     }
                 }
 
                 clearTimeout(cloudSaveTimer);
                 cloudSaveTimer = setTimeout(() => {
                     if (typeof window.saveProgress === 'function') {
-                        window.saveProgress(CLOUD_TOOL_KEY, {
-                            workspace: ws,
-                            sets: readSets()
-                        }).catch(() => {});
+                        window.saveProgress(CLOUD_TOOL_KEY, { workspace: data, sets: readSets() });
                     }
                 }, 700);
             }
@@ -1055,8 +1603,11 @@ Vic: He is a farmer.</textarea>
                 try {
                     const localRaw = localStorage.getItem(STORAGE_KEY);
                     if (localRaw) {
-                        applyWorkspaceData(JSON.parse(localRaw));
-                        loaded = true;
+                        const parsed = JSON.parse(localRaw);
+                        if (parsed && typeof parsed.source === 'string') {
+                            applyWorkspaceData(parsed);
+                            loaded = true;
+                        }
                     }
                 } catch (e) { /* ignore */ }
 
@@ -1064,7 +1615,7 @@ Vic: He is a farmer.</textarea>
                     try {
                         const cloud = await window.loadProgress(CLOUD_TOOL_KEY);
                         if (cloud) {
-                            if (cloud.workspace) {
+                            if (cloud.workspace && typeof cloud.workspace.source === 'string') {
                                 applyWorkspaceData(cloud.workspace);
                                 localStorage.setItem(STORAGE_KEY, JSON.stringify(cloud.workspace));
                                 loaded = true;
@@ -1076,7 +1627,12 @@ Vic: He is a farmer.</textarea>
                     } catch (e) { /* ignore */ }
                 }
 
-                if (!loaded) build(null, true);
+                if (!loaded) {
+                    el.title.value = DEFAULT_TITLE;
+                    el.source.value = DEFAULT_PASSAGE;
+                    build(null, true);
+                    applyAutoBlanks(true);
+                }
             }
 
             function updateActiveSetBanner() {
@@ -1100,246 +1656,437 @@ Vic: He is a farmer.</textarea>
 
                 updateActiveSetBanner();
 
-                if (!sets.length) {
-                    el.libraryList.innerHTML = `<p class="text-xs font-semibold text-slate-400 text-center py-3">No saved sets yet.</p>`;
+                if (sets.length === 0) {
+                    el.libraryList.innerHTML = `<p class="text-[11px] font-semibold text-slate-400 italic py-2 text-center">No saved passages yet.</p>`;
                     return;
                 }
 
-                el.libraryList.innerHTML = sets.map((s) => {
+                el.libraryList.replaceChildren(...sets.map((s) => {
                     const isActive = s.id === activeSetId;
-                    const fl = Array.isArray(s.flags) ? s.flags : [];
-                    const blanks = fl.filter(Boolean).length;
-                    return `
-                        <div class="flex items-center gap-2 p-2 rounded-xl border-2 ${isActive ? 'border-blue bg-blue/10' : 'border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60'} hover:border-blue transition-colors">
-                            <button type="button" data-load-id="${s.id}" class="flex-1 text-left min-w-0">
-                                <p class="text-xs font-extrabold truncate flex items-center gap-1.5">
-                                    <span></span>
-                                    ${isActive ? '<span class="px-1.5 py-0.2 rounded bg-blue text-white text-[9px] uppercase">Active</span>' : ''}
-                                </p>
-                                <p class="text-[10px] font-bold text-slate-400">${fl.length} words · ${blanks} blanked</p>
-                            </button>
-                            <button type="button" data-delete-id="${s.id}" class="p-1.5 rounded-lg text-slate-400 hover:text-pink hover:bg-pink/10 transition-colors" title="Delete set">
-                                <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
-                            </button>
-                        </div>
+                    const bCount = Array.isArray(s.blanked) ? s.blanked.reduce((a, b) => a + (b ? 1 : 0), 0) : 0;
+                    const row = document.createElement('div');
+                    row.className = `flex items-center gap-2 p-2 rounded-xl border-2 ${isActive ? 'border-blue bg-blue/10' : 'border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60'} hover:border-blue transition-colors`;
+                    row.innerHTML = `
+                        <button type="button" data-load-id="${s.id}" class="flex-1 text-left min-w-0">
+                            <p class="text-xs font-extrabold truncate flex items-center gap-1.5">
+                                <span class="truncate"></span>
+                                ${isActive ? '<span class="px-1.5 py-0.2 rounded bg-blue text-white text-[9px] uppercase">Active</span>' : ''}
+                            </p>
+                            <p class="text-[10px] font-bold text-slate-400">${bCount} blanks</p>
+                        </button>
+                        <button type="button" data-delete-id="${s.id}" class="p-1.5 rounded-lg text-slate-400 hover:text-pink hover:bg-pink/10 transition-colors" title="Delete set">
+                            <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                        </button>
                     `;
-                }).join('');
-
-                const loadBtns = el.libraryList.querySelectorAll('[data-load-id]');
-                sets.forEach((s, idx) => {
-                    const span = loadBtns[idx]?.querySelector('p span:first-child');
-                    if (span) span.textContent = s.name;
-                });
+                    row.querySelector('p span').textContent = s.name;
+                    return row;
+                }));
 
                 if (window.lucide) window.lucide.createIcons({ nodes: [el.libraryList] });
             }
 
-            // ----- Core UI -----
-            function renderWordBanks() {
-                const words = getBlankedWords(doc, flags);
-                const show = el.showWordBank.checked && words.length > 0;
-                el.screenWordBank.classList.toggle('hidden', !show);
-                el.printWordBank.classList.toggle('hidden', !show);
+            // ----- Core UI Helpers -----
+            function recountBlanks() {
+                blankCount = 0;
+                for (let i = 0; i < blanked.length; i++) if (blanked[i]) blankCount++;
+            }
 
-                if (show) {
-                    el.screenWordBankItems.replaceChildren(...words.map((w) => {
-                        const span = document.createElement('span');
-                        span.className = 'px-2.5 py-1 rounded-lg text-xs font-extrabold bg-white dark:bg-slate-800 border-2 border-dark dark:border-slate-500 shadow-hard-sm';
-                        span.textContent = w;
-                        return span;
-                    }));
-                    el.printWordBankItems.replaceChildren(...words.map((w) => {
-                        const span = document.createElement('span');
-                        span.textContent = w;
-                        return span;
-                    }));
-                }
+            function pushUndo() {
+                undoStack.push(blanked.slice());
+                if (undoStack.length > 40) undoStack.shift();
+            }
+
+            function undo() {
+                if (!undoStack.length) return;
+                blanked = undoStack.pop();
+                recountBlanks();
+                syncSpans();
+                showToast('Undid last blank change', 'info');
+            }
+
+            function setNotice(msg) {
+                el.notice.classList.toggle('hidden', !msg);
+                el.noticeText.textContent = msg || '';
             }
 
             function updateUI() {
-                const n = doc.words.length;
-                const dirty = el.source.value !== builtSource;
-
-                el.stats.textContent = dirty
-                    ? 'Text changed — click Build'
-                    : `${n.toLocaleString()} words · ${blankCount.toLocaleString()} blanked`;
-                el.stats.classList.toggle('hidden', !n && !dirty);
-
-                el.random.disabled = el.clear.disabled = !n;
-                const disablePrint = !n || dirty;
-                el.printWall.disabled = el.printSheet.disabled = el.printBoth.disabled = disablePrint;
-                el.printHint.textContent = dirty && n ? 'Text changed. Click Build again before printing.' : '';
-                el.printHint.classList.toggle('hidden', !(dirty && n));
-                el.empty.classList.toggle('hidden', n > 0);
-                renderWordBanks();
+                const total = doc.words.length;
+                const sentences = splitSentences(doc.text).length;
+                const empty = total === 0;
+                el.stats.textContent = `${blankCount} / ${total} blanked`;
+                el.passageMeta.textContent = `${total} word${total === 1 ? '' : 's'} · ${sentences} sentence${sentences === 1 ? '' : 's'}`;
+                el.empty.classList.toggle('hidden', !empty);
+                el.area.classList.toggle('hidden', empty);
+                el.reroll.disabled = empty;
+                el.undo.disabled = undoStack.length === 0;
+                el.clear.disabled = blankCount === 0;
+                el.printWall.disabled = empty;
+                el.printSheet.disabled = empty;
+                el.printKey.disabled = empty;
+                el.printAll.disabled = empty;
             }
 
+            function wallPreviewHTML(forPrint = false) {
+                const format = choice('wall-format', 'poster');
+                const pt = WALL_PT[choice('wall-size', 'large')] || 26;
+                if (format === 'strips') {
+                    let sentences = splitSentences(doc.text);
+                    const items = sentences.map((text, idx) => ({ num: idx + 1, text }));
+                    if (el.shuffleStrips.checked) {
+                        items.sort((a, b) => ((a.num * 7) % 13) - ((b.num * 7) % 13));
+                    }
+                    const cards = items.map((item) => `
+                        <div class="strip-card">
+                            <span class="strip-cut-tag">✂ Cut Strip</span>
+                            <span class="strip-num">#${item.num}</span>
+                            <div class="strip-body" style="font-size:${Math.max(16, pt - 4)}pt">${esc(item.text)}</div>
+                        </div>
+                    `).join('');
+                    if (forPrint) return `<div class="strips-grid">${cards}</div>`;
+                    return `
+                        <div class="sheet-card">
+                            <div class="mb-4 pb-3 border-b-4 border-dark dark:border-slate-500 flex justify-between items-end gap-2">
+                                <div>
+                                    <h3 class="font-heading text-2xl uppercase">${esc(titleText())}</h3>
+                                    <span class="inline-block mt-1 px-3 py-0.5 rounded-full text-xs font-heading uppercase bg-orange/20 border-2 border-dark dark:border-slate-400">Cut-Out Sentence Strips (${items.length})</span>
+                                </div>
+                            </div>
+                            <div class="strips-grid">${cards}</div>
+                        </div>`;
+                }
+
+                if (forPrint) {
+                    return `<div class="wall-text" style="font-size:${pt}pt">${esc(doc.text)}</div>`;
+                }
+                return `
+                    <div class="sheet-card">
+                        <div class="mb-5 pb-3 border-b-4 border-dark dark:border-slate-500">
+                            <h3 class="font-heading text-3xl uppercase">${esc(titleText())}</h3>
+                            <span class="inline-block mt-1.5 px-3 py-0.5 rounded-full text-xs font-heading uppercase bg-orange/20 border-2 border-dark dark:border-slate-400">Wall Reading Poster</span>
+                        </div>
+                        <div class="wall-text" style="font-size:${Math.min(26, pt)}pt">${esc(doc.text)}</div>
+                    </div>`;
+            }
+
+            function getBlankedWordsList() {
+                const words = [];
+                for (let i = 0; i < doc.words.length; i++) {
+                    if (blanked[i]) words.push(doc.words[i]);
+                }
+                return words;
+            }
+
+            function worksheetPreviewHTML() {
+                const style = choice('blank-style', 'line');
+                const pt = WS_PT[choice('ws-size', 'medium')] || 16;
+                const blankWords = getBlankedWordsList();
+                const bankBlock = (el.wordBankToggle.checked && blankWords.length > 0)
+                    ? `<div class="word-bank-box">
+                           <h3>Word Bank</h3>
+                           <div class="word-bank-items">${shuffleArray(blankWords).map((w) => `<span>• ${esc(w)}</span>`).join('')}</div>
+                       </div>`
+                    : '';
+                return `
+                    <div class="sheet-card">
+                        <div class="mb-5 pb-3 border-b-4 border-dark dark:border-slate-500 flex flex-wrap justify-between items-end gap-4">
+                            <div>
+                                <h3 class="font-heading text-2xl uppercase">${esc(titleText())}</h3>
+                                <p class="text-xs font-bold text-slate-500 dark:text-slate-400 mt-1">Listen to your runner and write the missing words in the numbered blanks.</p>
+                            </div>
+                            <div class="text-xs font-bold space-y-1.5 min-w-[180px]">
+                                <div class="flex justify-between"><span>Runner:</span><span class="flex-1 ml-2 border-b-2 border-dark dark:border-slate-400"></span></div>
+                                <div class="flex justify-between"><span>Writer:</span><span class="flex-1 ml-2 border-b-2 border-dark dark:border-slate-400"></span></div>
+                            </div>
+                        </div>
+                        <div class="ws-text" style="font-size:${pt}pt">${worksheetHTML(doc, blanked, style)}</div>
+                        ${bankBlock}
+                    </div>`;
+            }
+
+            function keyPreviewHTML() {
+                const blankWords = getBlankedWordsList();
+                const listItems = blankWords.map((w, idx) => `<li><b>#${idx + 1}:</b> ${esc(w)}</li>`).join('');
+                return `
+                    <div class="sheet-card">
+                        <div class="mb-5 pb-3 border-b-4 border-dark dark:border-slate-500">
+                            <h3 class="font-heading text-2xl uppercase">${esc(titleText())}</h3>
+                            <span class="inline-block mt-1 px-3 py-0.5 rounded-full text-xs font-heading uppercase bg-green/25 border-2 border-dark dark:border-slate-400">Teacher Answer Key (${blankWords.length} answers)</span>
+                        </div>
+                        <div class="ws-text" style="font-size:15pt">${keyPassageHTML(doc, blanked)}</div>
+                        ${blankWords.length ? `<ol class="mt-6 pt-4 border-t-3 border-dark dark:border-slate-600 grid grid-cols-2 sm:grid-cols-3 gap-2 text-sm">${listItems}</ol>` : ''}
+                    </div>`;
+            }
+
+            const VIEW_META = {
+                editor: ['Interactive Editor', 'Click or drag across words to toggle pink blanks. Pink words become blanks on the Student Worksheet.'],
+                wall: ['Wall Poster / Strips (A4)', 'What Runners read on the classroom wall. Switch between Single Poster and Sentence Strips in Step 3.'],
+                worksheet: ['Student Worksheet (A4)', 'What Writers fill in at their desks. Customize blank clues and the Word Bank in Step 4.'],
+                key: ['Teacher Answer Key (A4)', 'Numbered answers highlighted in sequence for quick checking.'],
+            };
+
             function renderCurrentView() {
+                const [title, sub] = VIEW_META[currentView] || VIEW_META.editor;
+                el.previewTitle.textContent = title;
+                el.previewSubtitle.textContent = sub;
+
                 if (!doc.words.length) {
                     el.area.innerHTML = '';
                     spans = [];
+                    setNotice('');
                     return;
                 }
 
-                if (currentView === 'builder') {
-                    el.previewHeading.textContent = 'Text Builder';
-                    el.previewSubheading.textContent = 'Click words to blank them out for the student worksheet.';
-                    el.area.className = 'flex-1 font-body' + (doc.words.length > LAZY_THRESHOLD ? ' lazy' : '');
-                    el.area.innerHTML = previewHTML(doc, flags);
+                if (currentView === 'editor') {
+                    setNotice(blankCount === 0 ? 'No words blanked yet. Click words below or press Re-Roll in Step 2.' : '');
+                    el.area.className = 'font-body text-xl';
+                    el.area.innerHTML = editorHTML(doc, blanked);
                     spans = Array.from(el.area.querySelectorAll('.word'));
+                    return;
+                }
+
+                spans = [];
+                el.area.className = 'font-body';
+                if (currentView === 'wall') {
+                    setNotice('');
+                    el.area.innerHTML = wallPreviewHTML(false);
                 } else if (currentView === 'worksheet') {
-                    el.previewHeading.textContent = 'Worksheet Preview';
-                    el.previewSubheading.textContent = 'Preview of the fill-in-the-blanks handout for students.';
-                    el.area.className = 'flex-1 font-body ws-text text-xl';
-                    el.area.innerHTML = worksheetHTML(doc, flags);
-                    spans = [];
+                    setNotice(blankCount === 0 ? 'No blanks selected yet — the worksheet currently shows the full text.' : '');
+                    el.area.innerHTML = worksheetPreviewHTML();
                 } else {
-                    el.previewHeading.textContent = 'Wall Poster Preview';
-                    el.previewSubheading.textContent = 'Preview of the full reading sheet to post on the classroom wall.';
-                    el.area.className = 'flex-1 font-body wall-text text-2xl';
-                    el.area.innerHTML = esc(doc.text);
-                    spans = [];
+                    setNotice(blankCount === 0 ? 'No blanks selected yet.' : '');
+                    el.area.innerHTML = keyPreviewHTML();
+                }
+            }
+
+            function refreshSpanClasses() {
+                for (let i = 0; i < spans.length; i++) {
+                    spans[i].classList.toggle('blanked', Boolean(blanked[i]));
                 }
             }
 
             function syncSpans() {
-                if (currentView === 'builder' && spans.length === flags.length) {
-                    for (let i = 0; i < spans.length; i++) spans[i].classList.toggle('blanked', flags[i] === 1);
+                if (currentView === 'editor' && spans.length === blanked.length && spans.length) {
+                    refreshSpanClasses();
+                    setNotice(blankCount === 0 ? 'No words blanked yet. Click words below or press Re-Roll in Step 2.' : '');
                 } else {
                     renderCurrentView();
                 }
-                version++;
                 updateUI();
                 persistState();
             }
 
-            function build(initialFlags = null, skipSave = false) {
+            function build(initialBlanked = null, skipSave = false) {
+                const oldWords = doc.words;
+                const oldBlanked = blanked;
+                const textChanged = el.source.value !== builtSource;
                 doc = parse(el.source.value);
                 builtSource = el.source.value;
-                flags = new Uint8Array(doc.words.length);
-                blankCount = 0;
-
-                if (Array.isArray(initialFlags) && initialFlags.length === doc.words.length) {
-                    for (let i = 0; i < doc.words.length; i++) {
-                        flags[i] = initialFlags[i] ? 1 : 0;
-                        if (flags[i]) blankCount++;
-                    }
+                if (Array.isArray(initialBlanked) && initialBlanked.length === doc.words.length) {
+                    blanked = Uint8Array.from(initialBlanked, (x) => (x ? 1 : 0));
+                } else if (initialBlanked === null && oldWords.length) {
+                    blanked = remapBlanked(oldWords, oldBlanked, doc.words);
+                } else {
+                    blanked = new Uint8Array(doc.words.length);
                 }
-
+                if (textChanged) undoStack = [];
+                recountBlanks();
                 renderCurrentView();
-                el.preview.scrollTop = 0;
-                version++;
                 updateUI();
                 if (!skipSave) persistState();
             }
 
-            function toggleWord(i, span) {
-                flags[i] ^= 1;
-                blankCount += flags[i] ? 1 : -1;
-                span.classList.toggle('blanked', flags[i] === 1);
-                version++;
-                updateUI();
-                persistState();
+            function scheduleRebuild() {
+                clearTimeout(rebuildTimer);
+                rebuildTimer = setTimeout(() => build(), 450);
             }
 
-            function randomize() {
+            function flushRebuild() {
+                if (el.source.value !== builtSource) {
+                    clearTimeout(rebuildTimer);
+                    build();
+                }
+            }
+
+            // ----- Auto-blanking (Random % or Every N-th Content Word) -----
+            function applyAutoBlanks(silent = false) {
+                flushRebuild();
                 const n = doc.words.length;
                 if (!n) return;
+                pushUndo();
+                blanked.fill(0);
 
-                let pool = [];
-                if (el.skipShort.checked) {
-                    doc.words.forEach((w, i) => { if (w.length >= MIN_BLANK_LEN) pool.push(i); });
+                const candidates = [];
+                for (let i = 0; i < n; i++) {
+                    if (isContentWord(doc.words[i])) candidates.push(i);
                 }
-                if (!pool.length) pool = Array.from({ length: n }, (_, i) => i);
+                const pool = candidates.length ? candidates : Array.from({ length: n }, (_, i) => i);
+                const mode = choice('blank-mode', 'percent');
 
-                const k = Math.min(pool.length, Math.max(1, Math.round((n * Number(el.pct.value)) / 100)));
-                flags.fill(0);
-                for (const i of pickRandom(pool, k)) flags[i] = 1;
-                blankCount = k;
-                syncSpans();
-                showToast(`Blanked ${k} random words`, 'success');
-            }
-
-            function clearBlanks() {
-                flags.fill(0);
-                blankCount = 0;
-                syncSpans();
-                showToast('Cleared all blanks', 'info');
-            }
-
-            // ----- Printing -----
-            function fitPt(cls, html, widthMm, heightMm, [minPt, maxPt]) {
-                const probe = document.createElement('div');
-                probe.className = cls;
-                probe.style.cssText = `position:absolute;left:-9999px;top:0;visibility:hidden;width:${widthMm}mm;`;
-                probe.innerHTML = html;
-                document.body.appendChild(probe);
-
-                const limit = (heightMm * 96) / 25.4;
-                const fits = (pt) => {
-                    probe.style.fontSize = pt + 'pt';
-                    return probe.offsetHeight <= limit;
-                };
-
-                let best = minPt;
-                if (fits(maxPt)) {
-                    best = maxPt;
+                if (mode === 'nth') {
+                    const step = Math.max(2, Math.min(12, parseInt(el.nthInput.value, 10) || 4));
+                    for (let k = step - 1; k < pool.length; k += step) {
+                        blanked[pool[k]] = 1;
+                    }
                 } else {
-                    let lo = minPt, hi = maxPt - 1;
-                    while (lo <= hi) {
-                        const mid = (lo + hi) >> 1;
-                        if (fits(mid)) { best = mid; lo = mid + 1; } else { hi = mid - 1; }
+                    const pct = parseInt(el.slider.value, 10) || 25;
+                    const target = Math.min(pool.length, Math.max(1, Math.round((n * pct) / 100)));
+                    const shuffled = shuffleArray(pool);
+                    for (let k = 0; k < target; k++) {
+                        blanked[shuffled[k]] = 1;
                     }
                 }
-                probe.remove();
-                return best;
+
+                recountBlanks();
+                syncSpans();
+                if (!silent) showToast(`Selected ${blankCount} content-word blanks`, 'success');
             }
 
-            function fillSection(key, orient) {
-                const s = SECTIONS[key];
-                const html = s.html();
-                const size = choice(s.sizeName) || 'auto';
-                const pt = size === 'auto'
-                    ? fitPt(s.cls, html, WIDTH_MM[orient], s.heightMm[orient], s.fit)
-                    : s.sizes[size];
-                s.target.innerHTML = html;
-                s.target.style.fontSize = pt + 'pt';
+            // ----- Pointer Painting (Click + Drag in Editor) -----
+            function paintTo(i) {
+                blanked.set(stroke.snapshot);
+                const lo = Math.min(stroke.start, i), hi = Math.max(stroke.start, i);
+                for (let k = lo; k <= hi; k++) blanked[k] = stroke.value;
+                recountBlanks();
+                refreshSpanClasses();
+                el.stats.textContent = `${blankCount} / ${doc.words.length} blanked`;
+            }
+
+            el.area.addEventListener('pointerdown', (e) => {
+                if (currentView !== 'editor' || (e.pointerType === 'mouse' && e.button !== 0)) return;
+                const span = e.target.closest('.word');
+                if (!span) return;
+                e.preventDefault();
+                const i = Number(span.dataset.i);
+                stroke = {
+                    id: e.pointerId,
+                    start: i,
+                    last: i,
+                    value: blanked[i] ? 0 : 1,
+                    snapshot: blanked.slice(),
+                };
+                try { el.area.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
+                el.area.classList.add('painting');
+                paintTo(i);
+            });
+
+            el.area.addEventListener('pointermove', (e) => {
+                if (!stroke || e.pointerId !== stroke.id) return;
+                const t = document.elementFromPoint(e.clientX, e.clientY);
+                const span = t && t.closest ? t.closest('.word') : null;
+                if (!span || !el.area.contains(span)) return;
+                const i = Number(span.dataset.i);
+                if (i === stroke.last) return;
+                stroke.last = i;
+                paintTo(i);
+            });
+
+            function endStroke(e) {
+                if (!stroke || (e && e.pointerId !== stroke.id)) return;
+                const changed = stroke.snapshot.some((v, k) => v !== blanked[k]);
+                if (changed) {
+                    undoStack.push(stroke.snapshot);
+                    if (undoStack.length > 40) undoStack.shift();
+                }
+                stroke = null;
+                el.area.classList.remove('painting');
+                if (changed) syncSpans();
+            }
+            el.area.addEventListener('pointerup', endStroke);
+            el.area.addEventListener('pointercancel', endStroke);
+            el.area.addEventListener('lostpointercapture', endStroke);
+
+            // ----- Printing (Strict A4) -----
+            function syncPageSetup() {
+                const orient = choice('page-orient', 'portrait');
+                document.documentElement.dataset.orient = orient;
+                el.pageStyle.textContent = `@page { size: A4 ${orient}; margin: 0; }`;
             }
 
             function preparePrint(mode) {
+                flushRebuild();
                 if (!doc.words.length) return;
-                const orient = mode === 'both' ? 'portrait' : (choice(SECTIONS[mode].orientName) || 'portrait');
-                const key = [mode, version, orient, choice('wall-size'), choice('sheet-size'), el.showWordBank.checked].join('|');
-
-                el.pageStyle.textContent = `@page { size: A4 ${orient}; margin: 15mm; }`;
+                syncPageSetup();
                 document.documentElement.dataset.print = mode;
-                renderWordBanks();
-                if (key === preparedKey) return;
 
-                for (const k of mode === 'both' ? ['wall', 'sheet'] : [mode]) fillSection(k, orient);
-                preparedKey = key;
+                const t = titleText();
+                el.printArea.querySelectorAll('.print-title-text').forEach((h) => { h.textContent = t; });
+
+                const wallFormat = choice('wall-format', 'poster');
+                el.printWallBadge.textContent = wallFormat === 'strips' ? 'Cut-Out Sentence Strips' : 'Wall Reading Poster';
+                el.printWallContent.innerHTML = wallPreviewHTML(true);
+
+                const style = choice('blank-style', 'line');
+                const wsPt = WS_PT[choice('ws-size', 'medium')] || 16;
+                el.printWsContent.style.fontSize = wsPt + 'pt';
+                el.printWsContent.innerHTML = worksheetHTML(doc, blanked, style);
+
+                const blankWords = getBlankedWordsList();
+                if (el.wordBankToggle.checked && blankWords.length > 0) {
+                    const shuffled = shuffleArray(blankWords);
+                    el.printWordBankItems.replaceChildren(...shuffled.map((w) => {
+                        const s = document.createElement('span');
+                        s.textContent = '• ' + w;
+                        return s;
+                    }));
+                    el.printWordBank.classList.remove('hidden');
+                } else {
+                    el.printWordBank.classList.add('hidden');
+                }
+
+                el.printKeyPassage.style.fontSize = '14pt';
+                el.printKeyPassage.innerHTML = keyPassageHTML(doc, blanked);
+                el.printKeyList.innerHTML = blankWords.map((w) => `<li>${esc(w)}</li>`).join('');
             }
 
-            async function printSection(mode) {
+            function printDocument(mode) {
+                flushRebuild();
+                if (!doc.words.length) { showToast('Add a passage first', 'warning'); return; }
                 printMode = mode;
-                try {
-                    if (document.fonts) {
-                        await Promise.all([document.fonts.load("700 20px 'Nunito'"), document.fonts.load("600 20px 'Nunito'")]);
-                    }
-                } catch (e) { /* ignore */ }
                 preparePrint(mode);
                 window.print();
             }
 
-            window.addEventListener('beforeprint', () => preparePrint(printMode || 'both'));
+            window.addEventListener('beforeprint', () => preparePrint(printMode || 'all'));
             window.addEventListener('afterprint', () => {
-                for (const s of Object.values(SECTIONS)) s.target.textContent = '';
+                el.printWallContent.textContent = '';
+                el.printWsContent.textContent = '';
+                el.printWordBankItems.textContent = '';
+                el.printKeyPassage.textContent = '';
+                el.printKeyList.textContent = '';
                 delete document.documentElement.dataset.print;
                 printMode = null;
-                preparedKey = null;
             });
 
-            // ----- Theme -----
+            // ----- Mode & View Helpers -----
+            function syncModeVisibility() {
+                const isNth = choice('blank-mode', 'percent') === 'nth';
+                el.percentBox.classList.toggle('hidden', isNth);
+                el.nthBox.classList.toggle('hidden', !isNth);
+
+                const isStrips = choice('wall-format', 'poster') === 'strips';
+                el.shuffleStripsRow.classList.toggle('hidden', !isStrips);
+                el.shuffleStripsRow.classList.toggle('flex', isStrips);
+            }
+
+            function updateSliderLabel() {
+                el.display.textContent = `${el.slider.value}%`;
+            }
+
+            function updateTabs() {
+                document.querySelectorAll('.view-tab').forEach((b) => {
+                    b.setAttribute('aria-selected', String(b.dataset.view === currentView));
+                });
+            }
+
+            function setView(view) {
+                if (!VIEWS.includes(view)) return;
+                flushRebuild();
+                currentView = view;
+                updateTabs();
+                renderCurrentView();
+                persistState();
+            }
+
             function setTheme(dark) {
                 document.documentElement.classList.toggle('dark', dark);
                 el.theme.setAttribute('aria-pressed', String(dark));
@@ -1349,71 +2096,95 @@ Vic: He is a farmer.</textarea>
                 } catch (e) { /* ignore */ }
             }
 
-            // ----- Wiring -----
-            el.area.addEventListener('click', (e) => {
-                if (currentView !== 'builder') return;
-                const span = e.target.closest('.word');
-                if (span) toggleWord(Number(span.dataset.i), span);
-            });
-
+            // ----- Event Wiring -----
             document.querySelectorAll('.view-tab').forEach((btn) => {
-                btn.addEventListener('click', () => {
-                    currentView = btn.getAttribute('data-view');
-                    document.querySelectorAll('.view-tab').forEach((b) => {
-                        const active = b === btn;
-                        b.classList.toggle('bg-green', active);
-                        b.classList.toggle('text-dark', active);
-                        b.classList.toggle('border-dark', active);
-                        b.classList.toggle('border-transparent', !active);
-                    });
-                    renderCurrentView();
-                });
+                btn.addEventListener('click', () => setView(btn.dataset.view));
             });
 
-            document.querySelectorAll('[data-preset]').forEach((btn) => {
-                btn.addEventListener('click', () => {
-                    const key = btn.getAttribute('data-preset');
-                    if (PRESETS[key]) {
-                        el.source.value = PRESETS[key];
-                        build();
-                        showToast(`Loaded ${key} preset`, 'info');
-                    }
-                });
+            el.title.addEventListener('input', () => {
+                if (currentView !== 'editor') renderCurrentView();
+                persistState();
             });
 
             el.source.addEventListener('input', () => {
                 updateUI();
                 persistState();
-            });
-            el.source.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); build(); }
+                scheduleRebuild();
             });
 
-            el.build.addEventListener('click', () => {
-                build();
-                showToast('Interactive text built!', 'success');
+            document.querySelectorAll('input[name="blank-mode"]').forEach((r) => {
+                r.addEventListener('change', () => {
+                    syncModeVisibility();
+                    applyAutoBlanks(false);
+                });
             });
-            el.random.addEventListener('click', randomize);
-            el.clear.addEventListener('click', clearBlanks);
-            el.printWall.addEventListener('click', () => printSection('wall'));
-            el.printSheet.addEventListener('click', () => printSection('sheet'));
-            el.printBoth.addEventListener('click', () => printSection('both'));
+
+            el.slider.addEventListener('input', () => {
+                updateSliderLabel();
+                persistState();
+            });
+            el.slider.addEventListener('change', () => applyAutoBlanks(false));
+            el.nthInput.addEventListener('change', () => applyAutoBlanks(false));
+
+            document.querySelectorAll('input[name="wall-format"], input[name="wall-size"], input[name="blank-style"], input[name="ws-size"]').forEach((r) => {
+                r.addEventListener('change', () => {
+                    syncModeVisibility();
+                    if (currentView !== 'editor') renderCurrentView();
+                    persistState();
+                });
+            });
+
+            el.shuffleStrips.addEventListener('change', () => {
+                if (currentView === 'wall') renderCurrentView();
+                persistState();
+            });
+
+            el.wordBankToggle.addEventListener('change', () => {
+                if (currentView === 'worksheet') renderCurrentView();
+                persistState();
+            });
+
+            document.querySelectorAll('input[name="page-orient"]').forEach((r) => {
+                r.addEventListener('change', () => {
+                    syncPageSetup();
+                    persistState();
+                });
+            });
+
+            el.reroll.addEventListener('click', () => applyAutoBlanks(false));
+            el.undo.addEventListener('click', undo);
+            el.clear.addEventListener('click', async () => {
+                if (!blankCount) return;
+                const ok = await showConfirm('Clear All Blanks?', `Remove all ${blankCount} blanks from the worksheet? You can undo this.`, 'Clear All');
+                if (!ok) return;
+                pushUndo();
+                blanked.fill(0);
+                recountBlanks();
+                syncSpans();
+                showToast('All blanks cleared', 'info');
+            });
+
+            el.printWall.addEventListener('click', () => printDocument('wall'));
+            el.printSheet.addEventListener('click', () => printDocument('sheet'));
+            el.printKey.addEventListener('click', () => printDocument('key'));
+            el.printAll.addEventListener('click', () => printDocument('all'));
             el.theme.addEventListener('click', () => setTheme(!document.documentElement.classList.contains('dark')));
 
-            el.pct.addEventListener('input', () => {
-                el.pctDisplay.textContent = el.pct.value + '%';
-                persistState();
-            });
-            el.skipShort.addEventListener('change', persistState);
-            el.showWordBank.addEventListener('change', () => {
-                version++;
-                updateUI();
-                persistState();
-            });
-
-            document.querySelectorAll('input[name="wall-size"], input[name="wall-orient"], input[name="sheet-size"], input[name="sheet-orient"]').forEach((r) => {
-                r.addEventListener('change', persistState);
-            });
+            // Help modal
+            const helpModal = $('helpModal');
+            const openHelp = () => {
+                helpModal.classList.remove('hidden');
+                helpModal.classList.add('flex');
+                if (window.lucide) window.lucide.createIcons({ nodes: [helpModal] });
+            };
+            const closeHelp = () => {
+                helpModal.classList.add('hidden');
+                helpModal.classList.remove('flex');
+            };
+            el.help.addEventListener('click', openHelp);
+            $('help-close-btn').addEventListener('click', closeHelp);
+            $('help-got-it-btn').addEventListener('click', closeHelp);
+            helpModal.addEventListener('click', (e) => { if (e.target === helpModal) closeHelp(); });
 
             el.toggleSidebar?.addEventListener('click', () => {
                 const collapsed = el.sidebar.classList.toggle('sidebar-collapsed');
@@ -1421,25 +2192,66 @@ Vic: He is a farmer.</textarea>
                 if (window.lucide) window.lucide.createIcons({ nodes: [el.toggleSidebar] });
             });
 
-            // Saved Sets actions
-            el.newSet.addEventListener('click', async () => {
-                const ok = await showConfirm('Start New Dictation?', 'Clear the current text and start a fresh Running Dictation?');
-                if (!ok) return;
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape' && !helpModal.classList.contains('hidden')) { closeHelp(); return; }
+                const t = e.target;
+                const typing = t && (t.tagName === 'TEXTAREA' || (t.tagName === 'INPUT' && !['radio', 'checkbox', 'range'].includes(t.type)) || t.tagName === 'SELECT');
+                if (typing) return;
+                if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'z') {
+                    e.preventDefault();
+                    undo();
+                }
+            });
+
+            const loadExample = async () => {
+                if (el.source.value.trim()) {
+                    const ok = await showConfirm('Load Example?', 'Replace the current passage and blanks with the example story?', 'Load Example');
+                    if (!ok) return;
+                }
                 activeSetId = null;
+                el.title.value = DEFAULT_TITLE;
+                el.source.value = DEFAULT_PASSAGE;
+                build(null, true);
+                applyAutoBlanks(true);
+                renderLibrary();
+                showToast('Example passage loaded', 'success');
+            };
+            el.loadExample.addEventListener('click', loadExample);
+            el.emptyExample.addEventListener('click', loadExample);
+
+            el.clearText.addEventListener('click', async () => {
+                if (!el.source.value.trim()) return;
+                const ok = await showConfirm('Clear Passage?', 'Remove the passage text and all of its blanks?', 'Clear Text');
+                if (!ok) return;
                 el.source.value = '';
                 build();
+                showToast('Passage cleared', 'info');
+                el.source.focus();
+            });
+
+            // Saved Sets actions
+            el.newSet.addEventListener('click', async () => {
+                const ok = await showConfirm('Start New Dictation?', 'Clear the current passage and start a fresh Running Dictation? (Saved sets are kept.)', 'Start New');
+                if (!ok) return;
+                activeSetId = null;
+                el.title.value = '';
+                el.source.value = '';
+                build();
+                setView('editor');
                 renderLibrary();
                 showToast('New workspace ready', 'info');
+                el.source.focus();
             });
 
             el.saveSet.addEventListener('click', () => {
+                flushRebuild();
                 const modal = $('saveModal');
                 const input = $('save-set-input');
                 const current = readSets().find((s) => s.id === activeSetId);
-                input.value = current ? current.name : '';
+                input.value = current ? current.name : el.title.value.trim();
                 modal.classList.remove('hidden');
                 modal.classList.add('flex');
-                setTimeout(() => input.focus(), 50);
+                setTimeout(() => { input.focus(); input.select(); }, 50);
             });
 
             const closeSaveModal = () => {
@@ -1466,7 +2278,7 @@ Vic: He is a farmer.</textarea>
                     ...getWorkspaceData(),
                     createdAt: now,
                     lastUsed: now,
-                    usageCount: 1
+                    usageCount: 1,
                 });
                 activeSetId = id;
                 writeSets(sets);
@@ -1486,6 +2298,7 @@ Vic: He is a farmer.</textarea>
                 activeSetId = null;
                 renderLibrary();
                 persistState();
+                showToast('Detached from saved set', 'info');
             });
 
             el.librarySort.addEventListener('change', renderLibrary);
@@ -1501,7 +2314,7 @@ Vic: He is a farmer.</textarea>
                     item.lastUsed = Date.now();
                     item.usageCount = (item.usageCount || 0) + 1;
                     writeSets(sets);
-                    applyWorkspaceData(item);
+                    applyWorkspaceData({ ...item, activeSetId: id }, { keepPrefs: true });
                     renderLibrary();
                     persistState();
                     showToast(`Loaded "${item.name}"`, 'success');
@@ -1514,7 +2327,7 @@ Vic: He is a farmer.</textarea>
                     const sets = readSets();
                     const item = sets.find((s) => s.id === id);
                     if (!item) return;
-                    const ok = await showConfirm('Delete Saved Set?', `Delete "${item.name}" from your saved sets?`);
+                    const ok = await showConfirm('Delete Saved Set?', `Delete "${item.name}" from your saved sets?`, 'Delete');
                     if (!ok) return;
                     writeSets(sets.filter((s) => s.id !== id));
                     if (activeSetId === id) activeSetId = null;
@@ -1526,7 +2339,11 @@ Vic: He is a farmer.</textarea>
 
             // ----- Startup -----
             (async function init() {
+                updateSliderLabel();
+                syncModeVisibility();
+                updateTabs();
                 await loadPersistedState();
+                syncPageSetup();
                 el.theme.setAttribute('aria-pressed', String(document.documentElement.classList.contains('dark')));
                 renderLibrary();
                 if (window.lucide) window.lucide.createIcons();

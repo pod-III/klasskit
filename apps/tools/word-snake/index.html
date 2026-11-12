@@ -350,7 +350,7 @@
             overflow: hidden !important;
         }
 
-        /* ---------- PRINT (always light, whatever the on-screen theme) ---------- */
+        /* ---------- PRINT (always light, strict A4 dimensions whatever the on-screen theme) ---------- */
         @page { size: A4 portrait; margin: 0; }
 
         #print-area {
@@ -364,36 +364,64 @@
         @media print {
             html, body {
                 display: block !important;
-                width: auto !important;
-                height: auto !important;
+                width: 210mm !important;
+                height: 297mm !important;
                 padding: 0 !important;
                 margin: 0 !important;
-                overflow: visible !important;
+                overflow: hidden !important;
                 background: #fff !important;
                 background-image: none !important;
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+            }
+
+            html[data-orient="landscape"],
+            html[data-orient="landscape"] body {
+                width: 297mm !important;
+                height: 210mm !important;
+            }
+
+            body > :not(#print-area) {
+                display: none !important;
             }
 
             #print-area {
                 display: flex !important;
-                flex-direction: column;
-                height: 100vh;
-                padding: 14mm;
-                box-sizing: border-box;
-                overflow: hidden;
+                flex-direction: column !important;
+                width: 210mm !important;
+                height: 297mm !important;
+                max-width: 210mm !important;
+                max-height: 297mm !important;
+                padding: 12mm 14mm !important;
+                margin: 0 auto !important;
+                box-sizing: border-box !important;
+                overflow: hidden !important;
+                background: #fff !important;
+                page-break-after: avoid !important;
+                break-after: avoid !important;
+            }
+
+            html[data-orient="landscape"] #print-area {
+                width: 297mm !important;
+                height: 210mm !important;
+                max-width: 297mm !important;
+                max-height: 210mm !important;
+                padding: 10mm 14mm !important;
             }
 
             .print-header {
+                flex-shrink: 0;
                 display: flex;
                 justify-content: space-between;
                 align-items: flex-end;
                 border-bottom: 4px solid #1e293b;
-                padding-bottom: 10px;
-                margin-bottom: 14px;
+                padding-bottom: 8px;
+                margin-bottom: 10px;
             }
 
             .print-title h1 {
                 font-family: 'Fredoka', sans-serif;
-                font-size: 2.8rem;
+                font-size: 2.35rem;
                 text-transform: uppercase;
                 line-height: 1;
                 margin: 0;
@@ -401,19 +429,19 @@
 
             .print-title p {
                 font-family: 'Nunito', sans-serif;
-                font-size: 0.95rem;
+                font-size: 0.9rem;
                 font-weight: 800;
                 color: #475569;
-                margin: 6px 0 0;
+                margin: 5px 0 0;
             }
 
             .print-meta {
                 display: flex;
                 flex-direction: column;
-                gap: 10px;
-                min-width: 260px;
+                gap: 8px;
+                min-width: 240px;
                 font-family: 'Nunito', sans-serif;
-                font-size: 1.1rem;
+                font-size: 1rem;
                 font-weight: 700;
             }
 
@@ -421,38 +449,49 @@
             .meta-line span:last-child { flex-grow: 1; margin-left: 10px; border-bottom: 2px solid #1e293b; }
 
             #print-svg-container {
-                flex: 1 1 auto;
-                min-height: 0;
-                display: flex;
-                justify-content: center;
-                align-items: center;
+                flex: 1 1 0% !important;
+                min-height: 0 !important;
+                width: 100% !important;
+                max-height: 100% !important;
+                display: flex !important;
+                justify-content: center !important;
+                align-items: center !important;
+                overflow: hidden !important;
             }
 
-            #print-svg-container svg { width: 100%; height: 100%; }
+            #print-svg-container svg {
+                width: 100% !important;
+                height: 100% !important;
+                max-width: 100% !important;
+                max-height: 100% !important;
+                display: block !important;
+            }
 
             #print-word-bank {
+                flex-shrink: 0;
                 display: grid;
-                grid-template-columns: repeat(auto-fill, minmax(46mm, 1fr));
-                gap: 3mm 5mm;
-                margin-top: auto;
-                padding-top: 5mm;
+                grid-template-columns: repeat(auto-fill, minmax(44mm, 1fr));
+                gap: 2.5mm 4.5mm;
+                margin-top: 4mm;
+                padding-top: 3.5mm;
+                border-top: 2px dashed #cbd5e1;
             }
 
             .print-word {
                 display: flex;
                 align-items: center;
-                gap: 8px;
+                gap: 7px;
                 font-family: 'Fredoka', sans-serif;
-                font-size: 12.5pt;
+                font-size: 11.5pt;
                 font-weight: 600;
             }
 
             .print-word::before {
                 content: '';
                 flex: none;
-                width: 17px;
-                height: 17px;
-                border: 3px solid #1e293b;
+                width: 15px;
+                height: 15px;
+                border: 2.5px solid #1e293b;
                 border-radius: 4px;
                 background: #fff;
             }
@@ -461,9 +500,9 @@
                 grid-column: 1 / -1;
                 text-align: center;
                 font-family: 'Fredoka', sans-serif;
-                font-size: 13pt;
-                padding: 8px;
-                border: 3px dashed #1e293b;
+                font-size: 12pt;
+                padding: 6px;
+                border: 2.5px dashed #1e293b;
                 border-radius: 8px;
             }
         }
@@ -1490,7 +1529,9 @@
             }
 
             function applyPage() {
-                el.pageStyle.textContent = `@page { size: A4 ${choice('page-orient', 'portrait')}; margin: 0; }`;
+                const orient = choice('page-orient', 'portrait');
+                document.documentElement.dataset.orient = orient;
+                el.pageStyle.textContent = `@page { size: A4 ${orient}; margin: 0; }`;
             }
 
             function showStatus(message) {
@@ -1613,19 +1654,27 @@
                 persistState();
             }
 
-            function printHandout(asKey = false) {
+            let printingAsKey = false;
+            function preparePrintTitles(asKey) {
+                applyPage();
                 const baseTitle = el.customTitle.value.trim() || 'Word Snake';
                 const baseSub = el.customSubtitle.value.trim() || 'Circle the hidden words along the snake from head to tail.';
                 el.printArea.classList.toggle('show-answers', asKey);
                 el.printHeading.textContent = asKey ? `${baseTitle} — Teacher Key` : baseTitle;
                 el.printSubheading.textContent = asKey ? 'Highlighted letters show the exact location of every hidden word.' : baseSub;
+            }
+
+            function printHandout(asKey = false) {
+                printingAsKey = asKey;
+                preparePrintTitles(asKey);
                 window.print();
                 setTimeout(() => {
-                    el.printArea.classList.remove('show-answers');
-                    el.printHeading.textContent = baseTitle;
-                    el.printSubheading.textContent = baseSub;
-                }, 250);
+                    printingAsKey = false;
+                    preparePrintTitles(false);
+                }, 300);
             }
+
+            window.addEventListener('beforeprint', () => preparePrintTitles(printingAsKey));
 
             function setTheme(dark) {
                 document.documentElement.classList.toggle('dark', dark);
