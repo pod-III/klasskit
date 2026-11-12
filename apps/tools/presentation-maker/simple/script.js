@@ -345,9 +345,9 @@
                     }
 
                     return `
-                        <div class="shrink-0 w-24 aspect-chromebook border-2 border-dark dark:border-slate-600 rounded-lg shadow-sm overflow-hidden relative group animate-pop-in" style="background-color: ${color}">
+                        <div class="shrink-0 w-20 sm:w-22 aspect-chromebook border-2 border-dark dark:border-slate-500 rounded-xl shadow-[2px_2px_0px_0px_#0f172a] dark:shadow-[2px_2px_0px_0px_#000] overflow-hidden relative group animate-pop-in hover:-translate-y-0.5 transition-transform" style="background-color: ${color}">
                             ${content}
-                            <div class="absolute top-0 left-0 bg-dark/40 text-chalk text-[7px] px-1 font-bold rounded-br-md">${index + 1}</div>
+                            <div class="absolute top-0 left-0 bg-dark/70 text-chalk text-[8px] px-1.5 py-0.5 font-bold rounded-br-lg">${index + 1}</div>
                         </div>
                     `;
                 }));
@@ -883,24 +883,24 @@
                     const items = textItems + imgItems;
                     
                     const item = document.createElement('div');
-                    item.className = `group flex items-center gap-2 p-3 bg-white dark:bg-slate-900 border-3 ${isActive ? 'border-orange shadow-hard-orange' : 'border-dark/10 dark:border-slate-700'} rounded-xl hover:border-orange/50 transition-all animate-pop-in relative`;
+                    item.className = `group flex items-center gap-2.5 p-2.5 bg-white dark:bg-slate-800 border-2 ${isActive ? 'border-orange shadow-hard-orange' : 'border-dark/25 dark:border-slate-600 shadow-[2px_2px_0px_0px_rgba(15,23,42,0.12)] dark:shadow-[2px_2px_0px_0px_#000]'} rounded-xl hover:border-orange transition-all animate-pop-in relative`;
                     item.innerHTML = `
-                        <div class="w-8 h-8 ${isActive ? 'bg-orange text-chalk' : 'bg-orange/10 text-orange'} rounded-lg flex items-center justify-center shrink-0 border-2 border-orange/20">
+                        <div class="w-8 h-8 ${isActive ? 'bg-orange text-white border-dark' : 'bg-orange/15 text-orange border-orange/30'} rounded-lg flex items-center justify-center shrink-0 border-2">
                             <i data-lucide="${isActive ? 'edit-3' : 'file-text'}" class="w-4 h-4"></i>
                         </div>
                         <div class="flex-1 min-w-0">
                             <p class="text-xs font-bold ${isActive ? 'text-orange' : 'text-dark dark:text-chalk'} truncate font-title uppercase tracking-tight">${set.name}</p>
-                            <p class="text-[9px] text-dark/50 dark:text-chalk/40 font-bold">${items} Slides ${set.usageCount > 0 ? '• ' + set.usageCount + ' plays' : ''}</p>
+                            <p class="text-[10px] text-dark/55 dark:text-chalk/50 font-bold">${items} Slides ${set.usageCount > 0 ? '• ' + set.usageCount + ' plays' : ''}</p>
                         </div>
-                        <div class="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <button class="set-load p-1.5 bg-blue/10 text-blue rounded-lg border-2 border-blue/20 hover:bg-blue hover:text-dark transition-all shadow-sm" title="Load Set">
+                        <div class="flex gap-1 opacity-80 group-hover:opacity-100 transition-opacity">
+                            <button class="set-load p-1.5 bg-blue/15 text-blue rounded-lg border-2 border-blue/40 hover:bg-blue hover:text-white hover:border-dark transition-all" title="Load Set">
                                 <i data-lucide="upload-cloud" class="w-3.5 h-3.5"></i>
                             </button>
-                            <button class="set-del p-1.5 bg-pink/10 text-pink rounded-lg border-2 border-pink/20 hover:bg-pink hover:text-dark transition-all shadow-sm" title="Delete">
+                            <button class="set-del p-1.5 bg-pink/15 text-pink rounded-lg border-2 border-pink/40 hover:bg-pink hover:text-white hover:border-dark transition-all" title="Delete">
                                 <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
                             </button>
                         </div>
-                        ${isActive ? '<div class="absolute -top-2 -right-1 bg-orange text-chalk text-[7px] font-bold px-1.5 py-0.5 rounded-full border-2 border-chalk shadow-sm">ACTIVE</div>' : ''}`;
+                        ${isActive ? '<div class="absolute -top-2 -right-1 bg-orange text-white text-[8px] font-title font-bold px-2 py-0.5 rounded-full border-2 border-dark shadow-[1px_1px_0px_0px_#0f172a]">ACTIVE</div>' : ''}`;
                     
                     item.querySelector('.set-load').onclick = () => app.loadSet(set);
                     item.querySelector('.set-del').onclick = async () => { 
