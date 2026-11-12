@@ -1536,6 +1536,13 @@ function openDeleteModal(idOrUser, toolOrType) {
         title = "Delete Note?"
         msg = `Permanently delete note "${note?.title || 'Untitled'}"?`
         pendingDelete = { id: idOrUser, type: 'note' }
+    } else if (toolOrType === 'cloud-storage') {
+        const profile = allProfiles[idOrUser]
+        const name = profile?.display_name || idOrUser.slice(0, 8)
+        const usedMB = ((profile?.storage_usage || 0) / (1024 * 1024)).toFixed(1)
+        title = "Clear Cloud Storage?"
+        msg = `Permanently delete all cloud media files (${usedMB} MB) for "${name}"? This cannot be undone.`
+        pendingDelete = { userId: idOrUser, type: 'cloud-storage' }
     } else {
         const profile = allProfiles[idOrUser]
         const name = profile?.display_name || idOrUser.slice(0, 8)
@@ -1574,6 +1581,11 @@ async function executeDelete() {
             updateStats()
             applyFilters()
         }
+    } else if (pendingDelete.type === 'cloud-storage') {
+        const { userId } = pendingDelete
+        closeDeleteModal()
+        await deleteUserCloudStorage(userId)
+        return
     } else {
         const { userId, toolKey } = pendingDelete
         const { error } = await db
@@ -1941,9 +1953,9 @@ function renderCloudTable() {
                     </div>
                 </td>
                 <td class="px-8 py-5 text-right">
-                    <button onclick="syncUserStorage('${p.id}')" id="sync-btn-${p.id}" 
-                        class="neo-btn !p-2 !bg-slate-900 !border-2 !border-slate-800 hover:!border-blue transition-all group/btn">
-                        <i data-lucide="refresh-cw" class="w-3.5 h-3.5 text-slate-500 group-hover/btn:text-blue sync-icon-${p.id}"></i>
+                    <button onclick="openDeleteModal('${p.id}', 'cloud-storage')" id="delete-storage-btn-${p.id}" title="Clear User Cloud Storage"
+                        class="neo-btn !p-2 !bg-slate-900 !border-2 !border-slate-800 hover:!border-pink transition-all group/btn">
+                        <i data-lucide="trash-2" class="w-3.5 h-3.5 text-slate-500 group-hover/btn:text-pink delete-storage-icon-${p.id}"></i>
                     </button>
                 </td>
             </tr>
@@ -2017,6 +2029,33 @@ function updateSortIcons() {
         }
     })
     lucide.createIcons()
+}
+
+async function deleteUserCloudStorage(userId) {
+    const btn = document.getElementById(`delete-storage-btn-${userId}`)
+    const icon = document.querySelector(`.delete-storage-icon-${userId}`)
+    if (icon) icon.classList.add('animate-pulse')
+    if (btn) btn.disabled = true
+
+    try {
+        const result = await clearUserStorage(userId)
+
+        if (allProfiles[userId]) {
+            allProfiles[userId].storage_usage = 0
+        }
+
+        if (currentView === 'cloud') renderCloudTable()
+        if (currentView === 'users') applyFilters()
+        updateStats()
+
+        showToast(`Cleared cloud storage (${result.deletedCount} files deleted)`)
+    } catch (err) {
+        console.error('[ClearStorage] Error:', err)
+        showToast(`Failed to clear storage: ${err.message}`, 'error')
+    } finally {
+        if (icon) icon.classList.remove('animate-pulse')
+        if (btn) btn.disabled = false
+    }
 }
 
 async function syncUserStorage(userId) {

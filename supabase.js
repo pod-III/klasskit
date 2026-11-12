@@ -788,6 +788,58 @@ async function recalculateUserStorage(userId) {
 }
 
 /**
+ * Deletes all cloud media files for a user and resets their storage_usage to 0.
+ */
+async function clearUserStorage(userId) {
+  if (isSandbox()) return { deletedCount: 0 };
+
+  const filePaths = [];
+
+  async function walk(path) {
+    const { data: items, error } = await db.storage.from(STORAGE_CONFIG.bucket).list(path, { limit: 1000 });
+    if (error) {
+      if (error.message?.includes('not found')) return;
+      throw error;
+    }
+
+    for (const item of items || []) {
+      if (item.id === null) {
+        await walk(`${path}/${item.name}`);
+      } else {
+        filePaths.push(`${path}/${item.name}`);
+      }
+    }
+  }
+
+  try {
+    await walk(userId);
+
+    if (filePaths.length > 0) {
+      const CHUNK_SIZE = 100;
+      for (let i = 0; i < filePaths.length; i += CHUNK_SIZE) {
+        const chunk = filePaths.slice(i, i + CHUNK_SIZE);
+        const { error: removeError } = await db.storage
+          .from(STORAGE_CONFIG.bucket)
+          .remove(chunk);
+        if (removeError) throw removeError;
+      }
+    }
+
+    const { error: updateError } = await db
+      .from('storage_quotas')
+      .update({ storage_usage: 0 })
+      .eq('user_id', userId);
+
+    if (updateError) throw updateError;
+
+    return { deletedCount: filePaths.length };
+  } catch (err) {
+    console.error(`[Storage] Clear storage failed for ${userId}:`, err);
+    throw err;
+  }
+}
+
+/**
  * Replaces an existing media file (overwrites).
  */
 async function replaceMedia(oldPath, newFile, activityId) {
