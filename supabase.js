@@ -679,7 +679,11 @@ async function deleteMedia(filePath) {
   }
 
   // Reconcile quota with actual bucket contents (accurate even if trigger also adjusted usage)
-  await recalculateUserStorage(user.id);
+  try {
+    await recalculateUserStorage(user.id);
+  } catch (e) {
+    console.warn('[Storage] Quota recalculation after delete failed:', e);
+  }
 
   return { success: true };
 }
@@ -723,7 +727,11 @@ async function deleteFolder(folderPath) {
 
     if (delError) throw delError;
 
-    await recalculateUserStorage(user.id);
+    try {
+      await recalculateUserStorage(user.id);
+    } catch (e) {
+      console.warn('[Storage] Quota recalculation after folder delete failed:', e);
+    }
 
     return { success: true, freed: totalSize };
   } catch (e) {
