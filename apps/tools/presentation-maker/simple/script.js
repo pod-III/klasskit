@@ -345,7 +345,7 @@
                     }
 
                     return `
-                        <div class="shrink-0 w-20 sm:w-22 aspect-chromebook border-2 border-dark dark:border-slate-500 rounded-xl shadow-[2px_2px_0px_0px_#0f172a] dark:shadow-[2px_2px_0px_0px_#000] overflow-hidden relative group animate-pop-in hover:-translate-y-0.5 transition-transform" style="background-color: ${color}">
+                        <div class="shrink-0 w-20 sm:w-[88px] aspect-chromebook border-2 border-dark dark:border-slate-500 rounded-xl shadow-[2px_2px_0px_0px_#0f172a] dark:shadow-[2px_2px_0px_0px_#000] overflow-hidden relative group animate-pop-in hover:-translate-y-0.5 transition-transform" style="background-color: ${color}">
                             ${content}
                             <div class="absolute top-0 left-0 bg-dark/70 text-chalk text-[8px] px-1.5 py-0.5 font-bold rounded-br-lg">${index + 1}</div>
                         </div>
