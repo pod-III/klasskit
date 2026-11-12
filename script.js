@@ -128,6 +128,7 @@ const State = {
         return title.includes(searchLower) ||
           description.includes(searchLower) ||
           cat.includes(searchLower) ||
+          (searchLower === 'new' && game.new) ||
           game.tags?.some(tag => tag.toLowerCase().includes(searchLower));
       })
       .sort((a, b) => {
@@ -1308,7 +1309,11 @@ const HistoryManager = {
             <i data-lucide="${game.icon}" class="w-5 h-5"></i>
           </div>
           <div class="min-w-0 text-left">
-            <h4 class="font-heading font-bold text-sm text-dark dark:text-white truncate group-hover:text-blue transition-colors">${game.title}</h4>
+            <div class="flex items-center gap-1.5">
+              <h4 class="font-heading font-bold text-sm text-dark dark:text-white truncate group-hover:text-blue transition-colors">${game.title}</h4>
+              ${game.pro ? '<span class="pro-badge px-1.5 py-0.5 bg-gradient-to-r from-orange to-pink text-[8px] font-black text-white rounded shadow-sm shrink-0">PRO</span>' : ''}
+              ${game.new ? '<span class="new-badge px-1.5 py-0.5 bg-gradient-to-r from-green to-blue text-[8px] font-black text-white rounded shadow-sm shrink-0">NEW</span>' : ''}
+            </div>
             <p class="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">${game.category}</p>
           </div>
         </div>
@@ -1383,7 +1388,11 @@ const PinnedGames = {
               <i data-lucide="${game.icon}" class="w-5 h-5"></i>
             </div>
             <div class="flex-1 min-w-0">
-              <div class="text-sm font-black text-dark dark:text-white truncate leading-tight">${game.title}</div>
+              <div class="flex items-center gap-1.5 min-w-0">
+                <div class="text-sm font-black text-dark dark:text-white truncate leading-tight">${game.title}</div>
+                ${game.pro ? '<span class="pro-badge px-1.5 py-0.5 bg-gradient-to-r from-orange to-pink text-[8px] font-black text-white rounded shadow-sm shrink-0">PRO</span>' : ''}
+                ${game.new ? '<span class="new-badge px-1.5 py-0.5 bg-gradient-to-r from-green to-blue text-[8px] font-black text-white rounded shadow-sm shrink-0">NEW</span>' : ''}
+              </div>
               <div class="text-[10px] text-slate-400 font-bold uppercase tracking-wider truncate">${catLabel}</div>
             </div>
             <button data-action="togglePin" data-param="${game.id}" class="p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/30 hover:text-red-500 text-slate-300 dark:text-slate-500 transition-all opacity-0 group-hover:opacity-100 shrink-0" title="Unpin">
@@ -1489,6 +1498,14 @@ const GameGrid = {
       ? `<span class="pro-badge px-1.5 py-0.5 bg-gradient-to-r from-orange to-pink text-[9px] font-black text-white rounded shadow-sm">PRO</span>`
       : '';
 
+    const newBadge = game.new
+      ? `<span class="new-badge px-1.5 py-0.5 bg-gradient-to-r from-green to-blue text-[9px] font-black text-white rounded shadow-sm">NEW</span>`
+      : '';
+
+    const badgesHtml = (proBadge || newBadge)
+      ? `<div class="flex items-center gap-1.5 flex-wrap">${proBadge}${newBadge}</div>`
+      : '';
+
     return `
       <article class="hub-card group cursor-pointer dark:bg-slate-800 dark:border-slate-500" 
         data-action="openGame" data-param="${game.id}" role="button" tabindex="0"
@@ -1509,7 +1526,7 @@ const GameGrid = {
           <div class="flex justify-between items-start mb-3">
             <div class="flex flex-col gap-1">
               <h2 class="text-2xl font-heading text-dark dark:text-white leading-none tracking-tight">${displayTitle}</h2>
-              ${proBadge}
+              ${badgesHtml}
             </div>
             <div class="flex flex-col gap-1 items-end">
               <span class="sticker ${btnClass} text-white text-[10px] font-bold px-2 py-1 rounded-md transform ${Math.random() > 0.5 ? 'rotate-2' : '-rotate-2'}">${game.category.toUpperCase()}</span>
@@ -1844,6 +1861,7 @@ const ViewManager = {
       games = games.filter(g => 
         g.title.toLowerCase().includes(searchTerm) || 
         g.description.toLowerCase().includes(searchTerm) ||
+        (searchTerm === 'new' && g.new) ||
         g.tags?.some(t => t.toLowerCase().includes(searchTerm))
       );
     }
@@ -3918,6 +3936,10 @@ const GameModal = {
       difficultyEl.textContent = game.difficulty?.toUpperCase() || '';
       difficultyEl.style.display = game.difficulty ? 'inline-block' : 'none';
     }
+    const proBadgeEl = document.getElementById('info-pro-badge');
+    if (proBadgeEl) proBadgeEl.classList.toggle('hidden', !game.pro);
+    const newBadgeEl = document.getElementById('info-new-badge');
+    if (newBadgeEl) newBadgeEl.classList.toggle('hidden', !game.new);
     if (contentEl) contentEl.innerHTML = GameGrid.getGuideText(game);
     Utils.refreshIcons();
   }
