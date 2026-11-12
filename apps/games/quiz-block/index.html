@@ -6,6 +6,7 @@
     <script src="/supabase.js"></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Quiz Block — Interactive Neo-Brutalist classroom quiz game board with Design Mode, custom presets, and live team scoreboards.">
     <title>Quiz Block</title>
     <link rel="icon" type="image/x-icon" href="../../../media/icon.ico" />
     <link rel="icon" type="image/webp" href="../../../media/icon.webp" />
@@ -15,7 +16,39 @@
     <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
     
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/lucide@1.16.0"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            pink: '#FF6B95',
+                            orange: '#FF8C42',
+                            green: '#00E676',
+                            blue: '#2979FF',
+                            purple: '#A855F7',
+                            yellow: '#FACC15',
+                            red: '#EF4444',
+                            slate: '#64748B',
+                            dark: '#1e293b',
+                            chalk: '#f8fafc',
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Nunito', 'sans-serif'],
+                        heading: ['Fredoka', 'sans-serif'],
+                    },
+                    boxShadow: {
+                        'neo': '4px 4px 0px 0px rgba(30, 41, 59, 1)',
+                        'neo-sm': '2px 2px 0px 0px rgba(30, 41, 59, 1)',
+                        'neo-lg': '8px 8px 0px 0px rgba(30, 41, 59, 1)',
+                    }
+                }
+            }
+        };
+    </script>
+    <script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js"></script>
 
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="../../../css/base.css" />
@@ -23,33 +56,83 @@
 
     <script src="script.js" defer></script>
 </head>
-<body class="text-brand-dark min-h-screen flex flex-col font-sans transition-colors duration-300">
+<body class="text-brand-dark h-screen overflow-hidden flex flex-col font-sans transition-colors duration-300">
+
+    <!-- Toast Notification (Centered at top so it never covers header buttons) -->
+    <div id="toast-notification" class="fixed top-3 left-1/2 -translate-x-1/2 z-[110] hidden pointer-events-none">
+        <div id="toast-inner" class="bg-white dark:bg-slate-800 border-4 border-brand-dark shadow-neo rounded-xl px-4 py-2 flex items-center gap-2.5 animate-pop-in">
+            <div id="toast-dot" class="w-3 h-3 rounded-full bg-brand-green border-2 border-brand-dark"></div>
+            <span id="toast-text" class="font-heading font-bold text-sm text-brand-dark dark:text-white">Saved!</span>
+        </div>
+    </div>
 
     <!-- Landing Page -->
-    <div id="landing-page" class="fixed inset-0 bg-brand-chalk/80 dark:bg-slate-900/80 backdrop-blur-md z-50 flex items-center justify-center p-4 transition-opacity duration-300">
-        <div class="bg-white dark:bg-slate-800 w-full max-w-4xl rounded-3xl border-[6px] border-brand-dark shadow-neo-lg p-8 md:p-12 flex flex-col relative overflow-hidden animate-pop-in">
+    <div id="landing-page" class="fixed inset-0 bg-brand-chalk/80 dark:bg-slate-900/80 backdrop-blur-md z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto transition-opacity duration-300">
+        <div class="bg-white dark:bg-slate-800 w-full max-w-4xl rounded-3xl border-[6px] border-brand-dark shadow-neo-lg p-6 sm:p-8 flex flex-col relative overflow-hidden animate-pop-in my-auto max-h-[94vh] overflow-y-auto custom-scrollbar">
             
-            <div class="text-center mb-8 relative z-10">
-                <div class="inline-flex items-center justify-center p-3 bg-brand-pink rounded-2xl border-4 border-brand-dark text-white transform -rotate-2 mb-4 shadow-neo">
-                    <i data-lucide="layout-grid" class="w-8 h-8"></i>
+            <!-- Top utility bar -->
+            <div class="flex justify-between items-center mb-2 relative z-10">
+                <span id="landing-sync-badge" class="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider px-3 py-1 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 border-2 border-brand-dark">
+                    <span class="w-2 h-2 rounded-full bg-brand-green"></span>
+                    Local + Cloud Ready
+                </span>
+                <div class="flex items-center gap-2">
+                    <button onclick="Jeopardy.exportData()" class="btn-chunky px-3 py-1.5 bg-brand-blue text-white rounded-xl border-2 border-brand-dark font-heading font-bold text-xs flex items-center gap-1.5" title="Import or Export JSON">
+                        <i data-lucide="file-json" class="w-3.5 h-3.5"></i> Import / Export
+                    </button>
+                    <button onclick="Jeopardy.toggleTheme()" class="btn-chunky p-1.5 bg-brand-dark text-white rounded-xl border-2 border-brand-dark" title="Toggle Dark Mode">
+                        <i data-lucide="moon" class="w-4 h-4"></i>
+                    </button>
                 </div>
-                <h2 class="font-heading text-4xl sm:text-5xl font-black dark:text-white tracking-tighter mb-2">QUIZ BLOCK</h2>
-                <p class="text-brand-dark/60 dark:text-brand-chalk/60 font-medium">Choose a mode to start playing</p>
+            </div>
+
+            <div class="text-center mb-5 relative z-10">
+                <div class="inline-flex items-center justify-center p-3 bg-brand-pink rounded-2xl border-4 border-brand-dark text-white transform -rotate-2 mb-2.5 shadow-neo">
+                    <i data-lucide="layout-grid" class="w-7 h-7"></i>
+                </div>
+                <h2 class="font-heading text-4xl sm:text-5xl font-black dark:text-white tracking-tighter mb-1">QUIZ BLOCK</h2>
+                <p class="text-brand-dark/60 dark:text-brand-chalk/60 font-bold text-sm sm:text-base">Choose a mode to start playing or designing</p>
+            </div>
+
+            <!-- Resume Active Session Banner (shown when an active/edited board exists) -->
+            <div id="resume-game-banner" class="hidden mb-4 relative z-10">
+                <div class="p-3.5 bg-brand-yellow/20 dark:bg-slate-700/80 rounded-2xl border-4 border-brand-dark shadow-neo flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                    <div class="flex items-center gap-3 min-w-0">
+                        <div class="p-2.5 bg-brand-yellow rounded-xl border-2 border-brand-dark text-brand-dark shrink-0">
+                            <i data-lucide="sparkles" class="w-5 h-5"></i>
+                        </div>
+                        <div class="min-w-0">
+                            <div class="flex items-center gap-2">
+                                <span class="text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded bg-brand-dark text-white">Active Session</span>
+                                <span id="resume-game-meta" class="text-xs font-bold text-brand-dark/70 dark:text-slate-300 truncate">5 Categories • 25 Questions</span>
+                            </div>
+                            <h3 id="resume-game-title" class="font-heading text-lg sm:text-xl font-black text-brand-dark dark:text-white truncate mt-0.5">General English</h3>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-2 w-full sm:w-auto shrink-0">
+                        <button onclick="Jeopardy.resumeCurrentGame(false)" class="btn-chunky flex-1 sm:flex-initial px-3.5 py-2 bg-brand-green text-white rounded-xl border-2 border-brand-dark font-heading font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5">
+                            <i data-lucide="play" class="w-4 h-4"></i> Resume Play
+                        </button>
+                        <button onclick="Jeopardy.resumeCurrentGame(true)" class="btn-chunky flex-1 sm:flex-initial px-3.5 py-2 bg-brand-pink text-white rounded-xl border-2 border-brand-dark font-heading font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5">
+                            <i data-lucide="edit-3" class="w-4 h-4"></i> Edit Questions
+                        </button>
+                    </div>
+                </div>
             </div>
 
             <!-- New Game Hero -->
-            <div class="mb-8 relative z-10">
-                <button onclick="Jeopardy.startNewBlankGame()" class="btn-chunky w-full group flex items-center justify-between p-6 bg-brand-orange text-white rounded-2xl border-4 border-brand-dark shadow-neo-lg transition-all">
-                    <div class="flex items-center gap-5">
-                        <div class="p-4 bg-white/20 rounded-xl border-2 border-white/30">
-                            <i data-lucide="plus" class="w-8 h-8"></i>
+            <div class="mb-5 relative z-10">
+                <button onclick="Jeopardy.startNewBlankGame()" class="btn-chunky w-full group flex items-center justify-between p-4 sm:p-5 bg-brand-orange text-white rounded-2xl border-4 border-brand-dark shadow-neo-lg transition-all">
+                    <div class="flex items-center gap-4">
+                        <div class="p-3 bg-white/20 rounded-xl border-2 border-white/30">
+                            <i data-lucide="plus" class="w-7 h-7"></i>
                         </div>
                         <div class="text-left">
-                            <h3 class="font-heading text-2xl font-black leading-tight">START NEW GAME</h3>
-                            <p class="text-sm text-white/80 font-medium">Create a blank quiz and build it in Design Mode</p>
+                            <h3 class="font-heading text-xl sm:text-2xl font-black leading-tight">START NEW GAME</h3>
+                            <p class="text-xs sm:text-sm text-white/90 font-semibold">Configure categories, rows, teams &amp; timer, then build in Design Mode</p>
                         </div>
                     </div>
-                    <i data-lucide="chevron-right" class="w-8 h-8 transform group-hover:translate-x-1 transition-transform"></i>
+                    <i data-lucide="chevron-right" class="w-7 h-7 transform group-hover:translate-x-1 transition-transform shrink-0"></i>
                 </button>
             </div>
 
@@ -58,235 +141,432 @@
                 <div class="absolute inset-0" style="background-image: radial-gradient(#1e293b 2px, transparent 2px); background-size: 32px 32px;"></div>
             </div>
 
-            <div class="grid md:grid-cols-2 gap-8 relative z-10">
+            <div class="grid md:grid-cols-2 gap-5 relative z-10">
                 <!-- Built-in Library -->
-                <div class="flex flex-col bg-slate-50/50 dark:bg-slate-900/30 p-6 rounded-3xl border-2 border-slate-200 dark:border-slate-700">
-                    <h3 class="font-heading text-sm font-black uppercase tracking-widest mb-6 flex items-center gap-2 text-brand-blue dark:text-brand-blue">
-                        <div class="w-8 h-8 rounded-lg bg-brand-blue/10 flex items-center justify-center">
-                            <i data-lucide="library" class="w-4 h-4"></i>
-                        </div>
-                        Built-in Presets
+                <div class="flex flex-col bg-slate-50/70 dark:bg-slate-900/40 p-4 sm:p-5 rounded-3xl border-2 border-slate-200 dark:border-slate-700 min-w-0 overflow-hidden">
+                    <h3 class="font-heading text-sm font-black uppercase tracking-widest mb-3.5 flex items-center justify-between text-brand-blue dark:text-brand-blue">
+                        <span class="flex items-center gap-2">
+                            <span class="w-7 h-7 rounded-lg bg-brand-blue/10 flex items-center justify-center border border-brand-blue/30">
+                                <i data-lucide="library" class="w-4 h-4"></i>
+                            </span>
+                            Built-in Presets
+                        </span>
+                        <span id="presets-count" class="text-xs px-2 py-0.5 rounded-full bg-brand-blue/10 text-brand-blue">0</span>
                     </h3>
-                    <div id="presets-list" class="grid gap-3 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
+                    <div id="presets-list" class="flex flex-col gap-2.5 max-h-[250px] overflow-y-auto overflow-x-hidden pr-1 custom-scrollbar">
                         <!-- Dynamic content -->
                     </div>
                 </div>
 
                 <!-- Personal Library -->
-                <div class="flex flex-col bg-slate-50/50 dark:bg-slate-900/30 p-6 rounded-3xl border-2 border-slate-200 dark:border-slate-700">
-                    <h3 class="font-heading text-sm font-black uppercase tracking-widest mb-6 flex items-center gap-2 text-brand-green dark:text-brand-green">
-                        <div class="w-8 h-8 rounded-lg bg-brand-green/10 flex items-center justify-center">
-                            <i data-lucide="history" class="w-4 h-4"></i>
-                        </div>
-                        My Saved Games
+                <div class="flex flex-col bg-slate-50/70 dark:bg-slate-900/40 p-4 sm:p-5 rounded-3xl border-2 border-slate-200 dark:border-slate-700 min-w-0 overflow-hidden">
+                    <h3 class="font-heading text-sm font-black uppercase tracking-widest mb-3.5 flex items-center justify-between text-brand-green dark:text-brand-green">
+                        <span class="flex items-center gap-2">
+                            <span class="w-7 h-7 rounded-lg bg-brand-green/10 flex items-center justify-center border border-brand-green/30">
+                                <i data-lucide="bookmark" class="w-4 h-4"></i>
+                            </span>
+                            My Saved Games
+                        </span>
+                        <span id="saved-games-count" class="text-xs px-2 py-0.5 rounded-full bg-brand-green/10 text-brand-green">0</span>
                     </h3>
-                    <div id="saved-games-list" class="grid gap-3 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
+                    <div id="saved-games-list" class="flex flex-col gap-2.5 max-h-[250px] overflow-y-auto overflow-x-hidden pr-1 custom-scrollbar">
                         <!-- Dynamic content -->
                     </div>
                 </div>
             </div>
 
-            <div class="absolute -top-10 -right-10 w-40 h-40 bg-brand-orange/10 rounded-full blur-3xl z-0"></div>
-            <div class="absolute -bottom-10 -left-10 w-40 h-40 bg-brand-blue/10 rounded-full blur-3xl z-0"></div>
+            <div class="absolute -top-10 -right-10 w-40 h-40 bg-brand-orange/10 rounded-full blur-3xl z-0 pointer-events-none"></div>
+            <div class="absolute -bottom-10 -left-10 w-40 h-40 bg-brand-blue/10 rounded-full blur-3xl z-0 pointer-events-none"></div>
         </div>
     </div>
 
-    <header id="game-header" class="hidden w-full max-w-full mx-auto p-2 sm:p-3 flex flex-col md:flex-row gap-2 justify-between items-center z-20">
-        <div class="flex items-center gap-2 bg-white dark:bg-slate-800 border-4 border-brand-dark shadow-neo rounded-xl px-4 py-2 select-none w-full md:w-auto">
-            <div class="p-1.5 bg-brand-pink rounded-lg border-2 border-brand-dark text-white transform rotate-3">
-                <i data-lucide="layout-grid" class="w-6 h-6"></i>
-            </div>
-            <div>
-                <h1 class="font-heading text-2xl font-bold dark:text-brand-chalk leading-none tracking-tight">QUIZ BLOCK</h1>
-                <div id="status-indicator" class="text-[10px] font-bold text-brand-blue uppercase tracking-widest mt-0.5">Classroom Edition</div>
+    <!-- Header -->
+    <header id="game-header" class="hidden shrink-0 w-full max-w-full mx-auto px-2 sm:px-4 pt-2 pb-1 flex flex-col lg:flex-row gap-2 justify-between items-center z-20">
+        <div class="flex items-center justify-between lg:justify-start gap-3 bg-white dark:bg-slate-800 border-4 border-brand-dark shadow-neo rounded-xl px-3.5 py-1.5 select-none w-full lg:w-auto">
+            <div class="flex items-center gap-2.5 min-w-0">
+                <div class="p-1.5 bg-brand-pink rounded-lg border-2 border-brand-dark text-white transform rotate-3 shrink-0">
+                    <i data-lucide="layout-grid" class="w-5 h-5"></i>
+                </div>
+                <div class="min-w-0">
+                    <div class="flex items-center gap-2">
+                        <h1 class="font-heading text-lg sm:text-xl font-bold dark:text-brand-chalk leading-none tracking-tight">QUIZ BLOCK</h1>
+                        <span class="text-slate-300 dark:text-slate-600 font-bold">•</span>
+                        <button onclick="Jeopardy.renameGameTitle()" id="current-game-title" class="font-heading text-xs sm:text-sm font-bold text-brand-blue hover:text-brand-pink truncate max-w-[160px] sm:max-w-[240px] flex items-center gap-1 group" title="Click to rename quiz">
+                            <span id="current-game-title-text">Classroom Quiz</span>
+                            <i data-lucide="pen-line" class="w-3 h-3 opacity-60 group-hover:opacity-100 shrink-0"></i>
+                        </button>
+                    </div>
+                    <div class="flex items-center gap-2 mt-0.5">
+                        <div id="status-indicator" class="text-[10px] font-bold text-brand-green uppercase tracking-widest">Ready to Play</div>
+                        <span class="text-[10px] text-slate-300 dark:text-slate-600">•</span>
+                        <div id="save-indicator" class="text-[10px] font-bold text-slate-500 dark:text-slate-400 flex items-center gap-1">
+                            <span id="save-dot" class="w-1.5 h-1.5 rounded-full bg-brand-green inline-block"></span>
+                            <span id="save-text">All changes saved</span>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
         
-        <div class="flex gap-1.5 items-center bg-white dark:bg-slate-800 p-1.5 rounded-xl border-4 border-brand-dark shadow-neo overflow-x-auto w-full md:w-auto justify-center md:justify-end">
-            <button onclick="Jeopardy.toggleEditMode()" id="btn-edit-toggle" class="btn-chunky flex items-center gap-2 px-3 py-1.5 rounded-lg font-bold border-2 border-brand-dark bg-brand-chalk hover:bg-slate-100 dark:bg-slate-700 transition-colors whitespace-nowrap mr-1">
+        <div class="flex gap-1.5 items-center bg-white dark:bg-slate-800 p-1.5 rounded-xl border-4 border-brand-dark shadow-neo overflow-x-auto w-full lg:w-auto justify-center lg:justify-end">
+            <button onclick="Jeopardy.toggleEditMode()" id="btn-edit-toggle" class="btn-chunky flex items-center gap-2 px-3 py-1.5 rounded-lg font-bold border-2 border-brand-dark bg-brand-chalk hover:bg-slate-100 dark:bg-slate-700 transition-colors whitespace-nowrap mr-1" title="Toggle Design Mode to edit categories and questions">
                 <div class="w-8 h-5 bg-slate-300 rounded-full relative transition-colors border-2 border-brand-dark" id="toggle-track">
                     <div class="absolute top-0.5 left-0.5 w-3 h-3 bg-white rounded-full border-2 border-brand-dark transition-transform" id="toggle-dot"></div>
                 </div>
                 <span class="font-heading text-brand-dark dark:text-white text-xs">DESIGN MODE</span>
             </button>
 
-            <button onclick="Jeopardy.resetBoardState()" class="btn-chunky p-2 bg-brand-orange text-white rounded-lg border-2 border-brand-dark" title="Reset Visited Tiles">
+            <button onclick="Jeopardy.openConfigureGameModal()" class="btn-chunky p-1.5 sm:p-2 bg-brand-purple text-white rounded-lg border-2 border-brand-dark" title="Game Setup &amp; Board Settings">
+                <i data-lucide="sliders" class="w-4 h-4"></i>
+            </button>
+            <button onclick="Jeopardy.resetBoardState()" class="btn-chunky p-1.5 sm:p-2 bg-brand-orange text-white rounded-lg border-2 border-brand-dark" title="Reset Board or Scores">
                 <i data-lucide="rotate-ccw" class="w-4 h-4"></i>
             </button>
-            <button onclick="Jeopardy.saveToCustomGames()" class="btn-chunky p-2 bg-brand-green text-white rounded-lg border-2 border-brand-dark" title="Save to My Games">
+            <button onclick="Jeopardy.saveToCustomGames()" id="btn-save-custom" class="btn-chunky px-2.5 py-1.5 sm:py-2 bg-brand-green text-white rounded-lg border-2 border-brand-dark flex items-center gap-1.5 font-heading font-bold text-xs whitespace-nowrap" title="Save to My Saved Games">
                 <i data-lucide="bookmark" class="w-4 h-4"></i>
+                <span class="hidden sm:inline" id="btn-save-custom-label">Save Game</span>
             </button>
-            <button onclick="Jeopardy.exportData()" class="btn-chunky p-2 bg-brand-blue text-white rounded-lg border-2 border-brand-dark" title="Export/Import JSON">
+            <button onclick="Jeopardy.exportData()" class="btn-chunky p-1.5 sm:p-2 bg-brand-blue text-white rounded-lg border-2 border-brand-dark" title="Export / Import JSON">
                 <i data-lucide="download" class="w-4 h-4"></i>
             </button>
-            <button onclick="Jeopardy.toggleTheme()" class="btn-chunky p-2 bg-brand-dark text-white rounded-lg border-2 border-brand-dark" title="Dark Mode">
+            <button onclick="Jeopardy.toggleTheme()" class="btn-chunky p-1.5 sm:p-2 bg-brand-dark text-white rounded-lg border-2 border-brand-dark" title="Toggle Dark Mode">
                 <i data-lucide="moon" class="w-4 h-4"></i>
             </button>
-            <button onclick="Jeopardy.showLandingPage()" class="btn-chunky p-2 bg-brand-pink text-white rounded-lg border-2 border-brand-dark" title="Exit to Menu">
+            <button onclick="Jeopardy.showLandingPage()" class="btn-chunky p-1.5 sm:p-2 bg-brand-pink text-white rounded-lg border-2 border-brand-dark" title="Exit to Menu">
                 <i data-lucide="log-out" class="w-4 h-4"></i>
             </button>
         </div>
     </header>
 
-    <main id="game-main" class="hidden flex-grow w-full max-w-full mx-auto p-2 sm:p-4 flex-col justify-center min-h-0">
-        <div class="w-full h-full overflow-x-auto pb-2 custom-scrollbar">
-            <div class="w-full h-full mx-auto flex flex-col">
+    <!-- Design Mode Quick Toolbar (visible only in Design Mode) -->
+    <section id="design-toolbar" class="hidden shrink-0 w-full max-w-full mx-auto px-2 sm:px-4 pt-0.5 pb-0.5 z-20">
+        <div class="bg-brand-pink/15 dark:bg-slate-800 border-4 border-brand-dark shadow-neo-sm rounded-xl px-3 py-1.5 flex flex-wrap items-center justify-between gap-2">
+            <div class="flex flex-wrap items-center gap-2 sm:gap-3">
+                <span class="inline-flex items-center gap-1.5 bg-brand-pink text-white font-heading font-bold text-xs px-2.5 py-0.5 rounded-lg border-2 border-brand-dark">
+                    <i data-lucide="wrench" class="w-3.5 h-3.5"></i> DESIGN TOOLS
+                </span>
+                <span id="design-progress-badge" class="text-xs font-extrabold text-brand-dark dark:text-brand-chalk bg-white dark:bg-slate-700 px-2.5 py-0.5 rounded-lg border-2 border-brand-dark">
+                    25 / 25 Tiles Ready
+                </span>
+                <span class="text-xs font-bold text-brand-dark/70 dark:text-slate-300 hidden md:inline">
+                    Click any category or tile to edit • Auto-saves to Local &amp; Cloud
+                </span>
+            </div>
+
+            <div class="flex flex-wrap items-center gap-2">
+                <!-- Category Columns Quick Adjust -->
+                <div class="flex items-center bg-white dark:bg-slate-700 border-2 border-brand-dark rounded-lg overflow-hidden">
+                    <span class="px-2 text-[11px] font-black uppercase text-brand-dark dark:text-white">Cols</span>
+                    <button onclick="Jeopardy.resizeBoard('cols', -1)" class="px-2 py-0.5 bg-slate-100 dark:bg-slate-600 hover:bg-brand-pink hover:text-white font-black text-xs border-l-2 border-brand-dark transition-colors" title="Remove last category column">-</button>
+                    <span id="design-cols-count" class="px-2 text-xs font-black text-brand-dark dark:text-white">5</span>
+                    <button onclick="Jeopardy.resizeBoard('cols', 1)" class="px-2 py-0.5 bg-slate-100 dark:bg-slate-600 hover:bg-brand-green hover:text-white font-black text-xs border-l-2 border-brand-dark transition-colors" title="Add category column">+</button>
+                </div>
+
+                <!-- Question Rows Quick Adjust -->
+                <div class="flex items-center bg-white dark:bg-slate-700 border-2 border-brand-dark rounded-lg overflow-hidden">
+                    <span class="px-2 text-[11px] font-black uppercase text-brand-dark dark:text-white">Rows</span>
+                    <button onclick="Jeopardy.resizeBoard('rows', -1)" class="px-2 py-0.5 bg-slate-100 dark:bg-slate-600 hover:bg-brand-pink hover:text-white font-black text-xs border-l-2 border-brand-dark transition-colors" title="Remove bottom row">-</button>
+                    <span id="design-rows-count" class="px-2 text-xs font-black text-brand-dark dark:text-white">5</span>
+                    <button onclick="Jeopardy.resizeBoard('rows', 1)" class="px-2 py-0.5 bg-slate-100 dark:bg-slate-600 hover:bg-brand-green hover:text-white font-black text-xs border-l-2 border-brand-dark transition-colors" title="Add question row">+</button>
+                </div>
+
+                <button onclick="Jeopardy.toggleEditMode()" class="btn-chunky px-3 py-0.5 bg-brand-green text-white rounded-lg border-2 border-brand-dark font-heading font-bold text-xs flex items-center gap-1">
+                    <i data-lucide="check" class="w-3.5 h-3.5"></i> Done Editing
+                </button>
+            </div>
+        </div>
+    </section>
+
+    <!-- Main Board (Fits cleanly between Header and Scoreboard without overlap) -->
+    <main id="game-main" class="hidden flex-1 w-full max-w-full mx-auto px-2 sm:px-4 py-1.5 flex-col justify-center min-h-0 overflow-hidden">
+        <div class="w-full h-full overflow-x-auto overflow-y-hidden custom-scrollbar">
+            <div class="w-full h-full mx-auto flex flex-col min-w-[540px] pb-1">
                 <div id="category-row" class="grid gap-2 mb-2 shrink-0"></div>
-                <div id="game-board" class="flex-grow grid gap-2 min-h-0"></div>
+                <div id="game-board" class="flex-1 grid gap-2 min-h-0"></div>
             </div>
         </div>
     </main>
 
-    <footer id="game-footer" class="hidden w-full max-w-full mx-auto p-1.5 sticky bottom-0 z-30 pointer-events-none">
-        <div class="grid grid-cols-2 md:grid-cols-4 gap-2 pointer-events-auto" id="scoreboard-container">
+    <!-- Scoreboard Footer (shrink-0 flex item so it never overlaps the bottom row of tiles) -->
+    <footer id="game-footer" class="hidden shrink-0 w-full max-w-full mx-auto px-2 sm:px-4 pt-1 pb-2 z-30">
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-2" id="scoreboard-container">
         </div>
     </footer>
 
-    <div id="modal-play" class="fixed inset-0 bg-brand-dark/95 hidden z-50 flex items-center justify-center p-2 backdrop-blur-md">
-        <div class="bg-white dark:bg-slate-800 w-full max-w-[95vw] lg:max-w-6xl h-[95vh] max-h-[900px] rounded-3xl border-[6px] border-brand-dark shadow-neo-lg flex flex-col relative overflow-hidden">
+    <!-- Play Question Modal -->
+    <div id="modal-play" class="fixed inset-0 bg-brand-dark/95 hidden z-50 flex items-center justify-center p-2 sm:p-4 backdrop-blur-md">
+        <div class="bg-white dark:bg-slate-800 w-full max-w-[95vw] lg:max-w-6xl h-[92vh] max-h-[860px] rounded-3xl border-[6px] border-brand-dark shadow-neo-lg flex flex-col relative overflow-hidden animate-pop-in">
             
-            <div class="bg-brand-dark p-3 sm:p-4 flex justify-between items-center text-white border-b-4 border-brand-dark shrink-0">
-                <h2 id="play-cat" class="font-heading text-2xl font-bold uppercase tracking-widest text-brand-chalk opacity-90">Category</h2>
-                <div class="flex items-center gap-4">
-                    <div id="play-points" class="font-mono text-3xl text-brand-orange font-black bg-brand-dark px-3 py-1 rounded border-2 border-brand-orange">$100</div>
-                    <button onclick="Jeopardy.closePlayModal()" class="hover:text-brand-pink transition transform hover:rotate-90 duration-300"><i data-lucide="x" class="w-8 h-8"></i></button>
+            <div class="bg-brand-dark p-3 sm:p-4 flex justify-between items-center text-white border-b-4 border-brand-dark shrink-0 gap-2">
+                <div class="flex items-center gap-2.5 min-w-0">
+                    <h2 id="play-cat" class="font-heading text-lg sm:text-2xl font-bold uppercase tracking-widest text-brand-chalk opacity-95 truncate">Category</h2>
+                    <span id="play-bonus-badge" class="hidden bg-brand-yellow text-brand-dark font-heading font-black text-xs px-2.5 py-1 rounded-full border-2 border-white uppercase tracking-wider shrink-0">
+                        ★ BONUS TILE
+                    </span>
+                </div>
+                <div class="flex items-center gap-2 sm:gap-4 shrink-0">
+                    <div id="play-timer-readout" class="font-mono text-lg sm:text-xl text-brand-chalk font-bold bg-slate-800 px-3 py-1 rounded-lg border-2 border-slate-600">15s</div>
+                    <div id="play-points" class="font-mono text-xl sm:text-3xl text-brand-orange font-black bg-brand-dark px-3 py-1 rounded-lg border-2 border-brand-orange">$100</div>
+                    <button onclick="Jeopardy.closePlayModal()" class="hover:text-brand-pink transition transform hover:rotate-90 duration-300" title="Close (Esc)"><i data-lucide="x" class="w-7 h-7 sm:w-8 sm:h-8"></i></button>
                 </div>
             </div>
 
-            <div class="w-full h-3 bg-slate-200 border-b-4 border-brand-dark">
+            <div class="w-full h-3.5 bg-slate-200 dark:bg-slate-700 border-b-4 border-brand-dark overflow-hidden">
                 <div id="timer-bar" class="h-full bg-brand-orange w-full transition-all duration-1000 ease-linear"></div>
             </div>
 
-            <div class="flex-grow flex flex-col items-center justify-center p-2 sm:p-6 text-center relative overflow-hidden">
+            <div class="flex-grow flex flex-col items-center justify-center p-3 sm:p-6 text-center relative overflow-hidden">
                 
+                <!-- Question View -->
                 <div id="view-question" class="w-full h-full flex flex-col justify-between items-center">
                     <div class="flex-grow flex items-center justify-center w-full overflow-y-auto custom-scrollbar px-2 py-4">
-                        <div id="play-text" class="font-heading font-bold text-brand-dark dark:text-white leading-[1.1] animate-in zoom-in-95 duration-300 drop-shadow-sm max-w-5xl mx-auto break-words" style="font-size: clamp(1.5rem, min(3.5vw, 6vh), 4.5rem);">
+                        <div id="play-text" class="font-heading font-bold text-brand-dark dark:text-white leading-[1.15] drop-shadow-sm max-w-5xl mx-auto break-words" style="font-size: clamp(1.5rem, min(3.5vw, 5.5vh), 4.25rem);">
                             ...
                         </div>
                     </div>
                     
-                    <div class="pt-2 sm:pt-4 flex flex-wrap justify-center gap-3 sm:gap-4 shrink-0 w-full bg-white dark:bg-slate-800 z-10 pb-2">
-                        <button onclick="Jeopardy.startTimer()" id="btn-timer" class="btn-chunky bg-white text-brand-dark font-heading font-bold text-base sm:text-xl px-4 sm:px-8 py-2 sm:py-3 rounded-xl border-4 border-brand-dark shadow-neo flex items-center gap-2">
-                            <i data-lucide="timer" class="text-brand-pink w-5 h-5 sm:w-6 sm:h-6"></i> Start Timer
+                    <div class="pt-2 sm:pt-4 flex flex-wrap justify-center gap-3 sm:gap-4 shrink-0 w-full bg-white dark:bg-slate-800 z-10 pb-1">
+                        <button onclick="Jeopardy.startTimer()" id="btn-timer" class="btn-chunky bg-white dark:bg-slate-700 text-brand-dark dark:text-white font-heading font-bold text-base sm:text-xl px-4 sm:px-8 py-2.5 sm:py-3 rounded-xl border-4 border-brand-dark shadow-neo flex items-center gap-2">
+                            <i data-lucide="timer" class="text-brand-pink w-5 h-5 sm:w-6 sm:h-6"></i>
+                            <span id="btn-timer-label">Start Timer</span>
                         </button>
-                        <button onclick="Jeopardy.revealAnswer()" class="btn-chunky bg-brand-blue text-white font-heading font-bold text-lg sm:text-2xl px-6 sm:px-12 py-2 sm:py-3 rounded-xl border-4 border-brand-dark shadow-neo">
-                            Reveal Answer
+                        <button onclick="Jeopardy.revealAnswer()" class="btn-chunky bg-brand-blue text-white font-heading font-bold text-lg sm:text-2xl px-6 sm:px-12 py-2.5 sm:py-3 rounded-xl border-4 border-brand-dark shadow-neo flex items-center gap-2">
+                            <i data-lucide="eye" class="w-5 h-5 sm:w-6 sm:h-6"></i> Reveal Answer
                         </button>
                     </div>
                 </div>
 
-                <div id="view-answer" class="hidden absolute inset-0 bg-brand-chalk/95 dark:bg-slate-900/95 backdrop-blur-md flex flex-col justify-between items-center animate-in fade-in duration-300 z-10 p-4 sm:p-6">
+                <!-- Answer View -->
+                <div id="view-answer" class="hidden absolute inset-0 bg-brand-chalk/95 dark:bg-slate-900/95 backdrop-blur-md flex flex-col justify-between items-center z-10 p-4 sm:p-6">
                     
-                    <div class="shrink-0 bg-brand-green text-white font-heading font-bold text-base sm:text-xl px-4 sm:px-8 py-1.5 sm:py-2 rounded-full mb-2 border-4 border-brand-dark shadow-neo transform -rotate-2">
-                        CORRECT ANSWER
+                    <div class="shrink-0 flex items-center gap-3">
+                        <div class="bg-brand-green text-white font-heading font-bold text-sm sm:text-lg px-5 py-1.5 rounded-full border-4 border-brand-dark shadow-neo transform -rotate-1">
+                            CORRECT ANSWER
+                        </div>
+                        <button onclick="Jeopardy.showQuestionView()" class="btn-chunky bg-white dark:bg-slate-800 text-brand-dark dark:text-white font-heading font-bold text-xs sm:text-sm px-3 py-1.5 rounded-full border-2 border-brand-dark flex items-center gap-1">
+                            <i data-lucide="help-circle" class="w-3.5 h-3.5"></i> View Prompt
+                        </button>
                     </div>
                     
-                    <div class="flex-grow flex items-center justify-center w-full overflow-y-auto custom-scrollbar">
-                        <div id="play-answer" class="font-heading font-bold text-brand-dark dark:text-brand-green drop-shadow-md text-center max-w-5xl mx-auto break-words p-2" style="font-size: clamp(1.75rem, min(4.5vw, 7vh), 5.5rem); line-height: 1.1;">
+                    <div class="flex-grow flex items-center justify-center w-full overflow-y-auto custom-scrollbar my-2">
+                        <div id="play-answer" class="font-heading font-bold text-brand-dark dark:text-brand-green drop-shadow-md text-center max-w-5xl mx-auto break-words p-2" style="font-size: clamp(1.6rem, min(4.2vw, 6.5vh), 5rem); line-height: 1.15;">
                             ...
                         </div>
                     </div>
 
-                    <button onclick="Jeopardy.closePlayModal()" class="mt-4 shrink-0 btn-chunky bg-brand-dark text-white font-heading font-bold text-lg sm:text-2xl px-8 sm:px-16 py-2 sm:py-3 rounded-xl border-4 border-slate-600 shadow-neo hover:bg-slate-800">
-                        Close
+                    <!-- Quick Team Score Award Bar inside Answer Modal -->
+                    <div class="w-full max-w-4xl shrink-0 bg-white dark:bg-slate-800 border-4 border-brand-dark rounded-2xl p-2.5 sm:p-3 shadow-neo mb-3">
+                        <div class="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 text-center">
+                            Quick Award Tile Points (<span id="play-award-points-label">$100</span>)
+                        </div>
+                        <div id="play-award-teams" class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                            <!-- Dynamically populated team award buttons -->
+                        </div>
+                    </div>
+
+                    <button onclick="Jeopardy.closePlayModal()" class="shrink-0 btn-chunky bg-brand-dark text-white font-heading font-bold text-base sm:text-xl px-8 sm:px-14 py-2.5 rounded-xl border-4 border-slate-600 shadow-neo hover:bg-slate-800">
+                        Continue Board
                     </button>
                 </div>
             </div>
         </div>
     </div>
 
-    <div id="modal-edit" class="fixed inset-0 bg-brand-dark/60 hidden z-50 flex items-center justify-center p-4 backdrop-blur-sm">
-        <div class="bg-white dark:bg-slate-800 w-full max-w-lg rounded-2xl border-4 border-brand-dark shadow-neo-lg p-6 animate-in zoom-in-95 duration-200">
-            <h2 class="font-heading text-2xl font-bold mb-4 flex items-center gap-2 text-brand-dark dark:text-white">
-                <div class="bg-brand-pink text-white p-2 rounded-lg border-2 border-brand-dark"><i data-lucide="edit-3"></i></div>
-                Edit Tile Content
-            </h2>
+    <!-- Edit Tile Modal -->
+    <div id="modal-edit" class="fixed inset-0 bg-brand-dark/70 hidden z-50 flex items-center justify-center p-3 sm:p-4 backdrop-blur-sm overflow-y-auto">
+        <div class="bg-white dark:bg-slate-800 w-full max-w-xl rounded-2xl border-4 border-brand-dark shadow-neo-lg p-5 sm:p-6 animate-pop-in my-auto">
+            <div class="flex items-center justify-between gap-2 mb-4 pb-3 border-b-2 border-slate-200 dark:border-slate-700">
+                <h2 class="font-heading text-xl sm:text-2xl font-bold flex items-center gap-2.5 text-brand-dark dark:text-white">
+                    <div class="bg-brand-pink text-white p-2 rounded-lg border-2 border-brand-dark"><i data-lucide="edit-3" class="w-5 h-5"></i></div>
+                    <div>
+                        <div>Edit Tile Content</div>
+                        <div id="edit-tile-meta" class="text-xs font-sans font-extrabold text-brand-blue uppercase tracking-wider">Category • $100</div>
+                    </div>
+                </h2>
+                <span id="edit-tile-position" class="text-xs font-black px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 border-2 border-brand-dark">
+                    Row 1, Col 1
+                </span>
+            </div>
+
             <div class="space-y-4">
                 <div>
-                    <label class="text-sm font-bold text-brand-dark dark:text-slate-300 uppercase tracking-wider">Question (Prompt)</label>
-                    <textarea id="edit-q" class="w-full border-4 border-brand-dark rounded-xl p-3 font-sans text-lg focus:ring-4 ring-brand-blue/20 outline-none dark:bg-slate-900 dark:text-white transition-all" rows="3"></textarea>
+                    <div class="flex justify-between items-center mb-1">
+                        <label for="edit-q" class="text-xs font-black text-brand-dark dark:text-slate-300 uppercase tracking-wider">Question (Prompt)</label>
+                        <span class="text-[11px] font-bold text-slate-400">Shown first when tile is clicked</span>
+                    </div>
+                    <textarea id="edit-q" placeholder="Type the question or prompt here..." class="w-full border-4 border-brand-dark rounded-xl p-3 font-sans font-semibold text-base sm:text-lg focus:ring-4 ring-brand-blue/20 outline-none dark:bg-slate-900 dark:text-white transition-all" rows="3"></textarea>
                 </div>
+
                 <div>
-                    <label class="text-sm font-bold text-brand-dark dark:text-slate-300 uppercase tracking-wider">Answer (Reveal)</label>
-                    <textarea id="edit-a" class="w-full border-4 border-brand-dark rounded-xl p-3 font-sans text-lg focus:ring-4 ring-brand-green/20 outline-none dark:bg-slate-900 dark:text-white transition-all" rows="2"></textarea>
+                    <div class="flex justify-between items-center mb-1">
+                        <label for="edit-a" class="text-xs font-black text-brand-dark dark:text-slate-300 uppercase tracking-wider">Answer (Reveal)</label>
+                        <span class="text-[11px] font-bold text-slate-400">Revealed when teacher clicks Reveal</span>
+                    </div>
+                    <textarea id="edit-a" placeholder="Type the correct answer here..." class="w-full border-4 border-brand-dark rounded-xl p-3 font-sans font-semibold text-base sm:text-lg focus:ring-4 ring-brand-green/20 outline-none dark:bg-slate-900 dark:text-white transition-all" rows="2"></textarea>
                 </div>
-                <div class="flex gap-3 pt-4">
-                    <button onclick="Jeopardy.saveEdit()" class="flex-1 btn-neo bg-brand-green text-white font-bold py-3 rounded-xl border-4 border-brand-dark shadow-neo font-heading text-lg">Save</button>
-                    <button onclick="Jeopardy.closeEditModal()" class="flex-1 btn-neo bg-slate-200 text-brand-dark font-bold py-3 rounded-xl border-4 border-brand-dark shadow-neo font-heading text-lg">Cancel</button>
+
+                <!-- Tile Options: Custom Points, Bonus Toggle, Visited Toggle -->
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5 bg-slate-50 dark:bg-slate-900/60 p-3 rounded-xl border-2 border-brand-dark">
+                    <div>
+                        <label for="edit-points" class="block text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">Tile Points ($)</label>
+                        <input type="number" id="edit-points" step="50" min="0" class="w-full border-2 border-brand-dark rounded-lg px-2.5 py-1.5 font-mono font-bold text-sm dark:bg-slate-800 dark:text-white focus:outline-none focus:border-brand-blue">
+                    </div>
+
+                    <label class="flex items-center gap-2 cursor-pointer select-none p-2 rounded-lg hover:bg-white dark:hover:bg-slate-800 transition-colors">
+                        <input type="checkbox" id="edit-bonus" class="w-4 h-4 accent-brand-orange rounded">
+                        <div>
+                            <div class="text-xs font-black text-brand-dark dark:text-white">★ Bonus Tile</div>
+                            <div class="text-[10px] font-bold text-slate-400">Double / Special</div>
+                        </div>
+                    </label>
+
+                    <label class="flex items-center gap-2 cursor-pointer select-none p-2 rounded-lg hover:bg-white dark:hover:bg-slate-800 transition-colors">
+                        <input type="checkbox" id="edit-visited" class="w-4 h-4 accent-brand-blue rounded">
+                        <div>
+                            <div class="text-xs font-black text-brand-dark dark:text-white">Marked Played</div>
+                            <div class="text-[10px] font-bold text-slate-400">Dimmed on board</div>
+                        </div>
+                    </label>
+                </div>
+
+                <!-- Sequential Tile Navigation + Save/Cancel -->
+                <div class="flex flex-wrap items-center justify-between gap-2 pt-2">
+                    <div class="flex gap-2">
+                        <button type="button" onclick="Jeopardy.navigateEditTile(-1)" class="btn-chunky px-3 py-2.5 bg-slate-100 dark:bg-slate-700 text-brand-dark dark:text-white font-heading font-bold text-xs rounded-xl border-2 border-brand-dark flex items-center gap-1" title="Save &amp; go to previous tile">
+                            <i data-lucide="arrow-left" class="w-4 h-4"></i> Prev Tile
+                        </button>
+                        <button type="button" onclick="Jeopardy.navigateEditTile(1)" class="btn-chunky px-3 py-2.5 bg-brand-blue text-white font-heading font-bold text-xs rounded-xl border-2 border-brand-dark flex items-center gap-1" title="Save &amp; go to next tile">
+                            Save &amp; Next <i data-lucide="arrow-right" class="w-4 h-4"></i>
+                        </button>
+                    </div>
+
+                    <div class="flex gap-2 flex-1 sm:flex-initial justify-end">
+                        <button type="button" onclick="Jeopardy.closeEditModal()" class="btn-neo px-4 py-2.5 bg-slate-200 text-brand-dark font-bold rounded-xl border-2 border-brand-dark font-heading text-sm">Cancel</button>
+                        <button type="button" onclick="Jeopardy.saveEdit()" class="btn-neo px-6 py-2.5 bg-brand-green text-white font-bold rounded-xl border-2 border-brand-dark shadow-neo-sm font-heading text-base flex items-center gap-1.5">
+                            <i data-lucide="check" class="w-4 h-4"></i> Save
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <div id="modal-setup" class="fixed inset-0 bg-brand-dark/95 hidden z-[60] flex items-center justify-center p-4 backdrop-blur-md">
-        <div class="bg-white dark:bg-slate-800 w-full max-w-lg rounded-[2.5rem] border-[6px] border-brand-dark shadow-neo-lg p-8 animate-pop-in relative overflow-hidden">
+    <!-- Enhanced Game Setup Modal -->
+    <div id="modal-setup" class="fixed inset-0 bg-brand-dark/95 hidden z-[60] flex items-center justify-center p-3 sm:p-4 backdrop-blur-md overflow-y-auto">
+        <div class="bg-white dark:bg-slate-800 w-full max-w-xl rounded-[2rem] border-[6px] border-brand-dark shadow-neo-lg p-6 sm:p-8 animate-pop-in relative overflow-hidden my-auto max-h-[95vh] overflow-y-auto custom-scrollbar">
             <div class="absolute top-0 left-0 w-full h-4 bg-brand-orange border-b-4 border-brand-dark"></div>
             
-            <div class="mb-8 text-center mt-4">
-                <h3 class="font-heading text-3xl font-black dark:text-white uppercase tracking-tight text-brand-dark">GAME SETUP</h3>
-                <p class="text-brand-dark/60 dark:text-brand-chalk/60 font-medium">Configure your classroom battle</p>
+            <div class="mb-5 text-center mt-2">
+                <h3 id="setup-modal-title" class="font-heading text-3xl font-black dark:text-white uppercase tracking-tight text-brand-dark">GAME SETUP</h3>
+                <p id="setup-modal-subtitle" class="text-brand-dark/60 dark:text-brand-chalk/60 font-bold text-sm">Configure your classroom battle</p>
             </div>
 
-            <div class="space-y-6">
-                <!-- Columns -->
-                <div class="space-y-3">
-                    <label class="block text-xs font-black text-brand-dark/40 dark:text-brand-chalk/40 uppercase tracking-widest px-1">Number of Categories</label>
-                    <div class="grid grid-cols-5 gap-2">
-                        <button onclick="Jeopardy.setSetupVal('cols', 2)" class="setup-btn-cols py-3 rounded-2xl border-4 border-brand-dark font-black text-xl shadow-neo-sm transition-all bg-white dark:bg-slate-700 dark:text-white" data-val="2">2</button>
-                        <button onclick="Jeopardy.setSetupVal('cols', 3)" class="setup-btn-cols py-3 rounded-2xl border-4 border-brand-dark font-black text-xl shadow-neo-sm transition-all bg-white dark:bg-slate-700 dark:text-white" data-val="3">3</button>
-                        <button onclick="Jeopardy.setSetupVal('cols', 4)" class="setup-btn-cols py-3 rounded-2xl border-4 border-brand-dark font-black text-xl shadow-neo-sm transition-all bg-white dark:bg-slate-700 dark:text-white" data-val="4">4</button>
-                        <button onclick="Jeopardy.setSetupVal('cols', 5)" class="setup-btn-cols py-3 rounded-2xl border-4 border-brand-dark font-black text-xl shadow-neo-sm transition-all bg-white dark:bg-slate-700 dark:text-white active" data-val="5">5</button>
-                        <button onclick="Jeopardy.setSetupVal('cols', 6)" class="setup-btn-cols py-3 rounded-2xl border-4 border-brand-dark font-black text-xl shadow-neo-sm transition-all bg-white dark:bg-slate-700 dark:text-white" data-val="6">6</button>
+            <div class="space-y-4">
+                <!-- Game Name -->
+                <div class="space-y-1.5">
+                    <label for="setup-game-name" class="block text-xs font-black text-brand-dark/60 dark:text-brand-chalk/60 uppercase tracking-widest px-1">Quiz Title</label>
+                    <input id="setup-game-name" type="text" placeholder="e.g. Unit 4 Review Quiz" class="w-full border-4 border-brand-dark rounded-2xl px-4 py-2.5 font-heading font-bold text-lg dark:bg-slate-900 dark:text-white focus:outline-none focus:border-brand-orange">
+                </div>
+
+                <!-- Categories (Columns) & Question Rows -->
+                <div class="grid sm:grid-cols-2 gap-4">
+                    <div class="space-y-2">
+                        <label class="block text-xs font-black text-brand-dark/60 dark:text-brand-chalk/60 uppercase tracking-widest px-1">Categories (Columns)</label>
+                        <div class="grid grid-cols-5 gap-1.5">
+                            <button type="button" onclick="Jeopardy.setSetupVal('cols', 2)" class="setup-btn-cols py-2.5 rounded-xl border-2 border-brand-dark font-black text-base bg-white dark:bg-slate-700 dark:text-white" data-val="2">2</button>
+                            <button type="button" onclick="Jeopardy.setSetupVal('cols', 3)" class="setup-btn-cols py-2.5 rounded-xl border-2 border-brand-dark font-black text-base bg-white dark:bg-slate-700 dark:text-white" data-val="3">3</button>
+                            <button type="button" onclick="Jeopardy.setSetupVal('cols', 4)" class="setup-btn-cols py-2.5 rounded-xl border-2 border-brand-dark font-black text-base bg-white dark:bg-slate-700 dark:text-white" data-val="4">4</button>
+                            <button type="button" onclick="Jeopardy.setSetupVal('cols', 5)" class="setup-btn-cols py-2.5 rounded-xl border-2 border-brand-dark font-black text-base bg-white dark:bg-slate-700 dark:text-white active" data-val="5">5</button>
+                            <button type="button" onclick="Jeopardy.setSetupVal('cols', 6)" class="setup-btn-cols py-2.5 rounded-xl border-2 border-brand-dark font-black text-base bg-white dark:bg-slate-700 dark:text-white" data-val="6">6</button>
+                        </div>
+                    </div>
+
+                    <div class="space-y-2">
+                        <label class="block text-xs font-black text-brand-dark/60 dark:text-brand-chalk/60 uppercase tracking-widest px-1">Point Rows per Category</label>
+                        <div class="grid grid-cols-4 gap-1.5">
+                            <button type="button" onclick="Jeopardy.setSetupVal('rows', 3)" class="setup-btn-rows py-2.5 rounded-xl border-2 border-brand-dark font-black text-base bg-white dark:bg-slate-700 dark:text-white" data-val="3">3</button>
+                            <button type="button" onclick="Jeopardy.setSetupVal('rows', 4)" class="setup-btn-rows py-2.5 rounded-xl border-2 border-brand-dark font-black text-base bg-white dark:bg-slate-700 dark:text-white" data-val="4">4</button>
+                            <button type="button" onclick="Jeopardy.setSetupVal('rows', 5)" class="setup-btn-rows py-2.5 rounded-xl border-2 border-brand-dark font-black text-base bg-white dark:bg-slate-700 dark:text-white active" data-val="5">5</button>
+                            <button type="button" onclick="Jeopardy.setSetupVal('rows', 6)" class="setup-btn-rows py-2.5 rounded-xl border-2 border-brand-dark font-black text-base bg-white dark:bg-slate-700 dark:text-white" data-val="6">6</button>
+                        </div>
                     </div>
                 </div>
 
                 <!-- Teams -->
-                <div class="space-y-3">
-                    <label class="block text-xs font-black text-brand-dark/40 dark:text-brand-chalk/40 uppercase tracking-widest px-1">Number of Teams</label>
-                    <div class="grid grid-cols-4 gap-2">
-                        <button onclick="Jeopardy.setSetupVal('teams', 1)" class="setup-btn-teams py-2 rounded-xl border-2 border-brand-dark font-bold shadow-neo-sm transition-all bg-white dark:bg-slate-700 dark:text-white" data-val="1">1</button>
-                        <button onclick="Jeopardy.setSetupVal('teams', 2)" class="setup-btn-teams py-2 rounded-xl border-2 border-brand-dark font-bold shadow-neo-sm transition-all bg-white dark:bg-slate-700 dark:text-white" data-val="2">2</button>
-                        <button onclick="Jeopardy.setSetupVal('teams', 3)" class="setup-btn-teams py-2 rounded-xl border-2 border-brand-dark font-bold shadow-neo-sm transition-all bg-white dark:bg-slate-700 dark:text-white" data-val="3">3</button>
-                        <button onclick="Jeopardy.setSetupVal('teams', 4)" class="setup-btn-teams py-2 rounded-xl border-2 border-brand-dark font-bold shadow-neo-sm transition-all bg-white dark:bg-slate-700 dark:text-white active" data-val="4">4</button>
-                        <button onclick="Jeopardy.setSetupVal('teams', 5)" class="setup-btn-teams py-2 rounded-xl border-2 border-brand-dark font-bold shadow-neo-sm transition-all bg-white dark:bg-slate-700 dark:text-white" data-val="5">5</button>
-                        <button onclick="Jeopardy.setSetupVal('teams', 6)" class="setup-btn-teams py-2 rounded-xl border-2 border-brand-dark font-bold shadow-neo-sm transition-all bg-white dark:bg-slate-700 dark:text-white" data-val="6">6</button>
-                        <button onclick="Jeopardy.setSetupVal('teams', 7)" class="setup-btn-teams py-2 rounded-xl border-2 border-brand-dark font-bold shadow-neo-sm transition-all bg-white dark:bg-slate-700 dark:text-white" data-val="7">7</button>
-                        <button onclick="Jeopardy.setSetupVal('teams', 8)" class="setup-btn-teams py-2 rounded-xl border-2 border-brand-dark font-bold shadow-neo-sm transition-all bg-white dark:bg-slate-700 dark:text-white" data-val="8">8</button>
+                <div class="space-y-2">
+                    <label class="block text-xs font-black text-brand-dark/60 dark:text-brand-chalk/60 uppercase tracking-widest px-1">Number of Teams</label>
+                    <div class="grid grid-cols-8 gap-1.5">
+                        <button type="button" onclick="Jeopardy.setSetupVal('teams', 1)" class="setup-btn-teams py-2 rounded-xl border-2 border-brand-dark font-bold bg-white dark:bg-slate-700 dark:text-white" data-val="1">1</button>
+                        <button type="button" onclick="Jeopardy.setSetupVal('teams', 2)" class="setup-btn-teams py-2 rounded-xl border-2 border-brand-dark font-bold bg-white dark:bg-slate-700 dark:text-white" data-val="2">2</button>
+                        <button type="button" onclick="Jeopardy.setSetupVal('teams', 3)" class="setup-btn-teams py-2 rounded-xl border-2 border-brand-dark font-bold bg-white dark:bg-slate-700 dark:text-white" data-val="3">3</button>
+                        <button type="button" onclick="Jeopardy.setSetupVal('teams', 4)" class="setup-btn-teams py-2 rounded-xl border-2 border-brand-dark font-bold bg-white dark:bg-slate-700 dark:text-white active" data-val="4">4</button>
+                        <button type="button" onclick="Jeopardy.setSetupVal('teams', 5)" class="setup-btn-teams py-2 rounded-xl border-2 border-brand-dark font-bold bg-white dark:bg-slate-700 dark:text-white" data-val="5">5</button>
+                        <button type="button" onclick="Jeopardy.setSetupVal('teams', 6)" class="setup-btn-teams py-2 rounded-xl border-2 border-brand-dark font-bold bg-white dark:bg-slate-700 dark:text-white" data-val="6">6</button>
+                        <button type="button" onclick="Jeopardy.setSetupVal('teams', 7)" class="setup-btn-teams py-2 rounded-xl border-2 border-brand-dark font-bold bg-white dark:bg-slate-700 dark:text-white" data-val="7">7</button>
+                        <button type="button" onclick="Jeopardy.setSetupVal('teams', 8)" class="setup-btn-teams py-2 rounded-xl border-2 border-brand-dark font-bold bg-white dark:bg-slate-700 dark:text-white" data-val="8">8</button>
                     </div>
                 </div>
 
-                <div class="flex gap-4 pt-4">
-                    <button onclick="Jeopardy.closeSetupModal()" class="btn-chunky flex-1 py-4 bg-slate-100 dark:bg-slate-700 dark:text-white rounded-2xl border-4 border-brand-dark font-black uppercase tracking-widest text-sm">Cancel</button>
-                    <button onclick="Jeopardy.confirmSetup()" class="btn-chunky flex-1 py-4 bg-brand-green text-white rounded-2xl border-4 border-brand-dark font-black uppercase tracking-widest text-sm shadow-neo">Let's Play</button>
+                <!-- Timer Duration & Point Step -->
+                <div class="grid sm:grid-cols-2 gap-4">
+                    <div class="space-y-2">
+                        <label class="block text-xs font-black text-brand-dark/60 dark:text-brand-chalk/60 uppercase tracking-widest px-1">Question Timer</label>
+                        <div class="grid grid-cols-4 gap-1.5">
+                            <button type="button" onclick="Jeopardy.setSetupVal('timer', 10)" class="setup-btn-timer py-2 rounded-xl border-2 border-brand-dark font-bold text-xs bg-white dark:bg-slate-700 dark:text-white" data-val="10">10s</button>
+                            <button type="button" onclick="Jeopardy.setSetupVal('timer', 15)" class="setup-btn-timer py-2 rounded-xl border-2 border-brand-dark font-bold text-xs bg-white dark:bg-slate-700 dark:text-white active" data-val="15">15s</button>
+                            <button type="button" onclick="Jeopardy.setSetupVal('timer', 30)" class="setup-btn-timer py-2 rounded-xl border-2 border-brand-dark font-bold text-xs bg-white dark:bg-slate-700 dark:text-white" data-val="30">30s</button>
+                            <button type="button" onclick="Jeopardy.setSetupVal('timer', 60)" class="setup-btn-timer py-2 rounded-xl border-2 border-brand-dark font-bold text-xs bg-white dark:bg-slate-700 dark:text-white" data-val="60">60s</button>
+                        </div>
+                    </div>
+
+                    <div class="space-y-2">
+                        <label class="block text-xs font-black text-brand-dark/60 dark:text-brand-chalk/60 uppercase tracking-widest px-1">Point Value Step</label>
+                        <div class="grid grid-cols-3 gap-1.5">
+                            <button type="button" onclick="Jeopardy.setSetupVal('points', 50)" class="setup-btn-points py-2 rounded-xl border-2 border-brand-dark font-bold text-xs bg-white dark:bg-slate-700 dark:text-white" data-val="50">$50</button>
+                            <button type="button" onclick="Jeopardy.setSetupVal('points', 100)" class="setup-btn-points py-2 rounded-xl border-2 border-brand-dark font-bold text-xs bg-white dark:bg-slate-700 dark:text-white active" data-val="100">$100</button>
+                            <button type="button" onclick="Jeopardy.setSetupVal('points', 200)" class="setup-btn-points py-2 rounded-xl border-2 border-brand-dark font-bold text-xs bg-white dark:bg-slate-700 dark:text-white" data-val="200">$200</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex gap-3 pt-3">
+                    <button type="button" onclick="Jeopardy.closeSetupModal()" class="btn-chunky flex-1 py-3.5 bg-slate-100 dark:bg-slate-700 dark:text-white rounded-2xl border-4 border-brand-dark font-black uppercase tracking-widest text-xs sm:text-sm">Cancel</button>
+                    <button type="button" id="setup-confirm-btn" onclick="Jeopardy.confirmSetup()" class="btn-chunky flex-1 py-3.5 bg-brand-green text-white rounded-2xl border-4 border-brand-dark font-black uppercase tracking-widest text-xs sm:text-sm shadow-neo">Start Designing</button>
                 </div>
             </div>
         </div>
     </div>
 
+    <!-- JSON Export / Import Modal -->
     <div id="modal-data" class="fixed inset-0 bg-brand-dark/60 hidden z-50 flex items-center justify-center p-4 backdrop-blur-sm">
-        <div class="bg-white dark:bg-slate-800 w-full max-w-2xl rounded-2xl border-4 border-brand-dark shadow-neo-lg p-6">
-            <h2 class="font-heading text-2xl font-bold mb-2 text-brand-dark dark:text-white">Game Data (JSON)</h2>
-            <p class="text-slate-500 mb-2 text-sm">Copy this code to save your game, or paste code here to load a game.</p>
-            <textarea id="data-json" class="w-full border-4 border-brand-dark rounded-xl p-4 font-mono text-xs h-64 mb-4 dark:bg-slate-900 dark:text-brand-green focus:outline-none"></textarea>
+        <div class="bg-white dark:bg-slate-800 w-full max-w-2xl rounded-2xl border-4 border-brand-dark shadow-neo-lg p-6 animate-pop-in">
+            <div class="flex items-center justify-between mb-2">
+                <h2 class="font-heading text-2xl font-bold text-brand-dark dark:text-white">Game Data (JSON)</h2>
+                <button onclick="Jeopardy.copyDataJson()" class="btn-chunky px-3 py-1.5 bg-brand-orange text-white rounded-lg border-2 border-brand-dark font-heading font-bold text-xs flex items-center gap-1.5">
+                    <i data-lucide="copy" class="w-3.5 h-3.5"></i> Copy JSON
+                </button>
+            </div>
+            <p class="text-slate-500 dark:text-slate-400 mb-3 text-sm font-semibold">Copy this code to back up or share your quiz, or paste JSON here to load a quiz.</p>
+            <textarea id="data-json" class="w-full border-4 border-brand-dark rounded-xl p-4 font-mono text-xs h-64 mb-4 dark:bg-slate-900 dark:text-brand-green focus:outline-none custom-scrollbar"></textarea>
             <div class="flex gap-3">
-                <button onclick="Jeopardy.importData()" class="flex-1 btn-neo bg-brand-blue text-white font-bold py-3 rounded-xl border-4 border-brand-dark shadow-neo">Load JSON</button>
-                <button onclick="Jeopardy.closeDataModal()" class="flex-1 btn-neo bg-slate-200 text-brand-dark font-bold py-3 rounded-xl border-4 border-brand-dark shadow-neo">Close</button>
+                <button onclick="Jeopardy.importData()" class="flex-1 btn-neo bg-brand-blue text-white font-bold py-3 rounded-xl border-4 border-brand-dark shadow-neo font-heading">Load JSON into Board</button>
+                <button onclick="Jeopardy.closeDataModal()" class="flex-1 btn-neo bg-slate-200 text-brand-dark font-bold py-3 rounded-xl border-4 border-brand-dark shadow-neo font-heading">Close</button>
             </div>
         </div>
     </div>
 
+    <!-- System Modal (Alert / Confirm / Prompt) -->
     <div id="modal-system" class="fixed inset-0 bg-brand-dark/80 hidden z-[100] flex items-center justify-center p-4 backdrop-blur-sm">
-        <div class="bg-white dark:bg-slate-800 w-full max-w-md rounded-2xl border-4 border-brand-dark shadow-neo-lg p-0 overflow-hidden animate-in zoom-in-95 duration-200">
+        <div class="bg-white dark:bg-slate-800 w-full max-w-md rounded-2xl border-4 border-brand-dark shadow-neo-lg p-0 overflow-hidden animate-pop-in">
             <div id="sys-header" class="bg-brand-blue p-4 border-b-4 border-brand-dark">
                 <h3 id="sys-title" class="font-heading font-bold text-white text-xl">System Message</h3>
             </div>
             <div class="p-6">
-                <p id="sys-msg" class="text-brand-dark dark:text-white font-sans text-lg font-bold mb-4">Message goes here...</p>
+                <p id="sys-msg" class="text-brand-dark dark:text-white font-sans text-base sm:text-lg font-bold mb-4">Message goes here...</p>
                 
-                <input type="text" id="sys-input" class="hidden w-full border-4 border-brand-dark rounded-xl p-3 font-sans text-lg mb-4 dark:bg-slate-900 dark:text-white focus:outline-none focus:border-brand-pink" autocomplete="off">
+                <input type="text" id="sys-input" class="hidden w-full border-4 border-brand-dark rounded-xl p-3 font-sans font-bold text-lg mb-4 dark:bg-slate-900 dark:text-white focus:outline-none focus:border-brand-pink" autocomplete="off">
 
-                <div class="flex gap-3 justify-end mt-2" id="sys-actions">
+                <div class="flex flex-wrap gap-2.5 justify-end mt-2" id="sys-actions">
                 </div>
             </div>
         </div>
