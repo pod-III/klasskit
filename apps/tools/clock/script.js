@@ -391,6 +391,7 @@ const clock = {
             const minRatio = (m + secRatio) / 60;
             const hourRatio = ((h % 12) + minRatio) / 12;
 
+            els.handSec.setAttribute('transform', `rotate(${secRatio * 360} 50 50)`);
             els.handMin.setAttribute('transform', `rotate(${minRatio * 360} 50 50)`);
             els.handHour.setAttribute('transform', `rotate(${hourRatio * 360} 50 50)`);
         }
@@ -492,19 +493,21 @@ const stopwatch = {
         if (sw.running) {
             cancelAnimationFrame(sw.animFrame);
             sw.running = false;
-            els.btn.innerHTML = '<i data-lucide="play" class="w-8 h-8 fill-current ml-1"></i>';
-            els.btn.classList.replace('bg-[#FF8C42]', 'bg-[#2979FF]');
-            els.indicator.classList.remove('bg-[#00E676]', 'animate-pulse');
+            els.btn.innerHTML = '<i data-lucide="play" class="w-7 h-7 fill-current ml-0.5"></i>';
+            els.btn.classList.remove('bg-orange', 'bg-[#ff7e33]', 'bg-[#FF8C42]');
+            els.btn.classList.add('bg-blue');
+            els.indicator.classList.remove('bg-green', 'bg-[#00d063]', 'bg-[#00E676]', 'animate-pulse');
             els.indicator.classList.add('bg-slate-300');
             stopwatch.saveState();
         } else {
             sw.startTime = performance.now() - sw.elapsed;
             sw.running = true;
             stopwatch.animate();
-            els.btn.innerHTML = '<i data-lucide="pause" class="w-8 h-8 fill-current"></i>';
-            els.btn.classList.replace('bg-[#2979FF]', 'bg-[#FF8C42]');
+            els.btn.innerHTML = '<i data-lucide="pause" class="w-7 h-7 fill-current"></i>';
+            els.btn.classList.remove('bg-blue', 'bg-[#1ea7fd]', 'bg-[#2979FF]');
+            els.btn.classList.add('bg-orange');
             els.indicator.classList.remove('bg-slate-300');
-            els.indicator.classList.add('bg-[#00E676]', 'animate-pulse');
+            els.indicator.classList.add('bg-green', 'animate-pulse');
         }
         utils.safeIconUpdate();
     },
@@ -567,10 +570,10 @@ const stopwatch = {
         if (!els.laps) return;
 
         const lapHtml = `
-            <div class="flex justify-between items-center py-3 px-4 mb-2 bg-white dark:bg-slate-800 rounded-xl border-3 border-[#1e293b] dark:border-slate-400 shadow-[4px_4px_0px_0px_rgba(30,41,59,1)] hover:-translate-y-1 transition-transform">
-                <span class="font-bold w-8 text-xs text-slate-500">#${sw.laps.length}</span>
-                <span class="font-mono font-bold text-lg text-[#1e293b] dark:text-white">${utils.formatTime(sw.elapsed)}</span>
-                <span class="text-[0.7rem] text-[#2979FF] font-bold bg-[#2979FF]/10 px-2 py-1 rounded-lg border-2 border-[#2979FF]">+${utils.formatTime(split)}</span>
+            <div class="flex justify-between items-center py-2 px-3 mb-1.5 bg-white dark:bg-slate-800 rounded-xl border-2 border-[#1e293b] dark:border-slate-600 shadow-[2px_2px_0px_0px_#1e293b] dark:shadow-[2px_2px_0px_0px_#000] hover:-translate-y-0.5 transition-transform">
+                <span class="font-heading font-bold w-8 text-xs text-slate-400 dark:text-slate-500">#${sw.laps.length}</span>
+                <span class="font-mono font-bold text-sm sm:text-base text-dark dark:text-white">${utils.formatTime(sw.elapsed)}</span>
+                <span class="text-xs text-blue font-heading font-bold bg-blue/10 px-2 py-0.5 rounded-lg border border-blue">+${utils.formatTime(split)}</span>
             </div>`;
 
         if (sw.laps.length === 1) els.laps.innerHTML = '';
@@ -595,10 +598,10 @@ const stopwatch = {
             const els = this.cacheElements();
             if (els.laps && state.stopwatch.laps.length > 0) {
                 els.laps.innerHTML = state.stopwatch.laps.map((lap, idx) => `
-                    <div class="flex justify-between items-center py-3 px-4 mb-2 bg-white dark:bg-slate-800 rounded-xl border-3 border-[#1e293b] dark:border-slate-400 shadow-[4px_4px_0px_0px_rgba(30,41,59,1)] hover:-translate-y-1 transition-transform">
-                        <span class="font-bold w-8 text-xs text-slate-500">#${state.stopwatch.laps.length - idx}</span>
-                        <span class="font-mono font-bold text-lg text-[#1e293b] dark:text-white">${utils.formatTime(lap.total)}</span>
-                        <span class="text-[0.7rem] text-[#2979FF] font-bold bg-[#2979FF]/10 px-2 py-1 rounded-lg border-2 border-[#2979FF]">+${utils.formatTime(lap.split)}</span>
+                    <div class="flex justify-between items-center py-2 px-3 mb-1.5 bg-white dark:bg-slate-800 rounded-xl border-2 border-[#1e293b] dark:border-slate-600 shadow-[2px_2px_0px_0px_#1e293b] dark:shadow-[2px_2px_0px_0px_#000] hover:-translate-y-0.5 transition-transform">
+                        <span class="font-heading font-bold w-8 text-xs text-slate-400 dark:text-slate-500">#${state.stopwatch.laps.length - idx}</span>
+                        <span class="font-mono font-bold text-sm sm:text-base text-dark dark:text-white">${utils.formatTime(lap.total)}</span>
+                        <span class="text-xs text-blue font-heading font-bold bg-blue/10 px-2 py-0.5 rounded-lg border border-blue">+${utils.formatTime(lap.split)}</span>
                     </div>`).join('');
             }
             utils.safeIconUpdate();
@@ -632,29 +635,24 @@ const timer = {
         const els = this.cacheElements();
         if (!els.btnCalm || !els.btnBomb || !els.btnStart) return;
 
-        els.btnCalm.className = 'px-6 py-2 rounded-xl text-sm font-bold uppercase transition-all flex items-center gap-2 border-3 border-[#1e293b] bg-white text-[#1e293b]';
-        els.btnBomb.className = 'px-6 py-2 rounded-xl text-sm font-bold uppercase transition-all flex items-center gap-2 border-3 border-[#1e293b] bg-white text-[#1e293b]';
-
         if (mode === 'calm') {
-            els.btnCalm.classList.replace('bg-white', 'bg-[#00E676]');
-            els.btnCalm.classList.replace('text-[#1e293b]', 'text-white');
-            els.btnCalm.classList.add('shadow-[4px_4px_0px_0px_rgba(30,41,59,1)]', '-translate-y-1');
+            els.btnCalm.className = 'btn-chunky px-4 sm:px-6 py-1.5 rounded-lg text-xs sm:text-sm font-heading font-bold uppercase flex items-center gap-1.5 bg-green text-white';
+            els.btnBomb.className = 'btn-chunky px-4 sm:px-6 py-1.5 rounded-lg text-xs sm:text-sm font-heading font-bold uppercase flex items-center gap-1.5 bg-white dark:bg-slate-800 text-dark dark:text-white';
 
             if (els.zenVis) els.zenVis.classList.remove('hidden', 'opacity-0');
             if (els.rushVis) els.rushVis.classList.add('hidden', 'opacity-0');
 
-            els.btnStart.className = "w-24 h-24 rounded-2xl bg-[#00E676] border-4 border-[#1e293b] text-white flex items-center justify-center mx-4 hover:-translate-y-1 hover:shadow-[6px_6px_0px_0px_rgba(30,41,59,1)] active:translate-y-1 active:shadow-none transition-all shadow-[4px_4px_0px_0px_rgba(30,41,59,1)]";
+            els.btnStart.className = "btn-chunky w-18 h-18 sm:w-20 sm:h-20 rounded-3xl bg-green text-white flex items-center justify-center mx-2";
         } else {
-            els.btnBomb.classList.replace('bg-white', 'bg-[#FF8C42]');
-            els.btnBomb.classList.replace('text-[#1e293b]', 'text-white');
-            els.btnBomb.classList.add('shadow-[4px_4px_0px_0px_rgba(30,41,59,1)]', '-translate-y-1');
+            els.btnCalm.className = 'btn-chunky px-4 sm:px-6 py-1.5 rounded-lg text-xs sm:text-sm font-heading font-bold uppercase flex items-center gap-1.5 bg-white dark:bg-slate-800 text-dark dark:text-white';
+            els.btnBomb.className = 'btn-chunky px-4 sm:px-6 py-1.5 rounded-lg text-xs sm:text-sm font-heading font-bold uppercase flex items-center gap-1.5 bg-orange text-white';
 
             if (els.zenVis) els.zenVis.classList.add('hidden', 'opacity-0');
             if (els.rushVis) {
                 els.rushVis.classList.remove('hidden');
                 setTimeout(() => els.rushVis.classList.remove('opacity-0'), 10);
             }
-            els.btnStart.className = "w-24 h-24 rounded-2xl bg-[#FF8C42] border-4 border-[#1e293b] text-white flex items-center justify-center mx-4 hover:-translate-y-1 hover:shadow-[6px_6px_0px_0px_rgba(30,41,59,1)] active:translate-y-1 active:shadow-none transition-all shadow-[4px_4px_0px_0px_rgba(30,41,59,1)]";
+            els.btnStart.className = "btn-chunky w-18 h-18 sm:w-20 sm:h-20 rounded-3xl bg-orange text-white flex items-center justify-center mx-2";
         }
         timer.updateInputs();
     },
@@ -869,20 +867,20 @@ const alarm = {
         const sorted = [...state.alarm.alarms].sort((a, b) => a.adjustedH !== b.adjustedH ? a.adjustedH - b.adjustedH : a.m - b.m);
 
         els.listContainer.innerHTML = sorted.map(al => `
-            <div class="p-4 mb-3 rounded-xl border-3 border-[#1e293b] dark:border-slate-400 bg-white dark:bg-slate-800 flex items-center justify-between shadow-[4px_4px_0px_0px_rgba(30,41,59,1)] hover:-translate-y-1 transition-transform ${!al.enabled ? 'opacity-50 grayscale' : ''}">
+            <div class="p-3 mb-2 rounded-xl border-3 border-[#1e293b] dark:border-slate-600 bg-white dark:bg-slate-800 flex items-center justify-between shadow-[3px_3px_0px_0px_#1e293b] dark:shadow-[3px_3px_0px_0px_#000] hover:-translate-y-0.5 transition-transform ${!al.enabled ? 'opacity-50 grayscale' : ''}">
                 <div class="flex flex-col text-left">
                     <div class="flex items-baseline gap-2">
-                        <span class="text-3xl font-mono font-bold text-[#1e293b] dark:text-white">${utils.padZero(al.h)}:${utils.padZero(al.m)}</span>
-                        <span class="text-lg font-bold text-[#FF6B95]">${al.ampm}</span>
+                        <span class="text-2xl sm:text-3xl font-mono font-bold text-dark dark:text-white">${utils.padZero(al.h)}:${utils.padZero(al.m)}</span>
+                        <span class="text-base sm:text-lg font-heading font-bold text-pink">${al.ampm}</span>
                     </div>
-                    <div class="text-sm font-bold uppercase tracking-wider text-slate-500">${al.label}</div>
+                    <div class="text-xs font-heading font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">${al.label}</div>
                 </div>
-                <div class="flex items-center gap-3">
-                    <button onclick="alarm.toggleEnable(${al.id})" class="p-2 rounded-lg border-2 border-[#1e293b] ${al.enabled ? 'bg-[#00E676] text-white' : 'bg-slate-200 text-slate-400'}">
-                        <i data-lucide="power" class="w-5 h-5"></i>
+                <div class="flex items-center gap-2">
+                    <button onclick="alarm.toggleEnable(${al.id})" title="${al.enabled ? 'Disable alarm' : 'Enable alarm'}" class="btn-chunky p-2 rounded-xl border-2 border-[#1e293b] ${al.enabled ? 'bg-green text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-400'}">
+                        <i data-lucide="power" class="w-4 h-4"></i>
                     </button>
-                    <button onclick="alarm.delete(${al.id})" class="p-2 bg-[#FF6B95] text-white rounded-lg border-2 border-[#1e293b] hover:bg-red-600">
-                        <i data-lucide="trash-2" class="w-5 h-5"></i>
+                    <button onclick="alarm.delete(${al.id})" title="Delete alarm" class="btn-chunky p-2 bg-pink text-white rounded-xl border-2 border-[#1e293b] hover:bg-red-600">
+                        <i data-lucide="trash-2" class="w-4 h-4"></i>
                     </button>
                 </div>
             </div>
@@ -1262,18 +1260,20 @@ const calendar = {
             // Days
             for (let d = 1; d <= daysInMonth; d++) {
                 const isTodayStr = utils.getDateString(new Date(year, m, d)) === utils.getTodayString();
-                const textCol = isTodayStr ? 'text-white' : 'text-slate-400 dark:text-slate-300';
-                const dayClass = isTodayStr ? 'bg-[#2979FF] rounded-sm shadow-[1px_1px_0px_0px_rgba(30,41,59,1)]' : 'hover:bg-slate-100 dark:hover:bg-slate-700 rounded-sm';
-                miniGrid += `<div class="aspect-square flex items-center justify-center font-bold text-[0.6rem] md:text-[0.65rem] ${textCol} ${dayClass} transition-colors">${d}</div>`;
+                const textCol = isTodayStr ? 'text-white' : 'text-slate-500 dark:text-slate-300';
+                const dayClass = isTodayStr ? 'bg-blue rounded-md shadow-[1px_1px_0px_0px_#1e293b]' : 'hover:bg-slate-100 dark:hover:bg-slate-700 rounded-md';
+                miniGrid += `<div class="aspect-square flex items-center justify-center font-heading font-bold text-[0.65rem] sm:text-xs ${textCol} ${dayClass} transition-colors">${d}</div>`;
             }
             miniGrid += '</div>';
 
-            const activeClass = isCurrentMonth ? 'border-[#2979FF] shadow-[4px_4px_0px_0px_rgba(30,41,59,1)] bg-blue/5' : 'border-[#1e293b] dark:border-slate-500 hover:border-[#FF8C42] shadow-[2px_2px_0px_0px_rgba(30,41,59,1)] hover:shadow-[4px_4px_0px_0px_rgba(30,41,59,1)]';
+            const activeClass = isCurrentMonth 
+                ? 'border-blue shadow-[3px_3px_0px_0px_#1e293b] dark:shadow-[3px_3px_0px_0px_#000] bg-blue/10 dark:bg-blue/20' 
+                : 'border-[#1e293b] dark:border-slate-600 hover:border-orange shadow-[2px_2px_0px_0px_#1e293b] dark:shadow-[2px_2px_0px_0px_#000] hover:shadow-[3px_3px_0px_0px_#1e293b]';
 
             html += `
-                <div class="cal-mini-month p-2 md:p-3 rounded-xl md:rounded-2xl border-2 md:border-3 cursor-pointer transition-all hover:-translate-y-1 bg-white dark:bg-slate-800 ${activeClass}" 
+                <div class="cal-mini-month p-2 sm:p-2.5 rounded-xl border-2 sm:border-3 cursor-pointer transition-all hover:-translate-y-0.5 bg-white dark:bg-slate-800 ${activeClass}" 
                      data-month="${m}" onclick="calendar.selectMonthFromYear(${m})">
-                    <div class="text-xs md:text-sm font-black text-center mb-1 text-[#1e293b] dark:text-white tracking-widest uppercase">${monthName}</div>
+                    <div class="text-xs font-heading font-bold text-center mb-1 text-dark dark:text-white tracking-widest uppercase">${monthName}</div>
                     ${miniGrid}
                 </div>
             `;
@@ -1291,15 +1291,15 @@ const calendar = {
         const isSelected = state.calendar.selected === dateStr;
         const isMarked = state.calendar.marked[dateStr];
 
-        let classes = 'cal-day rounded-2xl flex flex-col items-center justify-center font-bold text-2xl relative cursor-pointer border-3 transition-transform hover:-translate-y-1 ';
+        let classes = 'cal-day rounded-xl sm:rounded-2xl flex flex-col items-center justify-center font-heading font-bold text-base sm:text-lg md:text-xl relative cursor-pointer border-2 sm:border-3 transition-transform hover:-translate-y-0.5 ';
 
-        if (isToday) classes += 'bg-[#2979FF] text-white border-[#1e293b] shadow-[4px_4px_0px_0px_rgba(30,41,59,1)] z-10 ';
-        else if (isCurrMonth) classes += 'bg-white text-[#1e293b] border-[#1e293b] shadow-[4px_4px_0px_0px_rgba(30,41,59,1)] ';
-        else classes += 'bg-slate-50 text-slate-300 border-transparent empty hover:translate-y-0 hover:shadow-none cursor-default ';
+        if (isToday) classes += 'bg-blue text-white border-[#1e293b] shadow-[3px_3px_0px_0px_#1e293b] dark:shadow-[3px_3px_0px_0px_#000] z-10 ';
+        else if (isCurrMonth) classes += 'bg-white dark:bg-slate-800 text-dark dark:text-white border-[#1e293b] dark:border-slate-600 shadow-[3px_3px_0px_0px_#1e293b] dark:shadow-[3px_3px_0px_0px_#000] ';
+        else classes += 'bg-slate-100/60 dark:bg-slate-800/30 text-slate-300 dark:text-slate-600 border-transparent empty hover:translate-y-0 hover:shadow-none cursor-default ';
 
-        if (isSelected && !isToday) classes += 'ring-4 ring-[#FF8C42] ';
+        if (isSelected && !isToday) classes += 'ring-3 sm:ring-4 ring-orange ';
 
-        const dotHTML = isMarked ? `<div class="absolute bottom-2 w-2 h-2 rounded-full border border-dark ${isToday ? 'bg-[#FF8C42]' : 'bg-[#FF6B95]'}"></div>` : '';
+        const dotHTML = isMarked ? `<div class="absolute bottom-1 w-2 h-2 rounded-full border border-[#1e293b] ${isToday ? 'bg-orange' : 'bg-pink'}"></div>` : '';
 
         return `<div class="${classes}" data-date="${dateStr}" data-time="${cellDate.getTime()}">${cellDate.getDate()}${dotHTML}</div>`;
     },
@@ -1516,3 +1516,27 @@ window.alarmDismiss = () => alarm.dismiss();
 window.switchTool = switchTool;
 window.alarm = alarm;
 window.countdown = countdown;
+
+// --- KEYBOARD SHORTCUTS (Classroom Optimized) ---
+window.addEventListener('keydown', (e) => {
+    // Don't trigger if user is actively typing in an input
+    if (['INPUT', 'TEXTAREA'].includes(document.activeElement?.tagName)) return;
+
+    if (e.code === 'Space') {
+        e.preventDefault();
+        if (state.currentTool === 'stopwatch') swToggle();
+        else if (state.currentTool === 'timer') timerToggle();
+    } else if (e.key === 'r' || e.key === 'R') {
+        if (state.currentTool === 'stopwatch') swReset();
+        else if (state.currentTool === 'timer') timerReset();
+        else if (state.currentTool === 'countdown') countdown.reset();
+    } else if (e.key === 'l' || e.key === 'L') {
+        if (state.currentTool === 'stopwatch') swLap();
+    } else if (e.key === 'z' || e.key === 'Z') {
+        if (state.currentTool === 'clock') clockToggleZen();
+    } else if (['1', '2', '3', '4', '5', '6'].includes(e.key)) {
+        const tools = ['clock', 'stopwatch', 'timer', 'alarm', 'countdown', 'calendar'];
+        const tool = tools[parseInt(e.key) - 1];
+        if (tool) switchTool(tool);
+    }
+});

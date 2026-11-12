@@ -7,21 +7,26 @@
     <script src="/supabase.js"></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Clock</title>
+    <title>Clock | KlassKit</title>
     <link rel="icon" type="image/x-icon" href="../../../media/icon.ico" />
     <link rel="icon" type="image/webp" href="../../../media/icon.webp" />
-  <script>if(localStorage.getItem("theme_clock")==="dark"||(!localStorage.getItem("theme_clock")&&window.matchMedia("(prefers-color-scheme:dark)").matches)){document.documentElement.classList.add("dark")}</script>
+    <script>
+        if (localStorage.getItem("theme_clock") === "dark" || (!localStorage.getItem("theme_clock") && window.matchMedia("(prefers-color-scheme:dark)").matches)) {
+            document.documentElement.classList.add("dark");
+        }
+    </script>
 
     <!-- Icons & Fonts -->
-    
     <script src="https://unpkg.com/lucide@1.16.0"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link
-        href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Nunito:wght@400;600;800&family=Share+Tech+Mono&display=swap"
-        rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Nunito:wght@400;600;700;800&family=Share+Tech+Mono&display=swap" rel="stylesheet">
 
-    <!-- Tailwind CSS -->
+    <!-- Global Base & Components CSS -->
+    <link rel="stylesheet" href="../../../css/base.css" />
+    <link rel="stylesheet" href="../../../css/components.css" />
+
+    <!-- Tailwind CSS with KlassKit Extended Tokens -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
@@ -29,14 +34,12 @@
             theme: {
                 extend: {
                     colors: {
-                        pink: '#FF6B95',
-                        orange: '#FF8C42',
-                        green: '#00E676',
-                        blue: '#2979FF',
+                        pink: '#ff4785',
+                        orange: '#ff7e33',
+                        green: '#00d063',
+                        blue: '#1ea7fd',
                         dark: '#0f172a',
                         chalk: '#f8fafc',
-                        surface: 'rgba(255, 255, 255, 0.85)',
-                        border: 'rgba(203, 213, 225, 0.6)',
                     },
                     fontFamily: {
                         heading: ['Fredoka', 'sans-serif'],
@@ -44,10 +47,9 @@
                         mono: ['Share Tech Mono', 'monospace'],
                     },
                     boxShadow: {
-                        'neo': '4px 4px 0px 0px rgba(51, 65, 85, 0.15)',
-                        'neo-sm': '2px 2px 0px 0px rgba(51, 65, 85, 0.15)',
-                        'neo-lg': '8px 8px 0px 0px rgba(51, 65, 85, 0.15)',
-                        'inner-neo': 'inset 3px 3px 0px 0px rgba(203, 213, 225, 0.3)',
+                        'hard-sm': '2px 2px 0px 0px #1e293b',
+                        'hard': '4px 4px 0px 0px #1e293b',
+                        'hard-lg': '6px 6px 0px 0px #1e293b',
                     }
                 }
             }
@@ -56,614 +58,616 @@
     <link rel="stylesheet" href="./style.css">
     <style>
         .bg-float-icon {
-            color: var(--border-light);
-            opacity: 0.3;
+            color: #94a3b8;
+            opacity: 0.18;
             position: absolute;
             z-index: 0;
             pointer-events: none;
         }
 
         .dark .bg-float-icon {
-            opacity: 0.15;
-            color: white;
+            opacity: 0.08;
+            color: #ffffff;
         }
     </style>
-    <link rel="stylesheet" href="../../../css/base.css" />
-    <link rel="stylesheet" href="../../../css/components.css" />
-  
 </head>
 
-<body class="h-screen w-screen overflow-hidden flex flex-row font-body relative">
+<body class="h-screen w-screen overflow-hidden flex flex-row font-body relative select-none">
 
-    <!-- Floating Background Layer (Static for performance) -->
+    <!-- Subtle Floating Background Icons -->
     <div class="absolute inset-0 overflow-hidden pointer-events-none z-0">
-        <i data-lucide="sparkles" class="bg-float-icon w-32 h-32 top-[10%] left-[15%]"></i>
-        <i data-lucide="book-open" class="bg-float-icon w-40 h-40 top-[60%] left-[5%]"></i>
-        <i data-lucide="gamepad-2" class="bg-float-icon w-48 h-48 top-[20%] right-[10%]"></i>
-        <i data-lucide="hexagon" class="bg-float-icon w-24 h-24 top-[70%] right-[20%]"></i>
+        <i data-lucide="sparkles" class="bg-float-icon w-28 h-28 top-[8%] left-[12%]"></i>
+        <i data-lucide="book-open" class="bg-float-icon w-36 h-36 top-[65%] left-[4%]"></i>
+        <i data-lucide="gamepad-2" class="bg-float-icon w-40 h-40 top-[18%] right-[8%]"></i>
+        <i data-lucide="hourglass" class="bg-float-icon w-24 h-24 top-[72%] right-[18%]"></i>
     </div>
 
     <!-- SIDEBAR -->
     <aside id="app-sidebar"
-        class="app-sidebar w-64 h-full border-r-[3px] border-[#1e293b] dark:border-slate-700 bg-white dark:bg-[#1e293b] flex flex-col z-50 flex-shrink-0 absolute md:relative shadow-xl md:shadow-none transition-transform -translate-x-full md:translate-x-0">
-        
-        <!-- Branding (Matches Home) -->
-        <div class="sidebar-header p-6 border-b-[3px] border-[#1e293b] dark:border-slate-700 flex items-center gap-4 bg-white dark:bg-slate-900 shadow-sm relative z-10">
-            <div class="sidebar-logo-icon flex-none cursor-pointer hidden md:block" onclick="toggleSidebar()" title="Toggle Sidebar">
-                <div class="w-12 h-12 bg-blue text-white rounded-xl border-2 border-[#1e293b] dark:border-transparent flex items-center justify-center shadow-[4px_4px_0_px_rgba(30,41,59,1)] dark:shadow-none shrink-0 transform -rotate-3 hover:rotate-0 transition-transform">
-                    <i data-lucide="clock" class="w-7 h-7"></i>
+        class="app-sidebar h-full border-r-[3px] border-[#1e293b] dark:border-slate-700 bg-white/95 dark:bg-[#0f172a]/95 backdrop-blur-md flex flex-col z-50 flex-shrink-0 absolute md:relative transition-all -translate-x-full md:translate-x-0 shadow-xl md:shadow-none">
+
+        <!-- Branding / Header -->
+        <div class="sidebar-header p-4 sm:p-5 border-b-[3px] border-[#1e293b] dark:border-slate-700 flex items-center gap-3 bg-white dark:bg-slate-900 relative z-10">
+            <!-- Desktop toggle -->
+            <button onclick="toggleSidebar()" class="sidebar-logo-icon flex-none cursor-pointer hidden md:flex items-center justify-center p-0.5 focus-visible:outline-none" title="Toggle Sidebar">
+                <div class="w-11 h-11 bg-blue text-white rounded-xl border-[2.5px] border-[#1e293b] dark:border-slate-400 flex items-center justify-center shadow-[3px_3px_0px_0px_#1e293b] dark:shadow-[3px_3px_0px_0px_#000] shrink-0 transform -rotate-3 hover:rotate-0 transition-transform">
+                    <i data-lucide="clock" class="w-6 h-6"></i>
                 </div>
-            </div>
-            <!-- Mobile: non-clickable icon -->
+            </button>
+            <!-- Mobile icon -->
             <div class="sidebar-logo-icon flex-none md:hidden">
-                <div class="w-12 h-12 bg-blue text-white rounded-xl border-2 border-[#1e293b] dark:border-transparent flex items-center justify-center shadow-[4px_4px_0_px_rgba(30,41,59,1)] dark:shadow-none shrink-0 transform -rotate-3">
-                    <i data-lucide="clock" class="w-7 h-7"></i>
+                <div class="w-11 h-11 bg-blue text-white rounded-xl border-[2.5px] border-[#1e293b] dark:border-slate-400 flex items-center justify-center shadow-[3px_3px_0px_0px_#1e293b] shrink-0 transform -rotate-3">
+                    <i data-lucide="clock" class="w-6 h-6"></i>
                 </div>
             </div>
-            <div class="sidebar-logo-text flex-1">
-                <h1 class="font-heading font-black text-2xl tracking-tight text-dark dark:text-white mt-1 leading-none uppercase">Clock</h1>
-                <div class="text-[0.65rem] font-bold uppercase tracking-widest text-slate-500">KlassKit</div>
+            <div class="sidebar-logo-text flex-1 min-w-0">
+                <h1 class="font-heading font-bold text-2xl tracking-tight text-dark dark:text-white leading-none uppercase truncate">Clock</h1>
+                <div class="text-[0.65rem] font-heading font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 mt-0.5">KlassKit</div>
             </div>
-            <!-- Mobile close button only -->
-            <button onclick="toggleSidebar()" class="md:hidden p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 transition-all" title="Close">
+            <!-- Mobile close button -->
+            <button onclick="toggleSidebar()" class="md:hidden p-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 transition-colors" title="Close">
                 <i data-lucide="x" class="w-5 h-5"></i>
             </button>
         </div>
 
-        <!-- Navigation (Matches Home Filters) -->
-        <nav class="sidebar-nav flex-1 pt-4 pb-4 px-4 space-y-2 overflow-y-auto custom-scrollbar">
-            <button onclick="switchTool('clock')" id="nav-clock" title="Clock"
-                class="nav-item active w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-700 dark:hover:text-slate-300 transition-colors border-2 border-transparent font-bold">
+        <!-- Navigation Items -->
+        <nav class="sidebar-nav flex-1 py-3 px-3 space-y-1.5 overflow-y-auto custom-scrollbar">
+            <button onclick="switchTool('clock')" id="nav-clock" title="Clock (1)"
+                class="nav-item active w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors border-2 border-transparent font-heading font-bold text-sm">
                 <i data-lucide="clock" class="w-5 h-5 flex-shrink-0 icon-base"></i> <span class="sidebar-text">Clock</span>
             </button>
-            <button onclick="switchTool('stopwatch')" id="nav-stopwatch" title="Stopwatch"
-                class="nav-item w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-700 dark:hover:text-slate-300 transition-colors border-2 border-transparent font-bold">
+            <button onclick="switchTool('stopwatch')" id="nav-stopwatch" title="Stopwatch (2)"
+                class="nav-item w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors border-2 border-transparent font-heading font-bold text-sm">
                 <i data-lucide="timer" class="w-5 h-5 flex-shrink-0 icon-base"></i> <span class="sidebar-text">Stopwatch</span>
             </button>
-            <button onclick="switchTool('timer')" id="nav-timer" title="Timer"
-                class="nav-item w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-700 dark:hover:text-slate-300 transition-colors border-2 border-transparent font-bold">
+            <button onclick="switchTool('timer')" id="nav-timer" title="Timer (3)"
+                class="nav-item w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors border-2 border-transparent font-heading font-bold text-sm">
                 <i data-lucide="hourglass" class="w-5 h-5 flex-shrink-0 icon-base"></i> <span class="sidebar-text">Timer</span>
             </button>
-            <button onclick="switchTool('alarm')" id="nav-alarm" title="Alarm"
-                class="nav-item w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-700 dark:hover:text-slate-300 transition-colors border-2 border-transparent font-bold">
+            <button onclick="switchTool('alarm')" id="nav-alarm" title="Alarm (4)"
+                class="nav-item w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors border-2 border-transparent font-heading font-bold text-sm">
                 <i data-lucide="bell" class="w-5 h-5 flex-shrink-0 icon-base"></i> <span class="sidebar-text">Alarm</span>
             </button>
-            <button onclick="switchTool('countdown')" id="nav-countdown" title="Countdown"
-                class="nav-item w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-700 dark:hover:text-slate-300 transition-colors border-2 border-transparent font-bold">
+            <button onclick="switchTool('countdown')" id="nav-countdown" title="Countdown (5)"
+                class="nav-item w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors border-2 border-transparent font-heading font-bold text-sm">
                 <i data-lucide="timer-reset" class="w-5 h-5 flex-shrink-0 icon-base"></i> <span class="sidebar-text">Countdown</span>
             </button>
-            <button onclick="switchTool('calendar')" id="nav-calendar" title="Calendar"
-                class="nav-item w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-700 dark:hover:text-slate-300 transition-colors border-2 border-transparent font-bold">
+            <button onclick="switchTool('calendar')" id="nav-calendar" title="Calendar (6)"
+                class="nav-item w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors border-2 border-transparent font-heading font-bold text-sm">
                 <i data-lucide="calendar" class="w-5 h-5 flex-shrink-0 icon-base"></i> <span class="sidebar-text">Calendar</span>
             </button>
         </nav>
 
-        <!-- Footer -->
-        <div class="sidebar-footer p-4 border-t-[3px] border-[#1e293b] dark:border-slate-700 bg-slate-50 dark:bg-[#0f172a] flex flex-col gap-3">
-            <div class="flex items-center justify-center">
+        <!-- Sidebar Footer -->
+        <div class="sidebar-footer p-3 border-t-[3px] border-[#1e293b] dark:border-slate-700 bg-slate-50 dark:bg-slate-900 flex flex-col gap-2 items-center">
+            <div class="flex items-center justify-center gap-2 w-full">
                 <button onclick="toggleDarkMode()"
-                    class="p-2 rounded-lg text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors" title="Toggle dark mode">
-                    <i data-lucide="moon" class="w-5 h-5 text-dark dark:hidden"></i>
-                    <i data-lucide="sun" class="w-5 h-5 text-white hidden dark:block"></i>
+                    class="btn-chunky w-10 h-10 rounded-xl bg-white dark:bg-slate-800 text-dark dark:text-white"
+                    title="Toggle Theme">
+                    <i data-lucide="moon" class="w-4 h-4 text-dark dark:hidden"></i>
+                    <i data-lucide="sun" class="w-4 h-4 text-yellow-400 hidden dark:block"></i>
                 </button>
             </div>
-            <div class="text-[10px] font-black text-slate-400 text-center uppercase tracking-widest mt-1 sidebar-label">TIME TOOLS</div>
+            <div class="text-[9px] font-heading font-bold text-slate-400 uppercase tracking-widest text-center sidebar-label">
+                TIME TOOLS
+            </div>
         </div>
     </aside>
 
-    <!-- MOBILE HEADER (Visible only on mobile) -->
-    <div class="md:hidden fixed top-0 left-0 right-0 h-16 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b-[3px] border-[#1e293b] dark:border-slate-700 z-40 flex items-center px-6 gap-4">
-        <button onclick="toggleSidebar()" class="p-2 -ml-2 rounded-xl bg-slate-100 dark:bg-slate-800 border-2 border-[#1e293b] dark:border-slate-600 shadow-neo-sm">
-            <i data-lucide="menu" class="w-6 h-6 text-dark dark:text-white"></i>
+    <!-- MOBILE HEADER (visible on small screens) -->
+    <div class="md:hidden fixed top-0 left-0 right-0 h-14 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border-b-[3px] border-[#1e293b] dark:border-slate-700 z-40 flex items-center px-4 justify-between">
+        <div class="flex items-center gap-3">
+            <button onclick="toggleSidebar()" class="btn-chunky p-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-dark dark:text-white">
+                <i data-lucide="menu" class="w-5 h-5"></i>
+            </button>
+            <h1 class="font-heading font-bold text-xl tracking-tight text-dark dark:text-white uppercase leading-none">Clock</h1>
+        </div>
+        <button onclick="toggleDarkMode()" class="btn-chunky w-9 h-9 rounded-xl bg-white dark:bg-slate-800 text-dark dark:text-white">
+            <i data-lucide="moon" class="w-4 h-4 text-dark dark:hidden"></i>
+            <i data-lucide="sun" class="w-4 h-4 text-yellow-400 hidden dark:block"></i>
         </button>
-        <h1 class="font-heading font-black text-xl tracking-tight text-dark dark:text-white uppercase leading-none mt-1">Clock</h1>
     </div>
 
     <!-- SIDEBAR OVERLAY (Mobile only) -->
-    <div id="sidebar-overlay" onclick="toggleSidebar()" 
-        class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[45] hidden md:hidden transition-opacity duration-300 opacity-0">
+    <div id="sidebar-overlay" onclick="toggleSidebar()"
+        class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-[45] hidden md:hidden transition-opacity duration-300 opacity-0">
     </div>
 
     <!-- MAIN CONTENT AREA -->
+    <!-- Optimized for Chromebook Asus 1366x768 (centering and tight vertical padding) -->
     <main id="main-content-area"
-        class="flex-1 h-full relative overflow-hidden flex flex-col p-4 sm:p-6 md:p-8 pt-20 md:pt-8 transition-colors duration-500">
+        class="flex-1 h-full relative overflow-y-auto custom-scrollbar flex flex-col items-center justify-center p-3 sm:p-5 md:p-6 pt-16 md:pt-6 transition-colors duration-300">
 
-        <!-- Tool Container -->
-        <div class="flex-1 overflow-y-auto custom-scrollbar flex items-start md:items-center justify-center pt-4 md:pt-0">
+        <!-- ========================================================
+             1. CLOCK SECTION
+             ======================================================== -->
+        <section id="tool-clock" class="w-full max-w-3xl flex flex-col items-center animate-pop-in">
+            <div class="tool-card w-full p-5 sm:p-8 flex flex-col items-center text-center relative overflow-hidden">
+                <!-- Soft Glow Accents -->
+                <div class="absolute -top-12 -right-12 w-48 h-48 bg-blue/10 rounded-full blur-3xl pointer-events-none"></div>
+                <div class="absolute -bottom-12 -left-12 w-48 h-48 bg-pink/10 rounded-full blur-3xl pointer-events-none"></div>
 
-            <!-- CLOCK SECTION -->
-            <section id="tool-clock" class="w-full max-w-4xl transition-all duration-300">
-                <div class="hub-card w-full p-6 sm:p-10 flex flex-col items-center text-center relative overflow-hidden">
-                    <!-- Decorative BG -->
-                    <div class="absolute -top-12 -right-12 w-48 h-48 bg-blue/5 rounded-full blur-3xl"></div>
-                    <div class="absolute -bottom-12 -left-12 w-48 h-48 bg-pink/5 rounded-full blur-3xl"></div>
+                <!-- Top Controls -->
+                <div id="clock-controls-top"
+                    class="absolute top-4 sm:top-5 right-4 sm:right-6 flex items-center gap-2 z-20 transition-opacity duration-300">
+                    <button onclick="clockToggleFormat()" id="clock-btn-format"
+                        class="btn-chunky text-xs font-heading font-bold px-3 py-1.5 rounded-xl bg-white dark:bg-slate-800 text-dark dark:text-white"
+                        title="Toggle 12/24 Hour Format">12H</button>
+                    <button onclick="clockToggleView()" id="clock-btn-view"
+                        class="btn-chunky text-xs font-heading font-bold px-3 py-1.5 rounded-xl bg-white dark:bg-slate-800 text-dark dark:text-white"
+                        title="Switch Digital/Analog View">ANALOG</button>
+                    <button onclick="clockToggleZen()" id="clock-btn-zen"
+                        class="btn-chunky p-1.5 sm:px-2.5 sm:py-1.5 rounded-xl bg-green/15 text-green dark:bg-green/20"
+                        title="Toggle Zen Fullscreen Mode (Z)">
+                        <i data-lucide="maximize" class="w-4 h-4"></i>
+                    </button>
+                </div>
 
-                    <!-- Controls -->
-                    <div id="clock-controls-top"
-                        class="absolute top-4 sm:top-6 right-4 sm:right-6 flex gap-2 z-20 transition-opacity duration-300">
-                        <button onclick="clockToggleFormat()" id="clock-btn-format"
-                            class="btn-chunky text-[10px] sm:text-xs font-bold border-[1px] px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg shadow-neo-sm hover:shadow-neo transition-all"
-                            style="background: var(--surface); border-color: var(--border-main); color: var(--text-primary);">12H</button>
-                        <button onclick="clockToggleView()" id="clock-btn-view"
-                            class="btn-chunky text-[10px] sm:text-xs font-bold border-[1px] px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg shadow-neo-sm hover:shadow-neo transition-all"
-                            style="background: var(--surface); border-color: var(--border-main); color: var(--text-primary);">ANALOG</button>
-                        <button onclick="clockToggleZen()" id="clock-btn-zen"
-                            class="btn-chunky text-[10px] sm:text-xs font-bold border-[1px] px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg shadow-neo-sm hover:shadow-neo transition-all bg-green/10"
-                            style="border-color: var(--border-main); color: var(--color-green);"
-                            title="Toggle Zen Mode">
-                            <i data-lucide="maximize" class="w-3.5 h-3.5 sm:w-4 sm:h-4"></i>
-                        </button>
+                <!-- DIGITAL VIEW -->
+                <div id="clock-digital" class="flex flex-col items-center w-full mt-4 sm:mt-2 transition-opacity duration-300">
+                    <!-- Date Pill Banner -->
+                    <div class="bg-blue text-white font-heading font-bold px-5 py-1.5 rounded-full border-2 border-[#1e293b] shadow-[3px_3px_0px_0px_#1e293b] dark:shadow-[3px_3px_0px_0px_#000] mb-5 sm:mb-6 z-10 text-sm sm:text-base tracking-wider uppercase">
+                        <span id="clock-date">LOADING...</span>
                     </div>
 
-                    <!-- Digital View -->
-                    <div id="clock-digital"
-                        class="flex flex-col items-center w-full mt-6 transition-opacity duration-300">
-                        <div class="bg-blue/90 backdrop-blur-md text-white font-heading font-bold px-6 py-2 rounded-full border-[1px] shadow-neo-sm mb-8 z-10 text-lg tracking-wider uppercase"
-                            style="border-color: rgba(255,255,255,0.2);">
-                            <span id="clock-date">LOADING...</span>
-                        </div>
-
-                        <div class="border-[1px] rounded-[2rem] sm:rounded-[2.5rem] p-6 sm:p-12 shadow-inner-neo w-full flex items-center justify-center relative max-w-3xl glass-panel"
-                            style="background: var(--slate-50); border-color: var(--border-main);">
-                            <div class="relative z-10">
-                                <div id="clock-time"
-                                    class="font-mono text-6xl sm:text-7xl md:text-[8rem] leading-none font-bold tracking-tighter drop-shadow-sm"
-                                    style="color: var(--text-primary);">
-                                    00:00
-                                </div>
-                            </div>
-                            <!-- Seconds Badge -->
-                            <div class="absolute top-4 sm:top-6 right-4 sm:right-6 bg-pink text-white font-mono text-lg sm:text-2xl font-bold px-2 sm:px-3 py-0.5 sm:py-1 rounded-lg border-[1px] shadow-neo-sm rotate-6"
-                                style="border-color: rgba(255,255,255,0.4);">
-                                <span id="clock-sec-dig">00</span>
-                            </div>
-                            <!-- AM/PM Badge -->
-                            <div id="clock-ampm"
-                                class="absolute bottom-4 sm:bottom-6 right-4 sm:right-6 bg-orange text-white font-heading font-bold text-base sm:text-xl px-2 sm:px-3 py-0.5 sm:py-1 rounded-lg border-[1px] shadow-neo-sm -rotate-3"
-                                style="border-color: rgba(255,255,255,0.4);">
-                                PM
+                    <!-- Digital Time Container -->
+                    <div class="rounded-2xl sm:rounded-[2rem] border-3 border-[#1e293b] dark:border-slate-600 bg-slate-50/90 dark:bg-slate-800/80 p-5 sm:p-8 shadow-[inset_2px_2px_0px_0px_rgba(30,41,59,0.1)] w-full flex items-center justify-center relative max-w-2xl">
+                        <!-- Main Time -->
+                        <div class="relative z-10 py-1 sm:py-3">
+                            <div id="clock-time"
+                                class="font-mono text-6xl sm:text-7xl md:text-8xl leading-none font-bold tracking-tight text-dark dark:text-white drop-shadow-sm">
+                                00:00
                             </div>
                         </div>
-                    </div>
 
-                    <!-- Analog View (Hidden by Default) -->
-                    <div id="clock-analog"
-                        class="hidden flex-col items-center justify-center py-4 transition-opacity duration-300 w-full">
-                        <div class="p-4 sm:p-8 rounded-[2rem] sm:rounded-[2.5rem] border-[1px] shadow-inner-neo mb-6 glass-panel"
-                            style="background: var(--slate-50); border-color: var(--border-main);">
-                            <div class="relative w-[260px] h-[260px] sm:w-[320px] sm:h-[320px] rounded-full border-[6px] sm:border-[8px] flex items-center justify-center"
-                                style="border-color: var(--border-main); background: var(--surface); box-shadow: 4px 4px 0px var(--card-shadow-color);">
-                                <svg viewBox="0 0 100 100" class="w-full h-full">
-                                    <g id="clock-face-markers"></g>
-                                    <line id="hand-hour" x1="50" y1="50" x2="50" y2="28" stroke="currentColor"
-                                        stroke-width="4" stroke-linecap="round" style="color: var(--text-primary);" />
-                                    <line id="hand-min" x1="50" y1="50" x2="50" y2="18" stroke="#94a3b8"
-                                        stroke-width="3" stroke-linecap="round" />
-                                    <circle cx="50" cy="50" r="4" fill="currentColor"
-                                        style="color: var(--text-primary);" />
-                                    <line id="hand-sec" x1="50" y1="65" x2="50" y2="15" stroke="#FF6B95"
-                                        stroke-width="2" stroke-linecap="round" />
-                                    <circle cx="50" cy="50" r="2" fill="#FF6B95" />
-                                </svg>
-                            </div>
+                        <!-- Seconds Sticker Badge -->
+                        <div class="absolute top-3 sm:top-4 right-3 sm:right-5 bg-pink text-white font-mono text-base sm:text-xl font-bold px-2.5 py-0.5 sm:py-1 rounded-xl border-2 border-[#1e293b] shadow-[2px_2px_0px_0px_#1e293b] transform rotate-6">
+                            <span id="clock-sec-dig">00</span>
                         </div>
-                        <div id="clock-date-analog"
-                            class="text-2xl font-heading font-bold px-8 py-3 border-[1px] rounded-xl shadow-neo glass-panel"
-                            style="background: var(--surface); border-color: var(--border-main); color: var(--text-primary);">
-                            DATE</div>
-                    </div>
 
-                    <!-- Time Zone Marker -->
-                    <div id="clock-location-marker"
-                        class="mt-8 pt-6 border-t-[1px] w-full flex justify-center opacity-80 hover:opacity-100 transition-all duration-300"
-                        style="border-color: var(--border-light);">
-                        <div class="inline-flex items-center gap-2 px-4 py-2 rounded-lg border-[1px]"
-                            style="background: var(--slate-50); border-color: var(--border-light); color: var(--text-secondary);">
-                            <i data-lucide="map-pin" class="w-4 h-4 text-orange"></i>
-                            <span class="text-sm font-bold">Local Time</span>
+                        <!-- AM/PM Sticker Badge -->
+                        <div id="clock-ampm"
+                            class="absolute bottom-3 sm:bottom-4 right-3 sm:right-5 bg-orange text-white font-heading font-bold text-xs sm:text-base px-2.5 py-0.5 sm:py-1 rounded-xl border-2 border-[#1e293b] shadow-[2px_2px_0px_0px_#1e293b] transform -rotate-3">
+                            PM
                         </div>
                     </div>
                 </div>
-            </section>
 
-            <!-- STOPWATCH SECTION -->
-            <section id="tool-stopwatch" class="hidden w-full max-w-2xl flex-col items-center">
-                <div
-                    class="hub-card w-full p-8 text-center flex flex-col items-center gap-6 relative overflow-hidden glass-panel">
-                    <!-- Title Row -->
-                    <div class="w-full flex justify-between items-center border-b-[1px] pb-3 z-10"
-                        style="border-color: var(--border-light);">
-                        <h2 class="text-xl font-heading font-bold flex items-center gap-2"
-                            style="color: var(--text-primary);">
-                            <i data-lucide="timer" class="text-blue w-5 h-5"></i> STOPWATCH
-                        </h2>
-                        <div id="sw-indicator" class="w-3 h-3 rounded-full bg-slate-300"></div>
-                    </div>
-
-                    <!-- Visual Timer -->
-                    <div class="relative w-56 h-56 flex items-center justify-center z-10">
-                        <svg class="absolute inset-0 w-full h-full -rotate-90 transform" viewBox="0 0 100 100">
-                            <circle cx="50" cy="50" r="45" fill="none" stroke-width="4"
-                                style="stroke: var(--ring-track);" />
-                            <circle id="sw-ring" cx="50" cy="50" r="45" fill="none" stroke="#2979FF" stroke-width="4"
-                                stroke-dasharray="283" stroke-dashoffset="0" stroke-linecap="round"
-                                class="transition-all duration-75" />
-                        </svg>
-                        <div class="relative z-10 flex flex-col items-center">
-                            <div id="sw-display" class="font-mono text-5xl font-bold tracking-tighter"
-                                style="color: var(--text-primary);">00:00</div>
-                            <div id="sw-ms" class="font-mono text-3xl font-bold" style="color: var(--text-muted);">.00
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Controls -->
-                    <div class="flex items-center gap-4 w-full justify-center z-10">
-                        <button onclick="swReset()"
-                            class="btn-chunky w-14 h-14 rounded-xl border-[1px] flex items-center justify-center shadow-neo hover:shadow-neo-lg"
-                            style="background: var(--surface); border-color: var(--border-main); color: var(--text-primary);"
-                            title="Reset">
-                            <i data-lucide="rotate-ccw" class="w-5 h-5"></i>
-                        </button>
-                        <button onclick="swToggle()" id="sw-btn-main"
-                            class="btn-chunky w-20 h-20 rounded-2xl bg-blue border-[1px] text-white flex items-center justify-center shadow-neo-lg hover:shadow-none hover:translate-y-1 transition-all"
-                            style="border-color: rgba(255,255,255,0.4);">
-                            <i data-lucide="play" class="w-8 h-8 fill-current ml-1"></i>
-                        </button>
-                        <button onclick="swLap()"
-                            class="btn-chunky w-14 h-14 rounded-xl border-[1px] flex items-center justify-center shadow-neo hover:shadow-neo-lg"
-                            style="background: var(--surface); border-color: var(--border-main); color: var(--text-primary);"
-                            title="Lap">
-                            <i data-lucide="flag" class="w-5 h-5"></i>
-                        </button>
-                    </div>
-
-                    <!-- Laps Area -->
-                    <div class="w-full border-[1px] rounded-xl p-3 h-48 overflow-y-auto custom-scrollbar text-left shadow-inner-neo z-10 glass-panel"
-                        style="background: var(--slate-50); border-color: var(--border-main);">
-                        <div id="sw-laps" class="space-y-2">
-                            <div class="flex flex-col items-center justify-center h-full gap-2 opacity-60"
-                                style="color: var(--text-muted);">
-                                <i data-lucide="ghost" class="w-6 h-6"></i>
-                                <span class="text-xs font-bold">NO LAPS RECORDED</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </section>
-
-            <!-- TIMER SECTION -->
-            <section id="tool-timer" class="hidden w-full max-w-3xl flex-col items-center">
-                <div id="timer-card"
-                    class="hub-card w-full p-10 text-center flex flex-col items-center gap-8 transition-colors duration-300 glass-panel">
-
-                    <!-- Mode Switcher -->
-                    <div class="flex gap-2 p-1.5 border-[1px] rounded-xl relative z-10"
-                        style="background: var(--slate-100); border-color: var(--border-light);">
-                        <button onclick="timerSetMode('calm')" id="btn-mode-calm"
-                            class="px-6 py-2 rounded-lg text-sm font-bold uppercase transition-all flex items-center gap-2 border-[1px] border-transparent">
-                            <i data-lucide="leaf" class="w-4 h-4"></i> Zen
-                        </button>
-                        <button onclick="timerSetMode('bomb')" id="btn-mode-bomb"
-                            class="px-6 py-2 rounded-lg text-sm font-bold uppercase transition-all flex items-center gap-2 border-[1px] border-transparent">
-                            <i data-lucide="bomb" class="w-4 h-4"></i> Rush
-                        </button>
-                    </div>
-
-                    <div class="relative w-full h-[400px] flex items-center justify-center">
-
-                        <!-- Calm Visual -->
-                        <div id="timer-visual-zen"
-                            class="absolute inset-0 flex flex-col items-center justify-center transition-all duration-300">
-                            <div class="relative w-72 h-72 flex items-center justify-center">
-                                <svg class="absolute inset-0 w-full h-full -rotate-90 transform" viewBox="0 0 100 100">
-                                    <circle cx="50" cy="50" r="45" fill="none" stroke-width="3"
-                                        style="stroke: var(--ring-track);" />
-                                    <circle id="timer-ring-zen" cx="50" cy="50" r="45" fill="none" stroke="#00E676"
-                                        stroke-width="3" stroke-dasharray="283" stroke-dashoffset="0"
-                                        stroke-linecap="round" class="transition-all duration-1000 ease-linear" />
-                                </svg>
-                                <div class="relative flex items-center justify-center gap-1 z-10">
-                                    <input type="number" id="t-min" value="05"
-                                        class="w-32 text-center text-7xl font-mono font-bold bg-transparent focus:outline-none focus:text-blue placeholder-slate-300 p-0 selection:bg-blue selection:text-white"
-                                        style="color: var(--text-primary);" placeholder="00" onfocus="timerStop()">
-                                    <span class="text-6xl font-black -mt-4" style="color: var(--text-muted);">:</span>
-                                    <input type="number" id="t-sec" value="00"
-                                        class="w-32 text-center text-7xl font-mono font-bold bg-transparent focus:outline-none focus:text-blue placeholder-slate-300 p-0 selection:bg-blue selection:text-white"
-                                        style="color: var(--text-primary);" placeholder="00" onfocus="timerStop()">
-                                </div>
-                            </div>
-                            <p class="font-bold text-sm tracking-widest mt-2 uppercase"
-                                style="color: var(--text-muted);">Tap numbers to edit</p>
-                        </div>
-
-                        <!-- Bomb Visual -->
-                        <div id="timer-visual-rush"
-                            class="absolute inset-0 flex flex-col items-center justify-center hidden opacity-0 transition-all duration-300">
-                            <svg viewBox="0 0 200 200" class="w-72 h-72 overflow-visible drop-shadow-xl">
-                                <circle cx="100" cy="120" r="60" fill="#1e293b" />
-                                <circle cx="80" cy="100" r="15" fill="#334155" opacity="0.5" />
-                                <rect x="88" y="45" width="24" height="25" fill="#334155" />
-                                <!-- Fuse Path -->
-                                <path d="M100,45 C100,10 140,0 170,20" fill="none" stroke="#94a3b8" stroke-width="6"
-                                    stroke-linecap="round" />
-                                <path id="timer-fuse-rush" d="M100,45 C100,10 140,0 170,20" fill="none" stroke="#FF8C42"
-                                    stroke-width="6" stroke-linecap="round" stroke-dasharray="100"
-                                    stroke-dashoffset="0" />
-                                <!-- Spark -->
-                                <circle id="timer-spark" cx="170" cy="20" r="8" fill="#fbbf24"
-                                    class="shadow-[0_0_15px_#fbbf24]" />
+                <!-- ANALOG VIEW (Hidden initially) -->
+                <div id="clock-analog" class="hidden flex-col items-center justify-center py-2 transition-opacity duration-300 w-full">
+                    <div class="p-3 sm:p-4 rounded-full border-3 border-[#1e293b] dark:border-slate-600 bg-slate-50 dark:bg-slate-800/80 shadow-[4px_4px_0px_0px_#1e293b] dark:shadow-[4px_4px_0px_0px_#000] mb-4">
+                        <div class="relative w-[210px] h-[210px] sm:w-[250px] sm:h-[250px] rounded-full border-4 border-[#1e293b] dark:border-slate-500 bg-white dark:bg-slate-900 flex items-center justify-center">
+                            <svg viewBox="0 0 100 100" class="w-full h-full">
+                                <g id="clock-face-markers" class="text-slate-400 dark:text-slate-500"></g>
+                                <!-- Minute Hand -->
+                                <line id="hand-min" x1="50" y1="50" x2="50" y2="18" stroke="#64748b" stroke-width="3" stroke-linecap="round" />
+                                <!-- Hour Hand -->
+                                <line id="hand-hour" x1="50" y1="50" x2="50" y2="28" stroke="currentColor" stroke-width="4" stroke-linecap="round" class="text-dark dark:text-white" />
+                                <!-- Center Pivot Outer -->
+                                <circle cx="50" cy="50" r="4.5" fill="currentColor" class="text-dark dark:text-white" />
+                                <!-- Second Hand -->
+                                <line id="hand-sec" x1="50" y1="62" x2="50" y2="14" stroke="#ff4785" stroke-width="1.8" stroke-linecap="round" />
+                                <!-- Center Pivot Inner -->
+                                <circle cx="50" cy="50" r="2" fill="#ff4785" />
                             </svg>
-                            <div class="absolute -bottom-6 px-8 py-3 rounded-2xl border-[1px] text-4xl font-mono font-bold shadow-neo transform -rotate-1 glass-panel"
-                                style="background: var(--surface); border-color: var(--border-main); color: var(--text-primary);">
-                                <span id="t-rush-display">05:00</span>
-                            </div>
                         </div>
                     </div>
-
-                    <!-- Controls -->
-                    <div class="flex items-center gap-4 z-10 mt-4 w-full justify-center">
-                        <div class="flex flex-col gap-2">
-                            <button onclick="timerAdjust(60)"
-                                class="btn-chunky px-4 py-2 border-[1px] text-sm rounded-lg shadow-neo-sm hover:shadow-neo"
-                                style="background: var(--surface); border-color: var(--border-main); color: var(--text-primary);">+1m</button>
-                            <button onclick="timerAdjust(-60)"
-                                class="btn-chunky px-4 py-2 border-[1px] text-sm rounded-lg shadow-neo-sm hover:shadow-neo"
-                                style="background: var(--surface); border-color: var(--border-main); color: var(--text-primary);">-1m</button>
-                        </div>
-
-                        <button onclick="timerToggle()" id="timer-btn-start"
-                            class="btn-chunky w-24 h-24 rounded-3xl bg-green border-[1px] text-white flex items-center justify-center mx-4 hover:scale-105 transition-transform shadow-neo-lg"
-                            style="border-color: rgba(255,255,255,0.4);">
-                            <i data-lucide="play" class="w-12 h-12 fill-current ml-1"></i>
-                        </button>
-
-                        <div class="flex flex-col gap-2">
-                            <button onclick="timerAdjust(30)"
-                                class="btn-chunky px-4 py-2 border-[1px] text-sm rounded-lg shadow-neo-sm hover:shadow-neo"
-                                style="background: var(--surface); border-color: var(--border-main); color: var(--text-primary);">+30s</button>
-                            <button onclick="timerReset()"
-                                class="btn-chunky px-4 py-2 border-[1px] text-sm rounded-lg shadow-neo-sm hover:shadow-neo"
-                                style="background: var(--slate-200); border-color: var(--border-main); color: var(--text-primary);">RESET</button>
-                        </div>
+                    <div id="clock-date-analog"
+                        class="text-base sm:text-xl font-heading font-bold px-6 py-2 border-2 border-[#1e293b] dark:border-slate-600 rounded-xl shadow-[3px_3px_0px_0px_#1e293b] dark:shadow-[3px_3px_0px_0px_#000] bg-white dark:bg-slate-800 text-dark dark:text-white uppercase tracking-wider">
+                        DATE
                     </div>
                 </div>
-            </section>
 
-            <!-- ALARM SECTION -->
-            <section id="tool-alarm" class="hidden w-full max-w-2xl flex-col items-center">
-                <div
-                    class="hub-card w-full p-8 text-center flex flex-col items-center gap-6 relative overflow-hidden h-[600px] glass-panel">
-                    <!-- Title Row -->
-                    <div class="w-full flex justify-between items-center border-b-[1px] pb-3 z-10"
-                        style="border-color: var(--border-light);">
-                        <h2 class="text-xl font-heading font-bold flex items-center gap-2"
-                            style="color: var(--text-primary);">
-                            <i data-lucide="bell" class="text-pink w-5 h-5"></i> ALARMS
-                        </h2>
-                        <button onclick="alarmOpenAddForm()"
-                            class="btn-chunky px-4 py-2 bg-pink text-white rounded-xl text-sm font-bold shadow-neo-sm border-[1px] flex items-center gap-2 hover:shadow-neo"
-                            style="border-color: rgba(255,255,255,0.4);">
-                            <i data-lucide="plus" class="w-4 h-4"></i> NEW
-                        </button>
+                <!-- Weather & Location Indicator -->
+                <div id="clock-location-marker" class="mt-5 pt-3 border-t-2 border-[#1e293b]/15 dark:border-slate-700/60 w-full flex justify-center">
+                    <div class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full border-2 border-[#1e293b] dark:border-slate-600 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 shadow-[2px_2px_0px_0px_#1e293b] dark:shadow-[2px_2px_0px_0px_#000]">
+                        <i data-lucide="map-pin" class="w-3.5 h-3.5 text-orange"></i>
+                        <span class="text-xs font-bold font-heading">Local Time</span>
                     </div>
+                </div>
+            </div>
+        </section>
 
-                    <!-- Alarm List View -->
-                    <div id="alarm-list-container"
-                        class="w-full flex-1 overflow-y-auto custom-scrollbar flex flex-col gap-3 pr-2 z-10">
-                        <!-- Alarms will be injected here -->
+        <!-- ========================================================
+             2. STOPWATCH SECTION (2-Column Landscape on Chromebook)
+             ======================================================== -->
+        <section id="tool-stopwatch" class="hidden w-full max-w-3xl flex-col items-center animate-pop-in">
+            <div class="tool-card w-full p-4 sm:p-6 flex flex-col gap-4 relative overflow-hidden">
+                <!-- Title Row -->
+                <div class="w-full flex justify-between items-center border-b-2 border-[#1e293b]/20 dark:border-slate-700 pb-3 z-10">
+                    <h2 class="text-lg sm:text-xl font-heading font-bold flex items-center gap-2 tracking-wide uppercase text-dark dark:text-white">
+                        <i data-lucide="timer" class="text-blue w-5 h-5 sm:w-6 sm:h-6"></i> STOPWATCH
+                    </h2>
+                    <div class="flex items-center gap-2">
+                        <span class="text-[10px] sm:text-xs font-heading font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">STATUS</span>
+                        <div id="sw-indicator" class="w-3 h-3 rounded-full border-2 border-[#1e293b] bg-slate-300 transition-colors"></div>
                     </div>
+                </div>
 
-                    <!-- Empty State -->
-                    <div id="alarm-empty-state"
-                        class="hidden flex-col items-center justify-center flex-1 opacity-60 z-10"
-                        style="color: var(--text-muted);">
-                        <i data-lucide="bell-off" class="w-16 h-16 mb-4"></i>
-                        <p class="font-bold">NO ALARMS SET</p>
-                    </div>
-
-                    <!-- Add Alarm Form Overlay (Floating inside card) -->
-                    <div id="alarm-add-form"
-                        class="absolute inset-0 z-40 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl flex flex-col items-center justify-center p-8 transition-all duration-300 translate-y-full opacity-0">
-                        <div class="w-full max-w-sm flex flex-col gap-6 items-center">
-                            <h3 class="text-2xl font-heading font-bold" style="color: var(--text-primary);">NEW ALARM
-                            </h3>
-
-                            <!-- Time Picker -->
-                            <div class="flex items-center justify-center gap-2">
-                                <input type="number" id="alarm-hour" value="07" min="1" max="12"
-                                    class="w-20 text-center text-4xl font-mono font-bold bg-transparent focus:outline-none focus:text-pink placeholder-slate-300 p-0 selection:bg-pink selection:text-white"
-                                    style="color: var(--text-primary);" placeholder="07">
-                                <span class="text-3xl font-black -mt-1" style="color: var(--text-muted);">:</span>
-                                <input type="number" id="alarm-min" value="00" min="0" max="59"
-                                    class="w-20 text-center text-4xl font-mono font-bold bg-transparent focus:outline-none focus:text-pink placeholder-slate-300 p-0 selection:bg-pink selection:text-white"
-                                    style="color: var(--text-primary);" placeholder="00">
-                                <button onclick="alarmToggleAmPm()" id="alarm-ampm-btn"
-                                    class="btn-chunky ml-2 px-3 py-2 rounded-lg border-[1px] font-heading font-bold text-lg shadow-neo-sm hover:shadow-neo bg-pink text-white"
-                                    style="border-color: rgba(255,255,255,0.4);">
-                                    AM
-                                </button>
+                <!-- Split Grid Layout -->
+                <div class="grid grid-cols-1 md:grid-cols-12 gap-5 items-center w-full z-10">
+                    <!-- Left: Dial Ring & Controls (md: 6 cols) -->
+                    <div class="md:col-span-6 flex flex-col items-center justify-center gap-4">
+                        <div class="relative w-44 h-44 sm:w-50 sm:h-50 flex items-center justify-center">
+                            <svg class="absolute inset-0 w-full h-full -rotate-90 transform" viewBox="0 0 100 100">
+                                <circle cx="50" cy="50" r="45" fill="none" stroke-width="4.5"
+                                    style="stroke: var(--ring-track);" />
+                                <circle id="sw-ring" cx="50" cy="50" r="45" fill="none" stroke="#1ea7fd" stroke-width="4.5"
+                                    stroke-dasharray="283" stroke-dashoffset="0" stroke-linecap="round"
+                                    class="transition-all duration-75" />
+                            </svg>
+                            <div class="relative z-10 flex flex-col items-center">
+                                <div id="sw-display" class="font-mono text-4xl sm:text-5xl font-bold tracking-tight text-dark dark:text-white">00:00</div>
+                                <div id="sw-ms" class="font-mono text-xl sm:text-2xl font-bold text-slate-400 dark:text-slate-500">.00</div>
                             </div>
+                        </div>
 
-                            <!-- Label -->
-                            <input type="text" id="alarm-label" placeholder="Alarm label"
-                                class="w-full text-center px-4 py-2 rounded-lg border-[1px] font-bold text-sm focus:outline-none focus:border-pink focus:ring-[1px] focus:ring-pink/20 glass-panel"
-                                style="background: var(--slate-50); border-color: var(--border-light); color: var(--text-primary);">
+                        <!-- Buttons Row -->
+                        <div class="flex items-center gap-3 justify-center">
+                            <button onclick="swReset()"
+                                class="btn-chunky w-12 h-12 rounded-xl bg-white dark:bg-slate-800 text-dark dark:text-white"
+                                title="Reset (R)">
+                                <i data-lucide="rotate-ccw" class="w-4 h-4"></i>
+                            </button>
+                            <button onclick="swToggle()" id="sw-btn-main"
+                                class="btn-chunky w-16 h-16 rounded-2xl bg-blue text-white"
+                                title="Start / Pause (Space)">
+                                <i data-lucide="play" class="w-7 h-7 fill-current ml-0.5"></i>
+                            </button>
+                            <button onclick="swLap()"
+                                class="btn-chunky w-12 h-12 rounded-xl bg-white dark:bg-slate-800 text-dark dark:text-white"
+                                title="Record Lap (L)">
+                                <i data-lucide="flag" class="w-4 h-4"></i>
+                            </button>
+                        </div>
+                    </div>
 
-                            <!-- Buttons -->
-                            <div class="flex gap-3 w-full">
-                                <button onclick="alarmCloseAddForm()"
-                                    class="btn-chunky flex-1 py-3 border-[1px] rounded-xl font-bold shadow-neo-sm hover:shadow-neo glass-panel"
-                                    style="background: var(--surface); border-color: var(--border-main); color: var(--text-primary);">CANCEL</button>
-                                <button onclick="alarmSaveNew()"
-                                    class="btn-chunky flex-1 py-3 bg-pink text-white border-[1px] rounded-xl font-bold shadow-neo-sm hover:shadow-neo"
-                                    style="border-color: rgba(255,255,255,0.4);">SAVE</button>
+                    <!-- Right: Laps Area (md: 6 cols) -->
+                    <div class="md:col-span-6 flex flex-col w-full">
+                        <div class="flex items-center justify-between mb-1.5">
+                            <span class="text-xs font-heading font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+                                <i data-lucide="list-ordered" class="w-3.5 h-3.5"></i> Laps Recorded
+                            </span>
+                        </div>
+                        <div class="w-full border-3 border-[#1e293b] dark:border-slate-600 rounded-2xl p-2.5 h-48 sm:h-56 overflow-y-auto custom-scrollbar text-left shadow-[inset_2px_2px_0px_0px_rgba(30,41,59,0.1)] bg-slate-50/90 dark:bg-slate-800/80">
+                            <div id="sw-laps" class="space-y-1.5 h-full">
+                                <div class="flex flex-col items-center justify-center h-full gap-1.5 opacity-50 text-slate-500 dark:text-slate-400">
+                                    <i data-lucide="ghost" class="w-5 h-5"></i>
+                                    <span class="text-xs font-heading font-bold uppercase tracking-wider">No laps recorded</span>
+                                </div>
                             </div>
                         </div>
                     </div>
                 </div>
-            </section>
+            </div>
+        </section>
 
-            <!-- CALENDAR SECTION -->
-            <section id="tool-calendar" class="hidden w-full max-w-3xl flex-col items-center">
-                <div class="hub-card w-full p-6 pb-8 glass-panel">
-                    <div class="flex items-center justify-between mb-6">
-                        <button onclick="calNav(-1)"
-                            class="btn-chunky w-12 h-12 flex items-center justify-center rounded-xl border-[1px] shadow-neo-sm hover:shadow-neo"
-                            style="background: var(--surface); border-color: var(--border-main); color: var(--text-primary);"><i
-                                data-lucide="chevron-left" class="w-6 h-6"></i></button>
+        <!-- ========================================================
+             3. TIMER SECTION
+             ======================================================== -->
+        <section id="tool-timer" class="hidden w-full max-w-2xl flex-col items-center animate-pop-in">
+            <div id="timer-card" class="tool-card w-full p-4 sm:p-6 text-center flex flex-col items-center gap-4 relative overflow-hidden">
 
-                        <div class="flex items-center gap-3">
-                            <button onclick="calGoToday()"
-                                class="btn-chunky px-3 py-1.5 rounded-lg border-[1px] shadow-neo-sm text-xs font-bold uppercase tracking-wider hover:shadow-neo"
-                                style="background: var(--surface); border-color: var(--border-main); color: var(--text-primary);">Today</button>
-                            <div class="flex flex-col items-center cursor-pointer group" onclick="calToggleViewMode()"
-                                title="Toggle Year/Month View">
-                                <h2 id="cal-month-year"
-                                    class="text-3xl font-heading font-bold text-center uppercase tracking-tight group-hover:text-blue transition-colors"
-                                    style="color: var(--text-primary);">MONTH YEAR</h2>
-                                <span
-                                    class="text-[0.8rem] font-bold uppercase tracking-widest text-[#94a3b8] opacity-50 group-hover:opacity-100 transition-opacity mt-1">Toggle
-                                    View</span>
+                <!-- Mode Switcher -->
+                <div class="flex gap-2 p-1 border-2 border-[#1e293b] dark:border-slate-600 rounded-xl bg-slate-100 dark:bg-slate-800 relative z-10">
+                    <button onclick="timerSetMode('calm')" id="btn-mode-calm"
+                        class="btn-chunky px-4 sm:px-6 py-1.5 rounded-lg text-xs sm:text-sm font-heading font-bold uppercase flex items-center gap-1.5">
+                        <i data-lucide="leaf" class="w-3.5 h-3.5"></i> Zen
+                    </button>
+                    <button onclick="timerSetMode('bomb')" id="btn-mode-bomb"
+                        class="btn-chunky px-4 sm:px-6 py-1.5 rounded-lg text-xs sm:text-sm font-heading font-bold uppercase flex items-center gap-1.5">
+                        <i data-lucide="bomb" class="w-3.5 h-3.5"></i> Rush
+                    </button>
+                </div>
+
+                <!-- Timer Visual Container (Height adjusted for 1366x768) -->
+                <div class="relative w-full h-[220px] sm:h-[250px] flex items-center justify-center">
+
+                    <!-- Calm Visual -->
+                    <div id="timer-visual-zen"
+                        class="absolute inset-0 flex flex-col items-center justify-center transition-all duration-300">
+                        <div class="relative w-48 h-48 sm:w-56 sm:h-56 flex items-center justify-center">
+                            <svg class="absolute inset-0 w-full h-full -rotate-90 transform" viewBox="0 0 100 100">
+                                <circle cx="50" cy="50" r="45" fill="none" stroke-width="4"
+                                    style="stroke: var(--ring-track);" />
+                                <circle id="timer-ring-zen" cx="50" cy="50" r="45" fill="none" stroke="#00d063"
+                                    stroke-width="4" stroke-dasharray="283" stroke-dashoffset="0"
+                                    stroke-linecap="round" class="transition-all duration-1000 ease-linear" />
+                            </svg>
+                            <div class="relative flex items-center justify-center gap-0.5 z-10">
+                                <input type="number" id="t-min" value="05"
+                                    class="w-20 sm:w-24 text-center text-5xl sm:text-6xl font-mono font-bold bg-transparent focus:outline-none focus:text-green placeholder-slate-300 p-0 text-dark dark:text-white"
+                                    placeholder="00" onfocus="timerStop()">
+                                <span class="text-4xl sm:text-5xl font-mono font-black -mt-2 text-slate-400">:</span>
+                                <input type="number" id="t-sec" value="00"
+                                    class="w-20 sm:w-24 text-center text-5xl sm:text-6xl font-mono font-bold bg-transparent focus:outline-none focus:text-green placeholder-slate-300 p-0 text-dark dark:text-white"
+                                    placeholder="00" onfocus="timerStop()">
                             </div>
                         </div>
-
-                        <button onclick="calNav(1)"
-                            class="btn-chunky w-12 h-12 flex items-center justify-center rounded-xl border-[1px] shadow-neo-sm hover:shadow-neo"
-                            style="background: var(--surface); border-color: var(--border-main); color: var(--text-primary);"><i
-                                data-lucide="chevron-right" class="w-6 h-6"></i></button>
+                        <p class="font-heading font-bold text-[10px] sm:text-xs tracking-widest mt-1 uppercase text-slate-400 dark:text-slate-500">Tap numbers to edit</p>
                     </div>
 
-                    <!-- MONTH VIEW CONTAINER -->
-                    <div id="cal-month-view" class="w-full">
-                        <!-- Days Header -->
-                        <div class="grid grid-cols-7 gap-3 mb-3 text-center">
-                            <div class="text-sm font-black" style="color: var(--text-muted);">MON</div>
-                            <div class="text-sm font-black" style="color: var(--text-muted);">TUE</div>
-                            <div class="text-sm font-black" style="color: var(--text-muted);">WED</div>
-                            <div class="text-sm font-black" style="color: var(--text-muted);">THU</div>
-                            <div class="text-sm font-black" style="color: var(--text-muted);">FRI</div>
-                            <div class="text-sm font-black text-pink">SAT</div>
-                            <div class="text-sm font-black text-pink">SUN</div>
-                        </div>
-
-                        <!-- Grid -->
-                        <div id="cal-grid" class="grid grid-cols-7 gap-2 md:gap-3 w-full">
-                            <!-- JS injected -->
-                        </div>
-                    </div>
-
-                    <!-- YEAR VIEW CONTAINER (Hidden initially) -->
-                    <div id="cal-year-view"
-                        class="hidden grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 w-full max-h-[480px] overflow-y-auto custom-scrollbar p-2">
-                        <!-- JS injected -->
-                    </div>
-
-                    <!-- Info Box -->
-                    <div class="mt-6 flex justify-center">
-                        <div id="cal-counter-display"
-                            class="text-xs font-bold px-4 py-2 rounded-lg border-[1px] shadow-sm flex flex-col items-center gap-1 glass-panel"
-                            style="background: var(--slate-50); border-color: var(--border-light); color: var(--text-secondary);">
-                            <div class="flex items-center gap-2">
-                                <i data-lucide="info" class="w-4 h-4 flex-shrink-0"></i>
-                                <span id="cal-info-text">Click date to select. <span class="text-blue bg-blue/10 px-1 rounded">Alt+Click</span> to mark.</span>
-                            </div>
+                    <!-- Bomb Visual -->
+                    <div id="timer-visual-rush"
+                        class="absolute inset-0 flex flex-col items-center justify-center hidden opacity-0 transition-all duration-300">
+                        <svg viewBox="0 0 200 200" class="w-44 h-44 sm:w-48 sm:h-48 overflow-visible drop-shadow-md">
+                            <circle cx="100" cy="120" r="55" fill="#1e293b" />
+                            <circle cx="82" cy="102" r="14" fill="#334155" opacity="0.6" />
+                            <rect x="89" y="50" width="22" height="20" fill="#334155" rx="3" />
+                            <path d="M100,50 C100,20 135,10 160,25" fill="none" stroke="#94a3b8" stroke-width="5" stroke-linecap="round" />
+                            <path id="timer-fuse-rush" d="M100,50 C100,20 135,10 160,25" fill="none" stroke="#ff7e33"
+                                stroke-width="5" stroke-linecap="round" stroke-dasharray="100" stroke-dashoffset="0" />
+                            <circle id="timer-spark" cx="160" cy="25" r="7" fill="#fbbf24" class="shadow-[0_0_15px_#fbbf24]" />
+                        </svg>
+                        <div class="px-5 py-1.5 rounded-xl border-3 border-[#1e293b] dark:border-slate-600 text-2xl sm:text-3xl font-mono font-bold shadow-[3px_3px_0px_0px_#1e293b] dark:shadow-[3px_3px_0px_0px_#000] bg-white dark:bg-slate-800 text-dark dark:text-white mt-1">
+                            <span id="t-rush-display">05:00</span>
                         </div>
                     </div>
                 </div>
-            </section>
 
-            <!-- COUNTDOWN SECTION -->
-            <section id="tool-countdown" class="hidden w-full max-w-2xl flex-col items-center">
-                <div class="hub-card w-full p-8 text-center flex flex-col items-center gap-6 relative overflow-hidden glass-panel">
-                    <!-- Title Row -->
-                    <div class="w-full flex justify-between items-center border-b-[1px] pb-3 z-10" style="border-color: var(--border-light);">
-                        <h2 class="text-xl font-heading font-bold flex items-center gap-2" style="color: var(--text-primary);">
-                            <i data-lucide="timer-reset" class="text-blue w-5 h-5"></i> COUNTDOWN
-                        </h2>
-                        <button onclick="countdown.reset()" class="text-xs font-bold px-3 py-1.5 rounded-lg border-[1px] shadow-neo-sm hover:shadow-neo bg-slate-50 transition-all text-slate-600">RESET</button>
+                <!-- Controls -->
+                <div class="flex items-center gap-2 sm:gap-3 z-10 w-full justify-center">
+                    <div class="flex flex-col gap-1.5">
+                        <button onclick="timerAdjust(60)"
+                            class="btn-chunky px-3 py-1.5 text-xs rounded-xl bg-white dark:bg-slate-800 text-dark dark:text-white font-heading"
+                            title="Add 1 minute">+1m</button>
+                        <button onclick="timerAdjust(-60)"
+                            class="btn-chunky px-3 py-1.5 text-xs rounded-xl bg-white dark:bg-slate-800 text-dark dark:text-white font-heading"
+                            title="Subtract 1 minute">-1m</button>
                     </div>
 
-                    <!-- Setup Phase -->
-                    <div id="countdown-setup" class="flex flex-col items-center gap-8 w-full py-8">
-                        <div class="flex flex-col gap-2">
-                            <h3 class="text-2xl font-heading font-bold" style="color: var(--text-primary);">SET TARGET TIME</h3>
-                            <p class="text-xs font-bold text-slate-500 uppercase tracking-widest">Count down until a specific time</p>
-                        </div>
-                        
+                    <button onclick="timerToggle()" id="timer-btn-start"
+                        class="btn-chunky w-18 h-18 sm:w-20 sm:h-20 rounded-3xl bg-green text-white flex items-center justify-center mx-2"
+                        title="Start / Pause (Space)">
+                        <i data-lucide="play" class="w-8 h-8 fill-current ml-0.5"></i>
+                    </button>
+
+                    <div class="flex flex-col gap-1.5">
+                        <button onclick="timerAdjust(30)"
+                            class="btn-chunky px-3 py-1.5 text-xs rounded-xl bg-white dark:bg-slate-800 text-dark dark:text-white font-heading"
+                            title="Add 30 seconds">+30s</button>
+                        <button onclick="timerReset()"
+                            class="btn-chunky px-3 py-1.5 text-xs rounded-xl bg-slate-200 dark:bg-slate-700 text-dark dark:text-white font-heading"
+                            title="Reset Timer (R)">RESET</button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ========================================================
+             4. ALARM SECTION
+             ======================================================== -->
+        <section id="tool-alarm" class="hidden w-full max-w-2xl flex-col items-center animate-pop-in">
+            <div class="tool-card w-full p-4 sm:p-6 text-center flex flex-col items-center gap-4 relative overflow-hidden max-h-[min(520px,calc(100vh-4rem))]">
+                <!-- Title Row -->
+                <div class="w-full flex justify-between items-center border-b-2 border-[#1e293b]/20 dark:border-slate-700 pb-3 z-10">
+                    <h2 class="text-lg sm:text-xl font-heading font-bold flex items-center gap-2 tracking-wide uppercase text-dark dark:text-white">
+                        <i data-lucide="bell" class="text-pink w-5 h-5 sm:w-6 sm:h-6"></i> ALARMS
+                    </h2>
+                    <button onclick="alarmOpenAddForm()"
+                        class="btn-chunky px-3.5 py-1.5 bg-pink text-white rounded-xl text-xs sm:text-sm font-heading font-bold flex items-center gap-1.5">
+                        <i data-lucide="plus" class="w-4 h-4"></i> NEW ALARM
+                    </button>
+                </div>
+
+                <!-- Alarm List Container -->
+                <div id="alarm-list-container"
+                    class="w-full flex-1 overflow-y-auto custom-scrollbar flex flex-col gap-2.5 pr-1 z-10 min-h-[160px]">
+                    <!-- Injected by alarm.renderList() -->
+                </div>
+
+                <!-- Empty State -->
+                <div id="alarm-empty-state"
+                    class="hidden flex-col items-center justify-center flex-1 py-10 opacity-60 text-slate-500 dark:text-slate-400 z-10">
+                    <i data-lucide="bell-off" class="w-12 h-12 mb-2"></i>
+                    <p class="font-heading font-bold text-sm uppercase tracking-wider">No alarms set</p>
+                    <p class="text-xs text-slate-400">Click + NEW ALARM to add one</p>
+                </div>
+
+                <!-- Add Alarm Form Overlay -->
+                <div id="alarm-add-form"
+                    class="absolute inset-0 z-40 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl flex flex-col items-center justify-center p-6 transition-all duration-300 translate-y-full opacity-0">
+                    <div class="w-full max-w-sm flex flex-col gap-4 items-center">
+                        <h3 class="text-xl sm:text-2xl font-heading font-bold text-dark dark:text-white uppercase tracking-tight">New Alarm</h3>
+
                         <!-- Time Picker -->
-                        <div class="flex items-center justify-center gap-2">
-                            <input type="number" id="countdown-hour" value="12" min="1" max="12"
-                                class="w-24 text-center text-6xl font-mono font-bold bg-transparent focus:outline-none focus:text-blue placeholder-slate-300 p-0 selection:bg-blue selection:text-white"
-                                style="color: var(--text-primary); border-bottom: 3px solid var(--border-main); border-radius: 0;" placeholder="12">
-                            <span class="text-5xl font-black -mt-2" style="color: var(--text-muted);">:</span>
-                            <input type="number" id="countdown-min" value="00" min="0" max="59"
-                                class="w-24 text-center text-6xl font-mono font-bold bg-transparent focus:outline-none focus:text-blue placeholder-slate-300 p-0 selection:bg-blue selection:text-white"
-                                style="color: var(--text-primary); border-bottom: 3px solid var(--border-main); border-radius: 0;" placeholder="00">
-                            <button onclick="countdown.toggleAmPm()" id="countdown-ampm-btn"
-                                class="btn-chunky ml-4 px-4 py-3 rounded-xl border-3 font-heading font-bold text-2xl shadow-neo hover:shadow-neo bg-blue text-white"
-                                style="border-color: rgba(255,255,255,0.4);">
-                                PM
+                        <div class="flex items-center justify-center gap-2 p-3 rounded-2xl border-3 border-[#1e293b] dark:border-slate-600 bg-slate-50 dark:bg-slate-800">
+                            <input type="number" id="alarm-hour" value="07" min="1" max="12"
+                                class="w-16 text-center text-4xl font-mono font-bold bg-transparent focus:outline-none focus:text-pink placeholder-slate-300 p-0 text-dark dark:text-white"
+                                placeholder="07">
+                            <span class="text-3xl font-mono font-black -mt-1 text-slate-400">:</span>
+                            <input type="number" id="alarm-min" value="00" min="0" max="59"
+                                class="w-16 text-center text-4xl font-mono font-bold bg-transparent focus:outline-none focus:text-pink placeholder-slate-300 p-0 text-dark dark:text-white"
+                                placeholder="00">
+                            <button onclick="alarmToggleAmPm()" id="alarm-ampm-btn"
+                                class="btn-chunky ml-2 px-3 py-1.5 rounded-xl font-heading font-bold text-base bg-pink text-white">
+                                AM
                             </button>
                         </div>
 
-                        <!-- Label Input -->
-                        <input type="text" id="countdown-label" placeholder="What are we counting down to? (Optional)" maxlength="30"
-                            class="w-full max-w-sm px-4 py-3 rounded-xl border-[1px] bg-transparent focus:outline-none focus:border-blue text-center font-bold text-lg"
-                            style="border-color: var(--border-main); color: var(--text-primary);">
-                        
-                        <button onclick="countdown.start()" class="btn-chunky w-full max-w-sm py-4 bg-blue text-white rounded-2xl font-bold text-xl uppercase shadow-[6px_6px_0px_0px_rgba(30,41,59,1)] border-4 border-[#1e293b] hover:-translate-y-1 hover:shadow-[8px_8px_0px_0px_rgba(30,41,59,1)] active:translate-y-1 active:shadow-none transition-all">
-                            START COUNTDOWN
-                        </button>
-                    </div>
+                        <!-- Label -->
+                        <input type="text" id="alarm-label" placeholder="Alarm Label (e.g., Clean Desk)" maxlength="30"
+                            class="w-full text-center px-4 py-2.5 rounded-xl border-3 border-[#1e293b] dark:border-slate-600 font-heading font-bold text-sm bg-slate-50 dark:bg-slate-800 text-dark dark:text-white focus:outline-none focus:border-pink">
 
-                    <!-- Running Phase -->
-                    <div id="countdown-running" class="hidden flex-col items-center gap-6 w-full py-12">
-                        <div class="bg-blue/10 px-6 py-2 rounded-full border-2 border-blue/20 mb-2">
-                            <span id="countdown-active-label" class="text-blue font-bold tracking-widest uppercase">END OF CLASS</span>
-                        </div>
-                        
-                        <div id="countdown-time-display" class="font-mono text-6xl sm:text-7xl md:text-[6rem] leading-none font-bold tracking-tighter drop-shadow-sm text-blue">
-                            00:00:00
-                        </div>
-
-                        <div class="text-sm font-bold text-slate-500 uppercase tracking-widest mt-2">
-                            Target: <span id="countdown-target-display" class="text-slate-700 dark:text-slate-300 font-black">12:00 PM</span>
+                        <!-- Buttons -->
+                        <div class="flex gap-3 w-full mt-2">
+                            <button onclick="alarmCloseAddForm()"
+                                class="btn-chunky flex-1 py-2.5 rounded-xl font-heading font-bold text-sm bg-white dark:bg-slate-800 text-dark dark:text-white">CANCEL</button>
+                            <button onclick="alarmSaveNew()"
+                                class="btn-chunky flex-1 py-2.5 bg-pink text-white rounded-xl font-heading font-bold text-sm">SAVE ALARM</button>
                         </div>
                     </div>
                 </div>
-            </section>
-        </div>
+            </div>
+        </section>
+
+        <!-- ========================================================
+             5. COUNTDOWN SECTION
+             ======================================================== -->
+        <section id="tool-countdown" class="hidden w-full max-w-2xl flex-col items-center animate-pop-in">
+            <div class="tool-card w-full p-5 sm:p-7 text-center flex flex-col items-center gap-5 relative overflow-hidden">
+                <!-- Title Row -->
+                <div class="w-full flex justify-between items-center border-b-2 border-[#1e293b]/20 dark:border-slate-700 pb-3 z-10">
+                    <h2 class="text-lg sm:text-xl font-heading font-bold flex items-center gap-2 tracking-wide uppercase text-dark dark:text-white">
+                        <i data-lucide="timer-reset" class="text-blue w-5 h-5 sm:w-6 sm:h-6"></i> COUNTDOWN
+                    </h2>
+                    <button onclick="countdown.reset()"
+                        class="btn-chunky text-xs font-heading font-bold px-3 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">RESET</button>
+                </div>
+
+                <!-- Setup Phase -->
+                <div id="countdown-setup" class="flex flex-col items-center gap-5 w-full py-4">
+                    <div class="flex flex-col gap-1">
+                        <h3 class="text-xl sm:text-2xl font-heading font-bold text-dark dark:text-white uppercase tracking-tight">Set Target Time</h3>
+                        <p class="text-xs font-heading font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">Count down until a specific class hour</p>
+                    </div>
+
+                    <!-- Time Inputs -->
+                    <div class="flex items-center justify-center gap-2 p-3 rounded-2xl border-3 border-[#1e293b] dark:border-slate-600 bg-slate-50 dark:bg-slate-800">
+                        <input type="number" id="countdown-hour" value="12" min="1" max="12"
+                            class="w-20 text-center text-5xl font-mono font-bold bg-transparent focus:outline-none focus:text-blue placeholder-slate-300 p-0 text-dark dark:text-white"
+                            placeholder="12">
+                        <span class="text-4xl font-mono font-black -mt-2 text-slate-400">:</span>
+                        <input type="number" id="countdown-min" value="00" min="0" max="59"
+                            class="w-20 text-center text-5xl font-mono font-bold bg-transparent focus:outline-none focus:text-blue placeholder-slate-300 p-0 text-dark dark:text-white"
+                            placeholder="00">
+                        <button onclick="countdown.toggleAmPm()" id="countdown-ampm-btn"
+                            class="btn-chunky ml-3 px-3.5 py-2 rounded-xl font-heading font-bold text-xl bg-blue text-white">
+                            PM
+                        </button>
+                    </div>
+
+                    <!-- Label -->
+                    <input type="text" id="countdown-label" placeholder="What are we counting down to? (Optional)" maxlength="30"
+                        class="w-full max-w-sm px-4 py-2.5 rounded-xl border-3 border-[#1e293b] dark:border-slate-600 bg-slate-50 dark:bg-slate-800 text-center font-heading font-bold text-sm text-dark dark:text-white focus:outline-none focus:border-blue">
+
+                    <button onclick="countdown.start()"
+                        class="btn-chunky w-full max-w-sm py-3.5 bg-blue text-white rounded-2xl font-heading font-bold text-lg uppercase">
+                        START COUNTDOWN
+                    </button>
+                </div>
+
+                <!-- Running Phase -->
+                <div id="countdown-running" class="hidden flex-col items-center gap-4 w-full py-6">
+                    <div class="bg-blue/15 text-blue dark:text-blue px-5 py-1.5 rounded-full border-2 border-blue/30">
+                        <span id="countdown-active-label" class="font-heading font-bold text-xs sm:text-sm tracking-widest uppercase">END OF CLASS</span>
+                    </div>
+
+                    <div id="countdown-time-display"
+                        class="font-mono text-5xl sm:text-6xl md:text-7xl leading-none font-bold tracking-tight text-blue drop-shadow-sm my-2">
+                        00:00:00
+                    </div>
+
+                    <div class="text-xs font-heading font-bold text-slate-400 uppercase tracking-widest">
+                        Target Time: <span id="countdown-target-display" class="text-dark dark:text-white font-bold">12:00 PM</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ========================================================
+             6. CALENDAR SECTION
+             ======================================================== -->
+        <section id="tool-calendar" class="hidden w-full max-w-3xl flex-col items-center animate-pop-in">
+            <div class="tool-card w-full p-4 sm:p-5">
+                <!-- Navigation Row -->
+                <div class="flex items-center justify-between mb-4">
+                    <button onclick="calNav(-1)"
+                        class="btn-chunky w-10 h-10 rounded-xl bg-white dark:bg-slate-800 text-dark dark:text-white"
+                        title="Previous Month">
+                        <i data-lucide="chevron-left" class="w-5 h-5"></i>
+                    </button>
+
+                    <div class="flex items-center gap-3">
+                        <button onclick="calGoToday()"
+                            class="btn-chunky px-3 py-1 rounded-lg text-xs font-heading font-bold uppercase tracking-wider bg-white dark:bg-slate-800 text-dark dark:text-white">
+                            Today
+                        </button>
+                        <div class="flex flex-col items-center cursor-pointer group" onclick="calToggleViewMode()"
+                            title="Toggle Month / Year View">
+                            <h2 id="cal-month-year"
+                                class="text-xl sm:text-2xl font-heading font-bold text-center uppercase tracking-tight text-dark dark:text-white group-hover:text-blue transition-colors">
+                                MONTH YEAR
+                            </h2>
+                            <span class="text-[10px] font-heading font-bold uppercase tracking-widest text-slate-400 opacity-60 group-hover:opacity-100 transition-opacity">
+                                Toggle View
+                            </span>
+                        </div>
+                    </div>
+
+                    <button onclick="calNav(1)"
+                        class="btn-chunky w-10 h-10 rounded-xl bg-white dark:bg-slate-800 text-dark dark:text-white"
+                        title="Next Month">
+                        <i data-lucide="chevron-right" class="w-5 h-5"></i>
+                    </button>
+                </div>
+
+                <!-- MONTH VIEW CONTAINER -->
+                <div id="cal-month-view" class="w-full">
+                    <!-- Days Header -->
+                    <div class="grid grid-cols-7 gap-1 sm:gap-2 mb-2 text-center font-heading font-bold text-xs text-slate-500 dark:text-slate-400">
+                        <div>MON</div>
+                        <div>TUE</div>
+                        <div>WED</div>
+                        <div>THU</div>
+                        <div>FRI</div>
+                        <div class="text-pink">SAT</div>
+                        <div class="text-pink">SUN</div>
+                    </div>
+
+                    <!-- Days Grid -->
+                    <div id="cal-grid" class="grid grid-cols-7 gap-1.5 sm:gap-2 w-full">
+                        <!-- JS injected cells -->
+                    </div>
+                </div>
+
+                <!-- YEAR VIEW CONTAINER (Hidden initially) -->
+                <div id="cal-year-view"
+                    class="hidden grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5 w-full max-h-[360px] overflow-y-auto custom-scrollbar p-1">
+                    <!-- JS injected mini-calendars -->
+                </div>
+
+                <!-- Info Box -->
+                <div class="mt-4 flex justify-center">
+                    <div id="cal-counter-display"
+                        class="text-xs font-bold px-4 py-2 rounded-xl border-2 border-[#1e293b] dark:border-slate-600 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 shadow-[2px_2px_0px_0px_#1e293b] dark:shadow-[2px_2px_0px_0px_#000] flex flex-col items-center gap-1">
+                        <div class="flex items-center gap-2">
+                            <i data-lucide="info" class="w-3.5 h-3.5 flex-shrink-0 text-blue"></i>
+                            <span id="cal-info-text">Click date to select. <span class="text-blue bg-blue/10 px-1 rounded">Alt+Click</span> to mark.</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
 
     </main>
 
-    <!-- RUSH/EXPLOSION OVERLAY -->
+    <!-- ========================================================
+         MODAL OVERLAYS (Soft Brutalist & Pop-in)
+         ======================================================== -->
+
+    <!-- RUSH / EXPLOSION OVERLAY -->
     <div id="explosion-overlay"
-        class="fixed inset-0 z-50 hidden items-center justify-center flex-col cursor-pointer transition-opacity opacity-0 backdrop-blur-xl"
-        style="background: var(--overlay-bg);" onclick="resetTimerOverlay()">
-        <div class="text-center">
-            <h1 class="text-[8rem] font-heading font-black text-orange drop-shadow-md mb-0 leading-none">BOOM!</h1>
-            <p class="text-3xl font-bold mb-10 uppercase tracking-widest" style="color: var(--text-primary);">Time Is
-                Up!</p>
-            <button
-                class="btn-chunky px-8 py-4 bg-dark text-white rounded-2xl text-xl hover:scale-105 transition-transform shadow-neo-lg border-[1px] border-white/20 hover:shadow-none hover:translate-y-1">
+        class="fixed inset-0 z-50 hidden items-center justify-center flex-col cursor-pointer transition-opacity opacity-0 backdrop-blur-xl bg-slate-900/75 p-6"
+        onclick="resetTimerOverlay()">
+        <div class="text-center animate-pop-in">
+            <h1 class="text-7xl sm:text-9xl font-heading font-bold text-orange drop-shadow-lg leading-none mb-2">BOOM!</h1>
+            <p class="text-2xl sm:text-3xl font-heading font-bold uppercase tracking-widest text-white mb-8">Time Is Up!</p>
+            <button class="btn-chunky px-8 py-3.5 bg-dark text-white rounded-2xl text-lg border-3 border-white/40">
                 RESET TIMER
             </button>
         </div>
     </div>
 
-    <!-- ZEN/CALM OVERLAY -->
+    <!-- ZEN / CALM OVERLAY -->
     <div id="zen-overlay"
-        class="fixed inset-0 z-50 hidden items-center justify-center flex-col cursor-pointer transition-opacity opacity-0 backdrop-blur-xl"
-        style="background: var(--overlay-bg);" onclick="resetTimerOverlay()">
-        <div class="text-center">
-            <i data-lucide="bell" class="w-24 h-24 text-green mx-auto mb-4"></i>
-            <h1 class="text-6xl font-heading font-black text-green mb-2 leading-none">DONE!</h1>
-            <p class="text-xl font-bold mb-8 uppercase tracking-widest" style="color: var(--text-primary);">Time Is Up
-            </p>
-            <button
-                class="btn-chunky px-8 py-4 bg-green text-white rounded-2xl text-xl hover:scale-105 transition-transform shadow-neo-lg border-[1px] hover:shadow-none hover:translate-y-1"
-                style="border-color: rgba(255,255,255,0.4);">
+        class="fixed inset-0 z-50 hidden items-center justify-center flex-col cursor-pointer transition-opacity opacity-0 backdrop-blur-xl bg-slate-900/75 p-6"
+        onclick="resetTimerOverlay()">
+        <div class="text-center animate-pop-in">
+            <i data-lucide="bell" class="w-20 h-20 text-green mx-auto mb-3 animate-bounce"></i>
+            <h1 class="text-5xl sm:text-7xl font-heading font-bold text-green leading-none mb-2 uppercase">DONE!</h1>
+            <p class="text-xl sm:text-2xl font-heading font-bold uppercase tracking-widest text-white mb-8">Time Is Up</p>
+            <button class="btn-chunky px-8 py-3.5 bg-green text-white rounded-2xl text-lg border-3 border-white/40">
                 RESET TIMER
             </button>
         </div>
@@ -671,42 +675,35 @@
 
     <!-- ALARM OVERLAY -->
     <div id="alarm-overlay"
-        class="fixed inset-0 z-50 hidden items-center justify-center flex-col cursor-pointer transition-opacity opacity-0 backdrop-blur-xl"
-        style="background: var(--overlay-bg);" onclick="alarmDismiss()">
-        <div class="text-center">
-            <div class="inline-block mb-4">
-                <i data-lucide="bell-ring" class="w-28 h-28 text-pink mx-auto"></i>
-            </div>
-            <h1 class="text-6xl font-heading font-black text-pink mb-2 leading-none">ALARM!</h1>
-            <p id="alarm-overlay-label" class="text-xl font-bold mb-2 uppercase tracking-widest"
-                style="color: var(--text-primary);">Wake Up!</p>
-            <p id="alarm-overlay-time" class="font-mono text-3xl font-bold mb-8" style="color: var(--text-muted);">07:00
-                AM</p>
-            <button
-                class="btn-chunky px-8 py-4 bg-pink text-white rounded-2xl text-xl hover:scale-105 transition-transform shadow-neo-lg border-[1px] hover:shadow-none hover:translate-y-1"
-                style="border-color: rgba(255,255,255,0.4);">
+        class="fixed inset-0 z-50 hidden items-center justify-center flex-col cursor-pointer transition-opacity opacity-0 backdrop-blur-xl bg-slate-900/75 p-6"
+        onclick="alarmDismiss()">
+        <div class="text-center animate-pop-in">
+            <i data-lucide="bell-ring" class="w-20 h-20 text-pink mx-auto mb-3 animate-pulse"></i>
+            <h1 class="text-5xl sm:text-7xl font-heading font-bold text-pink leading-none mb-2 uppercase">ALARM!</h1>
+            <p id="alarm-overlay-label" class="text-xl sm:text-2xl font-heading font-bold uppercase tracking-widest text-white mb-1">Wake Up!</p>
+            <p id="alarm-overlay-time" class="font-mono text-3xl sm:text-4xl font-bold text-pink mb-8">07:00 AM</p>
+            <button class="btn-chunky px-8 py-3.5 bg-pink text-white rounded-2xl text-lg border-3 border-white/40">
                 DISMISS
             </button>
         </div>
     </div>
+
     <!-- COUNTDOWN OVERLAY -->
     <div id="countdown-overlay"
-        class="fixed inset-0 z-50 hidden items-center justify-center flex-col cursor-pointer transition-opacity opacity-0 backdrop-blur-xl"
-        style="background: var(--overlay-bg);" onclick="countdown.dismissOverlay()">
-        <div class="text-center">
-            <div class="inline-block mb-4">
-                <i data-lucide="timer-reset" class="w-28 h-28 text-blue mx-auto animate-pulse"></i>
-            </div>
-            <h1 class="text-6xl font-heading font-black text-blue mb-2 leading-none uppercase">DONE!</h1>
-            <p id="countdown-overlay-label" class="text-3xl font-bold mb-8 uppercase tracking-widest" style="color: var(--text-primary);">TIME IS UP</p>
-            <button
-                class="btn-chunky px-8 py-4 bg-blue text-white rounded-2xl text-xl hover:scale-105 transition-transform shadow-[6px_6px_0px_0px_rgba(30,41,59,1)] border-4 border-[#1e293b] hover:-translate-y-1 active:translate-y-1 active:shadow-none transition-all mt-4">
+        class="fixed inset-0 z-50 hidden items-center justify-center flex-col cursor-pointer transition-opacity opacity-0 backdrop-blur-xl bg-slate-900/75 p-6"
+        onclick="countdown.dismissOverlay()">
+        <div class="text-center animate-pop-in">
+            <i data-lucide="timer-reset" class="w-20 h-20 text-blue mx-auto mb-3 animate-pulse"></i>
+            <h1 class="text-5xl sm:text-7xl font-heading font-bold text-blue leading-none mb-2 uppercase">DONE!</h1>
+            <p id="countdown-overlay-label" class="text-2xl sm:text-3xl font-heading font-bold uppercase tracking-widest text-white mb-8">TIME IS UP</p>
+            <button class="btn-chunky px-8 py-3.5 bg-blue text-white rounded-2xl text-lg border-3 border-white/40">
                 CLOSE
             </button>
         </div>
     </div>
 
-    <script src="./script.js"> </script>
+    <!-- Application Script -->
+    <script src="./script.js"></script>
 </body>
 
 </html>
