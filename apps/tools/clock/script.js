@@ -43,7 +43,7 @@ const state = {
     countdown: { active: false, target: null, interval: null, label: '', ampm: 'PM' },
     calendar: { date: new Date(), marked: {}, selected: null, viewMode: 'month' },
     alarm: { alarms: [], isAmPm: true, ampm: 'AM', soundInterval: null, currentlyRinging: null, lastTriggerMinute: -1 },
-    audio: { ctx: null, oscillatorPool: [] },
+    audio: { ctx: null, oscillatorPool: [], muted: localStorage.getItem('timetools_muted') === 'true' },
     darkMode: false,
     sidebarCollapsed: false,
     weather: { loaded: false, temp: null, icon: null, city: null }
@@ -202,7 +202,7 @@ const audio = {
         }
     },
     playTone(freq, type, duration, volume = 0.05) {
-        if (!state.audio.ctx) return;
+        if (state.audio.muted || !state.audio.ctx) return;
         const osc = state.audio.ctx.createOscillator();
         const gain = state.audio.ctx.createGain();
         osc.frequency.value = freq;
@@ -240,6 +240,20 @@ const audio = {
             this.alarmTimeouts.forEach(clearTimeout);
             this.alarmTimeouts = [];
         }
+    },
+    toggleMute() {
+        state.audio.muted = !state.audio.muted;
+        localStorage.setItem('timetools_muted', state.audio.muted ? 'true' : 'false');
+        this.updateMuteUI();
+    },
+    updateMuteUI() {
+        const btn = DOM.get('btn-mute-toggle');
+        if (!btn) return;
+        btn.innerHTML = state.audio.muted
+            ? '<i data-lucide="volume-x" class="w-4 h-4 text-pink"></i>'
+            : '<i data-lucide="volume-2" class="w-4 h-4 text-blue"></i>';
+        btn.title = state.audio.muted ? 'Unmute Sounds' : 'Mute Sounds';
+        utils.safeIconUpdate();
     }
 };
 
@@ -559,6 +573,8 @@ const stopwatch = {
                 '<span class="text-xs font-bold uppercase tracking-wider">NO LAPS RECORDED</span></div>';
         }
         if (els.ring) els.ring.style.strokeDashoffset = 0;
+        const copyBtn = DOM.get('sw-copy-btn');
+        if (copyBtn) copyBtn.classList.add('hidden');
         utils.safeIconUpdate();
         localStorage.removeItem(CONSTANTS.LS_STOPWATCH);
         if (!state.timer.running) document.title = 'Clock | KlassKit';
@@ -584,7 +600,26 @@ const stopwatch = {
 
         if (sw.laps.length === 1) els.laps.innerHTML = '';
         els.laps.innerHTML = lapHtml + els.laps.innerHTML;
+        const copyBtn = DOM.get('sw-copy-btn');
+        if (copyBtn) copyBtn.classList.remove('hidden');
         stopwatch.saveState();
+    },
+    copyLaps() {
+        const sw = state.stopwatch;
+        if (!sw.laps.length) return;
+        const text = sw.laps
+            .map((lap, idx) => `Lap #${sw.laps.length - idx}: ${utils.formatTime(lap.total)} (+${utils.formatTime(lap.split)})`)
+            .join('\n');
+        navigator.clipboard?.writeText(text).then(() => {
+            const btn = DOM.get('sw-copy-btn');
+            if (!btn) return;
+            btn.innerHTML = '<i data-lucide="check" class="w-3 h-3 text-green"></i> Copied';
+            utils.safeIconUpdate();
+            setTimeout(() => {
+                btn.innerHTML = '<i data-lucide="copy" class="w-3 h-3"></i> Copy';
+                utils.safeIconUpdate();
+            }, 1500);
+        }).catch(() => {});
     },
     saveState() {
         localStorage.setItem(CONSTANTS.LS_STOPWATCH, JSON.stringify({ elapsed: state.stopwatch.elapsed, laps: state.stopwatch.laps }));
@@ -609,6 +644,8 @@ const stopwatch = {
                         <span class="font-mono font-bold text-sm sm:text-base text-dark dark:text-white">${utils.formatTime(lap.total)}</span>
                         <span class="text-xs text-blue font-heading font-bold bg-blue/10 px-2 py-0.5 rounded-lg border border-blue">+${utils.formatTime(lap.split)}</span>
                     </div>`).join('');
+                const copyBtn = DOM.get('sw-copy-btn');
+                if (copyBtn) copyBtn.classList.remove('hidden');
             }
             utils.safeIconUpdate();
         } catch (e) {
@@ -1486,6 +1523,7 @@ window.onload = async function () {
     }
 
     timer.setMode('calm');
+    audio.updateMuteUI();
 };
 
 // Global debounced save
@@ -1514,6 +1552,8 @@ window.clockToggleZen = () => clock.toggleZenMode();
 window.swToggle = () => stopwatch.toggle();
 window.swReset = () => stopwatch.reset();
 window.swLap = () => stopwatch.lap();
+window.swCopyLaps = () => stopwatch.copyLaps();
+window.toggleAudioMute = () => audio.toggleMute();
 window.timerSetMode = (mode) => timer.setMode(mode);
 window.timerSetPreset = (sec) => timer.setPreset(sec);
 window.timerAdjust = (sec) => timer.adjust(sec);
