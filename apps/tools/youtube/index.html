@@ -851,7 +851,10 @@
                         <!-- Search -->
                         <div class="relative flex-1 min-w-[180px]">
                             <i data-lucide="search" class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4"></i>
-                            <input type="text" id="search-input" oninput="handleSearch(this.value)" placeholder="Search videos..." class="w-full pl-9 pr-3 py-2 border-2 border-[#1e293b] dark:border-slate-500 rounded-xl bg-white dark:bg-slate-800 text-sm font-semibold focus:outline-none focus:border-blue text-dark dark:text-white">
+                            <input type="text" id="search-input" oninput="handleSearch(this.value)" onkeydown="if(event.key==='Escape'){this.value='';handleSearch('');this.blur();}" placeholder="Search videos... (press /)" class="w-full pl-9 pr-8 py-2 border-2 border-[#1e293b] dark:border-slate-500 rounded-xl bg-white dark:bg-slate-800 text-sm font-semibold focus:outline-none focus:border-blue text-dark dark:text-white">
+                            <button id="clear-search-btn" type="button" onclick="clearSearch()" title="Clear search" aria-label="Clear search" class="hidden absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-lg text-slate-400 hover:text-pink dark:hover:text-pink transition-colors">
+                                <i data-lucide="x" class="w-4 h-4"></i>
+                            </button>
                         </div>
 
                         <div class="flex flex-wrap gap-2 items-center">
@@ -1495,7 +1498,18 @@
         // --- SEARCH, FILTER, SORT ---
         function handleSearch(query) {
             searchQuery = query;
+            const clearBtn = document.getElementById('clear-search-btn');
+            if (clearBtn) clearBtn.classList.toggle('hidden', !query);
             renderLibrary();
+        }
+
+        function clearSearch() {
+            const input = document.getElementById('search-input');
+            if (input) {
+                input.value = '';
+                input.focus();
+            }
+            handleSearch('');
         }
 
         function handleFilter(categoryId) {
@@ -2692,10 +2706,15 @@
             return m + ':' + (s < 10 ? '0' : '') + s;
         }
 
-        // Keyboard Shortcuts (Player View)
+        // Keyboard Shortcuts (Library & Player View)
         window.addEventListener('keydown', (e) => {
             if (['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName)) return;
             const playerView = document.getElementById('view-player');
+            if (e.key === '/' && (!playerView || !playerView.classList.contains('active'))) {
+                e.preventDefault();
+                document.getElementById('search-input')?.focus();
+                return;
+            }
             if (!playerView || !playerView.classList.contains('active')) return;
 
             if (e.code === 'Space' || e.key === 'k' || e.key === 'K') {

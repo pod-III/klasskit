@@ -499,6 +499,7 @@ const stopwatch = {
             els.indicator.classList.remove('bg-green', 'bg-[#00d063]', 'bg-[#00E676]', 'animate-pulse');
             els.indicator.classList.add('bg-slate-300');
             stopwatch.saveState();
+            if (!state.timer.running) document.title = 'Clock | KlassKit';
         } else {
             sw.startTime = performance.now() - sw.elapsed;
             sw.running = true;
@@ -533,6 +534,10 @@ const stopwatch = {
 
         if (els.display) els.display.innerText = `${m}:${s}`;
         if (els.ms) els.ms.innerText = `.${ms}`;
+        if (sw.running) {
+            const titleText = `${m}:${s} — Stopwatch | KlassKit`;
+            if (document.title !== titleText) document.title = titleText;
+        }
         if (els.ring) {
             const sec = (sw.elapsed / 1000) % 60;
             const offset = CONSTANTS.CIRCLE_CIRCUMFERENCE * (1 - sec / 60);
@@ -556,6 +561,7 @@ const stopwatch = {
         if (els.ring) els.ring.style.strokeDashoffset = 0;
         utils.safeIconUpdate();
         localStorage.removeItem(CONSTANTS.LS_STOPWATCH);
+        if (!state.timer.running) document.title = 'Clock | KlassKit';
     },
     lap() {
         const sw = state.stopwatch;
@@ -642,7 +648,7 @@ const timer = {
             if (els.zenVis) els.zenVis.classList.remove('hidden', 'opacity-0');
             if (els.rushVis) els.rushVis.classList.add('hidden', 'opacity-0');
 
-            els.btnStart.className = "btn-chunky w-18 h-18 sm:w-20 sm:h-20 rounded-3xl bg-green text-white flex items-center justify-center mx-2";
+            els.btnStart.className = "btn-chunky w-[72px] h-[72px] sm:w-20 sm:h-20 rounded-3xl bg-green text-white flex items-center justify-center mx-2";
         } else {
             els.btnCalm.className = 'btn-chunky px-4 sm:px-6 py-1.5 rounded-lg text-xs sm:text-sm font-heading font-bold uppercase flex items-center gap-1.5 bg-white dark:bg-slate-800 text-dark dark:text-white';
             els.btnBomb.className = 'btn-chunky px-4 sm:px-6 py-1.5 rounded-lg text-xs sm:text-sm font-heading font-bold uppercase flex items-center gap-1.5 bg-orange text-white';
@@ -652,9 +658,18 @@ const timer = {
                 els.rushVis.classList.remove('hidden');
                 setTimeout(() => els.rushVis.classList.remove('opacity-0'), 10);
             }
-            els.btnStart.className = "btn-chunky w-18 h-18 sm:w-20 sm:h-20 rounded-3xl bg-orange text-white flex items-center justify-center mx-2";
+            els.btnStart.className = "btn-chunky w-[72px] h-[72px] sm:w-20 sm:h-20 rounded-3xl bg-orange text-white flex items-center justify-center mx-2";
         }
         timer.updateInputs();
+    },
+    setPreset(sec) {
+        if (state.timer.running) timer.stop();
+        state.timer.timeLeft = sec;
+        state.timer.initial = sec;
+        state.timer.lastDuration = sec;
+        localStorage.removeItem(CONSTANTS.LS_TIMER);
+        timer.updateInputs();
+        timer.updateVisuals();
     },
     adjust(sec) {
         const total = utils.parseTimeInputs('t-min', 't-sec') + sec;
@@ -667,6 +682,7 @@ const timer = {
         const { m, s } = utils.setTimeInputs('t-min', 't-sec', state.timer.timeLeft);
         const els = this.cacheElements();
         if (els.rushDisplay) els.rushDisplay.innerText = `${m}:${s}`;
+        if (state.timer.running) document.title = `${m}:${s} — Timer | KlassKit`;
     },
     toggle() {
         audio.init();
@@ -715,6 +731,7 @@ const timer = {
     stop() {
         clearInterval(state.timer.interval);
         state.timer.running = false;
+        if (!state.stopwatch.running) document.title = 'Clock | KlassKit';
         const els = this.cacheElements();
         if (els.btnStart) {
             els.btnStart.innerHTML = '<i data-lucide="play" class="w-12 h-12 fill-current ml-1"></i>';
@@ -1498,6 +1515,7 @@ window.swToggle = () => stopwatch.toggle();
 window.swReset = () => stopwatch.reset();
 window.swLap = () => stopwatch.lap();
 window.timerSetMode = (mode) => timer.setMode(mode);
+window.timerSetPreset = (sec) => timer.setPreset(sec);
 window.timerAdjust = (sec) => timer.adjust(sec);
 window.timerToggle = () => timer.toggle();
 window.timerStop = () => timer.stop();

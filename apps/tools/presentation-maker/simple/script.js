@@ -345,7 +345,7 @@
                     }
 
                     return `
-                        <div class="shrink-0 w-20 sm:w-[88px] aspect-chromebook border-2 border-dark dark:border-slate-500 rounded-xl shadow-[2px_2px_0px_0px_#0f172a] dark:shadow-[2px_2px_0px_0px_#000] overflow-hidden relative group animate-pop-in hover:-translate-y-0.5 transition-transform" style="background-color: ${color}">
+                        <div onclick="app.startPresentation(false, ${index})" title="Present from slide ${index + 1}" class="shrink-0 w-20 sm:w-[88px] aspect-chromebook border-2 border-dark dark:border-slate-500 rounded-xl shadow-[2px_2px_0px_0px_#0f172a] dark:shadow-[2px_2px_0px_0px_#000] overflow-hidden relative group animate-pop-in hover:-translate-y-0.5 transition-transform cursor-pointer" style="background-color: ${color}">
                             ${content}
                             <div class="absolute top-0 left-0 bg-dark/70 text-chalk text-[8px] px-1.5 py-0.5 font-bold rounded-br-lg">${index + 1}</div>
                         </div>
@@ -535,7 +535,7 @@
                 return array;
             },
 
-            startPresentation(shuffle = false) {
+            startPresentation(shuffle = false, startIndex = 0) {
                 this.words = [...this.parseInput(), ...this.images];
 
                 if (this.words.length === 0) {
@@ -544,7 +544,7 @@
                     this.words = this.shuffleArray([...this.words]);
                 }
 
-                this.currentIndex = 0;
+                this.currentIndex = Math.max(0, Math.min(startIndex, this.words.length - 1));
                 const overlay = document.getElementById('presentation-mode');
                 overlay.style.display = 'flex';
                 overlay.focus();
@@ -625,6 +625,10 @@
                 // Update counters
                 document.getElementById('slide-number').innerText = this.currentIndex + 1;
                 document.getElementById('total-slides').innerText = this.words.length;
+                const progressEl = document.getElementById('slide-progress');
+                if (progressEl) {
+                    progressEl.style.width = `${((this.currentIndex + 1) / this.words.length) * 100}%`;
+                }
             },
 
             toggleImageFullscreen() {
