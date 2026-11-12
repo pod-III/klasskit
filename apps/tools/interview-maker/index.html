@@ -1,0 +1,1320 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interview Handout Maker — KlassKit</title>
+    <link rel="icon" type="image/x-icon" href="../../../media/icon.ico" />
+    <link rel="icon" type="image/webp" href="../../../media/icon.webp" />
+
+    <!-- Apply the saved theme before first paint (syncs with KlassKit Hub) -->
+    <script>
+        (function () {
+            function readTheme(key) {
+                try {
+                    var raw = localStorage.getItem(key);
+                    if (raw == null) return null;
+                    try { return JSON.parse(raw); } catch (e) { return raw; }
+                } catch (e) { return null; }
+            }
+            function syncTheme() {
+                var toolTheme = readTheme('theme_interview-maker') || readTheme('klasskit-theme');
+                var hubTheme = readTheme('theme_hub');
+                var isDark = toolTheme
+                    ? toolTheme === 'dark'
+                    : hubTheme
+                        ? hubTheme === 'dark'
+                        : window.matchMedia('(prefers-color-scheme: dark)').matches;
+                document.documentElement.classList.toggle('dark', isDark);
+            }
+            syncTheme();
+            window.addEventListener('storage', function (e) {
+                if (e.key === 'theme_hub' || e.key === 'theme_interview-maker' || e.key === 'klasskit-theme') {
+                    syncTheme();
+                }
+            });
+        })();
+    </script>
+
+    <!-- Supabase Auth & Cloud Persistence -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.105.4"></script>
+    <script src="/supabase.js"></script>
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+
+    <!-- Libraries -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@1.16.0"></script>
+
+    <!-- Shared KlassKit Styles -->
+    <link rel="stylesheet" href="../../../css/base.css" />
+    <link rel="stylesheet" href="../../../css/components.css" />
+
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        pink: '#ff4785',
+                        orange: '#ff7e33',
+                        green: '#00d063',
+                        blue: '#1ea7fd',
+                        dark: '#1e293b',
+                        chalk: '#f8fafc',
+                        brand: {
+                            pink: '#ff4785',
+                            orange: '#ff7e33',
+                            green: '#00d063',
+                            blue: '#1ea7fd',
+                            dark: '#1e293b',
+                            chalk: '#f8fafc',
+                        }
+                    },
+                    fontFamily: {
+                        heading: ['Fredoka', 'sans-serif'],
+                        body: ['Nunito', 'sans-serif'],
+                    },
+                    boxShadow: {
+                        'hard': '4px 4px 0 0 var(--shadow)',
+                        'hard-md': '6px 6px 0 0 var(--shadow)',
+                        'hard-lg': '8px 8px 0 0 var(--shadow)',
+                        'hard-sm': '2px 2px 0 0 var(--shadow)',
+                        'inner-hard': 'inset 2px 2px 0 0 rgba(30, 41, 59, 0.12)',
+                    },
+                    animation: {
+                        'pop-in': 'pop-in 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards',
+                        'slide-down': 'slide-down 0.25s cubic-bezier(0.2, 0.8, 0.2, 1) forwards',
+                    }
+                },
+            },
+        };
+    </script>
+
+    <style>
+        /* ---------- Theme tokens (light = chalk paper, dark = OLED slate) ---------- */
+        :root {
+            --row-height: 60px;
+            --line: #1e293b;
+            --ink: #1e293b;
+            --surface: #ffffff;
+            --muted: #64748b;
+            --shadow: #1e293b;
+            --dot: rgba(30, 41, 59, 0.11);
+            --track: #f1f5f9;
+        }
+
+        .dark {
+            --line: #64748b;
+            --ink: #f8fafc;
+            --surface: #1e293b;
+            --muted: #94a3b8;
+            --shadow: #000000;
+            --dot: rgba(148, 163, 184, 0.14);
+            --track: #0f172a;
+        }
+
+        body {
+            overflow: hidden;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        @media (max-width: 768px) {
+            body { padding-bottom: 0 !important; }
+        }
+
+        /* The "desk" behind the paper; dots scroll with the content */
+        .desk {
+            background-image: radial-gradient(var(--dot) 2px, transparent 2px);
+            background-size: 24px 24px;
+            background-attachment: local;
+        }
+
+        /* ---------- Chunky physical buttons ---------- */
+        .btn-chunky {
+            font-family: 'Fredoka', sans-serif;
+            font-weight: 700;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+            user-select: none;
+            border: 3px solid var(--line);
+            box-shadow: 0 4px 0 var(--shadow);
+            transition: transform 0.12s ease, box-shadow 0.12s ease, background-color 0.15s ease, color 0.15s ease;
+        }
+
+        .btn-chunky:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 0 var(--shadow);
+        }
+
+        .btn-chunky:active:not(:disabled) {
+            transform: translateY(4px);
+            box-shadow: 0 0 0 var(--shadow);
+        }
+
+        .btn-chunky:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            box-shadow: 0 2px 0 var(--shadow);
+        }
+
+        .btn-chunky:focus-visible,
+        .chunky-range:focus-visible,
+        .ctl-btn:focus-visible {
+            outline: 3px solid var(--color-blue);
+            outline-offset: 2px;
+        }
+
+        /* ---------- Segmented radio buttons ---------- */
+        .field-label {
+            font-family: 'Fredoka', sans-serif;
+            font-size: 0.75rem;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: var(--muted);
+        }
+
+        .seg { position: relative; display: block; }
+        .seg input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
+
+        .seg span {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.35rem;
+            padding: 0.5rem 0.25rem;
+            font-family: 'Fredoka', sans-serif;
+            font-size: 0.75rem;
+            font-weight: 700;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            user-select: none;
+            color: var(--ink);
+            background: var(--surface);
+            border: 2.5px solid var(--line);
+            border-radius: 0.75rem;
+            box-shadow: 0 3px 0 var(--shadow);
+            transition: transform 0.12s ease, box-shadow 0.12s ease, background-color 0.15s ease;
+        }
+
+        .seg:hover input:not(:checked) + span { transform: translateY(-2px); box-shadow: 0 5px 0 var(--shadow); }
+        .seg:active input + span { transform: translateY(2px); box-shadow: 0 0 0 var(--shadow); }
+        .seg input:checked + span {
+            background: var(--color-green);
+            color: #1e293b;
+            transform: translateY(1px);
+            box-shadow: 0 2px 0 var(--shadow);
+        }
+        .seg input:focus-visible + span { outline: 3px solid var(--color-blue); outline-offset: 2px; }
+
+        /* ---------- Chunky range slider ---------- */
+        .chunky-range {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 100%;
+            height: 24px;
+            background: transparent;
+            cursor: pointer;
+        }
+
+        .chunky-range::-webkit-slider-runnable-track {
+            height: 12px;
+            box-sizing: border-box;
+            border: 2.5px solid var(--line);
+            border-radius: 9999px;
+            background: var(--track);
+        }
+
+        .chunky-range::-moz-range-track {
+            height: 12px;
+            box-sizing: border-box;
+            border: 2.5px solid var(--line);
+            border-radius: 9999px;
+            background: var(--track);
+        }
+
+        .chunky-range::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 24px;
+            height: 24px;
+            margin-top: -8px;
+            border-radius: 9999px;
+            background: var(--color-blue);
+            border: 3px solid var(--line);
+            box-shadow: 0 2px 0 var(--shadow);
+            transition: transform 0.1s ease;
+        }
+
+        .chunky-range::-webkit-slider-thumb:hover {
+            transform: scale(1.1);
+        }
+
+        .chunky-range::-moz-range-thumb {
+            width: 18px;
+            height: 18px;
+            border-radius: 9999px;
+            background: var(--color-blue);
+            border: 3px solid var(--line);
+            box-shadow: 0 2px 0 var(--shadow);
+        }
+
+        /* ---------- The paper (always white, like the printout; only the desk changes with the theme) ---------- */
+        .paper {
+            box-sizing: border-box;
+            width: 100%;
+            max-width: calc(210mm + 8px);
+            min-height: 297mm;
+            margin: 0 auto;
+            padding: clamp(16px, 4vw, 15mm);
+            background: #fff;
+            color: #1e293b;
+            border: 4px solid #1e293b;
+            border-radius: 1.25rem;
+            box-shadow: 8px 8px 0 0 var(--shadow);
+            transition: max-width 0.25s ease, min-height 0.25s ease;
+        }
+
+        .paper.landscape-paper {
+            max-width: calc(297mm + 8px);
+            min-height: 210mm;
+        }
+
+        /* Editing affordances: screen only, so they can never reach the printout */
+        @media screen {
+            [contenteditable] {
+                outline: none;
+                border-radius: 6px;
+                white-space: pre-wrap;
+                transition: background-color 0.15s, box-shadow 0.15s;
+            }
+            [contenteditable]:hover {
+                background-color: rgba(30, 167, 253, 0.08);
+                box-shadow: 0 0 0 2px rgba(30, 167, 253, 0.3);
+            }
+            [contenteditable]:focus {
+                background-color: rgba(30, 167, 253, 0.14);
+                box-shadow: 0 0 0 3px #1ea7fd;
+            }
+        }
+
+        [contenteditable] { white-space: pre-wrap; }
+
+        /* ---------- Table ---------- */
+        table {
+            width: 100%;
+            margin-top: 20px;
+            border-collapse: collapse;
+            table-layout: fixed;
+        }
+
+        th, td {
+            padding: 12px;
+            vertical-align: top;
+            border: 3px solid #1e293b;
+            overflow-wrap: anywhere;
+        }
+
+        th {
+            background-color: #1ea7fd;
+            color: #fff;
+            font-family: 'Fredoka', sans-serif;
+            font-size: 1.1rem;
+            text-transform: uppercase;
+            text-align: center;
+        }
+
+        tbody td {
+            height: var(--row-height);
+            font-size: 1.1rem;
+        }
+
+        tr { break-inside: avoid; }
+
+        /* Delete-button cells sit outside the grid and never print */
+        .control-cell {
+            padding: 4px !important;
+            border: none !important;
+            background: transparent !important;
+            text-align: center;
+            vertical-align: middle;
+        }
+
+        .corner { width: 40px; }
+
+        .ctl-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 26px;
+            height: 26px;
+            color: #ffffff;
+            background: #ff4785;
+            border: 2px solid #1e293b;
+            border-radius: 6px;
+            box-shadow: 2px 2px 0 0 #1e293b;
+            cursor: pointer;
+            transition: transform 0.1s ease, box-shadow 0.1s ease;
+        }
+
+        .ctl-btn:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 3px 3px 0 0 #1e293b; }
+        .ctl-btn:active:not(:disabled) { transform: translateY(2px); box-shadow: 0 0 0 0 #1e293b; }
+        .ctl-btn:disabled { opacity: 0.35; cursor: not-allowed; box-shadow: none; }
+
+        /* Sidebar collapse transition */
+        #sidebar {
+            transition: width 0.25s cubic-bezier(0.2, 0.8, 0.2, 1), min-width 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
+        }
+        #sidebar.sidebar-collapsed {
+            width: 0 !important;
+            min-width: 0 !important;
+            border-right-width: 0 !important;
+            overflow: hidden !important;
+        }
+
+        /* ---------- PRINT (always light, whatever the on-screen theme) ---------- */
+        @page { size: A4 portrait; margin: 15mm; }
+
+        @media print {
+            html, body {
+                display: block !important;
+                width: auto !important;
+                height: auto !important;
+                padding: 0 !important;
+                margin: 0 !important;
+                overflow: visible !important;
+                background: #fff !important;
+                background-image: none !important;
+            }
+
+            .no-print, .control-cell { display: none !important; }
+
+            .app-shell {
+                display: block !important;
+                height: auto !important;
+                max-width: none !important;
+                overflow: visible !important;
+                border: none !important;
+                border-radius: 0 !important;
+                box-shadow: none !important;
+                background: #fff !important;
+            }
+
+            .desk {
+                display: block !important;
+                overflow: visible !important;
+                padding: 0 !important;
+                background: #fff !important;
+            }
+
+            .paper, .paper.landscape-paper {
+                width: 100%;
+                max-width: none;
+                min-height: 0;
+                margin: 0;
+                padding: 0;
+                border: none;
+                border-radius: 0;
+                box-shadow: none;
+            }
+
+            th {
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+                background-color: #f1f5f9 !important;
+                color: #1e293b !important;
+                border-width: 2px;
+            }
+
+            td { border-width: 2px; }
+
+            [contenteditable] { box-shadow: none !important; }
+        }
+    </style>
+    <style id="page-style"></style>
+</head>
+
+<body class="h-dvh w-screen flex items-center justify-center p-2 md:p-5 text-dark dark:text-white font-body">
+
+    <!-- MAIN CONSOLE -->
+    <div class="app-shell relative w-full max-w-[1550px] h-full flex flex-col md:flex-row overflow-hidden bg-white dark:bg-slate-900 border-4 border-dark dark:border-slate-500 rounded-[2rem] shadow-hard-lg">
+
+        <!-- SIDEBAR -->
+        <aside id="sidebar" class="no-print w-full md:w-80 lg:w-96 h-[42%] md:h-full shrink-0 flex flex-col bg-white dark:bg-slate-900 border-b-4 md:border-b-0 md:border-r-4 border-dark dark:border-slate-500">
+
+            <!-- Header -->
+            <div class="p-4 lg:p-5 flex justify-between items-center gap-3 bg-orange/10 dark:bg-slate-800/80 border-b-4 border-dark dark:border-slate-500">
+                <div class="flex items-center gap-3 min-w-0">
+                    <div class="w-11 h-11 rounded-2xl bg-orange border-3 border-dark flex items-center justify-center shadow-hard-sm shrink-0 -rotate-2">
+                        <i data-lucide="mic" stroke-width="2.75" class="w-6 h-6 text-dark"></i>
+                    </div>
+                    <div class="min-w-0">
+                        <h1 class="font-heading text-2xl uppercase leading-none tracking-tight truncate">Interview Maker</h1>
+                        <p class="mt-1 text-[11px] font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-widest">KlassKit Tools</p>
+                    </div>
+                </div>
+                <button id="theme-btn" type="button" aria-pressed="false" aria-label="Toggle dark mode" title="Toggle Dark Mode"
+                    class="btn-chunky shrink-0 w-10 h-10 rounded-xl flex items-center justify-center bg-white dark:bg-slate-800 text-dark dark:text-white">
+                    <i data-lucide="moon" stroke-width="2.5" class="w-5 h-5 dark:hidden"></i>
+                    <i data-lucide="sun" stroke-width="2.5" class="w-5 h-5 hidden dark:block text-orange"></i>
+                </button>
+            </div>
+
+            <!-- Scrollable settings -->
+            <div class="flex-1 p-4 lg:p-5 overflow-y-auto custom-scrollbar flex flex-col gap-5">
+
+                <!-- Active Set Indicator -->
+                <div id="active-set-banner" class="hidden animate-pop-in p-3 rounded-2xl bg-blue/10 dark:bg-blue/20 border-2 border-blue flex items-center justify-between gap-2">
+                    <div class="flex items-center gap-2 min-w-0">
+                        <div class="w-8 h-8 rounded-xl bg-blue text-white flex items-center justify-center shrink-0 border-2 border-dark">
+                            <i data-lucide="bookmark-check" class="w-4 h-4"></i>
+                        </div>
+                        <div class="min-w-0">
+                            <p class="text-[10px] font-extrabold uppercase tracking-wider text-blue leading-none">Active Handout (Auto-Saving)</p>
+                            <p id="active-set-name" class="text-xs font-extrabold truncate mt-0.5"></p>
+                        </div>
+                    </div>
+                    <button id="close-set-btn" type="button" title="Detach from saved set" class="p-1.5 rounded-lg hover:bg-blue/20 text-slate-500 dark:text-slate-300">
+                        <i data-lucide="x" class="w-4 h-4"></i>
+                    </button>
+                </div>
+
+                <!-- Table construction -->
+                <div class="space-y-2.5">
+                    <h2 class="field-label flex items-center gap-1.5">
+                        <i data-lucide="table-2" class="w-3.5 h-3.5 text-orange"></i> Table Controls
+                    </h2>
+                    <div class="grid grid-cols-2 gap-2.5">
+                        <button id="add-col-btn" type="button"
+                            class="btn-chunky py-2.5 rounded-xl text-xs flex items-center justify-center gap-1.5 bg-orange text-dark">
+                            <i data-lucide="columns-2" stroke-width="2.5" class="w-4 h-4"></i> Add Column
+                        </button>
+                        <button id="add-row-btn" type="button"
+                            class="btn-chunky py-2.5 rounded-xl text-xs flex items-center justify-center gap-1.5 bg-green text-dark">
+                            <i data-lucide="rows-2" stroke-width="2.5" class="w-4 h-4"></i> Add Row
+                        </button>
+                    </div>
+                    <p id="col-hint" class="hidden text-xs font-extrabold text-pink">Eight columns is the maximum that fits on A4.</p>
+                </div>
+
+                <!-- Handwriting space -->
+                <div class="space-y-2 pt-4 border-t-3 border-dashed border-slate-200 dark:border-slate-700">
+                    <div class="flex justify-between items-end">
+                        <label for="spacing-slider" class="field-label flex items-center gap-1.5">
+                            <i data-lucide="move-vertical" class="w-3.5 h-3.5 text-blue"></i> Handwriting Space
+                        </label>
+                        <output id="spacing-display" for="spacing-slider" class="font-heading text-lg font-bold text-blue uppercase">Medium</output>
+                    </div>
+                    <input type="range" id="spacing-slider" class="chunky-range" min="40" max="150" step="10" value="60">
+                </div>
+
+                <!-- Starter Templates -->
+                <div class="space-y-2.5 pt-4 border-t-3 border-dashed border-slate-200 dark:border-slate-700">
+                    <h2 class="field-label flex items-center gap-1.5">
+                        <i data-lucide="wand-sparkles" class="w-3.5 h-3.5 text-pink"></i> Starter Templates
+                    </h2>
+                    <div class="grid grid-cols-2 gap-2">
+                        <button type="button" data-template="landmark" class="px-2.5 py-2 rounded-xl text-xs font-extrabold bg-slate-100 dark:bg-slate-800 hover:bg-blue/15 border-2 border-slate-300 dark:border-slate-600 text-left truncate transition-colors">
+                            Landmark Interview
+                        </button>
+                        <button type="button" data-template="survey" class="px-2.5 py-2 rounded-xl text-xs font-extrabold bg-slate-100 dark:bg-slate-800 hover:bg-pink/15 border-2 border-slate-300 dark:border-slate-600 text-left truncate transition-colors">
+                            Classmate Survey
+                        </button>
+                        <button type="button" data-template="weekend" class="px-2.5 py-2 rounded-xl text-xs font-extrabold bg-slate-100 dark:bg-slate-800 hover:bg-green/15 border-2 border-slate-300 dark:border-slate-600 text-left truncate transition-colors">
+                            Weekend Plans
+                        </button>
+                        <button type="button" data-template="book" class="px-2.5 py-2 rounded-xl text-xs font-extrabold bg-slate-100 dark:bg-slate-800 hover:bg-orange/15 border-2 border-slate-300 dark:border-slate-600 text-left truncate transition-colors">
+                            Book Review
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Saved Handouts Library -->
+                <section class="pt-4 border-t-3 border-dashed border-slate-200 dark:border-slate-700 space-y-3">
+                    <div class="flex items-center justify-between">
+                        <span class="field-label flex items-center gap-1.5">
+                            <i data-lucide="folder-heart" class="w-4 h-4 text-orange"></i> Saved Handouts
+                        </span>
+                        <select id="library-sort" aria-label="Sort saved handouts"
+                            class="text-[11px] font-extrabold bg-slate-100 dark:bg-slate-800 border-2 border-slate-300 dark:border-slate-600 rounded-lg px-2 py-0.5 text-dark dark:text-white">
+                            <option value="recent">Recent</option>
+                            <option value="alpha">A–Z</option>
+                            <option value="popular">Popular</option>
+                        </select>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <button id="new-set-btn" type="button"
+                            class="btn-chunky py-2 rounded-xl text-xs flex items-center justify-center gap-1.5 bg-white dark:bg-slate-800 text-dark dark:text-white">
+                            <i data-lucide="file-plus" class="w-3.5 h-3.5"></i> New Blank
+                        </button>
+                        <button id="save-set-btn" type="button"
+                            class="btn-chunky py-2 rounded-xl text-xs flex items-center justify-center gap-1.5 bg-blue text-white">
+                            <i data-lucide="save" class="w-3.5 h-3.5"></i> Save As
+                        </button>
+                    </div>
+                    <div id="library-list" class="space-y-1.5 max-h-36 overflow-y-auto custom-scrollbar pr-1"></div>
+                </section>
+
+                <!-- Reset -->
+                <div class="mt-auto pt-4 border-t-3 border-dashed border-slate-200 dark:border-slate-700">
+                    <p class="mb-2 text-center text-xs font-extrabold text-slate-500 dark:text-slate-400">Click any text on the paper to edit it directly.</p>
+                    <button id="reset-btn" type="button"
+                        class="btn-chunky w-full py-2.5 rounded-xl text-xs flex items-center justify-center gap-1.5 bg-slate-200 dark:bg-slate-800 text-dark dark:text-white">
+                        <i data-lucide="rotate-ccw" stroke-width="2.5" class="w-4 h-4"></i> Reset Example
+                    </button>
+                </div>
+            </div>
+
+            <!-- Print action -->
+            <div class="p-4 flex flex-col gap-3 border-t-4 border-dark dark:border-slate-500 bg-slate-100 dark:bg-slate-800/90">
+                <fieldset>
+                    <legend class="field-label mb-1.5">Page Orientation</legend>
+                    <div class="grid grid-cols-2 gap-2">
+                        <label class="seg"><input type="radio" name="page-orient" value="portrait" checked><span><i data-lucide="rectangle-vertical" stroke-width="2.5" class="w-4 h-4"></i> Portrait</span></label>
+                        <label class="seg"><input type="radio" name="page-orient" value="landscape"><span><i data-lucide="rectangle-horizontal" stroke-width="2.5" class="w-4 h-4"></i> Landscape</span></label>
+                    </div>
+                </fieldset>
+                <button id="print-btn" type="button"
+                    class="btn-chunky w-full py-3 rounded-xl text-base flex items-center justify-center gap-2 bg-white dark:bg-slate-900 text-dark dark:text-white">
+                    <i data-lucide="printer" stroke-width="2.75" class="w-5 h-5 text-blue"></i> Print Handout
+                </button>
+            </div>
+        </aside>
+
+        <!-- PREVIEW -->
+        <main class="desk flex-1 min-h-0 h-[58%] md:h-full overflow-y-auto custom-scrollbar p-4 md:p-8 bg-slate-200/80 dark:bg-slate-950">
+
+            <!-- Floating Sidebar Toggle (Desktop) -->
+            <div class="no-print max-w-[calc(210mm+8px)] mx-auto mb-3 flex items-center justify-between">
+                <button id="toggle-sidebar-btn" type="button" title="Toggle Controls Sidebar"
+                    class="btn-chunky hidden md:inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs bg-white/90 dark:bg-slate-800/90 backdrop-blur-md text-dark dark:text-white">
+                    <i data-lucide="panel-left-close" id="sidebar-toggle-icon" class="w-4 h-4"></i>
+                    <span>Controls</span>
+                </button>
+                <span class="sticker ml-auto px-3 py-1 rounded-full text-xs font-extrabold bg-orange/20 text-dark dark:text-white border-2 border-dark dark:border-slate-500 rotate-2">
+                    <i data-lucide="pen-line" class="w-3.5 h-3.5 mr-1 inline"></i> Live Editable A4 Sheet
+                </span>
+            </div>
+
+            <!-- The editable paper -->
+            <div id="paper-sheet" class="paper flex flex-col">
+
+                <!-- Header -->
+                <div class="mb-6 pb-4 flex justify-between items-end gap-4 border-b-4 border-dark">
+                    <div class="flex-1 min-w-0">
+                        <h2 id="doc-title" contenteditable="plaintext-only" data-single-line
+                            class="mb-2 font-heading text-4xl md:text-5xl uppercase leading-none break-words"></h2>
+                        <div id="doc-date" contenteditable="plaintext-only" data-single-line role="textbox" aria-label="Date"
+                            class="text-lg font-extrabold text-slate-500"></div>
+                    </div>
+                    <div class="no-print text-right shrink-0">
+                        <span class="sticker inline-block rotate-2 px-3 py-1 rounded-xl text-xs font-extrabold text-dark bg-orange/25 border-2 border-dark">Click to Edit</span>
+                    </div>
+                </div>
+
+                <!-- Instructions -->
+                <div class="mb-6 flex gap-2 text-lg">
+                    <strong class="font-heading uppercase tracking-wide shrink-0">Instruction:</strong>
+                    <p id="doc-instruction" contenteditable="plaintext-only" role="textbox" aria-multiline="true" aria-label="Instruction" class="flex-1 font-semibold"></p>
+                </div>
+
+                <!-- Table (built by script) -->
+                <div class="flex-1">
+                    <table id="interview-table">
+                        <thead>
+                            <!-- Column delete buttons (screen only) -->
+                            <tr id="col-controls-row" class="no-print"></tr>
+                            <tr id="headers-row"></tr>
+                        </thead>
+                        <tbody id="table-body"></tbody>
+                    </table>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- SAVE AS MODAL -->
+    <div id="saveModal" class="no-print hidden fixed inset-0 bg-dark/60 backdrop-blur-md z-[500] items-center justify-center p-4">
+        <div class="bg-white dark:bg-slate-800 w-full max-w-sm rounded-[2rem] border-4 border-dark dark:border-slate-500 shadow-hard-lg animate-pop-in overflow-hidden">
+            <div class="p-5 border-b-4 border-dark dark:border-slate-500 bg-orange/15 flex items-center gap-3">
+                <div class="w-11 h-11 rounded-2xl bg-orange flex items-center justify-center border-3 border-dark shadow-hard-sm shrink-0">
+                    <i data-lucide="bookmark-plus" class="w-5 h-5 text-dark"></i>
+                </div>
+                <div>
+                    <h3 class="text-lg font-heading font-bold text-dark dark:text-white uppercase leading-tight">Save Handout</h3>
+                    <p class="text-xs font-semibold text-slate-500 dark:text-slate-400">Save this interview sheet to your library</p>
+                </div>
+            </div>
+            <div class="p-5 space-y-4">
+                <div>
+                    <label for="save-set-input" class="field-label block mb-1.5">Handout Name</label>
+                    <input id="save-set-input" type="text" placeholder="e.g., Landmark Speaking Survey"
+                        class="input-chunky w-full px-3.5 py-2.5 text-sm bg-slate-50 dark:bg-slate-900 text-dark dark:text-white" />
+                </div>
+                <div class="flex gap-3">
+                    <button id="save-modal-cancel" type="button" class="flex-1 btn-chunky bg-white dark:bg-slate-700 text-dark dark:text-white py-2.5 rounded-xl text-xs">Cancel</button>
+                    <button id="save-modal-confirm" type="button" class="flex-1 btn-chunky bg-green text-dark py-2.5 rounded-xl text-xs">Save Handout</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- CONFIRM MODAL -->
+    <div id="confirmModal" class="no-print hidden fixed inset-0 bg-dark/60 backdrop-blur-md z-[500] items-center justify-center p-4">
+        <div class="bg-white dark:bg-slate-800 w-full max-w-sm rounded-[2rem] border-4 border-dark dark:border-slate-500 shadow-hard-lg animate-pop-in overflow-hidden">
+            <div class="p-6 text-center">
+                <div class="w-14 h-14 rounded-2xl bg-pink/15 flex items-center justify-center border-3 border-dark mx-auto mb-3">
+                    <i data-lucide="alert-triangle" class="w-7 h-7 text-pink"></i>
+                </div>
+                <h3 id="confirmTitle" class="text-xl font-heading font-bold text-dark dark:text-white uppercase mb-1.5">Are you sure?</h3>
+                <p id="confirmMessage" class="text-sm font-semibold text-slate-500 dark:text-slate-400 mb-5">This action cannot be undone.</p>
+                <div class="flex gap-3">
+                    <button id="confirmBtnNo" type="button" class="flex-1 btn-chunky bg-white dark:bg-slate-700 text-dark dark:text-white py-2.5 rounded-xl text-xs">Cancel</button>
+                    <button id="confirmBtnYes" type="button" class="flex-1 btn-chunky bg-pink text-white py-2.5 rounded-xl text-xs">Yes, Continue</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- TOAST CONTAINER -->
+    <div id="toast-container" class="no-print fixed bottom-6 left-1/2 -translate-x-1/2 z-[400] flex flex-col gap-2 pointer-events-none"></div>
+
+    <script>
+        (() => {
+            'use strict';
+
+            const MAX_COLS = 8;
+
+            const TEMPLATES = {
+                landmark: {
+                    title: 'Landmark Interview',
+                    instruction: 'Go around the class and ask other students about the landmark they will be presenting.',
+                    headers: ['Student', 'Landmark', 'Description', 'Can Do'],
+                    rows: [
+                        ['Mr. Fahrul', 'Barelang Bridge', 'Big, Cool, Grey', 'You can buy things'],
+                        [], [], [], [],
+                    ],
+                    rowHeight: 60,
+                    orient: 'portrait'
+                },
+                survey: {
+                    title: 'Classmate Favorites',
+                    instruction: 'Interview five classmates about their favorite things and write down their answers in complete phrases.',
+                    headers: ['Classmate Name', 'Favorite Food', 'Favorite Hobby', 'Dream Travel Spot'],
+                    rows: [
+                        ['Sarah', 'Spicy Ramen', 'Playing Badminton', 'Tokyo, Japan'],
+                        [], [], [], [],
+                    ],
+                    rowHeight: 60,
+                    orient: 'portrait'
+                },
+                weekend: {
+                    title: 'Weekend Plans Survey',
+                    instruction: 'Ask your classmates what they are going to do this weekend. Practice using "going to".',
+                    headers: ['Name', 'Saturday Morning', 'Saturday Evening', 'Sunday Activity'],
+                    rows: [
+                        ['Leo', 'Visit grandparents', 'Watch a movie', 'Finish homework'],
+                        [], [], [], [],
+                    ],
+                    rowHeight: 60,
+                    orient: 'portrait'
+                },
+                book: {
+                    title: 'Book Club Interview',
+                    instruction: 'Ask your partners about a book or story they read recently and rate it from 1 to 5 stars.',
+                    headers: ['Reader', 'Book Title', 'Main Character', 'Why Read It?'],
+                    rows: [
+                        ['Maya', 'The Little Prince', 'The Prince & Fox', 'Very meaningful story'],
+                        [], [], [], [],
+                    ],
+                    rowHeight: 70,
+                    orient: 'portrait'
+                }
+            };
+
+            const STORAGE_KEY = 'klasskit_interview_maker_v1';
+            const SETS_KEY = 'klasskit_interview_maker_sets_v1';
+            const CLOUD_TOOL_KEY = 'interview-maker';
+
+            const $ = (id) => document.getElementById(id);
+            const el = {
+                sidebar: $('sidebar'),
+                toggleSidebar: $('toggle-sidebar-btn'),
+                toggleSidebarIcon: $('sidebar-toggle-icon'),
+                paper: $('paper-sheet'),
+                table: $('interview-table'),
+                controlsRow: $('col-controls-row'),
+                headersRow: $('headers-row'),
+                body: $('table-body'),
+                title: $('doc-title'),
+                date: $('doc-date'),
+                instruction: $('doc-instruction'),
+                addCol: $('add-col-btn'),
+                addRow: $('add-row-btn'),
+                reset: $('reset-btn'),
+                print: $('print-btn'),
+                theme: $('theme-btn'),
+                slider: $('spacing-slider'),
+                spaceDisplay: $('spacing-display'),
+                hint: $('col-hint'),
+                pageStyle: $('page-style'),
+                newSet: $('new-set-btn'),
+                saveSet: $('save-set-btn'),
+                librarySort: $('library-sort'),
+                libraryList: $('library-list'),
+                activeSetBanner: $('active-set-banner'),
+                activeSetName: $('active-set-name'),
+                closeSet: $('close-set-btn'),
+            };
+
+            let activeSetId = null;
+            let cloudSaveTimer = null;
+
+            const choice = (name) => document.querySelector(`input[name="${name}"]:checked`)?.value || 'portrait';
+            const setRadio = (name, val) => {
+                const r = document.querySelector(`input[name="${name}"][value="${val}"]`);
+                if (r) r.checked = true;
+            };
+
+            // ----- Toast & Confirm Modal -----
+            function showToast(message, type = 'info') {
+                const container = $('toast-container');
+                if (!container) return;
+                const toast = document.createElement('div');
+                const colors = {
+                    success: 'bg-green text-dark border-dark',
+                    error: 'bg-pink text-white border-dark',
+                    info: 'bg-blue text-white border-dark',
+                    warning: 'bg-orange text-dark border-dark',
+                };
+                const icons = {
+                    success: 'check-circle',
+                    error: 'alert-circle',
+                    info: 'info',
+                    warning: 'alert-triangle',
+                };
+                toast.className = `${colors[type] || colors.info} px-5 py-3 rounded-2xl shadow-hard border-3 font-extrabold text-xs uppercase tracking-wider flex items-center gap-2 pointer-events-auto animate-pop-in`;
+                toast.innerHTML = `<i data-lucide="${icons[type] || 'info'}" class="w-4 h-4 shrink-0"></i><span></span>`;
+                toast.querySelector('span').textContent = message;
+                container.appendChild(toast);
+                if (window.lucide) window.lucide.createIcons({ nodes: [toast] });
+                setTimeout(() => {
+                    toast.style.opacity = '0';
+                    toast.style.transform = 'translateY(12px)';
+                    toast.style.transition = 'all 0.3s ease';
+                    setTimeout(() => toast.remove(), 320);
+                }, 2600);
+            }
+
+            function showConfirm(title, message) {
+                return new Promise((resolve) => {
+                    const modal = $('confirmModal');
+                    $('confirmTitle').textContent = title;
+                    $('confirmMessage').textContent = message;
+                    modal.classList.remove('hidden');
+                    modal.classList.add('flex');
+                    if (window.lucide) window.lucide.createIcons({ nodes: [modal] });
+
+                    const cleanup = (val) => {
+                        modal.classList.add('hidden');
+                        modal.classList.remove('flex');
+                        $('confirmBtnYes').onclick = null;
+                        $('confirmBtnNo').onclick = null;
+                        modal.onclick = null;
+                        resolve(val);
+                    };
+                    $('confirmBtnYes').onclick = () => cleanup(true);
+                    $('confirmBtnNo').onclick = () => cleanup(false);
+                    modal.onclick = (e) => { if (e.target === modal) cleanup(false); };
+                });
+            }
+
+            // ----- Cell factories -----
+            function editable(tag, text = '') {
+                const cell = document.createElement(tag);
+                cell.setAttribute('contenteditable', 'plaintext-only');
+                cell.textContent = text;
+                return cell;
+            }
+
+            function deleteCell(tag, kind) {
+                const cell = document.createElement(tag);
+                cell.className = 'control-cell';
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = `ctl-btn ${kind}-delete-btn`;
+                btn.title = btn.ariaLabel = kind === 'col' ? 'Delete column' : 'Delete row';
+                btn.innerHTML = '<i data-lucide="x" stroke-width="3" class="w-3.5 h-3.5"></i>';
+                cell.appendChild(btn);
+                return cell;
+            }
+
+            function spacerCell(tag, extraClass = '') {
+                const cell = document.createElement(tag);
+                cell.className = `control-cell ${extraClass}`.trim();
+                return cell;
+            }
+
+            function buildRow(texts, cols) {
+                const tr = document.createElement('tr');
+                for (let i = 0; i < cols; i++) tr.appendChild(editable('td', texts[i] || ''));
+                tr.appendChild(deleteCell('td', 'row'));
+                return tr;
+            }
+
+            // ----- State helpers -----
+            const colCount = () => Math.max(0, el.headersRow.cells.length - 1);
+            const insertBeforeLast = (row, cell) => row.insertBefore(cell, row.lastElementChild);
+
+            const todayString = () =>
+                new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+
+            const spaceLabel = (px) => (px < 50 ? 'Small' : px < 90 ? 'Medium' : px < 120 ? 'Large' : 'Extra large');
+
+            function setRowHeight(px, skipSave = false) {
+                document.documentElement.style.setProperty('--row-height', px + 'px');
+                el.slider.value = px;
+                const label = spaceLabel(px);
+                el.spaceDisplay.textContent = label;
+                el.slider.setAttribute('aria-valuetext', label);
+                if (!skipSave) persistState();
+            }
+
+            function applyOrientation(skipSave = false) {
+                const orient = choice('page-orient');
+                el.pageStyle.textContent = `@page { size: A4 ${orient}; margin: 15mm; }`;
+                el.paper.classList.toggle('landscape-paper', orient === 'landscape');
+                if (!skipSave) persistState();
+            }
+
+            function syncControls() {
+                const cols = colCount();
+                const rows = el.body.rows.length;
+                el.addCol.disabled = cols >= MAX_COLS;
+                el.hint.classList.toggle('hidden', cols < MAX_COLS);
+                el.table.querySelectorAll('.col-delete-btn').forEach((b) => { b.disabled = cols <= 1; });
+                el.table.querySelectorAll('.row-delete-btn').forEach((b) => { b.disabled = rows <= 1; });
+                if (window.lucide) window.lucide.createIcons({ nodes: [el.table] });
+            }
+
+            function focusAndSelect(node) {
+                node.focus();
+                const sel = window.getSelection && window.getSelection();
+                if (!sel) return;
+                const range = document.createRange();
+                range.selectNodeContents(node);
+                sel.removeAllRanges();
+                sel.addRange(range);
+            }
+
+            // ----- Serialization & Persistence -----
+            function serializeHandout() {
+                const cols = colCount();
+                const headers = [];
+                for (let i = 0; i < cols; i++) {
+                    headers.push(el.headersRow.cells[i]?.textContent || '');
+                }
+                const rows = [];
+                for (const tr of el.body.rows) {
+                    const row = [];
+                    for (let i = 0; i < cols; i++) {
+                        row.push(tr.cells[i]?.textContent || '');
+                    }
+                    rows.push(row);
+                }
+                return {
+                    title: el.title.textContent || '',
+                    date: el.date.textContent || '',
+                    instruction: el.instruction.textContent || '',
+                    headers,
+                    rows,
+                    rowHeight: Number(el.slider.value) || 60,
+                    orient: choice('page-orient') || 'portrait',
+                    activeSetId
+                };
+            }
+
+            function loadHandout(data, skipSave = false) {
+                if (!data) return;
+                el.title.textContent = data.title ?? TEMPLATES.landmark.title;
+                el.date.textContent = data.date || todayString();
+                el.instruction.textContent = data.instruction ?? TEMPLATES.landmark.instruction;
+
+                const headers = Array.isArray(data.headers) && data.headers.length
+                    ? data.headers.slice(0, MAX_COLS)
+                    : TEMPLATES.landmark.headers;
+                const rows = Array.isArray(data.rows) && data.rows.length
+                    ? data.rows
+                    : TEMPLATES.landmark.rows;
+
+                el.controlsRow.replaceChildren(
+                    ...headers.map(() => deleteCell('th', 'col')),
+                    spacerCell('th', 'corner')
+                );
+                el.headersRow.replaceChildren(
+                    ...headers.map((h) => editable('th', h)),
+                    spacerCell('th')
+                );
+                el.body.replaceChildren(...rows.map((r) => buildRow(r, headers.length)));
+
+                if (data.orient) setRadio('page-orient', data.orient);
+                applyOrientation(true);
+                setRowHeight(data.rowHeight || 60, true);
+                syncControls();
+                if (!skipSave) persistState();
+            }
+
+            function readSets() {
+                try {
+                    const raw = localStorage.getItem(SETS_KEY);
+                    const sets = raw ? JSON.parse(raw) : [];
+                    return Array.isArray(sets) ? sets : [];
+                } catch (e) { return []; }
+            }
+
+            function writeSets(sets) {
+                try { localStorage.setItem(SETS_KEY, JSON.stringify(sets)); } catch (e) { /* ignore */ }
+            }
+
+            function persistState() {
+                const ws = serializeHandout();
+                try { localStorage.setItem(STORAGE_KEY, JSON.stringify(ws)); } catch (e) { /* ignore */ }
+
+                if (activeSetId) {
+                    const sets = readSets();
+                    const idx = sets.findIndex((s) => s.id === activeSetId);
+                    if (idx !== -1) {
+                        sets[idx] = { ...sets[idx], ...ws, lastUsed: Date.now() };
+                        writeSets(sets);
+                        renderLibrary();
+                    }
+                }
+
+                clearTimeout(cloudSaveTimer);
+                cloudSaveTimer = setTimeout(() => {
+                    if (typeof window.saveProgress === 'function') {
+                        window.saveProgress(CLOUD_TOOL_KEY, {
+                            workspace: ws,
+                            sets: readSets()
+                        }).catch(() => {});
+                    }
+                }, 700);
+            }
+
+            async function loadPersistedState() {
+                let loaded = false;
+                try {
+                    const localRaw = localStorage.getItem(STORAGE_KEY);
+                    if (localRaw) {
+                        const parsed = JSON.parse(localRaw);
+                        if (parsed && Array.isArray(parsed.headers) && parsed.headers.length) {
+                            activeSetId = parsed.activeSetId || null;
+                            loadHandout(parsed, true);
+                            loaded = true;
+                        }
+                    }
+                } catch (e) { /* ignore */ }
+
+                if (typeof window.loadProgress === 'function') {
+                    try {
+                        const cloud = await window.loadProgress(CLOUD_TOOL_KEY);
+                        if (cloud) {
+                            if (cloud.workspace && Array.isArray(cloud.workspace.headers) && cloud.workspace.headers.length) {
+                                activeSetId = cloud.workspace.activeSetId || null;
+                                loadHandout(cloud.workspace, true);
+                                localStorage.setItem(STORAGE_KEY, JSON.stringify(cloud.workspace));
+                                loaded = true;
+                            }
+                            if (Array.isArray(cloud.sets) && cloud.sets.length > 0 && readSets().length === 0) {
+                                writeSets(cloud.sets);
+                            }
+                        }
+                    } catch (e) { /* ignore */ }
+                }
+
+                if (!loaded) {
+                    loadHandout(TEMPLATES.landmark, true);
+                }
+            }
+
+            function updateActiveSetBanner() {
+                const sets = readSets();
+                const current = sets.find((s) => s.id === activeSetId);
+                if (current) {
+                    el.activeSetBanner.classList.remove('hidden');
+                    el.activeSetName.textContent = current.name;
+                } else {
+                    activeSetId = null;
+                    el.activeSetBanner.classList.add('hidden');
+                }
+            }
+
+            function renderLibrary() {
+                const sets = readSets();
+                const sort = el.librarySort.value;
+                if (sort === 'recent') sets.sort((a, b) => (b.lastUsed || 0) - (a.lastUsed || 0));
+                else if (sort === 'alpha') sets.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+                else if (sort === 'popular') sets.sort((a, b) => (b.usageCount || 0) - (a.usageCount || 0));
+
+                updateActiveSetBanner();
+
+                if (!sets.length) {
+                    el.libraryList.innerHTML = `<p class="text-xs font-semibold text-slate-400 text-center py-3">No saved handouts yet.</p>`;
+                    return;
+                }
+
+                el.libraryList.innerHTML = sets.map((s) => {
+                    const isActive = s.id === activeSetId;
+                    const cCount = Array.isArray(s.headers) ? s.headers.length : 0;
+                    const rCount = Array.isArray(s.rows) ? s.rows.length : 0;
+                    return `
+                        <div class="flex items-center gap-2 p-2 rounded-xl border-2 ${isActive ? 'border-blue bg-blue/10' : 'border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60'} hover:border-blue transition-colors">
+                            <button type="button" data-load-id="${s.id}" class="flex-1 text-left min-w-0">
+                                <p class="text-xs font-extrabold truncate flex items-center gap-1.5">
+                                    <span></span>
+                                    ${isActive ? '<span class="px-1.5 py-0.2 rounded bg-blue text-white text-[9px] uppercase">Active</span>' : ''}
+                                </p>
+                                <p class="text-[10px] font-bold text-slate-400">${cCount} cols · ${rCount} rows</p>
+                            </button>
+                            <button type="button" data-delete-id="${s.id}" class="p-1.5 rounded-lg text-slate-400 hover:text-pink hover:bg-pink/10 transition-colors" title="Delete handout">
+                                <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                            </button>
+                        </div>
+                    `;
+                }).join('');
+
+                const loadBtns = el.libraryList.querySelectorAll('[data-load-id]');
+                sets.forEach((s, idx) => {
+                    const span = loadBtns[idx]?.querySelector('p span:first-child');
+                    if (span) span.textContent = s.name;
+                });
+
+                if (window.lucide) window.lucide.createIcons({ nodes: [el.libraryList] });
+            }
+
+            // ----- Table Actions -----
+            function addColumn() {
+                if (colCount() >= MAX_COLS) return;
+                const header = editable('th', 'New Column');
+                insertBeforeLast(el.controlsRow, deleteCell('th', 'col'));
+                insertBeforeLast(el.headersRow, header);
+                for (const row of el.body.rows) insertBeforeLast(row, editable('td'));
+                syncControls();
+                persistState();
+                focusAndSelect(header);
+            }
+
+            function removeColumn(index) {
+                if (colCount() <= 1) return;
+                for (const row of el.table.rows) row.deleteCell(index);
+                syncControls();
+                persistState();
+            }
+
+            function addRow() {
+                const row = buildRow([], colCount());
+                el.body.appendChild(row);
+                syncControls();
+                persistState();
+                row.cells[0].focus();
+                if (row.scrollIntoView) row.scrollIntoView({ block: 'nearest' });
+            }
+
+            function removeRow(row) {
+                if (el.body.rows.length <= 1) return;
+                row.remove();
+                syncControls();
+                persistState();
+            }
+
+            async function resetExample() {
+                const ok = await showConfirm('Reset to Example?', 'Reset to the Landmark Interview example? Your current edits will be replaced.');
+                if (ok) {
+                    loadHandout(TEMPLATES.landmark);
+                    showToast('Reset to example handout', 'info');
+                }
+            }
+
+            // ----- Theme -----
+            function setTheme(dark) {
+                document.documentElement.classList.toggle('dark', dark);
+                el.theme.setAttribute('aria-pressed', String(dark));
+                try {
+                    localStorage.setItem('theme_interview-maker', dark ? 'dark' : 'light');
+                    localStorage.setItem('klasskit-theme', dark ? 'dark' : 'light');
+                } catch (e) { /* ignore */ }
+            }
+
+            // ----- Wiring -----
+            el.table.addEventListener('click', (e) => {
+                const colBtn = e.target.closest('.col-delete-btn');
+                if (colBtn) return removeColumn(colBtn.closest('th').cellIndex);
+                const rowBtn = e.target.closest('.row-delete-btn');
+                if (rowBtn) removeRow(rowBtn.closest('tr'));
+            });
+
+            // Persist any contenteditable change inside the paper sheet
+            el.paper.addEventListener('input', () => {
+                persistState();
+            });
+
+            // Title and date are single-line.
+            document.querySelectorAll('[data-single-line]').forEach((node) => {
+                node.addEventListener('keydown', (e) => { if (e.key === 'Enter') e.preventDefault(); });
+            });
+
+            document.querySelectorAll('input[name="page-orient"]').forEach((r) => {
+                r.addEventListener('change', () => applyOrientation(false));
+            });
+
+            document.querySelectorAll('[data-template]').forEach((btn) => {
+                btn.addEventListener('click', async () => {
+                    const key = btn.getAttribute('data-template');
+                    const tpl = TEMPLATES[key];
+                    if (!tpl) return;
+                    const ok = await showConfirm('Load Starter Template?', `Replace the current sheet with the "${tpl.title}" template?`);
+                    if (!ok) return;
+                    loadHandout(tpl);
+                    showToast(`Loaded "${tpl.title}"`, 'info');
+                });
+            });
+
+            el.addCol.addEventListener('click', addColumn);
+            el.addRow.addEventListener('click', addRow);
+            el.reset.addEventListener('click', resetExample);
+            el.print.addEventListener('click', () => window.print());
+            el.slider.addEventListener('input', () => setRowHeight(Number(el.slider.value)));
+            el.theme.addEventListener('click', () => setTheme(!document.documentElement.classList.contains('dark')));
+
+            el.toggleSidebar?.addEventListener('click', () => {
+                const collapsed = el.sidebar.classList.toggle('sidebar-collapsed');
+                el.toggleSidebarIcon.setAttribute('data-lucide', collapsed ? 'panel-left-open' : 'panel-left-close');
+                if (window.lucide) window.lucide.createIcons({ nodes: [el.toggleSidebar] });
+            });
+
+            // Saved Sets actions
+            el.newSet.addEventListener('click', async () => {
+                const ok = await showConfirm('Start Blank Handout?', 'Create a clean blank interview sheet?');
+                if (!ok) return;
+                activeSetId = null;
+                loadHandout({
+                    title: 'Class Interview',
+                    date: todayString(),
+                    instruction: 'Walk around the room, interview your classmates, and write down their answers.',
+                    headers: ['Student Name', 'Question 1', 'Question 2', 'Question 3'],
+                    rows: [[], [], [], [], []],
+                    rowHeight: 60,
+                    orient: 'portrait'
+                });
+                renderLibrary();
+                showToast('Blank handout ready', 'info');
+            });
+
+            el.saveSet.addEventListener('click', () => {
+                const modal = $('saveModal');
+                const input = $('save-set-input');
+                const current = readSets().find((s) => s.id === activeSetId);
+                input.value = current ? current.name : (el.title.textContent.trim() || '');
+                modal.classList.remove('hidden');
+                modal.classList.add('flex');
+                setTimeout(() => input.focus(), 50);
+            });
+
+            const closeSaveModal = () => {
+                const modal = $('saveModal');
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+            };
+
+            $('save-modal-cancel').addEventListener('click', closeSaveModal);
+            $('saveModal').addEventListener('click', (e) => { if (e.target === $('saveModal')) closeSaveModal(); });
+
+            const confirmSaveSet = () => {
+                const name = $('save-set-input').value.trim();
+                if (!name) {
+                    showToast('Please enter a handout name', 'warning');
+                    return;
+                }
+                const sets = readSets();
+                const now = Date.now();
+                const id = 'im_' + now;
+                sets.push({
+                    id,
+                    name,
+                    ...serializeHandout(),
+                    createdAt: now,
+                    lastUsed: now,
+                    usageCount: 1
+                });
+                activeSetId = id;
+                writeSets(sets);
+                closeSaveModal();
+                renderLibrary();
+                persistState();
+                showToast(`Saved "${name}"`, 'success');
+            };
+
+            $('save-modal-confirm').addEventListener('click', confirmSaveSet);
+            $('save-set-input').addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') { e.preventDefault(); confirmSaveSet(); }
+                if (e.key === 'Escape') closeSaveModal();
+            });
+
+            el.closeSet.addEventListener('click', () => {
+                activeSetId = null;
+                renderLibrary();
+                persistState();
+            });
+
+            el.librarySort.addEventListener('change', renderLibrary);
+
+            el.libraryList.addEventListener('click', async (e) => {
+                const loadBtn = e.target.closest('[data-load-id]');
+                if (loadBtn) {
+                    const id = loadBtn.getAttribute('data-load-id');
+                    const sets = readSets();
+                    const item = sets.find((s) => s.id === id);
+                    if (!item) return;
+                    activeSetId = id;
+                    item.lastUsed = Date.now();
+                    item.usageCount = (item.usageCount || 0) + 1;
+                    writeSets(sets);
+                    loadHandout(item, false);
+                    renderLibrary();
+                    showToast(`Loaded "${item.name}"`, 'success');
+                    return;
+                }
+
+                const delBtn = e.target.closest('[data-delete-id]');
+                if (delBtn) {
+                    const id = delBtn.getAttribute('data-delete-id');
+                    const sets = readSets();
+                    const item = sets.find((s) => s.id === id);
+                    if (!item) return;
+                    const ok = await showConfirm('Delete Saved Handout?', `Delete "${item.name}" from your saved handouts?`);
+                    if (!ok) return;
+                    writeSets(sets.filter((s) => s.id !== id));
+                    if (activeSetId === id) activeSetId = null;
+                    renderLibrary();
+                    persistState();
+                    showToast('Handout deleted', 'info');
+                }
+            });
+
+            // ----- Startup -----
+            (async function init() {
+                await loadPersistedState();
+                el.theme.setAttribute('aria-pressed', String(document.documentElement.classList.contains('dark')));
+                renderLibrary();
+                if (window.lucide) window.lucide.createIcons();
+            })();
+        })();
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,1566 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Word Snake Generator — KlassKit</title>
+    <link rel="icon" type="image/x-icon" href="../../../media/icon.ico" />
+    <link rel="icon" type="image/webp" href="../../../media/icon.webp" />
+
+    <!-- Apply the saved theme before first paint (syncs with KlassKit Hub) -->
+    <script>
+        (function () {
+            function readTheme(key) {
+                try {
+                    var raw = localStorage.getItem(key);
+                    if (raw == null) return null;
+                    try { return JSON.parse(raw); } catch (e) { return raw; }
+                } catch (e) { return null; }
+            }
+            function syncTheme() {
+                var toolTheme = readTheme('theme_word-snake') || readTheme('klasskit-theme');
+                var hubTheme = readTheme('theme_hub');
+                var isDark = toolTheme
+                    ? toolTheme === 'dark'
+                    : hubTheme
+                        ? hubTheme === 'dark'
+                        : window.matchMedia('(prefers-color-scheme: dark)').matches;
+                document.documentElement.classList.toggle('dark', isDark);
+            }
+            syncTheme();
+            window.addEventListener('storage', function (e) {
+                if (e.key === 'theme_hub' || e.key === 'theme_word-snake' || e.key === 'klasskit-theme') {
+                    syncTheme();
+                }
+            });
+        })();
+    </script>
+
+    <!-- Supabase Auth & Cloud Persistence -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.105.4"></script>
+    <script src="/supabase.js"></script>
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+
+    <!-- Libraries -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@1.16.0"></script>
+
+    <!-- Shared KlassKit Styles -->
+    <link rel="stylesheet" href="../../../css/base.css" />
+    <link rel="stylesheet" href="../../../css/components.css" />
+
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        pink: '#ff4785',
+                        orange: '#ff7e33',
+                        green: '#00d063',
+                        blue: '#1ea7fd',
+                        dark: '#1e293b',
+                        chalk: '#f8fafc',
+                        brand: {
+                            pink: '#ff4785',
+                            orange: '#ff7e33',
+                            green: '#00d063',
+                            blue: '#1ea7fd',
+                            dark: '#1e293b',
+                            chalk: '#f8fafc',
+                        }
+                    },
+                    fontFamily: {
+                        heading: ['Fredoka', 'sans-serif'],
+                        body: ['Nunito', 'sans-serif'],
+                    },
+                    boxShadow: {
+                        'hard': '4px 4px 0 0 var(--shadow)',
+                        'hard-md': '6px 6px 0 0 var(--shadow)',
+                        'hard-lg': '8px 8px 0 0 var(--shadow)',
+                        'hard-sm': '2px 2px 0 0 var(--shadow)',
+                        'neo': 'var(--shadow-hard-md)',
+                        'neo-sm': 'var(--shadow-hard-sm)',
+                        'inner-hard': 'inset 2px 2px 0 0 rgba(30, 41, 59, 0.12)',
+                    },
+                    animation: {
+                        'pop-in': 'pop-in 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards',
+                        'slide-down': 'slide-down 0.25s cubic-bezier(0.2, 0.8, 0.2, 1) forwards',
+                    }
+                },
+            },
+        };
+    </script>
+
+    <style>
+        /* ---------- Theme tokens (light = chalk paper, dark = OLED slate) ---------- */
+        :root {
+            --line: #1e293b;
+            --ink: #1e293b;
+            --surface: #ffffff;
+            --muted: #64748b;
+            --shadow: #1e293b;
+            --dots: #cbd5e1;
+            --track: #f1f5f9;
+            --snake-body: #ffffff;
+            --snake-ink: #1e293b;
+        }
+
+        .dark {
+            --line: #64748b;
+            --ink: #f8fafc;
+            --surface: #1e293b;
+            --muted: #94a3b8;
+            --shadow: #000000;
+            --dots: #334155;
+            --track: #0f172a;
+            --snake-body: #1e293b;
+            --snake-ink: #f8fafc;
+        }
+
+        body {
+            overflow: hidden;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        @media (max-width: 768px) {
+            body {
+                padding-bottom: 0 !important;
+            }
+        }
+
+        .dot-grid {
+            background-image: radial-gradient(var(--line) 1.75px, transparent 1.75px);
+            background-size: 24px 24px;
+        }
+
+        /* ---------- Chunky physical buttons ---------- */
+        .btn-chunky {
+            font-family: 'Fredoka', sans-serif;
+            font-weight: 700;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+            user-select: none;
+            border: 3px solid var(--line);
+            box-shadow: 0 4px 0 var(--shadow);
+            transition: transform 0.12s ease, box-shadow 0.12s ease, background-color 0.15s ease, color 0.15s ease;
+        }
+
+        .btn-chunky:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 0 var(--shadow);
+        }
+
+        .btn-chunky:active:not(:disabled) {
+            transform: translateY(4px);
+            box-shadow: 0 0 0 var(--shadow);
+        }
+
+        .btn-chunky:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            box-shadow: 0 2px 0 var(--shadow);
+        }
+
+        .btn-chunky:focus-visible,
+        .chunky-range:focus-visible {
+            outline: 3px solid var(--color-blue);
+            outline-offset: 2px;
+        }
+
+        /* ---------- Segmented radio buttons (snake shape, page orientation) ---------- */
+        .field-label {
+            font-family: 'Fredoka', sans-serif;
+            font-size: 0.75rem;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: var(--muted);
+        }
+
+        .seg { position: relative; display: block; }
+        .seg input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
+
+        .seg span {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.35rem;
+            padding: 0.5rem 0.25rem;
+            font-family: 'Fredoka', sans-serif;
+            font-size: 0.75rem;
+            font-weight: 700;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            user-select: none;
+            color: var(--ink);
+            background: var(--surface);
+            border: 2.5px solid var(--line);
+            border-radius: 0.75rem;
+            box-shadow: 0 3px 0 var(--shadow);
+            transition: transform 0.12s ease, box-shadow 0.12s ease, background-color 0.15s ease;
+        }
+
+        .seg span.seg-col { flex-direction: column; gap: 0.2rem; padding: 0.6rem 0.25rem; }
+
+        .seg:hover input:not(:checked) + span { transform: translateY(-2px); box-shadow: 0 5px 0 var(--shadow); }
+        .seg:active input + span { transform: translateY(2px); box-shadow: 0 0 0 var(--shadow); }
+        .seg input:checked + span {
+            background: var(--color-green);
+            color: #1e293b;
+            transform: translateY(1px);
+            box-shadow: 0 2px 0 var(--shadow);
+        }
+        .seg input:focus-visible + span { outline: 3px solid var(--color-blue); outline-offset: 2px; }
+
+        /* ---------- Chunky range slider ---------- */
+        .chunky-range {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 100%;
+            height: 24px;
+            background: transparent;
+            cursor: pointer;
+        }
+
+        .chunky-range::-webkit-slider-runnable-track {
+            height: 12px;
+            box-sizing: border-box;
+            border: 2.5px solid var(--line);
+            border-radius: 9999px;
+            background: var(--track);
+        }
+
+        .chunky-range::-moz-range-track {
+            height: 12px;
+            box-sizing: border-box;
+            border: 2.5px solid var(--line);
+            border-radius: 9999px;
+            background: var(--track);
+        }
+
+        .chunky-range::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 24px;
+            height: 24px;
+            margin-top: -8px;
+            border-radius: 9999px;
+            background: var(--color-blue);
+            border: 3px solid var(--line);
+            box-shadow: 0 2px 0 var(--shadow);
+            transition: transform 0.1s ease;
+        }
+
+        .chunky-range::-webkit-slider-thumb:hover {
+            transform: scale(1.1);
+        }
+
+        .chunky-range::-moz-range-thumb {
+            width: 18px;
+            height: 18px;
+            border-radius: 9999px;
+            background: var(--color-blue);
+            border: 3px solid var(--line);
+            box-shadow: 0 2px 0 var(--shadow);
+        }
+
+        textarea {
+            user-select: text;
+            background-image: radial-gradient(var(--dots) 1.5px, transparent 1.5px);
+            background-size: 14px 14px;
+        }
+
+        /* ---------- Snake artwork (themed through CSS variables) ---------- */
+        #svg-wrapper svg {
+            width: 100%;
+            height: 100%;
+            filter: drop-shadow(4px 4px 0 var(--shadow));
+        }
+
+        .snake-edge { stroke: var(--line); }
+        .snake-body { stroke: var(--snake-body); }
+        .snake-letters {
+            fill: var(--snake-ink);
+            font-family: 'Fredoka', sans-serif;
+            font-weight: 700;
+        }
+        .snake-head { fill: var(--snake-body); stroke: var(--line); stroke-linejoin: round; }
+        .snake-eye { fill: var(--snake-ink); }
+        .snake-glint { fill: var(--snake-body); }
+        .snake-tongue { stroke: #ff4785; }
+
+        /* Answer Key Highlight Mode */
+        .show-answers .snake-letters text[data-filler="1"] {
+            fill: var(--muted);
+            opacity: 0.32;
+        }
+        .show-answers .snake-letters text[data-word="1"] {
+            fill: #ff4785;
+            font-weight: 700;
+        }
+
+        /* Sidebar collapse transition */
+        #sidebar {
+            transition: width 0.25s cubic-bezier(0.2, 0.8, 0.2, 1), min-width 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
+        }
+        #sidebar.sidebar-collapsed {
+            width: 0 !important;
+            min-width: 0 !important;
+            border-right-width: 0 !important;
+            overflow: hidden !important;
+        }
+
+        /* ---------- PRINT (always light, whatever the on-screen theme) ---------- */
+        @page { size: A4 portrait; margin: 0; }
+
+        #print-area {
+            --line: #1e293b;
+            --snake-body: #ffffff;
+            --snake-ink: #1e293b;
+            --muted: #94a3b8;
+            color: #1e293b;
+        }
+
+        @media print {
+            html, body {
+                display: block !important;
+                width: auto !important;
+                height: auto !important;
+                padding: 0 !important;
+                margin: 0 !important;
+                overflow: visible !important;
+                background: #fff !important;
+                background-image: none !important;
+            }
+
+            #print-area {
+                display: flex !important;
+                flex-direction: column;
+                height: 100vh;
+                padding: 15mm;
+                box-sizing: border-box;
+                overflow: hidden;
+            }
+
+            .print-header {
+                display: flex;
+                justify-content: space-between;
+                align-items: flex-end;
+                border-bottom: 4px solid #1e293b;
+                padding-bottom: 10px;
+                margin-bottom: 20px;
+            }
+
+            .print-title h1 {
+                font-family: 'Fredoka', sans-serif;
+                font-size: 3.2rem;
+                text-transform: uppercase;
+                line-height: 1;
+                margin: 0;
+            }
+
+            .print-title p {
+                font-family: 'Nunito', sans-serif;
+                font-size: 1rem;
+                font-weight: 800;
+                text-transform: uppercase;
+                color: #64748b;
+                letter-spacing: 0.1em;
+                margin: 4px 0 0;
+            }
+
+            .print-meta {
+                display: flex;
+                flex-direction: column;
+                gap: 12px;
+                min-width: 280px;
+                font-family: 'Nunito', sans-serif;
+                font-size: 1.15rem;
+                font-weight: 700;
+            }
+
+            .meta-line { display: flex; justify-content: space-between; align-items: flex-end; }
+            .meta-line span:last-child { flex-grow: 1; margin-left: 10px; border-bottom: 2px solid #1e293b; }
+
+            #print-svg-container {
+                flex: 1 1 auto;
+                min-height: 0;
+                display: flex;
+                justify-content: center;
+                align-items: center;
+            }
+
+            #print-svg-container svg { width: 100%; height: 100%; }
+
+            #print-word-bank {
+                display: grid;
+                grid-template-columns: repeat(auto-fill, minmax(46mm, 1fr));
+                gap: 3mm 5mm;
+                margin-top: auto;
+                padding-top: 6mm;
+            }
+
+            .print-word {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                font-family: 'Fredoka', sans-serif;
+                font-size: 13pt;
+                font-weight: 600;
+                text-transform: uppercase;
+            }
+
+            .print-word::before {
+                content: '';
+                flex: none;
+                width: 18px;
+                height: 18px;
+                border: 3px solid #1e293b;
+                border-radius: 4px;
+                background: #fff;
+            }
+        }
+    </style>
+    <style id="page-style"></style>
+</head>
+
+<body class="h-dvh w-screen flex items-center justify-center p-2 md:p-5 text-dark dark:text-white font-body">
+
+    <!-- MAIN CONSOLE -->
+    <div class="print:hidden relative w-full max-w-[1550px] h-full flex flex-col md:flex-row overflow-hidden bg-white dark:bg-slate-900 border-4 border-dark dark:border-slate-500 rounded-[2rem] shadow-hard-lg">
+
+        <!-- SIDEBAR -->
+        <aside id="sidebar" class="w-full md:w-80 lg:w-96 h-[46%] md:h-full shrink-0 flex flex-col bg-white dark:bg-slate-900 border-b-4 md:border-b-0 md:border-r-4 border-dark dark:border-slate-500">
+
+            <!-- Header -->
+            <div class="p-4 lg:p-5 flex justify-between items-center gap-3 bg-blue/10 dark:bg-slate-800/80 border-b-4 border-dark dark:border-slate-500">
+                <div class="flex items-center gap-3 min-w-0">
+                    <div class="w-11 h-11 rounded-2xl bg-green border-3 border-dark flex items-center justify-center shadow-hard-sm shrink-0 -rotate-2">
+                        <i data-lucide="waypoints" stroke-width="2.75" class="w-6 h-6 text-dark"></i>
+                    </div>
+                    <div class="min-w-0">
+                        <h1 class="font-heading text-2xl uppercase leading-none tracking-tight truncate">Word Snake</h1>
+                        <p class="mt-1 text-[11px] font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-widest">KlassKit Tools</p>
+                    </div>
+                </div>
+                <div class="flex items-center gap-2 shrink-0">
+                    <button id="theme-btn" type="button" aria-pressed="false" aria-label="Toggle dark mode" title="Toggle Dark Mode"
+                        class="btn-chunky w-10 h-10 rounded-xl flex items-center justify-center bg-white dark:bg-slate-800 text-dark dark:text-white">
+                        <i data-lucide="moon" stroke-width="2.5" class="w-5 h-5 dark:hidden"></i>
+                        <i data-lucide="sun" stroke-width="2.5" class="w-5 h-5 hidden dark:block text-orange"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Scrollable settings -->
+            <div class="flex-1 p-4 lg:p-5 overflow-y-auto custom-scrollbar flex flex-col gap-5">
+
+                <!-- Active Set Indicator -->
+                <div id="active-set-banner" class="hidden animate-pop-in p-3 rounded-2xl bg-blue/10 dark:bg-blue/20 border-2 border-blue flex items-center justify-between gap-2">
+                    <div class="flex items-center gap-2 min-w-0">
+                        <div class="w-8 h-8 rounded-xl bg-blue text-white flex items-center justify-center shrink-0 border-2 border-dark">
+                            <i data-lucide="bookmark-check" class="w-4 h-4"></i>
+                        </div>
+                        <div class="min-w-0">
+                            <p class="text-[10px] font-extrabold uppercase tracking-wider text-blue leading-none">Active Set (Auto-Saving)</p>
+                            <p id="active-set-name" class="text-xs font-extrabold truncate mt-0.5"></p>
+                        </div>
+                    </div>
+                    <button id="close-set-btn" type="button" title="Detach from saved set" class="p-1.5 rounded-lg hover:bg-blue/20 text-slate-500 dark:text-slate-300">
+                        <i data-lucide="x" class="w-4 h-4"></i>
+                    </button>
+                </div>
+
+                <!-- Snake shape -->
+                <fieldset>
+                    <legend class="field-label mb-2 flex items-center gap-1.5">
+                        <i data-lucide="shapes" class="w-3.5 h-3.5 text-pink"></i> Snake Shape
+                    </legend>
+                    <div class="grid grid-cols-6 gap-2">
+                        <label class="seg col-span-2" title="A round spiral">
+                            <input type="radio" name="shape" value="circle" checked>
+                            <span class="seg-col"><i data-lucide="circle" stroke-width="2.75" class="w-4 h-4"></i>Circle</span>
+                        </label>
+                        <label class="seg col-span-2" title="A square spiral">
+                            <input type="radio" name="shape" value="square">
+                            <span class="seg-col"><i data-lucide="square" stroke-width="2.75" class="w-4 h-4"></i>Square</span>
+                        </label>
+                        <label class="seg col-span-2" title="A wide rectangular spiral">
+                            <input type="radio" name="shape" value="rectangle">
+                            <span class="seg-col"><i data-lucide="rectangle-horizontal" stroke-width="2.75" class="w-4 h-4"></i>Rect</span>
+                        </label>
+                        <label class="seg col-span-3" title="A long snake winding to and fro">
+                            <input type="radio" name="shape" value="long">
+                            <span class="seg-col"><i data-lucide="route" stroke-width="2.75" class="w-4 h-4"></i>Serpentine</span>
+                        </label>
+                        <label class="seg col-span-3" title="A new random shape every time you click Generate">
+                            <input type="radio" name="shape" value="random">
+                            <span class="seg-col"><i data-lucide="shuffle" stroke-width="2.75" class="w-4 h-4"></i>Random</span>
+                        </label>
+                    </div>
+                </fieldset>
+
+                <!-- Snake length -->
+                <div class="space-y-2">
+                    <div class="flex justify-between items-end">
+                        <label for="size-slider" class="field-label flex items-center gap-1.5">
+                            <i data-lucide="ruler" class="w-3.5 h-3.5 text-blue"></i> Snake Length
+                        </label>
+                        <output id="size-display" for="size-slider" class="font-heading text-lg font-bold text-blue uppercase">3.5 coils</output>
+                    </div>
+                    <input type="range" id="size-slider" class="chunky-range" min="1.5" max="6" step="0.5" value="3.5">
+                    <div class="flex justify-between text-[11px] font-extrabold text-slate-400">
+                        <span>SHORTER (EASY)</span>
+                        <span>LONGER (HARD)</span>
+                    </div>
+                </div>
+
+                <!-- Word input -->
+                <div class="flex-1 flex flex-col gap-2 min-h-[155px]">
+                    <div class="flex justify-between items-end gap-2">
+                        <label for="word-input" class="field-label flex items-center gap-1.5">
+                            <i data-lucide="type" class="w-3.5 h-3.5 text-green"></i> Vocabulary List
+                        </label>
+                        <span id="capacity" class="shrink-0 text-xs font-extrabold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300" aria-live="polite"></span>
+                    </div>
+
+                    <!-- Quick Presets -->
+                    <div class="flex flex-wrap items-center gap-1.5">
+                        <span class="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 mr-0.5">Presets:</span>
+                        <button type="button" data-preset="fruits" class="px-2 py-0.5 rounded-lg text-[11px] font-extrabold bg-pink/15 hover:bg-pink/25 text-dark dark:text-white border border-pink/40 transition-colors">Fruits</button>
+                        <button type="button" data-preset="animals" class="px-2 py-0.5 rounded-lg text-[11px] font-extrabold bg-orange/15 hover:bg-orange/25 text-dark dark:text-white border border-orange/40 transition-colors">Animals</button>
+                        <button type="button" data-preset="verbs" class="px-2 py-0.5 rounded-lg text-[11px] font-extrabold bg-blue/15 hover:bg-blue/25 text-dark dark:text-white border border-blue/40 transition-colors">Verbs</button>
+                        <button type="button" id="clear-words-btn" class="ml-auto text-[11px] font-extrabold text-pink hover:underline">Clear</button>
+                    </div>
+
+                    <textarea id="word-input" spellcheck="false"
+                        class="input-chunky w-full flex-1 min-h-[110px] p-3.5 rounded-xl resize-none font-mono text-sm bg-slate-50 dark:bg-slate-800 text-dark dark:text-white border-2 border-dark dark:border-slate-500 outline-none focus:border-blue"
+                        placeholder="APPLE, BANANA, CHERRY, DRAGONFRUIT">APPLE, BANANA, CHERRY, DRAGONFRUIT, MANGO, ORANGE, GRAPES</textarea>
+                </div>
+
+                <!-- Inline message -->
+                <p id="status" role="status" aria-live="polite"
+                    class="hidden px-3 py-2 rounded-xl text-xs font-extrabold bg-pink/20 text-dark dark:text-white border-2 border-pink shadow-hard-sm animate-pop-in"></p>
+
+                <button id="generate-btn" type="button"
+                    class="btn-chunky w-full py-3.5 rounded-xl text-lg tracking-wide flex items-center justify-center gap-2 bg-green text-dark">
+                    <i data-lucide="sparkles" stroke-width="2.75" class="w-5 h-5"></i> Generate Snake
+                </button>
+
+                <!-- Saved Sets Library -->
+                <section class="pt-4 border-t-3 border-dashed border-slate-200 dark:border-slate-700 space-y-3">
+                    <div class="flex items-center justify-between">
+                        <span class="field-label flex items-center gap-1.5">
+                            <i data-lucide="folder-heart" class="w-3.5 h-3.5 text-orange"></i> Saved Sets
+                        </span>
+                        <select id="library-sort" aria-label="Sort saved sets"
+                            class="text-[11px] font-extrabold bg-slate-100 dark:bg-slate-800 border-2 border-slate-300 dark:border-slate-600 rounded-lg px-2 py-0.5 text-dark dark:text-white">
+                            <option value="recent">Recent</option>
+                            <option value="alpha">A–Z</option>
+                            <option value="popular">Popular</option>
+                        </select>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <button id="new-set-btn" type="button"
+                            class="btn-chunky py-2 rounded-xl text-xs flex items-center justify-center gap-1.5 bg-white dark:bg-slate-800 text-dark dark:text-white">
+                            <i data-lucide="file-plus" class="w-3.5 h-3.5"></i> New
+                        </button>
+                        <button id="save-set-btn" type="button"
+                            class="btn-chunky py-2 rounded-xl text-xs flex items-center justify-center gap-1.5 bg-blue text-white">
+                            <i data-lucide="save" class="w-3.5 h-3.5"></i> Save As
+                        </button>
+                    </div>
+                    <div id="library-list" class="space-y-1.5 max-h-36 overflow-y-auto custom-scrollbar pr-1"></div>
+                </section>
+            </div>
+
+            <!-- Print options + actions -->
+            <div class="p-4 flex flex-col gap-3 border-t-4 border-dark dark:border-slate-500 bg-slate-100 dark:bg-slate-800/90">
+                <fieldset>
+                    <legend class="field-label mb-1.5">Page Orientation</legend>
+                    <div class="grid grid-cols-2 gap-2">
+                        <label class="seg"><input type="radio" name="page-orient" value="portrait" checked><span><i data-lucide="rectangle-vertical" stroke-width="2.5" class="w-4 h-4"></i> Portrait</span></label>
+                        <label class="seg"><input type="radio" name="page-orient" value="landscape"><span><i data-lucide="rectangle-horizontal" stroke-width="2.5" class="w-4 h-4"></i> Landscape</span></label>
+                    </div>
+                </fieldset>
+                <div class="grid grid-cols-2 gap-2">
+                    <button id="print-btn" type="button" disabled
+                        class="btn-chunky py-2.5 rounded-xl text-xs flex items-center justify-center gap-1.5 bg-white dark:bg-slate-900 text-dark dark:text-white">
+                        <i data-lucide="printer" stroke-width="2.5" class="w-4 h-4 text-blue"></i> Handout
+                    </button>
+                    <button id="print-key-btn" type="button" disabled
+                        class="btn-chunky py-2.5 rounded-xl text-xs flex items-center justify-center gap-1.5 bg-white dark:bg-slate-900 text-dark dark:text-white">
+                        <i data-lucide="key-round" stroke-width="2.5" class="w-4 h-4 text-pink"></i> Answer Key
+                    </button>
+                </div>
+            </div>
+        </aside>
+
+        <!-- PREVIEW -->
+        <main class="relative flex-1 min-h-0 h-[54%] md:h-full flex flex-col overflow-hidden bg-chalk dark:bg-slate-950">
+            <div class="dot-grid absolute inset-0 opacity-10 pointer-events-none" aria-hidden="true"></div>
+
+            <!-- Floating Glass Toolbar -->
+            <div class="relative z-20 px-4 pt-3 flex items-center justify-between gap-2 pointer-events-none">
+                <button id="toggle-sidebar-btn" type="button" title="Toggle Controls Sidebar"
+                    class="pointer-events-auto btn-chunky hidden md:inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs bg-white/90 dark:bg-slate-800/90 backdrop-blur-md text-dark dark:text-white">
+                    <i data-lucide="panel-left-close" id="sidebar-toggle-icon" class="w-4 h-4"></i>
+                    <span id="sidebar-toggle-label">Controls</span>
+                </button>
+
+                <div class="ml-auto flex items-center gap-2 pointer-events-auto">
+                    <button id="answer-toggle-btn" type="button" aria-pressed="false"
+                        class="btn-chunky inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs bg-white/90 dark:bg-slate-800/90 backdrop-blur-md text-dark dark:text-white">
+                        <i data-lucide="eye" class="w-4 h-4 text-pink"></i>
+                        <span>Reveal Answers</span>
+                    </button>
+                </div>
+            </div>
+
+            <div class="relative flex-1 min-h-0 p-4 flex items-center justify-center">
+                <!-- Empty state -->
+                <div id="empty-state" class="hidden absolute inset-0 z-10 flex flex-col items-center justify-center px-6 text-center">
+                    <div class="w-20 h-20 mb-4 rounded-2xl flex items-center justify-center bg-white dark:bg-slate-800 border-4 border-dark dark:border-slate-500 shadow-hard rotate-2">
+                        <i data-lucide="waypoints" stroke-width="2.75" class="w-10 h-10 text-green"></i>
+                    </div>
+                    <h2 class="font-heading text-2xl uppercase">Ready to Coil?</h2>
+                    <p class="mt-2 text-sm font-semibold text-slate-500 dark:text-slate-400">Enter your words on the left, then click Generate Snake.</p>
+                </div>
+
+                <!-- Snake SVG is rendered here -->
+                <div id="svg-wrapper" class="relative z-10 w-full h-full"></div>
+            </div>
+
+            <!-- Word bank preview -->
+            <section class="relative z-20 shrink-0 max-h-36 overflow-y-auto custom-scrollbar p-4 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border-t-4 border-dark dark:border-slate-500">
+                <div class="mb-2 flex items-center justify-between gap-2">
+                    <h2 class="flex items-center gap-2 font-heading text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">
+                        <i data-lucide="list-checks" stroke-width="2.5" class="w-4 h-4 text-blue"></i> Hidden Words Bank
+                    </h2>
+                    <span id="word-count-badge" class="sticker px-2.5 py-0.5 rounded-full text-[11px] bg-green/20 text-dark dark:text-white border-2 border-dark dark:border-slate-500 rotate-1">0 words</span>
+                </div>
+                <p id="word-bank-empty" class="text-sm font-semibold text-slate-500 dark:text-slate-400">Words will appear here.</p>
+                <ul id="word-bank" class="flex flex-wrap gap-2 list-none"></ul>
+            </section>
+        </main>
+    </div>
+
+    <!-- SAVE AS MODAL -->
+    <div id="saveModal" class="hidden fixed inset-0 bg-dark/60 backdrop-blur-md z-[500] items-center justify-center p-4">
+        <div class="bg-white dark:bg-slate-800 w-full max-w-sm rounded-[2rem] border-4 border-dark dark:border-slate-500 shadow-hard-lg animate-pop-in overflow-hidden">
+            <div class="p-5 border-b-4 border-dark dark:border-slate-500 bg-blue/10 flex items-center gap-3">
+                <div class="w-11 h-11 rounded-2xl bg-blue flex items-center justify-center border-3 border-dark shadow-hard-sm shrink-0">
+                    <i data-lucide="bookmark-plus" class="w-5 h-5 text-white"></i>
+                </div>
+                <div>
+                    <h3 class="text-lg font-heading font-bold text-dark dark:text-white uppercase leading-tight">Save Word Snake</h3>
+                    <p class="text-xs font-semibold text-slate-500 dark:text-slate-400">Save this vocabulary set to your library</p>
+                </div>
+            </div>
+            <div class="p-5 space-y-4">
+                <div>
+                    <label for="save-set-input" class="field-label block mb-1.5">Set Name</label>
+                    <input id="save-set-input" type="text" placeholder="e.g., Unit 3 Fruits & Food"
+                        class="input-chunky w-full px-3.5 py-2.5 text-sm bg-slate-50 dark:bg-slate-900 text-dark dark:text-white" />
+                </div>
+                <div class="flex gap-3">
+                    <button id="save-modal-cancel" type="button" class="flex-1 btn-chunky bg-white dark:bg-slate-700 text-dark dark:text-white py-2.5 rounded-xl text-xs">Cancel</button>
+                    <button id="save-modal-confirm" type="button" class="flex-1 btn-chunky bg-green text-dark py-2.5 rounded-xl text-xs">Save Set</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- CONFIRM MODAL -->
+    <div id="confirmModal" class="hidden fixed inset-0 bg-dark/60 backdrop-blur-md z-[500] items-center justify-center p-4">
+        <div class="bg-white dark:bg-slate-800 w-full max-w-sm rounded-[2rem] border-4 border-dark dark:border-slate-500 shadow-hard-lg animate-pop-in overflow-hidden">
+            <div class="p-6 text-center">
+                <div class="w-14 h-14 rounded-2xl bg-pink/15 flex items-center justify-center border-3 border-dark mx-auto mb-3">
+                    <i data-lucide="alert-triangle" class="w-7 h-7 text-pink"></i>
+                </div>
+                <h3 id="confirmTitle" class="text-xl font-heading font-bold text-dark dark:text-white uppercase mb-1.5">Are you sure?</h3>
+                <p id="confirmMessage" class="text-sm font-semibold text-slate-500 dark:text-slate-400 mb-5">This action cannot be undone.</p>
+                <div class="flex gap-3">
+                    <button id="confirmBtnNo" type="button" class="flex-1 btn-chunky bg-white dark:bg-slate-700 text-dark dark:text-white py-2.5 rounded-xl text-xs">Cancel</button>
+                    <button id="confirmBtnYes" type="button" class="flex-1 btn-chunky bg-pink text-white py-2.5 rounded-xl text-xs">Yes, Continue</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- TOAST CONTAINER -->
+    <div id="toast-container" class="print:hidden fixed bottom-6 left-1/2 -translate-x-1/2 z-[400] flex flex-col gap-2 pointer-events-none"></div>
+
+    <!-- PRINT LAYOUT (hidden on screen, A4 when printing) -->
+    <div id="print-area" class="hidden">
+        <div class="print-header">
+            <div class="print-title">
+                <h1 id="print-heading">Word Snake</h1>
+                <p id="print-subheading">KlassKit Vocabulary Puzzle</p>
+            </div>
+            <div class="print-meta">
+                <div class="meta-line"><span>Name:</span><span></span></div>
+                <div class="meta-line"><span>Date:</span><span></span></div>
+            </div>
+        </div>
+        <div id="print-svg-container"></div>
+        <div id="print-word-bank"></div>
+    </div>
+
+    <script>
+        (() => {
+            'use strict';
+
+            // ===== PURE LOGIC (no DOM access) ===================================
+
+            const MAX_BODY = 72;          // widest snake body, in drawing units
+            const ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+            const WIDE_LETTERS = new Set(['M', 'W']);
+
+            const PRESETS = {
+                fruits: 'APPLE, BANANA, CHERRY, DRAGONFRUIT, MANGO, ORANGE, GRAPES',
+                animals: 'ELEPHANT, GIRAFFE, DOLPHIN, PENGUIN, KANGAROO, TIGER, ZEBRA',
+                verbs: 'EXPLORE, DISCOVER, IMAGINE, CREATE, LISTEN, PRACTICE, REMEMBER'
+            };
+
+            const randInt = (n) => Math.floor(Math.random() * n);
+            const round1 = (n) => Math.round(n * 10) / 10;
+
+            /** "apple, Ice cream\nmango" -> ["APPLE", "ICECREAM", "MANGO"] (A-Z only, no duplicates) */
+            function parseWords(raw) {
+                const words = (raw || '')
+                    .split(/[,;\n]+/)
+                    .map((w) => w.toUpperCase().replace(/[^A-Z]/g, ''))
+                    .filter(Boolean);
+                return [...new Set(words)];
+            }
+
+            /** Body, font and letter sizes for a given distance between neighbouring coils. */
+            function metrics(spacing) {
+                const bodyW = Math.min(MAX_BODY, spacing * 0.88);
+                const edge = Math.max(3, bodyW * 0.07);
+                const fontSize = (bodyW - edge * 2) * 0.6;
+                return {
+                    bodyW, edge, fontSize,
+                    slot: fontSize * 0.7,
+                    headScale: bodyW / 70,
+                    startGap: 22 * (bodyW / 70) + 4,
+                };
+            }
+
+            /** Round spiral. Centre at (0, 0). */
+            function circlePath(spirals) {
+                const R0 = 420, R1 = 60, dR = R0 - R1, turn = spirals * 2 * Math.PI;
+                const steps = Math.ceil(spirals * 120);
+                const pts = [];
+                for (let i = 0; i <= steps; i++) {
+                    const t = i / steps, r = R0 - t * dR, a = t * turn;
+                    pts.push([r * Math.cos(a), -r * Math.sin(a)]);
+                }
+                return { pts, spacing: dR / spirals };
+            }
+
+            /** Rounds every corner of a polyline (all turns are 90 degrees) with a quarter circle. */
+            function roundCorners(wp, r) {
+                const out = [wp[0].slice()];
+                for (let i = 1; i < wp.length - 1; i++) {
+                    const [px, py] = wp[i - 1], [x, y] = wp[i], [nx, ny] = wp[i + 1];
+                    const l1 = Math.hypot(x - px, y - py), l2 = Math.hypot(nx - x, ny - y);
+                    const d1 = [(x - px) / l1, (y - py) / l1], d2 = [(nx - x) / l2, (ny - y) / l2];
+                    const ri = Math.min(r, l1 / 2, l2 / 2);
+                    const start = [x - d1[0] * ri, y - d1[1] * ri];
+                    const end = [x + d2[0] * ri, y + d2[1] * ri];
+                    const c = [start[0] + d2[0] * ri, start[1] + d2[1] * ri];
+                    const a1 = Math.atan2(start[1] - c[1], start[0] - c[0]);
+                    let da = Math.atan2(end[1] - c[1], end[0] - c[0]) - a1;
+                    da = Math.atan2(Math.sin(da), Math.cos(da));
+                    for (let k = 0; k <= 10; k++) {
+                        const a = a1 + (da * k) / 10;
+                        out.push([c[0] + ri * Math.cos(a), c[1] + ri * Math.sin(a)]);
+                    }
+                }
+                out.push(wp[wp.length - 1].slice());
+                return out;
+            }
+
+            /** Square or rectangular spiral winding inwards, `spirals` coils deep. */
+            function rectSpiralPath(W, H, spirals) {
+                const g = (Math.min(W, H) / 2 - 50) / spirals;
+                let L = 0, T = 0, R = W, B = H, x = 0, y = 0;
+                const wp = [[0, 0]];
+                for (let side = 0; side < 400; side++) {
+                    let nx = x, ny = y;
+                    switch (side % 4) {
+                        case 0: nx = R; T += g; break;
+                        case 1: ny = B; R -= g; break;
+                        case 2: nx = L; B -= g; break;
+                        default: ny = T; L += g;
+                    }
+                    if (Math.abs(nx - x) + Math.abs(ny - y) < g * 1.5) break;
+                    wp.push([nx, ny]);
+                    x = nx; y = ny;
+                }
+                return { pts: roundCorners(wp, g * 0.6), spacing: g };
+            }
+
+            /** Long snake winding to and fro in `rows` straight runs joined by half-circle bends. */
+            function serpentinePath(rows) {
+                const W = 840, g = 100, wp = [];
+                for (let i = 0; i < rows; i++) {
+                    const y = i * g;
+                    wp.push(...(i % 2 === 0 ? [[0, y], [W, y]] : [[W, y], [0, y]]));
+                }
+                return { pts: roundCorners(wp, g / 2), spacing: g };
+            }
+
+            const randomN = (size) => Math.round(5 + ((size - 1.5) / 4.5) * 7);
+
+            function randomPlan(size) {
+                const n = randomN(size);
+                const m = Math.round(0.62 * n * n);
+                const s = 900 / n;
+                const mt = metrics(s);
+                const minLen = (m - 1) * s - (m - 2) * (2 - Math.PI / 2) * (s / 2);
+                return { n, m, s, chars: Math.max(0, Math.floor((minLen - mt.startGap - 6) / mt.slot)) };
+            }
+
+            function randomCells(n, m) {
+                let path = [];
+                for (let r = 0; r < n && path.length < m; r++) {
+                    for (let k = 0; k < n && path.length < m; k++) path.push([r, r % 2 ? n - 1 - k : k]);
+                }
+                const occ = new Uint8Array(n * n);
+                path.forEach(([r, c]) => { occ[r * n + c] = 1; });
+                const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+
+                for (let it = 0; it < 80 * m; it++) {
+                    const flip = Math.random() < 0.5;
+                    if (flip) path.reverse();
+                    const [r, c] = path[path.length - 1];
+                    const [pr, pc] = path[path.length - 2];
+                    const [dr, dc] = DIRS[randInt(4)];
+                    const nr = r + dr, nc = c + dc;
+                    if (nr >= 0 && nr < n && nc >= 0 && nc < n && !(nr === pr && nc === pc)) {
+                        if (occ[nr * n + nc]) {
+                            const j = path.findIndex(([a, b]) => a === nr && b === nc);
+                            path = path.slice(0, j + 1).concat(path.slice(j + 1).reverse());
+                        } else {
+                            const [tr, tc] = path.shift();
+                            occ[tr * n + tc] = 0;
+                            path.push([nr, nc]);
+                            occ[nr * n + nc] = 1;
+                        }
+                    }
+                    if (flip) path.reverse();
+                }
+                return path;
+            }
+
+            function randomPath(size) {
+                const { n, m, s, chars } = randomPlan(size);
+                const cells = randomCells(n, m);
+
+                const frontFree = (a, b) => !cells.some(([r, c]) => r === 2 * a[0] - b[0] && c === 2 * a[1] - b[1]);
+                if (!frontFree(cells[0], cells[1]) && frontFree(cells[m - 1], cells[m - 2])) cells.reverse();
+
+                const wp = [];
+                cells.forEach(([r, c], i) => {
+                    if (i === 0 || i === m - 1) { wp.push([c * s, r * s]); return; }
+                    const [pr, pc] = cells[i - 1], [nr, nc] = cells[i + 1];
+                    if (r - pr !== nr - r || c - pc !== nc - c) wp.push([c * s, r * s]);
+                });
+                return { pts: roundCorners(wp, s / 2), spacing: s, fixedChars: chars };
+            }
+
+            const rowsFor = (size) => Math.round(2 + ((size - 1.5) / 4.5) * 7);
+
+            function generatePath(shape, size) {
+                switch (shape) {
+                    case 'square': return rectSpiralPath(840, 840, size);
+                    case 'rectangle': return rectSpiralPath(960, 660, size);
+                    case 'long': return serpentinePath(rowsFor(size));
+                    case 'random': return randomPath(size);
+                    default: return circlePath(size);
+                }
+            }
+
+            function describeSize(shape, size) {
+                if (shape === 'long') return `${rowsFor(size)} rows`;
+                if (shape === 'random') return `size ${randomN(size) - 4}`;
+                return `${size} coils`;
+            }
+
+            function buildGeometry(shape, size) {
+                const base = generatePath(shape, size);
+                const mt = metrics(base.spacing);
+
+                const pts = [];
+                const cum = [0];
+                for (const p of base.pts) {
+                    const q = pts[pts.length - 1];
+                    if (q) {
+                        const dist = Math.hypot(p[0] - q[0], p[1] - q[1]);
+                        if (dist < 1e-6) continue;
+                        cum.push(cum[cum.length - 1] + dist);
+                    }
+                    pts.push(p);
+                }
+                const length = cum[cum.length - 1];
+
+                const avail = length - mt.startGap - 6;
+                const numChars = base.fixedChars !== undefined ? base.fixedChars : Math.max(0, Math.floor(avail / mt.slot));
+                const slot = base.fixedChars !== undefined && numChars ? avail / numChars : mt.slot;
+
+                const at = (s) => {
+                    s = Math.max(0, Math.min(length, s));
+                    let lo = 0, hi = cum.length - 1;
+                    while (hi - lo > 1) {
+                        const mid = (lo + hi) >> 1;
+                        if (cum[mid] <= s) lo = mid; else hi = mid;
+                    }
+                    const f = (s - cum[lo]) / (cum[hi] - cum[lo]);
+                    return [pts[lo][0] + (pts[hi][0] - pts[lo][0]) * f, pts[lo][1] + (pts[hi][1] - pts[lo][1]) * f];
+                };
+
+                const slots = [];
+                const delta = Math.max(4, slot * 0.5);
+                for (let i = 0; i < numChars; i++) {
+                    const s = mt.startGap + (i + 0.5) * slot;
+                    const p = at(s), a = at(s - delta), b = at(s + delta);
+                    slots.push({ x: p[0], y: p[1], deg: (Math.atan2(b[1] - a[1], b[0] - a[0]) * 180) / Math.PI });
+                }
+
+                const tx = pts[1][0] - pts[0][0], ty = pts[1][1] - pts[0][1], tl = Math.hypot(tx, ty);
+                const head = {
+                    x: pts[0][0],
+                    y: pts[0][1],
+                    deg: (Math.atan2(tx / tl, -ty / tl) * 180) / Math.PI,
+                    scale: mt.headScale,
+                };
+
+                let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+                const grow = (x, y, pad) => {
+                    minX = Math.min(minX, x - pad); maxX = Math.max(maxX, x + pad);
+                    minY = Math.min(minY, y - pad); maxY = Math.max(maxY, y + pad);
+                };
+                for (const [x, y] of pts) grow(x, y, mt.bodyW / 2);
+                const rad = (head.deg * Math.PI) / 180, cos = Math.cos(rad), sin = Math.sin(rad);
+                for (const [lx, ly] of [[-40, -28], [40, -28], [40, 60], [-40, 60], [0, 95]]) {
+                    const x = lx * head.scale, y = ly * head.scale;
+                    grow(head.x + x * cos - y * sin, head.y + x * sin + y * cos, 3);
+                }
+                const margin = 14;
+                const vb = {
+                    x: round1(minX - margin), y: round1(minY - margin),
+                    w: round1(maxX - minX + margin * 2), h: round1(maxY - minY + margin * 2),
+                };
+
+                const d = pts.map((p, i) => `${i ? 'L' : 'M'}${round1(p[0])} ${round1(p[1])}`).join(' ');
+                return { d, bodyW: mt.bodyW, edge: mt.edge, fontSize: mt.fontSize, numChars, slots, head, vb };
+            }
+
+            const letterLimit = (numChars, wordCount) => numChars - (wordCount + 1);
+
+            /** Spread the words along the snake in input order and fill every other slot with random letters. */
+            function placeWords(words, numChars) {
+                const letters = words.reduce((sum, w) => sum + w.length, 0);
+                const gaps = new Array(words.length + 1).fill(1);
+                for (let spare = numChars - letters - gaps.length; spare > 0; spare--) {
+                    gaps[randInt(gaps.length)]++;
+                }
+                const filler = () => ALPHABET[randInt(26)];
+                const chars = [];
+                words.forEach((word, i) => {
+                    for (let g = 0; g < gaps[i]; g++) chars.push({ ch: filler(), isWord: false });
+                    for (const ch of word) chars.push({ ch, isWord: true });
+                });
+                for (let g = 0; g < gaps[words.length]; g++) chars.push({ ch: filler(), isWord: false });
+                return chars;
+            }
+
+            /** Build the complete SVG markup. */
+            function snakeSVG(geo, chars, wordCount) {
+                const { d, bodyW, edge, fontSize, slots, head, vb } = geo;
+                const letters = chars.map((entry, i) => {
+                    const c = typeof entry === 'string' ? entry : entry.ch;
+                    const isWord = typeof entry === 'object' && entry.isWord;
+                    const s = slots[i];
+                    const squeeze = WIDE_LETTERS.has(c) ? ' scale(.86 1)' : '';
+                    const attr = isWord ? ' data-word="1"' : ' data-filler="1"';
+                    return `<text${attr} transform="translate(${round1(s.x)} ${round1(s.y)}) rotate(${round1(s.deg)})${squeeze}" dy=".35em">${c}</text>`;
+                }).join('');
+
+                return `<svg viewBox="${vb.x} ${vb.y} ${vb.w} ${vb.h}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Word snake puzzle hiding ${wordCount} word${wordCount === 1 ? '' : 's'}" xmlns="http://www.w3.org/2000/svg">
+<path class="snake-edge" d="${d}" fill="none" stroke-width="${round1(bodyW)}" stroke-linecap="round" stroke-linejoin="round"/>
+<path class="snake-body" d="${d}" fill="none" stroke-width="${round1(bodyW - edge * 2)}" stroke-linecap="round" stroke-linejoin="round"/>
+<g class="snake-letters" font-size="${round1(fontSize)}" text-anchor="middle">${letters}</g>
+<g transform="translate(${round1(head.x)} ${round1(head.y)}) rotate(${round1(head.deg)}) scale(${round1(head.scale * 100) / 100})">
+<path class="snake-head" stroke-width="6" d="M -35,0 C -35,-30 35,-30 35,0 C 35,45 20,55 0,55 C -20,55 -35,45 -35,0 Z"/>
+<circle class="snake-eye" cx="-14" cy="-5" r="7"/><circle class="snake-eye" cx="14" cy="-5" r="7"/>
+<circle class="snake-glint" cx="-14" cy="-7" r="2.5"/><circle class="snake-glint" cx="14" cy="-7" r="2.5"/>
+<path class="snake-tongue" d="M 0,55 L 0,80 L -12,90 M 0,80 L 12,90" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+</g>
+</svg>`;
+            }
+
+            // ===== UI & PERSISTENCE =============================================
+
+            const STORAGE_KEY = 'klasskit_word_snake_v1';
+            const SETS_KEY = 'klasskit_word_snake_sets_v1';
+            const CLOUD_TOOL_KEY = 'word-snake';
+
+            const $ = (id) => document.getElementById(id);
+            const el = {
+                sidebar: $('sidebar'),
+                toggleSidebar: $('toggle-sidebar-btn'),
+                toggleSidebarIcon: $('sidebar-toggle-icon'),
+                slider: $('size-slider'),
+                display: $('size-display'),
+                input: $('word-input'),
+                capacity: $('capacity'),
+                status: $('status'),
+                generate: $('generate-btn'),
+                print: $('print-btn'),
+                printKey: $('print-key-btn'),
+                theme: $('theme-btn'),
+                empty: $('empty-state'),
+                wrapper: $('svg-wrapper'),
+                bank: $('word-bank'),
+                bankEmpty: $('word-bank-empty'),
+                wordCountBadge: $('word-count-badge'),
+                printArea: $('print-area'),
+                printHeading: $('print-heading'),
+                printSubheading: $('print-subheading'),
+                printSvg: $('print-svg-container'),
+                printBank: $('print-word-bank'),
+                pageStyle: $('page-style'),
+                answerToggle: $('answer-toggle-btn'),
+                clearWords: $('clear-words-btn'),
+                newSet: $('new-set-btn'),
+                saveSet: $('save-set-btn'),
+                librarySort: $('library-sort'),
+                libraryList: $('library-list'),
+                activeSetBanner: $('active-set-banner'),
+                activeSetName: $('active-set-name'),
+                closeSet: $('close-set-btn'),
+            };
+
+            let activeSetId = null;
+            let showAnswers = false;
+            let cloudSaveTimer = null;
+
+            const choice = (name) => document.querySelector(`input[name="${name}"]:checked`)?.value || 'circle';
+            const setRadio = (name, val) => {
+                const r = document.querySelector(`input[name="${name}"][value="${val}"]`);
+                if (r) r.checked = true;
+            };
+            const currentSize = () => parseFloat(el.slider.value);
+
+            const DEFAULT_ORIENT = { circle: 'portrait', square: 'portrait', rectangle: 'landscape', long: 'landscape', random: 'portrait' };
+
+            const geometryCache = new Map();
+            function geometryFor(shape, size) {
+                if (shape === 'random') return buildGeometry(shape, size);
+                const key = `${shape}|${size}`;
+                if (!geometryCache.has(key)) geometryCache.set(key, buildGeometry(shape, size));
+                return geometryCache.get(key);
+            }
+
+            const capacityFor = (shape, size) =>
+                shape === 'random' ? randomPlan(size).chars : geometryFor(shape, size).numChars;
+
+            // ----- Toast & Modals -----
+            function showToast(message, type = 'info') {
+                const container = $('toast-container');
+                if (!container) return;
+                const toast = document.createElement('div');
+                const colors = {
+                    success: 'bg-green text-dark border-dark',
+                    error: 'bg-pink text-white border-dark',
+                    info: 'bg-blue text-white border-dark',
+                    warning: 'bg-orange text-dark border-dark',
+                };
+                const icons = {
+                    success: 'check-circle',
+                    error: 'alert-circle',
+                    info: 'info',
+                    warning: 'alert-triangle',
+                };
+                toast.className = `${colors[type] || colors.info} px-5 py-3 rounded-2xl shadow-hard border-3 font-extrabold text-xs uppercase tracking-wider flex items-center gap-2 pointer-events-auto animate-pop-in`;
+                toast.innerHTML = `<i data-lucide="${icons[type] || 'info'}" class="w-4 h-4 shrink-0"></i><span></span>`;
+                toast.querySelector('span').textContent = message;
+                container.appendChild(toast);
+                if (window.lucide) window.lucide.createIcons({ nodes: [toast] });
+                setTimeout(() => {
+                    toast.style.opacity = '0';
+                    toast.style.transform = 'translateY(12px)';
+                    toast.style.transition = 'all 0.3s ease';
+                    setTimeout(() => toast.remove(), 320);
+                }, 2600);
+            }
+
+            function showConfirm(title, message) {
+                return new Promise((resolve) => {
+                    const modal = $('confirmModal');
+                    $('confirmTitle').textContent = title;
+                    $('confirmMessage').textContent = message;
+                    modal.classList.remove('hidden');
+                    modal.classList.add('flex');
+                    if (window.lucide) window.lucide.createIcons({ nodes: [modal] });
+
+                    const cleanup = (val) => {
+                        modal.classList.add('hidden');
+                        modal.classList.remove('flex');
+                        $('confirmBtnYes').onclick = null;
+                        $('confirmBtnNo').onclick = null;
+                        modal.onclick = null;
+                        resolve(val);
+                    };
+                    $('confirmBtnYes').onclick = () => cleanup(true);
+                    $('confirmBtnNo').onclick = () => cleanup(false);
+                    modal.onclick = (e) => { if (e.target === modal) cleanup(false); };
+                });
+            }
+
+            // ----- Persistence (LocalStorage + Cloud) -----
+            function getWorkspaceData() {
+                return {
+                    words: el.input.value,
+                    shape: choice('shape'),
+                    size: currentSize(),
+                    orient: choice('page-orient'),
+                    activeSetId
+                };
+            }
+
+            function applyWorkspaceData(data) {
+                if (!data) return;
+                if (typeof data.words === 'string') el.input.value = data.words;
+                if (data.shape) setRadio('shape', data.shape);
+                if (data.size) el.slider.value = data.size;
+                if (data.orient) setRadio('page-orient', data.orient);
+                if (data.activeSetId !== undefined) activeSetId = data.activeSetId;
+            }
+
+            function readSets() {
+                try {
+                    const raw = localStorage.getItem(SETS_KEY);
+                    const sets = raw ? JSON.parse(raw) : [];
+                    return Array.isArray(sets) ? sets : [];
+                } catch (e) { return []; }
+            }
+
+            function writeSets(sets) {
+                try { localStorage.setItem(SETS_KEY, JSON.stringify(sets)); } catch (e) { /* ignore */ }
+            }
+
+            function persistState() {
+                const ws = getWorkspaceData();
+                try { localStorage.setItem(STORAGE_KEY, JSON.stringify(ws)); } catch (e) { /* ignore */ }
+
+                if (activeSetId) {
+                    const sets = readSets();
+                    const idx = sets.findIndex((s) => s.id === activeSetId);
+                    if (idx !== -1) {
+                        sets[idx] = { ...sets[idx], ...ws, lastUsed: Date.now() };
+                        writeSets(sets);
+                        renderLibrary();
+                    }
+                }
+
+                clearTimeout(cloudSaveTimer);
+                cloudSaveTimer = setTimeout(() => {
+                    if (typeof window.saveProgress === 'function') {
+                        window.saveProgress(CLOUD_TOOL_KEY, {
+                            workspace: ws,
+                            sets: readSets()
+                        }).catch(() => {});
+                    }
+                }, 700);
+            }
+
+            async function loadPersistedState() {
+                try {
+                    const localRaw = localStorage.getItem(STORAGE_KEY);
+                    if (localRaw) applyWorkspaceData(JSON.parse(localRaw));
+                } catch (e) { /* ignore */ }
+
+                if (typeof window.loadProgress === 'function') {
+                    try {
+                        const cloud = await window.loadProgress(CLOUD_TOOL_KEY);
+                        if (cloud) {
+                            if (cloud.workspace) {
+                                applyWorkspaceData(cloud.workspace);
+                                localStorage.setItem(STORAGE_KEY, JSON.stringify(cloud.workspace));
+                            }
+                            if (Array.isArray(cloud.sets) && cloud.sets.length > 0 && readSets().length === 0) {
+                                writeSets(cloud.sets);
+                            }
+                        }
+                    } catch (e) { /* ignore */ }
+                }
+            }
+
+            function updateActiveSetBanner() {
+                const sets = readSets();
+                const current = sets.find((s) => s.id === activeSetId);
+                if (current) {
+                    el.activeSetBanner.classList.remove('hidden');
+                    el.activeSetName.textContent = current.name;
+                } else {
+                    activeSetId = null;
+                    el.activeSetBanner.classList.add('hidden');
+                }
+            }
+
+            function renderLibrary() {
+                const sets = readSets();
+                const sort = el.librarySort.value;
+                if (sort === 'recent') sets.sort((a, b) => (b.lastUsed || 0) - (a.lastUsed || 0));
+                else if (sort === 'alpha') sets.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+                else if (sort === 'popular') sets.sort((a, b) => (b.usageCount || 0) - (a.usageCount || 0));
+
+                updateActiveSetBanner();
+
+                if (!sets.length) {
+                    el.libraryList.innerHTML = `<p class="text-xs font-semibold text-slate-400 text-center py-3">No saved sets yet.</p>`;
+                    return;
+                }
+
+                el.libraryList.innerHTML = sets.map((s) => {
+                    const isActive = s.id === activeSetId;
+                    const count = parseWords(s.words || '').length;
+                    return `
+                        <div class="flex items-center gap-2 p-2 rounded-xl border-2 ${isActive ? 'border-blue bg-blue/10' : 'border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60'} hover:border-blue transition-colors">
+                            <button type="button" data-load-id="${s.id}" class="flex-1 text-left min-w-0">
+                                <p class="text-xs font-extrabold truncate flex items-center gap-1.5">
+                                    <span></span>
+                                    ${isActive ? '<span class="px-1.5 py-0.2 rounded bg-blue text-white text-[9px] uppercase">Active</span>' : ''}
+                                </p>
+                                <p class="text-[10px] font-bold text-slate-400">${count} words · ${s.shape || 'circle'}</p>
+                            </button>
+                            <button type="button" data-delete-id="${s.id}" class="p-1.5 rounded-lg text-slate-400 hover:text-pink hover:bg-pink/10 transition-colors" title="Delete set">
+                                <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                            </button>
+                        </div>
+                    `;
+                }).join('');
+
+                // Safely populate set names
+                const loadBtns = el.libraryList.querySelectorAll('[data-load-id]');
+                sets.forEach((s, idx) => {
+                    const span = loadBtns[idx]?.querySelector('p span:first-child');
+                    if (span) span.textContent = s.name;
+                });
+
+                if (window.lucide) window.lucide.createIcons({ nodes: [el.libraryList] });
+            }
+
+            // ----- Core UI Updates -----
+            function wordStats() {
+                const words = parseWords(el.input.value);
+                const used = words.reduce((sum, w) => sum + w.length, 0);
+                const limit = letterLimit(capacityFor(choice('shape'), currentSize()), words.length);
+                return { words, used, limit };
+            }
+
+            function updateCapacity() {
+                const { words, used, limit } = wordStats();
+                el.capacity.textContent = `${used} / ${Math.max(0, limit)} letters`;
+                const over = used > limit;
+                el.capacity.classList.toggle('bg-pink/20', over);
+                el.capacity.classList.toggle('border-pink', over);
+                el.capacity.classList.toggle('text-pink', over);
+                el.wordCountBadge.textContent = `${words.length} word${words.length === 1 ? '' : 's'}`;
+            }
+
+            function updateSizeLabel() {
+                const label = describeSize(choice('shape'), currentSize());
+                el.display.textContent = label;
+                el.slider.setAttribute('aria-valuetext', label);
+            }
+
+            function applyPage() {
+                el.pageStyle.textContent = `@page { size: A4 ${choice('page-orient')}; margin: 0; }`;
+            }
+
+            function showStatus(message) {
+                el.status.textContent = message;
+                el.status.classList.remove('hidden');
+            }
+
+            function clearStatus() {
+                el.status.textContent = '';
+                el.status.classList.add('hidden');
+            }
+
+            function renderWordBank(words) {
+                const sorted = [...words].sort();
+
+                el.bank.replaceChildren(...sorted.map((w) => {
+                    const li = document.createElement('li');
+                    li.className = 'px-3 py-1 rounded-full text-xs font-extrabold uppercase bg-white dark:bg-slate-800 text-dark dark:text-white border-2 border-dark dark:border-slate-500 shadow-hard-sm';
+                    li.textContent = w;
+                    return li;
+                }));
+
+                el.printBank.replaceChildren(...sorted.map((w) => {
+                    const div = document.createElement('div');
+                    div.className = 'print-word';
+                    div.textContent = w;
+                    return div;
+                }));
+
+                el.bankEmpty.classList.toggle('hidden', sorted.length > 0);
+            }
+
+            function generate(silent = false) {
+                const { words, used, limit } = wordStats();
+
+                if (words.length === 0) {
+                    if (!silent) showStatus('Add at least one word to hide inside the snake.');
+                    el.wrapper.classList.add('hidden');
+                    el.empty.classList.remove('hidden');
+                    el.bank.replaceChildren();
+                    el.bankEmpty.classList.remove('hidden');
+                    el.print.disabled = true;
+                    el.printKey.disabled = true;
+                    return;
+                }
+                if (used > limit) {
+                    showStatus(`Too many letters: your words use ${used}, but this snake holds ${Math.max(0, limit)}. Make the snake longer or remove words.`);
+                    return;
+                }
+
+                clearStatus();
+                const geo = geometryFor(choice('shape'), currentSize());
+                const svg = snakeSVG(geo, placeWords(words, geo.numChars), words.length);
+
+                el.wrapper.innerHTML = svg;
+                el.printSvg.innerHTML = svg;
+                el.empty.classList.add('hidden');
+                el.wrapper.classList.remove('hidden');
+                renderWordBank(words);
+                el.print.disabled = false;
+                el.printKey.disabled = false;
+                persistState();
+            }
+
+            function printHandout(asKey = false) {
+                el.printArea.classList.toggle('show-answers', asKey);
+                el.printHeading.textContent = asKey ? 'Word Snake — Key' : 'Word Snake';
+                window.print();
+                setTimeout(() => {
+                    el.printArea.classList.remove('show-answers');
+                    el.printHeading.textContent = 'Word Snake';
+                }, 250);
+            }
+
+            function setTheme(dark) {
+                document.documentElement.classList.toggle('dark', dark);
+                el.theme.setAttribute('aria-pressed', String(dark));
+                try {
+                    localStorage.setItem('theme_word-snake', dark ? 'dark' : 'light');
+                    localStorage.setItem('klasskit-theme', dark ? 'dark' : 'light');
+                } catch (e) { /* ignore */ }
+            }
+
+            function toggleAnswers() {
+                showAnswers = !showAnswers;
+                el.wrapper.classList.toggle('show-answers', showAnswers);
+                el.answerToggle.setAttribute('aria-pressed', String(showAnswers));
+                el.answerToggle.classList.toggle('bg-pink', showAnswers);
+                el.answerToggle.classList.toggle('text-white', showAnswers);
+                el.answerToggle.querySelector('span').textContent = showAnswers ? 'Hide Answers' : 'Reveal Answers';
+            }
+
+            function onShapeChange() {
+                setRadio('page-orient', DEFAULT_ORIENT[choice('shape')] || 'portrait');
+                applyPage();
+                updateSizeLabel();
+                updateCapacity();
+                generate(true);
+            }
+
+            // ----- Event Wiring -----
+            document.querySelectorAll('input[name="shape"]').forEach((r) => r.addEventListener('change', onShapeChange));
+            document.querySelectorAll('input[name="page-orient"]').forEach((r) => r.addEventListener('change', () => {
+                applyPage();
+                persistState();
+            }));
+            el.slider.addEventListener('input', () => {
+                updateSizeLabel();
+                updateCapacity();
+                persistState();
+            });
+            el.slider.addEventListener('change', () => generate(true));
+            el.input.addEventListener('input', () => {
+                updateCapacity();
+                persistState();
+            });
+
+            el.generate.addEventListener('click', () => generate(false));
+            el.print.addEventListener('click', () => printHandout(false));
+            el.printKey.addEventListener('click', () => printHandout(true));
+            el.theme.addEventListener('click', () => setTheme(!document.documentElement.classList.contains('dark')));
+            el.answerToggle.addEventListener('click', toggleAnswers);
+
+            el.toggleSidebar?.addEventListener('click', () => {
+                const collapsed = el.sidebar.classList.toggle('sidebar-collapsed');
+                el.toggleSidebarIcon.setAttribute('data-lucide', collapsed ? 'panel-left-open' : 'panel-left-close');
+                if (window.lucide) window.lucide.createIcons({ nodes: [el.toggleSidebar] });
+            });
+
+            document.querySelectorAll('[data-preset]').forEach((btn) => {
+                btn.addEventListener('click', () => {
+                    const key = btn.getAttribute('data-preset');
+                    if (PRESETS[key]) {
+                        el.input.value = PRESETS[key];
+                        updateCapacity();
+                        generate(false);
+                        showToast(`Loaded ${key} preset`, 'info');
+                    }
+                });
+            });
+
+            el.clearWords.addEventListener('click', () => {
+                el.input.value = '';
+                updateCapacity();
+                generate(true);
+                persistState();
+            });
+
+            // Saved Sets actions
+            el.newSet.addEventListener('click', async () => {
+                const ok = await showConfirm('Start New Workspace?', 'This will detach from any active saved set and load default settings.');
+                if (!ok) return;
+                activeSetId = null;
+                el.input.value = PRESETS.fruits;
+                setRadio('shape', 'circle');
+                el.slider.value = '3.5';
+                setRadio('page-orient', 'portrait');
+                applyPage();
+                updateSizeLabel();
+                updateCapacity();
+                renderLibrary();
+                generate(false);
+                showToast('New workspace ready', 'info');
+            });
+
+            el.saveSet.addEventListener('click', () => {
+                const modal = $('saveModal');
+                const input = $('save-set-input');
+                const current = readSets().find((s) => s.id === activeSetId);
+                input.value = current ? current.name : '';
+                modal.classList.remove('hidden');
+                modal.classList.add('flex');
+                setTimeout(() => input.focus(), 50);
+            });
+
+            const closeSaveModal = () => {
+                const modal = $('saveModal');
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+            };
+
+            $('save-modal-cancel').addEventListener('click', closeSaveModal);
+            $('saveModal').addEventListener('click', (e) => { if (e.target === $('saveModal')) closeSaveModal(); });
+
+            const confirmSaveSet = () => {
+                const name = $('save-set-input').value.trim();
+                if (!name) {
+                    showToast('Please enter a set name', 'warning');
+                    return;
+                }
+                const sets = readSets();
+                const now = Date.now();
+                const id = 'ws_' + now;
+                sets.push({
+                    id,
+                    name,
+                    ...getWorkspaceData(),
+                    createdAt: now,
+                    lastUsed: now,
+                    usageCount: 1
+                });
+                activeSetId = id;
+                writeSets(sets);
+                closeSaveModal();
+                renderLibrary();
+                persistState();
+                showToast(`Saved "${name}"`, 'success');
+            };
+
+            $('save-modal-confirm').addEventListener('click', confirmSaveSet);
+            $('save-set-input').addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') { e.preventDefault(); confirmSaveSet(); }
+                if (e.key === 'Escape') closeSaveModal();
+            });
+
+            el.closeSet.addEventListener('click', () => {
+                activeSetId = null;
+                renderLibrary();
+                persistState();
+            });
+
+            el.librarySort.addEventListener('change', renderLibrary);
+
+            el.libraryList.addEventListener('click', async (e) => {
+                const loadBtn = e.target.closest('[data-load-id]');
+                if (loadBtn) {
+                    const id = loadBtn.getAttribute('data-load-id');
+                    const sets = readSets();
+                    const item = sets.find((s) => s.id === id);
+                    if (!item) return;
+                    activeSetId = id;
+                    item.lastUsed = Date.now();
+                    item.usageCount = (item.usageCount || 0) + 1;
+                    writeSets(sets);
+                    applyWorkspaceData(item);
+                    applyPage();
+                    updateSizeLabel();
+                    updateCapacity();
+                    renderLibrary();
+                    generate(false);
+                    showToast(`Loaded "${item.name}"`, 'success');
+                    return;
+                }
+
+                const delBtn = e.target.closest('[data-delete-id]');
+                if (delBtn) {
+                    const id = delBtn.getAttribute('data-delete-id');
+                    const sets = readSets();
+                    const item = sets.find((s) => s.id === id);
+                    if (!item) return;
+                    const ok = await showConfirm('Delete Saved Set?', `Delete "${item.name}" from your saved sets?`);
+                    if (!ok) return;
+                    writeSets(sets.filter((s) => s.id !== id));
+                    if (activeSetId === id) activeSetId = null;
+                    renderLibrary();
+                    persistState();
+                    showToast('Set deleted', 'info');
+                }
+            });
+
+            // ----- Startup -----
+            (async function init() {
+                await loadPersistedState();
+                el.theme.setAttribute('aria-pressed', String(document.documentElement.classList.contains('dark')));
+                applyPage();
+                updateSizeLabel();
+                updateCapacity();
+                renderLibrary();
+                generate(true);
+                if (window.lucide) window.lucide.createIcons();
+            })();
+        })();
+    </script>
+</body>
+
+</html>

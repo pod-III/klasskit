@@ -1,0 +1,1538 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Running Dictation Generator — KlassKit</title>
+    <link rel="icon" type="image/x-icon" href="../../../media/icon.ico" />
+    <link rel="icon" type="image/webp" href="../../../media/icon.webp" />
+
+    <!-- Apply the saved theme before first paint (syncs with KlassKit Hub) -->
+    <script>
+        (function () {
+            function readTheme(key) {
+                try {
+                    var raw = localStorage.getItem(key);
+                    if (raw == null) return null;
+                    try { return JSON.parse(raw); } catch (e) { return raw; }
+                } catch (e) { return null; }
+            }
+            function syncTheme() {
+                var toolTheme = readTheme('theme_running-dictation') || readTheme('klasskit-theme');
+                var hubTheme = readTheme('theme_hub');
+                var isDark = toolTheme
+                    ? toolTheme === 'dark'
+                    : hubTheme
+                        ? hubTheme === 'dark'
+                        : window.matchMedia('(prefers-color-scheme: dark)').matches;
+                document.documentElement.classList.toggle('dark', isDark);
+            }
+            syncTheme();
+            window.addEventListener('storage', function (e) {
+                if (e.key === 'theme_hub' || e.key === 'theme_running-dictation' || e.key === 'klasskit-theme') {
+                    syncTheme();
+                }
+            });
+        })();
+    </script>
+
+    <!-- Supabase Auth & Cloud Persistence -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.105.4"></script>
+    <script src="/supabase.js"></script>
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+
+    <!-- Libraries -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@1.16.0"></script>
+
+    <!-- Shared KlassKit Styles -->
+    <link rel="stylesheet" href="../../../css/base.css" />
+    <link rel="stylesheet" href="../../../css/components.css" />
+
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        pink: '#ff4785',
+                        orange: '#ff7e33',
+                        green: '#00d063',
+                        blue: '#1ea7fd',
+                        dark: '#1e293b',
+                        chalk: '#f8fafc',
+                        brand: {
+                            pink: '#ff4785',
+                            orange: '#ff7e33',
+                            green: '#00d063',
+                            blue: '#1ea7fd',
+                            dark: '#1e293b',
+                            chalk: '#f8fafc',
+                        }
+                    },
+                    fontFamily: {
+                        heading: ['Fredoka', 'sans-serif'],
+                        body: ['Nunito', 'sans-serif'],
+                    },
+                    boxShadow: {
+                        'hard': '4px 4px 0 0 var(--shadow)',
+                        'hard-md': '6px 6px 0 0 var(--shadow)',
+                        'hard-lg': '8px 8px 0 0 var(--shadow)',
+                        'hard-sm': '2px 2px 0 0 var(--shadow)',
+                        'inner-hard': 'inset 3px 3px 0 0 rgba(30, 41, 59, 0.12)',
+                    },
+                    animation: {
+                        'pop-in': 'pop-in 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards',
+                        'slide-down': 'slide-down 0.25s cubic-bezier(0.2, 0.8, 0.2, 1) forwards',
+                    }
+                },
+            },
+        };
+    </script>
+
+    <style>
+        /* ---------- Theme tokens (light = chalk paper, dark = OLED slate) ---------- */
+        :root {
+            --line: #1e293b;
+            --ink: #1e293b;
+            --surface: #ffffff;
+            --muted: #64748b;
+            --shadow: #1e293b;
+            --dots: #cbd5e1;
+            --word-hover: #e2e8f0;
+            --track: #f1f5f9;
+        }
+
+        .dark {
+            --line: #64748b;
+            --ink: #f8fafc;
+            --surface: #1e293b;
+            --muted: #94a3b8;
+            --shadow: #000000;
+            --dots: #334155;
+            --word-hover: #334155;
+            --track: #0f172a;
+        }
+
+        body {
+            overflow: hidden;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        @media (max-width: 768px) {
+            body { padding-bottom: 0 !important; }
+        }
+
+        /* ---------- Chunky physical buttons ---------- */
+        .btn-chunky {
+            font-family: 'Fredoka', sans-serif;
+            font-weight: 700;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+            user-select: none;
+            border: 3px solid var(--line);
+            box-shadow: 0 4px 0 var(--shadow);
+            transition: transform 0.12s ease, box-shadow 0.12s ease, background-color 0.15s ease, color 0.15s ease;
+        }
+
+        .btn-chunky:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 0 var(--shadow);
+        }
+
+        .btn-chunky:active:not(:disabled) {
+            transform: translateY(4px);
+            box-shadow: 0 0 0 var(--shadow);
+        }
+
+        .btn-chunky:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            box-shadow: 0 2px 0 var(--shadow);
+        }
+
+        .btn-chunky:focus-visible,
+        .chunky-range:focus-visible {
+            outline: 3px solid var(--color-blue);
+            outline-offset: 2px;
+        }
+
+        /* ---------- Segmented radio buttons ---------- */
+        .field-label {
+            font-family: 'Fredoka', sans-serif;
+            font-size: 0.75rem;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: var(--muted);
+        }
+
+        .seg { position: relative; display: block; }
+        .seg input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
+
+        .seg span {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.35rem;
+            padding: 0.5rem 0.25rem;
+            font-family: 'Fredoka', sans-serif;
+            font-size: 0.75rem;
+            font-weight: 700;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            user-select: none;
+            color: var(--ink);
+            background: var(--surface);
+            border: 2.5px solid var(--line);
+            border-radius: 0.75rem;
+            box-shadow: 0 3px 0 var(--shadow);
+            transition: transform 0.12s ease, box-shadow 0.12s ease, background-color 0.15s ease;
+        }
+
+        .seg:hover input:not(:checked) + span { transform: translateY(-2px); box-shadow: 0 5px 0 var(--shadow); }
+        .seg:active input + span { transform: translateY(2px); box-shadow: 0 0 0 var(--shadow); }
+        .seg input:checked + span {
+            background: var(--color-green);
+            color: #1e293b;
+            transform: translateY(1px);
+            box-shadow: 0 2px 0 var(--shadow);
+        }
+        .seg input:focus-visible + span { outline: 3px solid var(--color-blue); outline-offset: 2px; }
+
+        /* ---------- Chunky range slider ---------- */
+        .chunky-range {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 100%;
+            height: 24px;
+            background: transparent;
+            cursor: pointer;
+        }
+
+        .chunky-range::-webkit-slider-runnable-track {
+            height: 12px;
+            box-sizing: border-box;
+            border: 2.5px solid var(--line);
+            border-radius: 9999px;
+            background: var(--track);
+        }
+
+        .chunky-range::-moz-range-track {
+            height: 12px;
+            box-sizing: border-box;
+            border: 2.5px solid var(--line);
+            border-radius: 9999px;
+            background: var(--track);
+        }
+
+        .chunky-range::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 24px;
+            height: 24px;
+            margin-top: -8px;
+            border-radius: 9999px;
+            background: var(--color-blue);
+            border: 3px solid var(--line);
+            box-shadow: 0 2px 0 var(--shadow);
+            transition: transform 0.1s ease;
+        }
+
+        .chunky-range::-webkit-slider-thumb:hover {
+            transform: scale(1.1);
+        }
+
+        .chunky-range::-moz-range-thumb {
+            width: 18px;
+            height: 18px;
+            border-radius: 9999px;
+            background: var(--color-blue);
+            border: 3px solid var(--line);
+            box-shadow: 0 2px 0 var(--shadow);
+        }
+
+        textarea {
+            background-image: radial-gradient(var(--dots) 1.5px, transparent 1.5px);
+            background-size: 16px 16px;
+            line-height: 1.5;
+            user-select: text;
+        }
+
+        /* ---------- Interactive text (screen) ---------- */
+        #interactive-area {
+            font-size: 1.45rem;
+            line-height: 2.05;
+        }
+
+        .ln {
+            white-space: pre-wrap;
+            overflow-wrap: anywhere;
+        }
+
+        .ln-gap { height: 1.5rem; }
+
+        #interactive-area.lazy .ln {
+            content-visibility: auto;
+            contain-intrinsic-size: auto 3rem;
+        }
+
+        .word {
+            cursor: pointer;
+            padding: 2px 5px;
+            margin: 0 1px;
+            border: 2px solid transparent;
+            border-radius: 8px;
+            user-select: none;
+            touch-action: manipulation;
+            transition: background-color 0.15s ease, border-color 0.15s ease, transform 0.12s ease;
+        }
+
+        .word:hover:not(.blanked) {
+            background-color: var(--word-hover);
+            border-color: var(--dots);
+        }
+
+        .word.blanked {
+            display: inline-block;
+            line-height: 1.4;
+            font-weight: 800;
+            background-color: #ff4785;
+            color: #ffffff;
+            border-color: var(--line);
+            box-shadow: 2px 2px 0 0 var(--shadow);
+            transform: translateY(-2px);
+        }
+
+        /* ---------- Printed & Preview text styles ---------- */
+        .wall-text {
+            white-space: pre-wrap;
+            overflow-wrap: break-word;
+            line-height: 1.65;
+            font-weight: 700;
+        }
+
+        .ws-text {
+            white-space: pre-wrap;
+            overflow-wrap: break-word;
+            line-height: 2.25;
+            font-weight: 600;
+        }
+
+        .ws-text .blank {
+            display: inline-block;
+            min-width: 3.5em;
+            padding: 0 4px;
+            margin: 0 2px;
+            text-align: center;
+            color: transparent;
+            border-bottom: 3px solid currentColor;
+            user-select: none;
+        }
+
+        #print-area .ws-text .blank {
+            border-bottom-color: #1e293b;
+        }
+
+        .word-bank-box {
+            margin-top: 1.5rem;
+            padding: 1rem 1.25rem;
+            border: 3px solid #1e293b;
+            border-radius: 0.75rem;
+            break-inside: avoid;
+        }
+
+        .word-bank-box h3 {
+            margin: 0 0 0.6rem;
+            font-family: 'Fredoka', sans-serif;
+            font-size: 1rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .word-bank-items {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem 1rem;
+            font-family: 'Nunito', sans-serif;
+            font-weight: 800;
+            font-size: 1.05rem;
+        }
+
+        /* Sidebar collapse transition */
+        #sidebar {
+            transition: width 0.25s cubic-bezier(0.2, 0.8, 0.2, 1), min-width 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
+        }
+        #sidebar.sidebar-collapsed {
+            width: 0 !important;
+            min-width: 0 !important;
+            border-right-width: 0 !important;
+            overflow: hidden !important;
+        }
+
+        /* ---------- PRINT (always light, whatever the on-screen theme) ---------- */
+        @page { size: A4 portrait; margin: 15mm; }
+
+        #print-area { color: #1e293b; font-family: 'Nunito', sans-serif; }
+
+        @media print {
+            html, body {
+                display: block !important;
+                width: auto !important;
+                height: auto !important;
+                padding: 0 !important;
+                margin: 0 !important;
+                overflow: visible !important;
+                background: #fff !important;
+                background-image: none !important;
+            }
+
+            #print-area { display: block !important; width: 100%; }
+
+            html[data-print="wall"] .page-worksheet,
+            html[data-print="sheet"] .page-wall-text { display: none !important; }
+
+            html[data-print="both"] .page-wall-text { break-after: page; page-break-after: always; }
+
+            .page-wall-text h1,
+            .worksheet-title h1 {
+                font-family: 'Fredoka', sans-serif;
+                text-transform: uppercase;
+                margin: 0;
+            }
+
+            .page-wall-text h1 {
+                font-size: 2rem;
+                margin-bottom: 1.75rem;
+                padding-bottom: 10px;
+                border-bottom: 4px solid #1e293b;
+            }
+
+            .worksheet-header {
+                display: flex;
+                justify-content: space-between;
+                align-items: flex-end;
+                margin-bottom: 1.75rem;
+                padding-bottom: 10px;
+                border-bottom: 4px solid #1e293b;
+                break-inside: avoid;
+            }
+
+            .worksheet-title h1 { font-size: 2.3rem; }
+
+            .worksheet-meta {
+                display: flex;
+                flex-direction: column;
+                gap: 12px;
+                min-width: 240px;
+                font-size: 1.15rem;
+                font-weight: 700;
+            }
+
+            .meta-line { display: flex; justify-content: space-between; align-items: flex-end; }
+            .meta-line span:last-child { flex-grow: 1; margin-left: 10px; border-bottom: 2px solid #1e293b; }
+        }
+    </style>
+    <style id="page-style"></style>
+</head>
+
+<body class="h-dvh w-screen flex items-center justify-center p-2 md:p-5 text-dark dark:text-white font-body">
+
+    <!-- MAIN CONSOLE -->
+    <div class="print:hidden relative w-full max-w-[1550px] h-full flex flex-col md:flex-row overflow-hidden bg-white dark:bg-slate-900 border-4 border-dark dark:border-slate-500 rounded-[2rem] shadow-hard-lg">
+
+        <!-- SIDEBAR: TEACHER CONTROLS -->
+        <aside id="sidebar" class="w-full md:w-[400px] h-[46%] md:h-full shrink-0 flex flex-col bg-white dark:bg-slate-900 border-b-4 md:border-b-0 md:border-r-4 border-dark dark:border-slate-500">
+
+            <!-- Header -->
+            <div class="p-4 lg:p-5 shrink-0 flex justify-between items-center gap-3 bg-blue/10 dark:bg-slate-800/80 border-b-4 border-dark dark:border-slate-500">
+                <div class="flex items-center gap-3 min-w-0">
+                    <div class="w-11 h-11 rounded-2xl bg-blue border-3 border-dark flex items-center justify-center shadow-hard-sm shrink-0 -rotate-2">
+                        <i data-lucide="footprints" stroke-width="2.75" class="w-6 h-6 text-white"></i>
+                    </div>
+                    <div class="min-w-0">
+                        <h1 class="font-heading text-2xl uppercase leading-none tracking-tight truncate">Running Dictation</h1>
+                        <p class="mt-1 text-[11px] font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-widest">KlassKit Tools</p>
+                    </div>
+                </div>
+                <button id="theme-btn" type="button" aria-pressed="false" aria-label="Toggle dark mode" title="Toggle Dark Mode"
+                    class="btn-chunky shrink-0 w-10 h-10 rounded-xl flex items-center justify-center bg-white dark:bg-slate-800 text-dark dark:text-white">
+                    <i data-lucide="moon" stroke-width="2.5" class="w-5 h-5 dark:hidden"></i>
+                    <i data-lucide="sun" stroke-width="2.5" class="w-5 h-5 hidden dark:block text-orange"></i>
+                </button>
+            </div>
+
+            <!-- Scrollable controls -->
+            <div class="flex-1 p-4 lg:p-5 overflow-y-auto custom-scrollbar flex flex-col gap-5">
+
+                <!-- Active Set Indicator -->
+                <div id="active-set-banner" class="hidden animate-pop-in p-3 rounded-2xl bg-blue/10 dark:bg-blue/20 border-2 border-blue flex items-center justify-between gap-2">
+                    <div class="flex items-center gap-2 min-w-0">
+                        <div class="w-8 h-8 rounded-xl bg-blue text-white flex items-center justify-center shrink-0 border-2 border-dark">
+                            <i data-lucide="bookmark-check" class="w-4 h-4"></i>
+                        </div>
+                        <div class="min-w-0">
+                            <p class="text-[10px] font-extrabold uppercase tracking-wider text-blue leading-none">Active Set (Auto-Saving)</p>
+                            <p id="active-set-name" class="text-xs font-extrabold truncate mt-0.5"></p>
+                        </div>
+                    </div>
+                    <button id="close-set-btn" type="button" title="Detach from saved set" class="p-1.5 rounded-lg hover:bg-blue/20 text-slate-500 dark:text-slate-300">
+                        <i data-lucide="x" class="w-4 h-4"></i>
+                    </button>
+                </div>
+
+                <!-- Source text -->
+                <div class="flex-1 flex flex-col gap-2 min-h-[175px]">
+                    <div class="flex items-center justify-between">
+                        <label for="source-text" class="field-label flex items-center gap-1.5">
+                            <i data-lucide="file-text" stroke-width="2.5" class="w-4 h-4 text-blue"></i> Source Text / Dialogue
+                        </label>
+                    </div>
+                    <!-- Presets -->
+                    <div class="flex flex-wrap items-center gap-1.5">
+                        <span class="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 mr-0.5">Presets:</span>
+                        <button type="button" data-preset="dialogue" class="px-2 py-0.5 rounded-lg text-[11px] font-extrabold bg-blue/15 hover:bg-blue/25 text-dark dark:text-white border border-blue/40 transition-colors">Dialogue</button>
+                        <button type="button" data-preset="story" class="px-2 py-0.5 rounded-lg text-[11px] font-extrabold bg-pink/15 hover:bg-pink/25 text-dark dark:text-white border border-pink/40 transition-colors">Story</button>
+                        <button type="button" data-preset="science" class="px-2 py-0.5 rounded-lg text-[11px] font-extrabold bg-green/15 hover:bg-green/25 text-dark dark:text-white border border-green/40 transition-colors">Science</button>
+                    </div>
+                    <textarea id="source-text" spellcheck="false"
+                        class="input-chunky w-full flex-1 min-h-[130px] p-3.5 rounded-xl resize-none font-body text-sm bg-slate-50 dark:bg-slate-800 text-dark dark:text-white border-2 border-dark dark:border-slate-500 outline-none focus:border-blue"
+                        placeholder="Paste or type your text here. Long texts are fine.">Vic: Hello, Vic!
+Ben: Hi, Ben
+Vic: Who is she?
+Ben: She is a doctor. Who is he?
+Vic: He is a farmer.</textarea>
+                </div>
+
+                <button id="build-btn" type="button" title="Ctrl + Enter"
+                    class="btn-chunky w-full shrink-0 py-3.5 rounded-xl text-base flex items-center justify-center gap-2 bg-green text-dark">
+                    <i data-lucide="blocks" stroke-width="2.75" class="w-5 h-5"></i> Build Interactive Text
+                </button>
+
+                <!-- Blanks -->
+                <div class="shrink-0 pt-4 flex flex-col gap-3.5 border-t-3 border-dashed border-slate-200 dark:border-slate-700">
+                    <div class="space-y-1.5">
+                        <div class="flex justify-between items-end">
+                            <label for="pct-slider" class="field-label flex items-center gap-1.5">
+                                <i data-lucide="sliders-horizontal" class="w-3.5 h-3.5 text-pink"></i> Random Blanks
+                            </label>
+                            <output id="pct-display" for="pct-slider" class="font-heading text-lg font-bold text-blue">25%</output>
+                        </div>
+                        <input type="range" id="pct-slider" class="chunky-range" min="5" max="60" step="5" value="25">
+                    </div>
+
+                    <label class="flex items-center gap-2.5 cursor-pointer text-xs font-extrabold">
+                        <input type="checkbox" id="skip-short" checked class="w-4 h-4 shrink-0 accent-blue cursor-pointer">
+                        <span>Skip short words <span class="font-semibold text-slate-500 dark:text-slate-400">(3 letters or fewer)</span></span>
+                    </label>
+
+                    <label class="flex items-center gap-2.5 cursor-pointer text-xs font-extrabold">
+                        <input type="checkbox" id="show-word-bank" class="w-4 h-4 shrink-0 accent-pink cursor-pointer">
+                        <span>Include Word Bank box on worksheet</span>
+                    </label>
+
+                    <div class="grid grid-cols-2 gap-2.5">
+                        <button id="random-btn" type="button"
+                            class="btn-chunky py-2.5 rounded-xl text-xs flex items-center justify-center gap-1.5 bg-pink text-white">
+                            <i data-lucide="dices" stroke-width="2.5" class="w-4 h-4"></i> Randomize
+                        </button>
+                        <button id="clear-btn" type="button"
+                            class="btn-chunky py-2.5 rounded-xl text-xs flex items-center justify-center gap-1.5 bg-orange text-dark">
+                            <i data-lucide="eraser" stroke-width="2.5" class="w-4 h-4"></i> Clear All
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Reading page (wall text) -->
+                <section class="shrink-0 pt-4 flex flex-col gap-2.5 border-t-3 border-dashed border-slate-200 dark:border-slate-700">
+                    <h2 class="field-label flex items-center gap-1.5">
+                        <i data-lucide="book-open" stroke-width="2.5" class="w-4 h-4 text-blue"></i> Reading Page
+                        <span class="font-body text-[11px] font-bold normal-case tracking-normal text-slate-400">(for the wall)</span>
+                    </h2>
+                    <fieldset>
+                        <legend class="field-label mb-1">Text Size</legend>
+                        <div class="grid grid-cols-4 gap-1.5">
+                            <label class="seg" title="Largest size that fits one page"><input type="radio" name="wall-size" value="auto" checked><span>Auto</span></label>
+                            <label class="seg" title="36 pt"><input type="radio" name="wall-size" value="large"><span>Large</span></label>
+                            <label class="seg" title="24 pt"><input type="radio" name="wall-size" value="medium"><span>Med</span></label>
+                            <label class="seg" title="16 pt"><input type="radio" name="wall-size" value="small"><span>Small</span></label>
+                        </div>
+                    </fieldset>
+                    <fieldset>
+                        <legend class="field-label mb-1">Page</legend>
+                        <div class="grid grid-cols-2 gap-2">
+                            <label class="seg"><input type="radio" name="wall-orient" value="portrait" checked><span><i data-lucide="rectangle-vertical" stroke-width="2.5" class="w-4 h-4"></i> Portrait</span></label>
+                            <label class="seg"><input type="radio" name="wall-orient" value="landscape"><span><i data-lucide="rectangle-horizontal" stroke-width="2.5" class="w-4 h-4"></i> Landscape</span></label>
+                        </div>
+                    </fieldset>
+                </section>
+
+                <!-- Worksheet (fill in the blanks) -->
+                <section class="shrink-0 pt-4 flex flex-col gap-2.5 border-t-3 border-dashed border-slate-200 dark:border-slate-700">
+                    <h2 class="field-label flex items-center gap-1.5">
+                        <i data-lucide="pencil-line" stroke-width="2.5" class="w-4 h-4 text-pink"></i> Worksheet
+                        <span class="font-body text-[11px] font-bold normal-case tracking-normal text-slate-400">(fill in the blanks)</span>
+                    </h2>
+                    <fieldset>
+                        <legend class="field-label mb-1">Text Size</legend>
+                        <div class="grid grid-cols-4 gap-1.5">
+                            <label class="seg" title="Largest size that fits one page"><input type="radio" name="sheet-size" value="auto" checked><span>Auto</span></label>
+                            <label class="seg" title="22 pt"><input type="radio" name="sheet-size" value="large"><span>Large</span></label>
+                            <label class="seg" title="18 pt"><input type="radio" name="sheet-size" value="medium"><span>Med</span></label>
+                            <label class="seg" title="14 pt"><input type="radio" name="sheet-size" value="small"><span>Small</span></label>
+                        </div>
+                    </fieldset>
+                    <fieldset>
+                        <legend class="field-label mb-1">Page</legend>
+                        <div class="grid grid-cols-2 gap-2">
+                            <label class="seg"><input type="radio" name="sheet-orient" value="portrait" checked><span><i data-lucide="rectangle-vertical" stroke-width="2.5" class="w-4 h-4"></i> Portrait</span></label>
+                            <label class="seg"><input type="radio" name="sheet-orient" value="landscape"><span><i data-lucide="rectangle-horizontal" stroke-width="2.5" class="w-4 h-4"></i> Landscape</span></label>
+                        </div>
+                    </fieldset>
+                </section>
+
+                <!-- Saved Sets Library -->
+                <section class="shrink-0 pt-4 border-t-3 border-dashed border-slate-200 dark:border-slate-700 space-y-3">
+                    <div class="flex items-center justify-between">
+                        <span class="field-label flex items-center gap-1.5">
+                            <i data-lucide="folder-heart" class="w-4 h-4 text-orange"></i> Saved Sets
+                        </span>
+                        <select id="library-sort" aria-label="Sort saved sets"
+                            class="text-[11px] font-extrabold bg-slate-100 dark:bg-slate-800 border-2 border-slate-300 dark:border-slate-600 rounded-lg px-2 py-0.5 text-dark dark:text-white">
+                            <option value="recent">Recent</option>
+                            <option value="alpha">A–Z</option>
+                            <option value="popular">Popular</option>
+                        </select>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <button id="new-set-btn" type="button"
+                            class="btn-chunky py-2 rounded-xl text-xs flex items-center justify-center gap-1.5 bg-white dark:bg-slate-800 text-dark dark:text-white">
+                            <i data-lucide="file-plus" class="w-3.5 h-3.5"></i> New
+                        </button>
+                        <button id="save-set-btn" type="button"
+                            class="btn-chunky py-2 rounded-xl text-xs flex items-center justify-center gap-1.5 bg-blue text-white">
+                            <i data-lucide="save" class="w-3.5 h-3.5"></i> Save As
+                        </button>
+                    </div>
+                    <div id="library-list" class="space-y-1.5 max-h-36 overflow-y-auto custom-scrollbar pr-1"></div>
+                </section>
+            </div>
+
+            <!-- Print actions -->
+            <div class="p-4 shrink-0 border-t-4 border-dark dark:border-slate-500 bg-slate-100 dark:bg-slate-800/90 space-y-2">
+                <p id="print-hint" role="status" class="hidden text-xs font-extrabold text-center text-pink"></p>
+                <div class="grid grid-cols-2 gap-2">
+                    <button id="print-wall-btn" type="button" title="Print the reading page"
+                        class="btn-chunky py-2.5 rounded-xl text-xs flex items-center justify-center gap-1.5 bg-white dark:bg-slate-900 text-dark dark:text-white">
+                        <i data-lucide="printer" stroke-width="2.5" class="w-4 h-4 text-blue"></i> Reading Page
+                    </button>
+                    <button id="print-sheet-btn" type="button" title="Print the worksheet"
+                        class="btn-chunky py-2.5 rounded-xl text-xs flex items-center justify-center gap-1.5 bg-white dark:bg-slate-900 text-dark dark:text-white">
+                        <i data-lucide="printer" stroke-width="2.5" class="w-4 h-4 text-pink"></i> Worksheet
+                    </button>
+                </div>
+                <button id="print-both-btn" type="button" title="Print both Reading Page and Worksheet"
+                    class="btn-chunky w-full py-2.5 rounded-xl text-xs flex items-center justify-center gap-1.5 bg-blue text-white">
+                    <i data-lucide="layers" stroke-width="2.5" class="w-4 h-4"></i> Print Both Pages
+                </button>
+            </div>
+        </aside>
+
+        <!-- PREVIEW -->
+        <main id="preview" class="flex-1 min-h-0 overflow-y-auto custom-scrollbar p-4 md:p-6 flex flex-col items-center gap-5 bg-slate-200/70 dark:bg-slate-950">
+
+            <!-- Top Toolbar -->
+            <div class="w-full max-w-[880px] flex flex-wrap items-center justify-between gap-2">
+                <button id="toggle-sidebar-btn" type="button" title="Toggle Controls Sidebar"
+                    class="btn-chunky hidden md:inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs bg-white/90 dark:bg-slate-800/90 backdrop-blur-md text-dark dark:text-white">
+                    <i data-lucide="panel-left-close" id="sidebar-toggle-icon" class="w-4 h-4"></i>
+                    <span>Controls</span>
+                </button>
+
+                <!-- Preview Mode Switcher -->
+                <div class="flex flex-wrap items-center gap-1.5 ml-auto bg-white/85 dark:bg-slate-800/85 backdrop-blur-md p-1.5 rounded-2xl border-3 border-dark dark:border-slate-500 shadow-hard-sm">
+                    <button type="button" data-view="builder" class="view-tab px-3 py-1.5 rounded-xl font-heading text-xs uppercase font-bold bg-green text-dark border-2 border-dark transition-all">
+                        Text Builder
+                    </button>
+                    <button type="button" data-view="worksheet" class="view-tab px-3 py-1.5 rounded-xl font-heading text-xs uppercase font-bold text-dark dark:text-white border-2 border-transparent hover:bg-slate-100 dark:hover:bg-slate-700 transition-all">
+                        Worksheet Preview
+                    </button>
+                    <button type="button" data-view="wall" class="view-tab px-3 py-1.5 rounded-xl font-heading text-xs uppercase font-bold text-dark dark:text-white border-2 border-transparent hover:bg-slate-100 dark:hover:bg-slate-700 transition-all">
+                        Wall Poster Preview
+                    </button>
+                </div>
+            </div>
+
+            <div class="w-full max-w-[880px] flex-1 p-6 md:p-10 flex flex-col bg-white dark:bg-slate-800 text-dark dark:text-white border-4 border-dark dark:border-slate-500 rounded-[2rem] shadow-hard-lg">
+                <div class="mb-6 pb-4 shrink-0 flex flex-wrap justify-between items-center gap-3 border-b-4 border-dark dark:border-slate-500">
+                    <div>
+                        <h2 id="preview-heading" class="mb-1 font-heading text-2xl md:text-3xl uppercase tracking-tight leading-none">Text Builder</h2>
+                        <p id="preview-subheading" class="text-xs md:text-sm font-bold text-slate-500 dark:text-slate-400">Click words to blank them out for the student worksheet.</p>
+                    </div>
+                    <p id="stats" class="sticker px-3 py-1 rounded-full text-xs font-extrabold bg-pink/15 text-dark dark:text-white border-2 border-dark dark:border-slate-500 rotate-1" aria-live="polite"></p>
+                </div>
+
+                <p id="preview-empty" class="hidden mt-10 text-center text-lg font-bold italic text-slate-500 dark:text-slate-400">
+                    Add some text on the left, then click "Build Interactive Text".
+                </p>
+                <div id="interactive-area" class="flex-1 font-body"></div>
+
+                <!-- On-screen Word Bank Preview -->
+                <div id="screen-word-bank" class="hidden mt-6 p-4 rounded-2xl bg-slate-50 dark:bg-slate-900 border-3 border-dark dark:border-slate-500 shadow-hard-sm">
+                    <h3 class="mb-2 font-heading text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+                        <i data-lucide="list-checks" class="w-4 h-4 text-pink"></i> Word Bank (Included on Worksheet)
+                    </h3>
+                    <div id="screen-word-bank-items" class="flex flex-wrap gap-2"></div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- SAVE AS MODAL -->
+    <div id="saveModal" class="hidden fixed inset-0 bg-dark/60 backdrop-blur-md z-[500] items-center justify-center p-4">
+        <div class="bg-white dark:bg-slate-800 w-full max-w-sm rounded-[2rem] border-4 border-dark dark:border-slate-500 shadow-hard-lg animate-pop-in overflow-hidden">
+            <div class="p-5 border-b-4 border-dark dark:border-slate-500 bg-blue/10 flex items-center gap-3">
+                <div class="w-11 h-11 rounded-2xl bg-blue flex items-center justify-center border-3 border-dark shadow-hard-sm shrink-0">
+                    <i data-lucide="bookmark-plus" class="w-5 h-5 text-white"></i>
+                </div>
+                <div>
+                    <h3 class="text-lg font-heading font-bold text-dark dark:text-white uppercase leading-tight">Save Dictation</h3>
+                    <p class="text-xs font-semibold text-slate-500 dark:text-slate-400">Save passage & blanks to your library</p>
+                </div>
+            </div>
+            <div class="p-5 space-y-4">
+                <div>
+                    <label for="save-set-input" class="field-label block mb-1.5">Set Name</label>
+                    <input id="save-set-input" type="text" placeholder="e.g., Jobs & Occupations Dialogue"
+                        class="input-chunky w-full px-3.5 py-2.5 text-sm bg-slate-50 dark:bg-slate-900 text-dark dark:text-white" />
+                </div>
+                <div class="flex gap-3">
+                    <button id="save-modal-cancel" type="button" class="flex-1 btn-chunky bg-white dark:bg-slate-700 text-dark dark:text-white py-2.5 rounded-xl text-xs">Cancel</button>
+                    <button id="save-modal-confirm" type="button" class="flex-1 btn-chunky bg-green text-dark py-2.5 rounded-xl text-xs">Save Set</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- CONFIRM MODAL -->
+    <div id="confirmModal" class="hidden fixed inset-0 bg-dark/60 backdrop-blur-md z-[500] items-center justify-center p-4">
+        <div class="bg-white dark:bg-slate-800 w-full max-w-sm rounded-[2rem] border-4 border-dark dark:border-slate-500 shadow-hard-lg animate-pop-in overflow-hidden">
+            <div class="p-6 text-center">
+                <div class="w-14 h-14 rounded-2xl bg-pink/15 flex items-center justify-center border-3 border-dark mx-auto mb-3">
+                    <i data-lucide="alert-triangle" class="w-7 h-7 text-pink"></i>
+                </div>
+                <h3 id="confirmTitle" class="text-xl font-heading font-bold text-dark dark:text-white uppercase mb-1.5">Are you sure?</h3>
+                <p id="confirmMessage" class="text-sm font-semibold text-slate-500 dark:text-slate-400 mb-5">This action cannot be undone.</p>
+                <div class="flex gap-3">
+                    <button id="confirmBtnNo" type="button" class="flex-1 btn-chunky bg-white dark:bg-slate-700 text-dark dark:text-white py-2.5 rounded-xl text-xs">Cancel</button>
+                    <button id="confirmBtnYes" type="button" class="flex-1 btn-chunky bg-pink text-white py-2.5 rounded-xl text-xs">Yes, Continue</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- TOAST CONTAINER -->
+    <div id="toast-container" class="print:hidden fixed bottom-6 left-1/2 -translate-x-1/2 z-[400] flex flex-col gap-2 pointer-events-none"></div>
+
+    <!-- PRINT LAYOUT (hidden on screen, filled just before printing) -->
+    <div id="print-area" class="hidden">
+        <section class="page-wall-text">
+            <h1>Read this text:</h1>
+            <div id="wall-text-content" class="wall-text"></div>
+        </section>
+
+        <section class="page-worksheet">
+            <div class="worksheet-header">
+                <div class="worksheet-title"><h1>Complete this text:</h1></div>
+                <div class="worksheet-meta">
+                    <div class="meta-line"><span>Name:</span><span></span></div>
+                    <div class="meta-line"><span>Date:</span><span></span></div>
+                </div>
+            </div>
+            <div id="worksheet-content" class="ws-text"></div>
+            <div id="print-word-bank" class="word-bank-box hidden">
+                <h3>Word Bank</h3>
+                <div id="print-word-bank-items" class="word-bank-items"></div>
+            </div>
+        </section>
+    </div>
+
+    <script>
+        (() => {
+            'use strict';
+
+            // ===== PURE LOGIC (no DOM access) ===================================
+
+            const WORD_RE = /[\p{L}\p{N}]+(?:['’][\p{L}\p{N}]+)*/gu;
+            const ESCAPES = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+            const esc = (s) => (s || '').replace(/[&<>"']/g, (c) => ESCAPES[c]);
+
+            const PRESETS = {
+                dialogue: `Vic: Hello, Vic!\nBen: Hi, Ben!\nVic: Who is she?\nBen: She is a doctor. Who is he?\nVic: He is a farmer.`,
+                story: `Last Saturday, Maya and Leo walked into the old forest behind their school. They found a small wooden box under a giant oak tree. Inside the box, there was a golden compass and a mysterious map of the town.`,
+                science: `The water cycle describes how water moves around the Earth. First, the sun heats water in oceans and rivers, turning it into vapor. Next, the water vapor rises into the sky and cools down to form clouds.`
+            };
+
+            function parse(raw) {
+                const text = (raw || '').replace(/\r\n?/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
+                const words = [];
+                const lines = [];
+                if (!text) return { text, lines, words };
+
+                for (const line of text.split('\n')) {
+                    const items = [];
+                    if (line.trim()) {
+                        let last = 0;
+                        for (const m of line.matchAll(WORD_RE)) {
+                            if (m.index > last) items.push(line.slice(last, m.index));
+                            items.push(words.push(m[0]) - 1);
+                            last = m.index + m[0].length;
+                        }
+                        if (last < line.length) items.push(line.slice(last));
+                    }
+                    lines.push(items);
+                }
+                return { text, lines, words };
+            }
+
+            function previewHTML(doc, flags) {
+                return doc.lines.map((items) => {
+                    if (!items.length) return '<div class="ln ln-gap"></div>';
+                    const inner = items.map((it) =>
+                        typeof it === 'number'
+                            ? `<span class="word${flags[it] ? ' blanked' : ''}" data-i="${it}">${esc(doc.words[it])}</span>`
+                            : esc(it)
+                    ).join('');
+                    return `<div class="ln">${inner}</div>`;
+                }).join('');
+            }
+
+            function worksheetHTML(doc, flags) {
+                return doc.lines.map((items) => items.map((it) => {
+                    if (typeof it !== 'number') return esc(it);
+                    const w = esc(doc.words[it]);
+                    return flags[it] ? `<span class="blank">${w}</span>` : w;
+                }).join('')).join('\n');
+            }
+
+            function pickRandom(pool, k) {
+                const idx = pool.slice();
+                for (let i = 0; i < k; i++) {
+                    const j = i + Math.floor(Math.random() * (idx.length - i));
+                    [idx[i], idx[j]] = [idx[j], idx[i]];
+                }
+                return idx.slice(0, k);
+            }
+
+            function getBlankedWords(doc, flags) {
+                const list = [];
+                for (let i = 0; i < doc.words.length; i++) {
+                    if (flags[i]) list.push(doc.words[i]);
+                }
+                return list.sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+            }
+
+            // ===== UI & PERSISTENCE =============================================
+
+            const STORAGE_KEY = 'klasskit_running_dictation_v1';
+            const SETS_KEY = 'klasskit_running_dictation_sets_v1';
+            const CLOUD_TOOL_KEY = 'running-dictation';
+
+            const $ = (id) => document.getElementById(id);
+            const el = {
+                sidebar: $('sidebar'),
+                toggleSidebar: $('toggle-sidebar-btn'),
+                toggleSidebarIcon: $('sidebar-toggle-icon'),
+                source: $('source-text'),
+                build: $('build-btn'),
+                random: $('random-btn'),
+                clear: $('clear-btn'),
+                skipShort: $('skip-short'),
+                showWordBank: $('show-word-bank'),
+                printWall: $('print-wall-btn'),
+                printSheet: $('print-sheet-btn'),
+                printBoth: $('print-both-btn'),
+                printHint: $('print-hint'),
+                theme: $('theme-btn'),
+                pct: $('pct-slider'),
+                pctDisplay: $('pct-display'),
+                preview: $('preview'),
+                previewHeading: $('preview-heading'),
+                previewSubheading: $('preview-subheading'),
+                area: $('interactive-area'),
+                empty: $('preview-empty'),
+                stats: $('stats'),
+                screenWordBank: $('screen-word-bank'),
+                screenWordBankItems: $('screen-word-bank-items'),
+                printWordBank: $('print-word-bank'),
+                printWordBankItems: $('print-word-bank-items'),
+                pageStyle: $('page-style'),
+                newSet: $('new-set-btn'),
+                saveSet: $('save-set-btn'),
+                librarySort: $('library-sort'),
+                libraryList: $('library-list'),
+                activeSetBanner: $('active-set-banner'),
+                activeSetName: $('active-set-name'),
+                closeSet: $('close-set-btn'),
+            };
+
+            let doc = parse('');
+            let flags = new Uint8Array(0);
+            let spans = [];
+            let blankCount = 0;
+            let builtSource = '';
+            let version = 0;
+            let printMode = null;
+            let preparedKey = null;
+            let currentView = 'builder'; // 'builder' | 'worksheet' | 'wall'
+            let activeSetId = null;
+            let cloudSaveTimer = null;
+
+            const LAZY_THRESHOLD = 2000;
+            const MIN_BLANK_LEN = 4;
+
+            const WIDTH_MM = { portrait: 180, landscape: 267 };
+            const SECTIONS = {
+                wall: {
+                    cls: 'wall-text',
+                    target: $('wall-text-content'),
+                    html: () => esc(doc.text),
+                    sizeName: 'wall-size',
+                    orientName: 'wall-orient',
+                    sizes: { large: 36, medium: 24, small: 16 },
+                    fit: [14, 36],
+                    heightMm: { portrait: 232, landscape: 150 },
+                },
+                sheet: {
+                    cls: 'ws-text',
+                    target: $('worksheet-content'),
+                    html: () => worksheetHTML(doc, flags),
+                    sizeName: 'sheet-size',
+                    orientName: 'sheet-orient',
+                    sizes: { large: 22, medium: 18, small: 14 },
+                    fit: [12, 22],
+                    heightMm: { portrait: 215, landscape: 135 },
+                },
+            };
+
+            const choice = (name) => document.querySelector(`input[name="${name}"]:checked`)?.value;
+            const setRadio = (name, val) => {
+                const r = document.querySelector(`input[name="${name}"][value="${val}"]`);
+                if (r) r.checked = true;
+            };
+
+            // ----- Toast & Confirm Modal -----
+            function showToast(message, type = 'info') {
+                const container = $('toast-container');
+                if (!container) return;
+                const toast = document.createElement('div');
+                const colors = {
+                    success: 'bg-green text-dark border-dark',
+                    error: 'bg-pink text-white border-dark',
+                    info: 'bg-blue text-white border-dark',
+                    warning: 'bg-orange text-dark border-dark',
+                };
+                const icons = {
+                    success: 'check-circle',
+                    error: 'alert-circle',
+                    info: 'info',
+                    warning: 'alert-triangle',
+                };
+                toast.className = `${colors[type] || colors.info} px-5 py-3 rounded-2xl shadow-hard border-3 font-extrabold text-xs uppercase tracking-wider flex items-center gap-2 pointer-events-auto animate-pop-in`;
+                toast.innerHTML = `<i data-lucide="${icons[type] || 'info'}" class="w-4 h-4 shrink-0"></i><span></span>`;
+                toast.querySelector('span').textContent = message;
+                container.appendChild(toast);
+                if (window.lucide) window.lucide.createIcons({ nodes: [toast] });
+                setTimeout(() => {
+                    toast.style.opacity = '0';
+                    toast.style.transform = 'translateY(12px)';
+                    toast.style.transition = 'all 0.3s ease';
+                    setTimeout(() => toast.remove(), 320);
+                }, 2600);
+            }
+
+            function showConfirm(title, message) {
+                return new Promise((resolve) => {
+                    const modal = $('confirmModal');
+                    $('confirmTitle').textContent = title;
+                    $('confirmMessage').textContent = message;
+                    modal.classList.remove('hidden');
+                    modal.classList.add('flex');
+                    if (window.lucide) window.lucide.createIcons({ nodes: [modal] });
+
+                    const cleanup = (val) => {
+                        modal.classList.add('hidden');
+                        modal.classList.remove('flex');
+                        $('confirmBtnYes').onclick = null;
+                        $('confirmBtnNo').onclick = null;
+                        modal.onclick = null;
+                        resolve(val);
+                    };
+                    $('confirmBtnYes').onclick = () => cleanup(true);
+                    $('confirmBtnNo').onclick = () => cleanup(false);
+                    modal.onclick = (e) => { if (e.target === modal) cleanup(false); };
+                });
+            }
+
+            // ----- Persistence -----
+            function getWorkspaceData() {
+                return {
+                    source: el.source.value,
+                    flags: Array.from(flags),
+                    pct: Number(el.pct.value),
+                    skipShort: el.skipShort.checked,
+                    showWordBank: el.showWordBank.checked,
+                    wallSize: choice('wall-size') || 'auto',
+                    wallOrient: choice('wall-orient') || 'portrait',
+                    sheetSize: choice('sheet-size') || 'auto',
+                    sheetOrient: choice('sheet-orient') || 'portrait',
+                    activeSetId
+                };
+            }
+
+            function applyWorkspaceData(data) {
+                if (!data) return;
+                if (typeof data.source === 'string') el.source.value = data.source;
+                if (typeof data.pct === 'number') {
+                    el.pct.value = data.pct;
+                    el.pctDisplay.textContent = data.pct + '%';
+                }
+                if (typeof data.skipShort === 'boolean') el.skipShort.checked = data.skipShort;
+                if (typeof data.showWordBank === 'boolean') el.showWordBank.checked = data.showWordBank;
+                if (data.wallSize) setRadio('wall-size', data.wallSize);
+                if (data.wallOrient) setRadio('wall-orient', data.wallOrient);
+                if (data.sheetSize) setRadio('sheet-size', data.sheetSize);
+                if (data.sheetOrient) setRadio('sheet-orient', data.sheetOrient);
+                if (data.activeSetId !== undefined) activeSetId = data.activeSetId;
+
+                build(Array.isArray(data.flags) ? data.flags : null, true);
+            }
+
+            function readSets() {
+                try {
+                    const raw = localStorage.getItem(SETS_KEY);
+                    const sets = raw ? JSON.parse(raw) : [];
+                    return Array.isArray(sets) ? sets : [];
+                } catch (e) { return []; }
+            }
+
+            function writeSets(sets) {
+                try { localStorage.setItem(SETS_KEY, JSON.stringify(sets)); } catch (e) { /* ignore */ }
+            }
+
+            function persistState() {
+                const ws = getWorkspaceData();
+                try { localStorage.setItem(STORAGE_KEY, JSON.stringify(ws)); } catch (e) { /* ignore */ }
+
+                if (activeSetId) {
+                    const sets = readSets();
+                    const idx = sets.findIndex((s) => s.id === activeSetId);
+                    if (idx !== -1) {
+                        sets[idx] = { ...sets[idx], ...ws, lastUsed: Date.now() };
+                        writeSets(sets);
+                        renderLibrary();
+                    }
+                }
+
+                clearTimeout(cloudSaveTimer);
+                cloudSaveTimer = setTimeout(() => {
+                    if (typeof window.saveProgress === 'function') {
+                        window.saveProgress(CLOUD_TOOL_KEY, {
+                            workspace: ws,
+                            sets: readSets()
+                        }).catch(() => {});
+                    }
+                }, 700);
+            }
+
+            async function loadPersistedState() {
+                let loaded = false;
+                try {
+                    const localRaw = localStorage.getItem(STORAGE_KEY);
+                    if (localRaw) {
+                        applyWorkspaceData(JSON.parse(localRaw));
+                        loaded = true;
+                    }
+                } catch (e) { /* ignore */ }
+
+                if (typeof window.loadProgress === 'function') {
+                    try {
+                        const cloud = await window.loadProgress(CLOUD_TOOL_KEY);
+                        if (cloud) {
+                            if (cloud.workspace) {
+                                applyWorkspaceData(cloud.workspace);
+                                localStorage.setItem(STORAGE_KEY, JSON.stringify(cloud.workspace));
+                                loaded = true;
+                            }
+                            if (Array.isArray(cloud.sets) && cloud.sets.length > 0 && readSets().length === 0) {
+                                writeSets(cloud.sets);
+                            }
+                        }
+                    } catch (e) { /* ignore */ }
+                }
+
+                if (!loaded) build(null, true);
+            }
+
+            function updateActiveSetBanner() {
+                const sets = readSets();
+                const current = sets.find((s) => s.id === activeSetId);
+                if (current) {
+                    el.activeSetBanner.classList.remove('hidden');
+                    el.activeSetName.textContent = current.name;
+                } else {
+                    activeSetId = null;
+                    el.activeSetBanner.classList.add('hidden');
+                }
+            }
+
+            function renderLibrary() {
+                const sets = readSets();
+                const sort = el.librarySort.value;
+                if (sort === 'recent') sets.sort((a, b) => (b.lastUsed || 0) - (a.lastUsed || 0));
+                else if (sort === 'alpha') sets.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+                else if (sort === 'popular') sets.sort((a, b) => (b.usageCount || 0) - (a.usageCount || 0));
+
+                updateActiveSetBanner();
+
+                if (!sets.length) {
+                    el.libraryList.innerHTML = `<p class="text-xs font-semibold text-slate-400 text-center py-3">No saved sets yet.</p>`;
+                    return;
+                }
+
+                el.libraryList.innerHTML = sets.map((s) => {
+                    const isActive = s.id === activeSetId;
+                    const fl = Array.isArray(s.flags) ? s.flags : [];
+                    const blanks = fl.filter(Boolean).length;
+                    return `
+                        <div class="flex items-center gap-2 p-2 rounded-xl border-2 ${isActive ? 'border-blue bg-blue/10' : 'border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60'} hover:border-blue transition-colors">
+                            <button type="button" data-load-id="${s.id}" class="flex-1 text-left min-w-0">
+                                <p class="text-xs font-extrabold truncate flex items-center gap-1.5">
+                                    <span></span>
+                                    ${isActive ? '<span class="px-1.5 py-0.2 rounded bg-blue text-white text-[9px] uppercase">Active</span>' : ''}
+                                </p>
+                                <p class="text-[10px] font-bold text-slate-400">${fl.length} words · ${blanks} blanked</p>
+                            </button>
+                            <button type="button" data-delete-id="${s.id}" class="p-1.5 rounded-lg text-slate-400 hover:text-pink hover:bg-pink/10 transition-colors" title="Delete set">
+                                <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                            </button>
+                        </div>
+                    `;
+                }).join('');
+
+                const loadBtns = el.libraryList.querySelectorAll('[data-load-id]');
+                sets.forEach((s, idx) => {
+                    const span = loadBtns[idx]?.querySelector('p span:first-child');
+                    if (span) span.textContent = s.name;
+                });
+
+                if (window.lucide) window.lucide.createIcons({ nodes: [el.libraryList] });
+            }
+
+            // ----- Core UI -----
+            function renderWordBanks() {
+                const words = getBlankedWords(doc, flags);
+                const show = el.showWordBank.checked && words.length > 0;
+                el.screenWordBank.classList.toggle('hidden', !show);
+                el.printWordBank.classList.toggle('hidden', !show);
+
+                if (show) {
+                    el.screenWordBankItems.replaceChildren(...words.map((w) => {
+                        const span = document.createElement('span');
+                        span.className = 'px-2.5 py-1 rounded-lg text-xs font-extrabold bg-white dark:bg-slate-800 border-2 border-dark dark:border-slate-500 shadow-hard-sm';
+                        span.textContent = w;
+                        return span;
+                    }));
+                    el.printWordBankItems.replaceChildren(...words.map((w) => {
+                        const span = document.createElement('span');
+                        span.textContent = w;
+                        return span;
+                    }));
+                }
+            }
+
+            function updateUI() {
+                const n = doc.words.length;
+                const dirty = el.source.value !== builtSource;
+
+                el.stats.textContent = dirty
+                    ? 'Text changed — click Build'
+                    : `${n.toLocaleString()} words · ${blankCount.toLocaleString()} blanked`;
+                el.stats.classList.toggle('hidden', !n && !dirty);
+
+                el.random.disabled = el.clear.disabled = !n;
+                const disablePrint = !n || dirty;
+                el.printWall.disabled = el.printSheet.disabled = el.printBoth.disabled = disablePrint;
+                el.printHint.textContent = dirty && n ? 'Text changed. Click Build again before printing.' : '';
+                el.printHint.classList.toggle('hidden', !(dirty && n));
+                el.empty.classList.toggle('hidden', n > 0);
+                renderWordBanks();
+            }
+
+            function renderCurrentView() {
+                if (!doc.words.length) {
+                    el.area.innerHTML = '';
+                    spans = [];
+                    return;
+                }
+
+                if (currentView === 'builder') {
+                    el.previewHeading.textContent = 'Text Builder';
+                    el.previewSubheading.textContent = 'Click words to blank them out for the student worksheet.';
+                    el.area.className = 'flex-1 font-body' + (doc.words.length > LAZY_THRESHOLD ? ' lazy' : '');
+                    el.area.innerHTML = previewHTML(doc, flags);
+                    spans = Array.from(el.area.querySelectorAll('.word'));
+                } else if (currentView === 'worksheet') {
+                    el.previewHeading.textContent = 'Worksheet Preview';
+                    el.previewSubheading.textContent = 'Preview of the fill-in-the-blanks handout for students.';
+                    el.area.className = 'flex-1 font-body ws-text text-xl';
+                    el.area.innerHTML = worksheetHTML(doc, flags);
+                    spans = [];
+                } else {
+                    el.previewHeading.textContent = 'Wall Poster Preview';
+                    el.previewSubheading.textContent = 'Preview of the full reading sheet to post on the classroom wall.';
+                    el.area.className = 'flex-1 font-body wall-text text-2xl';
+                    el.area.innerHTML = esc(doc.text);
+                    spans = [];
+                }
+            }
+
+            function syncSpans() {
+                if (currentView === 'builder' && spans.length === flags.length) {
+                    for (let i = 0; i < spans.length; i++) spans[i].classList.toggle('blanked', flags[i] === 1);
+                } else {
+                    renderCurrentView();
+                }
+                version++;
+                updateUI();
+                persistState();
+            }
+
+            function build(initialFlags = null, skipSave = false) {
+                doc = parse(el.source.value);
+                builtSource = el.source.value;
+                flags = new Uint8Array(doc.words.length);
+                blankCount = 0;
+
+                if (Array.isArray(initialFlags) && initialFlags.length === doc.words.length) {
+                    for (let i = 0; i < doc.words.length; i++) {
+                        flags[i] = initialFlags[i] ? 1 : 0;
+                        if (flags[i]) blankCount++;
+                    }
+                }
+
+                renderCurrentView();
+                el.preview.scrollTop = 0;
+                version++;
+                updateUI();
+                if (!skipSave) persistState();
+            }
+
+            function toggleWord(i, span) {
+                flags[i] ^= 1;
+                blankCount += flags[i] ? 1 : -1;
+                span.classList.toggle('blanked', flags[i] === 1);
+                version++;
+                updateUI();
+                persistState();
+            }
+
+            function randomize() {
+                const n = doc.words.length;
+                if (!n) return;
+
+                let pool = [];
+                if (el.skipShort.checked) {
+                    doc.words.forEach((w, i) => { if (w.length >= MIN_BLANK_LEN) pool.push(i); });
+                }
+                if (!pool.length) pool = Array.from({ length: n }, (_, i) => i);
+
+                const k = Math.min(pool.length, Math.max(1, Math.round((n * Number(el.pct.value)) / 100)));
+                flags.fill(0);
+                for (const i of pickRandom(pool, k)) flags[i] = 1;
+                blankCount = k;
+                syncSpans();
+                showToast(`Blanked ${k} random words`, 'success');
+            }
+
+            function clearBlanks() {
+                flags.fill(0);
+                blankCount = 0;
+                syncSpans();
+                showToast('Cleared all blanks', 'info');
+            }
+
+            // ----- Printing -----
+            function fitPt(cls, html, widthMm, heightMm, [minPt, maxPt]) {
+                const probe = document.createElement('div');
+                probe.className = cls;
+                probe.style.cssText = `position:absolute;left:-9999px;top:0;visibility:hidden;width:${widthMm}mm;`;
+                probe.innerHTML = html;
+                document.body.appendChild(probe);
+
+                const limit = (heightMm * 96) / 25.4;
+                const fits = (pt) => {
+                    probe.style.fontSize = pt + 'pt';
+                    return probe.offsetHeight <= limit;
+                };
+
+                let best = minPt;
+                if (fits(maxPt)) {
+                    best = maxPt;
+                } else {
+                    let lo = minPt, hi = maxPt - 1;
+                    while (lo <= hi) {
+                        const mid = (lo + hi) >> 1;
+                        if (fits(mid)) { best = mid; lo = mid + 1; } else { hi = mid - 1; }
+                    }
+                }
+                probe.remove();
+                return best;
+            }
+
+            function fillSection(key, orient) {
+                const s = SECTIONS[key];
+                const html = s.html();
+                const size = choice(s.sizeName) || 'auto';
+                const pt = size === 'auto'
+                    ? fitPt(s.cls, html, WIDTH_MM[orient], s.heightMm[orient], s.fit)
+                    : s.sizes[size];
+                s.target.innerHTML = html;
+                s.target.style.fontSize = pt + 'pt';
+            }
+
+            function preparePrint(mode) {
+                if (!doc.words.length) return;
+                const orient = mode === 'both' ? 'portrait' : (choice(SECTIONS[mode].orientName) || 'portrait');
+                const key = [mode, version, orient, choice('wall-size'), choice('sheet-size'), el.showWordBank.checked].join('|');
+
+                el.pageStyle.textContent = `@page { size: A4 ${orient}; margin: 15mm; }`;
+                document.documentElement.dataset.print = mode;
+                renderWordBanks();
+                if (key === preparedKey) return;
+
+                for (const k of mode === 'both' ? ['wall', 'sheet'] : [mode]) fillSection(k, orient);
+                preparedKey = key;
+            }
+
+            async function printSection(mode) {
+                printMode = mode;
+                try {
+                    if (document.fonts) {
+                        await Promise.all([document.fonts.load("700 20px 'Nunito'"), document.fonts.load("600 20px 'Nunito'")]);
+                    }
+                } catch (e) { /* ignore */ }
+                preparePrint(mode);
+                window.print();
+            }
+
+            window.addEventListener('beforeprint', () => preparePrint(printMode || 'both'));
+            window.addEventListener('afterprint', () => {
+                for (const s of Object.values(SECTIONS)) s.target.textContent = '';
+                delete document.documentElement.dataset.print;
+                printMode = null;
+                preparedKey = null;
+            });
+
+            // ----- Theme -----
+            function setTheme(dark) {
+                document.documentElement.classList.toggle('dark', dark);
+                el.theme.setAttribute('aria-pressed', String(dark));
+                try {
+                    localStorage.setItem('theme_running-dictation', dark ? 'dark' : 'light');
+                    localStorage.setItem('klasskit-theme', dark ? 'dark' : 'light');
+                } catch (e) { /* ignore */ }
+            }
+
+            // ----- Wiring -----
+            el.area.addEventListener('click', (e) => {
+                if (currentView !== 'builder') return;
+                const span = e.target.closest('.word');
+                if (span) toggleWord(Number(span.dataset.i), span);
+            });
+
+            document.querySelectorAll('.view-tab').forEach((btn) => {
+                btn.addEventListener('click', () => {
+                    currentView = btn.getAttribute('data-view');
+                    document.querySelectorAll('.view-tab').forEach((b) => {
+                        const active = b === btn;
+                        b.classList.toggle('bg-green', active);
+                        b.classList.toggle('text-dark', active);
+                        b.classList.toggle('border-dark', active);
+                        b.classList.toggle('border-transparent', !active);
+                    });
+                    renderCurrentView();
+                });
+            });
+
+            document.querySelectorAll('[data-preset]').forEach((btn) => {
+                btn.addEventListener('click', () => {
+                    const key = btn.getAttribute('data-preset');
+                    if (PRESETS[key]) {
+                        el.source.value = PRESETS[key];
+                        build();
+                        showToast(`Loaded ${key} preset`, 'info');
+                    }
+                });
+            });
+
+            el.source.addEventListener('input', () => {
+                updateUI();
+                persistState();
+            });
+            el.source.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); build(); }
+            });
+
+            el.build.addEventListener('click', () => {
+                build();
+                showToast('Interactive text built!', 'success');
+            });
+            el.random.addEventListener('click', randomize);
+            el.clear.addEventListener('click', clearBlanks);
+            el.printWall.addEventListener('click', () => printSection('wall'));
+            el.printSheet.addEventListener('click', () => printSection('sheet'));
+            el.printBoth.addEventListener('click', () => printSection('both'));
+            el.theme.addEventListener('click', () => setTheme(!document.documentElement.classList.contains('dark')));
+
+            el.pct.addEventListener('input', () => {
+                el.pctDisplay.textContent = el.pct.value + '%';
+                persistState();
+            });
+            el.skipShort.addEventListener('change', persistState);
+            el.showWordBank.addEventListener('change', () => {
+                version++;
+                updateUI();
+                persistState();
+            });
+
+            document.querySelectorAll('input[name="wall-size"], input[name="wall-orient"], input[name="sheet-size"], input[name="sheet-orient"]').forEach((r) => {
+                r.addEventListener('change', persistState);
+            });
+
+            el.toggleSidebar?.addEventListener('click', () => {
+                const collapsed = el.sidebar.classList.toggle('sidebar-collapsed');
+                el.toggleSidebarIcon.setAttribute('data-lucide', collapsed ? 'panel-left-open' : 'panel-left-close');
+                if (window.lucide) window.lucide.createIcons({ nodes: [el.toggleSidebar] });
+            });
+
+            // Saved Sets actions
+            el.newSet.addEventListener('click', async () => {
+                const ok = await showConfirm('Start New Dictation?', 'Clear the current text and start a fresh Running Dictation?');
+                if (!ok) return;
+                activeSetId = null;
+                el.source.value = '';
+                build();
+                renderLibrary();
+                showToast('New workspace ready', 'info');
+            });
+
+            el.saveSet.addEventListener('click', () => {
+                const modal = $('saveModal');
+                const input = $('save-set-input');
+                const current = readSets().find((s) => s.id === activeSetId);
+                input.value = current ? current.name : '';
+                modal.classList.remove('hidden');
+                modal.classList.add('flex');
+                setTimeout(() => input.focus(), 50);
+            });
+
+            const closeSaveModal = () => {
+                const modal = $('saveModal');
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+            };
+
+            $('save-modal-cancel').addEventListener('click', closeSaveModal);
+            $('saveModal').addEventListener('click', (e) => { if (e.target === $('saveModal')) closeSaveModal(); });
+
+            const confirmSaveSet = () => {
+                const name = $('save-set-input').value.trim();
+                if (!name) {
+                    showToast('Please enter a set name', 'warning');
+                    return;
+                }
+                const sets = readSets();
+                const now = Date.now();
+                const id = 'rd_' + now;
+                sets.push({
+                    id,
+                    name,
+                    ...getWorkspaceData(),
+                    createdAt: now,
+                    lastUsed: now,
+                    usageCount: 1
+                });
+                activeSetId = id;
+                writeSets(sets);
+                closeSaveModal();
+                renderLibrary();
+                persistState();
+                showToast(`Saved "${name}"`, 'success');
+            };
+
+            $('save-modal-confirm').addEventListener('click', confirmSaveSet);
+            $('save-set-input').addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') { e.preventDefault(); confirmSaveSet(); }
+                if (e.key === 'Escape') closeSaveModal();
+            });
+
+            el.closeSet.addEventListener('click', () => {
+                activeSetId = null;
+                renderLibrary();
+                persistState();
+            });
+
+            el.librarySort.addEventListener('change', renderLibrary);
+
+            el.libraryList.addEventListener('click', async (e) => {
+                const loadBtn = e.target.closest('[data-load-id]');
+                if (loadBtn) {
+                    const id = loadBtn.getAttribute('data-load-id');
+                    const sets = readSets();
+                    const item = sets.find((s) => s.id === id);
+                    if (!item) return;
+                    activeSetId = id;
+                    item.lastUsed = Date.now();
+                    item.usageCount = (item.usageCount || 0) + 1;
+                    writeSets(sets);
+                    applyWorkspaceData(item);
+                    renderLibrary();
+                    persistState();
+                    showToast(`Loaded "${item.name}"`, 'success');
+                    return;
+                }
+
+                const delBtn = e.target.closest('[data-delete-id]');
+                if (delBtn) {
+                    const id = delBtn.getAttribute('data-delete-id');
+                    const sets = readSets();
+                    const item = sets.find((s) => s.id === id);
+                    if (!item) return;
+                    const ok = await showConfirm('Delete Saved Set?', `Delete "${item.name}" from your saved sets?`);
+                    if (!ok) return;
+                    writeSets(sets.filter((s) => s.id !== id));
+                    if (activeSetId === id) activeSetId = null;
+                    renderLibrary();
+                    persistState();
+                    showToast('Set deleted', 'info');
+                }
+            });
+
+            // ----- Startup -----
+            (async function init() {
+                await loadPersistedState();
+                el.theme.setAttribute('aria-pressed', String(document.documentElement.classList.contains('dark')));
+                renderLibrary();
+                if (window.lucide) window.lucide.createIcons();
+            })();
+        })();
+    </script>
+</body>
+
+</html>
