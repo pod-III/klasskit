@@ -491,10 +491,15 @@ const Jeopardy = (function() {
 
         const cloudUpdatedAt = Number(cloudData.updatedAt) || 0;
         const localUpdatedAt = Number(state.updatedAt) || 0;
+        const normalizedCloud = normalizeState(cloudData);
+        const cloudStats = getBoardStats(normalizedCloud);
+        const localStats = getBoardStats(state);
 
-        // Only replace local state with cloud state if user hasn't started editing in this tab and cloud is newer/equal
-        if (!hasUserInteracted && cloudUpdatedAt >= localUpdatedAt) {
-            state = normalizeState(cloudData);
+        // If cloud data is a legacy save (no updatedAt) that has real questions while local is blank, prefer the legacy cloud save
+        const isLegacyCloudWithContent = cloudUpdatedAt === 0 && cloudStats.edited > 0 && localStats.edited === 0;
+        // Replace local state with cloud state if user hasn't started editing in this tab and cloud is newer/equal (or legacy with content)
+        if (!hasUserInteracted && (cloudUpdatedAt >= localUpdatedAt || isLegacyCloudWithContent)) {
+            state = normalizedCloud;
             if (state.activeGameId) {
                 upsertActiveGameInCustomList();
             }
