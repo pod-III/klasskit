@@ -28,10 +28,10 @@
             theme: {
                 extend: {
                     colors: {
-                        pink: '#FF6B95',
-                        orange: '#FF8C42',
-                        green: '#00E676',
-                        blue: '#2979FF',
+                        pink: '#ff4785',
+                        orange: '#ff7e33',
+                        green: '#00d063',
+                        blue: '#1ea7fd',
                         dark: '#1e293b',
                         chalk: '#f8fafc',
                     },
@@ -183,10 +183,19 @@
         <div class="flex-1 overflow-y-auto scrollbar p-6 space-y-6">
 
             <!-- DASHBOARD VIEW -->
-            <div id="view-dashboard">
-                <!-- Stats -->
-                <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 mb-6">
-                    <!-- Community Card -->
+            <div id="view-dashboard" class="space-y-6">
+                <!-- Exclusion Filter Active Notice -->
+                <div id="excludedBanner" class="hidden neo bg-slate-900/90 border-2 border-pink/40 rounded-2xl px-4 py-2.5 flex items-center justify-between gap-3">
+                    <div class="flex items-center gap-2.5 text-xs text-slate-300">
+                        <i data-lucide="filter" class="w-4 h-4 text-pink flex-shrink-0"></i>
+                        <span>Analytics filter active: <strong id="excludedBannerCount" class="text-pink">0 test accounts</strong> excluded from dashboard metrics.</span>
+                    </div>
+                    <button onclick="setView('settings')" class="text-[10px] font-heading uppercase tracking-wider text-pink hover:underline">Manage Filter →</button>
+                </div>
+
+                <!-- Primary KPI Cards -->
+                <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
+                    <!-- Community & Retention Card -->
                     <div class="stat-card neo bg-slate-800 border-kk-blue shadow-kk-blue rounded-[20px] p-6 flex flex-col justify-between">
                         <div>
                             <div class="flex items-center justify-between mb-4">
@@ -196,15 +205,34 @@
                                 <span class="chip bg-blue/10 text-blue border-blue/40">Community</span>
                             </div>
                             <div class="text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-1">Total Unique Teachers</div>
-                            <div class="font-heading text-5xl text-white mb-2" id="statUsers">—</div>
-                        </div>
-                        <div class="pt-4 border-t border-slate-700/50">
-                            <div class="flex items-center justify-between text-xs mb-1.5">
-                                <span class="text-slate-400 font-medium">⭐ Pro Tier Members</span>
-                                <span class="font-bold text-orange font-mono" id="statPro">—</span>
+                            <div class="flex items-baseline gap-3 mb-3">
+                                <div class="font-heading text-5xl text-white" id="statUsers">—</div>
+                                <div class="text-xs font-bold text-green font-mono" id="statStickiness" title="Stickiness (DAU / MAU)">—</div>
                             </div>
-                            <div class="w-full h-2 bg-slate-900 border border-slate-700 rounded-full overflow-hidden p-[1px]">
-                                <div id="statProBar" class="h-full rounded-full bg-orange transition-all duration-1000" style="width: 0%"></div>
+                            <!-- Active Cohort Pills (DAU / WAU / MAU) -->
+                            <div class="grid grid-cols-3 gap-1.5 mb-4">
+                                <div class="bg-slate-900/70 border border-slate-700/60 rounded-xl p-2 text-center">
+                                    <div class="text-[9px] text-slate-400 font-bold uppercase">24h (DAU)</div>
+                                    <div class="font-heading text-base text-blue" id="statDAU">0</div>
+                                </div>
+                                <div class="bg-slate-900/70 border border-slate-700/60 rounded-xl p-2 text-center">
+                                    <div class="text-[9px] text-slate-400 font-bold uppercase">7d (WAU)</div>
+                                    <div class="font-heading text-base text-green" id="statWAU">0</div>
+                                </div>
+                                <div class="bg-slate-900/70 border border-slate-700/60 rounded-xl p-2 text-center">
+                                    <div class="text-[9px] text-slate-400 font-bold uppercase">30d (MAU)</div>
+                                    <div class="font-heading text-base text-orange" id="statMAU">0</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="pt-3 border-t border-slate-700/50">
+                            <div class="flex items-center justify-between text-xs mb-1.5">
+                                <span class="text-slate-400 font-medium">⭐ Pro: <strong class="text-orange font-mono" id="statPro">0</strong> · 🛡️ Admin: <strong class="text-pink font-mono" id="statAdmins">0</strong></span>
+                                <span class="text-[10px] text-slate-400 font-mono" id="statProPercent">0% Pro</span>
+                            </div>
+                            <div class="w-full h-2 bg-slate-900 border border-slate-700 rounded-full overflow-hidden p-[1px] flex">
+                                <div id="statProBar" class="h-full rounded-l-full bg-orange transition-all duration-1000" style="width: 0%"></div>
+                                <div id="statAdminBar" class="h-full bg-pink transition-all duration-1000" style="width: 0%"></div>
                             </div>
                         </div>
                     </div>
@@ -218,12 +246,25 @@
                                 </div>
                                 <span class="chip bg-pink/10 text-pink border-pink/40">Engagement</span>
                             </div>
-                            <div class="text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-1">Total Interactions</div>
-                            <div class="font-heading text-5xl text-white mb-2" id="statRows">—</div>
+                            <div class="text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-1">Total Saved Interactions</div>
+                            <div class="flex items-baseline gap-3 mb-3">
+                                <div class="font-heading text-5xl text-white" id="statRows">—</div>
+                                <div class="text-xs font-bold text-pink font-mono" id="statAvgPerTeacher">— / teacher</div>
+                            </div>
+                            <div class="grid grid-cols-2 gap-1.5 mb-4">
+                                <div class="bg-slate-900/70 border border-slate-700/60 rounded-xl p-2">
+                                    <div class="text-[9px] text-slate-400 font-bold uppercase">Tool Saves</div>
+                                    <div class="font-heading text-base text-white" id="statToolSavesCount">0</div>
+                                </div>
+                                <div class="bg-slate-900/70 border border-slate-700/60 rounded-xl p-2">
+                                    <div class="text-[9px] text-slate-400 font-bold uppercase">DB Records</div>
+                                    <div class="font-heading text-base text-pink" id="statDbRecordsCount">0</div>
+                                </div>
+                            </div>
                         </div>
-                        <div class="pt-4 border-t border-slate-700/50">
+                        <div class="pt-3 border-t border-slate-700/50">
                             <div class="flex items-center justify-between text-xs">
-                                <span class="text-slate-400">Active interactive tools</span>
+                                <span class="text-slate-400 font-medium">Catalog Tools Adopted</span>
                                 <span class="chip bg-orange/10 text-orange border-orange/40 font-bold py-0.5" id="statTools">—</span>
                             </div>
                         </div>
@@ -239,19 +280,32 @@
                                 <span class="chip bg-green/10 text-green border-green/40">Cloud Sync</span>
                             </div>
                             <div class="text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-1">Global Storage Used</div>
-                            <div class="font-heading text-3xl text-white mb-2" id="statStorage">—</div>
+                            <div class="flex items-baseline gap-2 mb-3">
+                                <div class="font-heading text-3xl text-white" id="statStorage">—</div>
+                                <div class="text-xs font-bold text-slate-400 font-mono" id="statStorageQuotaInfo">/ — MB</div>
+                            </div>
+                            <div class="w-full h-2 bg-slate-900 border border-slate-700 rounded-full overflow-hidden p-[1px] mb-3">
+                                <div id="statStorageMiniBar" class="h-full rounded-full bg-green transition-all duration-1000" style="width: 0%"></div>
+                            </div>
+                            <div class="flex items-center justify-between text-[11px] text-slate-400 mb-2">
+                                <span>Active Media Nodes</span>
+                                <span class="font-mono font-bold text-white" id="statMediaNodes">0 users</span>
+                            </div>
                         </div>
-                        <div class="pt-4 border-t border-slate-700/50">
+                        <div class="pt-3 border-t border-slate-700/50">
                             <div class="flex items-center justify-between text-xs mb-1.5">
-                                <span class="text-slate-400 font-medium font-bold uppercase text-[9px] tracking-wider">Last Activity</span>
+                                <span class="text-slate-400 font-bold uppercase text-[9px] tracking-wider">Last Activity</span>
                                 <span class="font-bold text-slate-200 text-xs" id="statLatest">—</span>
                             </div>
-                            <div class="flex items-center gap-1.5 text-[9px] text-slate-500 font-bold uppercase tracking-wider">
-                                <span class="relative flex h-2 w-2">
-                                    <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green opacity-75"></span>
-                                    <span class="relative inline-flex rounded-full h-2 w-2 bg-green"></span>
-                                </span>
-                                Real-time pipeline active
+                            <div class="flex items-center justify-between text-[9px] text-slate-400 font-bold uppercase tracking-wider">
+                                <div class="flex items-center gap-1.5">
+                                    <span class="relative flex h-2 w-2">
+                                        <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green opacity-75"></span>
+                                        <span class="relative inline-flex rounded-full h-2 w-2 bg-green"></span>
+                                    </span>
+                                    <span id="statPipelineStatus">All tables synced</span>
+                                </div>
+                                <span class="font-mono text-green" id="statTablesCount">18 tables</span>
                             </div>
                         </div>
                     </div>
@@ -259,14 +313,16 @@
                     <!-- Top Tools Card -->
                     <div class="stat-card neo bg-slate-800 border-kk-orange shadow-kk-orange rounded-[20px] p-6 flex flex-col justify-between">
                         <div>
-                            <div class="flex items-center justify-between mb-4">
+                            <div class="flex items-center justify-between mb-3">
                                 <div class="w-10 h-10 rounded-xl bg-orange/20 border-2 border-orange/30 flex items-center justify-center">
                                     <i data-lucide="award" class="w-5 h-5 text-orange"></i>
                                 </div>
-                                <span class="chip bg-orange/10 text-orange border-orange/40">Trending</span>
+                                <div class="flex items-center gap-1">
+                                    <button onclick="setTopToolsMode('week')" id="topToolsBtnWeek" class="range-pill active !px-2 !py-0.5 !text-[10px]">7D</button>
+                                    <button onclick="setTopToolsMode('all')" id="topToolsBtnAll" class="range-pill !px-2 !py-0.5 !text-[10px]">All</button>
+                                </div>
                             </div>
-                            <div class="text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-3" id="topToolsTitle">Top Tools This Week</div>
-                            
+                            <div class="text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-2.5" id="topToolsTitle">Top Tools This Week</div>
                             <div class="space-y-2" id="topToolsList">
                                 <div class="text-center py-6 text-slate-500 font-bold text-xs">No activity yet</div>
                             </div>
@@ -274,13 +330,93 @@
                     </div>
                 </div>
 
+                <!-- Secondary Ecosystem Pulse Strip (6 Mini Cards) -->
+                <div class="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-4">
+                    <div onclick="setView('data-details'); setDataTab('notes')" class="mini-stat-card p-4 cursor-pointer">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-[10px] font-black uppercase tracking-wider text-slate-400">Lesson Notes</span>
+                            <i data-lucide="book-open" class="w-4 h-4 text-blue"></i>
+                        </div>
+                        <div class="font-heading text-2xl text-white" id="statNotes">0</div>
+                        <div class="text-[10px] text-slate-400 font-bold mt-1" id="statNotesSub">0 folders · 0 trashed</div>
+                    </div>
+
+                    <div onclick="setView('data-details'); setDataTab('myclass')" class="mini-stat-card p-4 cursor-pointer">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-[10px] font-black uppercase tracking-wider text-slate-400">My Classes</span>
+                            <i data-lucide="graduation-cap" class="w-4 h-4 text-orange"></i>
+                        </div>
+                        <div class="font-heading text-2xl text-white" id="statMyClasses">0</div>
+                        <div class="text-[10px] text-orange font-bold mt-1" id="statStudentsCount">0 students tracked</div>
+                    </div>
+
+                    <div onclick="setView('data-details'); setDataTab('schedule')" class="mini-stat-card p-4 cursor-pointer">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-[10px] font-black uppercase tracking-wider text-slate-400">Schedules</span>
+                            <i data-lucide="calendar" class="w-4 h-4 text-green"></i>
+                        </div>
+                        <div class="font-heading text-2xl text-white" id="statEvents">0</div>
+                        <div class="text-[10px] text-slate-400 font-bold mt-1" id="statClassesSub">0 tracker · 0 syllabi</div>
+                    </div>
+
+                    <div onclick="setView('data-details'); setDataTab('tasks')" class="mini-stat-card p-4 cursor-pointer">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-[10px] font-black uppercase tracking-wider text-slate-400">Teacher Tasks</span>
+                            <i data-lucide="check-square" class="w-4 h-4 text-pink"></i>
+                        </div>
+                        <div class="font-heading text-2xl text-white" id="statTasks">0</div>
+                        <div class="text-[10px] text-green font-bold mt-1" id="statTasksSub">0% completed</div>
+                    </div>
+
+                    <div onclick="setView('data-details'); setDataTab('studio')" class="mini-stat-card p-4 cursor-pointer">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-[10px] font-black uppercase tracking-wider text-slate-400">Sheets & Makers</span>
+                            <i data-lucide="layers" class="w-4 h-4 text-blue"></i>
+                        </div>
+                        <div class="font-heading text-2xl text-white" id="statStudio">0</div>
+                        <div class="text-[10px] text-slate-400 font-bold mt-1" id="statStudioSub">0 sheets · 0 print sets</div>
+                    </div>
+
+                    <div onclick="setView('data-details'); setDataTab('studio')" class="mini-stat-card p-4 cursor-pointer">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-[10px] font-black uppercase tracking-wider text-slate-400">Workshop & VTT</span>
+                            <i data-lucide="swords" class="w-4 h-4 text-pink"></i>
+                        </div>
+                        <div class="font-heading text-2xl text-white" id="statWorkshop">0</div>
+                        <div class="text-[10px] text-slate-400 font-bold mt-1" id="statWorkshopSub">0 parser · 0 D&D/VTT</div>
+                    </div>
+                </div>
+
+                <!-- Charts Time Range Bar -->
+                <div class="neo bg-slate-900/90 border-2 border-slate-700 rounded-2xl p-4 flex flex-wrap items-center justify-between gap-4">
+                    <div class="flex items-center gap-3">
+                        <div class="w-9 h-9 rounded-xl bg-blue/15 border-2 border-blue/40 flex items-center justify-center">
+                            <i data-lucide="trending-up" class="w-4 h-4 text-blue"></i>
+                        </div>
+                        <div>
+                            <div class="font-heading text-sm text-white">Activity & Engagement Timeline</div>
+                            <div class="text-[11px] text-slate-400" id="chartWindowSubtitle">Showing immutable timestamps across all tools & tables</div>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-[10px] font-black uppercase tracking-widest text-slate-400 mr-1">Time Window:</span>
+                        <button onclick="setChartDays(7)" id="range-7" class="range-pill">7 Days</button>
+                        <button onclick="setChartDays(14)" id="range-14" class="range-pill active">14 Days</button>
+                        <button onclick="setChartDays(30)" id="range-30" class="range-pill">30 Days</button>
+                        <button onclick="setChartDays(90)" id="range-90" class="range-pill">90 Days</button>
+                    </div>
+                </div>
+
                 <!-- Charts Section -->
-                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
                     <!-- Activity Graph -->
                     <div class="neo bg-slate-800 border-kk-blue shadow-kk-blue rounded-[20px] p-6">
-                        <div class="flex items-center justify-between mb-6">
-                            <h2 class="font-heading text-lg text-white">System Activity</h2>
-                            <div class="chip bg-blue/10 text-blue border-blue/40">Log Entries / Day</div>
+                        <div class="flex flex-wrap items-center justify-between gap-2 mb-6">
+                            <div>
+                                <h2 class="font-heading text-lg text-white">System Activity</h2>
+                                <p class="text-xs text-slate-400" id="activitySummaryText">Total actions in window: —</p>
+                            </div>
+                            <div class="chip bg-blue/10 text-blue border-blue/40" id="activityPeakChip">Peak: —</div>
                         </div>
                         <div class="h-64">
                             <canvas id="activityChart"></canvas>
@@ -290,8 +426,11 @@
                     <!-- Category Distribution -->
                     <div class="neo bg-slate-800 border-kk-orange shadow-kk-orange rounded-[20px] p-6">
                         <div class="flex items-center justify-between mb-6">
-                            <h2 class="font-heading text-lg text-white">Usage by Category</h2>
-                            <div class="chip bg-orange/10 text-orange border-orange/40">Live Data</div>
+                            <div>
+                                <h2 class="font-heading text-lg text-white">Usage by Category</h2>
+                                <p class="text-xs text-slate-400">Across Games, Tools, My Space & Workshop</p>
+                            </div>
+                            <div class="chip bg-orange/10 text-orange border-orange/40">All Tables</div>
                         </div>
                         <div class="h-64 flex justify-center">
                             <canvas id="categoryChart"></canvas>
@@ -300,9 +439,15 @@
 
                     <!-- Daily Active Users -->
                     <div class="lg:col-span-2 neo bg-slate-800 border-kk-green shadow-kk-green rounded-[20px] p-6">
-                        <div class="flex items-center justify-between mb-6">
-                            <h2 class="font-heading text-lg text-white">Daily Active Users (DAU)</h2>
-                            <div class="chip bg-green/10 text-green border-green/40">Unique Users / Day</div>
+                        <div class="flex flex-wrap items-center justify-between gap-2 mb-6">
+                            <div>
+                                <h2 class="font-heading text-lg text-white">Daily Active Users (DAU)</h2>
+                                <p class="text-xs text-slate-400" id="dauSummaryText">Unique active teachers per day</p>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <span class="chip bg-green/10 text-green border-green/40" id="dauPeakChip">Peak DAU: —</span>
+                                <span class="chip bg-slate-900 text-slate-300 border-slate-700" id="dauAvgChip">Avg: — / day</span>
+                            </div>
                         </div>
                         <div class="h-64">
                             <canvas id="activeUsersChart"></canvas>
@@ -310,19 +455,80 @@
                     </div>
                 </div>
 
+                <!-- Top Tools & Breakdown Row -->
                 <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
                     <!-- Top Tools -->
                     <div class="lg:col-span-2 neo bg-slate-800 border-kk-pink shadow-kk-pink rounded-[20px] p-6">
-                        <h2 class="font-heading text-lg text-white mb-6">Top Performing Tools</h2>
+                        <div class="flex flex-wrap items-center justify-between gap-3 mb-6">
+                            <div>
+                                <h2 class="font-heading text-lg text-white">Top Performing Tools</h2>
+                                <p class="text-xs text-slate-400" id="toolsChartSub">Ranked by canonical tool across all tables</p>
+                            </div>
+                            <div class="flex items-center gap-1.5">
+                                <button onclick="setToolsChartMetric('saves')" id="toolsMetricSaves" class="range-pill active">By Saves</button>
+                                <button onclick="setToolsChartMetric('users')" id="toolsMetricUsers" class="range-pill">By Teachers</button>
+                            </div>
+                        </div>
                         <div class="h-80">
                             <canvas id="toolsChart"></canvas>
                         </div>
                     </div>
 
                     <!-- Tool breakdown list -->
-                    <div class="neo bg-slate-800 border-kk-orange shadow-kk-orange rounded-[20px] p-6 overflow-hidden flex flex-col">
-                        <h2 class="font-heading text-lg text-white mb-4">Quick Breakdown</h2>
+                    <div class="neo bg-slate-800 border-kk-orange shadow-kk-orange rounded-[20px] p-6 overflow-hidden flex flex-col max-h-[420px]">
+                        <div class="flex items-center justify-between mb-4">
+                            <h2 class="font-heading text-lg text-white">Full Tool Breakdown</h2>
+                            <span class="chip bg-orange/10 text-orange border-orange/40" id="breakdownCountChip">0 tools</span>
+                        </div>
                         <div id="toolBreakdown" class="space-y-3 overflow-y-auto scrollbar pr-2 flex-1"></div>
+                    </div>
+                </div>
+
+                <!-- Deep Insights Row: Active Teachers Leaderboard, Live Activity Feed & Catalog Adoption -->
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <!-- Top Active Teachers Leaderboard -->
+                    <div class="neo bg-slate-800 border-kk-blue shadow-kk-blue rounded-[20px] p-6 flex flex-col">
+                        <div class="flex items-center justify-between mb-4">
+                            <div>
+                                <h2 class="font-heading text-lg text-white">Top Active Teachers</h2>
+                                <p class="text-xs text-slate-400">Ranked by total records & tool breadth</p>
+                            </div>
+                            <button onclick="setView('users')" class="text-xs font-heading text-blue hover:underline">View All →</button>
+                        </div>
+                        <div id="topTeachersList" class="space-y-2.5 flex-1"></div>
+                    </div>
+
+                    <!-- Recent Activity Stream -->
+                    <div class="neo bg-slate-800 border-kk-green shadow-kk-green rounded-[20px] p-6 flex flex-col">
+                        <div class="flex items-center justify-between mb-4">
+                            <div>
+                                <h2 class="font-heading text-lg text-white">Recent Live Activity</h2>
+                                <p class="text-xs text-slate-400">Latest saves across all tables</p>
+                            </div>
+                            <button onclick="setView('logs')" class="text-xs font-heading text-green hover:underline">Audit Stream →</button>
+                        </div>
+                        <div id="recentActivityFeed" class="space-y-2.5 flex-1"></div>
+                    </div>
+
+                    <!-- Catalog Coverage & Dormant Tools -->
+                    <div class="neo bg-slate-800 border-kk-pink shadow-kk-pink rounded-[20px] p-6 flex flex-col justify-between">
+                        <div>
+                            <div class="flex items-center justify-between mb-4">
+                                <div>
+                                    <h2 class="font-heading text-lg text-white">Catalog Coverage</h2>
+                                    <p class="text-xs text-slate-400">Active vs unvisited apps in games.json</p>
+                                </div>
+                                <span class="chip bg-pink/10 text-pink border-pink/40" id="catalogCoverageChip">0%</span>
+                            </div>
+                            <div id="catalogCategoryBars" class="space-y-3 mb-5"></div>
+                        </div>
+                        <div class="pt-4 border-t border-slate-700/50">
+                            <div class="flex items-center justify-between mb-2">
+                                <span class="text-[10px] font-black uppercase tracking-widest text-slate-400">Untried / Zero-Save Tools</span>
+                                <span class="text-[10px] font-mono text-slate-400" id="dormantToolsCount">0 tools</span>
+                            </div>
+                            <div id="dormantToolsList" class="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto scrollbar pr-1"></div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -414,6 +620,10 @@
                     <button onclick="setDataTab('myclass')" id="datatab-myclass"
                         class="neo-btn px-4 py-2 bg-slate-800 text-slate-300 rounded-xl text-sm">
                         <i data-lucide="users" class="w-4 h-4"></i> My Class
+                    </button>
+                    <button onclick="setDataTab('studio')" id="datatab-studio"
+                        class="neo-btn px-4 py-2 bg-slate-800 text-slate-300 rounded-xl text-sm">
+                        <i data-lucide="layers" class="w-4 h-4"></i> Studio & Makers
                     </button>
                 </div>
 
@@ -734,6 +944,9 @@
                                             Class Name</th>
                                         <th
                                             class="text-left px-5 py-3 text-[10px] font-black text-slate-500 uppercase tracking-widest">
+                                            Students & Logs</th>
+                                        <th
+                                            class="text-left px-5 py-3 text-[10px] font-black text-slate-500 uppercase tracking-widest">
                                             Updated</th>
                                         <th
                                             class="text-right px-5 py-3 text-[10px] font-black text-slate-500 uppercase tracking-widest">
@@ -741,6 +954,33 @@
                                     </tr>
                                 </thead>
                                 <tbody id="myclassTableBody" class="divide-y divide-slate-700/50"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- STUDIO & MAKERS CONTENT -->
+                <div id="dataview-studio" class="hidden">
+                    <div class="neo bg-slate-800 rounded-[20px] overflow-hidden">
+                        <div class="p-5 border-b-[3px] border-slate-700 flex items-center justify-between flex-wrap gap-3">
+                            <div>
+                                <h2 class="font-heading text-lg text-white">Studio, Makers, Workshop & VTT Records</h2>
+                                <p class="text-xs text-slate-400">Dedicated records from spreadsheets, card/worksheet/puzzle makers, lesson parser, D&D & VTT</p>
+                            </div>
+                            <div id="studioCount" class="chip bg-blue/10 text-blue border-blue/40">0 items</div>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-sm">
+                                <thead>
+                                    <tr class="border-b-2 border-slate-700 bg-slate-900">
+                                        <th class="text-left px-5 py-3 text-[10px] font-black text-slate-500 uppercase tracking-widest">User</th>
+                                        <th class="text-left px-5 py-3 text-[10px] font-black text-slate-500 uppercase tracking-widest">Title / Name</th>
+                                        <th class="text-left px-5 py-3 text-[10px] font-black text-slate-500 uppercase tracking-widest">Tool / Table</th>
+                                        <th class="text-left px-5 py-3 text-[10px] font-black text-slate-500 uppercase tracking-widest">Updated</th>
+                                        <th class="text-right px-5 py-3 text-[10px] font-black text-slate-500 uppercase tracking-widest">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="studioTableBody" class="divide-y divide-slate-700/50"></tbody>
                             </table>
                         </div>
                     </div>
@@ -830,7 +1070,7 @@
                                 <div class="relative">
                                     <i data-lucide="search"
                                         class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500"></i>
-                                    <input type="text" placeholder="Filter nodes..."
+                                    <input type="text" id="cloudSearchInput" oninput="renderCloudTable()" placeholder="Filter nodes..."
                                         class="pl-9 pr-4 py-2 !bg-slate-950 !border-2 !border-slate-800 text-xs w-48">
                                 </div>
                             </div>
@@ -887,7 +1127,7 @@
                             <h2 class="font-heading text-xl text-white tracking-tight">System Audit Stream</h2>
                         </div>
                         <div class="flex items-center gap-4">
-                            <div class="chip bg-slate-800 text-slate-400 border-slate-700">Live Feed</div>
+                            <div id="logsCountChip" class="chip bg-slate-800 text-slate-400 border-slate-700">Live Feed</div>
                             <button onclick="renderLogsTable()"
                                 class="p-2 hover:bg-slate-800 rounded-lg transition-colors text-slate-400">
                                 <i data-lucide="refresh-cw" class="w-4 h-4"></i>

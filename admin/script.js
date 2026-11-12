@@ -9,8 +9,24 @@ let allClassAdmin = []
 let allClassUnits = []
 let allRedDays = {}
 let allNoteFolders = {}
+let allSpreadsheets = []
+let allLessonParser = []
+let allCardMaker = []
+let allPuzzleMaker = []
+let allWorksheetMaker = []
+let allToolsDnd = []
+let allVttMaps = []
+let allVttCampaigns = []
+let allClockLogs = []
+let allGamesCatalog = []
+let healthyTablesCount = 0
+let totalQueriedTables = 18
+
 let scheduleClassTab = 'admin'
 let charts = {}
+let chartDaysWindow = 14
+let topToolsMode = 'week' // 'week' | 'all'
+let toolsChartMetric = 'saves' // 'saves' | 'users'
 let pendingDelete = null
 let currentView = 'dashboard'
 let sortConfig = {
@@ -33,6 +49,187 @@ const PAGE_SIZE = 25
 let settingsTimeout = null
 let searchTimeout = null
 
+// ── CANONICAL TOOL KEY MAPPING ──
+// Maps raw user_progress tool_keys and dedicated table keys to official games.json IDs
+const RAW_TOOL_TO_CATALOG_ID = {
+    // Games
+    'magic_cups': 'findball',
+    'findball': 'findball',
+    'connect_n': 'tictactoe',
+    'tictactoe': 'tictactoe',
+    'spell_word': 'spellit',
+    'spellit': 'spellit',
+    'secret_code': 'secret-code',
+    'secret-code': 'secret-code',
+    'stop_the_bus': 'stopthebus',
+    'stopthebus': 'stopthebus',
+    'card-match': 'cardmatch',
+    'cardmatch': 'cardmatch',
+    'card-memory': 'cardmemory',
+    'cardmemory': 'cardmemory',
+    'undercover': 'undercover',
+    'quiz_maker': 'quiz',
+    'quiz': 'quiz',
+    'hangman': 'hangman',
+    'word-animator': 'wordanimator',
+    'wordanimator': 'wordanimator',
+    'sentence_unscrambler': 'sentence-unscrambler',
+    'sentence-unscrambler': 'sentence-unscrambler',
+    'guess_who': 'guesswho',
+    'guesswho': 'guesswho',
+    'crossword': 'crossword',
+    'word_sort': 'word-sort',
+    'word-sort': 'word-sort',
+    'unscramble': 'unscramble',
+    'this_or_that': 'this-or-that',
+    'this-or-that': 'this-or-that',
+    'quiz_block': 'quizblock',
+    'quizblock': 'quizblock',
+    'freeze_dance': 'freezedance',
+    'freezedance': 'freezedance',
+    'role_speak': 'role-and-speak',
+    'role-and-speak': 'role-and-speak',
+    'story_dice': 'storydice',
+    'storydice': 'storydice',
+    'memory_block': 'simon-memory',
+    'simon-memory': 'simon-memory',
+    'fill_it': 'fillit',
+    'fillit': 'fillit',
+    'story_ordering': 'story-ordering',
+    'story-ordering': 'story-ordering',
+    'connect_four': 'connect-four',
+    'connect-four': 'connect-four',
+    'emoji_game': 'guessemoji',
+    'guessemoji': 'guessemoji',
+    'flashcard_displayer_library_v2': 'fc-play',
+    'flashcard_displayer_session': 'fc-play',
+    'fc-play': 'fc-play',
+    'fix_em': 'fixem',
+    'fixem': 'fixem',
+    'word_flashcard': 'word-flashcard',
+    'word-flashcard': 'word-flashcard',
+    'hot_seat': 'hotseat',
+    'hotseat': 'hotseat',
+    'word_rush': 'word-rush',
+    'word-rush': 'word-rush',
+    'word_search': 'wordsearch',
+    'wordsearch': 'wordsearch',
+    'reveal_picture': 'reveal-picture-game',
+    'reveal-picture-game': 'reveal-picture-game',
+    'dnd-hub': 'dnd-hub',
+    'tools_dnd': 'dnd-hub',
+    'vtt_maps': 'dnd-hub',
+    'vtt_campaigns': 'dnd-hub',
+
+    // Tools
+    'spreadsheet': 'spreadsheet',
+    'spreadsheets': 'spreadsheet',
+    'tracer_settings': 'tracer-whiteboard',
+    'tracer-whiteboard': 'tracer-whiteboard',
+    'act_lesson_plan': 'actbank',
+    'act_custom_workspace': 'actbank',
+    'actbank': 'actbank',
+    'bingo_presets_data': 'bingomaker',
+    'bingomaker': 'bingomaker',
+    'card_maker_state': 'card-maker',
+    'card_maker_sets': 'card-maker',
+    'tools_cardmaker': 'card-maker',
+    'card-maker': 'card-maker',
+    'domino-maker': 'domino-maker',
+    'domino-maker-workspace': 'domino-maker',
+    'class_tally': 'classtally',
+    'class_tally_sets': 'classtally',
+    'classtally': 'classtally',
+    'clock_data': 'clockcalendar',
+    'clockcalendar': 'clockcalendar',
+    'myspace_clock': 'clockcalendar',
+    'down_time_screen_data': 'downtimescreen',
+    'downtimescreen': 'downtimescreen',
+    'media-player': 'media-player',
+    'puzzle-maker': 'puzzle-maker',
+    'tools_puzzlemaker': 'puzzle-maker',
+    'lesson-note': 'lessonnotes',
+    'lessonnotes': 'lessonnotes',
+    'notes': 'lessonnotes',
+    'poster_studio_data': 'poster-studio',
+    'poster-studio': 'poster-studio',
+    'scorecounter_data': 'scoreboard',
+    'scoreboard': 'scoreboard',
+    'word_scrambler_data': 'scrambler',
+    'scrambler': 'scrambler',
+    'presentation_data': 'presentations',
+    'presentations': 'presentations',
+    'dictionary_data': 'smart-dictionary',
+    'smart-dictionary': 'smart-dictionary',
+    'speedy_slides_data': 'speedyslides',
+    'speedyslides': 'speedyslides',
+    'elimgrid_library_v2': 'spinwheel',
+    'elimgrid_session_state': 'spinwheel',
+    'weighted_odds_library_v2': 'spinwheel',
+    'weighted_odds_session_state': 'spinwheel',
+    'multispin_library_v2': 'spinwheel',
+    'multispin_session_state': 'spinwheel',
+    'class_spinner_library_v2': 'spinwheel',
+    'class_spinner_session_state': 'spinwheel',
+    'cardpicker_library_v2': 'spinwheel',
+    'spinwheel': 'spinwheel',
+    'task_assigner_presets': 'taskassigner',
+    'taskassigner': 'taskassigner',
+    'team_picker_data': 'teampicker',
+    'teampicker': 'teampicker',
+    'whiteboard_canvas_data': 'whiteboard',
+    'whiteboard_settings': 'whiteboard',
+    'whiteboard': 'whiteboard',
+    'randomizer_words_data': 'wordlist',
+    'wordlist': 'wordlist',
+    'worksheet-maker': 'worksheet-maker',
+    'tools_worksheetmaker': 'worksheet-maker',
+    'youtube-library': 'youtube',
+    'youtube-categories': 'youtube',
+    'youtube-playlists': 'youtube',
+    'youtube': 'youtube',
+    'word-snake': 'word-snake',
+    'info-gap': 'info-gap',
+    'running-dictation': 'running-dictation',
+    'interview-maker': 'interview-maker',
+
+    // Workshop
+    'workshop_analyzer': 'text-workshop',
+    'workshop_formatter': 'text-workshop',
+    'workshop_case': 'text-workshop',
+    'text-workshop': 'text-workshop',
+    'workshop_splitter': 'image-workshop',
+    'workshop_editor': 'image-workshop',
+    'image-workshop': 'image-workshop',
+    'pu-helper': 'pu-helper',
+    'report-helper-state': 'report-helper',
+    'report-helper-archive': 'report-helper',
+    'report-helper': 'report-helper',
+    'workshop_lessonparser': 'lesson-parser',
+    'lesson-parser': 'lesson-parser',
+
+    // My Space
+    'myspace-home': 'myspace-home',
+    'tasks': 'tasks',
+    'myspace_tasks': 'tasks',
+    'klasskit_tasks': 'tasks',
+    'schedule': 'schedule',
+    'myspace_events': 'schedule',
+    'schedule_events': 'schedule',
+    'my-class': 'my-class',
+    'myspace_my_class': 'my-class',
+    'admin-tracker': 'admin-tracker',
+    'myspace_class_admin': 'admin-tracker',
+    'myspace_class_units': 'admin-tracker',
+    'schedule_class_admin': 'admin-tracker',
+    'schedule_class_units': 'admin-tracker',
+    'admin_tracker_data': 'admin-tracker',
+
+    // WIP
+    'poster_data': 'poster',
+    'poster': 'poster'
+}
+
 // ── INIT ──
 async function init() {
     const { user, profile } = await requireAdmin()
@@ -49,7 +246,6 @@ async function init() {
     await fetchData()
 }
 
-
 // Register Service Worker
 if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
@@ -58,90 +254,258 @@ if ('serviceWorker' in navigator) {
             .catch(err => console.log('SW Reg error:', err));
     });
 }
+
+async function safeQuery(promise, tableName) {
+    try {
+        const res = await promise
+        if (res.error) {
+            console.warn(`[Admin] Query warning on ${tableName}:`, res.error.message)
+            return { data: [], error: res.error, ok: false }
+        }
+        return { data: res.data || [], error: null, ok: true }
+    } catch (err) {
+        console.warn(`[Admin] Query exception on ${tableName}:`, err)
+        return { data: [], error: err, ok: false }
+    }
+}
+
 // ── FETCH ──
 async function fetchData() {
     document.querySelectorAll('.refreshIcon').forEach(i => i.classList.add('animate-spin'))
 
-    const [progressRes, notesRes, profilesRes, quotasRes, schedEventsRes, classAdminRes, classUnitsRes, redDaysRes, noteFoldersRes, myClassRes, tasksRes] = await Promise.all([
-        db.from('user_progress').select('*').order('updated_at', { ascending: false }),
-        db.from('notes').select('*').order('updated_at', { ascending: false }),
-        db.from('profiles').select('*'),
-        db.from('storage_quotas').select('*'),
-        db.from('myspace_events').select('id,user_id,name,type_id,color,date,recurrence,recurrence_days,graduation_class,is_master,created_at').eq('is_master', true).order('date', { ascending: false }),
-        db.from('myspace_class_admin').select('*').order('created_at', { ascending: false }),
-        db.from('myspace_class_units').select('*').order('created_at', { ascending: false }),
-        db.from('myspace_settings').select('*'),
-        db.from('note_folders').select('*'),
-        db.from('myspace_my_class').select('*').order('updated_at', { ascending: false }),
-        db.from('myspace_tasks').select('*').order('updated_at', { ascending: false })
-    ])
+    // Fetch Games Registry first so tool metadata is ready
+    try {
+        const gamesRes = await fetch('../games.json')
+        const gamesData = await gamesRes.json()
+        allGamesCatalog = gamesData.games || []
+        const catDisplayNames = {
+            'myspace': 'My Space',
+            'tool': 'Tools',
+            'workshop': 'Workshop',
+            'game': 'Games',
+            'under-construction': 'Tools'
+        }
+        const toolCategoryMap = {}
+        const toolTitleMap = {}
+        const toolIconMap = {}
+        allGamesCatalog.forEach(g => {
+            // Note: lessonnotes is categorized under My Space in teacher workflows or Tools in games.json;
+            // keep official category mapping consistent
+            const cat = g.id === 'lessonnotes' ? 'My Space' : (catDisplayNames[g.category] || 'Tools')
+            toolCategoryMap[g.id] = cat
+            toolTitleMap[g.id] = g.title
+            toolIconMap[g.id] = g.icon || 'box'
+        })
+        window.toolCategoryMap = toolCategoryMap
+        window.toolTitleMap = toolTitleMap
+        window.toolIconMap = toolIconMap
+    } catch (e) {
+        console.warn('[Admin] Failed to load games.json:', e)
+    }
+
+    const queries = [
+        safeQuery(db.from('user_progress').select('*').order('updated_at', { ascending: false }), 'user_progress'),
+        safeQuery(db.from('notes').select('*').order('updated_at', { ascending: false }), 'notes'),
+        safeQuery(db.from('profiles').select('*'), 'profiles'),
+        safeQuery(db.from('storage_quotas').select('*'), 'storage_quotas'),
+        safeQuery(db.from('myspace_events').select('id,user_id,name,type_id,color,date,recurrence,recurrence_days,graduation_class,is_master,created_at,updated_at').eq('is_master', true).order('date', { ascending: false }), 'myspace_events'),
+        safeQuery(db.from('myspace_class_admin').select('*').order('created_at', { ascending: false }), 'myspace_class_admin'),
+        safeQuery(db.from('myspace_class_units').select('*').order('created_at', { ascending: false }), 'myspace_class_units'),
+        safeQuery(db.from('myspace_settings').select('*'), 'myspace_settings'),
+        safeQuery(db.from('note_folders').select('*'), 'note_folders'),
+        safeQuery(db.from('myspace_my_class').select('*').order('updated_at', { ascending: false }), 'myspace_my_class'),
+        safeQuery(db.from('myspace_tasks').select('*').order('updated_at', { ascending: false }), 'myspace_tasks'),
+        safeQuery(db.from('spreadsheets').select('id,user_id,title,rows_count,cols_count,updated_at,created_at').order('updated_at', { ascending: false }), 'spreadsheets'),
+        safeQuery(db.from('workshop_lessonparser').select('id,user_id,name,unit_aims,modules,last_used,created_at,usage_count').order('last_used', { ascending: false }), 'workshop_lessonparser'),
+        safeQuery(db.from('tools_cardmaker').select('id,user_id,name,usage_count,created_at,last_used').order('last_used', { ascending: false }), 'tools_cardmaker'),
+        safeQuery(db.from('tools_puzzlemaker').select('id,user_id,name,usage_count,created_at,last_used').order('last_used', { ascending: false }), 'tools_puzzlemaker'),
+        safeQuery(db.from('tools_worksheetmaker').select('id,user_id,name,usage_count,created_at,last_used').order('last_used', { ascending: false }), 'tools_worksheetmaker'),
+        safeQuery(db.from('tools_dnd').select('id,user_id,tool_type,name,usage_count,created_at,last_used').order('last_used', { ascending: false }), 'tools_dnd'),
+        safeQuery(db.from('vtt_maps').select('id,user_id,name,campaign_id,grid_cols,grid_rows,created_at,updated_at').order('updated_at', { ascending: false }), 'vtt_maps'),
+        safeQuery(db.from('vtt_campaigns').select('id,user_id,name,created_at,updated_at').order('updated_at', { ascending: false }), 'vtt_campaigns'),
+        safeQuery(db.from('myspace_clock').select('*').order('updated_at', { ascending: false }), 'myspace_clock'),
+        safeQuery(db.from('announcements').select('*').order('created_at', { ascending: false }), 'announcements')
+    ]
+
+    const results = await Promise.all(queries)
+    const [
+        progressRes, notesRes, profilesRes, quotasRes, schedEventsRes,
+        classAdminRes, classUnitsRes, redDaysRes, noteFoldersRes, myClassRes,
+        tasksRes, spreadsheetsRes, lessonParserRes, cardMakerRes, puzzleMakerRes,
+        worksheetMakerRes, toolsDndRes, vttMapsRes, vttCampaignsRes, clockRes, annRes
+    ] = results
+
+    totalQueriedTables = results.length
+    healthyTablesCount = results.filter(r => r.ok).length
 
     document.querySelectorAll('.refreshIcon').forEach(i => i.classList.remove('animate-spin'))
     const lastRefreshed = document.getElementById('lastRefreshed')
     if (lastRefreshed) lastRefreshed.textContent = 'Updated ' + new Date().toLocaleTimeString()
 
-    if (progressRes.error) { console.error(progressRes.error); return }
-
     const quotaMap = {}
-    quotasRes.data?.forEach(q => { quotaMap[q.user_id] = q })
+    quotasRes.data.forEach(q => { quotaMap[q.user_id] = q })
 
+    const DEFAULT_LIMIT = 50 * 1024 * 1024 // 50 MB standard quota
     allProfiles = {}
-    profilesRes.data?.forEach(p => {
+    profilesRes.data.forEach(p => {
         const quota = quotaMap[p.id] || {}
         allProfiles[p.id] = {
             ...p,
-            storage_usage: quota.storage_usage || 0,
-            storage_limit: quota.storage_limit || 10485760,
-            last_active_ts: p.updated_at ? new Date(p.updated_at).getTime() : (p.created_at ? new Date(p.created_at).getTime() : 0)
+            storage_usage: Number(quota.storage_usage) || 0,
+            storage_limit: Number(quota.storage_limit) || DEFAULT_LIMIT,
+            last_active_ts: p.updated_at ? new Date(p.updated_at).getTime() : (p.created_at ? new Date(p.created_at).getTime() : 0),
+            tools_set: new Set(),
+            records_count: 0
         }
     })
-    allProgress = progressRes.data || []
-    allNotes = notesRes.data || []
-    allMyClass = myClassRes.data || []
-    allMySpaceTasks = tasksRes.data || []
 
-    allScheduleEvents = schedEventsRes.data || []
-    allClassAdmin = classAdminRes.data || []
-    allClassUnits = classUnitsRes.data || []
+    allProgress = progressRes.data
+    allNotes = notesRes.data
+    allMyClass = myClassRes.data
+    allMySpaceTasks = tasksRes.data
+    allScheduleEvents = schedEventsRes.data
+    allClassAdmin = classAdminRes.data
+    allClassUnits = classUnitsRes.data
+    allSpreadsheets = spreadsheetsRes.data
+    allLessonParser = lessonParserRes.data
+    allCardMaker = cardMakerRes.data
+    allPuzzleMaker = puzzleMakerRes.data
+    allWorksheetMaker = worksheetMakerRes.data
+    allToolsDnd = toolsDndRes.data
+    allVttMaps = vttMapsRes.data
+    allVttCampaigns = vttCampaignsRes.data
+    allClockLogs = clockRes.data
+    allAnnouncements = annRes.data
+
     allRedDays = {}
-    redDaysRes.data?.forEach(r => { allRedDays[r.user_id] = r.dates || [] })
+    redDaysRes.data.forEach(r => { allRedDays[r.user_id] = r.dates || [] })
     allNoteFolders = {}
-    noteFoldersRes.data?.forEach(f => { allNoteFolders[f.user_id] = f.folders || [] })
+    noteFoldersRes.data.forEach(f => { allNoteFolders[f.user_id] = f.folders || [] })
 
-    // Pre-calculate latest activity from progress
+    // Ensure any user_id referenced in data tables has a profile entry and accurate last_active_ts + tools_set
+    const registerUserActivity = (userId, tsMs, canonicalToolId, countIncrement = 1) => {
+        if (!userId) return
+        if (!allProfiles[userId]) {
+            const quota = quotaMap[userId] || {}
+            allProfiles[userId] = {
+                id: userId,
+                display_name: `User ${userId.slice(0, 6)}`,
+                role: 'user',
+                storage_usage: Number(quota.storage_usage) || 0,
+                storage_limit: Number(quota.storage_limit) || DEFAULT_LIMIT,
+                last_active_ts: 0,
+                tools_set: new Set(),
+                records_count: 0
+            }
+        }
+        const prof = allProfiles[userId]
+        if (tsMs && !isNaN(tsMs) && tsMs > prof.last_active_ts && tsMs <= Date.now() + 86400000) {
+            prof.last_active_ts = tsMs
+        }
+        if (canonicalToolId && canonicalToolId !== 'klasskit_hub' && canonicalToolId !== 'hub') {
+            prof.tools_set.add(canonicalToolId)
+            prof.records_count += countIncrement
+        }
+    }
+
     allProgress.forEach(r => {
         const ts = new Date(r.updated_at).getTime()
-        if (allProfiles[r.user_id] && ts > allProfiles[r.user_id].last_active_ts) {
-            allProfiles[r.user_id].last_active_ts = ts
-        }
+        const isHub = r.tool_key === 'klasskit_hub' || r.tool_key === 'hub'
+        const canonical = isHub ? null : resolveCanonicalToolId(r.tool_key)
+        const entryCount = isHub ? 0 : extractLogEntries(r).length
+        registerUserActivity(r.user_id, ts, canonical, entryCount)
     })
-
-    // Fetch Games Registry for categories
-    const gamesRes = await fetch('../games.json')
-    const gamesData = await gamesRes.json()
-    const toolCategoryMap = {}
-    const catDisplayNames = {
-        'myspace': 'My Space',
-        'tool': 'Tools',
-        'workshop': 'Workshop',
-        'game': 'Games'
-    }
-    gamesData.games.forEach(g => {
-        toolCategoryMap[g.id] = catDisplayNames[g.category] || 'Tools'
+    allNotes.forEach(n => {
+        if (!n.deleted) registerUserActivity(n.user_id, parseTimestampMs(n.updated_at), 'lessonnotes', 1)
     })
-    window.toolCategoryMap = toolCategoryMap
-
-    // Fetch Announcements
-    const annRes = await db.from('announcements').select('*').order('created_at', { ascending: false })
-    allAnnouncements = annRes.data || []
+    allScheduleEvents.forEach(e => {
+        registerUserActivity(e.user_id, parseTimestampMs(e.updated_at || e.created_at || e.date), 'schedule', 1)
+    })
+    allClassAdmin.forEach(c => {
+        registerUserActivity(c.user_id, parseTimestampMs(c.created_at), 'admin-tracker', 1)
+    })
+    allClassUnits.forEach(u => {
+        registerUserActivity(u.user_id, parseTimestampMs(u.created_at), 'admin-tracker', 1)
+    })
+    allMySpaceTasks.forEach(t => {
+        registerUserActivity(t.user_id, parseTimestampMs(t.updated_at || t.created_at), 'tasks', 1)
+    })
+    allMyClass.forEach(c => {
+        registerUserActivity(c.user_id, parseTimestampMs(c.updated_at), 'my-class', 1)
+    })
+    allSpreadsheets.forEach(s => {
+        registerUserActivity(s.user_id, parseTimestampMs(s.updated_at || s.created_at), 'spreadsheet', 1)
+    })
+    allLessonParser.forEach(lp => {
+        registerUserActivity(lp.user_id, parseTimestampMs(lp.last_used || lp.created_at), 'lesson-parser', 1)
+    })
+    allCardMaker.forEach(cm => {
+        registerUserActivity(cm.user_id, parseTimestampMs(cm.last_used || cm.created_at), 'card-maker', 1)
+    })
+    allPuzzleMaker.forEach(pm => {
+        registerUserActivity(pm.user_id, parseTimestampMs(pm.last_used || pm.created_at), 'puzzle-maker', 1)
+    })
+    allWorksheetMaker.forEach(wm => {
+        registerUserActivity(wm.user_id, parseTimestampMs(wm.last_used || wm.created_at), 'worksheet-maker', 1)
+    })
+    allToolsDnd.forEach(d => {
+        registerUserActivity(d.user_id, parseTimestampMs(d.last_used || d.created_at), 'dnd-hub', 1)
+    })
+    allVttMaps.forEach(m => {
+        registerUserActivity(m.user_id, parseTimestampMs(m.updated_at || m.created_at), 'dnd-hub', 1)
+    })
+    allVttCampaigns.forEach(c => {
+        registerUserActivity(c.user_id, parseTimestampMs(c.updated_at || c.created_at), 'dnd-hub', 1)
+    })
+    allClockLogs.forEach(cl => {
+        registerUserActivity(cl.user_id, parseTimestampMs(cl.updated_at || cl.created_at || cl.date), 'clockcalendar', 1)
+    })
 
     updateStats()
     populateToolFilter()
     applyFilters()
     renderAnnouncements()
     if (currentView === 'cloud') renderCloudTable()
+    if (currentView === 'logs') renderLogsTable()
     renderExcludedUserPicker()
     showToast('Data refreshed')
+}
+
+// ── TIMESTAMP & TOOL RESOLUTION HELPERS ──
+function parseTimestampMs(raw) {
+    if (raw === undefined || raw === null || raw === '') return 0
+    if (raw instanceof Date) return isNaN(raw.getTime()) ? 0 : raw.getTime()
+    const num = Number(raw)
+    if (!isNaN(num) && num > 0) {
+        // Handle unix seconds vs unix milliseconds
+        const ms = num < 1e11 ? num * 1000 : num
+        return ms
+    }
+    const parsed = new Date(raw).getTime()
+    return isNaN(parsed) ? 0 : parsed
+}
+
+function formatRelativeTime(tsMs) {
+    if (!tsMs || tsMs <= 0) return '—'
+    const diffSec = Math.max(0, Math.floor((Date.now() - tsMs) / 1000))
+    if (diffSec < 60) return 'Just now'
+    const diffMin = Math.floor(diffSec / 60)
+    if (diffMin < 60) return `${diffMin}m ago`
+    const diffHr = Math.floor(diffMin / 60)
+    if (diffHr < 24) return `${diffHr}h ago`
+    const diffDays = Math.floor(diffHr / 24)
+    if (diffDays < 7) return `${diffDays}d ago`
+    return new Date(tsMs).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+}
+
+function resolveCanonicalToolId(rawKey) {
+    if (!rawKey) return 'unknown'
+    if (RAW_TOOL_TO_CATALOG_ID[rawKey]) return RAW_TOOL_TO_CATALOG_ID[rawKey]
+    const normalized = rawKey.toLowerCase().replace(/_/g, '-')
+    if (RAW_TOOL_TO_CATALOG_ID[normalized]) return RAW_TOOL_TO_CATALOG_ID[normalized]
+    if (window.toolCategoryMap && window.toolCategoryMap[rawKey]) return rawKey
+    if (window.toolCategoryMap && window.toolCategoryMap[normalized]) return normalized
+    return rawKey
 }
 
 // ── TOAST SYSTEM ──
@@ -153,10 +517,10 @@ function showToast(msg, type = 'success') {
     toast.style.boxShadow = '4px 4px 0 #000'
     toast.innerHTML = `
         <i data-lucide="${type === 'success' ? 'check-circle' : 'alert-circle'}" class="w-5 h-5"></i>
-        <span class="text-sm font-bold">${msg}</span>
+        <span class="text-sm font-bold">${escapeHtml(msg)}</span>
     `
     container.appendChild(toast)
-    lucide.createIcons()
+    lucide.createIcons({ root: toast })
     setTimeout(() => {
         toast.classList.add('animate-slide-out')
         setTimeout(() => toast.remove(), 500)
@@ -184,185 +548,607 @@ function getExcludedUserIds() {
 }
 
 function getToolMeta(toolKey) {
-    // Format name: replace hyphens with spaces and capitalize words
-    const displayName = toolKey
+    const canonicalId = resolveCanonicalToolId(toolKey)
+    const toolMap = window.toolCategoryMap || {}
+    const titleMap = window.toolTitleMap || {}
+    const iconMap = window.toolIconMap || {}
+
+    const displayName = titleMap[canonicalId] || canonicalId
+        .replace(/_/g, '-')
         .split('-')
         .map(w => w.charAt(0).toUpperCase() + w.slice(1))
         .join(' ')
 
-    // Determine category
-    const toolMap = window.toolCategoryMap || {}
-    let cat = toolMap[toolKey]
+    let cat = toolMap[canonicalId]
     if (!cat) {
-        if (toolKey.includes('game') || toolKey.includes('quiz') || toolKey === 'card-match' || toolKey === 'card-memory' || toolKey === 'connect-four') cat = 'Games'
-        else if (toolKey.includes('note') || toolKey.includes('schedule') || toolKey.includes('admin') || toolKey === 'my-class') cat = 'My Space'
-        else if (toolKey.includes('factory') || toolKey.includes('generator') || toolKey.includes('maker')) cat = 'Workshop'
+        const k = canonicalId.toLowerCase()
+        if (k.includes('game') || k.includes('quiz') || k === 'cardmatch' || k === 'cardmemory' || k === 'connect-four' || k === 'dnd-hub') cat = 'Games'
+        else if (k.includes('note') || k.includes('schedule') || k.includes('admin') || k === 'my-class' || k === 'tasks') cat = 'My Space'
+        else if (k.includes('workshop') || k.includes('parser') || k.includes('helper')) cat = 'Workshop'
         else cat = 'Tools'
     }
 
     const categories = {
-        'My Space': { color: '#ff7e33', icon: 'layout' },
-        'Tools': { color: '#1ea7fd', icon: 'settings' },
-        'Workshop': { color: '#ff4785', icon: 'wrench' },
+        'My Space': { color: '#ff7e33', icon: 'layout-dashboard' },
+        'Tools': { color: '#1ea7fd', icon: 'wrench' },
+        'Workshop': { color: '#ff4785', icon: 'sparkles' },
         'Games': { color: '#00d063', icon: 'gamepad-2' }
     }
 
     return {
+        id: canonicalId,
         name: displayName,
         category: cat,
         color: categories[cat]?.color || '#1ea7fd',
-        icon: categories[cat]?.icon || 'settings'
+        icon: iconMap[canonicalId] || categories[cat]?.icon || 'settings'
     }
 }
 
-// ── LOG ENTRY EXTRACTOR ──
-// user_progress is an upsert table (1 row per user+tool). The actual history of
-// individual interactions is stored as an array inside row.data. This function
-// extracts those entries so charts and logs reflect real activity timestamps
-// instead of the ever-shifting updated_at timestamp on the upsert row.
+// ── ACCURATE LOG ENTRY EXTRACTOR ──
+// Extracts saved sets/collections/presets from user_progress rows without falsely inflating
+// workspace arrays (like whiteboard strokes, word lists, or student arrays) into separate saves.
+const SET_COLLECTION_KEYS = ['sets', 'word_sets', 'wordSets', 'presets', 'collections', 'reports', 'activities', 'library', 'playlists']
+
 function extractLogEntries(row) {
     const entries = []
-    const fallbackTs = new Date(row.created_at || row.updated_at)
+    const rowTsMs = parseTimestampMs(row.updated_at || row.created_at) || Date.now()
+    const fallbackTs = new Date(rowTsMs)
     const data = row.data
-    let items = null
+    const canonicalTool = resolveCanonicalToolId(row.tool_key)
 
+    let items = null
     if (Array.isArray(data)) {
-        items = data
+        // Top-level array (e.g. youtube-library, spinwheel libraries, fc-play library)
+        // Only treat elements as individual saved items if they are objects (not raw strings/numbers)
+        if (data.length > 0 && typeof data[0] === 'object' && data[0] !== null) {
+            items = data
+        }
     } else if (data && typeof data === 'object') {
-        // Find the most-populated array property — that's the log/history/items list
-        let best = null
-        for (const val of Object.values(data)) {
-            if (Array.isArray(val) && (!best || val.length > best.length)) {
-                best = val
+        // Look specifically for known saved-set collection keys
+        for (const key of SET_COLLECTION_KEYS) {
+            if (Array.isArray(data[key]) && data[key].length > 0) {
+                items = data[key]
+                break
             }
         }
-        items = best
     }
 
     if (items && items.length > 0) {
+        let newestItemTsMs = 0
         for (const item of items) {
-            if (!item || typeof item !== 'object') {
-                entries.push({ user_id: row.user_id, tool_key: row.tool_key, timestamp: fallbackTs })
-                continue
+            if (!item || typeof item !== 'object') continue
+            let rawTs = item.created_at ?? item.createdAt ?? item.updated_at ?? item.updatedAt
+                ?? item.last_used ?? item.lastUsed ?? item.savedAt ?? item.timestamp ?? item.date ?? item.time
+            // Some tools use Date.now() as item.id (13-digit epoch ms)
+            if (rawTs === undefined && typeof item.id === 'number' && item.id >= 1600000000000 && item.id <= 2500000000000) {
+                rawTs = item.id
             }
-            // Check common timestamp field names tools might use
-            const rawTs = item.created_at ?? item.createdAt ?? item.timestamp
-                ?? item.date ?? item.savedAt ?? item.updated_at ?? item.time
-            let ts = fallbackTs
-            if (rawTs !== undefined && rawTs !== null) {
-                const num = Number(rawTs)
-                const parsed = !isNaN(num) && num > 0 ? new Date(num) : new Date(rawTs)
-                if (!isNaN(parsed.getTime())) ts = parsed
-            }
-            entries.push({ user_id: row.user_id, tool_key: row.tool_key, timestamp: ts })
+            const parsedMs = parseTimestampMs(rawTs)
+            const finalMs = (parsedMs > 1577836800000 && parsedMs <= Date.now() + 86400000) ? parsedMs : rowTsMs
+            if (finalMs > newestItemTsMs) newestItemTsMs = finalMs
+            entries.push({
+                user_id: row.user_id,
+                tool_key: row.tool_key,
+                canonical_tool: canonicalTool,
+                timestamp: new Date(finalMs),
+                action_type: 'Saved_Set',
+                label: item.name || item.title || canonicalTool
+            })
         }
     }
 
-    // Fallback: no array found — treat the row itself as one entry anchored to created_at
+    // If no set objects were found, treat the progress row as 1 workspace save
     if (entries.length === 0) {
-        entries.push({ user_id: row.user_id, tool_key: row.tool_key, timestamp: fallbackTs })
+        let workspaceTsMs = rowTsMs
+        if (data && typeof data === 'object' && !Array.isArray(data)) {
+            const innerTs = parseTimestampMs(data.updatedAt ?? data.updated_at ?? data.lastUsed ?? data.timestamp)
+            if (innerTs > 1577836800000 && innerTs <= Date.now() + 86400000) {
+                workspaceTsMs = Math.max(rowTsMs, innerTs)
+            }
+        }
+        entries.push({
+            user_id: row.user_id,
+            tool_key: row.tool_key,
+            canonical_tool: canonicalTool,
+            timestamp: new Date(workspaceTsMs),
+            action_type: 'Workspace_Save',
+            label: canonicalTool
+        })
     }
 
     return entries
 }
 
+// Builds a unified chronological array of all platform events across all tables
+function buildUnifiedEvents(excludedIds = []) {
+    const events = []
+
+    // 1. user_progress (excluding hub state)
+    allProgress.forEach(r => {
+        if (excludedIds.includes(r.user_id)) return
+        if (r.tool_key === 'klasskit_hub' || r.tool_key === 'hub') return
+        const extracted = extractLogEntries(r)
+        extracted.forEach(e => events.push({ ...e, source: 'progress', refId: r.tool_key }))
+    })
+
+    // 2. Lesson Notes (active notes)
+    allNotes.forEach(n => {
+        if (excludedIds.includes(n.user_id) || n.deleted) return
+        const tsMs = parseTimestampMs(n.updated_at)
+        if (!tsMs) return
+        events.push({
+            user_id: n.user_id,
+            tool_key: 'lesson-note',
+            canonical_tool: 'lessonnotes',
+            timestamp: new Date(tsMs),
+            action_type: 'Lesson_Note',
+            label: n.title || 'Untitled Note',
+            source: 'note',
+            refId: n.id
+        })
+    })
+
+    // 3. Master Schedule Events
+    allScheduleEvents.forEach(ev => {
+        if (excludedIds.includes(ev.user_id)) return
+        const tsMs = parseTimestampMs(ev.updated_at || ev.created_at || ev.date)
+        if (!tsMs) return
+        events.push({
+            user_id: ev.user_id,
+            tool_key: 'schedule',
+            canonical_tool: 'schedule',
+            timestamp: new Date(tsMs),
+            action_type: 'Schedule_Event',
+            label: ev.name || 'Schedule Event',
+            source: 'schedule',
+            refId: ev.id
+        })
+    })
+
+    // 4. Admin Tracker Classes & Unit Syllabi
+    allClassAdmin.forEach(cls => {
+        if (excludedIds.includes(cls.user_id)) return
+        const tsMs = parseTimestampMs(cls.created_at)
+        if (!tsMs) return
+        events.push({
+            user_id: cls.user_id,
+            tool_key: 'admin-tracker',
+            canonical_tool: 'admin-tracker',
+            timestamp: new Date(tsMs),
+            action_type: 'Admin_Tracker',
+            label: cls.class_name || 'Class Tracker',
+            source: 'class_admin',
+            refId: cls.id
+        })
+    })
+    allClassUnits.forEach(cls => {
+        if (excludedIds.includes(cls.user_id)) return
+        const tsMs = parseTimestampMs(cls.created_at)
+        if (!tsMs) return
+        events.push({
+            user_id: cls.user_id,
+            tool_key: 'admin-tracker',
+            canonical_tool: 'admin-tracker',
+            timestamp: new Date(tsMs),
+            action_type: 'Unit_Syllabus',
+            label: cls.class_name || 'Unit Plan',
+            source: 'class_units',
+            refId: cls.id
+        })
+    })
+
+    // 5. My Space Tasks
+    allMySpaceTasks.forEach(t => {
+        if (excludedIds.includes(t.user_id)) return
+        const tsMs = parseTimestampMs(t.updated_at || t.created_at)
+        if (!tsMs) return
+        events.push({
+            user_id: t.user_id,
+            tool_key: 'tasks',
+            canonical_tool: 'tasks',
+            timestamp: new Date(tsMs),
+            action_type: t.completed ? 'Task_Completed' : 'Task_Created',
+            label: t.text || 'Task',
+            source: 'task',
+            refId: t.id
+        })
+    })
+
+    // 6. My Class
+    allMyClass.forEach(cls => {
+        if (excludedIds.includes(cls.user_id)) return
+        const tsMs = parseTimestampMs(cls.updated_at)
+        if (!tsMs) return
+        events.push({
+            user_id: cls.user_id,
+            tool_key: 'my-class',
+            canonical_tool: 'my-class',
+            timestamp: new Date(tsMs),
+            action_type: 'My_Class_Sync',
+            label: cls.class_name || 'Class Roster',
+            source: 'myclass',
+            refId: cls.id
+        })
+    })
+
+    // 7. Spreadsheets (Class Sheet)
+    allSpreadsheets.forEach(s => {
+        if (excludedIds.includes(s.user_id)) return
+        const tsMs = parseTimestampMs(s.updated_at || s.created_at)
+        if (!tsMs) return
+        events.push({
+            user_id: s.user_id,
+            tool_key: 'spreadsheet',
+            canonical_tool: 'spreadsheet',
+            timestamp: new Date(tsMs),
+            action_type: 'Class_Sheet',
+            label: s.title || 'Untitled Sheet',
+            source: 'studio',
+            refId: `spreadsheets:${s.id}`
+        })
+    })
+
+    // 8. Lesson Parser (Workshop)
+    allLessonParser.forEach(lp => {
+        if (excludedIds.includes(lp.user_id)) return
+        const tsMs = parseTimestampMs(lp.last_used || lp.created_at)
+        if (!tsMs) return
+        events.push({
+            user_id: lp.user_id,
+            tool_key: 'lesson-parser',
+            canonical_tool: 'lesson-parser',
+            timestamp: new Date(tsMs),
+            action_type: 'Lesson_Parser',
+            label: lp.name || 'Parsed Lesson',
+            source: 'studio',
+            refId: `workshop_lessonparser:${lp.id}`
+        })
+    })
+
+    // 9. Maker Tables (Cards Maker, Puzzle Maker, Worksheet Maker)
+    allCardMaker.forEach(cm => {
+        if (excludedIds.includes(cm.user_id)) return
+        const tsMs = parseTimestampMs(cm.last_used || cm.created_at)
+        if (!tsMs) return
+        events.push({
+            user_id: cm.user_id,
+            tool_key: 'card-maker',
+            canonical_tool: 'card-maker',
+            timestamp: new Date(tsMs),
+            action_type: 'Card_Set',
+            label: cm.name || 'Flashcard Set',
+            source: 'studio',
+            refId: `tools_cardmaker:${cm.id}`
+        })
+    })
+    allPuzzleMaker.forEach(pm => {
+        if (excludedIds.includes(pm.user_id)) return
+        const tsMs = parseTimestampMs(pm.last_used || pm.created_at)
+        if (!tsMs) return
+        events.push({
+            user_id: pm.user_id,
+            tool_key: 'puzzle-maker',
+            canonical_tool: 'puzzle-maker',
+            timestamp: new Date(tsMs),
+            action_type: 'Puzzle_Set',
+            label: pm.name || 'Puzzle Set',
+            source: 'studio',
+            refId: `tools_puzzlemaker:${pm.id}`
+        })
+    })
+    allWorksheetMaker.forEach(wm => {
+        if (excludedIds.includes(wm.user_id)) return
+        const tsMs = parseTimestampMs(wm.last_used || wm.created_at)
+        if (!tsMs) return
+        events.push({
+            user_id: wm.user_id,
+            tool_key: 'worksheet-maker',
+            canonical_tool: 'worksheet-maker',
+            timestamp: new Date(tsMs),
+            action_type: 'Worksheet_Set',
+            label: wm.name || 'Worksheet',
+            source: 'studio',
+            refId: `tools_worksheetmaker:${wm.id}`
+        })
+    })
+
+    // 10. D&D & VTT
+    allToolsDnd.forEach(d => {
+        if (excludedIds.includes(d.user_id)) return
+        const tsMs = parseTimestampMs(d.last_used || d.created_at)
+        if (!tsMs) return
+        events.push({
+            user_id: d.user_id,
+            tool_key: 'dnd-hub',
+            canonical_tool: 'dnd-hub',
+            timestamp: new Date(tsMs),
+            action_type: 'DnD_Save',
+            label: d.name || 'D&D Entry',
+            source: 'studio',
+            refId: `tools_dnd:${d.id}`
+        })
+    })
+    allVttMaps.forEach(m => {
+        const uid = m.user_id || m.owner_id
+        if (!uid || excludedIds.includes(uid)) return
+        const tsMs = parseTimestampMs(m.updated_at || m.created_at)
+        if (!tsMs) return
+        events.push({
+            user_id: uid,
+            tool_key: 'dnd-hub',
+            canonical_tool: 'dnd-hub',
+            timestamp: new Date(tsMs),
+            action_type: 'VTT_Map',
+            label: m.name || m.title || 'VTT Map',
+            source: 'studio',
+            refId: `vtt_maps:${m.id}`
+        })
+    })
+    allVttCampaigns.forEach(c => {
+        const uid = c.user_id || c.owner_id
+        if (!uid || excludedIds.includes(uid)) return
+        const tsMs = parseTimestampMs(c.updated_at || c.created_at)
+        if (!tsMs) return
+        events.push({
+            user_id: uid,
+            tool_key: 'dnd-hub',
+            canonical_tool: 'dnd-hub',
+            timestamp: new Date(tsMs),
+            action_type: 'VTT_Campaign',
+            label: c.name || c.title || 'VTT Campaign',
+            source: 'studio',
+            refId: `vtt_campaigns:${c.id}`
+        })
+    })
+
+    return events.filter(ev => Boolean(ev.user_id))
+}
+
+function setChartDays(days) {
+    chartDaysWindow = days
+    ;[7, 14, 30, 90].forEach(d => {
+        const btn = document.getElementById(`range-${d}`)
+        if (btn) btn.classList.toggle('active', d === days)
+    })
+    updateStats()
+}
+
+function setTopToolsMode(mode) {
+    topToolsMode = mode
+    const btnWeek = document.getElementById('topToolsBtnWeek')
+    const btnAll = document.getElementById('topToolsBtnAll')
+    if (btnWeek) btnWeek.classList.toggle('active', mode === 'week')
+    if (btnAll) btnAll.classList.toggle('active', mode === 'all')
+    updateStats()
+}
+
+function setToolsChartMetric(metric) {
+    toolsChartMetric = metric
+    const btnSaves = document.getElementById('toolsMetricSaves')
+    const btnUsers = document.getElementById('toolsMetricUsers')
+    if (btnSaves) btnSaves.classList.toggle('active', metric === 'saves')
+    if (btnUsers) btnUsers.classList.toggle('active', metric === 'users')
+    updateStats()
+}
+
+function countStudentsInClassRow(cls) {
+    if (Array.isArray(cls.students) && cls.students.length > 0) return cls.students.length
+    if (cls.data && Array.isArray(cls.data.students)) return cls.data.students.length
+    return 0
+}
+
 function updateStats() {
     const excludedIds = getExcludedUserIds()
 
-    // Data filtered for metrics (excluding test users)
+    // Exclusion banner
+    const excludedBanner = document.getElementById('excludedBanner')
+    const excludedBannerCount = document.getElementById('excludedBannerCount')
+    if (excludedBanner) {
+        excludedBanner.classList.toggle('hidden', excludedIds.length === 0)
+        if (excludedBannerCount) {
+            excludedBannerCount.textContent = `${excludedIds.length} test account${excludedIds.length === 1 ? '' : 's'}`
+        }
+    }
+
+    // Filtered collections (excluding test accounts)
     const metricsProgress = allProgress.filter(r => !excludedIds.includes(r.user_id))
-    const metricsNotes = allNotes.filter(n => !excludedIds.includes(n.user_id))
+    const metricsNotesAll = allNotes.filter(n => !excludedIds.includes(n.user_id))
+    const metricsNotes = metricsNotesAll.filter(n => !n.deleted)
+    const trashedNotesCount = metricsNotesAll.filter(n => n.deleted).length
     const metricsProfiles = Object.fromEntries(Object.entries(allProfiles).filter(([id]) => !excludedIds.includes(id)))
     const metricsSched = allScheduleEvents.filter(e => !excludedIds.includes(e.user_id))
     const metricsClasses = allClassAdmin.filter(c => !excludedIds.includes(c.user_id))
+    const metricsClassUnits = allClassUnits.filter(u => !excludedIds.includes(u.user_id))
+    const metricsTasks = allMySpaceTasks.filter(t => !excludedIds.includes(t.user_id))
+    const metricsMyClass = allMyClass.filter(c => !excludedIds.includes(c.user_id))
+    const metricsSpreadsheets = allSpreadsheets.filter(s => !excludedIds.includes(s.user_id))
+    const metricsLessonParser = allLessonParser.filter(lp => !excludedIds.includes(lp.user_id))
+    const metricsCardMaker = allCardMaker.filter(cm => !excludedIds.includes(cm.user_id))
+    const metricsPuzzleMaker = allPuzzleMaker.filter(pm => !excludedIds.includes(pm.user_id))
+    const metricsWorksheetMaker = allWorksheetMaker.filter(wm => !excludedIds.includes(wm.user_id))
+    const metricsToolsDnd = allToolsDnd.filter(d => !excludedIds.includes(d.user_id))
+    const metricsVttMaps = allVttMaps.filter(m => !excludedIds.includes(m.user_id))
+    const metricsVttCampaigns = allVttCampaigns.filter(c => !excludedIds.includes(c.user_id))
 
-    const uniqueTools = new Set([...metricsProgress.map(r => r.tool_key), ...metricsNotes.map(n => 'lesson-note')]).size
-    const latestProgress = metricsProgress[0]?.updated_at ? new Date(metricsProgress[0].updated_at).getTime() : 0
-    const latestNote = metricsNotes[0]?.updated_at ? (Number(metricsNotes[0].updated_at) || 0) : 0
-    const latest = Math.max(latestProgress, latestNote)
-        ? new Date(Math.max(latestProgress, latestNote)).toLocaleDateString()
-        : '—'
+    const unifiedEvents = buildUnifiedEvents(excludedIds)
 
-    const statUsers = document.getElementById('statUsers')
-    if (statUsers) statUsers.textContent = Object.keys(metricsProfiles).length
-    const proCount = Object.values(metricsProfiles).filter(p => p.role === 'pro').length
-    const statPro = document.getElementById('statPro')
-    if (statPro) statPro.textContent = proCount
-    const statProBar = document.getElementById('statProBar')
-    if (statProBar) {
-        const total = Object.keys(metricsProfiles).length || 1
-        const percent = Math.min(100, Math.round((proCount / total) * 100))
-        statProBar.style.width = `${percent}%`
+    // 1. Community & Active Cohorts (DAU / WAU / MAU)
+    const profileList = Object.values(metricsProfiles)
+    const totalTeachers = profileList.length
+    const now = Date.now()
+    const dayAgo = now - 24 * 60 * 60 * 1000
+    const weekAgo = now - 7 * 24 * 60 * 60 * 1000
+    const monthAgo = now - 30 * 24 * 60 * 60 * 1000
+
+    const dauUsers = new Set()
+    const wauUsers = new Set()
+    const mauUsers = new Set()
+
+    unifiedEvents.forEach(ev => {
+        const ts = ev.timestamp.getTime()
+        if (ts >= dayAgo) dauUsers.add(ev.user_id)
+        if (ts >= weekAgo) wauUsers.add(ev.user_id)
+        if (ts >= monthAgo) mauUsers.add(ev.user_id)
+    })
+
+    // Also check profile last_active_ts in case hub visit was the most recent action
+    profileList.forEach(p => {
+        if (p.last_active_ts >= dayAgo) dauUsers.add(p.id)
+        if (p.last_active_ts >= weekAgo) wauUsers.add(p.id)
+        if (p.last_active_ts >= monthAgo) mauUsers.add(p.id)
+    })
+
+    const dauCount = dauUsers.size
+    const wauCount = wauUsers.size
+    const mauCount = mauUsers.size
+    const stickiness = mauCount > 0 ? Math.round((dauCount / mauCount) * 100) : 0
+
+    const setElText = (id, val) => {
+        const el = document.getElementById(id)
+        if (el) el.textContent = val
     }
-    // Count total individual log entries across all progress rows, not just unique (user,tool) pairs.
-    // user_progress is an upsert table so row count stays flat; the real activity count lives in data[].
-    const totalLogEntries = metricsProgress.reduce((sum, r) => sum + extractLogEntries(r).length, 0)
-    const statRows = document.getElementById('statRows')
-    if (statRows) statRows.textContent = totalLogEntries
-    const statNotes = document.getElementById('statNotes')
-    if (statNotes) statNotes.textContent = metricsNotes.length
-    const statTools = document.getElementById('statTools')
-    if (statTools) statTools.textContent = uniqueTools
-    const statLatest = document.getElementById('statLatest')
-    if (statLatest) statLatest.textContent = latest
-    const statEvents = document.getElementById('statEvents')
-    if (statEvents) statEvents.textContent = metricsSched.length
-    const statClasses = document.getElementById('statClasses')
-    if (statClasses) statClasses.textContent = metricsClasses.length
 
-    // Render Top Tools Card
+    setElText('statUsers', totalTeachers)
+    setElText('statDAU', dauCount)
+    setElText('statWAU', wauCount)
+    setElText('statMAU', mauCount)
+    setElText('statStickiness', `${stickiness}% DAU/MAU`)
+
+    const proCount = profileList.filter(p => p.role === 'pro').length
+    const adminCount = profileList.filter(p => p.role === 'admin').length
+    setElText('statPro', proCount)
+    setElText('statAdmins', adminCount)
+
+    const totalForBar = totalTeachers || 1
+    const proPercent = Math.min(100, Math.round((proCount / totalForBar) * 100))
+    const adminPercent = Math.min(100 - proPercent, Math.round((adminCount / totalForBar) * 100))
+    setElText('statProPercent', `${proPercent}% Pro`)
+
+    const statProBar = document.getElementById('statProBar')
+    const statAdminBar = document.getElementById('statAdminBar')
+    if (statProBar) statProBar.style.width = `${proPercent}%`
+    if (statAdminBar) statAdminBar.style.width = `${adminPercent}%`
+
+    // 2. Engagement Metrics
+    const progressSaveCount = unifiedEvents.filter(e => e.source === 'progress').length
+    const dbRecordsCount = unifiedEvents.length - progressSaveCount
+    const totalInteractions = unifiedEvents.length
+    const activeTeacherCount = profileList.filter(p => (p.records_count || 0) > 0).length || 1
+    const avgSavesPerTeacher = (totalInteractions / activeTeacherCount).toFixed(1)
+
+    const adoptedCanonicalTools = new Set(unifiedEvents.map(e => e.canonical_tool))
+    const activeCatalogGames = allGamesCatalog.filter(g => g.category !== 'under-construction' && g.id !== 'myspace-home')
+    const catalogTotalCount = activeCatalogGames.length || 59
+
+    setElText('statRows', totalInteractions.toLocaleString())
+    setElText('statAvgPerTeacher', `~${avgSavesPerTeacher} / active user`)
+    setElText('statToolSavesCount', progressSaveCount.toLocaleString())
+    setElText('statDbRecordsCount', dbRecordsCount.toLocaleString())
+    setElText('statTools', `${adoptedCanonicalTools.size} / ${catalogTotalCount} tools`)
+
+    // 3. Cloud Sync & Storage Health
+    const totalUsed = profileList.reduce((sum, p) => sum + (Number(p.storage_usage) || 0), 0)
+    const totalLimit = profileList.reduce((sum, p) => sum + (Number(p.storage_limit) || 50 * 1024 * 1024), 0)
+    const totalUsedMB = (totalUsed / (1024 * 1024)).toFixed(1)
+    const totalLimitMB = Math.round(totalLimit / (1024 * 1024))
+    const storagePercent = totalLimit > 0 ? Math.min(100, Math.round((totalUsed / totalLimit) * 100)) : 0
+    const mediaNodesCount = profileList.filter(p => (Number(p.storage_usage) || 0) > 0).length
+
+    setElText('statStorage', `${totalUsedMB} MB`)
+    setElText('statStorageQuotaInfo', `/ ${totalLimitMB} MB (${storagePercent}%)`)
+    setElText('statMediaNodes', `${mediaNodesCount} teacher${mediaNodesCount === 1 ? '' : 's'}`)
+    setElText('statTablesCount', `${healthyTablesCount}/${totalQueriedTables} tables OK`)
+
+    const statStorageMiniBar = document.getElementById('statStorageMiniBar')
+    if (statStorageMiniBar) statStorageMiniBar.style.width = `${storagePercent}%`
+
+    let latestTsMs = 0
+    unifiedEvents.forEach(ev => {
+        const ms = ev.timestamp.getTime()
+        if (ms > latestTsMs && ms <= Date.now() + 86400000) latestTsMs = ms
+    })
+    const latestStr = latestTsMs > 0
+        ? `${formatRelativeTime(latestTsMs)} (${new Date(latestTsMs).toLocaleDateString()})`
+        : '—'
+    setElText('statLatest', latestStr)
+
+    // 4. Secondary Ecosystem Pulse Strip (6 Mini Cards)
+    const totalFoldersCount = Object.entries(allNoteFolders)
+        .filter(([uid]) => !excludedIds.includes(uid))
+        .reduce((sum, [, f]) => sum + (Array.isArray(f) ? f.length : 0), 0)
+    setElText('statNotes', metricsNotes.length)
+    setElText('statNotesSub', `${totalFoldersCount} folders · ${trashedNotesCount} trashed`)
+
+    const totalStudentsCount = metricsMyClass.reduce((sum, c) => sum + countStudentsInClassRow(c), 0)
+    setElText('statMyClasses', metricsMyClass.length)
+    setElText('statStudentsCount', `${totalStudentsCount} students tracked`)
+
+    setElText('statEvents', metricsSched.length)
+    setElText('statClassesSub', `${metricsClasses.length} tracker · ${metricsClassUnits.length} syllabi`)
+
+    const completedTasksCount = metricsTasks.filter(t => t.completed).length
+    const taskCompletionRate = metricsTasks.length > 0 ? Math.round((completedTasksCount / metricsTasks.length) * 100) : 0
+    setElText('statTasks', metricsTasks.length)
+    setElText('statTasksSub', `${completedTasksCount} done (${taskCompletionRate}%)`)
+
+    const makerSetsCount = metricsCardMaker.length + metricsPuzzleMaker.length + metricsWorksheetMaker.length
+    setElText('statStudio', metricsSpreadsheets.length + makerSetsCount)
+    setElText('statStudioSub', `${metricsSpreadsheets.length} sheets · ${makerSetsCount} maker sets`)
+
+    const dndTotalCount = metricsToolsDnd.length + metricsVttMaps.length + metricsVttCampaigns.length
+    setElText('statWorkshop', metricsLessonParser.length + dndTotalCount)
+    setElText('statWorkshopSub', `${metricsLessonParser.length} parser · ${dndTotalCount} D&D/VTT`)
+
+    // 5. Render Top Tools Card (7D vs All Time)
     const topToolsList = document.getElementById('topToolsList')
     const topToolsTitle = document.getElementById('topToolsTitle')
     if (topToolsList) {
-        const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000
-        const weekToolCounts = {}
-        const filteredProgress = metricsProgress.filter(r => r.tool_key !== 'klasskit_hub' && r.tool_key !== 'hub')
-        const allLogEntries = filteredProgress.flatMap(r => extractLogEntries(r))
+        const toolStats = {}
+        const recordTool = (canonicalKey, userId) => {
+            if (!toolStats[canonicalKey]) toolStats[canonicalKey] = { count: 0, users: new Set() }
+            toolStats[canonicalKey].count += 1
+            if (userId) toolStats[canonicalKey].users.add(userId)
+        }
 
-        allLogEntries.forEach(entry => {
-            if (entry.timestamp.getTime() >= sevenDaysAgo) {
-                weekToolCounts[entry.tool_key] = (weekToolCounts[entry.tool_key] || 0) + 1
-            }
-        })
-        metricsNotes.forEach(n => {
-            const ts = Number(n.updated_at) || 0
-            if (ts >= sevenDaysAgo) {
-                weekToolCounts['lesson-note'] = (weekToolCounts['lesson-note'] || 0) + 1
+        unifiedEvents.forEach(ev => {
+            if (topToolsMode === 'week') {
+                if (ev.timestamp.getTime() >= weekAgo) recordTool(ev.canonical_tool, ev.user_id)
+            } else {
+                recordTool(ev.canonical_tool, ev.user_id)
             }
         })
 
-        let topTools = Object.entries(weekToolCounts).sort((a, b) => b[1] - a[1])
+        let topTools = Object.entries(toolStats).sort((a, b) => b[1].count - a[1].count)
         let isFallback = false
 
-        // Fallback: If no activity this week, use overall top tools
-        if (topTools.length === 0) {
-            const allTimeCounts = {}
-            allLogEntries.forEach(entry => {
-                allTimeCounts[entry.tool_key] = (allTimeCounts[entry.tool_key] || 0) + 1
-            })
-            metricsNotes.forEach(n => {
-                allTimeCounts['lesson-note'] = (allTimeCounts['lesson-note'] || 0) + 1
-            })
-            topTools = Object.entries(allTimeCounts).sort((a, b) => b[1] - a[1])
+        if (topToolsMode === 'week' && topTools.length === 0 && unifiedEvents.length > 0) {
+            unifiedEvents.forEach(ev => recordTool(ev.canonical_tool, ev.user_id))
+            topTools = Object.entries(toolStats).sort((a, b) => b[1].count - a[1].count)
             isFallback = true
         }
 
         if (topToolsTitle) {
-            topToolsTitle.textContent = isFallback ? 'Top Tools Overall' : 'Top Tools This Week'
+            topToolsTitle.textContent = (topToolsMode === 'all' || isFallback)
+                ? (isFallback ? 'Top Tools Overall (No 7D Saves)' : 'Top Tools All-Time')
+                : 'Top Tools This Week (7D)'
         }
 
-        const sliced = topTools.slice(0, 3)
+        const sliced = topTools.slice(0, 4)
         if (sliced.length === 0) {
             topToolsList.innerHTML = '<div class="text-center py-6 text-slate-500 font-bold text-xs">No activity yet</div>'
         } else {
-            topToolsList.innerHTML = sliced.map(([toolKey, count]) => {
+            topToolsList.innerHTML = sliced.map(([toolKey, info]) => {
                 const meta = getToolMeta(toolKey)
                 return `
-                    <div class="flex items-center justify-between p-1.5 bg-slate-900/50 rounded-xl border border-slate-700/30">
-                        <span class="text-xs text-slate-400 flex items-center gap-1.5">
-                            <i data-lucide="${meta.icon}" class="w-3.5 h-3.5" style="color: ${meta.color}"></i> ${meta.name}
+                    <div class="flex items-center justify-between p-2 bg-slate-900/60 rounded-xl border border-slate-700/40">
+                        <span class="text-xs text-slate-200 font-bold flex items-center gap-2 truncate pr-2">
+                            <i data-lucide="${meta.icon}" class="w-3.5 h-3.5 flex-shrink-0" style="color: ${meta.color}"></i>
+                            <span class="truncate">${escapeHtml(meta.name)}</span>
                         </span>
-                        <span class="text-sm font-bold text-white font-mono">${count} <span class="text-[9px] text-slate-500 font-bold uppercase tracking-wide">saves</span></span>
+                        <div class="flex items-center gap-2 flex-shrink-0">
+                            <span class="text-[10px] text-slate-400 font-mono">${info.users.size}u</span>
+                            <span class="text-xs font-bold text-white font-mono bg-slate-800 px-2 py-0.5 rounded-lg border border-slate-700">${info.count}</span>
+                        </div>
                     </div>
                 `
             }).join('')
@@ -370,16 +1156,11 @@ function updateStats() {
         }
     }
 
-    // Global Storage Stat
-    const totalUsed = Object.values(metricsProfiles).reduce((sum, p) => sum + (p.storage_usage || 0), 0)
-    const totalUsedMB = (totalUsed / (1024 * 1024)).toFixed(1)
-    const statStorage = document.getElementById('statStorage')
-    if (statStorage) statStorage.textContent = `${totalUsedMB} MB`
-
-    updateCharts(metricsProgress, metricsNotes, metricsProfiles, metricsSched, metricsClasses)
+    updateCharts(unifiedEvents, metricsProfiles)
+    renderDashboardInsights(unifiedEvents, metricsProfiles, adoptedCanonicalTools)
 }
 
-function updateCharts(metricsProgress, metricsNotes, metricsProfiles, metricsSched, metricsClasses) {
+function updateCharts(unifiedEvents, metricsProfiles) {
     const ctxActivity = document.getElementById('activityChart')?.getContext('2d')
     const ctxCategory = document.getElementById('categoryChart')?.getContext('2d')
     const ctxTools = document.getElementById('toolsChart')?.getContext('2d')
@@ -387,65 +1168,55 @@ function updateCharts(metricsProgress, metricsNotes, metricsProfiles, metricsSch
 
     if (!ctxActivity || !ctxCategory || !ctxTools || !ctxActiveUsers) return
 
-    // Filter out system keys like the Hub landing page
-    const filteredProgress = metricsProgress.filter(r => r.tool_key !== 'klasskit_hub' && r.tool_key !== 'hub')
+    // 1. Activity & DAU Charts (using configurable chartDaysWindow: 7, 14, 30, 90)
+    const days = chartDaysWindow || 14
 
-    // Build a flat list of individual log entries extracted from each row's data payload.
-    // This is the stable source of truth — binning by these timestamps instead of the
-    // upsert row's updated_at prevents the charts from shifting every time a user saves.
-    const allLogEntries = filteredProgress.flatMap(r => extractLogEntries(r))
-
-    // 1. Activity Line Chart
-    const days = 14
-
-    // Helper: local calendar date string YYYY-MM-DD from any date value.
-    // Uses local getFullYear/Month/Date (not UTC) so the day aligns with the user's wall clock.
     const getLocalDateKey = (dateVal) => {
         const d = new Date(dateVal)
         return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
     }
 
-    // Build the 14-day window anchored to today's real calendar date.
-    // Noon (12:00) is used instead of midnight so DST boundary shifts never flip the date.
     const dateKeys = []
     const activityLabels = []
     for (let i = days - 1; i >= 0; i--) {
         const d = new Date()
-        d.setHours(12, 0, 0, 0)   // noon anchor — immune to DST shifts
+        d.setHours(12, 0, 0, 0)
         d.setDate(d.getDate() - i)
         dateKeys.push(getLocalDateKey(d))
         activityLabels.push(d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }))
     }
 
-    // Activity chart and DAU chart: bin by each individual log entry's own timestamp.
-    // Previously binned by row.updated_at (DAU) which caused bars to shift every day as
-    // updated_at moved forward with each save. Log entry timestamps are immutable.
     const activityByDate = {}
     const usersByDate = {}
 
-    allLogEntries.forEach(entry => {
+    unifiedEvents.forEach(entry => {
         const key = getLocalDateKey(entry.timestamp)
         activityByDate[key] = (activityByDate[key] || 0) + 1
         if (!usersByDate[key]) usersByDate[key] = new Set()
         usersByDate[key].add(entry.user_id)
     })
 
-    // Fold notes into both charts — notes table has no data[] log, so use updated_at.
-    // Notes updated_at is a bigint (unix ms); treat it as creation date for now since
-    // notes table has no created_at column. This is an inherent schema limitation.
-    metricsNotes.forEach(n => {
-        const ts = Number(n.updated_at) || 0
-        if (!ts) return
-        const key = getLocalDateKey(new Date(ts))
-        activityByDate[key] = (activityByDate[key] || 0) + 1
-        if (!usersByDate[key]) usersByDate[key] = new Set()
-        usersByDate[key].add(n.user_id)
-    })
-
     const activityData = dateKeys.map(k => activityByDate[k] || 0)
     const dauData = dateKeys.map(k => usersByDate[k]?.size || 0)
 
-    // Create gradients for cards
+    // Summary chips for Activity & DAU charts
+    const windowTotalActions = activityData.reduce((a, b) => a + b, 0)
+    const maxActivity = Math.max(0, ...activityData)
+    const maxActivityIdx = activityData.indexOf(maxActivity)
+    const peakActivityLabel = maxActivity > 0 ? `${maxActivity} (${activityLabels[maxActivityIdx]})` : '0'
+
+    const maxDau = Math.max(0, ...dauData)
+    const avgDau = (dauData.reduce((a, b) => a + b, 0) / days).toFixed(1)
+
+    const activitySummaryEl = document.getElementById('activitySummaryText')
+    if (activitySummaryEl) activitySummaryEl.textContent = `${windowTotalActions.toLocaleString()} actions in the last ${days} days`
+    const activityPeakEl = document.getElementById('activityPeakChip')
+    if (activityPeakEl) activityPeakEl.textContent = `Peak: ${peakActivityLabel}`
+    const dauPeakEl = document.getElementById('dauPeakChip')
+    if (dauPeakEl) dauPeakEl.textContent = `Peak DAU: ${maxDau}`
+    const dauAvgEl = document.getElementById('dauAvgChip')
+    if (dauAvgEl) dauAvgEl.textContent = `Avg: ${avgDau} / day`
+
     const blueGradient = ctxActivity.createLinearGradient(0, 0, 0, ctxActivity.canvas.clientHeight || 250)
     blueGradient.addColorStop(0, 'rgba(30, 167, 253, 0.35)')
     blueGradient.addColorStop(1, 'rgba(30, 167, 253, 0.0)')
@@ -467,10 +1238,10 @@ function updateCharts(metricsProgress, metricsNotes, metricsProfiles, metricsSch
                 fill: true,
                 tension: 0.35,
                 borderWidth: 4,
-                pointRadius: 5,
+                pointRadius: days > 30 ? 2 : 5,
                 pointBackgroundColor: '#020617',
                 pointBorderColor: '#1ea7fd',
-                pointBorderWidth: 3,
+                pointBorderWidth: days > 30 ? 2 : 3,
                 pointHoverRadius: 8,
                 pointHoverBackgroundColor: '#1ea7fd',
                 pointHoverBorderColor: '#020617',
@@ -480,15 +1251,12 @@ function updateCharts(metricsProgress, metricsNotes, metricsProfiles, metricsSch
         options: {
             responsive: true,
             maintainAspectRatio: false,
-            interaction: {
-                intersect: false,
-                mode: 'index',
-            },
+            interaction: { intersect: false, mode: 'index' },
             plugins: {
                 legend: { display: false },
                 tooltip: {
-                    backgroundColor: 'rgba(15, 23, 42, 0.85)',
-                    borderColor: 'rgba(30, 167, 253, 0.4)',
+                    backgroundColor: 'rgba(15, 23, 42, 0.92)',
+                    borderColor: 'rgba(30, 167, 253, 0.5)',
                     borderWidth: 2,
                     titleFont: { family: 'Fredoka', size: 14, weight: '700' },
                     bodyFont: { family: 'Nunito', size: 12, weight: '700' },
@@ -506,11 +1274,11 @@ function updateCharts(metricsProgress, metricsNotes, metricsProfiles, metricsSch
                 y: {
                     beginAtZero: true,
                     grid: { color: 'rgba(255,255,255,0.06)', borderDash: [5, 5] },
-                    ticks: { color: '#94a3b8', font: { family: 'Nunito', weight: '700' } }
+                    ticks: { color: '#94a3b8', font: { family: 'Nunito', weight: '700' }, precision: 0 }
                 },
                 x: {
                     grid: { display: false },
-                    ticks: { color: '#94a3b8', font: { family: 'Nunito', weight: '700' } }
+                    ticks: { color: '#94a3b8', font: { family: 'Nunito', weight: '700' }, maxTicksLimit: 14 }
                 }
             }
         }
@@ -536,8 +1304,8 @@ function updateCharts(metricsProgress, metricsNotes, metricsProfiles, metricsSch
             plugins: {
                 legend: { display: false },
                 tooltip: {
-                    backgroundColor: 'rgba(15, 23, 42, 0.85)',
-                    borderColor: 'rgba(0, 208, 99, 0.4)',
+                    backgroundColor: 'rgba(15, 23, 42, 0.92)',
+                    borderColor: 'rgba(0, 208, 99, 0.5)',
                     borderWidth: 2,
                     titleFont: { family: 'Fredoka', size: 14, weight: '700' },
                     bodyFont: { family: 'Nunito', size: 12, weight: '700' },
@@ -547,7 +1315,7 @@ function updateCharts(metricsProgress, metricsNotes, metricsProfiles, metricsSch
                     cornerRadius: 12,
                     displayColors: false,
                     callbacks: {
-                        label: (context) => ` ${context.parsed.y} Unique Users`
+                        label: (context) => ` ${context.parsed.y} Unique Teachers`
                     }
                 }
             },
@@ -564,19 +1332,14 @@ function updateCharts(metricsProgress, metricsNotes, metricsProfiles, metricsSch
                 },
                 x: {
                     grid: { display: false },
-                    ticks: { color: '#94a3b8', font: { family: 'Nunito', weight: '700' } }
+                    ticks: { color: '#94a3b8', font: { family: 'Nunito', weight: '700' }, maxTicksLimit: 14 }
                 }
             }
         }
     })
 
-    // 2. Tool Counts & Category Mapping
-
-    const toolCounts = {}
-    allLogEntries.forEach(entry => {
-        toolCounts[entry.tool_key] = (toolCounts[entry.tool_key] || 0) + 1
-    })
-
+    // 2. Canonical Tool Aggregation & Category Distribution (strictly using excluded-filtered unifiedEvents)
+    const canonicalStats = {}
     const categories = {
         'My Space': { count: 0, color: '#ff7e33' },
         'Tools': { count: 0, color: '#1ea7fd' },
@@ -584,28 +1347,22 @@ function updateCharts(metricsProgress, metricsNotes, metricsProfiles, metricsSch
         'Games': { count: 0, color: '#00d063' }
     }
 
-    // 1. Add direct data from specialized tables (My Space)
-    categories['My Space'].count += allNotes.length
-    categories['My Space'].count += allScheduleEvents.length
-    categories['My Space'].count += allClassAdmin.length
-    categories['My Space'].count += allMyClass.length
-
-    // 2. Map progress records using the official registry
-    const toolMap = window.toolCategoryMap || {}
-    Object.entries(toolCounts).forEach(([key, count]) => {
-        // Determine category from registry or fallback to tool-key analysis
-        let cat = toolMap[key]
-        if (!cat) {
-            if (key.includes('game') || key.includes('quiz')) cat = 'Games'
-            else if (key.includes('note') || key.includes('schedule') || key.includes('admin')) cat = 'My Space'
-            else if (key.includes('factory') || key.includes('generator')) cat = 'Workshop'
-            else cat = 'Tools'
+    unifiedEvents.forEach(ev => {
+        const meta = getToolMeta(ev.canonical_tool)
+        if (!canonicalStats[meta.id]) {
+            canonicalStats[meta.id] = {
+                meta,
+                saves: 0,
+                users: new Set()
+            }
         }
+        canonicalStats[meta.id].saves += 1
+        if (ev.user_id) canonicalStats[meta.id].users.add(ev.user_id)
 
-        if (categories[cat]) {
-            categories[cat].count += count
+        if (categories[meta.category]) {
+            categories[meta.category].count += 1
         } else {
-            categories['Tools'].count += count
+            categories['Tools'].count += 1
         }
     })
 
@@ -619,13 +1376,13 @@ function updateCharts(metricsProgress, metricsNotes, metricsProfiles, metricsSch
                 backgroundColor: Object.values(categories).map(c => c.color),
                 borderWidth: 3,
                 borderColor: '#0f172a',
-                hoverOffset: 15
+                hoverOffset: 12
             }]
         },
         options: {
             responsive: true,
             maintainAspectRatio: false,
-            cutout: '78%',
+            cutout: '76%',
             plugins: {
                 legend: {
                     position: 'bottom',
@@ -638,7 +1395,7 @@ function updateCharts(metricsProgress, metricsNotes, metricsProfiles, metricsSch
                     }
                 },
                 tooltip: {
-                    backgroundColor: 'rgba(15, 23, 42, 0.85)',
+                    backgroundColor: 'rgba(15, 23, 42, 0.92)',
                     borderColor: '#475569',
                     borderWidth: 2,
                     titleFont: { family: 'Fredoka', size: 14, weight: '700' },
@@ -655,50 +1412,49 @@ function updateCharts(metricsProgress, metricsNotes, metricsProfiles, metricsSch
         plugins: [{
             id: 'centerText',
             beforeDraw(chart) {
-                const { width, height, ctx } = chart;
-                ctx.restore();
-                const total = chart.data.datasets[0].data.reduce((a, b) => a + b, 0);
+                const { ctx, chartArea } = chart
+                if (!chartArea) return
+                ctx.save()
+                const total = chart.data.datasets[0].data.reduce((a, b) => a + b, 0)
+                const centerX = (chartArea.left + chartArea.right) / 2
+                const centerY = (chartArea.top + chartArea.bottom) / 2
 
-                ctx.font = '700 28px Fredoka';
-                ctx.textBaseline = 'middle';
-                ctx.fillStyle = '#fff';
-                const text = total.toLocaleString();
-                const textX = Math.round((width - ctx.measureText(text).width) / 2);
-                const textY = height / 2 - 12;
-                ctx.fillText(text, textX, textY);
+                ctx.font = '700 28px Fredoka'
+                ctx.textAlign = 'center'
+                ctx.textBaseline = 'middle'
+                ctx.fillStyle = '#fff'
+                ctx.fillText(total.toLocaleString(), centerX, centerY - 8)
 
-                ctx.font = '800 11px Nunito';
-                ctx.fillStyle = '#94a3b8';
-                const subText = 'TOTAL ACTIONS';
-                const subTextX = Math.round((width - ctx.measureText(subText).width) / 2);
-                const subTextY = height / 2 + 18;
-                ctx.fillText(subText, subTextX, subTextY);
-                ctx.save();
+                ctx.font = '800 10px Nunito'
+                ctx.fillStyle = '#94a3b8'
+                ctx.fillText('TOTAL ACTIONS', centerX, centerY + 16)
+                ctx.restore()
             }
         }]
     })
 
-    // 3. Top Tools Bar Chart
-    const sortedTools = Object.entries(toolCounts).sort((a, b) => b[1] - a[1]).slice(0, 10)
-    
-    // Create gradient for tools chart
-    const orangeGradient = ctxTools.createLinearGradient(0, 0, ctxTools.canvas.clientWidth || 300, 0)
-    orangeGradient.addColorStop(0, 'rgba(255, 126, 51, 0.8)')
-    orangeGradient.addColorStop(1, 'rgba(255, 126, 51, 0.2)')
+    // 3. Top Performing Tools Bar Chart (by saves OR by unique teachers)
+    const allToolsStats = Object.values(canonicalStats).sort((a, b) => {
+        if (toolsChartMetric === 'users') {
+            return (b.users.size - a.users.size) || (b.saves - a.saves)
+        }
+        return (b.saves - a.saves) || (b.users.size - a.users.size)
+    })
+    const top10Tools = allToolsStats.slice(0, 10)
 
     if (charts.tools) charts.tools.destroy()
     charts.tools = new Chart(ctxTools, {
         type: 'bar',
         data: {
-            labels: sortedTools.map(t => t[0]),
+            labels: top10Tools.map(t => t.meta.name),
             datasets: [{
-                label: 'Saves',
-                data: sortedTools.map(t => t[1]),
-                backgroundColor: orangeGradient,
+                label: toolsChartMetric === 'users' ? 'Unique Teachers' : 'Total Saves',
+                data: top10Tools.map(t => toolsChartMetric === 'users' ? t.users.size : t.saves),
+                backgroundColor: top10Tools.map(t => t.meta.color),
                 borderColor: '#020617',
                 borderWidth: 2,
                 borderRadius: 6,
-                barThickness: 16
+                barThickness: 18
             }]
         },
         options: {
@@ -708,8 +1464,8 @@ function updateCharts(metricsProgress, metricsNotes, metricsProfiles, metricsSch
             plugins: {
                 legend: { display: false },
                 tooltip: {
-                    backgroundColor: 'rgba(15, 23, 42, 0.85)',
-                    borderColor: 'rgba(255, 126, 51, 0.4)',
+                    backgroundColor: 'rgba(15, 23, 42, 0.92)',
+                    borderColor: 'rgba(255, 126, 51, 0.5)',
                     borderWidth: 2,
                     titleFont: { family: 'Fredoka', size: 14, weight: '700' },
                     bodyFont: { family: 'Nunito', size: 12, weight: '700' },
@@ -717,13 +1473,20 @@ function updateCharts(metricsProgress, metricsNotes, metricsProfiles, metricsSch
                     bodyColor: '#cbd5e1',
                     padding: 12,
                     cornerRadius: 12,
+                    callbacks: {
+                        label: (ctx) => {
+                            const item = top10Tools[ctx.dataIndex]
+                            if (!item) return ''
+                            return ` ${item.saves} saves · ${item.users.size} teacher${item.users.size === 1 ? '' : 's'} (${item.meta.category})`
+                        }
+                    }
                 }
             },
             scales: {
                 x: {
                     beginAtZero: true,
                     grid: { color: 'rgba(255,255,255,0.06)', borderDash: [5, 5] },
-                    ticks: { color: '#94a3b8', font: { family: 'Nunito', weight: '700' } }
+                    ticks: { color: '#94a3b8', font: { family: 'Nunito', weight: '700' }, precision: 0 }
                 },
                 y: {
                     grid: { display: false },
@@ -736,66 +1499,248 @@ function updateCharts(metricsProgress, metricsNotes, metricsProfiles, metricsSch
         }
     })
 
-    // Breakdown List
+    // 4. Full Tool Breakdown List (shows all active tools with category badge, teacher count, and save volume)
     const breakdownEl = document.getElementById('toolBreakdown')
+    const breakdownCountChip = document.getElementById('breakdownCountChip')
+    if (breakdownCountChip) breakdownCountChip.textContent = `${allToolsStats.length} active`
+
     if (breakdownEl) {
-        const total = allLogEntries.length || 1
-        const toolMap = window.toolCategoryMap || {}
+        const maxVal = allToolsStats.length > 0
+            ? (toolsChartMetric === 'users' ? allToolsStats[0].users.size : allToolsStats[0].saves) || 1
+            : 1
 
-        breakdownEl.innerHTML = sortedTools.map(([key, count]) => {
-            const percent = Math.round((count / total) * 100)
-            let cat = toolMap[key] || 'Tools'
-            const catColor = categories[cat]?.color || '#2979FF'
-
-            return `
-                <div class="group p-2 hover:bg-slate-700/30 rounded-xl transition-colors cursor-default">
-                    <div class="flex items-center justify-between text-[10px] mb-1.5">
-                        <div class="flex items-center gap-2">
-                            <div class="w-2 h-2 rounded-full" style="background: ${catColor}"></div>
-                            <span class="font-black text-white uppercase tracking-wider">${key}</span>
+        if (allToolsStats.length === 0) {
+            breakdownEl.innerHTML = '<div class="text-center py-8 text-slate-500 font-bold text-xs">No tool activity recorded</div>'
+        } else {
+            breakdownEl.innerHTML = allToolsStats.map(item => {
+                const metricVal = toolsChartMetric === 'users' ? item.users.size : item.saves
+                const percent = Math.max(4, Math.round((metricVal / maxVal) * 100))
+                return `
+                    <div class="group p-2.5 bg-slate-900/40 hover:bg-slate-700/30 border border-slate-700/40 rounded-xl transition-colors cursor-default">
+                        <div class="flex items-center justify-between text-xs mb-1.5 gap-2">
+                            <div class="flex items-center gap-2 min-w-0">
+                                <i data-lucide="${item.meta.icon}" class="w-3.5 h-3.5 flex-shrink-0" style="color: ${item.meta.color}"></i>
+                                <span class="font-bold text-white truncate">${escapeHtml(item.meta.name)}</span>
+                            </div>
+                            <span class="text-slate-400 font-mono font-bold text-[10px] flex-shrink-0">${item.saves} saves · ${item.users.size}u</span>
                         </div>
-                        <span class="text-slate-500 font-mono font-bold">${count} saves</span>
+                        <div class="h-2 bg-slate-950 border border-slate-800 rounded-full overflow-hidden p-[1px]">
+                            <div class="h-full rounded-full transition-all duration-700" style="width: ${percent}%; background: ${item.meta.color}"></div>
+                        </div>
+                    </div>`
+            }).join('')
+            lucide.createIcons({ root: breakdownEl })
+        }
+    }
+}
+
+function renderDashboardInsights(unifiedEvents, metricsProfiles, adoptedCanonicalTools) {
+    // 1. Top Active Teachers Leaderboard
+    const topTeachersEl = document.getElementById('topTeachersList')
+    if (topTeachersEl) {
+        const userStats = {}
+        Object.values(metricsProfiles).forEach(p => {
+            userStats[p.id] = {
+                profile: p,
+                saves: 0,
+                tools: new Set(),
+                latestTs: p.last_active_ts || 0
+            }
+        })
+        unifiedEvents.forEach(ev => {
+            if (!userStats[ev.user_id]) return
+            userStats[ev.user_id].saves += 1
+            userStats[ev.user_id].tools.add(ev.canonical_tool)
+            if (ev.timestamp.getTime() > userStats[ev.user_id].latestTs) {
+                userStats[ev.user_id].latestTs = ev.timestamp.getTime()
+            }
+        })
+
+        const rankedTeachers = Object.values(userStats)
+            .filter(u => u.saves > 0 || u.latestTs > 0)
+            .sort((a, b) => (b.saves - a.saves) || (b.tools.size - a.tools.size) || (b.latestTs - a.latestTs))
+            .slice(0, 6)
+
+        if (!rankedTeachers.length) {
+            topTeachersEl.innerHTML = '<div class="text-center py-8 text-slate-500 font-bold text-xs">No active teachers yet</div>'
+        } else {
+            topTeachersEl.innerHTML = rankedTeachers.map((u, idx) => {
+                const p = u.profile
+                const name = p.display_name || p.id.slice(0, 8)
+                const role = p.role || 'user'
+                const roleBadge = role === 'admin'
+                    ? '<span class="px-1.5 py-0.5 rounded bg-pink/20 text-pink text-[9px] font-black uppercase">Admin</span>'
+                    : role === 'pro'
+                        ? '<span class="px-1.5 py-0.5 rounded bg-orange/20 text-orange text-[9px] font-black uppercase">⭐ Pro</span>'
+                        : ''
+                return `
+                    <div onclick="viewUser('${p.id}')" class="flex items-center justify-between p-2.5 bg-slate-900/60 hover:bg-slate-900 border border-slate-700/50 hover:border-blue/50 rounded-xl cursor-pointer transition-all">
+                        <div class="flex items-center gap-3 min-w-0">
+                            <div class="w-7 h-7 rounded-lg bg-blue/15 border border-blue/40 flex items-center justify-center font-heading text-xs text-blue flex-shrink-0">#${idx + 1}</div>
+                            <div class="min-w-0">
+                                <div class="flex items-center gap-1.5">
+                                    <span class="font-bold text-white text-xs truncate">${escapeHtml(name)}</span>
+                                    ${roleBadge}
+                                </div>
+                                <div class="text-[10px] text-slate-400 font-mono">${u.tools.size} tools · ${formatRelativeTime(u.latestTs)}</div>
+                            </div>
+                        </div>
+                        <div class="text-right flex-shrink-0 ml-2">
+                            <div class="font-heading text-sm text-white">${u.saves}</div>
+                            <div class="text-[9px] text-slate-500 uppercase font-bold">records</div>
+                        </div>
                     </div>
-                    <div class="h-2 bg-slate-900 border border-slate-700 rounded-full overflow-hidden p-[1px]">
-                        <div class="h-full rounded-full transition-all duration-1000" style="width: ${percent}%; background: ${catColor}"></div>
+                `
+            }).join('')
+        }
+    }
+
+    // 2. Recent Live Activity Stream
+    const recentFeedEl = document.getElementById('recentActivityFeed')
+    if (recentFeedEl) {
+        const recent = [...unifiedEvents]
+            .sort((a, b) => b.timestamp - a.timestamp)
+            .slice(0, 6)
+
+        if (!recent.length) {
+            recentFeedEl.innerHTML = '<div class="text-center py-8 text-slate-500 font-bold text-xs">No recent activity</div>'
+        } else {
+            recentFeedEl.innerHTML = recent.map(ev => {
+                const p = allProfiles[ev.user_id]
+                const name = p?.display_name || ev.user_id.slice(0, 8)
+                const meta = getToolMeta(ev.canonical_tool)
+                return `
+                    <div onclick="viewUser('${ev.user_id}')" class="flex items-center justify-between p-2.5 bg-slate-900/60 hover:bg-slate-900 border border-slate-700/50 hover:border-green/50 rounded-xl cursor-pointer transition-all gap-2">
+                        <div class="flex items-center gap-2.5 min-w-0">
+                            <div class="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0" style="background:${meta.color}20; border:1px solid ${meta.color}50">
+                                <i data-lucide="${meta.icon}" class="w-3.5 h-3.5" style="color:${meta.color}"></i>
+                            </div>
+                            <div class="min-w-0">
+                                <div class="text-xs font-bold text-white truncate">${escapeHtml(name)} <span class="text-slate-400 font-normal">→</span> <span style="color:${meta.color}">${escapeHtml(meta.name)}</span></div>
+                                <div class="text-[10px] text-slate-400 truncate font-mono">${escapeHtml(ev.action_type.replace(/_/g, ' '))}: ${escapeHtml(String(ev.label).slice(0, 32))}</div>
+                            </div>
+                        </div>
+                        <span class="text-[10px] font-mono text-slate-400 whitespace-nowrap flex-shrink-0">${formatRelativeTime(ev.timestamp.getTime())}</span>
                     </div>
-                </div>`
-        }).join('')
+                `
+            }).join('')
+            lucide.createIcons({ root: recentFeedEl })
+        }
+    }
+
+    // 3. Catalog Coverage & Dormant Tools
+    const coverageChip = document.getElementById('catalogCoverageChip')
+    const categoryBarsEl = document.getElementById('catalogCategoryBars')
+    const dormantCountEl = document.getElementById('dormantToolsCount')
+    const dormantListEl = document.getElementById('dormantToolsList')
+
+    const activeCatalog = allGamesCatalog.filter(g => g.category !== 'under-construction' && g.id !== 'myspace-home')
+    if (activeCatalog.length > 0) {
+        const adoptedInCatalog = activeCatalog.filter(g => adoptedCanonicalTools.has(g.id))
+        const dormantTools = activeCatalog.filter(g => !adoptedCanonicalTools.has(g.id))
+        const coveragePct = Math.round((adoptedInCatalog.length / activeCatalog.length) * 100)
+
+        if (coverageChip) coverageChip.textContent = `${adoptedInCatalog.length}/${activeCatalog.length} (${coveragePct}%)`
+        if (dormantCountEl) dormantCountEl.textContent = `${dormantTools.length} untried`
+
+        if (categoryBarsEl) {
+            const catGroups = [
+                { key: 'game', label: 'Games', color: '#00d063' },
+                { key: 'tool', label: 'Tools', color: '#1ea7fd' },
+                { key: 'myspace', label: 'My Space', color: '#ff7e33' },
+                { key: 'workshop', label: 'Workshop', color: '#ff4785' }
+            ]
+            categoryBarsEl.innerHTML = catGroups.map(cg => {
+                const items = activeCatalog.filter(g => (g.id === 'lessonnotes' ? 'myspace' : g.category) === cg.key)
+                const used = items.filter(g => adoptedCanonicalTools.has(g.id)).length
+                const total = items.length || 1
+                const pct = Math.round((used / total) * 100)
+                return `
+                    <div>
+                        <div class="flex justify-between text-xs mb-1">
+                            <span class="font-bold text-slate-300">${cg.label}</span>
+                            <span class="font-mono text-slate-400 text-[11px]">${used} / ${items.length} (${pct}%)</span>
+                        </div>
+                        <div class="h-2 bg-slate-950 border border-slate-800 rounded-full overflow-hidden p-[1px]">
+                            <div class="h-full rounded-full transition-all duration-700" style="width:${pct}%; background:${cg.color}"></div>
+                        </div>
+                    </div>
+                `
+            }).join('')
+        }
+
+        if (dormantListEl) {
+            if (dormantTools.length === 0) {
+                dormantListEl.innerHTML = '<span class="text-xs text-green font-bold">🎉 100% of catalog tools have been used!</span>'
+            } else {
+                dormantListEl.innerHTML = dormantTools.map(g => `
+                    <span class="px-2 py-0.5 rounded-lg bg-slate-900 border border-slate-700 text-[10px] font-bold text-slate-400">${escapeHtml(g.title)}</span>
+                `).join('')
+            }
+        }
     }
 }
 
 // ── FILTERS ──
 function populateToolFilter() {
-    const tools = [...new Set([...allProgress.map(r => r.tool_key), 'lesson-note'])].sort()
+    const toolsSet = new Set([
+        ...allProgress.map(r => r.tool_key).filter(k => k !== 'klasskit_hub' && k !== 'hub'),
+        'lesson-note',
+        'schedule',
+        'admin-tracker',
+        'tasks',
+        'my-class',
+        'spreadsheet',
+        'card-maker',
+        'puzzle-maker',
+        'worksheet-maker',
+        'lesson-parser',
+        'dnd-hub'
+    ])
+    const tools = [...toolsSet].sort()
     const sel = document.getElementById('toolFilter')
     if (!sel) return
     sel.innerHTML = '<option value="">All tools</option>' +
-        tools.map(t => `<option value="${t}">${t}</option>`).join('')
+        tools.map(t => {
+            const meta = getToolMeta(t)
+            return `<option value="${escapeHtml(t)}">${escapeHtml(meta.name)} (${escapeHtml(t)})</option>`
+        }).join('')
 }
 
 function applyFilters() {
     const searchInput = document.getElementById('searchInput')
     const toolFilter = document.getElementById('toolFilter')
-    const search = searchInput ? searchInput.value.toLowerCase() : ''
+    const search = searchInput ? searchInput.value.toLowerCase().trim() : ''
     const tool = toolFilter ? toolFilter.value : ''
+    const canonicalSelectedTool = tool ? resolveCanonicalToolId(tool) : ''
     const excludedIds = getExcludedUserIds()
+
+    const matchesToolKey = (rawKey) => {
+        if (!tool) return true
+        return rawKey === tool || resolveCanonicalToolId(rawKey) === canonicalSelectedTool
+    }
 
     let filteredRows = allProgress.filter(r => {
         if (excludedIds.includes(r.user_id)) return false
         const name = (allProfiles[r.user_id]?.display_name || '').toLowerCase()
+        const meta = getToolMeta(r.tool_key)
         const matchSearch = !search
             || name.includes(search)
             || r.user_id.toLowerCase().includes(search)
             || r.tool_key.toLowerCase().includes(search)
-        const matchTool = !tool || r.tool_key === tool
-        return matchSearch && matchTool
+            || meta.name.toLowerCase().includes(search)
+        return matchSearch && matchesToolKey(r.tool_key)
     })
 
     let filteredUserIds = Object.keys(allProfiles).filter(uid => {
         if (excludedIds.includes(uid)) return false
-        const name = (allProfiles[uid]?.display_name || '').toLowerCase()
-        const matchSearch = !search || name.includes(search) || uid.toLowerCase().includes(search)
-        const hasUsedTool = !tool || allProgress.some(r => r.user_id === uid && r.tool_key === tool) || (tool === 'lesson-note' && allNotes.some(n => n.user_id === uid))
+        const prof = allProfiles[uid] || {}
+        const name = (prof.display_name || '').toLowerCase()
+        const email = (prof.email || '').toLowerCase()
+        const matchSearch = !search || name.includes(search) || email.includes(search) || uid.toLowerCase().includes(search)
+        const hasUsedTool = !tool
+            || (prof.tools_set && (prof.tools_set.has(tool) || prof.tools_set.has(canonicalSelectedTool)))
+            || allProgress.some(r => r.user_id === uid && matchesToolKey(r.tool_key))
         return matchSearch && hasUsedTool
     })
 
@@ -806,12 +1751,70 @@ function applyFilters() {
             || name.includes(search)
             || n.user_id.toLowerCase().includes(search)
             || (n.title || '').toLowerCase().includes(search)
-        const matchTool = !tool || tool === 'lesson-note'
-        return matchSearch && matchTool
+        return matchSearch && matchesToolKey('lesson-note')
     })
 
-    let filteredScheduleEvents = allScheduleEvents.filter(e => !excludedIds.includes(e.user_id))
-    let filteredClassAdmin = allClassAdmin.filter(c => !excludedIds.includes(c.user_id))
+    let filteredScheduleEvents = allScheduleEvents.filter(e => {
+        if (excludedIds.includes(e.user_id)) return false
+        const name = (allProfiles[e.user_id]?.display_name || '').toLowerCase()
+        const matchSearch = !search
+            || name.includes(search)
+            || e.user_id.toLowerCase().includes(search)
+            || (e.name || '').toLowerCase().includes(search)
+            || (e.type_id || '').toLowerCase().includes(search)
+        return matchSearch && matchesToolKey('schedule')
+    })
+
+    let filteredClassAdmin = allClassAdmin.filter(c => {
+        if (excludedIds.includes(c.user_id)) return false
+        const name = (allProfiles[c.user_id]?.display_name || '').toLowerCase()
+        const matchSearch = !search
+            || name.includes(search)
+            || c.user_id.toLowerCase().includes(search)
+            || (c.class_name || '').toLowerCase().includes(search)
+        return matchSearch && matchesToolKey('admin-tracker')
+    })
+
+    const filteredClassUnits = allClassUnits.filter(u => {
+        if (excludedIds.includes(u.user_id)) return false
+        const name = (allProfiles[u.user_id]?.display_name || '').toLowerCase()
+        const matchSearch = !search
+            || name.includes(search)
+            || u.user_id.toLowerCase().includes(search)
+            || (u.class_name || '').toLowerCase().includes(search)
+        return matchSearch && matchesToolKey('admin-tracker')
+    })
+
+    const filteredMySpaceTasks = allMySpaceTasks.filter(t => {
+        if (excludedIds.includes(t.user_id)) return false
+        const name = (allProfiles[t.user_id]?.display_name || '').toLowerCase()
+        const matchSearch = !search
+            || name.includes(search)
+            || t.user_id.toLowerCase().includes(search)
+            || (t.text || '').toLowerCase().includes(search)
+            || (t.category || '').toLowerCase().includes(search)
+        return matchSearch && matchesToolKey('tasks')
+    })
+
+    const filteredMyClass = allMyClass.filter(c => {
+        if (excludedIds.includes(c.user_id)) return false
+        const name = (allProfiles[c.user_id]?.display_name || '').toLowerCase()
+        const matchSearch = !search
+            || name.includes(search)
+            || c.user_id.toLowerCase().includes(search)
+            || (c.class_name || '').toLowerCase().includes(search)
+        return matchSearch && matchesToolKey('my-class')
+    })
+
+    const allStudioItems = buildStudioItemsList(excludedIds).filter(item => {
+        const name = (allProfiles[item.user_id]?.display_name || '').toLowerCase()
+        const matchSearch = !search
+            || name.includes(search)
+            || item.user_id.toLowerCase().includes(search)
+            || (item.title || '').toLowerCase().includes(search)
+            || (item.type_label || '').toLowerCase().includes(search)
+        return matchSearch && matchesToolKey(item.tool_key)
+    })
 
     // Sort Users
     filteredUserIds.sort((a, b) => {
@@ -966,7 +1969,8 @@ function applyFilters() {
         progress: filteredRows.length,
         notes: filteredNotes.length,
         schedule: filteredScheduleEvents.length,
-        classes: filteredClassAdmin.length
+        classes: filteredClassAdmin.length,
+        cloud: pagination.lastFilteredCounts?.cloud || 0
     }
 
     renderUsersTable(pagedUserIds, filteredRows)
@@ -976,6 +1980,8 @@ function applyFilters() {
     renderClassesView(pagedClasses, filteredClassUnits)
     renderTasksTable(filteredMySpaceTasks)
     renderMyClassTable(filteredMyClass)
+    renderStudioTable(allStudioItems)
+    if (currentView === 'logs') renderLogsTable()
     updateSortIcons()
 
     const userCount = document.getElementById('userCount')
@@ -984,10 +1990,6 @@ function applyFilters() {
     if (progressCount) progressCount.textContent = filteredRows.length + ' rows'
     const notesCount = document.getElementById('notesCount')
     if (notesCount) notesCount.textContent = filteredNotes.length + ' notes'
-    const filteredClassUnits = allClassUnits.filter(u => !excludedIds.includes(u.user_id))
-    const filteredMySpaceTasks = allMySpaceTasks.filter(t => !excludedIds.includes(t.user_id))
-    const filteredMyClass = allMyClass.filter(c => !excludedIds.includes(c.user_id))
-
     const scheduleCount = document.getElementById('scheduleCount')
     if (scheduleCount) scheduleCount.textContent = filteredScheduleEvents.length + ' events'
     const classAdminCount = document.getElementById('classAdminCount')
@@ -998,6 +2000,8 @@ function applyFilters() {
     if (tasksCount) tasksCount.textContent = filteredMySpaceTasks.length + ' tasks'
     const myclassCount = document.getElementById('myclassCount')
     if (myclassCount) myclassCount.textContent = filteredMyClass.length + ' classes'
+    const studioCount = document.getElementById('studioCount')
+    if (studioCount) studioCount.textContent = allStudioItems.length + ' items'
 }
 
 function clearFilters() {
@@ -1010,17 +2014,6 @@ function clearFilters() {
 
 // ── USERS TABLE ──
 function renderUsersTable(userIds, rows) {
-    const byUser = {}
-    userIds.forEach(uid => { byUser[uid] = { rows: [], latest: 0 } })
-
-    rows.forEach(r => {
-        if (byUser[r.user_id]) {
-            byUser[r.user_id].rows.push(r)
-            const rowTs = r.updated_at ? new Date(r.updated_at).getTime() : 0
-            if (rowTs > byUser[r.user_id].latest) byUser[r.user_id].latest = rowTs
-        }
-    })
-
     const body = document.getElementById('usersTableBody')
     if (!body) return
     if (!userIds.length) {
@@ -1029,11 +2022,11 @@ function renderUsersTable(userIds, rows) {
     }
 
     body.innerHTML = userIds.map(uid => {
-        const info = byUser[uid]
         const profile = allProfiles[uid]
         const name = profile?.display_name || '—'
         const role = profile?.role || 'user'
-        const tools = [...new Set(info.rows.map(r => r.tool_key))]
+        const userToolIds = profile?.tools_set ? [...profile.tools_set] : []
+        const recordsCount = profile?.records_count || 0
         let activeDate = 'Never'
         let latestTs = profile?.last_active_ts || 0
 
@@ -1064,17 +2057,21 @@ function renderUsersTable(userIds, rows) {
                 ? 'text-orange border-orange/40'
                 : 'text-slate-400 border-slate-600'
 
+        const displayTools = userToolIds.slice(0, 5)
+        const extraToolsCount = Math.max(0, userToolIds.length - displayTools.length)
+
         return `<tr class="group transition-colors">
           <td class="px-5 py-3">
             <div class="flex items-center gap-3">
-              <div class="w-8 h-8 rounded-lg flex items-center justify-center font-heading text-sm flex-shrink-0 ${avatarClass}">${initial}</div>
+              <div class="w-8 h-8 rounded-lg flex items-center justify-center font-heading text-sm flex-shrink-0 ${avatarClass}">${escapeHtml(initial)}</div>
               <div>
-                <span class="font-bold text-white">${name}</span>
+                <span class="font-bold text-white">${escapeHtml(name)}</span>
                 ${isPro ? '<span class="ml-1 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-orange/20 border border-orange/40 text-[9px] font-black text-orange uppercase tracking-wider">⭐ Pro</span>' : ''}
+                ${recordsCount > 0 ? `<div class="text-[10px] text-slate-500 font-mono">${recordsCount} saved records</div>` : ''}
               </div>
             </div>
           </td>
-          <td class="hidden md:table-cell px-5 py-3"><span class="font-mono text-xs text-slate-500">${uid.slice(0, 12)}...</span></td>
+          <td class="hidden md:table-cell px-5 py-3"><span class="font-mono text-xs text-slate-500">${escapeHtml(uid.slice(0, 12))}...</span></td>
           <td class="px-5 py-3">
             <select onchange="updateRole('${uid}', this.value)" 
               class="bg-slate-800 border-2 border-slate-700 rounded-lg text-[10px] font-black uppercase px-2 py-1 outline-none focus:border-blue transition-colors cursor-pointer ${selectClass}">
@@ -1096,12 +2093,16 @@ function renderUsersTable(userIds, rows) {
             </div>
           </td>
           <td class="hidden lg:table-cell px-5 py-3">
-            ${tools.length === 0 ? '<span class="text-xs text-slate-500 italic">No activity yet</span>' :
+            ${userToolIds.length === 0 ? '<span class="text-xs text-slate-500 italic">No activity yet</span>' :
                 `<div class="flex flex-wrap gap-1">
-              ${tools.map(t => `<span class="chip bg-blue/10 text-blue border-blue/30">${t}</span>`).join('')}
+              ${displayTools.map(t => {
+                    const meta = getToolMeta(t)
+                    return `<span class="chip bg-blue/10 text-blue border-blue/30" title="${escapeHtml(t)}">${escapeHtml(meta.name)}</span>`
+                }).join('')}
+              ${extraToolsCount > 0 ? `<span class="chip bg-slate-800 text-slate-400 border-slate-700">+${extraToolsCount} more</span>` : ''}
             </div>`}
           </td>
-          <td class="px-5 py-3 text-xs text-slate-500">${date}</td>
+          <td class="px-5 py-3 text-xs text-slate-400 font-bold">${date}</td>
           <td class="px-5 py-3">
             <div class="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
               <button onclick="viewUser('${uid}')"
@@ -1112,6 +2113,7 @@ function renderUsersTable(userIds, rows) {
           </td>
         </tr>`
     }).join('')
+    lucide.createIcons({ root: body })
 }
 
 // ── PROGRESS TABLE ──
@@ -1126,6 +2128,7 @@ function renderProgressTable(rows) {
     body.innerHTML = rows.map(row => {
         const profile = allProfiles[row.user_id]
         const name = profile?.display_name || '—'
+        const meta = getToolMeta(row.tool_key)
         const preview = JSON.stringify(row.data).slice(0, 60) + '…'
         const date = new Date(row.updated_at).toLocaleString()
         const initial = name[0]?.toUpperCase() || '?'
@@ -1133,18 +2136,21 @@ function renderProgressTable(rows) {
         return `<tr class="group transition-colors">
           <td class="px-5 py-3">
             <div class="flex items-center gap-2">
-              <div class="w-7 h-7 rounded-lg bg-blue/20 border-2 border-blue/30 flex items-center justify-center text-blue text-xs font-heading flex-shrink-0">${initial}</div>
+              <div class="w-7 h-7 rounded-lg bg-blue/20 border-2 border-blue/30 flex items-center justify-center text-blue text-xs font-heading flex-shrink-0">${escapeHtml(initial)}</div>
               <div>
-                <div class="font-bold text-white text-sm">${name}</div>
-                <div class="font-mono text-[10px] text-slate-600">${row.user_id.slice(0, 8)}...</div>
+                <div class="font-bold text-white text-sm">${escapeHtml(name)}</div>
+                <div class="font-mono text-[10px] text-slate-600">${escapeHtml(row.user_id.slice(0, 8))}...</div>
               </div>
             </div>
           </td>
           <td class="px-5 py-3">
-            <span class="chip bg-orange/10 text-orange border-orange/30">${row.tool_key}</span>
+            <div class="flex flex-col gap-0.5">
+              <span class="chip bg-orange/10 text-orange border-orange/30 w-fit">${escapeHtml(meta.name)}</span>
+              <span class="font-mono text-[9px] text-slate-500">${escapeHtml(row.tool_key)}</span>
+            </div>
           </td>
           <td class="hidden md:table-cell px-5 py-3 max-w-[200px]">
-            <code class="text-[10px] text-slate-500 truncate block">${preview}</code>
+            <code class="text-[10px] text-slate-500 truncate block">${escapeHtml(preview)}</code>
           </td>
           <td class="px-5 py-3 text-xs text-slate-500 whitespace-nowrap">${date}</td>
           <td class="px-5 py-3">
@@ -1161,7 +2167,7 @@ function renderProgressTable(rows) {
           </td>
         </tr>`
     }).join('')
-    lucide.createIcons()
+    lucide.createIcons({ root: body })
 }
 
 // ── NOTES TABLE ──
@@ -1169,18 +2175,16 @@ function renderNotesTable(rows) {
     const body = document.getElementById('notesTableBody')
     if (!body) return
     if (!rows.length) {
-        body.innerHTML = '<tr><td colspan="4" class="text-center py-12 text-slate-500 font-bold">No notes found</td></tr>'
+        body.innerHTML = '<tr><td colspan="5" class="text-center py-12 text-slate-500 font-bold">No notes found</td></tr>'
         return
     }
 
     body.innerHTML = rows.map(note => {
         const profile = allProfiles[note.user_id]
         const name = profile?.display_name || '—'
-        // updated_at is a bigint (unix ms) in notes table
         const ts = Number(note.updated_at)
         const date = ts ? new Date(ts).toLocaleString() : '—'
         const initial = name[0]?.toUpperCase() || '?'
-        // Resolve folder name from allNoteFolders
         let folderName = '—'
         if (note.folder_id) {
             const userFolders = allNoteFolders[note.user_id] || []
@@ -1191,18 +2195,21 @@ function renderNotesTable(rows) {
         return `<tr class="group transition-colors">
           <td class="px-5 py-3">
             <div class="flex items-center gap-2">
-              <div class="w-7 h-7 rounded-lg bg-orange/20 border-2 border-orange/30 flex items-center justify-center text-orange text-xs font-heading flex-shrink-0">${initial}</div>
+              <div class="w-7 h-7 rounded-lg bg-orange/20 border-2 border-orange/30 flex items-center justify-center text-orange text-xs font-heading flex-shrink-0">${escapeHtml(initial)}</div>
               <div>
-                <div class="font-bold text-white text-sm">${name}</div>
-                <div class="font-mono text-[10px] text-slate-600">${note.user_id.slice(0, 8)}...</div>
+                <div class="font-bold text-white text-sm">${escapeHtml(name)}</div>
+                <div class="font-mono text-[10px] text-slate-600">${escapeHtml(note.user_id.slice(0, 8))}...</div>
               </div>
             </div>
           </td>
           <td class="px-5 py-3">
-            <span class="font-bold text-slate-200">${note.title || 'Untitled'}</span>
+            <div class="flex items-center gap-2">
+              <span class="font-bold text-slate-200">${escapeHtml(note.title || 'Untitled')}</span>
+              ${note.deleted ? '<span class="px-1.5 py-0.5 rounded bg-pink/20 text-pink text-[9px] font-black uppercase">Trash</span>' : ''}
+            </div>
           </td>
           <td class="hidden md:table-cell px-5 py-3">
-            ${note.folder_id ? `<span class="chip bg-orange/10 text-orange border-orange/30">${folderName}</span>` : '<span class="text-xs text-slate-600 italic">Root</span>'}
+            ${note.folder_id ? `<span class="chip bg-orange/10 text-orange border-orange/30">${escapeHtml(folderName)}</span>` : '<span class="text-xs text-slate-600 italic">Root</span>'}
           </td>
           <td class="hidden sm:table-cell px-5 py-3 text-xs text-slate-500 whitespace-nowrap">${date}</td>
           <td class="px-5 py-3">
@@ -1219,7 +2226,7 @@ function renderNotesTable(rows) {
           </td>
         </tr>`
     }).join('')
-    lucide.createIcons()
+    lucide.createIcons({ root: body })
 }
 
 // ── SCHEDULE EVENTS TABLE ──
@@ -1227,7 +2234,7 @@ function renderScheduleTable(rows) {
     const body = document.getElementById('scheduleTableBody')
     if (!body) return
     if (!rows || !rows.length) {
-        body.innerHTML = '<tr><td colspan="6" class="text-center py-12 text-slate-500 font-bold">No schedule events found</td></tr>'
+        body.innerHTML = '<tr><td colspan="5" class="text-center py-12 text-slate-500 font-bold">No schedule events found</td></tr>'
         return
     }
     const recurrenceLabels = { none: 'One-time', weekly: 'Weekly', daily: 'Daily', monthly: 'Monthly' }
@@ -1240,29 +2247,29 @@ function renderScheduleTable(rows) {
         return `<tr class="group transition-colors">
           <td class="px-5 py-3">
             <div class="flex items-center gap-2">
-              <div class="w-7 h-7 rounded-lg bg-orange/20 border-2 border-orange/30 flex items-center justify-center text-orange text-xs font-heading flex-shrink-0">${initial}</div>
+              <div class="w-7 h-7 rounded-lg bg-orange/20 border-2 border-orange/30 flex items-center justify-center text-orange text-xs font-heading flex-shrink-0">${escapeHtml(initial)}</div>
               <div>
-                <div class="font-bold text-white text-sm">${name}</div>
-                <div class="font-mono text-[10px] text-slate-600">${ev.user_id.slice(0, 8)}...</div>
+                <div class="font-bold text-white text-sm">${escapeHtml(name)}</div>
+                <div class="font-mono text-[10px] text-slate-600">${escapeHtml(ev.user_id.slice(0, 8))}...</div>
               </div>
             </div>
           </td>
           <td class="px-5 py-3">
             <div class="flex items-center gap-2">
-              <div class="w-3 h-3 rounded-full flex-shrink-0" style="background:${ev.color || '#FF8C42'}"></div>
-              <span class="font-bold text-slate-200">${ev.name}</span>
+              <div class="w-3 h-3 rounded-full flex-shrink-0" style="background:${escapeHtml(ev.color || '#FF8C42')}"></div>
+              <span class="font-bold text-slate-200">${escapeHtml(ev.name || 'Untitled Event')}</span>
             </div>
           </td>
           <td class="px-5 py-3">
-            <span class="chip bg-blue/10 text-blue border-blue/30">${ev.type_id || 'other'}</span>
+            <span class="chip bg-blue/10 text-blue border-blue/30">${escapeHtml(ev.type_id || 'other')}</span>
           </td>
-          <td class="px-5 py-3 text-xs text-slate-300 whitespace-nowrap font-mono">${ev.date || '—'}</td>
+          <td class="px-5 py-3 text-xs text-slate-300 whitespace-nowrap font-mono">${escapeHtml(ev.date || '—')}</td>
           <td class="hidden md:table-cell px-5 py-3">
-            <span class="chip ${isRecurring ? 'bg-orange/10 text-orange border-orange/30' : 'bg-slate-700 text-slate-400 border-slate-600'}">${recLabel}</span>
+            <span class="chip ${isRecurring ? 'bg-orange/10 text-orange border-orange/30' : 'bg-slate-700 text-slate-400 border-slate-600'}">${escapeHtml(recLabel)}</span>
           </td>
         </tr>`
     }).join('')
-    lucide.createIcons()
+    lucide.createIcons({ root: body })
 }
 
 // ── SCHEDULE CLASSES VIEW ──
@@ -1288,11 +2295,11 @@ function renderClassesView(pagedClasses, filteredUnits) {
                 return `<tr class="group transition-colors">
               <td class="px-5 py-3">
                 <div class="flex items-center gap-2">
-                  <div class="w-7 h-7 rounded-lg bg-orange/20 border-2 border-orange/30 flex items-center justify-center text-orange text-xs font-heading flex-shrink-0">${initial}</div>
-                  <span class="font-bold text-white text-sm">${name}</span>
+                  <div class="w-7 h-7 rounded-lg bg-orange/20 border-2 border-orange/30 flex items-center justify-center text-orange text-xs font-heading flex-shrink-0">${escapeHtml(initial)}</div>
+                  <span class="font-bold text-white text-sm">${escapeHtml(name)}</span>
                 </div>
               </td>
-              <td class="px-5 py-3"><span class="font-bold text-slate-200">${cls.class_name}</span></td>
+              <td class="px-5 py-3"><span class="font-bold text-slate-200">${escapeHtml(cls.class_name || 'Untitled Class')}</span></td>
               <td class="px-5 py-3"><span class="chip bg-orange/10 text-orange border-orange/30">${taskCount} task${taskCount !== 1 ? 's' : ''}</span></td>
               <td class="hidden sm:table-cell px-5 py-3 text-xs text-slate-500">${created}</td>
               <td class="px-5 py-3">
@@ -1332,11 +2339,11 @@ function renderClassesView(pagedClasses, filteredUnits) {
                 return `<tr class="group transition-colors">
               <td class="px-5 py-3">
                 <div class="flex items-center gap-2">
-                  <div class="w-7 h-7 rounded-lg bg-orange/20 border-2 border-orange/30 flex items-center justify-center text-orange text-xs font-heading flex-shrink-0">${initial}</div>
-                  <span class="font-bold text-white text-sm">${name}</span>
+                  <div class="w-7 h-7 rounded-lg bg-orange/20 border-2 border-orange/30 flex items-center justify-center text-orange text-xs font-heading flex-shrink-0">${escapeHtml(initial)}</div>
+                  <span class="font-bold text-white text-sm">${escapeHtml(name)}</span>
                 </div>
               </td>
-              <td class="px-5 py-3"><span class="font-bold text-slate-200">${cls.class_name}</span></td>
+              <td class="px-5 py-3"><span class="font-bold text-slate-200">${escapeHtml(cls.class_name || 'Untitled Class')}</span></td>
               <td class="px-5 py-3"><span class="chip bg-orange/10 text-orange border-orange/30">${unitCount} unit${unitCount !== 1 ? 's' : ''}</span></td>
               <td class="hidden sm:table-cell px-5 py-3 text-xs text-slate-500">${created}</td>
               <td class="px-5 py-3">
@@ -1364,7 +2371,7 @@ function setClassTab(tab) {
 }
 
 function setDataTab(tab) {
-    const tabs = ['progress', 'notes', 'schedule', 'classes', 'tasks', 'myclass']
+    const tabs = ['progress', 'notes', 'schedule', 'classes', 'tasks', 'myclass', 'studio']
     tabs.forEach(t => {
         const btn = document.getElementById('datatab-' + t)
         const view = document.getElementById('dataview-' + t)
@@ -1410,8 +2417,9 @@ function openViewModal(userId, toolKey) {
     const profile = allProfiles[userId]
     if (!row) return
 
+    const meta = getToolMeta(toolKey)
     document.getElementById('viewModalTitle').textContent =
-        (profile?.display_name || userId.slice(0, 8)) + ' — ' + toolKey
+        (profile?.display_name || userId.slice(0, 8)) + ' — ' + meta.name + ` (${toolKey})`
     document.getElementById('viewModalSub').textContent =
         'Updated ' + new Date(row.updated_at).toLocaleString()
     document.getElementById('viewModalContent').innerHTML =
@@ -1432,72 +2440,113 @@ function viewUser(userId) {
     const userProgress = allProgress.filter(r => r.user_id === userId);
     const userNotes = allNotes.filter(n => n.user_id === userId);
     const userTasks = allMySpaceTasks.filter(t => t.user_id === userId);
+    const completedTasksCount = userTasks.filter(t => t.completed).length;
     const userClasses = allMyClass.filter(c => c.user_id === userId);
     const userEvents = allScheduleEvents.filter(e => e.user_id === userId);
+    const userSpreadsheets = allSpreadsheets.filter(s => s.user_id === userId);
+    const userCardMaker = allCardMaker.filter(c => c.user_id === userId);
+    const userPuzzleMaker = allPuzzleMaker.filter(p => p.user_id === userId);
+    const userWorksheetMaker = allWorksheetMaker.filter(w => w.user_id === userId);
+    const userLessonParser = allLessonParser.filter(l => l.user_id === userId);
+    const userDnd = allToolsDnd.filter(d => d.user_id === userId);
+    const userVttMaps = allVttMaps.filter(m => (m.user_id || m.owner_id) === userId);
+    const userVttCampaigns = allVttCampaigns.filter(c => (c.user_id || c.owner_id) === userId);
 
-    const formatTs = (ts) => ts ? new Date(ts).toLocaleString() : '—';
+    const studioTotal = userSpreadsheets.length + userCardMaker.length + userPuzzleMaker.length + userWorksheetMaker.length;
+    const workshopTotal = userLessonParser.length + userDnd.length + userVttMaps.length + userVttCampaigns.length;
 
-    const toolCounts = {};
-    const toolOrder = [];
-    userProgress.forEach(r => {
-        if (!toolCounts[r.tool_key]) {
-            toolCounts[r.tool_key] = 0;
-            toolOrder.push(r.tool_key);
-        }
-
-        // Count instances within the data payload
-        let count = 1;
-        if (Array.isArray(r.data)) {
-            count = r.data.length;
-        } else if (r.data && typeof r.data === 'object') {
-            // Find the first array property which usually contains the items
-            const arrayVal = Object.values(r.data).find(v => Array.isArray(v));
-            if (arrayVal) {
-                count = arrayVal.length;
-            } else {
-                count = Object.keys(r.data).length;
-            }
-        }
-        toolCounts[r.tool_key] += count;
+    let totalStudents = 0;
+    userClasses.forEach(cls => {
+        const d = typeof cls.data === 'string' ? (() => { try { return JSON.parse(cls.data); } catch (e) { return {}; } })() : (cls.data || {});
+        if (Array.isArray(d.students)) totalStudents += d.students.length;
     });
 
+    const formatTs = (ts) => ts ? new Date(ts).toLocaleString() : '—';
+    const usedMB = ((profile.storage_usage || 0) / (1024 * 1024)).toFixed(2);
+    const limitMB = ((profile.storage_limit || 50 * 1024 * 1024) / (1024 * 1024)).toFixed(0);
+    const storagePct = Math.min(100, Math.round(((profile.storage_usage || 0) / (profile.storage_limit || 50 * 1024 * 1024)) * 100));
+
+    // Aggregate canonical tools used by this user across all tables
+    const canonicalCounts = {};
+    userProgress.forEach(r => {
+        if (r.tool_key === 'klasskit_hub' || r.tool_key === 'hub') return;
+        const cid = resolveCanonicalToolId(r.tool_key);
+        const entries = extractLogEntries(r);
+        canonicalCounts[cid] = (canonicalCounts[cid] || 0) + entries.length;
+    });
+    if (userNotes.length) canonicalCounts['lessonnotes'] = (canonicalCounts['lessonnotes'] || 0) + userNotes.length;
+    if (userEvents.length) canonicalCounts['schedule'] = (canonicalCounts['schedule'] || 0) + userEvents.length;
+    if (userClasses.length) canonicalCounts['my-class'] = (canonicalCounts['my-class'] || 0) + userClasses.length;
+    if (userTasks.length) canonicalCounts['tasks'] = (canonicalCounts['tasks'] || 0) + userTasks.length;
+    if (userSpreadsheets.length) canonicalCounts['spreadsheet'] = (canonicalCounts['spreadsheet'] || 0) + userSpreadsheets.length;
+    if (userCardMaker.length) canonicalCounts['card-maker'] = (canonicalCounts['card-maker'] || 0) + userCardMaker.length;
+    if (userPuzzleMaker.length) canonicalCounts['puzzle-maker'] = (canonicalCounts['puzzle-maker'] || 0) + userPuzzleMaker.length;
+    if (userWorksheetMaker.length) canonicalCounts['worksheet-maker'] = (canonicalCounts['worksheet-maker'] || 0) + userWorksheetMaker.length;
+    if (userLessonParser.length) canonicalCounts['lesson-parser'] = (canonicalCounts['lesson-parser'] || 0) + userLessonParser.length;
+    if (userDnd.length || userVttMaps.length || userVttCampaigns.length) {
+        canonicalCounts['dnd-hub'] = (canonicalCounts['dnd-hub'] || 0) + userDnd.length + userVttMaps.length + userVttCampaigns.length;
+    }
+
+    const sortedToolKeys = Object.keys(canonicalCounts).sort((a, b) => canonicalCounts[b] - canonicalCounts[a]);
+
     let html = `
-        <div class="space-y-6 text-slate-300">
-            <div class="grid grid-cols-2 gap-4">
-                <div class="neo bg-slate-950 p-4 border-2 border-slate-700">
+        <div class="space-y-5 text-slate-300">
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div class="neo bg-slate-950 p-3.5 border-2 border-slate-700">
                     <div class="text-[10px] text-slate-500 uppercase font-black mb-1">Email / Auth</div>
-                    <div class="text-sm text-white font-bold">${email}</div>
+                    <div class="text-xs text-white font-bold break-all">${escapeHtml(email)}</div>
                 </div>
-                <div class="neo bg-slate-950 p-4 border-2 border-slate-700">
+                <div class="neo bg-slate-950 p-3.5 border-2 border-slate-700">
                     <div class="text-[10px] text-slate-500 uppercase font-black mb-1">User ID</div>
-                    <div class="text-xs text-slate-400 font-mono break-all">${userId}</div>
+                    <div class="text-[11px] text-slate-400 font-mono break-all">${escapeHtml(userId)}</div>
+                </div>
+                <div class="neo bg-slate-950 p-3.5 border-2 border-slate-700">
+                    <div class="flex justify-between text-[10px] text-slate-500 uppercase font-black mb-1">
+                        <span>Cloud Storage</span>
+                        <span class="text-blue font-mono">${storagePct}%</span>
+                    </div>
+                    <div class="text-xs text-white font-bold mb-1.5">${usedMB} MB / ${limitMB} MB</div>
+                    <div class="h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                        <div class="h-full bg-blue rounded-full" style="width:${storagePct}%"></div>
+                    </div>
                 </div>
             </div>
             
-            <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
                 <div class="neo bg-slate-800 p-3 text-center border-2 border-slate-600">
-                    <div class="text-2xl font-heading text-blue mb-1">${userProgress.length}</div>
-                    <div class="text-[10px] uppercase font-bold text-slate-400">Tool Saves</div>
+                    <div class="text-xl font-heading text-blue mb-0.5">${userProgress.length}</div>
+                    <div class="text-[9px] uppercase font-bold text-slate-400">Tool Rows</div>
                 </div>
                 <div class="neo bg-slate-800 p-3 text-center border-2 border-slate-600">
-                    <div class="text-2xl font-heading text-orange mb-1">${userNotes.length}</div>
-                    <div class="text-[10px] uppercase font-bold text-slate-400">Notes</div>
+                    <div class="text-xl font-heading text-orange mb-0.5">${userNotes.length}</div>
+                    <div class="text-[9px] uppercase font-bold text-slate-400">Notes</div>
                 </div>
                 <div class="neo bg-slate-800 p-3 text-center border-2 border-slate-600">
-                    <div class="text-2xl font-heading text-green mb-1">${userClasses.length}</div>
-                    <div class="text-[10px] uppercase font-bold text-slate-400">Classes</div>
+                    <div class="text-xl font-heading text-green mb-0.5">${userClasses.length}</div>
+                    <div class="text-[9px] uppercase font-bold text-slate-400">Classes (${totalStudents} stu)</div>
                 </div>
                 <div class="neo bg-slate-800 p-3 text-center border-2 border-slate-600">
-                    <div class="text-2xl font-heading text-pink mb-1">${userEvents.length}</div>
-                    <div class="text-[10px] uppercase font-bold text-slate-400">Events</div>
+                    <div class="text-xl font-heading text-pink mb-0.5">${userEvents.length}</div>
+                    <div class="text-[9px] uppercase font-bold text-slate-400">Events</div>
+                </div>
+                <div class="neo bg-slate-800 p-3 text-center border-2 border-slate-600">
+                    <div class="text-xl font-heading text-blue mb-0.5">${completedTasksCount}/${userTasks.length}</div>
+                    <div class="text-[9px] uppercase font-bold text-slate-400">Tasks Done</div>
+                </div>
+                <div class="neo bg-slate-800 p-3 text-center border-2 border-slate-600">
+                    <div class="text-xl font-heading text-orange mb-0.5">${studioTotal + workshopTotal}</div>
+                    <div class="text-[9px] uppercase font-bold text-slate-400">Studio & Workshop</div>
                 </div>
             </div>
 
             <div class="neo bg-slate-950 p-4 border-2 border-slate-700">
-                <h3 class="font-heading text-sm text-white mb-3 flex items-center gap-2"><i data-lucide="grid-2x2" class="w-4 h-4 text-blue"></i> Tools Activity</h3>
-                ${toolOrder.length ? `
+                <h3 class="font-heading text-sm text-white mb-3 flex items-center gap-2"><i data-lucide="grid-2x2" class="w-4 h-4 text-blue"></i> Adopted Tools & Activity Volume (${sortedToolKeys.length})</h3>
+                ${sortedToolKeys.length ? `
                 <div class="flex flex-wrap gap-2">
-                    ${toolOrder.map(k => `<span class="chip bg-blue/10 text-blue border-blue/40">${k} <span class="ml-1 opacity-60">(${toolCounts[k]})</span></span>`).join('')}
+                    ${sortedToolKeys.map(cid => {
+                        const meta = getToolMeta(cid);
+                        return `<span class="chip bg-blue/10 text-blue border-blue/40">${escapeHtml(meta.name)} <span class="ml-1 opacity-70">(${canonicalCounts[cid]})</span></span>`;
+                    }).join('')}
                 </div>
                 ` : '<div class="text-xs text-slate-500 italic">No tool activity</div>'}
             </div>
@@ -1506,7 +2555,7 @@ function viewUser(userId) {
                 <h3 class="font-heading text-sm text-white mb-3 flex items-center gap-2"><i data-lucide="book-open" class="w-4 h-4 text-orange"></i> Recent Notes</h3>
                 ${userNotes.length ? `
                 <ul class="space-y-2 text-xs">
-                    ${userNotes.slice(0, 5).map(n => `<li class="flex justify-between items-center border-b border-slate-800 pb-2"><span class="font-bold text-slate-300 truncate mr-4">${n.title || 'Untitled'}</span><span class="text-slate-500 font-mono whitespace-nowrap">${formatTs(Number(n.updated_at))}</span></li>`).join('')}
+                    ${userNotes.slice(0, 5).map(n => `<li class="flex justify-between items-center border-b border-slate-800 pb-2"><span class="font-bold text-slate-300 truncate mr-4">${escapeHtml(n.title || 'Untitled')}</span><span class="text-slate-500 font-mono whitespace-nowrap">${formatTs(Number(n.updated_at))}</span></li>`).join('')}
                 </ul>
                 ` : '<div class="text-xs text-slate-500 italic">No notes</div>'}
             </div>
@@ -1515,7 +2564,7 @@ function viewUser(userId) {
 
     const roleLabel = role === 'pro' ? '⭐ PRO USER' : role === 'admin' ? '🛡️ ADMIN' : '👤 USER';
     document.getElementById('viewModalTitle').textContent = name + ' — Profile Details';
-    document.getElementById('viewModalSub').textContent = 'Role: ' + roleLabel;
+    document.getElementById('viewModalSub').textContent = `Role: ${roleLabel} · Last Active: ${profile.last_active_ts ? formatTs(profile.last_active_ts) : 'Never'}`;
     document.getElementById('viewModalContent').innerHTML = html;
     document.getElementById('viewModalBg').classList.remove('hidden');
     lucide.createIcons();
@@ -1610,15 +2659,36 @@ function renderLogsTable() {
     if (!body) return
 
     const excludedIds = getExcludedUserIds()
+    const searchInput = document.getElementById('searchInput')
+    const toolFilter = document.getElementById('toolFilter')
+    const search = searchInput ? searchInput.value.toLowerCase().trim() : ''
+    const tool = toolFilter ? toolFilter.value : ''
+    const canonicalSelectedTool = tool ? resolveCanonicalToolId(tool) : ''
 
-    // Extract individual log entries from every progress row's data payload and merge them
-    // into a single flat log sorted newest-first. This gives a true chronological audit
-    // trail instead of just showing the latest upsert timestamp per (user, tool) row.
-    const logEntries = allProgress
-        .filter(r => !excludedIds.includes(r.user_id))
-        .flatMap(r => extractLogEntries(r))
+    // Build unified chronological audit trail across all tables
+    const allEvents = buildUnifiedEvents(excludedIds)
+        .filter(ev => {
+            const p = allProfiles[ev.user_id]
+            const name = (p?.display_name || '').toLowerCase()
+            const meta = getToolMeta(ev.canonical_tool)
+            const matchSearch = !search
+                || name.includes(search)
+                || ev.user_id.toLowerCase().includes(search)
+                || ev.tool_key.toLowerCase().includes(search)
+                || meta.name.toLowerCase().includes(search)
+                || String(ev.label || '').toLowerCase().includes(search)
+                || String(ev.action_type || '').toLowerCase().includes(search)
+            const matchTool = !tool || ev.tool_key === tool || ev.canonical_tool === canonicalSelectedTool
+            return matchSearch && matchTool
+        })
         .sort((a, b) => b.timestamp - a.timestamp)
-        .slice(0, 200)
+
+    const logsCountChip = document.getElementById('logsCountChip')
+    if (logsCountChip) {
+        logsCountChip.textContent = `${Math.min(250, allEvents.length)} of ${allEvents.length} events`
+    }
+
+    const logEntries = allEvents.slice(0, 250)
 
     if (!logEntries.length) {
         body.innerHTML = '<tr><td colspan="4" class="px-6 py-12 text-center text-slate-500 font-bold">No log entries found</td></tr>'
@@ -1631,31 +2701,38 @@ function renderLogsTable() {
         const time = entry.timestamp.toLocaleTimeString()
         const date = entry.timestamp.toLocaleDateString()
         const initial = name[0]?.toUpperCase() || '?'
+        const meta = getToolMeta(entry.canonical_tool)
 
         return `<tr class="group transition-all hover:bg-white/5 border-l-4 border-transparent hover:border-blue">
             <td class="px-6 py-4">
                 <div class="flex flex-col">
                     <span class="text-white font-mono text-xs">${time}</span>
-                    <span class="text-[9px] text-slate-600 font-mono">${date}</span>
+                    <span class="text-[9px] text-slate-500 font-mono">${date}</span>
                 </div>
             </td>
             <td class="px-6 py-4">
-              <div class="flex items-center gap-3">
-                <div class="w-8 h-8 rounded-lg bg-slate-800 border-2 border-slate-700 flex items-center justify-center text-[10px] font-black text-slate-400 group-hover:border-blue group-hover:text-blue transition-colors">${initial}</div>
+              <div class="flex items-center gap-3 cursor-pointer" onclick="viewUser('${entry.user_id}')">
+                <div class="w-8 h-8 rounded-lg bg-slate-800 border-2 border-slate-700 flex items-center justify-center text-[10px] font-black text-slate-400 group-hover:border-blue group-hover:text-blue transition-colors">${escapeHtml(initial)}</div>
                 <div class="flex flex-col">
-                    <span class="text-white font-bold text-xs tracking-tight">${name}</span>
-                    <span class="text-[9px] text-slate-500 font-mono">UID: ${entry.user_id.slice(0, 8)}</span>
+                    <span class="text-white font-bold text-xs tracking-tight group-hover:text-blue transition-colors">${escapeHtml(name)}</span>
+                    <span class="text-[9px] text-slate-500 font-mono">UID: ${escapeHtml(entry.user_id.slice(0, 8))}</span>
                 </div>
               </div>
             </td>
             <td class="px-6 py-4">
-              <div class="flex items-center gap-2">
-                <div class="w-2 h-2 rounded-full bg-blue shadow-[0_0_8px_rgba(30,167,253,0.5)]"></div>
-                <span class="text-slate-300 font-black text-[10px] uppercase tracking-widest">Save_Log_Entry</span>
+              <div class="flex flex-col gap-0.5">
+                <div class="flex items-center gap-2">
+                  <div class="w-2 h-2 rounded-full" style="background:${meta.color}; box-shadow: 0 0 8px ${meta.color}80"></div>
+                  <span class="text-slate-200 font-black text-[10px] uppercase tracking-widest">${escapeHtml(entry.action_type || 'Save_Log_Entry')}</span>
+                </div>
+                ${entry.label ? `<span class="text-[10px] text-slate-500 font-mono pl-4 truncate max-w-[260px]">${escapeHtml(String(entry.label))}</span>` : ''}
               </div>
             </td>
             <td class="px-6 py-4">
-              <span class="chip bg-slate-900 text-blue border-slate-800 group-hover:border-blue/30 transition-colors">${entry.tool_key}</span>
+              <div class="flex flex-col gap-0.5">
+                <span class="chip bg-slate-900 border-slate-700 w-fit" style="color:${meta.color}">${escapeHtml(meta.name)}</span>
+                <span class="text-[9px] font-mono text-slate-600">${escapeHtml(entry.tool_key)}</span>
+              </div>
             </td>
           </tr>`
     }).join('')
@@ -1675,8 +2752,10 @@ function saveSettings() {
         excluded_ids: document.getElementById('setting-excluded-ids').value
     }
     localStorage.setItem('kk_admin_settings', JSON.stringify(settings))
-    // Trigger re-render of stats to apply new exclusion
+    // Trigger re-render of stats & filters to apply new exclusion
     updateStats()
+    applyFilters()
+    if (currentView === 'cloud') renderCloudTable()
     console.log('[Admin] Settings saved:', settings)
 }
 
@@ -1740,9 +2819,9 @@ function renderExcludedUserPicker() {
         const isExcluded = excluded.includes(id)
         return `<label class="exclusion-item flex items-center gap-3 p-2 hover:bg-slate-800/50 rounded-xl cursor-pointer transition-colors ${isExcluded ? 'bg-pink/5' : ''}">
             <input type="checkbox" value="${id}" ${isExcluded ? 'checked' : ''} onchange="updateExcludedUsers()" class="w-4 h-4 rounded border-slate-600 bg-slate-800 cursor-pointer exclusion-checkbox">
-            <div class="w-7 h-7 rounded-lg bg-blue/20 border-2 border-blue/30 flex items-center justify-center text-blue text-xs font-heading flex-shrink-0">${initial}</div>
+            <div class="w-7 h-7 rounded-lg bg-blue/20 border-2 border-blue/30 flex items-center justify-center text-blue text-xs font-heading flex-shrink-0">${escapeHtml(initial)}</div>
             <span class="text-sm text-white font-bold">${escapeHtml(name)}</span>
-            <span class="text-[10px] text-slate-600 font-mono ml-auto">${id.slice(0, 8)}...</span>
+            <span class="text-[10px] text-slate-600 font-mono ml-auto">${escapeHtml(id.slice(0, 8))}...</span>
         </label>`
     }).join('')
 
@@ -1784,7 +2863,7 @@ function filterExclusionList() {
 
 function escapeHtml(text) {
     const div = document.createElement('div')
-    div.textContent = text
+    div.textContent = text == null ? '' : String(text)
     return div.innerHTML
 }
 
@@ -1817,6 +2896,7 @@ async function updateRole(userId, newRole) {
     } else {
         allProfiles[userId].role = newRole
         showToast('User role updated')
+        updateStats()
         applyFilters()
     }
 }
@@ -1874,7 +2954,25 @@ function renderCloudTable() {
     if (!body) return
 
     const excludedIds = getExcludedUserIds()
-    let profiles = Object.values(allProfiles).filter(p => !excludedIds.includes(p.id))
+    const cloudSearchEl = document.getElementById('cloudSearchInput')
+    const globalSearchEl = document.getElementById('searchInput')
+    const searchTerm = ((cloudSearchEl ? cloudSearchEl.value : '') || (globalSearchEl ? globalSearchEl.value : '')).toLowerCase().trim()
+
+    const allEligibleProfiles = Object.values(allProfiles).filter(p => !excludedIds.includes(p.id))
+
+    // Compute accurate global storage totals across ALL non-excluded profiles (not just current page)
+    let totalUsed = 0
+    let totalLimit = 0
+    allEligibleProfiles.forEach(p => {
+        totalUsed += (p.storage_usage || 0)
+        totalLimit += (p.storage_limit || 50 * 1024 * 1024)
+    })
+
+    let profiles = allEligibleProfiles.filter(p => {
+        if (!searchTerm) return true
+        const name = (p.display_name || '').toLowerCase()
+        return name.includes(searchTerm) || p.id.toLowerCase().includes(searchTerm)
+    })
 
     // Sort Cloud Usage
     profiles.sort((a, b) => {
@@ -1911,56 +3009,60 @@ function renderCloudTable() {
     // Pagination counts for reliable clamping
     pagination.lastFilteredCounts.cloud = profiles.length
 
-    let totalUsed = 0
-    let totalLimit = 0
+    if (!pagedProfiles.length) {
+        body.innerHTML = '<tr><td colspan="4" class="px-8 py-12 text-center text-slate-500 font-bold">No cloud storage nodes match your filter</td></tr>'
+    } else {
+        body.innerHTML = pagedProfiles.map(p => {
+            const used = p.storage_usage || 0
+            const limit = p.storage_limit || (50 * 1024 * 1024)
+            const percent = Math.min(100, Math.round((used / limit) * 100))
+            const usedMB = (used / (1024 * 1024)).toFixed(1)
+            const limitMB = (limit / (1024 * 1024)).toFixed(0)
+            const barColor = percent < 60 ? 'bg-green' : (percent < 85 ? 'bg-orange' : 'bg-pink')
+            const name = p.display_name || '—'
+            const initial = name[0]?.toUpperCase() || '?'
 
-    body.innerHTML = pagedProfiles.map(p => {
-        const used = p.storage_usage || 0
-        const limit = p.storage_limit || (50 * 1024 * 1024)
-        const percent = Math.min(100, Math.round((used / limit) * 100))
-        const usedMB = (used / (1024 * 1024)).toFixed(1)
-        const limitMB = (limit / (1024 * 1024)).toFixed(0)
-        const barColor = percent < 60 ? 'bg-green' : (percent < 85 ? 'bg-orange' : 'bg-pink')
-        const name = p.display_name || '—'
-        const initial = name[0]?.toUpperCase() || '?'
-
-        totalUsed += used
-        totalLimit += limit
-
-        return `
-            <tr class="group hover:bg-white/5 transition-all">
-                <td class="px-8 py-5">
-                    <div class="flex items-center gap-4">
-                        <div class="w-10 h-10 rounded-xl bg-slate-800 border-4 border-slate-700 flex items-center justify-center font-heading text-slate-400 group-hover:border-blue group-hover:text-blue transition-colors text-xs flex-shrink-0">${initial}</div>
-                        <div>
-                            <div class="font-bold text-white text-sm tracking-tight">${name}</div>
-                            <div class="text-[9px] text-slate-600 font-mono">NODE_ID: ${p.id.slice(0, 8)}</div>
+            return `
+                <tr class="group hover:bg-white/5 transition-all">
+                    <td class="px-8 py-5">
+                        <div class="flex items-center gap-4">
+                            <div class="w-10 h-10 rounded-xl bg-slate-800 border-4 border-slate-700 flex items-center justify-center font-heading text-slate-400 group-hover:border-blue group-hover:text-blue transition-colors text-xs flex-shrink-0">${escapeHtml(initial)}</div>
+                            <div>
+                                <div class="font-bold text-white text-sm tracking-tight">${escapeHtml(name)}</div>
+                                <div class="text-[9px] text-slate-600 font-mono">NODE_ID: ${escapeHtml(p.id.slice(0, 8))}</div>
+                            </div>
                         </div>
-                    </div>
-                </td>
-                <td class="px-8 py-5">
-                    <div class="flex flex-col">
-                        <span class="font-mono text-xs text-white">${usedMB} MB</span>
-                        <span class="text-[9px] text-slate-600 uppercase font-black">Quota: ${limitMB} MB</span>
-                    </div>
-                </td>
-                <td class="px-8 py-5">
-                    <div class="flex items-center gap-4">
-                        <div class="flex-1 h-3 bg-slate-950 border-2 border-slate-800 rounded-full overflow-hidden p-0.5 min-w-[120px]">
-                            <div class="h-full ${barColor} rounded-full transition-all duration-700 shadow-[0_0_10px_rgba(30,167,253,0.2)]" style="width: ${percent}%"></div>
+                    </td>
+                    <td class="px-8 py-5">
+                        <div class="flex flex-col">
+                            <span class="font-mono text-xs text-white">${usedMB} MB</span>
+                            <span class="text-[9px] text-slate-600 uppercase font-black">Quota: ${limitMB} MB</span>
                         </div>
-                        <span class="text-[10px] font-black ${percent > 85 ? 'text-pink' : 'text-blue'} w-8">${percent}%</span>
-                    </div>
-                </td>
-                <td class="px-8 py-5 text-right">
-                    <button onclick="openDeleteModal('${p.id}', 'cloud-storage')" id="delete-storage-btn-${p.id}" title="Clear User Cloud Storage"
-                        class="neo-btn !p-2 !bg-slate-900 !border-2 !border-slate-800 hover:!border-pink transition-all group/btn">
-                        <i data-lucide="trash-2" class="w-3.5 h-3.5 text-slate-500 group-hover/btn:text-pink delete-storage-icon-${p.id}"></i>
-                    </button>
-                </td>
-            </tr>
-        `
-    }).join('')
+                    </td>
+                    <td class="px-8 py-5">
+                        <div class="flex items-center gap-4">
+                            <div class="flex-1 h-3 bg-slate-950 border-2 border-slate-800 rounded-full overflow-hidden p-0.5 min-w-[120px]">
+                                <div class="h-full ${barColor} rounded-full transition-all duration-700 shadow-[0_0_10px_rgba(30,167,253,0.2)]" style="width: ${percent}%"></div>
+                            </div>
+                            <span class="text-[10px] font-black ${percent > 85 ? 'text-pink' : 'text-blue'} w-8">${percent}%</span>
+                        </div>
+                    </td>
+                    <td class="px-8 py-5 text-right">
+                        <div class="inline-flex items-center gap-2">
+                            <button onclick="syncUserStorage('${p.id}')" id="sync-btn-${p.id}" title="Recalculate User Cloud Storage"
+                                class="neo-btn !p-2 !bg-slate-900 !border-2 !border-slate-800 hover:!border-blue transition-all group/sync">
+                                <i data-lucide="refresh-cw" class="w-3.5 h-3.5 text-slate-500 group-hover/sync:text-blue sync-icon-${p.id}"></i>
+                            </button>
+                            <button onclick="openDeleteModal('${p.id}', 'cloud-storage')" id="delete-storage-btn-${p.id}" title="Clear User Cloud Storage"
+                                class="neo-btn !p-2 !bg-slate-900 !border-2 !border-slate-800 hover:!border-pink transition-all group/btn">
+                                <i data-lucide="trash-2" class="w-3.5 h-3.5 text-slate-500 group-hover/btn:text-pink delete-storage-icon-${p.id}"></i>
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+            `
+        }).join('')
+    }
 
     // Update Summary
     const globalUsedMB = (totalUsed / (1024 * 1024)).toFixed(1)
@@ -1981,7 +3083,7 @@ function renderCloudTable() {
         globalStorageBar.className = `h-full rounded-full transition-all duration-1000 ${colorClass} ${shadowClass}`
     }
 
-    const activeUsers = profiles.filter(p => (p.storage_usage || 0) > 0).length
+    const activeUsers = allEligibleProfiles.filter(p => (p.storage_usage || 0) > 0).length
     const globalActiveUsers = document.getElementById('globalActiveUsers')
     if (globalActiveUsers) globalActiveUsers.textContent = activeUsers
 
@@ -2165,11 +3267,11 @@ function renderAnnouncements() {
                         </div>
                         <div>
                             <div class="flex items-center gap-3 mb-1">
-                                <h3 class="font-heading text-white tracking-tight">${ann.title}</h3>
-                                <span class="chip bg-${style.color}/10 text-${style.color} border-${style.color}/20">${ann.type}</span>
+                                <h3 class="font-heading text-white tracking-tight">${escapeHtml(ann.title)}</h3>
+                                <span class="chip bg-${style.color}/10 text-${style.color} border-${style.color}/20">${escapeHtml(ann.type)}</span>
                                 ${!ann.is_active ? '<span class="chip bg-slate-800 text-slate-500 border-slate-700">DRAFT</span>' : ''}
                             </div>
-                            <p class="text-sm text-slate-400 leading-relaxed max-w-2xl whitespace-pre-wrap">${ann.content}</p>
+                            <p class="text-sm text-slate-400 leading-relaxed max-w-2xl whitespace-pre-wrap">${escapeHtml(ann.content)}</p>
                             <div class="flex items-center gap-4 mt-4">
                                 <div class="flex items-center gap-1.5 text-[10px] font-mono text-slate-500">
                                     <i data-lucide="calendar" class="w-3 h-3"></i>
@@ -2234,13 +3336,13 @@ function renderTasksTable(filteredTasks) {
         return `<tr class="group transition-colors hover:bg-slate-800/50">
             <td class="px-5 py-3">
                 <div class="flex items-center gap-2">
-                    <div class="w-7 h-7 rounded-lg bg-blue/20 border-2 border-blue/30 flex items-center justify-center text-blue text-xs font-heading flex-shrink-0">${initial}</div>
-                    <span class="font-bold text-white text-sm">${name}</span>
+                    <div class="w-7 h-7 rounded-lg bg-blue/20 border-2 border-blue/30 flex items-center justify-center text-blue text-xs font-heading flex-shrink-0">${escapeHtml(initial)}</div>
+                    <span class="font-bold text-white text-sm">${escapeHtml(name)}</span>
                 </div>
             </td>
-            <td class="px-5 py-3"><span class="font-bold text-slate-200">${task.text}</span></td>
-            <td class="px-5 py-3"><span class="chip bg-slate-700 text-slate-400 border-slate-600">${task.category || 'General'}</span></td>
-            <td class="px-5 py-3"><span class="chip bg-${statusColor}/10 text-${statusColor} border-${statusColor}/30">${statusLabel}</span></td>
+            <td class="px-5 py-3"><span class="font-bold text-slate-200">${escapeHtml(task.text)}</span></td>
+            <td class="px-5 py-3"><span class="chip bg-slate-700 text-slate-400 border-slate-600">${escapeHtml(task.category || 'General')}</span></td>
+            <td class="px-5 py-3"><span class="chip bg-${statusColor}/10 text-${statusColor} border-${statusColor}/30">${escapeHtml(statusLabel)}</span></td>
             <td class="px-5 py-3 text-right">
                 <button onclick="openTaskModal('${task.id}')" class="neo-btn px-3 py-1.5 bg-slate-800 text-slate-300 rounded-xl text-xs opacity-0 group-hover:opacity-100 transition-opacity">
                     <i data-lucide="eye" class="w-3 h-3"></i>
@@ -2272,7 +3374,7 @@ function renderMyClassTable(filteredMyClass) {
     }
 
     if (!filteredMyClass.length) {
-        body.innerHTML = '<tr><td colspan="4" class="text-center py-12 text-slate-500 font-bold">No class records found</td></tr>'
+        body.innerHTML = '<tr><td colspan="5" class="text-center py-12 text-slate-500 font-bold">No class records found</td></tr>'
         return
     }
 
@@ -2280,16 +3382,30 @@ function renderMyClassTable(filteredMyClass) {
         const profile = allProfiles[cls.user_id]
         const name = profile?.display_name || '—'
         const initial = name[0]?.toUpperCase() || '?'
-        const updated = new Date(cls.updated_at).toLocaleDateString()
+        const updated = cls.updated_at ? new Date(cls.updated_at).toLocaleDateString() : '—'
+
+        const d = typeof cls.data === 'string'
+            ? (() => { try { return JSON.parse(cls.data); } catch (e) { return {}; } })()
+            : (cls.data || {})
+        const stuCount = Array.isArray(d.students) ? d.students.length : 0
+        const logDays = d.logs && typeof d.logs === 'object' ? Object.keys(d.logs).length : 0
+        const refDays = d.reflections && typeof d.reflections === 'object' ? Object.keys(d.reflections).length : 0
 
         return `<tr class="group transition-colors hover:bg-slate-800/50">
             <td class="px-5 py-3">
                 <div class="flex items-center gap-2">
-                    <div class="w-7 h-7 rounded-lg bg-orange/20 border-2 border-orange/30 flex items-center justify-center text-orange text-xs font-heading flex-shrink-0">${initial}</div>
-                    <span class="font-bold text-white text-sm">${name}</span>
+                    <div class="w-7 h-7 rounded-lg bg-orange/20 border-2 border-orange/30 flex items-center justify-center text-orange text-xs font-heading flex-shrink-0">${escapeHtml(initial)}</div>
+                    <span class="font-bold text-white text-sm">${escapeHtml(name)}</span>
                 </div>
             </td>
-            <td class="px-5 py-3"><span class="font-bold text-slate-200">${cls.class_name}</span></td>
+            <td class="px-5 py-3"><span class="font-bold text-slate-200">${escapeHtml(cls.class_name)}</span></td>
+            <td class="px-5 py-3">
+                <div class="flex flex-wrap gap-1.5">
+                    <span class="chip bg-green/10 text-green border-green/30">${stuCount} student${stuCount === 1 ? '' : 's'}</span>
+                    ${logDays > 0 ? `<span class="chip bg-blue/10 text-blue border-blue/30">${logDays} log day${logDays === 1 ? '' : 's'}</span>` : ''}
+                    ${refDays > 0 ? `<span class="chip bg-orange/10 text-orange border-orange/30">${refDays} refl</span>` : ''}
+                </div>
+            </td>
             <td class="px-5 py-3 text-xs text-slate-500 font-mono">${updated}</td>
             <td class="px-5 py-3 text-right">
                 <button onclick="openMyClassRowModal('${cls.id}')" class="neo-btn px-3 py-1.5 bg-slate-800 text-slate-300 rounded-xl text-xs opacity-0 group-hover:opacity-100 transition-opacity">
@@ -2309,6 +3425,198 @@ function openMyClassRowModal(id) {
     document.getElementById('viewModalSub').textContent = `Teacher: ${profile?.display_name || 'Unknown'} · Updated: ${new Date(cls.updated_at).toLocaleString()}`
     document.getElementById('viewModalContent').innerHTML = `<pre class="text-green whitespace-pre-wrap font-mono text-xs">${JSON.stringify(cls.data, null, 2).replace(/</g, '&lt;').replace(/>/g, '&gt;')}</pre>`
     document.getElementById('viewModalBg').classList.remove('hidden')
+}
+
+// ── STUDIO, MAKERS & WORKSHOP VIEW ──
+function buildStudioItemsList(excludedIds) {
+    const items = []
+
+    allSpreadsheets.forEach(s => {
+        const uid = s.user_id || ''
+        if (!uid || excludedIds.includes(uid)) return
+        items.push({
+            id: s.id,
+            table: 'spreadsheets',
+            user_id: uid,
+            tool_key: 'spreadsheet',
+            type_label: 'Spreadsheet',
+            color: 'blue',
+            title: s.title || s.name || 'Untitled Spreadsheet',
+            ts: parseTimestampMs(s.updated_at || s.created_at)
+        })
+    })
+
+    allCardMaker.forEach(c => {
+        const uid = c.user_id || ''
+        if (!uid || excludedIds.includes(uid)) return
+        items.push({
+            id: c.id,
+            table: 'tools_cardmaker',
+            user_id: uid,
+            tool_key: 'card-maker',
+            type_label: 'Card Maker Set',
+            color: 'pink',
+            title: c.name || c.title || 'Card Set',
+            ts: parseTimestampMs(c.last_used || c.updated_at || c.created_at)
+        })
+    })
+
+    allPuzzleMaker.forEach(p => {
+        const uid = p.user_id || ''
+        if (!uid || excludedIds.includes(uid)) return
+        items.push({
+            id: p.id,
+            table: 'tools_puzzlemaker',
+            user_id: uid,
+            tool_key: 'puzzle-maker',
+            type_label: 'Puzzle Maker Set',
+            color: 'orange',
+            title: p.name || p.title || 'Puzzle Set',
+            ts: parseTimestampMs(p.last_used || p.updated_at || p.created_at)
+        })
+    })
+
+    allWorksheetMaker.forEach(w => {
+        const uid = w.user_id || ''
+        if (!uid || excludedIds.includes(uid)) return
+        items.push({
+            id: w.id,
+            table: 'tools_worksheetmaker',
+            user_id: uid,
+            tool_key: 'worksheet-maker',
+            type_label: 'Worksheet Set',
+            color: 'green',
+            title: w.name || w.title || 'Worksheet',
+            ts: parseTimestampMs(w.last_used || w.updated_at || w.created_at)
+        })
+    })
+
+    allLessonParser.forEach(l => {
+        const uid = l.user_id || ''
+        if (!uid || excludedIds.includes(uid)) return
+        items.push({
+            id: l.id,
+            table: 'workshop_lessonparser',
+            user_id: uid,
+            tool_key: 'lesson-parser',
+            type_label: `Lesson Parser (${l.subject || 'Unit'})`,
+            color: 'pink',
+            title: l.name || l.unit_title || 'Lesson Unit',
+            ts: parseTimestampMs(l.last_used || l.updated_at || l.created_at)
+        })
+    })
+
+    allToolsDnd.forEach(d => {
+        const uid = d.user_id || ''
+        if (!uid || excludedIds.includes(uid)) return
+        items.push({
+            id: d.id,
+            table: 'tools_dnd',
+            user_id: uid,
+            tool_key: 'dnd-hub',
+            type_label: `D&D (${d.tool_type || d.type || 'Item'})`,
+            color: 'orange',
+            title: d.name || d.title || 'D&D Record',
+            ts: parseTimestampMs(d.last_used || d.updated_at || d.created_at)
+        })
+    })
+
+    allVttMaps.forEach(m => {
+        const uid = m.user_id || m.owner_id || ''
+        if (!uid || excludedIds.includes(uid)) return
+        items.push({
+            id: m.id,
+            table: 'vtt_maps',
+            user_id: uid,
+            tool_key: 'dnd-hub',
+            type_label: 'VTT Map',
+            color: 'green',
+            title: m.name || m.title || 'Battlemap',
+            ts: parseTimestampMs(m.updated_at || m.created_at)
+        })
+    })
+
+    allVttCampaigns.forEach(c => {
+        const uid = c.user_id || c.owner_id || ''
+        if (!uid || excludedIds.includes(uid)) return
+        items.push({
+            id: c.id,
+            table: 'vtt_campaigns',
+            user_id: uid,
+            tool_key: 'dnd-hub',
+            type_label: 'VTT Campaign',
+            color: 'blue',
+            title: c.name || c.title || 'Campaign',
+            ts: parseTimestampMs(c.updated_at || c.created_at)
+        })
+    })
+
+    return items.sort((a, b) => b.ts - a.ts)
+}
+
+function renderStudioTable(items) {
+    const body = document.getElementById('studioTableBody')
+    if (!body) return
+
+    if (!items) {
+        items = buildStudioItemsList(getExcludedUserIds())
+    }
+
+    if (!items.length) {
+        body.innerHTML = '<tr><td colspan="5" class="text-center py-12 text-slate-500 font-bold">No studio, maker, or workshop items found</td></tr>'
+        return
+    }
+
+    body.innerHTML = items.map(item => {
+        const profile = allProfiles[item.user_id]
+        const name = profile?.display_name || '—'
+        const initial = name[0]?.toUpperCase() || '?'
+        const dateStr = item.ts ? new Date(item.ts).toLocaleString() : '—'
+
+        return `<tr class="group transition-colors hover:bg-slate-800/50">
+            <td class="px-5 py-3">
+                <div class="flex items-center gap-2">
+                    <div class="w-7 h-7 rounded-lg bg-${item.color}/20 border-2 border-${item.color}/30 flex items-center justify-center text-${item.color} text-xs font-heading flex-shrink-0">${escapeHtml(initial)}</div>
+                    <div>
+                        <div class="font-bold text-white text-sm">${escapeHtml(name)}</div>
+                        <div class="font-mono text-[10px] text-slate-600">${escapeHtml(item.user_id.slice(0, 8))}...</div>
+                    </div>
+                </div>
+            </td>
+            <td class="px-5 py-3">
+                <span class="chip bg-${item.color}/10 text-${item.color} border-${item.color}/30">${escapeHtml(item.type_label)}</span>
+            </td>
+            <td class="px-5 py-3">
+                <span class="font-bold text-slate-200">${escapeHtml(item.title)}</span>
+            </td>
+            <td class="px-5 py-3 text-xs text-slate-500 font-mono whitespace-nowrap">${dateStr}</td>
+            <td class="px-5 py-3 text-right">
+                <button onclick="openStudioModal('${item.table}', '${item.id}')" class="neo-btn px-3 py-1.5 bg-blue text-white rounded-xl text-xs opacity-0 group-hover:opacity-100 transition-opacity">
+                    <i data-lucide="eye" class="w-3 h-3"></i> Inspect
+                </button>
+            </td>
+        </tr>`
+    }).join('')
+    lucide.createIcons({ root: body })
+}
+
+async function openStudioModal(table, id) {
+    document.getElementById('viewModalTitle').textContent = `Inspecting ${table}…`
+    document.getElementById('viewModalSub').textContent = `ID: ${id}`
+    document.getElementById('viewModalContent').innerHTML = '<div class="text-slate-400 text-xs font-mono">Loading full payload from Supabase…</div>'
+    document.getElementById('viewModalBg').classList.remove('hidden')
+
+    const { data, error } = await db.from(table).select('*').eq('id', id).maybeSingle()
+    if (error || !data) {
+        document.getElementById('viewModalContent').innerHTML = `<div class="text-pink text-xs font-mono">Failed to load record: ${escapeHtml(error?.message || 'Record not found')}</div>`
+        return
+    }
+    const uid = data.user_id || data.owner_id
+    const profile = allProfiles[uid]
+    const title = data.title || data.unit_title || data.name || id
+    document.getElementById('viewModalTitle').textContent = `${title} (${table})`
+    document.getElementById('viewModalSub').textContent = `Owner: ${profile?.display_name || uid || 'Unknown'}`
+    document.getElementById('viewModalContent').innerHTML = `<pre class="text-green whitespace-pre-wrap font-mono text-xs">${JSON.stringify(data, null, 2).replace(/</g, '&lt;').replace(/>/g, '&gt;')}</pre>`
 }
 
 // Keyboard shortcuts
