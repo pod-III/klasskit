@@ -553,7 +553,7 @@ const UI = {
     menu.classList.toggle('translate-y-4', !isClosed);
     menu.classList.toggle('translate-y-0', isClosed);
 
-    const icon = container.querySelector('[data-action="toggleSettings"] i');
+    const icon = container.querySelector('[data-action="toggleSettings"] svg, [data-action="toggleSettings"] i');
     if (icon) icon.classList.toggle('rotate-90', isClosed);
   },
 
@@ -1349,7 +1349,7 @@ const PinnedGames = {
 
     Storage.set(CONFIG.storageKeys.pinned, pinned);
     this.render();
-    GameGrid.render(); // Refresh main grid to update pin icons
+    ViewManager.renderAllGrids(); // Refresh library grids to update pin icons
     AudioEngine.click();
     return !isPinned;
   },
@@ -1489,7 +1489,8 @@ const GameGrid = {
     let displayDesc = game.description;
 
     if (State.filters.searchTerm) {
-      const regex = new RegExp(`(${State.filters.searchTerm})`, 'gi');
+      const escapedTerm = State.filters.searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const regex = new RegExp(`(${escapedTerm})`, 'gi');
       displayTitle = displayTitle.replace(regex, '<mark class="bg-yellow-200 text-slate-800 rounded px-1">$1</mark>');
       displayDesc = displayDesc.replace(regex, '<mark class="bg-yellow-200 text-slate-800 rounded px-1">$1</mark>');
     }
@@ -1503,7 +1504,7 @@ const GameGrid = {
       : '';
 
     const badgesHtml = (proBadge || newBadge)
-      ? `<div class="flex items-center gap-1.5 flex-wrap">${proBadge}${newBadge}</div>`
+      ? `<div class="card-badges flex items-center gap-1.5 flex-wrap">${proBadge}${newBadge}</div>`
       : '';
 
     return `
@@ -1524,7 +1525,7 @@ const GameGrid = {
         </div>
         <div class="p-6 flex-1 flex flex-col bg-white dark:bg-slate-800">
           <div class="flex justify-between items-start mb-3">
-            <div class="flex flex-col gap-1">
+            <div class="card-title-group flex flex-col gap-1">
               <h2 class="text-2xl font-heading text-dark dark:text-white leading-none tracking-tight">${displayTitle}</h2>
               ${badgesHtml}
             </div>
@@ -1555,7 +1556,8 @@ const GameGrid = {
   },
 
   initCardEffects(container) {
-    if (!container) return;
+    if (!container || container.dataset.tiltBound === 'true') return;
+    container.dataset.tiltBound = 'true';
     // Delegated event handling on the grid container
     container.addEventListener('mousemove', (e) => {
       const card = e.target.closest('.hub-card');
@@ -1898,6 +1900,7 @@ const ViewManager = {
     }
     
     Utils.refreshIcons(grid);
+    GameGrid.initCardEffects(grid);
   },
 
   renderAllGrids() {
@@ -4245,7 +4248,7 @@ const App = {
         if (!isToggleButton && (!settingsContainer.contains(e.target) || target)) {
           settingsMenu.classList.add('opacity-0', 'pointer-events-none', 'translate-y-4');
           settingsMenu.classList.remove('translate-y-0');
-          const icon = settingsContainer.querySelector('[data-action="toggleSettings"] i');
+          const icon = settingsContainer.querySelector('[data-action="toggleSettings"] svg, [data-action="toggleSettings"] i');
           if (icon) icon.classList.remove('rotate-90');
         }
       }
