@@ -789,9 +789,35 @@ async function deletePage(index) {
     }
 }
 
+function duplicatePage(index) {
+    saveState();
+    const copy = JSON.parse(JSON.stringify(state.pages[index] || []));
+    state.pages.splice(index + 1, 0, copy);
+    renderAllPages();
+    showToast(`Duplicated Page ${index + 1}`, "success");
+}
+
+function shufflePage(index) {
+    saveState();
+    const total = state.gridCols * state.gridRows;
+    const page = state.pages[index] || [];
+    while (page.length < total) page.push({ text: "", img: "", label: "" });
+    const slice = page.slice(0, total);
+    for (let i = slice.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [slice[i], slice[j]] = [slice[j], slice[i]];
+    }
+    state.pages[index] = slice.concat(page.slice(total));
+    renderAllPages();
+    showToast(`Shuffled Page ${index + 1}`, "info");
+}
+
 async function savePageAsImage(pageIndex, wrapperElement) {
     const a4Page = wrapperElement.querySelector(".a4-page");
     if (!a4Page) return;
+
+    const prevZoom = wrapperElement.style.zoom;
+    wrapperElement.style.zoom = "1";
 
     // Temporarily hide UI elements we don't want in the screenshot
     const hideElements = a4Page.querySelectorAll(".no-print");
@@ -816,7 +842,8 @@ async function savePageAsImage(pageIndex, wrapperElement) {
         console.error("Error generating image:", error);
         showToast("Oops! Something went wrong while saving.", "error");
     } finally {
-        // Restore hidden UI elements
+        // Restore hidden UI elements and preview zoom
+        wrapperElement.style.zoom = prevZoom;
         hideElements.forEach((el) => (el.style.display = ""));
     }
 }
@@ -978,6 +1005,7 @@ function setOrientation(type, shouldSave = true) {
     });
 
     printStyle.innerHTML = `@page { size: ${type}; margin: 0; }`;
+    if (currentZoomMode === "fit" && typeof applyPreviewZoom === "function") applyPreviewZoom();
     if (shouldSave) saveState();
 }
 
@@ -1037,6 +1065,7 @@ function renderAllPages(shouldSave = true) {
 
     setOrientation(state.orientation, false);
     updateCardDisplay(); // Applies fonts, sizes, visibility
+    if (typeof applyPreviewZoom === "function") applyPreviewZoom();
     lucide.createIcons();
 
     if (shouldSave) saveState();
@@ -1066,16 +1095,32 @@ function renderSinglePage(pageIndex, pageData) {
     // Save PNG Btn
     const saveImgBtn = document.createElement("button");
     saveImgBtn.className =
-        "bg-blue text-white border-2 border-dark px-3 py-1.5 rounded-lg font-heading font-bold text-[11px] shadow-hard-sm hover:scale-105 active:translate-x-[2px] active:translate-y-[2px] active:shadow-none transition-all flex items-center gap-1.5";
+        "bg-brand-blue text-white border-2 border-brand-dark dark:border-slate-500 px-3 py-1.5 rounded-lg font-heading font-bold text-[11px] shadow-neo-sm hover:scale-105 active:translate-x-[2px] active:translate-y-[2px] active:shadow-none transition-all flex items-center gap-1.5";
     saveImgBtn.innerHTML = `<i data-lucide="image" class="w-3.5 h-3.5"></i> SAVE PNG`;
     saveImgBtn.onclick = () => savePageAsImage(pageIndex, wrapper);
     controlsDiv.appendChild(saveImgBtn);
+
+    // Duplicate Page Btn
+    const dupBtn = document.createElement("button");
+    dupBtn.className =
+        "bg-brand-green text-brand-dark border-2 border-brand-dark dark:border-slate-500 px-3 py-1.5 rounded-lg font-heading font-bold text-[11px] shadow-neo-sm hover:scale-105 active:translate-x-[2px] active:translate-y-[2px] active:shadow-none transition-all flex items-center gap-1.5";
+    dupBtn.innerHTML = `<i data-lucide="copy" class="w-3.5 h-3.5"></i> DUPLICATE`;
+    dupBtn.onclick = () => duplicatePage(pageIndex);
+    controlsDiv.appendChild(dupBtn);
+
+    // Shuffle Page Btn
+    const shufBtn = document.createElement("button");
+    shufBtn.className =
+        "bg-brand-orange text-brand-dark border-2 border-brand-dark dark:border-slate-500 px-3 py-1.5 rounded-lg font-heading font-bold text-[11px] shadow-neo-sm hover:scale-105 active:translate-x-[2px] active:translate-y-[2px] active:shadow-none transition-all flex items-center gap-1.5";
+    shufBtn.innerHTML = `<i data-lucide="shuffle" class="w-3.5 h-3.5"></i> SHUFFLE`;
+    shufBtn.onclick = () => shufflePage(pageIndex);
+    controlsDiv.appendChild(shufBtn);
 
     // Delete Btn
     if (state.pages.length > 1) {
         const delBtn = document.createElement("button");
         delBtn.className =
-            "bg-red-500 text-white border-2 border-dark px-3 py-1.5 rounded-lg font-heading font-bold text-[11px] shadow-hard-sm hover:scale-105 active:translate-x-[2px] active:translate-y-[2px] active:shadow-none transition-all flex items-center gap-1.5";
+            "bg-brand-pink text-white border-2 border-brand-dark dark:border-slate-500 px-3 py-1.5 rounded-lg font-heading font-bold text-[11px] shadow-neo-sm hover:scale-105 active:translate-x-[2px] active:translate-y-[2px] active:shadow-none transition-all flex items-center gap-1.5";
         delBtn.innerHTML = `<i data-lucide="trash-2" class="w-3.5 h-3.5"></i> DELETE PAGE`;
         delBtn.onclick = () => deletePage(pageIndex);
         controlsDiv.appendChild(delBtn);
@@ -1349,37 +1394,92 @@ async function exportToPNG() {
         }
     });
 
-    for (let i = 0; i < pages.length; i++) {
-        const page = pages[i];
+    // Reset zoom to 100% for crisp full-res PNG export
+    document.querySelectorAll('.page-wrapper').forEach(w => { w.style.zoom = '1'; });
 
-        // Slightly scale up for better resolution pngs
-        const canvas = await html2canvas(page, {
-            scale: 2,
-            useCORS: true,
-            backgroundColor: '#ffffff'
-        });
+    try {
+        for (let i = 0; i < pages.length; i++) {
+            const page = pages[i];
 
-        const link = document.createElement("a");
-        link.download = `card_maker_page_${i + 1}.png`;
-        link.href = canvas.toDataURL("image/png");
-        link.click();
-    }
+            // Slightly scale up for better resolution pngs
+            const canvas = await html2canvas(page, {
+                scale: 2,
+                useCORS: true,
+                backgroundColor: '#ffffff'
+            });
 
-    // Restore UI
-    document.querySelectorAll('.no-print').forEach(el => {
-        if (el.id && el.id.startsWith('del-')) {
-            el.style.display = '';
+            const link = document.createElement("a");
+            link.download = `card_maker_page_${i + 1}.png`;
+            link.href = canvas.toDataURL("image/png");
+            link.click();
         }
-    });
-    document.querySelectorAll('[contenteditable]').forEach(el => {
-        if (el.innerText.trim() === '') {
-            el.style.color = '';
-            if (el.classList.contains('card-label-input')) {
+    } finally {
+        // Restore UI & preview zoom
+        applyPreviewZoom();
+        document.querySelectorAll('.no-print').forEach(el => {
+            if (el.id && el.id.startsWith('del-')) {
                 el.style.display = '';
             }
-        }
+        });
+        document.querySelectorAll('[contenteditable]').forEach(el => {
+            if (el.innerText.trim() === '') {
+                el.style.color = '';
+                if (el.classList.contains('card-label-input')) {
+                    el.style.display = '';
+                }
+            }
+        });
+    }
+}
+
+// --- Preview Zoom (Chromebook QoL) ---
+let currentZoomMode = localStorage.getItem("cardmaker_zoom") || "1";
+
+function setPreviewZoom(mode) {
+    currentZoomMode = String(mode);
+    localStorage.setItem("cardmaker_zoom", currentZoomMode);
+    applyPreviewZoom();
+}
+
+function applyPreviewZoom() {
+    const container = document.getElementById("pagesContainer");
+    if (!container) return;
+    let zoomVal = 1;
+    if (currentZoomMode === "fit") {
+        const availW = Math.max(320, container.clientWidth - 72);
+        const pagePx = state.orientation === "landscape" ? 1122 : 794;
+        zoomVal = Math.min(1, Math.max(0.35, +(availW / pagePx).toFixed(2)));
+    } else {
+        zoomVal = parseFloat(currentZoomMode) || 1;
+    }
+    document.querySelectorAll(".page-wrapper").forEach((w) => {
+        w.style.zoom = String(zoomVal);
+    });
+    ["0.5", "0.75", "1", "fit"].forEach((k) => {
+        const btn = document.getElementById(`zoom-${k}`);
+        if (!btn) return;
+        const active = currentZoomMode === k;
+        btn.classList.toggle("bg-brand-blue", active);
+        btn.classList.toggle("text-white", active);
+        btn.classList.toggle("text-slate-600", !active);
+        btn.classList.toggle("dark:text-slate-300", !active);
     });
 }
+
+window.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+        if (typeof closeBulkTextModal === "function") closeBulkTextModal();
+        const confirmModal = document.getElementById("confirmModal");
+        if (confirmModal && !confirmModal.classList.contains("hidden")) {
+            const noBtn = document.getElementById("confirmBtnNo");
+            if (noBtn && typeof noBtn.click === "function") noBtn.click();
+            else {
+                confirmModal.classList.add("hidden");
+                confirmModal.classList.remove("flex");
+            }
+        }
+    }
+});
 
 // --- Init ---
 window.onload = async () => {
@@ -1387,8 +1487,10 @@ window.onload = async () => {
     initTheme();
     await loadState();
     renderCardSets();
+    applyPreviewZoom();
 };
 window.onresize = () => {
+    if (currentZoomMode === "fit") applyPreviewZoom();
     if (state.autoFit)
         document
             .querySelectorAll(
