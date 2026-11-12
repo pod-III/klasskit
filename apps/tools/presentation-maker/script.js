@@ -454,7 +454,7 @@
                 this.slides.forEach((slide, index) => {
                     const slideEl = document.createElement('div');
                     slideEl.id = `slide-item-${index}`;
-                    slideEl.className = 'slide-card bg-white dark:bg-slate-800 border-[3px] border-brand-dark dark:border-white/10 rounded-xl p-5 shadow-sm hover:shadow-hard-sm dark:shadow-none transition-all flex flex-col md:flex-row gap-5 items-start relative';
+                    slideEl.className = 'slide-card bg-white dark:bg-slate-800 border-[3px] border-brand-dark dark:border-slate-500 rounded-2xl p-4 shadow-hard-sm dark:shadow-hard-sm-dark transition-all flex flex-col md:flex-row gap-4 items-start relative';
 
                     const layouts = [
                         { id: 'hero', icon: 'type', label: 'Hero' },
@@ -476,20 +476,26 @@
                     const isImageHidden = slide.layout === 'hero';
 
                     slideEl.innerHTML = `
-                        <div class="hidden md:flex flex-col items-center gap-1 pt-1 text-gray-400 dark:text-gray-500 w-8">
+                        <div class="hidden md:flex flex-col items-center gap-1 pt-1 text-gray-400 dark:text-gray-500 w-8 shrink-0">
                             <span class="font-heading font-bold text-xl text-brand-dark dark:text-white">${index + 1}</span>
+                            <button onclick="app.moveSlide(${index}, -1)" ${index === 0 ? 'disabled' : ''} class="p-0.5 rounded hover:bg-slate-100 dark:hover:bg-slate-700 text-gray-400 hover:text-brand-blue disabled:opacity-25 disabled:pointer-events-none transition-colors" title="Move Up">
+                                <i data-lucide="chevron-up" class="w-4 h-4"></i>
+                            </button>
+                            <button onclick="app.moveSlide(${index}, 1)" ${index === this.slides.length - 1 ? 'disabled' : ''} class="p-0.5 rounded hover:bg-slate-100 dark:hover:bg-slate-700 text-gray-400 hover:text-brand-blue disabled:opacity-25 disabled:pointer-events-none transition-colors" title="Move Down">
+                                <i data-lucide="chevron-down" class="w-4 h-4"></i>
+                            </button>
                         </div>
-                        <div class="flex-grow w-full">
-                            <div class="mb-4 bg-brand-bg dark:bg-slate-900 border-[2px] border-brand-dark dark:border-white/10 rounded-xl p-2 flex gap-2 transition-colors">
+                        <div class="flex-grow w-full md:pr-20">
+                            <div class="mb-3 bg-brand-bg dark:bg-slate-900 border-[2px] border-brand-dark dark:border-slate-600 rounded-xl p-1.5 flex gap-1.5 transition-colors">
                                 ${layoutButtons}
                             </div>
-                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
                                 <div class="relative ${isTextHidden ? 'input-locked' : ''}">
                                     <label class="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase mb-1 ml-1">
                                         <i data-lucide="type" class="inline w-3 h-3 mr-1"></i> Text
                                     </label>
                                     <textarea oninput="app.updateSlideText(${index}, this.value)" 
-                                        class="w-full h-32 p-3 rounded-xl border-[2px] border-gray-200 dark:border-white/10 bg-white dark:bg-slate-900 text-brand-dark dark:text-white focus:border-brand-blue dark:focus:border-brand-blue focus:shadow-hard-sm dark:focus:shadow-none focus:outline-none resize-none font-medium text-lg transition-all" 
+                                        class="w-full h-28 p-3 rounded-xl border-[2px] border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-900 text-brand-dark dark:text-white focus:border-brand-blue dark:focus:border-brand-blue focus:shadow-hard-sm dark:focus:shadow-hard-sm-dark focus:outline-none resize-none font-medium text-base transition-all" 
                                         placeholder="Enter your text here...">${slide.text}</textarea>
                                 </div>
                                 <div class="relative ${isImageHidden ? 'input-locked' : ''}">
@@ -497,14 +503,14 @@
                                         <i data-lucide="image" class="inline w-3 h-3 mr-1"></i> Visual
                                     </label>
                                     ${slide.image ? `
-                                        <div class="relative group h-32 w-full rounded-xl border-[2px] border-gray-200 dark:border-white/10 overflow-hidden bg-gray-50 dark:bg-slate-900 flex items-center justify-center transition-colors">
+                                        <div class="relative group h-28 w-full rounded-xl border-[2px] border-gray-200 dark:border-slate-600 overflow-hidden bg-gray-50 dark:bg-slate-900 flex items-center justify-center transition-colors">
                                             <img src="${slide.image}" class="h-full w-full object-contain p-2">
                                             <div class="absolute inset-0 bg-brand-dark/80 hidden group-hover:flex items-center justify-center gap-2 transition-opacity cursor-pointer" onclick="app.removeImage(${index})">
                                                 <div class="text-white font-bold text-sm flex items-center gap-2"><i data-lucide="trash-2" class="w-4 h-4"></i> Remove</div>
                                             </div>
                                         </div>` : `
-                                        <button onclick="app.triggerImageUpload(${index})" class="w-full h-32 rounded-xl border-[2px] border-dashed border-gray-300 dark:border-gray-600 hover:border-brand-blue dark:hover:border-brand-blue bg-transparent hover:bg-blue-50 dark:hover:bg-brand-blue/10 flex flex-col items-center justify-center gap-2 text-gray-400 dark:text-gray-500 hover:text-brand-blue transition-all group">
-                                            <div class="w-10 h-10 bg-gray-100 dark:bg-slate-700/50 rounded-full flex items-center justify-center group-hover:bg-blue-100 dark:group-hover:bg-brand-blue/20 transition-colors">
+                                        <button onclick="app.triggerImageUpload(${index})" class="w-full h-28 rounded-xl border-[2px] border-dashed border-gray-300 dark:border-slate-600 hover:border-brand-blue dark:hover:border-brand-blue bg-transparent hover:bg-blue-50 dark:hover:bg-brand-blue/10 flex flex-col items-center justify-center gap-1.5 text-gray-400 dark:text-gray-400 hover:text-brand-blue transition-all group">
+                                            <div class="w-9 h-9 bg-gray-100 dark:bg-slate-700/60 rounded-full flex items-center justify-center group-hover:bg-blue-100 dark:group-hover:bg-brand-blue/20 transition-colors">
                                                 <i data-lucide="upload-cloud" class="w-5 h-5"></i>
                                             </div>
                                             <span class="text-xs font-bold">Upload Image</span>
@@ -512,9 +518,17 @@
                                 </div>
                             </div>
                         </div>
-                        <button onclick="app.deleteSlide(${index})" class="absolute top-4 right-4 text-gray-300 dark:text-gray-600 hover:text-brand-pink transition-colors p-1" title="Delete Slide">
-                            <i data-lucide="x" class="w-6 h-6"></i>
-                        </button>
+                        <div class="absolute top-3.5 right-3.5 flex items-center gap-1">
+                            <button onclick="app.startPresentation(${index})" class="text-gray-400 dark:text-gray-400 hover:text-brand-green transition-colors p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700" title="Present from this slide">
+                                <i data-lucide="play" class="w-4 h-4"></i>
+                            </button>
+                            <button onclick="app.duplicateSlide(${index})" class="text-gray-400 dark:text-gray-400 hover:text-brand-blue transition-colors p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700" title="Duplicate Slide">
+                                <i data-lucide="copy" class="w-4 h-4"></i>
+                            </button>
+                            <button onclick="app.deleteSlide(${index})" class="text-gray-400 dark:text-gray-400 hover:text-brand-pink transition-colors p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700" title="Delete Slide">
+                                <i data-lucide="x" class="w-5 h-5"></i>
+                            </button>
+                        </div>
                     `;
                     container.appendChild(slideEl);
                 });
@@ -526,7 +540,7 @@
 
                 this.slides.forEach((slide, index) => {
                     const el = document.createElement('div');
-                    el.className = 'grid-card bg-white dark:bg-slate-800 border-[3px] border-brand-dark dark:border-white/10 rounded-xl p-2 shadow-sm hover:shadow-hard-sm dark:shadow-none cursor-grab active:cursor-grabbing relative flex flex-col h-32 transition-all';
+                    el.className = 'grid-card bg-white dark:bg-slate-800 border-[3px] border-brand-dark dark:border-slate-500 rounded-xl p-2 shadow-hard-sm dark:shadow-hard-sm-dark cursor-grab active:cursor-grabbing relative flex flex-col h-32 transition-all';
                     el.draggable = true;
 
                     el.addEventListener('dragstart', (e) => { this.dragSrcIndex = index; el.classList.add('dragging'); e.dataTransfer.effectAllowed = 'move'; });
@@ -572,9 +586,31 @@
                 this.saveWorkspace();
                 if (this.viewMode === 'list') {
                     this.renderList();
+                    this.hydrateThumbnails();
+                    lucide.createIcons();
                     setTimeout(() => document.getElementById('deck-viewport').scrollTop = document.getElementById('deck-viewport').scrollHeight, 50);
                     setTimeout(() => this.focusSlide(this.slides.length - 1), 100);
-                } else this.renderGrid();
+                } else {
+                    this.renderGrid();
+                    this.hydrateThumbnails();
+                    lucide.createIcons();
+                }
+            },
+
+            duplicateSlide(index) {
+                const src = this.slides[index];
+                if (!src) return;
+                const copy = { ...src, id: Date.now() + Math.floor(Math.random() * 1000) };
+                this.slides.splice(index + 1, 0, copy);
+                this.saveWorkspace();
+                this.render();
+                this.showToast('Slide duplicated!', 'success');
+            },
+
+            moveSlide(index, delta) {
+                const target = index + delta;
+                if (target < 0 || target >= this.slides.length) return;
+                this.reorderSlides(index, target);
             },
 
             deleteSlide(index) {
@@ -642,11 +678,13 @@
                 if (st) st.innerText = Math.ceil((this.slides.length * 3) / 60) + "m";
             },
 
-            startPresentation() {
+            startPresentation(startSlideIndex = 0) {
                 const valid = this.slides.filter(s => s.text.trim() !== "" || s.image !== null);
                 if (valid.length === 0) { this.showModal('Empty Deck', 'Add content before starting.', 'Okay', 'info'); return; }
                 this.presentationSlides = valid;
-                this.currentIndex = 0;
+                const targetSlide = this.slides[startSlideIndex];
+                const mappedIdx = targetSlide ? valid.findIndex(s => s.id === targetSlide.id) : 0;
+                this.currentIndex = mappedIdx >= 0 ? mappedIdx : 0;
                 const ov = document.getElementById('presentation-mode');
                 ov.classList.remove('hidden'); ov.style.display = 'flex';
                 if (document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().catch(e => { });
