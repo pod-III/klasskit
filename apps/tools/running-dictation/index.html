@@ -132,6 +132,10 @@
             body { padding-bottom: 0 !important; }
         }
 
+        @media screen {
+            .hidden { display: none !important; }
+        }
+
         /* ---------- Glassmorphism ---------- */
         .glass {
             backdrop-filter: blur(16px);
@@ -1477,7 +1481,7 @@ They brought a watering can, planted fresh strawberry seeds, and painted a colou
                 toast.innerHTML = `<i data-lucide="${icons[type] || 'info'}" class="w-4 h-4 shrink-0"></i><span></span>`;
                 toast.querySelector('span').textContent = message;
                 container.appendChild(toast);
-                if (window.lucide) window.lucide.createIcons({ nodes: [toast] });
+                if (window.lucide) window.lucide.createIcons();
                 setTimeout(() => {
                     toast.style.opacity = '0';
                     toast.style.transform = 'translateY(12px)';
@@ -1494,7 +1498,7 @@ They brought a watering can, planted fresh strawberry seeds, and painted a colou
                     $('confirmBtnYes').textContent = yesLabel;
                     modal.classList.remove('hidden');
                     modal.classList.add('flex');
-                    if (window.lucide) window.lucide.createIcons({ nodes: [modal] });
+                    if (window.lucide) window.lucide.createIcons();
 
                     const cleanup = (val) => {
                         modal.classList.add('hidden');
@@ -1593,7 +1597,10 @@ They brought a watering can, planted fresh strawberry seeds, and painted a colou
                 clearTimeout(cloudSaveTimer);
                 cloudSaveTimer = setTimeout(() => {
                     if (typeof window.saveProgress === 'function') {
-                        window.saveProgress(CLOUD_TOOL_KEY, { workspace: data, sets: readSets() });
+                        try {
+                            const p = window.saveProgress(CLOUD_TOOL_KEY, { workspace: data, sets: readSets() });
+                            if (p && typeof p.catch === 'function') p.catch(() => {});
+                        } catch (e) { /* ignore */ }
                     }
                 }, 700);
             }
@@ -1682,7 +1689,7 @@ They brought a watering can, planted fresh strawberry seeds, and painted a colou
                     return row;
                 }));
 
-                if (window.lucide) window.lucide.createIcons({ nodes: [el.libraryList] });
+                if (window.lucide) window.lucide.createIcons();
             }
 
             // ----- Core UI Helpers -----
@@ -2175,7 +2182,7 @@ They brought a watering can, planted fresh strawberry seeds, and painted a colou
             const openHelp = () => {
                 helpModal.classList.remove('hidden');
                 helpModal.classList.add('flex');
-                if (window.lucide) window.lucide.createIcons({ nodes: [helpModal] });
+                if (window.lucide) window.lucide.createIcons();
             };
             const closeHelp = () => {
                 helpModal.classList.add('hidden');
@@ -2188,8 +2195,11 @@ They brought a watering can, planted fresh strawberry seeds, and painted a colou
 
             el.toggleSidebar?.addEventListener('click', () => {
                 const collapsed = el.sidebar.classList.toggle('sidebar-collapsed');
-                el.toggleSidebarIcon.setAttribute('data-lucide', collapsed ? 'panel-left-open' : 'panel-left-close');
-                if (window.lucide) window.lucide.createIcons({ nodes: [el.toggleSidebar] });
+                const iconNode = el.toggleSidebar.querySelector('[data-lucide], svg');
+                if (iconNode) {
+                    iconNode.outerHTML = `<i data-lucide="${collapsed ? 'panel-left-open' : 'panel-left-close'}" id="sidebar-toggle-icon" class="w-4 h-4"></i>`;
+                }
+                if (window.lucide) window.lucide.createIcons();
             });
 
             document.addEventListener('keydown', (e) => {

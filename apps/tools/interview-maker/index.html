@@ -127,6 +127,10 @@
             body { padding-bottom: 0 !important; }
         }
 
+        @media screen {
+            .hidden { display: none !important; }
+        }
+
         /* The "desk" behind the paper; dots scroll with the content */
         .desk {
             background-image: radial-gradient(var(--dot) 2px, transparent 2px);
@@ -1275,7 +1279,7 @@
                 toast.querySelector('span').textContent = message;
                 container.appendChild(toast);
                 while (container.children.length > 3) container.firstElementChild.remove();
-                if (window.lucide) window.lucide.createIcons({ nodes: [toast] });
+                icons();
                 setTimeout(() => {
                     toast.style.opacity = '0';
                     toast.style.transform = 'translateY(12px)';
@@ -1292,7 +1296,7 @@
                     $('confirmBtnYes').textContent = yesLabel;
                     modal.classList.remove('hidden');
                     modal.classList.add('flex');
-                    if (window.lucide) window.lucide.createIcons({ nodes: [modal] });
+                    icons();
                     setTimeout(() => $('confirmBtnYes').focus(), 30);
 
                     const cleanup = (val) => {
@@ -1443,7 +1447,7 @@
                 el.body.replaceChildren(...trs);
 
                 syncCounters();
-                if (window.lucide) window.lucide.createIcons({ nodes: [el.table] });
+                icons();
             }
 
             function syncCounters() {
@@ -1640,7 +1644,7 @@
                             <p class="text-xs font-extrabold text-slate-500 dark:text-slate-400">No saved handouts yet</p>
                             <p class="text-[11px] font-semibold text-slate-400">Click “Save Current Sheet As…” to keep this one for later.</p>
                         </div>`;
-                    if (window.lucide) window.lucide.createIcons({ nodes: [el.libraryList] });
+                    icons();
                     return;
                 }
 
@@ -1667,7 +1671,7 @@
                     return row;
                 }));
 
-                if (window.lucide) window.lucide.createIcons({ nodes: [el.libraryList] });
+                icons();
             }
 
             // ----- Table actions -----
@@ -1889,14 +1893,17 @@
 
             el.toggleSidebar?.addEventListener('click', () => {
                 const collapsed = el.sidebar.classList.toggle('sidebar-collapsed');
-                el.toggleSidebarIcon.setAttribute('data-lucide', collapsed ? 'panel-left-open' : 'panel-left-close');
-                if (window.lucide) window.lucide.createIcons({ nodes: [el.toggleSidebar] });
+                const iconNode = el.toggleSidebar.querySelector('[data-lucide], svg');
+                if (iconNode) {
+                    iconNode.outerHTML = `<i data-lucide="${collapsed ? 'panel-left-open' : 'panel-left-close'}" id="sidebar-toggle-icon" class="w-4 h-4"></i>`;
+                }
+                icons();
             });
 
             // ----- Help modal -----
             el.help.addEventListener('click', () => {
                 openModal('helpModal');
-                if (window.lucide) window.lucide.createIcons({ nodes: [$('helpModal')] });
+                icons();
                 setTimeout(() => $('help-got-it-btn').focus(), 30);
             });
             $('help-close-btn').addEventListener('click', () => closeModal('helpModal'));
