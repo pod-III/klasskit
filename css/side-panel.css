@@ -139,6 +139,11 @@ body.focus-mode #side-panel,
   box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.3);
 }
 
+.side-panel-tab:focus-visible {
+  outline: 3px solid var(--color-blue);
+  outline-offset: 2px;
+}
+
 /* Active tab */
 .side-panel-tab.active {
   border-color: var(--border-primary);
@@ -239,7 +244,8 @@ body.focus-mode #side-panel,
   transition: all 0.15s;
 }
 
-.side-panel-tab:not(.pinned):hover .side-panel-tab-close {
+.side-panel-tab:not(.pinned):hover .side-panel-tab-close,
+.side-panel-tab:not(.pinned):focus-within .side-panel-tab-close {
   display: flex;
   pointer-events: auto;
 }
@@ -502,7 +508,7 @@ body.focus-mode #tab-content-area,
   position: absolute;
   top: 1.5rem;
   left: 1.5rem;
-  z-index: 100;
+  z-index: 65;
 
   display: flex;
   align-items: center;
@@ -554,7 +560,7 @@ body.focus-mode .exit-focus-btn:hover {
   position: absolute;
   bottom: 1.5rem;
   left: 1.5rem;
-  z-index: 100;
+  z-index: 65;
 
   display: none; /* Hidden on desktop by default */
   align-items: center;
@@ -596,9 +602,35 @@ body.focus-mode .side-panel-toggle-btn {
    14. RESPONSIVE DESIGN
    ============================================ */
 
+#side-panel-backdrop {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  z-index: 55;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s ease;
+}
+
 @media (max-width: 768px) {
   .side-panel-toggle-btn {
     display: flex; /* Show toggle button on mobile */
+  }
+
+  #side-panel-backdrop {
+    display: block;
+  }
+
+  #side-panel-backdrop.active {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  #side-panel.open ~ #tab-content-area .side-panel-toggle-btn {
+    left: 5.5rem;
   }
 
   #side-panel {
@@ -628,6 +660,28 @@ body.focus-mode .side-panel-toggle-btn {
   #tab-content-area {
     width: 100% !important;
     margin-left: 0 !important;
+  }
+
+  #tab-content-area.split-mode {
+    flex-direction: column;
+  }
+
+  #tab-content-area.split-mode .tab-panel.split-left,
+  #tab-content-area.split-mode .tab-panel.split-right {
+    width: 100%;
+    height: 50%;
+    border-right: none;
+  }
+
+  #tab-content-area.split-mode .tab-panel.split-left {
+    border-bottom: 4px solid var(--border-primary);
+  }
+}
+
+@media (hover: none), (max-width: 768px) {
+  .side-panel-tab.active:not(.pinned) .side-panel-tab-close {
+    display: flex;
+    pointer-events: auto;
   }
 }
 
@@ -1002,7 +1056,7 @@ body.touch-dragging {
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  z-index: 80;
+  z-index: 40;
 
   display: flex;
   flex-direction: column;

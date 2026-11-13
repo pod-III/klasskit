@@ -140,7 +140,9 @@ const MediaManager = {
     },
 
     open() {
+        if (typeof UI !== 'undefined' && UI.rememberFocus) UI.rememberFocus('media-manager-modal');
         this.modal.classList.remove('hidden');
+        this.modal.setAttribute('aria-hidden', 'false');
         this.filterQuery = '';
         this.sortBy = 'folder-asc';
         if (this.filterInput) this.filterInput.value = '';
@@ -149,10 +151,16 @@ const MediaManager = {
         this.cachedMode = null;
         this.toggleSelectionMode(false);
         this.loadData();
+        requestAnimationFrame(() => {
+            const target = this.filterInput || this.modal.querySelector('[data-action="closeMediaManager"]');
+            target?.focus();
+        });
     },
 
     close() {
         this.modal.classList.add('hidden');
+        this.modal.setAttribute('aria-hidden', 'true');
+        if (typeof UI !== 'undefined' && UI.restoreFocus) UI.restoreFocus('media-manager-modal');
     },
 
     async loadData() {
