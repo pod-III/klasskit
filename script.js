@@ -290,13 +290,13 @@ const AudioEngine = {
   },
 
   updateUI() {
-    const icon = document.getElementById('sound-btn-icon');
-    if (!icon) return;
     const config = this.muted
       ? { icon: 'volume-x', color: 'rgb(248 113 113)' }
       : { icon: 'volume-2', color: 'rgb(74 222 128)' };
-    icon.setAttribute('data-lucide', config.icon);
-    icon.style.color = config.color;
+    document.querySelectorAll('#sound-btn-icon, .sound-btn-icon').forEach(icon => {
+      icon.setAttribute('data-lucide', config.icon);
+      icon.style.color = config.color;
+    });
     Utils.refreshIcons();
   }
 };
@@ -319,6 +319,7 @@ const Theme = {
 // --- UI ---
 const FloatingTooltip = {
   el: null,
+  _lastTouchTime: 0,
 
   init() {
     if (this.el) return;
@@ -332,7 +333,13 @@ const FloatingTooltip = {
   },
 
   setupListeners() {
+    document.addEventListener('touchstart', () => {
+      this._lastTouchTime = Date.now();
+      this.hide();
+    }, { passive: true });
+
     document.addEventListener('mouseover', (e) => {
+      if (Date.now() - this._lastTouchTime < 600) return;
       const target = e.target.closest('[data-title]');
       // Only for side-panel elements as requested
       if (target && (target.closest('#side-panel') || target.closest('#game-modal') || target.classList.contains('side-panel-tab'))) {
@@ -348,6 +355,19 @@ const FloatingTooltip = {
         this.hide();
       }
     });
+
+    document.addEventListener('focusin', (e) => {
+      const target = e.target.closest('[data-title]');
+      if (target && (target.closest('#side-panel') || target.closest('#game-modal') || target.classList.contains('side-panel-tab'))) {
+        const title = target.getAttribute('data-title');
+        if (title) {
+          const rect = target.getBoundingClientRect();
+          this.show(title, rect.right, rect.top + rect.height / 2);
+        }
+      }
+    });
+
+    document.addEventListener('focusout', () => this.hide());
 
     document.addEventListener('mousemove', (e) => {
       if (this.el && this.el.classList.contains('opacity-100')) {
@@ -414,15 +434,22 @@ const UI = {
       el.textContent = greeting;
     });
 
+    const dateStr = new Date().toLocaleDateString("en-US", {
+      weekday: "long", month: "short", day: "numeric"
+    });
     const dateEl = document.getElementById("date-display");
     if (dateEl) {
-      const dateStr = new Date().toLocaleDateString("en-US", {
-        weekday: "long", month: "short", day: "numeric"
-      });
       dateEl.innerHTML = `<i data-lucide="calendar" class="w-3.5 h-3.5"></i> ${dateStr}`;
     }
+    document.querySelectorAll(".date-text").forEach(el => {
+      el.textContent = dateStr;
+    });
 
     this.updateDailyTip();
+  },
+
+  applyProStyles() {
+    this.updateUserUI();
   },
 
   updateUserUI() {
@@ -448,7 +475,7 @@ const UI = {
     // Add Pro Badge to Name if Pro/Admin
     if (State.isPro()) {
       const editBtn = document.getElementById('auth-edit-name-btn');
-      if (editBtn && !document.getElementById('pro-badge')) {
+      if (editBtn && nameEl && !document.getElementById('pro-badge')) {
         const badge = document.createElement('span');
         badge.id = 'pro-badge';
         badge.className = 'ml-1.5 px-1.5 py-0.5 bg-gradient-to-r from-orange to-pink text-[9px] font-black text-white rounded-md shadow-sm animate-pop-in';
@@ -486,53 +513,102 @@ const UI = {
     // Seed random tip based on current day to act as a "Daily" tip
     const today = new Date().getDate();
     const tipIndex = today % tips.length;
-    const tipEl = document.getElementById('daily-tip');
-    if (tipEl) tipEl.innerHTML = `<i data-lucide="lightbulb" class="w-4 h-4"></i> Tip: ${tips[tipIndex]}`;
+    const html = `<i data-lucide="lightbulb" class="w-4 h-4 shrink-0"></i> Tip: ${tips[tipIndex]}`;
+    document.querySelectorAll('#daily-tip, .daily-tip-text').forEach(el => {
+      el.innerHTML = html;
+    });
   },
 
-
-
   showError(message) {
-    const grid = document.getElementById('games-grid');
-    if (!grid) return;
-    grid.innerHTML = `
-      <div class="col-span-full text-center p-10">
-        <div class="inline-block bg-red-100 dark:bg-red-900 border-4 border-red-500 rounded-2xl p-8">
-          <i data-lucide="alert-circle" class="w-16 h-16 text-red-500 mx-auto mb-4"></i>
-          <p class="text-xl font-bold text-red-700 dark:text-red-300">${message}</p>
-        </div>
-      </div>
-    `;
-    Utils.refreshIcons();
+    this.hideLoading();
+    document.querySelectorAll('.section-view').forEach(v => { v.style.display = 'none'; });
+    const errorState = document.getElementById('hub-error-state');
+    const errorMsg = document.getElementById('hub-error-message');
+    if (errorMsg) errorMsg.textContent = message || 'Failed to load activities. Please refresh the page.';
+    if (errorState) errorState.classList.remove('hidden');
+    Utils.refreshIcons(errorState);
   },
 
   showLoading() {
-    const grid = document.getElementById('games-grid');
-    if (!grid) return;
+    const loadingState = document.getElementById('hub-loading-state');
+    const errorState = document.getElementById('hub-error-state');
+    if (errorState) errorState.classList.add('hidden');
+    if (loadingState) loadingState.classList.remove('hidden');
+  },
 
-    let skeletons = '';
-    for (let i = 0; i < 8; i++) {
-      skeletons += `
-        <div class="skeleton-card skeleton animate-pop-in" style="animation-delay: ${i * 0.05}s"></div>
-      `;
+  hideLoading() {
+    const loadingState = document.getElementById('hub-loading-state');
+    if (loadingState) loadingState.classList.add('hidden');
+  },
+
+  syncDrawerBackdrop() {
+    const backdrop = document.getElementById('drawer-backdrop');
+    if (!backdrop) return;
+    const annOpen = !document.getElementById('notification-panel')?.classList.contains('translate-x-full');
+    const histOpen = !document.getElementById('history-panel')?.classList.contains('translate-x-full');
+    backdrop.classList.toggle('active', annOpen || histOpen);
+  },
+
+  closeAllDrawers(restoreFocus = true) {
+    Announcements?.togglePanel?.(false, restoreFocus);
+    HistoryManager?.togglePanel?.(false, restoreFocus);
+    this.syncDrawerBackdrop();
+  },
+
+  _focusReturnMap: new Map(),
+
+  rememberFocus(containerId) {
+    const activeEl = document.activeElement;
+    const container = document.getElementById(containerId);
+    if (activeEl && activeEl !== document.body && (!container || !container.contains(activeEl))) {
+      this._focusReturnMap.set(containerId, activeEl);
     }
-    grid.innerHTML = skeletons;
+  },
+
+  restoreFocus(containerId, fallbackEl = null) {
+    const savedEl = this._focusReturnMap.get(containerId);
+    this._focusReturnMap.delete(containerId);
+    const target = (savedEl && savedEl.isConnected && savedEl.offsetParent !== null) ? savedEl : fallbackEl;
+    if (target && typeof target.focus === 'function') {
+      requestAnimationFrame(() => target.focus());
+    }
   },
 
   toggleModal(modalId, show) {
     const modal = document.getElementById(modalId);
     if (!modal) return;
+    const wasHidden = modal.classList.contains('hidden');
+    if (show && wasHidden) this.rememberFocus(modalId);
+
+    modal.style.display = '';
     modal.classList.toggle('hidden', !show);
     modal.setAttribute('aria-hidden', String(!show));
     if (modalId === 'game-modal') {
       document.body.style.overflow = show ? 'hidden' : '';
       document.body.classList.toggle('game-modal-open', show);
+      if (show) {
+        if (typeof MobileUI !== 'undefined') MobileUI.closeSidebar();
+        this.closeAllDrawers(false);
+      }
+    }
+    if (show && modalId === 'ann-detail-modal') {
+      requestAnimationFrame(() => modal.querySelector('button')?.focus());
+    }
+    if (!show && !wasHidden) {
+      this.restoreFocus(modalId);
     }
   },
 
+  _focusHintShown: false,
+
   toggleFocus() {
     AudioEngine.click();
-    document.body.classList.toggle('focus-mode');
+    const isEntering = document.body.classList.toggle('focus-mode');
+
+    if (isEntering && !this._focusHintShown) {
+      this._focusHintShown = true;
+      this.showToast('Focus Mode active — press Esc or top-left button to exit', 'info', 2800);
+    }
 
     // Attempt to resize or trigger a window resize event so games adapt
     setTimeout(() => {
@@ -553,6 +629,9 @@ const UI = {
     menu.classList.toggle('translate-y-4', !isClosed);
     menu.classList.toggle('translate-y-0', isClosed);
 
+    const toggleBtn = container.querySelector('[data-action="toggleSettings"]');
+    if (toggleBtn) toggleBtn.setAttribute('aria-expanded', String(isClosed));
+
     const icon = container.querySelector('[data-action="toggleSettings"] svg, [data-action="toggleSettings"] i');
     if (icon) icon.classList.toggle('rotate-90', isClosed);
   },
@@ -563,6 +642,9 @@ const UI = {
 
     const toast = document.createElement('div');
     toast.className = `toast ${type}`;
+    toast.setAttribute('role', type === 'error' ? 'alert' : 'status');
+    toast.setAttribute('aria-live', type === 'error' ? 'assertive' : 'polite');
+    toast.setAttribute('aria-atomic', 'true');
 
     const iconMap = {
       warning: 'alert-triangle',
@@ -572,7 +654,7 @@ const UI = {
     };
 
     toast.innerHTML = `
-      <i data-lucide="${iconMap[type] || 'info'}" class="w-5 h-5"></i>
+      <i data-lucide="${iconMap[type] || 'info'}" class="w-5 h-5" aria-hidden="true"></i>
       <span>${message}</span>
     `;
 
@@ -592,9 +674,14 @@ const UI = {
    */
   animateModalOpen(element, modalId) {
     const modal = document.getElementById(modalId);
-    if (!modal || !element) {
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (!modal || !element || reducedMotion) {
       this.toggleModal(modalId, true);
       return;
+    }
+
+    if (modal.classList.contains('hidden')) {
+      this.rememberFocus(modalId);
     }
 
     const rect = element.getBoundingClientRect();
@@ -603,6 +690,7 @@ const UI = {
 
     modal.style.display = 'block';
     modal.classList.remove('hidden');
+    modal.setAttribute('aria-hidden', 'false');
     modal.style.clipPath = `circle(0% at ${centerX}px ${centerY}px)`;
     modal.style.opacity = '0';
     modal.style.transition = 'clip-path 0.5s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease-out';
@@ -614,9 +702,14 @@ const UI = {
     modal.style.opacity = '1';
 
     document.body.style.overflow = 'hidden';
-    if (modalId === 'game-modal') document.body.classList.add('game-modal-open');
+    if (modalId === 'game-modal') {
+      document.body.classList.add('game-modal-open');
+      if (typeof MobileUI !== 'undefined') MobileUI.closeSidebar();
+      this.closeAllDrawers(false);
+    }
 
     setTimeout(() => {
+      modal.style.display = '';
       modal.style.clipPath = '';
       modal.style.transition = '';
     }, 600);
@@ -652,6 +745,7 @@ const Hero = {
     const tools = active.filter(g => g.category === 'tool').length;
     const games = active.filter(g => g.category === 'game').length;
     const workshop = active.filter(g => g.category === 'workshop').length;
+    const activities = tools + games + workshop;
     const pinned = PinnedGames.get().filter(id => {
       const game = State.getGameById(id);
       if (!game) return false;
@@ -668,6 +762,27 @@ const Hero = {
     if (gamesEl) gamesEl.textContent = games;
     if (workshopEl) workshopEl.textContent = workshop;
     if (pinnedEl) pinnedEl.textContent = pinned;
+
+    document.querySelectorAll('[data-stat="tools"]').forEach(el => { el.textContent = tools; });
+    document.querySelectorAll('[data-stat="games"]').forEach(el => { el.textContent = games; });
+    document.querySelectorAll('[data-stat="workshop"]').forEach(el => { el.textContent = workshop; });
+    document.querySelectorAll('[data-stat="activities"]').forEach(el => { el.textContent = activities; });
+
+    document.querySelectorAll('[data-skill-query]').forEach(el => {
+      const q = (el.dataset.skillQuery || '').toLowerCase();
+      if (!q) return;
+      const count = active.filter(g =>
+        g.category !== 'myspace' &&
+        g.category !== 'under-construction' &&
+        (
+          g.title.toLowerCase().includes(q) ||
+          g.description.toLowerCase().includes(q) ||
+          g.tags?.some(t => t.toLowerCase().includes(q))
+        )
+      ).length;
+      const badge = el.querySelector('[data-skill-count]');
+      if (badge) badge.textContent = `${count} ${count === 1 ? 'app' : 'apps'}`;
+    });
   },
 
   updateContinueBtn() {
@@ -844,21 +959,21 @@ const Announcements = {
       const icon = ann.type === 'alert' ? 'alert-triangle' : (ann.type === 'update' ? 'sparkles' : 'info');
 
       return `
-        <div onclick="Announcements.viewDetail('${ann.id}')" 
+        <div onclick="Announcements.viewDetail('${ann.id}')" role="button" tabindex="0"
           class="ann-card bg-white dark:bg-slate-800 p-4 rounded-xl border-2 border-dark dark:border-slate-600 shadow-sm hover:border-blue dark:hover:border-blue transition-all cursor-pointer group animate-pop-in" 
           style="animation-delay: ${i * 0.1}s">
           
           <div class="flex items-start justify-between mb-2">
             <div class="flex items-center gap-2">
               <div class="w-7 h-7 rounded-lg bg-${color}/10 text-${color} flex items-center justify-center border-2 border-${color}/20">
-                <i data-lucide="${icon}" class="w-3.5 h-3.5"></i>
+                <i data-lucide="${icon}" class="w-3.5 h-3.5" aria-hidden="true"></i>
               </div>
               <div>
                 <span class="text-[9px] font-black text-${color} uppercase tracking-widest">${ann.type}</span>
                 <div class="text-[9px] font-bold text-slate-400 uppercase tracking-widest">${date}</div>
               </div>
             </div>
-            <i data-lucide="chevron-right" class="w-4 h-4 text-slate-300 group-hover:text-blue transition-colors"></i>
+            <i data-lucide="chevron-right" class="w-4 h-4 text-slate-300 group-hover:text-blue transition-colors" aria-hidden="true"></i>
           </div>
           
           <h4 class="text-base font-heading font-black text-dark dark:text-white mb-1.5 leading-tight group-hover:text-blue transition-colors">${ann.title}</h4>
@@ -882,6 +997,7 @@ const Announcements = {
       const headerBadge = document.getElementById('header-ann-badge');
       if (badge) badge.classList.add('hidden');
       if (headerBadge) headerBadge.classList.add('hidden');
+      this.renderPanel();
     }
   },
 
@@ -900,7 +1016,13 @@ const Announcements = {
     if (!listEl) return;
 
     if (this.list.length === 0) {
-      listEl.innerHTML = '<div class="text-center p-12 text-slate-500 font-bold">No notifications yet.</div>';
+      listEl.innerHTML = `
+        <div class="text-center py-12 text-slate-400 font-bold">
+          <i data-lucide="bell-off" class="w-12 h-12 mx-auto mb-3 opacity-30" aria-hidden="true"></i>
+          <p>No notifications yet.</p>
+        </div>
+      `;
+      Utils.refreshIcons(listEl);
       return;
     }
 
@@ -919,7 +1041,7 @@ const Announcements = {
       const statusColor = isUnread ? 'text-blue' : 'text-slate-400';
 
       return `
-        <div onclick="Announcements.viewDetail('${ann.id}')" 
+        <div onclick="Announcements.viewDetail('${ann.id}')" role="button" tabindex="0"
           class="p-5 bg-white dark:bg-slate-800 rounded-2xl border-2 border-dark dark:border-slate-700 hover:border-blue dark:hover:border-blue transition-all cursor-pointer group animate-pop-in relative overflow-hidden shadow-sm hover:shadow-md"
           style="animation-delay: ${i * 0.05}s">
           
@@ -927,7 +1049,7 @@ const Announcements = {
           
           <div class="flex items-start justify-between mb-3">
             <div class="flex items-center gap-2">
-              <i data-lucide="${statusIcon}" class="w-4 h-4 ${statusColor}"></i>
+              <i data-lucide="${statusIcon}" class="w-4 h-4 ${statusColor}" aria-hidden="true"></i>
               <span class="text-[10px] font-black uppercase tracking-widest text-slate-500">${ann.type}</span>
             </div>
             <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">${date}</span>
@@ -936,9 +1058,9 @@ const Announcements = {
           <h4 class="text-lg font-heading font-black text-dark dark:text-white mb-2 group-hover:text-blue transition-colors leading-tight">${ann.title}</h4>
           <p class="text-sm text-slate-600 dark:text-slate-400 leading-relaxed font-semibold line-clamp-2">${this.formatText(ann.content).replace(/<br>/g, ' ')}</p>
           
-          <div class="mt-4 flex items-center gap-1 text-[10px] font-black text-blue uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-opacity">
+          <div class="mt-4 flex items-center gap-1 text-[10px] font-black text-blue uppercase tracking-widest opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 transition-opacity">
             <span>Read More</span>
-            <i data-lucide="chevron-right" class="w-3 h-3"></i>
+            <i data-lucide="chevron-right" class="w-3 h-3" aria-hidden="true"></i>
           </div>
         </div>
       `;
@@ -989,22 +1111,27 @@ const Announcements = {
     UI.toggleModal('ann-detail-modal', false);
   },
 
-  togglePanel(show = null) {
-    AudioEngine.click();
+  togglePanel(show = null, restoreFocus = true) {
     const panel = document.getElementById('notification-panel');
     if (!panel) return;
 
     const isVisible = !panel.classList.contains('translate-x-full');
     const targetShow = show !== null ? show : !isVisible;
+    if (show === null || targetShow !== isVisible) AudioEngine.click();
 
     if (targetShow) {
+      if (!isVisible) UI.rememberFocus('notification-panel');
+      if (typeof HistoryManager !== 'undefined') HistoryManager.togglePanel(false, false);
+      if (typeof MobileUI !== 'undefined') MobileUI.closeSidebar();
       panel.classList.remove('translate-x-full');
-      // No longer auto-marking as read on open, user can use the button or read specific ones
+      panel.setAttribute('aria-hidden', 'false');
+      requestAnimationFrame(() => panel.querySelector('[aria-label="Close Notifications"]')?.focus());
     } else {
       panel.classList.add('translate-x-full');
-      // Optional: mark as read when closing?
-      // this.markAsRead(); 
+      panel.setAttribute('aria-hidden', 'true');
+      if (isVisible && restoreFocus) UI.restoreFocus('notification-panel');
     }
+    UI.syncDrawerBackdrop();
   },
 
   toggleBoard() {
@@ -1043,6 +1170,7 @@ const RecentGames = {
   clear() {
     Storage.remove(CONFIG.storageKeys.recent);
     this.render();
+    Hero.updateContinueBtn();
     AudioEngine.click();
   },
 
@@ -1067,6 +1195,8 @@ const RecentGames = {
     section.classList.toggle('hidden', visibleGames.length === 0);
 
     if (toggleBtn) {
+      toggleBtn.setAttribute('aria-expanded', String(!collapsed));
+      toggleBtn.setAttribute('aria-controls', 'recent-list');
       const icon = toggleBtn.querySelector('i');
       if (icon) {
         icon.setAttribute('data-lucide', collapsed ? 'chevron-down' : 'chevron-up');
@@ -1197,20 +1327,29 @@ const HistoryManager = {
     this.togglePanel(true);
   },
 
-  togglePanel(show) {
+  togglePanel(show, restoreFocus = true) {
     const panel = document.getElementById('history-panel');
     if (!panel) return;
 
+    const isVisible = !panel.classList.contains('translate-x-full');
     if (show === undefined) {
-      show = panel.classList.contains('translate-x-full');
+      show = !isVisible;
     }
 
     if (show) {
+      if (!isVisible) UI.rememberFocus('history-panel');
+      if (typeof Announcements !== 'undefined') Announcements.togglePanel(false, false);
+      if (typeof MobileUI !== 'undefined') MobileUI.closeSidebar();
       panel.classList.remove('translate-x-full');
+      panel.setAttribute('aria-hidden', 'false');
       this.render();
+      requestAnimationFrame(() => document.getElementById('history-search')?.focus());
     } else {
       panel.classList.add('translate-x-full');
+      panel.setAttribute('aria-hidden', 'true');
+      if (isVisible && restoreFocus) UI.restoreFocus('history-panel');
     }
+    UI.syncDrawerBackdrop();
   },
 
   async clearHistory() {
@@ -1293,7 +1432,7 @@ const HistoryManager = {
     if (filtered.length === 0) {
       container.innerHTML = `
         <div class="text-center py-12 text-slate-400 font-bold">
-          <i data-lucide="history" class="w-12 h-12 mx-auto mb-3 opacity-30"></i>
+          <i data-lucide="history" class="w-12 h-12 mx-auto mb-3 opacity-30" aria-hidden="true"></i>
           <p>${this.searchTerm ? 'No matching history found' : 'No tab history yet'}</p>
         </div>
       `;
@@ -1303,10 +1442,11 @@ const HistoryManager = {
 
     container.innerHTML = filtered.map(({ game, timeStr }) => `
       <div class="card p-3 flex items-center justify-between gap-3 bg-white dark:bg-slate-800 border-2 border-dark dark:border-slate-700 rounded-xl shadow-hard-sm hover:translate-y-[-2px] transition-all group cursor-pointer"
-           onclick="HistoryManager.togglePanel(false); GameModal.open('${game.id}')">
+           role="button" tabindex="0" aria-label="Open ${game.title} (${this.formatTimeAgo(timeStr)})"
+           onclick="HistoryManager.togglePanel(false, false); GameModal.open('${game.id}')">
         <div class="flex items-center gap-3 min-w-0">
           <div class="w-10 h-10 rounded-xl ${Utils.getColorClass(game.color)} flex items-center justify-center text-white border-2 border-dark dark:border-slate-600 shadow-sm shrink-0 group-hover:scale-110 transition-transform">
-            <i data-lucide="${game.icon}" class="w-5 h-5"></i>
+            <i data-lucide="${game.icon}" class="w-5 h-5" aria-hidden="true"></i>
           </div>
           <div class="min-w-0 text-left">
             <div class="flex items-center gap-1.5">
@@ -1382,10 +1522,10 @@ const PinnedGames = {
       const catLabel = categoryLabels[game.category] || game.category;
       return `
         <article class="pinned-card group relative bg-white dark:bg-slate-800 rounded-2xl border-3 border-dark dark:border-slate-500 shadow-hard-sm hover:shadow-hard hover:-translate-y-1 active:translate-y-[2px] active:shadow-none cursor-pointer transition-all duration-200 animate-pop-in overflow-hidden"
-          data-action="openGame" data-param="${game.id}">
+          data-action="openGame" data-param="${game.id}" role="button" tabindex="0" aria-label="Open ${game.title}">
           <div class="flex items-center gap-3 p-3">
             <div class="w-10 h-10 rounded-xl ${Utils.getColorClass(game.color)} flex items-center justify-center text-white border-2 border-dark dark:border-slate-300 shadow-sm shrink-0">
-              <i data-lucide="${game.icon}" class="w-5 h-5"></i>
+              <i data-lucide="${game.icon}" class="w-5 h-5" aria-hidden="true"></i>
             </div>
             <div class="flex-1 min-w-0">
               <div class="flex items-center gap-1.5 min-w-0">
@@ -1395,8 +1535,8 @@ const PinnedGames = {
               </div>
               <div class="text-[10px] text-slate-400 font-bold uppercase tracking-wider truncate">${catLabel}</div>
             </div>
-            <button data-action="togglePin" data-param="${game.id}" class="p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/30 hover:text-red-500 text-slate-300 dark:text-slate-500 transition-all opacity-0 group-hover:opacity-100 shrink-0" title="Unpin">
-              <i data-lucide="pin-off" class="w-3.5 h-3.5"></i>
+            <button data-action="togglePin" data-param="${game.id}" class="p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/30 hover:text-red-500 text-slate-400 dark:text-slate-500 transition-all opacity-80 md:opacity-0 md:group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100 shrink-0" title="Unpin" aria-label="Unpin ${game.title}">
+              <i data-lucide="pin-off" class="w-3.5 h-3.5" aria-hidden="true"></i>
             </button>
           </div>
         </article>
@@ -1514,8 +1654,8 @@ const GameGrid = {
         <div class="${bgClass} p-6 border-b-4 border-dark dark:border-slate-500 h-40 flex items-center justify-center relative overflow-hidden group-hover:${bgClass.replace('/10', '/20')} transition-colors">
           <button data-action="togglePin" data-param="${game.id}" 
             class="pin-btn absolute top-3 right-3 z-30 w-8 h-8 rounded-lg bg-white/20 backdrop-blur-md border border-white/30 flex items-center justify-center text-dark opacity-0 group-hover:opacity-100 transition-all hover:bg-white/40 hover:scale-110"
-            title="${pinTitle}">
-            <i data-lucide="${pinIcon}" class="w-4 h-4"></i>
+            title="${pinTitle}" aria-label="${isPinned ? `Unpin ${game.title}` : `Pin ${game.title}`}" aria-pressed="${isPinned}">
+            <i data-lucide="${pinIcon}" class="w-4 h-4" aria-hidden="true"></i>
           </button>
           <div class="absolute inset-0 opacity-10" style="background-image:radial-gradient(#000 2px,transparent 2px);background-size:12px 12px"></div>
           <i data-lucide="${game.icon}" class="absolute -right-6 -bottom-6 w-36 h-36 ${game.color} opacity-20 rotate-12 group-hover:scale-110 group-hover:rotate-6 transition-all duration-300"></i>
@@ -1555,11 +1695,26 @@ const GameGrid = {
     return game.guide;
   },
 
+  shouldDisableTilt() {
+    return window.matchMedia('(prefers-reduced-motion: reduce)').matches ||
+           window.matchMedia('(hover: none)').matches ||
+           window.matchMedia('(pointer: coarse)').matches;
+  },
+
   initCardEffects(container) {
     if (!container || container.dataset.tiltBound === 'true') return;
     container.dataset.tiltBound = 'true';
+    let lastTouchTime = 0;
+
+    container.addEventListener('touchstart', (e) => {
+      lastTouchTime = Date.now();
+      const card = e.target.closest('.hub-card');
+      if (card) card.style.transform = '';
+    }, { passive: true });
+
     // Delegated event handling on the grid container
     container.addEventListener('mousemove', (e) => {
+      if (this.shouldDisableTilt() || (Date.now() - lastTouchTime < 800)) return;
       const card = e.target.closest('.hub-card');
       if (card) this.tiltCard(e, card);
     });
@@ -1570,6 +1725,10 @@ const GameGrid = {
   },
 
   tiltCard(e, card) {
+    if (this.shouldDisableTilt()) {
+      card.style.transform = '';
+      return;
+    }
     const rect = card.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
@@ -1616,7 +1775,9 @@ const ViewMode = {
   updateToggleUI() {
     document.querySelectorAll('.view-toggle-group').forEach(group => {
       group.querySelectorAll('.view-toggle-btn').forEach(btn => {
-        btn.classList.toggle('active', btn.dataset.param === this.current);
+        const isActive = btn.dataset.param === this.current;
+        btn.classList.toggle('active', isActive);
+        btn.setAttribute('aria-pressed', String(isActive));
       });
     });
   }
@@ -1662,8 +1823,15 @@ const ViewManager = {
   },
 
   show(viewId, silent = false) {
+    if (!document.getElementById(`${viewId}-view`)) {
+      viewId = viewId === 'library-myspace' ? 'myspace' : 'landing';
+    }
     const prevView = this.currentView;
-    
+
+    UI.hideLoading();
+    document.getElementById('hub-error-state')?.classList.add('hidden');
+    if (typeof MobileUI !== 'undefined') MobileUI.closeSidebar();
+
     // Hide all views first
     document.querySelectorAll('.section-view').forEach(v => v.style.display = 'none');
 
@@ -1682,14 +1850,14 @@ const ViewManager = {
     // Special logic for specific views
     if (viewId === 'myspace' && window.MySpace) {
       window.MySpace.onShow?.();
-    } else if (viewId === 'landing') {
-      // Refresh Home Page Content
-      if (window.UI && UI.updateGreeting) UI.updateGreeting();
     } else if (viewId === 'library-all') {
       requestAnimationFrame(() => {
         if (typeof PinnedGames !== 'undefined') PinnedGames.render();
+        if (typeof RecentGames !== 'undefined') RecentGames.render();
       });
     }
+
+    if (typeof UI !== 'undefined' && UI.updateGreeting) UI.updateGreeting();
 
     this.updateNavUI();
     Storage.set(CONFIG.storageKeys.homeView, viewId);
@@ -1699,8 +1867,11 @@ const ViewManager = {
 
     // Scroll to top if switching views
     if (prevView !== viewId) {
-      const mainContent = document.querySelector('main');
-      if (mainContent) mainContent.scrollTop = 0;
+      const mainContent = document.getElementById('main-scroll') || document.querySelector('main');
+      if (mainContent) {
+        mainContent.scrollTop = 0;
+        mainContent.dispatchEvent(new Event('scroll'));
+      }
     }
   },
 
@@ -1750,6 +1921,7 @@ const ViewManager = {
       'under-construction': "construction"
     };
     const icon = icons[category] || "layout-grid";
+    const headingClass = category === 'all' ? 'greeting-display ' : '';
 
     container.innerHTML = `
       <!-- Dashboard Title Widget -->
@@ -1773,7 +1945,7 @@ const ViewManager = {
               <span class="hero-pill clock-pill"><i data-lucide="calendar" class="w-3.5 h-3.5"></i> <span class="date-text">...</span></span>
               <span class="hero-pill">Hello!</span>
             </div>
-            <h2 class="greeting-display text-3xl md:text-5xl font-heading font-black mb-1 leading-tight tracking-tight text-slate-900 dark:text-white">
+            <h2 class="${headingClass}text-3xl md:text-5xl font-heading font-black mb-1 leading-tight tracking-tight text-slate-900 dark:text-white">
               ${title}
             </h2>
             ${statsHtml}
@@ -1791,7 +1963,7 @@ const ViewManager = {
              </div>
              <!-- Tip Box -->
              <div class="hero-tip-box inline-flex items-center gap-3 px-5 py-2.5 rounded-2xl bg-white/20 backdrop-blur-md border border-white/30">
-               <p id="daily-tip" class="font-bold text-sm text-slate-700 dark:text-white/95 flex items-center gap-3 m-0">
+               <p class="daily-tip-text font-bold text-sm text-slate-700 dark:text-white/95 flex items-center gap-3 m-0">
                  <i data-lucide="sparkles" class="w-4 h-4 text-yellow-300"></i> Tip: Use shortcut '/' to quickly search the library!
                </p>
              </div>
@@ -1800,6 +1972,29 @@ const ViewManager = {
       </div>
 
       ${category === 'all' ? `
+      <!-- Recently Used -->
+      <section id="recent-section" class="mb-8 hidden">
+        <div class="flex items-center justify-between mb-3 px-2">
+          <div class="flex items-center gap-3">
+            <div class="w-9 h-9 bg-blue text-white rounded-xl border-2 border-dark flex items-center justify-center shadow-hard-sm">
+              <i data-lucide="clock" class="w-4 h-4"></i>
+            </div>
+            <h3 class="text-xl font-heading font-black text-dark dark:text-white uppercase tracking-tight">Recently Used</h3>
+          </div>
+          <div class="flex items-center gap-2">
+            <button data-action="clearRecent" class="px-3 py-1.5 text-xs font-bold text-slate-500 hover:text-red-500 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors" title="Clear recent">
+              Clear
+            </button>
+            <button id="recent-toggle-btn" data-action="toggleRecentCollapse" class="p-1.5 rounded-lg border-2 border-dark dark:border-slate-600 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors" aria-label="Toggle Recent List">
+              <i data-lucide="chevron-up" class="w-4 h-4"></i>
+            </button>
+          </div>
+        </div>
+        <div id="recent-list" class="flex gap-3 overflow-x-auto pb-2 custom-scrollbar">
+          <!-- Recent pills injected here -->
+        </div>
+      </section>
+
       <!-- Pinned Activities -->
       <section id="pinned-section" class="mb-10 hidden">
         <div class="flex items-center justify-between mb-4 px-2">
@@ -1821,11 +2016,14 @@ const ViewManager = {
       <div class="flex items-center justify-between mb-6">
         <h3 class="text-2xl font-heading font-black text-dark dark:text-white uppercase tracking-tight">${category === 'all' ? 'Library' : category + 's'}</h3>
         <div class="view-toggle-group">
-          <button data-action="setViewMode" data-param="cards" class="view-toggle-btn ${ViewMode.current === 'cards' ? 'active' : ''}"><i data-lucide="layout-grid" class="w-4 h-4"></i></button>
-          <button data-action="setViewMode" data-param="icons" class="view-toggle-btn ${ViewMode.current === 'icons' ? 'active' : ''}"><i data-lucide="grip" class="w-4 h-4"></i></button>
-          <button data-action="setViewMode" data-param="list" class="view-toggle-btn ${ViewMode.current === 'list' ? 'active' : ''}"><i data-lucide="list" class="w-4 h-4"></i></button>
+          <button data-action="setViewMode" data-param="cards" aria-label="Card View" aria-pressed="${ViewMode.current === 'cards'}" title="Card View" class="view-toggle-btn ${ViewMode.current === 'cards' ? 'active' : ''}"><i data-lucide="layout-grid" class="w-4 h-4" aria-hidden="true"></i></button>
+          <button data-action="setViewMode" data-param="icons" aria-label="Icon View" aria-pressed="${ViewMode.current === 'icons'}" title="Icon View" class="view-toggle-btn ${ViewMode.current === 'icons' ? 'active' : ''}"><i data-lucide="grip" class="w-4 h-4" aria-hidden="true"></i></button>
+          <button data-action="setViewMode" data-param="list" aria-label="List View" aria-pressed="${ViewMode.current === 'list'}" title="List View" class="view-toggle-btn ${ViewMode.current === 'list' ? 'active' : ''}"><i data-lucide="list" class="w-4 h-4" aria-hidden="true"></i></button>
         </div>
       </div>
+
+      <!-- Active Search Banner -->
+      <div id="search-banner-${viewId}" role="status" aria-live="polite" class="hidden mb-6"></div>
 
       <div id="grid-${viewId}" class="games-grid ${ViewMode.current === 'list' ? 'view-list' : ''} ${ViewMode.current === 'icons' ? 'view-icons' : ''}">
         <!-- Items injected here -->
@@ -1836,8 +2034,9 @@ const ViewManager = {
     if (category === 'all') {
       Hero.updateStats();
       Hero.updateContinueBtn();
-      // Ensure pinned is rendered after template injection
+      // Ensure pinned & recent are rendered after template injection
       if (typeof PinnedGames !== 'undefined') PinnedGames.render();
+      if (typeof RecentGames !== 'undefined') RecentGames.render();
     }
   },
 
@@ -1852,11 +2051,20 @@ const ViewManager = {
     const grid = document.getElementById(`grid-${viewId}`);
     if (!grid) return;
 
-    const searchTerm = State.filters.searchTerm;
+    const searchTerm = State.filters.searchTerm.trim();
+    const escapeHtml = (str) => String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+
     let games = State.games;
     
     if (category !== 'all') {
       games = games.filter(g => g.category === category);
+    } else {
+      games = games.filter(g => ['tool', 'game', 'workshop'].includes(g.category));
     }
     
     if (searchTerm) {
@@ -1876,13 +2084,73 @@ const ViewManager = {
       return true;
     });
 
+    const bannerEl = document.getElementById(`search-banner-${viewId}`);
+    if (bannerEl) {
+      if (searchTerm) {
+        const categoryNames = {
+          all: 'Library',
+          tool: 'Teaching Tools',
+          game: 'Classroom Games',
+          workshop: 'Workshop Tools',
+          'under-construction': 'Under Construction'
+        };
+        const scopeLabel = categoryNames[category] || category;
+        const safeTerm = escapeHtml(searchTerm);
+        const searchAllBtn = category !== 'all'
+          ? `<button data-action="filterGames" data-param="all" class="px-3 py-1.5 rounded-lg bg-blue text-white text-xs font-bold border-2 border-dark hover:brightness-110 transition-all">Search All Activities</button>`
+          : '';
+        bannerEl.innerHTML = `
+          <div class="flex flex-wrap items-center justify-between gap-3 px-4 py-3 rounded-2xl bg-white dark:bg-slate-800 border-[3px] border-dark dark:border-slate-600 shadow-hard-sm">
+            <div class="flex items-center gap-2 text-sm font-bold text-slate-700 dark:text-slate-200">
+              <i data-lucide="search" class="w-4 h-4 text-blue shrink-0"></i>
+              <span>Showing <strong>${games.length}</strong> ${games.length === 1 ? 'result' : 'results'} for "<span class="text-blue dark:text-blue-400">${safeTerm}</span>" in ${scopeLabel}</span>
+            </div>
+            <div class="flex items-center gap-2">
+              ${searchAllBtn}
+              <button data-action="clearSearch" class="px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-700 text-dark dark:text-white text-xs font-bold border-2 border-dark dark:border-slate-500 hover:bg-red-50 hover:text-red-600 transition-colors flex items-center gap-1.5">
+                <i data-lucide="x" class="w-3.5 h-3.5"></i>
+                Clear Search
+              </button>
+            </div>
+          </div>
+        `;
+        bannerEl.classList.remove('hidden');
+        Utils.refreshIcons(bannerEl);
+      } else {
+        bannerEl.classList.add('hidden');
+        bannerEl.innerHTML = '';
+      }
+    }
+
     if (games.length === 0) {
-      grid.innerHTML = `
-        <div class="empty-state py-20 opacity-50 flex flex-col items-center">
-          <i data-lucide="search-x" class="w-16 h-16 mb-4"></i>
-          <p class="font-heading font-bold text-xl uppercase">No matches found</p>
-        </div>
-      `;
+      if (searchTerm) {
+        const safeTerm = escapeHtml(searchTerm);
+        const searchAllCta = category !== 'all'
+          ? `<button data-action="filterGames" data-param="all" class="btn-chunky bg-blue text-white px-5 py-2.5 rounded-xl text-sm font-heading font-bold uppercase tracking-wider flex items-center gap-2"><i data-lucide="grid-2x2" class="w-4 h-4"></i> Search All Activities</button>`
+          : '';
+        grid.innerHTML = `
+          <div class="empty-state py-16 flex flex-col items-center text-center animate-pop-in">
+            <div class="w-16 h-16 rounded-2xl bg-slate-100 dark:bg-slate-800 border-[3px] border-dark dark:border-slate-600 flex items-center justify-center mb-4 shadow-hard-sm">
+              <i data-lucide="search-x" class="w-8 h-8 text-slate-400"></i>
+            </div>
+            <p class="font-heading font-bold text-2xl uppercase text-dark dark:text-white mb-1">No matches for "${safeTerm}"</p>
+            <p class="text-sm font-bold text-slate-500 dark:text-slate-400 mb-6">Try another keyword or clear your search filter.</p>
+            <div class="flex flex-wrap justify-center gap-3">
+              ${searchAllCta}
+              <button data-action="clearSearch" class="btn-chunky bg-white dark:bg-slate-800 text-dark dark:text-white px-5 py-2.5 rounded-xl text-sm font-heading font-bold uppercase tracking-wider flex items-center gap-2">
+                <i data-lucide="x" class="w-4 h-4"></i> Clear Search
+              </button>
+            </div>
+          </div>
+        `;
+      } else {
+        grid.innerHTML = `
+          <div class="empty-state py-20 opacity-50 flex flex-col items-center">
+            <i data-lucide="search-x" class="w-16 h-16 mb-4"></i>
+            <p class="font-heading font-bold text-xl uppercase">No matches found</p>
+          </div>
+        `;
+      }
     } else {
       if (category === 'all') {
         const tools = games.filter(g => g.category === 'tool');
@@ -1914,15 +2182,35 @@ const ViewManager = {
   updateNavUI() {
     const homeBtn = document.getElementById('nav-home-btn');
     const myspaceBtn = document.getElementById('nav-myspace-btn');
-    
-    if (homeBtn) homeBtn.classList.toggle('active', this.currentView === 'landing');
-    if (myspaceBtn) myspaceBtn.classList.toggle('active', this.currentView === 'myspace');
+
+    if (homeBtn) {
+      const isHome = this.currentView === 'landing';
+      homeBtn.classList.toggle('active', isHome);
+      if (isHome) homeBtn.setAttribute('aria-current', 'page');
+      else homeBtn.removeAttribute('aria-current');
+    }
+    if (myspaceBtn) {
+      const isMySpace = this.currentView === 'myspace';
+      myspaceBtn.classList.toggle('active', isMySpace);
+      if (isMySpace) myspaceBtn.setAttribute('aria-current', 'page');
+      else myspaceBtn.removeAttribute('aria-current');
+    }
 
     document.querySelectorAll('.filter-btn[data-category]').forEach(btn => {
       const cat = btn.dataset.category;
       const isActive = this.currentView === `library-${cat}`;
       btn.classList.toggle('active', isActive);
       btn.setAttribute('aria-pressed', String(isActive));
+    });
+
+    document.querySelectorAll('.bottom-nav-item[data-view]').forEach(btn => {
+      const isActive = btn.dataset.view === this.currentView;
+      btn.classList.toggle('active', isActive);
+      if (isActive) {
+        btn.setAttribute('aria-current', 'page');
+      } else {
+        btn.removeAttribute('aria-current');
+      }
     });
   }
 };
@@ -1939,7 +2227,7 @@ const Filters = {
   setSearch: Utils.debounce(function(term) {
     State.filters.searchTerm = term.toLowerCase();
     ViewManager.renderAllGrids();
-    if (ViewManager.currentView === 'landing') {
+    if (term.trim() && (ViewManager.currentView === 'landing' || ViewManager.currentView === 'myspace')) {
       ViewManager.show('library-all', true);
     }
   }, CONFIG.debounceDelay),
@@ -1994,8 +2282,6 @@ const MySpace = {
     const game = State.getGameById(appId);
     if (!game) return;
 
-    this.currentApp = appId;
-    
     // Handle Pro check
     if (game.pro && !State.isPro()) {
       UI.showToast("This app is exclusive to PRO users", "warning");
@@ -2008,6 +2294,8 @@ const MySpace = {
       return;
     }
 
+    this.currentApp = appId;
+
     // Show loader
     loader.classList.remove('opacity-0', 'pointer-events-none');
     iframe.classList.add('opacity-0');
@@ -2016,10 +2304,21 @@ const MySpace = {
     iframe.onload = () => {
       loader.classList.add('opacity-0', 'pointer-events-none');
       iframe.classList.remove('opacity-0');
+      if (typeof App !== 'undefined' && App.bridgeIframeKeyboard) {
+        App.bridgeIframeKeyboard(iframe);
+      }
     };
     iframe.src = game.path;
 
     if (!silent) AudioEngine.click();
+  },
+
+  updateFullscreenIcon(isFs) {
+    const icon = document.getElementById('myspace-fs-icon');
+    if (icon) {
+      icon.setAttribute('data-lucide', isFs ? 'minimize-2' : 'maximize');
+      Utils.refreshIcons(icon.parentElement);
+    }
   },
 
   toggleFullscreen() {
@@ -2028,19 +2327,23 @@ const MySpace = {
 
     AudioEngine.click();
 
-    if (!document.fullscreenElement) {
+    const isFallbackFs = document.body.classList.contains('myspace-fullscreen');
+    if (!document.fullscreenElement && !isFallbackFs) {
       if (iframe.requestFullscreen) {
         iframe.requestFullscreen().catch(() => {
           document.body.classList.add('myspace-fullscreen');
+          this.updateFullscreenIcon(true);
         });
       } else {
         document.body.classList.add('myspace-fullscreen');
+        this.updateFullscreenIcon(true);
       }
     } else {
-      if (document.exitFullscreen) {
+      if (document.fullscreenElement && document.exitFullscreen) {
         document.exitFullscreen().catch(() => {});
       }
       document.body.classList.remove('myspace-fullscreen');
+      this.updateFullscreenIcon(false);
     }
 
     // Trigger resize so iframe contents adapt
@@ -2062,12 +2365,14 @@ const InputPopup = {
       const field = document.getElementById('input-popup-field');
       const titleEl = document.getElementById('input-popup-title');
 
+      UI.rememberFocus('input-popup');
       titleEl.textContent = title;
       field.value = defaultValue;
       field.placeholder = placeholder || 'Type here...';
 
       popup.classList.remove('hidden');
       popup.classList.add('flex');
+      popup.setAttribute('aria-hidden', 'false');
       Utils.refreshIcons(popup);
 
       requestAnimationFrame(() => {
@@ -2099,6 +2404,8 @@ const InputPopup = {
     const popup = document.getElementById('input-popup');
     popup.classList.add('hidden');
     popup.classList.remove('flex');
+    popup.setAttribute('aria-hidden', 'true');
+    UI.restoreFocus('input-popup');
   }
 };
 window.InputPopup = InputPopup;
@@ -2134,11 +2441,17 @@ const TabManager = {
   },
 
   init() {
+    if (this._initialized) {
+      this.updateWorkspaceBadge();
+      return;
+    }
+    this._initialized = true;
     this.setupKeyboardShortcuts();
     this.loadGroupsFromStorage();
     this.loadTabsFromStorage();
     this.setupContextMenu();
     this.setupTouchDrag();
+    this.updateWorkspaceBadge();
   },
 
   // ============================
@@ -2354,7 +2667,8 @@ const TabManager = {
 
   saveTabsToStorage() {
     const tabsData = this.tabs.map(({ id, gameId, title, icon, color, pinned, groupId }) => ({ id, gameId, title, icon, color, pinned, groupId }));
-    Storage.set(CONFIG.storageKeys.tabs, { tabs: tabsData, activeTabId: this.activeTabId });
+    const effectiveActive = this.activeTabId || this.lastActiveTabId || null;
+    Storage.set(CONFIG.storageKeys.tabs, { tabs: tabsData, activeTabId: effectiveActive });
   },
 
   saveGroupsToStorage() {
@@ -2878,25 +3192,34 @@ const TabManager = {
     const sidePanelTabs = document.getElementById('side-panel-tabs');
     if (!sidePanelTabs) return;
 
-    const tabIcon = document.createElement('button');
+    const tabIcon = document.createElement('div');
     tabIcon.id = `tab-icon-${tab.id}`;
     tabIcon.className = `side-panel-tab${tab.loading ? ' loading' : ''}`;
     tabIcon.dataset.tabId = tab.id;
     tabIcon.dataset.color = tab.color;
     tabIcon.setAttribute('data-title', tab.title);
     tabIcon.setAttribute('role', 'tab');
+    tabIcon.setAttribute('tabindex', '0');
     tabIcon.setAttribute('aria-selected', 'false');
     tabIcon.setAttribute('aria-label', `Switch to ${tab.title}`);
     tabIcon.draggable = true;
     tabIcon.innerHTML = `
-      <i data-lucide="${tab.icon}" class="side-panel-tab-icon"></i>
+      <i data-lucide="${tab.icon}" class="side-panel-tab-icon" aria-hidden="true"></i>
       <button class="side-panel-tab-close" data-tab-id="${tab.id}" data-title="Close Tab" aria-label="Close ${tab.title}" type="button">
-        <i data-lucide="x"></i>
+        <i data-lucide="x" aria-hidden="true"></i>
       </button>
     `;
 
     tabIcon.addEventListener('click', (e) => {
       if (!e.target.closest('.side-panel-tab-close')) {
+        this.switchToTab(tab.id);
+        AudioEngine.click();
+      }
+    });
+
+    tabIcon.addEventListener('keydown', (e) => {
+      if (e.target === tabIcon && (e.key === 'Enter' || e.key === ' ')) {
+        e.preventDefault();
         this.switchToTab(tab.id);
         AudioEngine.click();
       }
@@ -3074,6 +3397,9 @@ const TabManager = {
       tab.loading = false;
       tab.panel.classList.add('loaded');
       tab.iconElement?.classList.remove('loading');
+      if (typeof App !== 'undefined' && App.bridgeIframeKeyboard) {
+        App.bridgeIframeKeyboard(tab.iframe);
+      }
       if (this.activeTabId === tab.id) tab.iframe.focus();
     };
 
@@ -3129,7 +3455,13 @@ const TabManager = {
     const tab = this.tabs.find(t => t.id === tabId);
     if (!tab) return;
 
+    const prevActiveTabId = this.activeTabId;
+    if (this.splitScreenActive && tabId === this.rightTabId && prevActiveTabId && prevActiveTabId !== tabId) {
+      this.rightTabId = prevActiveTabId;
+    }
+
     this.activeTabId = tabId;
+    this.lastActiveTabId = tabId;
     this.tabs.forEach(t => {
       const isActive = t.id === tabId;
       t.iconElement?.classList.toggle('active', isActive);
@@ -3160,19 +3492,13 @@ const TabManager = {
 
     tab.iconElement?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     this.updateSplitScreenClasses();
+    this.toggleSidePanelMobile(false);
     this.saveTabsToStorage();
   },
 
   toggleSplitScreen() {
     if (this.tabs.length < 2) {
-      // Need at least 2 tabs to split screen
-      const section = document.body;
-      const warning = document.createElement('div');
-      warning.className = 'fixed bottom-4 left-1/2 -translate-x-1/2 bg-dark text-white px-6 py-3 rounded-xl shadow-hard z-[100] animate-pop-in font-bold text-sm flex items-center gap-3';
-      warning.innerHTML = `<i data-lucide="info" class="w-5 h-5 text-blue"></i> Open at least 2 activities to use Split Screen`;
-      document.body.appendChild(warning);
-      Utils.refreshIcons();
-      setTimeout(() => warning.remove(), 3000);
+      UI.showToast('Open at least 2 activities to use Split Screen', 'info', 3000);
       return;
     }
 
@@ -3192,11 +3518,29 @@ const TabManager = {
 
   updateEmptyState() {
     const emptyState = document.getElementById('workspace-empty-state');
-    if (!emptyState) return;
-    if (this.tabs.length === 0) {
-      emptyState.classList.remove('hidden');
-    } else {
-      emptyState.classList.add('hidden');
+    if (emptyState) {
+      if (this.tabs.length === 0) {
+        emptyState.classList.remove('hidden');
+      } else {
+        emptyState.classList.add('hidden');
+      }
+    }
+    this.updateWorkspaceBadge();
+  },
+
+  updateWorkspaceBadge() {
+    const count = this.tabs.length;
+    document.querySelectorAll('.workspace-tab-badge').forEach(badge => {
+      badge.textContent = count;
+      badge.classList.toggle('hidden', count === 0);
+      badge.classList.toggle('flex', count > 0);
+    });
+    const workspaceBtn = document.getElementById('workspace-btn');
+    if (workspaceBtn) {
+      workspaceBtn.classList.toggle('border-pink', count > 0);
+      workspaceBtn.title = count > 0
+        ? `Open Workspace (${count} running ${count === 1 ? 'tab' : 'tabs'})`
+        : 'Open Workspace';
     }
   },
 
@@ -3258,6 +3602,7 @@ const TabManager = {
     if (this.tabs.length === 0) {
       this.splitScreenActive = false;
       this.activeTabId = null;
+      this.lastActiveTabId = null;
       this.updateEmptyState();
       // Auto-close workspace when no tabs remain
       this.closeModal();
@@ -3284,6 +3629,7 @@ const TabManager = {
       if (countBadge) countBadge.textContent = this.tabs.filter(t => t.groupId === hadGroup).length;
     }
 
+    this.updateWorkspaceBadge();
     AudioEngine.click();
   },
 
@@ -3297,12 +3643,15 @@ const TabManager = {
   },
 
   closeModal() {
+    this.toggleSidePanelMobile(false);
+    this.cancelConfirmation();
     UI.toggleModal('game-modal', false);
     const infoOverlay = document.getElementById('info-overlay');
     if (infoOverlay) {
       infoOverlay.classList.add('hidden');
       infoOverlay.classList.remove('flex');
     }
+    if (this.activeTabId) this.lastActiveTabId = this.activeTabId;
     this.activeTabId = null;
     State.activeGame = null;
     history.pushState("", document.title, window.location.pathname + window.location.search);
@@ -3314,22 +3663,28 @@ const TabManager = {
     const confirmModal = document.getElementById('confirm-modal');
     const countSpan = document.getElementById('confirm-count');
     if (!confirmModal) return;
+    UI.rememberFocus('confirm-modal');
     if (countSpan) countSpan.textContent = this.tabs.length;
     confirmModal.classList.remove('hidden');
     confirmModal.classList.add('flex');
+    confirmModal.setAttribute('aria-hidden', 'false');
     Utils.refreshIcons();
+    requestAnimationFrame(() => confirmModal.querySelector('[data-action="confirmCancel"]')?.focus());
   },
 
-  cancelConfirmation() {
+  cancelConfirmation(restoreFocus = true) {
     const confirmModal = document.getElementById('confirm-modal');
     if (confirmModal) {
+      const wasVisible = !confirmModal.classList.contains('hidden');
       confirmModal.classList.add('hidden');
       confirmModal.classList.remove('flex');
+      confirmModal.setAttribute('aria-hidden', 'true');
+      if (wasVisible && restoreFocus) UI.restoreFocus('confirm-modal');
     }
   },
 
   closeAllTabsConfirmed() {
-    this.cancelConfirmation();
+    this.cancelConfirmation(false);
     if (this.tabs.length === 0) return;
 
     const tabsToKeep = [];
@@ -3354,11 +3709,13 @@ const TabManager = {
       State.activeGame = null;
       Storage.remove(CONFIG.storageKeys.tabs);
       this.activeTabId = null;
+      this.lastActiveTabId = null;
       this.updateEmptyState();
     } else {
       if (this.activeTabId) this.switchToTab(this.activeTabId);
       this.saveTabsToStorage();
       this.renderGroups();
+      this.updateWorkspaceBadge();
     }
 
     AudioEngine.click();
@@ -3399,41 +3756,19 @@ const TabManager = {
   },
 
   setupKeyboardShortcuts() {
-    document.addEventListener('keydown', (e) => {
-      const modal = document.getElementById('game-modal');
-      if (!modal || modal.style.display === 'none') return;
-
-      if ((e.ctrlKey || e.metaKey) && e.key === 'Tab' && !e.altKey) {
-        e.preventDefault();
-        this.switchToNextTab(e.shiftKey ? -1 : 1);
-      }
-      if ((e.ctrlKey || e.metaKey) && e.key === 'w') {
-        e.preventDefault();
-        this.closeCurrentTab();
-      }
-      if (e.altKey && e.key >= '1' && e.key <= '8') {
-        e.preventDefault();
-        const index = parseInt(e.key) - 1;
-        if (this.tabs[index]) this.switchToTab(this.tabs[index].id);
-      }
-      if (e.key === 'Escape') {
-        const infoOverlay = document.getElementById('info-overlay');
-        if (infoOverlay && !infoOverlay.classList.contains('hidden')) {
-          GameModal.toggleInfo();
-        } else {
-          this.returnToHome();
-        }
-      }
-    });
+    // Handled centrally by App.handleGlobalKeydown() to preserve modal/drawer Escape priority.
   },
 
 
 
-  toggleSidePanelMobile() {
-    AudioEngine.click();
+  toggleSidePanelMobile(force = null) {
     const panel = document.getElementById('side-panel');
+    const backdrop = document.getElementById('side-panel-backdrop');
     if (!panel) return;
-    panel.classList.toggle('open');
+    const shouldOpen = force === null ? !panel.classList.contains('open') : Boolean(force);
+    if (force === null) AudioEngine.click();
+    panel.classList.toggle('open', shouldOpen);
+    if (backdrop) backdrop.classList.toggle('active', shouldOpen);
   },
 
   switchToNextTab(direction = 1) {
@@ -3907,15 +4242,18 @@ const GameModal = {
       const currentTab = TabManager.getCurrentTab();
       const game = currentTab && State.getGameById(currentTab.gameId);
       if (!game) return;
+      UI.rememberFocus('info-overlay');
       this.renderInfo(game);
       overlay.classList.remove('hidden');
       overlay.classList.add('flex');
-      overlay.querySelector('button')?.focus();
+      overlay.setAttribute('aria-hidden', 'false');
+      requestAnimationFrame(() => overlay.querySelector('button')?.focus());
     } else {
       overlay.classList.add('hidden');
       overlay.classList.remove('flex');
+      overlay.setAttribute('aria-hidden', 'true');
       const currentTab = TabManager.getCurrentTab();
-      if (currentTab?.iframe) currentTab.iframe.focus();
+      UI.restoreFocus('info-overlay', currentTab?.iframe || null);
     }
   },
 
@@ -3950,15 +4288,30 @@ const GameModal = {
 
 // --- SEARCH ---
 const Search = {
+  _bound: false,
+
   setup() {
+    if (this._bound) return;
     const input = document.getElementById('search-input');
     const clearBtn = document.getElementById('clear-search-btn');
     if (input) {
+      this._bound = true;
       input.addEventListener('input', (e) => {
         Filters.setSearch(e.target.value);
         if (clearBtn) clearBtn.classList.toggle('hidden', e.target.value.length === 0);
       });
     }
+  },
+
+  apply(term = '') {
+    const input = document.getElementById('search-input');
+    const clearBtn = document.getElementById('clear-search-btn');
+    const normalized = String(term).trim();
+    if (input) input.value = normalized;
+    if (clearBtn) clearBtn.classList.toggle('hidden', normalized.length === 0);
+    State.filters.searchTerm = normalized.toLowerCase();
+    ViewManager.renderAllGrids();
+    ViewManager.show('library-all');
   },
 
   clear() {
@@ -3969,7 +4322,8 @@ const Search = {
       input.focus();
     }
     if (clearBtn) clearBtn.classList.add('hidden');
-    Filters.setSearch('');
+    State.filters.searchTerm = '';
+    ViewManager.renderAllGrids();
   }
 };
 
@@ -4019,6 +4373,7 @@ const Footer = {
 // --- BUG REPORT ---
 const BugReport = {
   open() {
+    if (typeof MobileUI !== 'undefined') MobileUI.closeSidebar();
     AudioEngine.click();
     const modal = document.getElementById('bug-report-modal');
     const iframe = document.getElementById('bug-report-iframe');
@@ -4026,8 +4381,10 @@ const BugReport = {
 
     if (!modal || !iframe) return;
 
+    UI.rememberFocus('bug-report-modal');
     modal.classList.remove('hidden');
     modal.classList.add('flex');
+    modal.setAttribute('aria-hidden', 'false');
 
     if (loader) loader.style.opacity = '1';
     iframe.src = CONFIG.helpUrl;
@@ -4038,6 +4395,8 @@ const BugReport = {
       iframe.classList.add('opacity-100');
       setTimeout(() => { if (loader) loader.style.display = 'none'; }, 300);
     };
+
+    requestAnimationFrame(() => modal.querySelector('[data-action="closeBugReport"]')?.focus());
   },
 
   close() {
@@ -4047,8 +4406,10 @@ const BugReport = {
 
     if (!modal || !iframe) return;
 
+    const wasVisible = !modal.classList.contains('hidden');
     modal.classList.add('hidden');
     modal.classList.remove('flex');
+    modal.setAttribute('aria-hidden', 'true');
     iframe.src = 'about:blank';
     iframe.classList.add('opacity-0');
     iframe.classList.remove('opacity-100');
@@ -4057,11 +4418,14 @@ const BugReport = {
       loader.style.opacity = '1';
     }
     AudioEngine.click();
+    if (wasVisible) UI.restoreFocus('bug-report-modal');
   }
 };
 
 // --- APP CONTROLLER ---
 const App = {
+  _listenersAttached: false,
+
   async init() {
     await requireAuth();
     try {
@@ -4099,12 +4463,15 @@ const App = {
       const activity = await (typeof checkUserActivity === 'function' ? checkUserActivity() : Promise.resolve(null));
       LandingPage.init(activity);
 
-      document.body.addEventListener('click', () => AudioEngine.init(), { once: true });
+      if (!this._listenersAttached) {
+        document.body.addEventListener('click', () => AudioEngine.init(), { once: true });
+      }
 
       TabManager.init();
       this.setupKeyboardShortcuts();
       this.setupEventDelegation();
       this.setupHistoryListener();
+      this._listenersAttached = true;
 
       const hash = window.location.hash.substring(1);
       if (hash && !TabManager.tabs.find(t => t.gameId === hash)) {
@@ -4119,6 +4486,7 @@ const App = {
   },
 
   setupHistoryListener() {
+    if (this._listenersAttached) return;
     window.addEventListener('hashchange', () => {
       const hash = window.location.hash.substring(1);
       if (!hash) {
@@ -4126,8 +4494,8 @@ const App = {
       } else {
         const existingTab = TabManager.tabs.find(t => t.gameId === hash);
         if (existingTab) {
+          UI.toggleModal('game-modal', true);
           TabManager.switchToTab(existingTab.id);
-          document.getElementById('game-modal')?.classList.remove('hidden');
         } else {
           GameModal.open(hash);
         }
@@ -4135,51 +4503,245 @@ const App = {
     });
   },
 
-  setupKeyboardShortcuts() {
-    document.addEventListener('keydown', (e) => {
-      if (e.key === '/' && document.activeElement.tagName !== 'INPUT') {
+  isModalVisible(id) {
+    const el = document.getElementById(id);
+    return Boolean(el && !el.classList.contains('hidden') && el.style.display !== 'none');
+  },
+
+  handleGlobalKeydown(e, options = {}) {
+    const isModalOpen = this.isModalVisible('game-modal');
+    const target = e.target;
+    const isEditable = Boolean(target && (
+      target.tagName === 'INPUT' ||
+      target.tagName === 'TEXTAREA' ||
+      target.tagName === 'SELECT' ||
+      target.isContentEditable
+    ));
+
+    // Focus Hub search on '/' when not typing or inside an open workspace modal
+    if (e.key === '/' && !options.fromIframe && !isEditable && !isModalOpen && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      e.preventDefault();
+      document.getElementById('search-input')?.focus();
+      return;
+    }
+
+    // Alt+H: Return Home from workspace or Hub views
+    if (e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey && (e.key === 'h' || e.key === 'H')) {
+      e.preventDefault();
+      if (isModalOpen) {
+        TabManager.returnToHome();
+      } else {
+        LandingPage.showLanding();
+      }
+      return;
+    }
+
+    // Workspace-scoped shortcuts (active when #game-modal is open)
+    if (isModalOpen) {
+      if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && (e.key === 'r' || e.key === 'R')) {
         e.preventDefault();
-        document.getElementById('search-input')?.focus();
+        TabManager.reloadCurrentTab();
+        AudioEngine.click();
+        return;
       }
 
-      if (e.key === 'Escape') {
-        const infoOverlay = document.getElementById('info-overlay');
-        if (infoOverlay && !infoOverlay.classList.contains('hidden')) {
-          GameModal.toggleInfo();
-          return;
-        }
-        
-        // Exit My Space Fullscreen
-        if (document.body.classList.contains('myspace-fullscreen')) {
-          MySpace.toggleFullscreen();
-          return;
-        }
-
-        const modal = document.getElementById('game-modal');
-        if (modal && !modal.classList.contains('hidden') && modal.style.display !== 'none') {
-          TabManager.returnToHome();
-        }
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Tab' && !e.altKey) {
+        e.preventDefault();
+        TabManager.switchToNextTab(e.shiftKey ? -1 : 1);
+        return;
       }
 
-      // My Space Fullscreen Shortcut
-      if ((e.key === 'f' || e.key === 'F') && 
-          ViewManager.currentView === 'myspace' && 
-          document.activeElement.tagName !== 'INPUT' && 
-          document.activeElement.tagName !== 'TEXTAREA') {
+      if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && (e.key === 'w' || e.key === 'W') && !isEditable) {
         e.preventDefault();
+        TabManager.closeCurrentTab();
+        return;
+      }
+
+      if (e.altKey && !e.ctrlKey && !e.metaKey && e.key >= '1' && e.key <= '8') {
+        e.preventDefault();
+        const index = parseInt(e.key, 10) - 1;
+        if (TabManager.tabs[index]) TabManager.switchToTab(TabManager.tabs[index].id);
+        return;
+      }
+    }
+
+    // Priority-ordered Escape dismissal (highest stacking layer first)
+    if (e.key === 'Escape') {
+      if (this.isModalVisible('ann-detail-modal')) {
+        Announcements.closeDetail();
+        return;
+      }
+
+      if (this.isModalVisible('display-name-modal')) {
+        const cancelBtn = document.getElementById('display-name-cancel');
+        if (cancelBtn) {
+          cancelBtn.click();
+        } else {
+          const dnModal = document.getElementById('display-name-modal');
+          if (dnModal) {
+            dnModal.classList.add('hidden');
+            dnModal.style.display = 'none';
+            dnModal.setAttribute('aria-hidden', 'true');
+            UI.restoreFocus('display-name-modal');
+          }
+        }
+        return;
+      }
+
+      if (this.isModalVisible('bug-report-modal')) {
+        BugReport.close();
+        return;
+      }
+
+      if (this.isModalVisible('media-manager-modal')) {
+        if (typeof MediaManager !== 'undefined' && MediaManager.close) {
+          MediaManager.close();
+        } else {
+          document.querySelector('#media-manager-modal [data-action="closeMediaManager"]')?.click();
+        }
+        return;
+      }
+
+      if (this.isModalVisible('input-popup')) {
+        InputPopup.cancel();
+        return;
+      }
+
+      if (this.isModalVisible('confirm-modal')) {
+        TabManager.cancelConfirmation();
+        return;
+      }
+
+      if ((TabManager.contextMenu && !TabManager.contextMenu.classList.contains('hidden')) ||
+          (TabManager.groupMenu && !TabManager.groupMenu.classList.contains('hidden'))) {
+        TabManager.hideContextMenu();
+        return;
+      }
+
+      if (this.isModalVisible('info-overlay')) {
+        GameModal.toggleInfo();
+        return;
+      }
+
+      const annPanel = document.getElementById('notification-panel');
+      if (annPanel && !annPanel.classList.contains('translate-x-full')) {
+        Announcements.togglePanel(false);
+        return;
+      }
+
+      const historyPanel = document.getElementById('history-panel');
+      if (historyPanel && !historyPanel.classList.contains('translate-x-full')) {
+        HistoryManager.togglePanel(false);
+        return;
+      }
+
+      if (isModalOpen) {
+        const settingsMenu = document.getElementById('settings-menu');
+        if (settingsMenu && !settingsMenu.classList.contains('opacity-0')) {
+          UI.toggleSettings();
+          return;
+        }
+
+        const sidePanel = document.getElementById('side-panel');
+        if (sidePanel && sidePanel.classList.contains('open')) {
+          TabManager.toggleSidePanelMobile(false);
+          return;
+        }
+
+        if (document.body.classList.contains('focus-mode')) {
+          UI.toggleFocus();
+          return;
+        }
+
+        TabManager.returnToHome();
+        return;
+      }
+
+      if (document.getElementById('sidebar-backdrop')?.classList.contains('active')) {
+        MobileUI.closeSidebar();
+        return;
+      }
+
+      if (document.body.classList.contains('myspace-fullscreen')) {
         MySpace.toggleFullscreen();
+        return;
       }
+
+      if (target?.id === 'search-input') {
+        if (target.value) {
+          e.preventDefault();
+          Search.clear();
+        } else {
+          target.blur();
+        }
+        return;
+      }
+    }
+
+    // My Space Fullscreen Shortcut
+    if ((e.key === 'f' || e.key === 'F') &&
+        !isModalOpen &&
+        ViewManager.currentView === 'myspace' &&
+        !isEditable &&
+        !e.ctrlKey && !e.metaKey && !e.altKey) {
+      e.preventDefault();
+      MySpace.toggleFullscreen();
+    }
+  },
+
+  bridgeIframeKeyboard(iframe) {
+    if (!iframe) return;
+    try {
+      const doc = iframe.contentDocument || iframe.contentWindow?.document;
+      if (!doc || doc.__klasskitShortcutsAttached) return;
+      doc.__klasskitShortcutsAttached = true;
+
+      // Bubble phase lets activity-level key handlers run and call preventDefault() first.
+      doc.addEventListener('keydown', (e) => {
+        if (e.defaultPrevented) return;
+        const target = e.target;
+        const isEditable = Boolean(target && (
+          target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          target.tagName === 'SELECT' ||
+          target.isContentEditable
+        ));
+
+        const isEscape = e.key === 'Escape';
+        const isAltHome = e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey && (e.key === 'h' || e.key === 'H');
+        const isReload = (e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && (e.key === 'r' || e.key === 'R');
+        const isWorkspaceCombo = (
+          ((e.ctrlKey || e.metaKey) && !e.altKey && e.key === 'Tab') ||
+          (!isEditable && (
+            (e.altKey && e.key >= '1' && e.key <= '8') ||
+            ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && (e.key === 'w' || e.key === 'W')) ||
+            ((e.key === 'f' || e.key === 'F') && !e.ctrlKey && !e.metaKey && !e.altKey)
+          ))
+        );
+
+        if ((isEscape && !isEditable) || isAltHome || (isReload && this.isModalVisible('game-modal')) || isWorkspaceCombo) {
+          this.handleGlobalKeydown(e, { fromIframe: true });
+        }
+      });
+    } catch (err) {
+      // Cross-origin frame access is intentionally ignored.
+    }
+  },
+
+  setupKeyboardShortcuts() {
+    if (this._listenersAttached) return;
+
+    document.addEventListener('keydown', (e) => {
+      if (e.defaultPrevented) return;
+      this.handleGlobalKeydown(e);
     });
 
     // Handle Native Fullscreen Changes (Esc key, etc)
     document.addEventListener('fullscreenchange', () => {
       const isFs = !!document.fullscreenElement;
-      const icon = document.getElementById('myspace-fs-icon');
-      if (icon) {
-        icon.setAttribute('data-lucide', isFs ? 'minimize-2' : 'maximize');
-        Utils.refreshIcons(icon.parentElement);
+      if (typeof MySpace !== 'undefined' && MySpace.updateFullscreenIcon) {
+        MySpace.updateFullscreenIcon(isFs);
       }
-      
       if (!isFs) {
         document.body.classList.remove('myspace-fullscreen');
       }
@@ -4187,6 +4749,7 @@ const App = {
   },
 
   setupEventDelegation() {
+    if (this._listenersAttached) return;
     const actions = {
       toggleTheme: () => Theme.toggle(),
       toggleSound: () => AudioEngine.toggle(),
@@ -4213,12 +4776,21 @@ const App = {
         }
 
         UI.toggleModal('game-modal', true);
+        const targetTabId = TabManager.activeTabId
+          || TabManager.lastActiveTabId
+          || TabManager.tabs[0]?.id;
+        if (targetTabId) {
+          TabManager.switchToTab(targetTabId);
+          const tab = TabManager.tabs.find(t => t.id === targetTabId);
+          tab?.iframe?.focus();
+        }
         TabManager.updateEmptyState();
       },
 
       toggleSidePanelMobile: () => TabManager.toggleSidePanelMobile(),
       toggleRecentCollapse: () => RecentGames.toggleCollapse(),
       filterGames: (param) => Filters.setCategory(param),
+      searchSkill: (param) => Search.apply(param),
       clearRecent: () => RecentGames.clear(),
       clearSearch: () => Search.clear(),
       togglePin: (param) => { PinnedGames.toggle(param); Hero.updateStats(); },
@@ -4229,8 +4801,32 @@ const App = {
       closeBugReport: () => BugReport.close(),
       showLanding: () => LandingPage.showLanding(),
       showLibrary: () => LandingPage.showLibrary(),
-      setViewMode: (param) => ViewMode.set(param)
+      setViewMode: (param) => ViewMode.set(param),
+      scrollToTop: () => {
+        const mainScroll = document.getElementById('main-scroll') || document.querySelector('main');
+        const topBtn = document.getElementById('scroll-to-top-btn');
+        if (!mainScroll) return;
+        const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        mainScroll.scrollTo({ top: 0, behavior: reducedMotion ? 'auto' : 'smooth' });
+        if (document.activeElement === topBtn) {
+          document.getElementById('section-container')?.focus({ preventScroll: true });
+        }
+      }
     };
+
+    const mainScroll = document.getElementById('main-scroll') || document.querySelector('main');
+    const topBtn = document.getElementById('scroll-to-top-btn');
+    if (mainScroll && topBtn) {
+      const syncScrollTopBtn = () => {
+        const show = mainScroll.scrollTop > 400;
+        topBtn.classList.toggle('opacity-0', !show);
+        topBtn.classList.toggle('pointer-events-none', !show);
+        topBtn.setAttribute('aria-hidden', String(!show));
+        topBtn.tabIndex = show ? 0 : -1;
+      };
+      mainScroll.addEventListener('scroll', syncScrollTopBtn, { passive: true });
+      syncScrollTopBtn();
+    }
 
     document.addEventListener('click', (e) => {
       const pinBtn = e.target.closest('[data-action="togglePin"]');
@@ -4248,6 +4844,8 @@ const App = {
         if (!isToggleButton && (!settingsContainer.contains(e.target) || target)) {
           settingsMenu.classList.add('opacity-0', 'pointer-events-none', 'translate-y-4');
           settingsMenu.classList.remove('translate-y-0');
+          const toggleBtn = settingsContainer.querySelector('[data-action="toggleSettings"]');
+          if (toggleBtn) toggleBtn.setAttribute('aria-expanded', 'false');
           const icon = settingsContainer.querySelector('[data-action="toggleSettings"] svg, [data-action="toggleSettings"] i');
           if (icon) icon.classList.remove('rotate-90');
         }
@@ -4261,6 +4859,17 @@ const App = {
         } else {
           action(target.dataset.param);
         }
+      }
+    });
+
+    document.addEventListener('keydown', (e) => {
+      if (e.defaultPrevented || (e.key !== 'Enter' && e.key !== ' ')) return;
+      const el = e.target;
+      if (!el || ['BUTTON', 'A', 'INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName) || el.isContentEditable) return;
+      const interactiveEl = el.closest('[data-action], [role="button"]');
+      if (interactiveEl && interactiveEl === el) {
+        e.preventDefault();
+        interactiveEl.click();
       }
     });
   }
@@ -4279,11 +4888,13 @@ function initDisplayNameEditor() {
   if (!editBtn || !modal || !input) return;
 
   function openModal() {
+    UI.rememberFocus('display-name-modal');
     const currentName = usernameEl?.textContent || '';
     input.value = currentName;
     errorEl.classList.add('hidden');
     modal.classList.remove('hidden');
     modal.style.display = 'flex';
+    modal.setAttribute('aria-hidden', 'false');
     input.focus();
     input.select();
   }
@@ -4291,6 +4902,8 @@ function initDisplayNameEditor() {
   function closeModal() {
     modal.classList.add('hidden');
     modal.style.display = 'none';
+    modal.setAttribute('aria-hidden', 'true');
+    UI.restoreFocus('display-name-modal', editBtn);
   }
 
   async function saveDisplayName() {
@@ -4326,7 +4939,11 @@ function initDisplayNameEditor() {
 
   input?.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') saveDisplayName();
-    if (e.key === 'Escape') closeModal();
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      e.stopPropagation();
+      closeModal();
+    }
   });
 
   modal?.addEventListener('click', (e) => {
@@ -4348,7 +4965,10 @@ async function initAuthIndicator() {
     loggedInDiv.classList.remove('hidden');
     
     if (user.is_sandbox) {
-      if (usernameEl) usernameEl.innerHTML = '<span class="flex items-center gap-2"><i data-lucide="shield-check" class="w-4 h-4 text-green"></i> Sandbox Mode</span>';
+      if (usernameEl) {
+        usernameEl.innerHTML = '<span class="flex items-center gap-2"><i data-lucide="shield-check" class="w-4 h-4 text-green" aria-hidden="true"></i> Sandbox Mode</span>';
+        Utils.refreshIcons(usernameEl);
+      }
       return;
     }
 
@@ -4410,23 +5030,34 @@ if (document.readyState === 'loading') {
 }
 // --- MOBILE UI HELPERS ---
 const MobileUI = {
+  _closeTimer: null,
   openSidebar() {
     const s = document.getElementById('sidebar-nav');
     const b = document.getElementById('sidebar-backdrop');
-    if (s && b) {
-      s.classList.remove('hidden');
-      setTimeout(() => s.classList.remove('-translate-x-full'), 10);
-      b.classList.add('active');
+    if (!s || !b) return;
+    if (this._closeTimer) {
+      clearTimeout(this._closeTimer);
+      this._closeTimer = null;
     }
+    s.classList.remove('hidden');
+    setTimeout(() => s.classList.remove('-translate-x-full'), 10);
+    b.classList.add('active');
   },
   closeSidebar() {
     const s = document.getElementById('sidebar-nav');
     const b = document.getElementById('sidebar-backdrop');
-    if (s && b) {
-      s.classList.add('-translate-x-full');
-      setTimeout(() => s.classList.add('hidden'), 300);
-      b.classList.remove('active');
-    }
+    if (!s || !b) return;
+    const isOpen = b.classList.contains('active') || !s.classList.contains('-translate-x-full');
+    if (!isOpen) return;
+    s.classList.add('-translate-x-full');
+    b.classList.remove('active');
+    if (this._closeTimer) clearTimeout(this._closeTimer);
+    this._closeTimer = setTimeout(() => {
+      if (s.classList.contains('-translate-x-full')) {
+        s.classList.add('hidden');
+      }
+      this._closeTimer = null;
+    }, 300);
   }
 };
 
