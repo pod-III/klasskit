@@ -191,6 +191,42 @@
             background: #94a3b8;
         }
 
+        .dark .custom-scrollbar::-webkit-scrollbar-track {
+            background: #0f172a;
+            border-left: 2px solid #334155;
+        }
+
+        .dark .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #475569;
+            border: 3px solid #0f172a;
+        }
+
+        .dark .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #64748b;
+        }
+
+        /* Selected option highlight in Game Screen */
+        .option-panel.is-selected {
+            box-shadow: inset 0 0 0 8px rgba(255, 255, 255, 0.92);
+            filter: brightness(1.06);
+        }
+
+        .option-panel.is-dimmed {
+            opacity: 0.72;
+            filter: saturate(0.85);
+        }
+
+        .option-panel {
+            transition: opacity 0.25s ease, filter 0.25s ease, box-shadow 0.2s ease;
+        }
+
+        /* Image dropzone highlight */
+        .img-drop-active {
+            border-color: #2979FF !important;
+            background-color: rgba(41, 121, 255, 0.12) !important;
+            transform: scale(1.06);
+        }
+
         .btn-chunky {
             transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
             position: relative;
@@ -285,6 +321,10 @@
             </div>
         </div>
         <div class="flex gap-2 md:gap-3">
+            <button onclick="toggleFullscreen()" id="fullscreenBtn" title="Toggle Fullscreen (F)" aria-label="Toggle Fullscreen"
+                class="btn-chunky bg-white dark:bg-slate-700 text-kkdark dark:text-white w-10 h-10 md:w-11 md:h-11 rounded-xl border-4 border-kkdark dark:border-slate-500 shadow-hard-sm flex items-center justify-center">
+                <i data-lucide="maximize-2" class="w-5 h-5"></i>
+            </button>
             <button onclick="toggleTheme()" id="themeBtn" title="Toggle Dark Mode" aria-label="Toggle Dark Mode"
                 class="btn-chunky bg-white dark:bg-slate-700 text-kkdark dark:text-white w-10 h-10 md:w-11 md:h-11 rounded-xl border-4 border-kkdark dark:border-slate-500 shadow-hard-sm flex items-center justify-center">
                 <i data-lucide="moon" class="w-5 h-5 dark:hidden"></i>
@@ -294,7 +334,7 @@
                 class="btn-chunky bg-white dark:bg-slate-700 text-kkdark dark:text-white w-10 h-10 md:w-11 md:h-11 rounded-xl border-4 border-kkdark dark:border-slate-500 shadow-hard-sm flex items-center justify-center">
                 <i data-lucide="volume-2" class="w-5 h-5"></i>
             </button>
-            <button onclick="location.reload()"
+            <button onclick="exitGame()" id="exitBtn"
                 class="btn-chunky bg-kkorange text-white px-4 md:px-5 py-1 md:py-1.5 rounded-xl border-4 border-kkdark dark:border-slate-500 shadow-hard-sm font-display font-bold text-sm md:text-base uppercase">
                 Exit
             </button>
@@ -326,6 +366,11 @@
                 <div class="bg-white dark:bg-slate-800 rounded-3xl border-[6px] border-kkdark dark:border-slate-500 shadow-hard-xl overflow-hidden animate-slide-up"
                     style="animation-delay: 0.2s">
                     <div class="p-5 md:p-6 flex flex-col gap-3.5">
+                        <div id="startDeckStatus" class="flex items-center justify-center gap-2 py-1.5 px-3 rounded-xl bg-slate-100 dark:bg-slate-700/80 border-2 border-kkdark/20 dark:border-slate-600 text-xs font-extrabold uppercase tracking-wider text-slate-600 dark:text-slate-300">
+                            <i data-lucide="layers" class="w-3.5 h-3.5 text-kkpink"></i>
+                            <span id="startDeckStatusText">Loading deck...</span>
+                        </div>
+
                         <button onclick="startGame()"
                             class="btn-chunky w-full bg-kkblue text-white text-2xl py-4 rounded-2xl border-4 border-kkdark dark:border-slate-500 shadow-hard font-display font-bold flex items-center justify-center gap-4 group">
                             <span
@@ -346,13 +391,17 @@
         </div>
 
         <div id="gameScreen" class="hidden absolute inset-0 flex flex-col">
+            <div class="absolute top-0 left-0 w-full h-1.5 bg-kkdark/20 z-50 pointer-events-none">
+                <div id="slideProgressBar" class="h-full bg-kkyellow transition-all duration-300 ease-out" style="width: 0%"></div>
+            </div>
+
             <div
-                class="absolute top-4 left-1/2 transform -translate-x-1/2 z-40 w-full px-4 text-center pointer-events-none">
-                <div class="inline-block animate-pop">
+                class="absolute top-4 left-1/2 transform -translate-x-1/2 z-40 w-full max-w-3xl px-4 text-center pointer-events-none">
+                <div class="inline-block animate-pop max-w-full">
                     <div
                         class="bg-white dark:bg-slate-800 px-6 md:px-10 py-2.5 md:py-3 rounded-2xl border-4 border-kkdark dark:border-slate-500 shadow-hard transform -rotate-1">
                         <h3 id="questionText"
-                            class="font-display font-bold text-xl md:text-3xl text-kkdark dark:text-white uppercase tracking-wide leading-tight">
+                            class="font-display font-bold text-xl md:text-3xl text-kkdark dark:text-white uppercase tracking-wide leading-tight break-words">
                             Ready?</h3>
                     </div>
                 </div>
@@ -363,14 +412,14 @@
             <div class="absolute bottom-4 left-0 w-full flex justify-center items-center z-50 pointer-events-none">
                 <div
                     class="pointer-events-auto flex gap-3 items-center bg-white dark:bg-slate-800 p-2 md:p-2.5 rounded-2xl border-4 border-kkdark dark:border-slate-500 shadow-hard transform scale-90 md:scale-100">
-                    <button onclick="prevSlide()"
+                    <button onclick="prevSlide()" id="prevSlideBtn" title="Previous Slide (Left Arrow)" aria-label="Previous Slide"
                         class="btn-chunky bg-gray-100 dark:bg-slate-700 w-11 h-11 rounded-xl border-4 border-gray-200 dark:border-slate-500 text-gray-500 dark:text-slate-200 hover:text-kkdark hover:border-kkdark flex items-center justify-center">
                         <i data-lucide="chevron-left" class="w-7 h-7"></i>
                     </button>
                     <div class="font-display font-bold text-xl min-w-[60px] text-center text-kkdark dark:text-white">
                         <span id="slideCounter">1/1</span>
                     </div>
-                    <button onclick="nextSlide()"
+                    <button onclick="nextSlide()" id="nextSlideBtn" title="Next Slide (Right Arrow / Space)" aria-label="Next Slide"
                         class="btn-chunky bg-kkblue w-12 h-11 rounded-xl border-4 border-kkdark dark:border-slate-500 text-white shadow-sm flex items-center justify-center">
                         <i data-lucide="chevron-right" class="w-7 h-7"></i>
                     </button>
@@ -388,20 +437,28 @@
                     FINISH</h2>
                 <div class="bg-white dark:bg-slate-800 px-8 py-4 rounded-2xl border-4 border-kkdark dark:border-slate-500 shadow-hard mb-8 inline-block">
                     <p class="text-2xl font-bold text-gray-700 dark:text-slate-200">Class dismissed!</p>
+                    <p id="endSummaryText" class="text-sm font-extrabold uppercase tracking-wider text-kkblue mt-1"></p>
                 </div>
             </div>
-            <div class="flex flex-col md:flex-row gap-4 w-full max-w-md animate-slide-up" style="animation-delay: 0.2s">
+            <div class="flex flex-col md:flex-row gap-3.5 w-full max-w-xl animate-slide-up" style="animation-delay: 0.2s">
                 <button onclick="resetGame()"
-                    class="btn-chunky flex-1 bg-kkblue text-white text-xl py-4 rounded-xl border-4 border-kkdark dark:border-slate-500 shadow-hard font-display font-bold">REPLAY</button>
+                    class="btn-chunky flex-1 bg-kkblue text-white text-xl py-4 rounded-xl border-4 border-kkdark dark:border-slate-500 shadow-hard font-display font-bold flex items-center justify-center gap-2">
+                    <i data-lucide="rotate-ccw" class="w-5 h-5"></i> REPLAY
+                </button>
+                <button onclick="shuffleAndReplay()"
+                    class="btn-chunky flex-1 bg-kkgreen text-kkdark text-xl py-4 rounded-xl border-4 border-kkdark dark:border-slate-500 shadow-hard font-display font-bold flex items-center justify-center gap-2">
+                    <i data-lucide="shuffle" class="w-5 h-5"></i> SHUFFLE
+                </button>
                 <button onclick="openSetupModal()"
-                    class="btn-chunky flex-1 bg-kkorange text-white text-xl py-4 rounded-xl border-4 border-kkdark dark:border-slate-500 shadow-hard font-display font-bold">NEW
-                    SETUP</button>
+                    class="btn-chunky flex-1 bg-kkorange text-white text-xl py-4 rounded-xl border-4 border-kkdark dark:border-slate-500 shadow-hard font-display font-bold flex items-center justify-center gap-2">
+                    <i data-lucide="settings-2" class="w-5 h-5"></i> SETUP
+                </button>
             </div>
         </div>
 
     </main>
 
-    <div id="setupModal"
+    <div id="setupModal" onclick="if(event.target === this) closeSetupModal()"
         class="fixed inset-0 bg-slate-900/90 z-[100] hidden flex items-center justify-center backdrop-blur-sm p-2 md:p-4">
         <div
             class="bg-white dark:bg-slate-800 w-full max-w-[95vw] h-[93vh] rounded-3xl border-[6px] border-kkdark dark:border-slate-500 shadow-hard-lg flex flex-col overflow-hidden animate-pop">
@@ -410,10 +467,13 @@
                     <div class="bg-kkorange text-white p-2 rounded-xl border-4 border-kkdark dark:border-slate-500 shadow-sm">
                         <i data-lucide="hammer" class="w-5 h-5"></i>
                     </div>
-                    <h2 class="font-display font-bold text-xl md:text-2xl text-kkdark dark:text-white uppercase">Game Builder</h2>
+                    <div>
+                        <h2 class="font-display font-bold text-xl md:text-2xl text-kkdark dark:text-white uppercase leading-none">Game Builder</h2>
+                        <p id="builderStats" class="text-xs font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-wider mt-0.5">0 Slides</p>
+                    </div>
                 </div>
-                <button onclick="closeSetupModal()"
-                    class="btn-chunky w-10 h-10 bg-white dark:bg-slate-700 text-kkdark dark:text-white border-4 border-kkdark dark:border-slate-500 rounded-xl flex items-center justify-center hover:bg-red-50 hover:text-red-500 shadow-hard-sm">
+                <button onclick="closeSetupModal()" title="Close (Esc)" aria-label="Close Game Builder"
+                    class="btn-chunky w-10 h-10 bg-white dark:bg-slate-700 text-kkdark dark:text-white border-4 border-kkdark dark:border-slate-500 rounded-xl flex items-center justify-center hover:bg-red-50 dark:hover:bg-red-900/40 hover:text-red-500 shadow-hard-sm">
                     <i data-lucide="x" class="w-5 h-5"></i>
                 </button>
             </div>
@@ -421,73 +481,73 @@
             <div class="flex flex-col md:flex-row h-full overflow-hidden">
                 <div
                     class="w-full md:w-72 bg-gray-50 dark:bg-slate-900/70 border-b-4 md:border-b-0 md:border-r-4 border-kkdark dark:border-slate-500 p-4 overflow-y-auto custom-scrollbar flex-shrink-0">
-                    <h3 class="font-black text-gray-400 text-xs uppercase tracking-widest mb-4">Quick Presets</h3>
+                    <h3 class="font-black text-gray-400 dark:text-slate-400 text-xs uppercase tracking-widest mb-4">Quick Presets</h3>
                     <div class="flex flex-col gap-3">
                         <button onclick="loadBlank()"
-                            class="btn-chunky text-left p-3 rounded-xl border-4 border-kkdark bg-white hover:bg-slate-100 font-bold text-sm text-gray-700 shadow-hard-sm flex items-center gap-3 mb-2">
+                            class="btn-chunky text-left p-3 rounded-xl border-4 border-kkdark dark:border-slate-500 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 font-bold text-sm text-gray-700 dark:text-slate-200 shadow-hard-sm flex items-center gap-3 mb-2">
                             <span
-                                class="bg-kkdark text-white w-6 h-6 rounded-lg border-2 border-kkdark flex items-center justify-center text-xs"><i
+                                class="bg-kkdark dark:bg-slate-600 text-white w-6 h-6 rounded-lg border-2 border-kkdark dark:border-slate-500 flex items-center justify-center text-xs"><i
                                     data-lucide="file-plus" class="w-4 h-4"></i></span> Start from Scratch
                         </button>
                         <button onclick="loadPreset('standard2')"
-                            class="btn-chunky text-left p-3 rounded-xl border-4 border-kkdark bg-white hover:bg-pink-50 font-bold text-sm text-gray-700 shadow-hard-sm flex items-center gap-3">
+                            class="btn-chunky text-left p-3 rounded-xl border-4 border-kkdark dark:border-slate-500 bg-white dark:bg-slate-800 hover:bg-pink-50 dark:hover:bg-slate-700 font-bold text-sm text-gray-700 dark:text-slate-200 shadow-hard-sm flex items-center gap-3">
                             <span
-                                class="bg-kkpink text-white w-6 h-6 rounded-lg border-2 border-kkdark flex items-center justify-center text-xs font-display">2</span>
+                                class="bg-kkpink text-white w-6 h-6 rounded-lg border-2 border-kkdark dark:border-slate-500 flex items-center justify-center text-xs font-display">2</span>
                             Standard (2)
                         </button>
                         <button onclick="loadPreset('classroom2')"
-                            class="btn-chunky text-left p-3 rounded-xl border-4 border-kkdark bg-white hover:bg-yellow-50 font-bold text-sm text-gray-700 shadow-hard-sm flex items-center gap-3">
+                            class="btn-chunky text-left p-3 rounded-xl border-4 border-kkdark dark:border-slate-500 bg-white dark:bg-slate-800 hover:bg-yellow-50 dark:hover:bg-slate-700 font-bold text-sm text-gray-700 dark:text-slate-200 shadow-hard-sm flex items-center gap-3">
                             <span
-                                class="bg-kkyellow text-white w-6 h-6 rounded-lg border-2 border-kkdark flex items-center justify-center text-xs font-display">2</span>
+                                class="bg-kkyellow text-kkdark w-6 h-6 rounded-lg border-2 border-kkdark dark:border-slate-500 flex items-center justify-center text-xs font-display">2</span>
                             Classroom (2)
                         </button>
                         <button onclick="loadPreset('classroom3')"
-                            class="btn-chunky text-left p-3 rounded-xl border-4 border-kkdark bg-white hover:bg-blue-50 font-bold text-sm text-gray-700 shadow-hard-sm flex items-center gap-3">
+                            class="btn-chunky text-left p-3 rounded-xl border-4 border-kkdark dark:border-slate-500 bg-white dark:bg-slate-800 hover:bg-blue-50 dark:hover:bg-slate-700 font-bold text-sm text-gray-700 dark:text-slate-200 shadow-hard-sm flex items-center gap-3">
                             <span
-                                class="bg-kkblue text-white w-6 h-6 rounded-lg border-2 border-kkdark flex items-center justify-center text-xs font-display">3</span>
+                                class="bg-kkblue text-white w-6 h-6 rounded-lg border-2 border-kkdark dark:border-slate-500 flex items-center justify-center text-xs font-display">3</span>
                             Classroom (3)
                         </button>
                         <button onclick="loadPreset('classroom4')"
-                            class="btn-chunky text-left p-3 rounded-xl border-4 border-kkdark bg-white hover:bg-green-50 font-bold text-sm text-gray-700 shadow-hard-sm flex items-center gap-3">
+                            class="btn-chunky text-left p-3 rounded-xl border-4 border-kkdark dark:border-slate-500 bg-white dark:bg-slate-800 hover:bg-green-50 dark:hover:bg-slate-700 font-bold text-sm text-gray-700 dark:text-slate-200 shadow-hard-sm flex items-center gap-3">
                             <span
-                                class="bg-kkgreen text-white w-6 h-6 rounded-lg border-2 border-kkdark flex items-center justify-center text-xs font-display">4</span>
+                                class="bg-kkgreen text-kkdark w-6 h-6 rounded-lg border-2 border-kkdark dark:border-slate-500 flex items-center justify-center text-xs font-display">4</span>
                             Classroom (4)
                         </button>
                     </div>
 
-                    <h3 class="font-black text-gray-400 text-xs uppercase tracking-widest mt-6 mb-4">My Presets</h3>
+                    <h3 class="font-black text-gray-400 dark:text-slate-400 text-xs uppercase tracking-widest mt-6 mb-4">My Presets</h3>
                     <div
-                        class="flex flex-col gap-2 bg-white p-3 rounded-xl border-4 border-kkdark shadow-[2px_2px_0_#1e293b]">
+                        class="flex flex-col gap-2 bg-white dark:bg-slate-800 p-3 rounded-xl border-4 border-kkdark dark:border-slate-500 shadow-hard-sm">
                         <select id="userPresetSelect" onchange="onUserPresetSelect()"
-                            class="w-full p-2 bg-gray-50 border-2 border-kkdark rounded-lg text-sm font-bold text-gray-700 focus:outline-none focus:border-kkblue cursor-pointer">
+                            class="w-full p-2 bg-gray-50 dark:bg-slate-700 border-2 border-kkdark dark:border-slate-500 rounded-lg text-sm font-bold text-gray-700 dark:text-white focus:outline-none focus:border-kkblue cursor-pointer">
                             <option value="">-- Select a Custom Preset --</option>
                         </select>
                         <input type="text" id="userPresetNameInput" placeholder="Preset name..."
-                            class="w-full p-2 bg-gray-50 border-2 border-kkdark rounded-lg text-sm font-bold text-gray-700 focus:outline-none focus:border-kkblue">
+                            class="w-full p-2 bg-gray-50 dark:bg-slate-700 border-2 border-kkdark dark:border-slate-500 rounded-lg text-sm font-bold text-gray-700 dark:text-white placeholder-gray-400 dark:placeholder-slate-400 focus:outline-none focus:border-kkblue">
                         <div class="flex gap-2 mt-1">
                             <button onclick="saveCurrentUserPreset()"
-                                class="btn-chunky flex-1 bg-kkgreen text-kkdark py-2 rounded-lg border-2 border-kkdark font-bold text-xs flex items-center justify-center gap-1">
+                                class="btn-chunky flex-1 bg-kkgreen text-kkdark py-2 rounded-lg border-2 border-kkdark dark:border-slate-500 font-bold text-xs flex items-center justify-center gap-1">
                                 <i data-lucide="save" class="w-3 h-3"></i> SAVE
                             </button>
                             <button onclick="createNewUserPreset()"
-                                class="btn-chunky flex-1 bg-kkblue text-white py-2 rounded-lg border-2 border-kkdark font-bold text-xs flex items-center justify-center gap-1">
+                                class="btn-chunky flex-1 bg-kkblue text-white py-2 rounded-lg border-2 border-kkdark dark:border-slate-500 font-bold text-xs flex items-center justify-center gap-1">
                                 <i data-lucide="plus" class="w-3 h-3"></i> NEW
                             </button>
                             <button onclick="deleteCurrentUserPreset()"
-                                class="btn-chunky flex-1 bg-kkpink text-white py-2 rounded-lg border-2 border-kkdark font-bold text-xs flex items-center justify-center gap-1">
+                                class="btn-chunky flex-1 bg-kkpink text-white py-2 rounded-lg border-2 border-kkdark dark:border-slate-500 font-bold text-xs flex items-center justify-center gap-1">
                                 <i data-lucide="trash-2" class="w-3 h-3"></i> DEL
                             </button>
                         </div>
                     </div>
 
-                    <h3 class="font-black text-gray-400 text-xs uppercase tracking-widest mt-6 mb-4">Share / Load</h3>
+                    <h3 class="font-black text-gray-400 dark:text-slate-400 text-xs uppercase tracking-widest mt-6 mb-4">Share / Load</h3>
                     <div class="flex flex-col gap-3">
                         <button onclick="exportGameData()"
-                            class="btn-chunky text-left p-3 rounded-xl border-4 border-kkdark bg-kkblue text-white hover:brightness-110 font-bold text-sm shadow-hard-sm flex items-center gap-3">
+                            class="btn-chunky text-left p-3 rounded-xl border-4 border-kkdark dark:border-slate-500 bg-kkblue text-white hover:brightness-110 font-bold text-sm shadow-hard-sm flex items-center gap-3">
                             <i data-lucide="download" class="w-5 h-5"></i> Export Game
                         </button>
                         <button onclick="document.getElementById('importFileInput').click()"
-                            class="btn-chunky text-left p-3 rounded-xl border-4 border-kkdark bg-kkgreen text-kkdark hover:brightness-105 font-bold text-sm shadow-hard-sm flex items-center gap-3">
+                            class="btn-chunky text-left p-3 rounded-xl border-4 border-kkdark dark:border-slate-500 bg-kkgreen text-kkdark hover:brightness-105 font-bold text-sm shadow-hard-sm flex items-center gap-3">
                             <i data-lucide="upload" class="w-5 h-5"></i> Import Game
                         </button>
                         <input type="file" id="importFileInput" accept=".json" class="hidden"
@@ -522,6 +582,8 @@
             </div>
         </div>
     </div>
+
+    <div id="toastContainer" class="fixed bottom-5 right-5 z-[600] flex flex-col gap-2 pointer-events-none max-w-sm"></div>
 
     <script>
         // --- IndexedDB Wrapper ---
@@ -802,8 +864,8 @@
             currentPresetId = id;
             await saveCurrentPresetId(id);
             await renderPresetSelector();
-            renderBuilder();
-            customAlert("Preset saved successfully!");
+            renderBuilder(true);
+            showToast(`Preset "${name}" saved!`);
         }
 
         async function createNewUserPreset() {
@@ -817,8 +879,8 @@
         }
 
         async function deleteCurrentUserPreset() {
-            if (!currentPresetId) {
-                customAlert("No preset selected to delete.");
+            if (typeof currentPresetId !== "number") {
+                customAlert("No custom preset selected to delete.");
                 return;
             }
             customConfirm("Delete this preset?", async () => {
@@ -828,6 +890,7 @@
                 await saveCurrentPresetId(null);
                 await renderPresetSelector();
                 document.getElementById("userPresetSelect").value = "";
+                showToast("Preset deleted");
             });
         }
         // --- END PRESET MANAGEMENT ---
@@ -909,7 +972,18 @@
 
         const ICON_MAP = {
             coffee: "coffee", tea: "leaf", dog: "dog", cat: "cat",
-            pizza: "pizza", burger: "sandwich", morning: "sun", night: "moon"
+            pizza: "pizza", burger: "sandwich", morning: "sun", night: "moon",
+            book: "book-open", reading: "book-open", pencil: "pencil", pen: "pen-tool",
+            writing: "pen-tool", math: "calculator", music: "music", art: "palette",
+            paint: "palette", sport: "trophy", soccer: "trophy", basketball: "trophy",
+            car: "car", plane: "plane", train: "train-front", bus: "bus",
+            apple: "apple", cake: "cake", game: "gamepad-2", gaming: "gamepad-2",
+            phone: "smartphone", digital: "laptop", laptop: "laptop", paper: "file-text",
+            rain: "cloud-rain", snow: "snowflake", winter: "snowflake", summer: "sun",
+            spring: "flower-2", autumn: "leaf", fire: "flame", water: "droplet",
+            heart: "heart", star: "star", earth: "globe", space: "rocket",
+            mars: "orbit", camera: "camera", bike: "bike", group: "users",
+            solo: "user", lunch: "utensils", snack: "cookie", speaking: "mic"
         };
 
         const PRESETS = {
@@ -993,13 +1067,89 @@
         function updateSoundIcon() {
             const btn = document.getElementById("soundBtn");
             if (isMuted) {
-                btn.innerHTML = '<i data-lucide="volume-x" class="w-6 h-6 text-gray-400"></i>';
-                btn.classList.add("bg-gray-100");
+                btn.innerHTML = '<i data-lucide="volume-x" class="w-5 h-5 text-gray-400 dark:text-slate-400"></i>';
+                btn.classList.add("bg-gray-100", "dark:bg-slate-600");
             } else {
-                btn.innerHTML = '<i data-lucide="volume-2" class="w-6 h-6 text-kkdark"></i>';
-                btn.classList.remove("bg-gray-100");
+                btn.innerHTML = '<i data-lucide="volume-2" class="w-5 h-5 text-kkdark dark:text-white"></i>';
+                btn.classList.remove("bg-gray-100", "dark:bg-slate-600");
             }
             lucide.createIcons();
+        }
+
+        function showToast(message, options = {}) {
+            const container = document.getElementById("toastContainer");
+            if (!container) return;
+
+            const toast = document.createElement("div");
+            toast.className = "pointer-events-auto flex items-center justify-between gap-3 px-4 py-3 rounded-2xl border-4 border-kkdark dark:border-slate-500 bg-white dark:bg-slate-800 text-kkdark dark:text-white shadow-hard animate-pop font-bold text-sm";
+
+            const msgSpan = document.createElement("span");
+            msgSpan.textContent = message;
+            toast.appendChild(msgSpan);
+
+            if (options.actionLabel && typeof options.onAction === "function") {
+                const actionBtn = document.createElement("button");
+                actionBtn.className = "btn-chunky px-3 py-1 rounded-lg bg-kkyellow text-kkdark border-2 border-kkdark text-xs font-display font-bold uppercase shrink-0";
+                actionBtn.textContent = options.actionLabel;
+                actionBtn.onclick = () => {
+                    options.onAction();
+                    toast.remove();
+                };
+                toast.appendChild(actionBtn);
+            }
+
+            container.appendChild(toast);
+            const duration = options.duration || (options.actionLabel ? 5000 : 3000);
+            setTimeout(() => {
+                toast.style.opacity = "0";
+                toast.style.transform = "translateY(8px)";
+                toast.style.transition = "all 0.2s ease";
+                setTimeout(() => toast.remove(), 220);
+            }, duration);
+        }
+
+        function updateStartDeckStatus() {
+            const el = document.getElementById("startDeckStatusText");
+            if (!el) return;
+            if (questions.length > 0) {
+                el.textContent = `${questions.length} Slide${questions.length === 1 ? "" : "s"} Ready`;
+            } else {
+                el.textContent = "No Slides Yet — Click Customize";
+            }
+        }
+
+        function toggleFullscreen() {
+            playSound("click");
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen().catch(() => {});
+            } else {
+                document.exitFullscreen().catch(() => {});
+            }
+        }
+
+        document.addEventListener("fullscreenchange", () => {
+            const btn = document.getElementById("fullscreenBtn");
+            if (!btn) return;
+            const icon = document.fullscreenElement ? "minimize-2" : "maximize-2";
+            btn.innerHTML = `<i data-lucide="${icon}" class="w-5 h-5"></i>`;
+            lucide.createIcons();
+        });
+
+        function exitGame() {
+            playSound("click");
+            const gameScreen = document.getElementById("gameScreen");
+            const endScreen = document.getElementById("endScreen");
+            const startScreen = document.getElementById("startScreen");
+            const isOnStart = !startScreen.classList.contains("hidden");
+
+            if (isOnStart) {
+                location.reload();
+                return;
+            }
+            gameScreen.classList.add("hidden");
+            endScreen.classList.add("hidden");
+            startScreen.classList.remove("hidden");
+            updateStartDeckStatus();
         }
 
         async function customAlert(msg) {
@@ -1042,6 +1192,7 @@
                 console.error("Failed to load from IndexedDB:", error);
                 questions = [];
             }
+            updateStartDeckStatus();
         }
 
         function getIcon(text) {
@@ -1070,20 +1221,42 @@
         function closeSetupModal() {
             playSound("click");
             document.getElementById("setupModal").classList.add("hidden");
+            const tc = document.getElementById("toastContainer");
+            if (tc) tc.innerHTML = "";
         }
 
         function loadPreset(key) {
             playSound("click");
+            const prevData = JSON.parse(JSON.stringify(editorData));
+            const prevPresetId = currentPresetId;
             currentPresetId = key;
             editorData = JSON.parse(JSON.stringify(PRESETS[key]));
             renderBuilder();
+            showToast(`Loaded "${key}" preset (${editorData.length} slides)`, {
+                actionLabel: "Undo",
+                onAction: () => {
+                    editorData = prevData;
+                    currentPresetId = prevPresetId;
+                    renderBuilder();
+                }
+            });
         }
 
         function loadBlank() {
             playSound("click");
+            const prevData = JSON.parse(JSON.stringify(editorData));
+            const prevPresetId = currentPresetId;
             currentPresetId = "states";
             editorData = [{ question: "", options: ["", ""], images: [] }];
             renderBuilder();
+            showToast("Started from scratch", {
+                actionLabel: "Undo",
+                onAction: () => {
+                    editorData = prevData;
+                    currentPresetId = prevPresetId;
+                    renderBuilder();
+                }
+            });
         }
 
         // --- EXPORT / IMPORT FUNCTIONS ---
@@ -1094,18 +1267,23 @@
                 return;
             }
 
-            const dataStr = JSON.stringify(editorData);
+            const dataStr = JSON.stringify(editorData, null, 2);
             const blob = new Blob([dataStr], { type: "application/json" });
             const url = URL.createObjectURL(blob);
 
+            const rawName = (document.getElementById("userPresetNameInput")?.value || "").trim();
+            const safeName = rawName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+            const filename = safeName ? `${safeName}-this-or-that.json` : "this-or-that-klasskit.json";
+
             const a = document.createElement("a");
             a.href = url;
-            a.download = "this-or-that-klasskit.json";
+            a.download = filename;
             document.body.appendChild(a);
             a.click();
 
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
+            showToast(`Exported ${editorData.length} slides!`);
         }
 
         function handleImport(event) {
@@ -1117,7 +1295,7 @@
                 try {
                     const importedData = JSON.parse(e.target.result);
 
-                    if (Array.isArray(importedData) && importedData[0].hasOwnProperty("options")) {
+                    if (Array.isArray(importedData) && importedData.length > 0 && importedData[0] && typeof importedData[0] === "object" && Array.isArray(importedData[0].options)) {
                         editorData = importedData;
 
                         editorData.forEach(slide => {
@@ -1125,7 +1303,7 @@
                         });
 
                         renderBuilder();
-                        customAlert("Game imported successfully!");
+                        showToast(`Imported ${editorData.length} slides!`);
                     } else {
                         customAlert("Invalid game file. Please select a correct This or That .json file.");
                     }
@@ -1138,9 +1316,16 @@
         }
         // --- END EXPORT / IMPORT ---
 
-        async function handleImageUpload(event, sIdx, oIdx) {
-            const file = event.target.files[0];
-            if (!file) return;
+        async function processImageFile(file, sIdx, oIdx) {
+            if (!file || !file.type.startsWith("image/")) {
+                customAlert("Please select a valid image file.");
+                return;
+            }
+            const slot = document.getElementById(`img-slot-${sIdx}-${oIdx}`);
+            if (slot) {
+                slot.innerHTML = `<div class="w-10 h-10 rounded-lg border-2 border-kkdark dark:border-slate-500 bg-slate-100 dark:bg-slate-700 flex items-center justify-center"><i data-lucide="loader-2" class="w-5 h-5 text-kkblue animate-spin"></i></div>`;
+                lucide.createIcons();
+            }
 
             try {
                 const { data: { user } } = await db.auth.getUser();
@@ -1155,13 +1340,29 @@
                         reader.readAsDataURL(file);
                     });
                 }
-                
+
                 if (!editorData[sIdx].images) editorData[sIdx].images = [];
                 editorData[sIdx].images[oIdx] = imgSource;
-                renderBuilder();
+                renderBuilder(true);
             } catch (err) {
                 console.error("Image upload failed", err);
                 customAlert("Failed to process image.");
+                renderBuilder(true);
+            }
+        }
+
+        async function handleImageUpload(event, sIdx, oIdx) {
+            const file = event.target.files[0];
+            if (!file) return;
+            await processImageFile(file, sIdx, oIdx);
+        }
+
+        async function handleImageDrop(event, sIdx, oIdx) {
+            event.preventDefault();
+            event.currentTarget.classList.remove("img-drop-active");
+            const file = event.dataTransfer?.files?.[0];
+            if (file) {
+                await processImageFile(file, sIdx, oIdx);
             }
         }
 
@@ -1187,38 +1388,58 @@
                 [editorData[i], editorData[j]] = [editorData[j], editorData[i]];
             }
             renderBuilder();
+            showToast("Slides shuffled!");
         }
 
-        function renderBuilder() {
+        function updateBuilderStats() {
+            const statsEl = document.getElementById("builderStats");
+            if (!statsEl) return;
+            const total = editorData.length;
+            const ready = editorData.filter(s => s.question.trim() !== "" && s.options.every(o => o.trim() !== "")).length;
+            statsEl.textContent = `${total} Slide${total === 1 ? "" : "s"} · ${ready} Ready`;
+        }
+
+        function renderBuilder(skipAnimation = false) {
             const container = document.getElementById("builderContainer");
             container.innerHTML = "";
+            updateBuilderStats();
 
             editorData.forEach((slide, sIdx) => {
                 if (!slide.images) slide.images = [];
                 const card = document.createElement("div");
-                card.className = "bg-white dark:bg-slate-800 p-4 md:p-5 rounded-2xl border-4 border-kkdark dark:border-slate-500 shadow-hard animate-pop-in relative group overflow-hidden";
-                card.style.animationDelay = `${sIdx * 0.05}s`;
+                card.className = `bg-white dark:bg-slate-800 p-4 md:p-5 rounded-2xl border-4 border-kkdark dark:border-slate-500 shadow-hard ${skipAnimation ? "" : "animate-pop-in"} relative group overflow-hidden`;
+                if (!skipAnimation) {
+                    card.style.animationDelay = `${Math.min(sIdx, 8) * 0.04}s`;
+                }
 
                 let html = `
                     <div class="absolute top-0 left-0 w-2 h-full ${COLORS[sIdx % COLORS.length]}"></div>
                     <div class="flex justify-between items-center mb-4 pl-3">
                         <div class="flex items-center gap-3 w-full">
-                            <div class="bg-kkdark text-white font-display text-xs w-6 h-6 rounded flex items-center justify-center shrink-0 shadow-hard-sm">
+                            <div class="bg-kkdark dark:bg-slate-600 text-white font-display text-xs w-6 h-6 rounded flex items-center justify-center shrink-0 shadow-hard-sm">
                                 ${sIdx + 1}
                             </div>
                             <div class="relative w-full">
-                                <input type="text" value="${escapeHTML(slide.question)}" onchange="updateQuestion(${sIdx}, this.value)" 
+                                <input type="text" value="${escapeHTML(slide.question)}" oninput="updateQuestion(${sIdx}, this.value)" 
                                     placeholder="Question or Category..." 
                                     class="editor-input font-display text-lg w-full bg-slate-50 dark:bg-slate-700 border-2 border-kkdark dark:border-slate-500 rounded-lg px-3 py-1 text-kkdark dark:text-white focus:bg-white dark:focus:bg-slate-600 outline-none">
                             </div>
                         </div>
-                        <div class="flex gap-2 shrink-0 ml-3">
+                        <div class="flex gap-1.5 shrink-0 ml-3">
+                            <button onclick="moveSlide(${sIdx}, -1)" title="Move Up" ${sIdx === 0 ? "disabled" : ""}
+                                class="btn-chunky w-8 h-8 rounded-lg bg-slate-50 dark:bg-slate-700 text-kkdark dark:text-slate-200 border-2 border-kkdark dark:border-slate-500 flex items-center justify-center">
+                                <i data-lucide="chevron-up" class="w-4 h-4"></i>
+                            </button>
+                            <button onclick="moveSlide(${sIdx}, 1)" title="Move Down" ${sIdx === editorData.length - 1 ? "disabled" : ""}
+                                class="btn-chunky w-8 h-8 rounded-lg bg-slate-50 dark:bg-slate-700 text-kkdark dark:text-slate-200 border-2 border-kkdark dark:border-slate-500 flex items-center justify-center">
+                                <i data-lucide="chevron-down" class="w-4 h-4"></i>
+                            </button>
                             <button onclick="duplicateSlide(${sIdx})" title="Duplicate" 
-                                class="btn-chunky w-8 h-8 rounded-lg bg-blue-50 text-kkblue border-2 border-kkdark flex items-center justify-center">
+                                class="btn-chunky w-8 h-8 rounded-lg bg-blue-50 dark:bg-blue-900/40 text-kkblue border-2 border-kkdark dark:border-slate-500 flex items-center justify-center">
                                 <i data-lucide="copy" class="w-4 h-4"></i>
                             </button>
                             <button onclick="deleteSlide(${sIdx})" title="Delete" 
-                                class="btn-chunky w-8 h-8 rounded-lg bg-red-50 text-red-500 border-2 border-kkdark flex items-center justify-center">
+                                class="btn-chunky w-8 h-8 rounded-lg bg-red-50 dark:bg-red-900/40 text-red-500 border-2 border-kkdark dark:border-slate-500 flex items-center justify-center">
                                 <i data-lucide="trash-2" class="w-4 h-4"></i>
                             </button>
                         </div>
@@ -1232,33 +1453,37 @@
                     const accentColor = COLORS[oIdx % COLORS.length];
 
                     html += `
-                        <div class="flex flex-col gap-1.5 p-3 rounded-xl border-2 border-kkdark bg-slate-50/50 relative">
+                        <div class="flex flex-col gap-1.5 p-3 rounded-xl border-2 border-kkdark dark:border-slate-600 bg-slate-50/50 dark:bg-slate-900/50 relative">
                             <div class="flex items-center gap-2">
-                                <div class="w-3 h-3 rounded-full ${accentColor} border-2 border-kkdark shadow-hard-sm"></div>
-                                <span class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Option ${oIdx + 1}</span>
+                                <div class="w-3 h-3 rounded-full ${accentColor} border-2 border-kkdark dark:border-slate-400 shadow-hard-sm"></div>
+                                <span class="text-[10px] font-black text-gray-400 dark:text-slate-400 uppercase tracking-widest">Option ${oIdx + 1}</span>
                             </div>
                             
                             <div class="relative flex items-center gap-2">
-                                <input type="text" value="${escapeHTML(opt)}" onchange="updateOption(${sIdx}, ${oIdx}, this.value)" 
+                                <input type="text" value="${escapeHTML(opt)}" oninput="updateOption(${sIdx}, ${oIdx}, this.value)" 
                                     placeholder="Answer..." 
                                     class="editor-input w-full bg-white dark:bg-slate-700 border-2 border-kkdark dark:border-slate-500 rounded-lg px-3 py-2 font-bold text-sm focus:border-kkblue outline-none text-kkdark dark:text-white">
                                 
                                 <div class="flex items-center gap-1.5">
-                                    <div class="relative w-10 h-10 flex-shrink-0">
+                                    <div id="img-slot-${sIdx}-${oIdx}" class="relative w-10 h-10 flex-shrink-0">
                                         ${hasImg ? `
-                                            <img data-src="${hasImg}" class="w-10 h-10 rounded-lg border-2 border-kkdark object-cover shadow-hard-sm">
-                                            <button onclick="removeImage(${sIdx}, ${oIdx})" class="absolute -top-1.5 -right-1.5 bg-red-500 text-white w-5 h-5 rounded-full border-2 border-kkdark flex items-center justify-center shadow-hard-sm hover:scale-110 transition-transform">
+                                            <img data-src="${escapeHTML(hasImg)}" class="w-10 h-10 rounded-lg border-2 border-kkdark dark:border-slate-500 object-cover shadow-hard-sm">
+                                            <button onclick="removeImage(${sIdx}, ${oIdx})" title="Remove Image" class="absolute -top-1.5 -right-1.5 bg-red-500 text-white w-5 h-5 rounded-full border-2 border-kkdark flex items-center justify-center shadow-hard-sm hover:scale-110 transition-transform">
                                                 <i data-lucide="x" class="w-2.5 h-2.5"></i>
                                             </button>
                                         ` : `
-                                            <label class="btn-chunky w-10 h-10 bg-white rounded-lg border-2 border-kkdark flex items-center justify-center cursor-pointer text-gray-400 hover:text-kkblue shadow-hard-sm">
+                                            <label title="Upload or Drop Image"
+                                                ondragover="event.preventDefault(); this.classList.add('img-drop-active');"
+                                                ondragleave="this.classList.remove('img-drop-active');"
+                                                ondrop="handleImageDrop(event, ${sIdx}, ${oIdx})"
+                                                class="btn-chunky w-10 h-10 bg-white dark:bg-slate-700 rounded-lg border-2 border-kkdark dark:border-slate-500 flex items-center justify-center cursor-pointer text-gray-400 dark:text-slate-300 hover:text-kkblue shadow-hard-sm transition-all">
                                                 <i data-lucide="image" class="w-5 h-5"></i>
                                                 <input type="file" accept="image/*" class="hidden" onchange="handleImageUpload(event, ${sIdx}, ${oIdx})">
                                             </label>
                                         `}
                                     </div>
                                     ${slide.options.length > 2 ? `
-                                        <button onclick="deleteOption(${sIdx}, ${oIdx})" class="btn-chunky w-8 h-8 bg-white border-2 border-kkdark rounded-lg text-gray-400 hover:text-red-500 flex items-center justify-center shadow-hard-sm">
+                                        <button onclick="deleteOption(${sIdx}, ${oIdx})" title="Remove Option" class="btn-chunky w-8 h-8 bg-white dark:bg-slate-700 border-2 border-kkdark dark:border-slate-500 rounded-lg text-gray-400 dark:text-slate-300 hover:text-red-500 flex items-center justify-center shadow-hard-sm">
                                             <i data-lucide="minus-circle" class="w-4 h-4"></i>
                                         </button>
                                     ` : ""}
@@ -1271,7 +1496,7 @@
                 if (slide.options.length < 5) {
                     html += `
                         <button onclick="addOption(${sIdx})" 
-                            class="btn-chunky flex flex-col items-center justify-center gap-1 border-2 border-dashed border-gray-300 rounded-xl py-2 text-gray-400 font-bold text-xs hover:border-kkblue hover:text-kkblue bg-white hover:bg-blue-50 transition-all shadow-hard-sm">
+                            class="btn-chunky flex flex-col items-center justify-center gap-1 border-2 border-dashed border-gray-300 dark:border-slate-600 rounded-xl py-2 text-gray-400 dark:text-slate-400 font-bold text-xs hover:border-kkblue hover:text-kkblue bg-white dark:bg-slate-800 hover:bg-blue-50 dark:hover:bg-slate-700 transition-all shadow-hard-sm">
                             <i data-lucide="plus" class="w-5 h-5"></i>
                             <span>ADD</span>
                         </button>
@@ -1285,9 +1510,9 @@
 
             if (editorData.length === 0) {
                 container.innerHTML = `
-                    <div class="text-center py-20 bg-white rounded-3xl border-4 border-dashed border-gray-200 animate-pulse">
-                        <i data-lucide="layout" class="w-16 h-16 mx-auto mb-4 text-gray-200"></i>
-                        <p class="text-gray-400 font-display text-xl">Create your first slide to start!</p>
+                    <div class="lg:col-span-2 text-center py-20 bg-white dark:bg-slate-800 rounded-3xl border-4 border-dashed border-gray-200 dark:border-slate-600 animate-pulse">
+                        <i data-lucide="layout" class="w-16 h-16 mx-auto mb-4 text-gray-200 dark:text-slate-600"></i>
+                        <p class="text-gray-400 dark:text-slate-400 font-display text-xl">Create your first slide to start!</p>
                     </div>`;
             }
             lucide.createIcons();
@@ -1304,8 +1529,22 @@
             }
         }
 
-        function updateQuestion(sIdx, val) { editorData[sIdx].question = val; }
-        function updateOption(sIdx, oIdx, val) { editorData[sIdx].options[oIdx] = val; }
+        function updateQuestion(sIdx, val) {
+            editorData[sIdx].question = val;
+            updateBuilderStats();
+        }
+        function updateOption(sIdx, oIdx, val) {
+            editorData[sIdx].options[oIdx] = val;
+            updateBuilderStats();
+        }
+
+        function moveSlide(sIdx, dir) {
+            const target = sIdx + dir;
+            if (target < 0 || target >= editorData.length) return;
+            playSound("click");
+            [editorData[sIdx], editorData[target]] = [editorData[target], editorData[sIdx]];
+            renderBuilder(true);
+        }
 
         function removeImage(sIdx, oIdx) {
             playSound("click");
@@ -1315,20 +1554,20 @@
                     deleteMediaFromUrl(url).catch(e => console.error("Cloud delete failed", e));
                 }
                 editorData[sIdx].images[oIdx] = null;
-                renderBuilder();
+                renderBuilder(true);
             }
         }
 
         function addOption(sIdx) {
             if (editorData[sIdx].options.length < 5) {
                 editorData[sIdx].options.push("");
-                renderBuilder();
+                renderBuilder(true);
             }
         }
 
         function addNewSlide() {
             editorData.push({ question: "", options: ["", ""], images: [] });
-            renderBuilder();
+            renderBuilder(true);
             const scrollContainer = document.getElementById("builderScrollArea");
             setTimeout(() => { scrollContainer.scrollTo({ top: scrollContainer.scrollHeight, behavior: "smooth" }); }, 50);
         }
@@ -1337,7 +1576,7 @@
             if (editorData[sIdx].options.length > 2) {
                 editorData[sIdx].options.splice(oIdx, 1);
                 editorData[sIdx].images.splice(oIdx, 1);
-                renderBuilder();
+                renderBuilder(true);
             }
         }
 
@@ -1345,13 +1584,19 @@
             playSound("click");
             const slideToDuplicate = JSON.parse(JSON.stringify(editorData[sIdx]));
             editorData.splice(sIdx + 1, 0, slideToDuplicate);
-            renderBuilder();
+            renderBuilder(true);
         }
 
         function deleteSlide(sIdx) {
-            customConfirm("Are you sure you want to delete this slide?", () => {
-                editorData.splice(sIdx, 1);
-                renderBuilder();
+            playSound("click");
+            const removed = editorData.splice(sIdx, 1)[0];
+            renderBuilder(true);
+            showToast(`Slide ${sIdx + 1} deleted`, {
+                actionLabel: "Undo",
+                onAction: () => {
+                    editorData.splice(sIdx, 0, removed);
+                    renderBuilder(true);
+                }
             });
         }
 
@@ -1360,10 +1605,11 @@
                 (s) => s.question.trim() !== "" && s.options.every((o) => o.trim() !== "")
             );
             if (validData.length === 0) {
-                customAlert("Please add at least one valid slide with completed options before saving.");
+                customAlert("Please add at least one valid slide with a question and completed options before saving.");
                 return;
             }
             questions = validData;
+            updateStartDeckStatus();
 
             try {
                 await saveGameData(questions);
@@ -1374,6 +1620,41 @@
             syncToCloud();
             closeSetupModal();
             startGame();
+        }
+
+        let selectedOptionIndex = null;
+
+        function selectOption(idx) {
+            playSound("pop");
+            const panels = document.querySelectorAll("#optionsContainer .option-panel");
+            if (!panels.length) return;
+
+            if (selectedOptionIndex === idx) {
+                selectedOptionIndex = null;
+                panels.forEach((p) => {
+                    p.classList.remove("is-selected", "is-dimmed");
+                    p.setAttribute("aria-pressed", "false");
+                    const badge = p.querySelector(".picked-badge");
+                    if (badge) badge.classList.add("hidden");
+                });
+                return;
+            }
+
+            selectedOptionIndex = idx;
+            panels.forEach((p, i) => {
+                const badge = p.querySelector(".picked-badge");
+                if (i === idx) {
+                    p.classList.add("is-selected");
+                    p.classList.remove("is-dimmed");
+                    p.setAttribute("aria-pressed", "true");
+                    if (badge) badge.classList.remove("hidden");
+                } else {
+                    p.classList.remove("is-selected");
+                    p.classList.add("is-dimmed");
+                    p.setAttribute("aria-pressed", "false");
+                    if (badge) badge.classList.add("hidden");
+                }
+            });
         }
 
         function startGame() {
@@ -1392,15 +1673,34 @@
         function renderSlide() {
             const container = document.getElementById("optionsContainer");
             container.innerHTML = "";
+            selectedOptionIndex = null;
             const data = questions[currentIndex];
             if (!data) { endGame(); return; }
 
             document.getElementById("questionText").innerText = data.question;
             document.getElementById("slideCounter").innerText = `${currentIndex + 1}/${questions.length}`;
 
+            const progressBar = document.getElementById("slideProgressBar");
+            if (progressBar) {
+                progressBar.style.width = `${((currentIndex + 1) / questions.length) * 100}%`;
+            }
+
+            const prevBtn = document.getElementById("prevSlideBtn");
+            if (prevBtn) {
+                prevBtn.disabled = currentIndex === 0;
+            }
+
+            const nextBtn = document.getElementById("nextSlideBtn");
+            if (nextBtn) {
+                const isLast = currentIndex === questions.length - 1;
+                nextBtn.title = isLast ? "Finish Game (Right Arrow / Space)" : "Next Slide (Right Arrow / Space)";
+                nextBtn.innerHTML = isLast
+                    ? '<i data-lucide="flag" class="w-6 h-6"></i>'
+                    : '<i data-lucide="chevron-right" class="w-7 h-7"></i>';
+            }
+
             data.options.forEach((optText, idx) => {
                 const colorClass = COLORS[idx % COLORS.length];
-                const iconClass = getIcon(optText);
                 const imgSrc = data.images && data.images[idx];
 
                 const panel = document.createElement("div");
@@ -1408,9 +1708,30 @@
                 if (idx === data.options.length - 1) borderClass = "";
 
                 panel.className = `${colorClass} ${borderClass} option-panel flex-1 relative flex flex-col items-center ${imgSrc ? 'justify-start p-0' : 'justify-center p-2 md:p-6'} overflow-hidden cursor-pointer`;
+                panel.setAttribute("role", "button");
+                panel.setAttribute("aria-pressed", "false");
+                panel.setAttribute("aria-label", `Option ${idx + 1}: ${optText}`);
                 panel.style.animation = `slideUp 0.6s cubic-bezier(0.2, 1, 0.3, 1) forwards`;
                 panel.style.animationDelay = `${idx * 0.1}s`;
                 panel.style.opacity = "0";
+                panel.addEventListener("animationend", () => {
+                    panel.style.animation = "";
+                    panel.style.opacity = "";
+                }, { once: true });
+
+                const pickedBadge = `
+                    <div class="picked-badge hidden absolute bottom-2 right-2 md:bottom-24 md:right-auto md:left-1/2 md:-translate-x-1/2 z-20 bg-white text-kkdark px-3.5 py-1 md:px-4 md:py-1.5 rounded-full border-4 border-kkdark shadow-hard font-display font-bold text-xs md:text-sm uppercase tracking-wider flex items-center gap-1.5 animate-pop pointer-events-none">
+                        <i data-lucide="check-circle-2" class="w-4 h-4 text-kkgreen"></i> PICKED
+                    </div>
+                `;
+
+                const textOnlyMarkup = `
+                    <div class="relative z-10 flex items-center justify-center panel-icon transition-transform duration-300 pt-14 pb-16 px-6 max-w-[90%]">
+                        <h2 class="font-display font-bold text-3xl md:text-6xl text-white drop-shadow-[4px_4px_0_rgba(0,0,0,0.3)] uppercase tracking-wide text-center leading-tight break-words">
+                            ${escapeHTML(optText)}
+                        </h2>
+                    </div>
+                `;
 
                 let backgroundLayer = '';
                 let contentLayer = '';
@@ -1434,37 +1755,32 @@
                             </div>
                         `;
                 } else {
-                    // ICON MODE: Classic Circle Design
+                    // TEXT-ONLY MODE: Clean centered typography without an image placeholder
                     backgroundLayer = `<div class="absolute inset-0 bg-dots opacity-20 pointer-events-none"></div>`;
-                    contentLayer = `
-                            <div class="relative z-10 flex flex-row md:flex-col items-center gap-4 md:gap-6 panel-icon transition-transform duration-300 pt-14 pb-16 px-4">
-                                <div class="w-24 h-24 md:w-32 md:h-32 bg-white/20 rounded-full border-4 border-white/40 shadow-lg flex items-center justify-center backdrop-blur-sm flex-shrink-0 overflow-hidden">
-                                    <i data-lucide="${iconClass}" class="w-12 h-12 md:w-16 md:h-16 text-white drop-shadow-md"></i>
-                                </div>
-                                <h2 class="font-display font-bold text-2xl md:text-5xl text-white drop-shadow-[4px_4px_0_rgba(0,0,0,0.3)] uppercase tracking-wide text-center leading-tight">
-                                    ${escapeHTML(optText)}
-                                </h2>
-                            </div>
-                        `;
+                    contentLayer = textOnlyMarkup;
                 }
 
-                panel.innerHTML = backgroundLayer + contentLayer;
+                panel.innerHTML = backgroundLayer + contentLayer + pickedBadge;
 
-                // Resolve cloud images in slide
-                if (imgSrc && imgSrc.includes('klasskit-media')) {
-                    const cardImg = panel.querySelector('.option-card-img');
-                    resolveAndCache(imgSrc).then(url => { if (cardImg) cardImg.src = url; });
+                // Resolve cloud images & add graceful error fallback to text-only mode
+                const cardImg = panel.querySelector('.option-card-img');
+                if (cardImg) {
+                    cardImg.onerror = () => {
+                        panel.classList.remove('justify-start', 'p-0');
+                        panel.classList.add('justify-center', 'p-2', 'md:p-6');
+                        panel.innerHTML = `<div class="absolute inset-0 bg-dots opacity-20 pointer-events-none"></div>` + textOnlyMarkup + pickedBadge;
+                        lucide.createIcons();
+                    };
+                    if (imgSrc && imgSrc.includes('klasskit-media')) {
+                        resolveAndCache(imgSrc).then(url => { if (cardImg) cardImg.src = url; });
+                    }
                 }
 
-                panel.onclick = () => {
-                    playSound("pop");
-                    panel.classList.add('brightness-110');
-                    setTimeout(() => panel.classList.remove('brightness-110'), 180);
-                };
+                panel.onclick = () => selectOption(idx);
                 container.appendChild(panel);
             });
 
-            hydrateImages();
+            if (typeof hydrateImages === 'function') hydrateImages();
             lucide.createIcons();
             playSound("pop");
         }
@@ -1481,6 +1797,10 @@
 
         function endGame() {
             playSound("pop");
+            const summaryEl = document.getElementById("endSummaryText");
+            if (summaryEl) {
+                summaryEl.textContent = `${questions.length} Slide${questions.length === 1 ? "" : "s"} Completed`;
+            }
             document.getElementById("gameScreen").classList.add("hidden");
             document.getElementById("endScreen").classList.remove("hidden");
         }
@@ -1489,6 +1809,35 @@
             playSound("click");
             document.getElementById("endScreen").classList.add("hidden");
             startGame();
+        }
+
+        function shuffleAndReplay() {
+            playSound("click");
+            for (let i = questions.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [questions[i], questions[j]] = [questions[j], questions[i]];
+            }
+            document.getElementById("endScreen").classList.add("hidden");
+            startGame();
+        }
+
+        // Touch swipe navigation on Game Screen
+        let touchStartX = 0;
+        let touchStartY = 0;
+        const gameScreenEl = document.getElementById("gameScreen");
+        if (gameScreenEl) {
+            gameScreenEl.addEventListener("touchstart", (e) => {
+                touchStartX = e.changedTouches[0].clientX;
+                touchStartY = e.changedTouches[0].clientY;
+            }, { passive: true });
+            gameScreenEl.addEventListener("touchend", (e) => {
+                const dx = e.changedTouches[0].clientX - touchStartX;
+                const dy = e.changedTouches[0].clientY - touchStartY;
+                if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) {
+                    if (dx < 0) nextSlide();
+                    else prevSlide();
+                }
+            }, { passive: true });
         }
 
         document.addEventListener("keydown", (e) => {
@@ -1500,17 +1849,29 @@
                 return;
             }
 
-            if (isSetupOpen) return;
-            if (document.getElementById("gameScreen").classList.contains("hidden")) return;
-
             const tag = (document.activeElement && document.activeElement.tagName || "").toLowerCase();
             if (tag === "input" || tag === "textarea" || tag === "select") return;
+
+            if ((e.key === "f" || e.key === "F") && !e.ctrlKey && !e.metaKey && !e.altKey) {
+                toggleFullscreen();
+                return;
+            }
+
+            if (isSetupOpen) return;
+            if (document.getElementById("gameScreen").classList.contains("hidden")) return;
 
             if (e.key === "ArrowRight" || e.code === "Space" || e.key === "Enter") {
                 if (e.code === "Space") e.preventDefault();
                 nextSlide();
+            } else if (e.key === "ArrowLeft") {
+                prevSlide();
+            } else if (["1", "2", "3", "4", "5"].includes(e.key)) {
+                const optIdx = parseInt(e.key, 10) - 1;
+                const slide = questions[currentIndex];
+                if (slide && optIdx < slide.options.length) {
+                    selectOption(optIdx);
+                }
             }
-            if (e.key === "ArrowLeft") prevSlide();
         });
 
         init();
