@@ -9,26 +9,41 @@ const STORE_NAME = "canvas";
 let dataBase;
 
 async function initDB() {
-    return new Promise((resolve, reject) => {
-        const request = indexedDB.open(DB_NAME, DB_VERSION);
+    if (typeof indexedDB === "undefined") {
+        dataBase = null;
+        return null;
+    }
+    return new Promise((resolve) => {
+        try {
+            const request = indexedDB.open(DB_NAME, DB_VERSION);
 
-        request.onerror = () => reject(request.error);
-        request.onsuccess = () => {
-            dataBase = request.result;
-            resolve(dataBase);
-        };
+            request.onerror = () => {
+                console.warn("IndexedDB unavailable:", request.error);
+                dataBase = null;
+                resolve(null);
+            };
+            request.onsuccess = () => {
+                dataBase = request.result;
+                resolve(dataBase);
+            };
 
-        request.onupgradeneeded = (event) => {
-            const dataBase = event.target.result;
-            if (!dataBase.objectStoreNames.contains(STORE_NAME)) {
-                dataBase.createObjectStore(STORE_NAME);
-            }
-        };
+            request.onupgradeneeded = (event) => {
+                const dbInstance = event.target.result;
+                if (!dbInstance.objectStoreNames.contains(STORE_NAME)) {
+                    dbInstance.createObjectStore(STORE_NAME);
+                }
+            };
+        } catch (err) {
+            console.warn("IndexedDB open failed:", err);
+            dataBase = null;
+            resolve(null);
+        }
     });
 }
 
 async function saveToIndexedDB(blob) {
     if (!dataBase) await initDB();
+    if (!dataBase || !blob) return;
 
     return new Promise((resolve, reject) => {
         const transaction = dataBase.transaction(
@@ -45,6 +60,7 @@ async function saveToIndexedDB(blob) {
 
 async function loadFromIndexedDB() {
     if (!dataBase) await initDB();
+    if (!dataBase) return null;
 
     return new Promise((resolve, reject) => {
         const transaction = dataBase.transaction(
@@ -108,11 +124,57 @@ const imageCache = new Map();
 
 let undoStack = [];
 let undoIndex = -1;
+let latestUndoRequestId = 0;
 let saveTimeout;
 let rafId = null;
+let isSpacePressed = false;
+let hasLoadedIDBBitmap = false;
+let hasUserModifiedCanvas = false;
 
 const SETTINGS_KEY = 'whiteboard_settings';
 let settingsSaveTimeout;
+
+function clonePaths(paths) {
+    return (paths || []).map(p => ({
+        ...p,
+        points: p.points ? p.points.map(pt => ({ x: pt.x, y: pt.y })) : undefined
+    }));
+}
+
+function captureUndoSnapshot() {
+    return {
+        dataUrl: canvasMain.toDataURL(),
+        paths: clonePaths(boardPaths),
+        width: canvasMain.width,
+        height: canvasMain.height
+    };
+}
+
+function updateThemeButtonState() {
+    const btn = document.getElementById('theme-toggle');
+    if (btn) {
+        btn.setAttribute('aria-pressed', String(document.documentElement.classList.contains('dark')));
+    }
+}
+
+function syncGridButtonState() {
+    const btn = document.getElementById('grid-toggle');
+    const isGrid = bodyBg.classList.contains('bg-grid');
+    if (btn) {
+        btn.setAttribute('aria-pressed', String(isGrid));
+    }
+}
+
+function syncColorDotSelection(color) {
+    const normalized = (color || '').toLowerCase();
+    const isDarkLight = normalized === '#1e293b' || normalized === '#ffffff';
+    document.querySelectorAll('.color-dot').forEach(d => {
+        const dotColor = (d.dataset.color || '').toLowerCase();
+        const isSelected = (d.id === 'dot-dark' && isDarkLight) || (dotColor && dotColor === normalized);
+        d.classList.toggle('selected', Boolean(isSelected));
+        d.setAttribute('aria-pressed', String(Boolean(isSelected)));
+    });
+}
 
 // --- Cloud Settings Sync ---
 function debounceSaveSettings() {
@@ -144,25 +206,36 @@ async function saveBoardSettings() {
 async function loadBoardSettings() {
     try {
         const settings = await loadProgress(SETTINGS_KEY);
-        if (!settings) return;
-
-        if (settings.tool) setTool(settings.tool, true);
-        if (settings.color) {
-            setColor(settings.color, null, true);
+        if (settings) {
+            const hasLocalTheme = Boolean(localStorage.getItem('theme_whiteboard'));
+            if (!hasLocalTheme && 'darkMode' in settings) {
+                document.documentElement.classList.toggle('dark', settings.darkMode);
+            }
+            if ('grid' in settings) {
+                bodyBg.classList.toggle('bg-grid', settings.grid);
+            }
+            if (settings.tool) setTool(settings.tool, true);
+            if (settings.color) {
+                const normalized = settings.color.toLowerCase();
+                const effectiveColor = (normalized === '#1e293b' || normalized === '#ffffff')
+                    ? getDarkLightInk()
+                    : settings.color;
+                setColor(effectiveColor, null, true);
+            }
+            if (settings.size !== undefined) {
+                updateSize(settings.size, true);
+                const slider = document.getElementById('size-slider');
+                if (slider) slider.value = state.size;
+            }
+            if (Number.isFinite(Number(settings.scale))) {
+                state.scale = Math.min(Math.max(Number(settings.scale), 0.2), 3.0);
+            }
+            if (Number.isFinite(Number(settings.panX))) state.panX = Number(settings.panX);
+            if (Number.isFinite(Number(settings.panY))) state.panY = Number(settings.panY);
         }
-        if (settings.size !== undefined) {
-            updateSize(settings.size, true);
-        }
-        if (settings.scale) state.scale = settings.scale;
-        if (settings.panX !== undefined) state.panX = settings.panX;
-        if (settings.panY !== undefined) state.panY = settings.panY;
-
-        if ('darkMode' in settings) {
-            document.documentElement.classList.toggle('dark', settings.darkMode);
-        }
-        if ('grid' in settings) {
-            bodyBg.classList.toggle('bg-grid', settings.grid);
-        }
+        updateThemeButtonState();
+        syncGridButtonState();
+        syncColorDotSelection(state.color);
         updateView();
         lucide.createIcons();
     } catch (e) {
@@ -232,12 +305,16 @@ function redrawCanvas() {
                 ctxMain.strokeStyle = path.color;
             }
             
-            if (path.points.length < 2) return;
+            if (!path.points || path.points.length === 0) return;
             
             ctxMain.beginPath();
             ctxMain.moveTo(path.points[0].x, path.points[0].y);
-            for (let i = 1; i < path.points.length; i++) {
-                ctxMain.lineTo(path.points[i].x, path.points[i].y);
+            if (path.points.length === 1) {
+                ctxMain.lineTo(path.points[0].x + 0.01, path.points[0].y);
+            } else {
+                for (let i = 1; i < path.points.length; i++) {
+                    ctxMain.lineTo(path.points[i].x, path.points[i].y);
+                }
             }
             ctxMain.stroke();
         } else if (["line", "rect", "circle"].includes(path.type)) {
@@ -277,9 +354,11 @@ function redrawCanvas() {
                 ctxMain.fillText(line, path.x + 2, path.y + yOffset + i * fontSize * 1.2);
             });
         } else if (path.type === "image") {
+            ctxMain.globalCompositeOperation = "source-over";
             let img = imageCache.get(path.src);
             if (!img) {
                 img = new Image();
+                img.onload = () => redrawCanvas();
                 img.src = path.src;
                 imageCache.set(path.src, img);
             }
@@ -362,24 +441,59 @@ wrapper.addEventListener(
     { passive: false },
 );
 
-window.addEventListener("keydown", (e) => {
-    if (e.code === "Space" && state.tool !== "text") {
+function isModalOpenOrInputFocused() {
+    const active = document.activeElement;
+    if (active && ['INPUT', 'TEXTAREA', 'SELECT'].includes(active.tagName)) return true;
+    const clearModal = document.getElementById('clear-modal');
+    const textModal = document.getElementById('text-modal');
+    if (clearModal && !clearModal.classList.contains('hidden') && !clearModal.classList.contains('opacity-0')) return true;
+    if (textModal && !textModal.classList.contains('hidden') && !textModal.classList.contains('opacity-0')) return true;
+    return false;
+}
+
+function updateCursorForTool() {
+    if (state.tool === "hand") {
         wrapper.style.cursor = "grab";
+    } else if (state.tool === "text") {
+        wrapper.style.cursor = "text";
+    } else if (state.tool === "image") {
+        wrapper.style.cursor = "copy";
+    } else {
+        wrapper.style.cursor = "crosshair";
+    }
+}
+
+window.addEventListener("keydown", (e) => {
+    if (e.code === "Space" && !isModalOpenOrInputFocused() && state.tool !== "text") {
+        e.preventDefault();
+        isSpacePressed = true;
+        if (!state.isPanning) {
+            wrapper.style.cursor = "grab";
+        }
     }
 });
 window.addEventListener("keyup", (e) => {
-    if (e.code === "Space" && state.tool !== "text") {
-        setTool(state.tool);
+    if (e.code === "Space") {
+        isSpacePressed = false;
+        if (!state.isPanning) {
+            updateCursorForTool();
+        }
     }
+});
+window.addEventListener("blur", () => {
+    isSpacePressed = false;
+    state.isPanning = false;
+    state.isDrawing = false;
+    activePointers.clear();
+    updateCursorForTool();
 });
 
 function startDraw(e) {
-    wrapper.setPointerCapture(e.pointerId);
-
     const isSpacePan =
-        e.code === "Space" || (e.buttons === 1 && e.altKey);
+        isSpacePressed || (e.buttons === 1 && e.altKey);
 
     if (state.tool === "hand" || isSpacePan) {
+        try { wrapper.setPointerCapture(e.pointerId); } catch (_) {}
         state.isPanning = true;
         state.panStartX = e.clientX - state.panX;
         state.panStartY = e.clientY - state.panY;
@@ -401,6 +515,8 @@ function startDraw(e) {
         document.getElementById("image-upload").click();
         return;
     }
+
+    try { wrapper.setPointerCapture(e.pointerId); } catch (_) {}
 
     const coords = getCoords(e);
 
@@ -449,7 +565,8 @@ function moveDraw(e) {
 
     const coords = getCoords(e);
 
-    if (state.tool === "pen" || state.tool === "eraser") {
+    if (p.pathData.type === "pen" || p.pathData.type === "eraser") {
+        checkAndExpandCanvas(coords.x, coords.y);
         drawFreehand(e.pointerId, coords.x, coords.y);
     } else if (state.isDrawing) {
         drawPreviewShape(coords.x, coords.y);
@@ -460,50 +577,51 @@ function endDraw(e) {
     const p = activePointers.get(e.pointerId);
     if (!p) return;
 
+    try { wrapper.releasePointerCapture(e.pointerId); } catch (_) {}
+
     if (p.type === "pan") {
         state.isPanning = false;
-        wrapper.style.cursor =
-            state.tool === "hand" ? "grab" : "crosshair";
+        if (isSpacePressed && state.tool !== "text") {
+            wrapper.style.cursor = "grab";
+        } else {
+            updateCursorForTool();
+        }
         activePointers.delete(e.pointerId);
         return;
     }
 
     // ✨ Flush any remaining batched strokes
-    if (p.strokeBatch && p.strokeBatch.length > 0) {
-        // Final stroke from lastX/lastY to current point (or just end current path)
-        ctxMain.lineWidth = state.size;
-        if (state.tool === "eraser") {
-            ctxMain.globalCompositeOperation = "destination-out";
-            ctxMain.lineWidth = state.size * 5;
-        } else {
-            ctxMain.globalCompositeOperation = "source-over";
-            ctxMain.strokeStyle = state.color;
-        }
-        ctxMain.stroke();
-        
-        // Finalize vector path
+    if (p.strokeBatch && p.strokeBatch.length > 0 && (p.pathData.type === "pen" || p.pathData.type === "eraser")) {
         boardPaths.push(p.pathData);
-        
         p.strokeBatch = [];
         clearTimeout(p.strokeBatchTimer);
     }
 
-    if (["line", "rect", "circle"].includes(state.tool)) {
-        ctxMain.globalCompositeOperation = "source-over";
-        ctxMain.drawImage(canvasTemp, 0, 0);
-        
-        // Record shape path
+    let committedChange = p.pathData.type === "pen" || p.pathData.type === "eraser";
+    if (["line", "rect", "circle"].includes(p.pathData.type)) {
         const coords = getCoords(e);
-        boardPaths.push({
-            type: state.tool,
-            color: state.color,
-            size: state.size,
-            startX: state.startX,
-            startY: state.startY,
-            endX: coords.x,
-            endY: coords.y
-        });
-        
+        const moved = Math.abs(coords.x - p.startX) > 0.5 || Math.abs(coords.y - p.startY) > 0.5;
+        if (moved) {
+            checkAndExpandCanvas(coords.x, coords.y);
+            state.startX = p.startX;
+            state.startY = p.startY;
+            drawPreviewShape(coords.x, coords.y, p.pathData.type);
+            ctxMain.globalCompositeOperation = "source-over";
+            ctxMain.drawImage(canvasTemp, 0, 0);
+
+            // Record shape path
+            boardPaths.push({
+                type: p.pathData.type,
+                color: p.pathData.color || state.color,
+                size: p.pathData.size || state.size,
+                startX: p.startX,
+                startY: p.startY,
+                endX: coords.x,
+                endY: coords.y
+            });
+            committedChange = true;
+        }
+
         ctxTemp.clearRect(
             0,
             0,
@@ -515,7 +633,7 @@ function endDraw(e) {
     activePointers.delete(e.pointerId);
     if (activePointers.size === 0) {
         state.isDrawing = false;
-        saveState();
+        if (committedChange) saveState();
     }
 }
 
@@ -528,7 +646,7 @@ function drawFreehand(pointerId, x, y) {
 
     // Setup context
     ctxMain.lineWidth = state.size;
-    if (state.tool === "eraser") {
+    if (p.pathData.type === "eraser") {
         ctxMain.globalCompositeOperation = "destination-out";
         ctxMain.lineWidth = state.size * 5;
     } else {
@@ -536,22 +654,22 @@ function drawFreehand(pointerId, x, y) {
         ctxMain.strokeStyle = state.color;
     }
 
-    // Draw line from last position to current position
+    // Draw line from last position to current position (nudge slightly for 1-click dots)
     ctxMain.beginPath();
     ctxMain.moveTo(p.lastX, p.lastY);
-    ctxMain.lineTo(x, y);
+    if (p.lastX === x && p.lastY === y) {
+        ctxMain.lineTo(x + 0.01, y);
+    } else {
+        ctxMain.lineTo(x, y);
+        p.pathData.points.push({ x, y });
+    }
     ctxMain.stroke();
 
     p.lastX = x;
     p.lastY = y;
-    p.pathData.points.push({ x, y });
-
-    // Note: Batching here is less critical since we draw segment by segment for multi-touch,
-    // but we can still use it for potential performance if needed.
-    // For multi-touch simultaneous lines, drawing segments is more reliable than one long path.
 }
 
-function drawPreviewShape(x, y) {
+function drawPreviewShape(x, y, shapeType = state.tool) {
     ctxTemp.clearRect(0, 0, canvasTemp.width, canvasTemp.height);
     ctxTemp.globalCompositeOperation = "source-over";
     ctxTemp.strokeStyle = state.color;
@@ -561,9 +679,9 @@ function drawPreviewShape(x, y) {
     const w = x - state.startX;
     const h = y - state.startY;
 
-    if (state.tool === "rect") {
+    if (shapeType === "rect") {
         ctxTemp.strokeRect(state.startX, state.startY, w, h);
-    } else if (state.tool === "circle") {
+    } else if (shapeType === "circle") {
         const centerX = state.startX + w / 2;
         const centerY = state.startY + h / 2;
         const rx = Math.abs(w) / 2;
@@ -580,7 +698,7 @@ function drawPreviewShape(x, y) {
             );
             ctxTemp.stroke();
         }
-    } else if (state.tool === "line") {
+    } else if (shapeType === "line") {
         ctxTemp.moveTo(state.startX, state.startY);
         ctxTemp.lineTo(x, y);
         ctxTemp.stroke();
@@ -621,14 +739,16 @@ function closeTextModal() {
 function commitTextFromModal() {
     const text = textModalInput.value;
     if (text.trim() !== "") {
+        const fontSize = state.size * 3 + 14;
+        const lines = text.split("\n");
+        checkAndExpandCanvas(state.textX + 240, state.textY + lines.length * fontSize * 1.2 + 40);
+
         ctxMain.globalCompositeOperation = "source-over";
         ctxMain.fillStyle = state.color;
 
-        const fontSize = state.size * 3 + 14;
         ctxMain.font = "bold " + fontSize + "px Fredoka";
 
         const yOffset = fontSize * 0.9;
-        const lines = text.split("\n");
         lines.forEach((line, i) => {
             ctxMain.fillText(
                 line,
@@ -661,9 +781,10 @@ textModalInput.addEventListener("keydown", (e) => {
 // --- Image Support ---
 function handleImageUpload(input) {
     const file = input.files[0];
-    if (!file) return;
-    loadAndDrawImageFile(file, state.imageClickX || 0, state.imageClickY || 0);
     input.value = "";
+    if (!file) return;
+    if (file.type && !file.type.startsWith("image/")) return;
+    loadAndDrawImageFile(file, state.imageClickX || 0, state.imageClickY || 0);
 }
 
 function loadAndDrawImageFile(file, x, y) {
@@ -680,6 +801,8 @@ function loadAndDrawImageFile(file, x, y) {
                 w = Math.round(w * ratio);
                 h = Math.round(h * ratio);
             }
+            checkAndExpandCanvas(x + w, y + h);
+            ctxMain.globalCompositeOperation = "source-over";
             ctxMain.drawImage(img, x, y, w, h);
             boardPaths.push({
                 type: "image",
@@ -720,50 +843,52 @@ wrapper.addEventListener("drop", (e) => {
 
 // ✨ OPTIMIZED: Caching with early returns
 function setTool(toolName, silent = false) {
-    if (state.tool === toolName) return;
-
-    closeTextModal();
+    const changed = state.tool !== toolName;
+    if (changed && !silent) {
+        closeTextModal();
+    }
     state.tool = toolName;
 
     ctxMain.globalCompositeOperation = "source-over";
 
     document
         .querySelectorAll(".btn-tool")
-        .forEach((b) => b.classList.remove("active"));
-    const btn = document.getElementById("tool-" + toolName);
-    if (btn) btn.classList.add("active");
+        .forEach((b) => {
+            const isActive = b.id === "tool-" + toolName;
+            b.classList.toggle("active", isActive);
+            if (b.id !== "btn-undo") {
+                b.setAttribute("aria-pressed", String(isActive));
+            }
+        });
 
-    if (!silent) debounceSaveSettings();
+    if (changed && !silent) debounceSaveSettings();
 
-    if (toolName === "hand") {
-        wrapper.style.cursor = "grab";
-    } else if (toolName === "text") {
-        wrapper.style.cursor = "text";
-    } else if (toolName === "image") {
-        wrapper.style.cursor = "copy";
-    } else {
-        wrapper.style.cursor = "crosshair";
-    }
+    updateCursorForTool();
 }
 
 // ✨ OPTIMIZED: Skip redundant state changes
 function setColor(color, el, silent = false) {
-    if (state.color === color) return;
+    const changed = state.color !== color;
 
     state.color = color;
     ctxMain.strokeStyle = color;
 
-    document
-        .querySelectorAll(".color-dot")
-        .forEach((d) => d.classList.remove("selected"));
-    if (el) el.classList.add("selected");
+    if (el) {
+        document.querySelectorAll(".color-dot").forEach((d) => {
+            const isSel = d === el;
+            d.classList.toggle("selected", isSel);
+            d.setAttribute("aria-pressed", String(isSel));
+        });
+    } else {
+        syncColorDotSelection(color);
+    }
 
-    if (!silent) debounceSaveSettings();
+    if (changed && !silent) debounceSaveSettings();
 }
 
 // ✨ OPTIMIZED: Set context immediately
 function updateSize(val, silent = false) {
-    const newSize = parseInt(val);
+    const newSize = Math.max(2, Math.min(40, parseInt(val, 10) || 4));
     if (state.size === newSize) return;
 
     state.size = newSize;
@@ -774,6 +899,7 @@ function updateSize(val, silent = false) {
 
 function toggleGrid() {
     bodyBg.classList.toggle("bg-grid");
+    syncGridButtonState();
     updateView();
     debounceSaveSettings();
 }
@@ -804,30 +930,31 @@ function toggleTheme() {
         ctxMain.strokeStyle = newColor;
     }
 
+    updateThemeButtonState();
     lucide.createIcons();
     debounceSaveSettings();
 }
 
-// ✨ OPTIMIZED: Debounced IndexedDB saves
-function saveState() {
-    if (undoIndex < undoStack.length - 1) {
-        undoStack = undoStack.slice(0, undoIndex + 1);
-    }
-    undoStack.push(canvasMain.toDataURL());
-    undoIndex++;
-    if (undoStack.length > 15) {
-        undoStack.shift();
-        undoIndex--;
-    }
-
+// ✨ OPTIMIZED: Debounced IndexedDB & Cloud persistence
+function persistBoardDebounced() {
     clearTimeout(saveTimeout);
     saveTimeout = setTimeout(async () => {
         try {
-            const blob = await new Promise((resolve) =>
-                canvasMain.toBlob(resolve, "image/png", 0.92),
-            );
-            await saveToIndexedDB(blob);
-            console.log("✅ Canvas saved to IndexedDB");
+            const blob = await new Promise((resolve) => {
+                if (typeof canvasMain.toBlob === "function") {
+                    canvasMain.toBlob(resolve, "image/png", 0.92);
+                } else {
+                    resolve(null);
+                }
+            });
+            if (blob) {
+                try {
+                    await saveToIndexedDB(blob);
+                    console.log("✅ Canvas saved to IndexedDB");
+                } catch (idbErr) {
+                    console.warn("IndexedDB save skipped:", idbErr);
+                }
+            }
 
             // Sync vector paths to cloud
             await saveToCloud();
@@ -836,6 +963,21 @@ function saveState() {
             console.error("❌ Save failed:", e);
         }
     }, 1000);
+}
+
+function saveState() {
+    hasUserModifiedCanvas = true;
+    if (undoIndex < undoStack.length - 1) {
+        undoStack = undoStack.slice(0, undoIndex + 1);
+    }
+    undoStack.push(captureUndoSnapshot());
+    undoIndex = undoStack.length - 1;
+    if (undoStack.length > 15) {
+        undoStack.shift();
+        undoIndex--;
+    }
+
+    persistBoardDebounced();
 }
 
 function generateSVG() {
@@ -850,7 +992,11 @@ function generateSVG() {
             const strokeColor = path.type === "eraser" ? (isDark ? '#020617' : '#f8fafc') : path.color;
             const strokeWidth = path.type === "eraser" ? path.size * 5 : path.size;
             
-            if (path.points.length < 2) return;
+            if (!path.points || path.points.length === 0) return;
+            if (path.points.length === 1) {
+                svg += `<circle cx="${path.points[0].x}" cy="${path.points[0].y}" r="${strokeWidth / 2}" fill="${strokeColor}" />`;
+                return;
+            }
             
             let d = `M ${path.points[0].x} ${path.points[0].y}`;
             for (let i = 1; i < path.points.length; i++) {
@@ -893,8 +1039,8 @@ function generateSVG() {
 
 async function saveToCloud() {
     try {
-        // Prevent overwriting legacy image-based cloud data with empty vector paths
-        if (boardPaths.length === 0 && undoIndex < 0) {
+        // Prevent overwriting legacy image-based cloud data with empty vector paths before any user edit
+        if (boardPaths.length === 0 && !hasUserModifiedCanvas && !hasLoadedIDBBitmap) {
             return;
         }
         // Images are local-only / temporary; don't sync base64 data to cloud
@@ -921,11 +1067,13 @@ async function loadFromCloud() {
             const localImages = boardPaths.filter(p => p.type === 'image');
             boardPaths = data.boardPaths.filter(p => p.type !== 'image').concat(localImages);
             if (data.width && data.height) {
-                resizeCanvas(data.width, data.height);
+                resizeCanvas(Math.max(canvasMain.width, data.width), Math.max(canvasMain.height, data.height));
             }
-            redrawCanvas();
+            if (boardPaths.length > 0 || !hasLoadedIDBBitmap) {
+                redrawCanvas();
+            }
             console.log("✅ Loaded board from vector paths");
-        } else if (data.svgUrl) {
+        } else if (data.svgUrl && !hasLoadedIDBBitmap) {
             const img = new Image();
             img.src = data.svgUrl;
             await new Promise((resolve) => {
@@ -938,7 +1086,7 @@ async function loadFromCloud() {
                 };
                 img.onerror = resolve;
             });
-        } else if (data.image) {
+        } else if (data.image && !hasLoadedIDBBitmap) {
             // Legacy support
             const img = new Image();
             img.src = data.image;
@@ -950,6 +1098,7 @@ async function loadFromCloud() {
                     ctxMain.drawImage(img, 0, 0);
                     resolve();
                 };
+                img.onerror = resolve;
             });
         }
     } catch (e) {
@@ -958,21 +1107,35 @@ async function loadFromCloud() {
 }
 
 function undo() {
-    if (undoIndex <= 0) {
-        ctxMain.clearRect(
-            0,
-            0,
-            canvasMain.width,
-            canvasMain.height,
-        );
-        undoIndex = -1;
-        boardPaths = [];
-        redrawCanvas();
+    if (undoStack.length === 0 || undoIndex <= 0) {
         return;
     }
     undoIndex--;
-    boardPaths.pop();
-    redrawCanvas();
+    const snap = undoStack[undoIndex];
+    if (!snap) return;
+
+    boardPaths = clonePaths(snap.paths);
+    if (snap.width && snap.height && (snap.width !== canvasMain.width || snap.height !== canvasMain.height)) {
+        canvasBounds.width = snap.width;
+        canvasBounds.height = snap.height;
+        canvasMain.width = snap.width;
+        canvasMain.height = snap.height;
+        canvasTemp.width = snap.width;
+        canvasTemp.height = snap.height;
+    }
+
+    const reqId = ++latestUndoRequestId;
+    const img = new Image();
+    img.onload = () => {
+        if (reqId !== latestUndoRequestId) return;
+        ctxMain.clearRect(0, 0, canvasMain.width, canvasMain.height);
+        ctxMain.globalCompositeOperation = "source-over";
+        ctxMain.drawImage(img, 0, 0);
+        updateContextSettings();
+        hasUserModifiedCanvas = true;
+        persistBoardDebounced();
+    };
+    img.src = snap.dataUrl;
 }
 
 // ✨ OPTIMIZED: Load from IndexedDB with migration
@@ -982,19 +1145,26 @@ async function loadStorage() {
 
         if (blob) {
             const img = new Image();
-            img.src = URL.createObjectURL(blob);
+            const objUrl = URL.createObjectURL(blob);
+            img.src = objUrl;
 
             await new Promise((resolve) => {
                 img.onload = () => {
+                    const targetW = Math.max(INITIAL_CANVAS_SIZE, img.naturalWidth || INITIAL_CANVAS_SIZE);
+                    const targetH = Math.max(INITIAL_CANVAS_SIZE, img.naturalHeight || INITIAL_CANVAS_SIZE);
+                    if (targetW > canvasMain.width || targetH > canvasMain.height) {
+                        resizeCanvas(targetW, targetH);
+                    }
                     ctxMain.drawImage(img, 0, 0);
-                    URL.revokeObjectURL(img.src);
-                    // Initial stack
-                    undoStack = [canvasMain.toDataURL()];
-                    undoIndex = 0;
+                    URL.revokeObjectURL(objUrl);
+                    hasLoadedIDBBitmap = true;
                     console.log("✅ Canvas loaded from IndexedDB");
                     resolve();
                 };
-                img.onerror = resolve;
+                img.onerror = () => {
+                    URL.revokeObjectURL(objUrl);
+                    resolve();
+                };
             });
         }
 
@@ -1002,6 +1172,11 @@ async function loadStorage() {
         await loadFromCloud();
     } catch (e) {
         console.error("❌ Load failed:", e);
+    } finally {
+        if (undoStack.length === 0) {
+            undoStack = [captureUndoSnapshot()];
+            undoIndex = 0;
+        }
     }
 }
 
@@ -1105,7 +1280,9 @@ function downloadBoard() {
 }
 
 async function saveBoardCloud() {
-    saveState(); // Trigger a fresh save + cloud sync
+    hasUserModifiedCanvas = true;
+    await saveToCloud();
+    showCloudStatus();
 }
 
 function checkAndExpandCanvas(x, y) {
@@ -1113,18 +1290,15 @@ function checkAndExpandCanvas(x, y) {
     let newWidth = canvasBounds.width;
     let newHeight = canvasBounds.height;
 
-    // Check if drawing is near edges
-    if (x > canvasBounds.width - EXPANSION_PADDING) {
-        newWidth = Math.min(x + EXPANSION_PADDING, MAX_CANVAS_SIZE);
-        needsResize = true;
+    // Check if drawing is near edges without exceeding MAX_CANVAS_SIZE
+    if (x > canvasBounds.width - EXPANSION_PADDING && canvasBounds.width < MAX_CANVAS_SIZE) {
+        newWidth = Math.min(Math.ceil(x + EXPANSION_PADDING), MAX_CANVAS_SIZE);
+        if (newWidth > canvasBounds.width) needsResize = true;
     }
 
-    if (y > canvasBounds.height - EXPANSION_PADDING) {
-        newHeight = Math.min(
-            y + EXPANSION_PADDING,
-            MAX_CANVAS_SIZE,
-        );
-        needsResize = true;
+    if (y > canvasBounds.height - EXPANSION_PADDING && canvasBounds.height < MAX_CANVAS_SIZE) {
+        newHeight = Math.min(Math.ceil(y + EXPANSION_PADDING), MAX_CANVAS_SIZE);
+        if (newHeight > canvasBounds.height) needsResize = true;
     }
 
     if (needsResize) {
@@ -1150,7 +1324,8 @@ function resizeCanvas(newWidth, newHeight) {
     canvasTemp.width = newWidth;
     canvasTemp.height = newHeight;
 
-    // Restore content
+    // Restore content cleanly with source-over
+    ctxMain.globalCompositeOperation = "source-over";
     ctxMain.drawImage(tempCanvas, 0, 0);
 
     // Update bounds
@@ -1164,7 +1339,21 @@ function resizeCanvas(newWidth, newHeight) {
 }
 
 window.addEventListener("keydown", (e) => {
-    if ((e.ctrlKey || e.metaKey) && e.key === "z") {
+    if (e.key === "Escape") {
+        const clearModal = document.getElementById("clear-modal");
+        const textModal = document.getElementById("text-modal");
+        if (clearModal && !clearModal.classList.contains("hidden")) {
+            closeClearModal();
+            return;
+        }
+        if (textModal && !textModal.classList.contains("hidden")) {
+            closeTextModal();
+            return;
+        }
+    }
+
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") {
+        if (isModalOpenOrInputFocused()) return;
         e.preventDefault();
         undo();
     }
@@ -1181,6 +1370,16 @@ window.onload = async () => {
         lucide.createIcons();
     }
 
+    // Keyboard activation for color dots
+    document.querySelectorAll('.color-dot').forEach(dot => {
+        dot.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                dot.click();
+            }
+        });
+    });
+
     try {
         await requireAuth();
         await initDB();
@@ -1191,6 +1390,9 @@ window.onload = async () => {
         console.error("Initialization failed:", e);
     }
 
+    updateThemeButtonState();
+    syncGridButtonState();
+    syncColorDotSelection(state.color);
     hideAuthOverlay();
 
     // Final call after everything is loaded
