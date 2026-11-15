@@ -1915,14 +1915,14 @@ const Jeopardy = (function() {
             id: 'qb-bulk-import-overlay',
             title: 'BULK IMPORT QUIZ BOARD',
             subtitle: 'Paste plain text or AI-generated categories & Q/A pairs to build a full Jeopardy board instantly.',
-            accentColor: '#FF6B95',
+            accentColor: 'pink',
             unitLabel: 'tile',
             unitLabelPlural: 'tiles',
             guideItems: [
-                { label: 'Board Title', syntax: '## My Quiz Title', color: '#2979FF', desc: 'Optional board title & optional @points 100 @timer 20 @teams 4.' },
-                { label: 'Category Column', syntax: '== Category Name', color: '#FF6B95', desc: 'Starts a new board column (2–6 recommended). [Name] also works.' },
-                { label: 'Question & Answer', syntax: '- Question\n= Answer', color: '#00E676', desc: 'One pair per tile. Q:/A: or numbered 1. lines also supported.' },
-                { label: 'Points & Bonus', syntax: '@400 or *bonus', color: '#FF8C42', desc: 'Optional custom points or ★ surprise bonus tile anywhere on the line.' }
+                { label: 'Board Title', syntax: '## My Quiz Title', color: 'blue', desc: 'Optional board title & optional @points 100 @timer 20 @teams 4.' },
+                { label: 'Category Column', syntax: '== Category Name', color: 'pink', desc: 'Starts a new board column (2–6 recommended). [Name] also works.' },
+                { label: 'Question & Answer', syntax: '- Question\n= Answer', color: 'green', desc: 'One pair per tile. Q:/A: or numbered 1. lines also supported.' },
+                { label: 'Points & Bonus', syntax: '@400 or *bonus', color: 'orange', desc: 'Optional custom points or ★ surprise bonus tile anywhere on the line.' }
             ],
             tips: [
                 '<strong>AI Prompt Shortcut:</strong> Ask any AI to output a 4×4 Jeopardy quiz using <code class="px-1 rounded bg-slate-200 dark:bg-slate-700 font-mono">== Category</code> headings, <code class="px-1 rounded bg-slate-200 dark:bg-slate-700 font-mono">- Question</code>, and <code class="px-1 rounded bg-slate-200 dark:bg-slate-700 font-mono">= Answer</code>.',
