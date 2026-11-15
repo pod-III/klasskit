@@ -11,6 +11,17 @@
     <link rel="icon" type="image/x-icon" href="../../../media/icon.ico" />
     <link rel="icon" type="image/webp" href="../../../media/icon.webp" />
 
+    <!-- Early Theme Init -->
+    <script>
+        (function () {
+            const saved = localStorage.getItem('theme_connect-four');
+            const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+            if (saved === 'dark' || (!saved && prefersDark)) {
+                document.documentElement.classList.add('dark');
+            }
+        })();
+    </script>
+
     <script src="https://unpkg.com/lucide@1.16.0"></script>
     <script src="https://cdn.tailwindcss.com"></script>
 
@@ -32,54 +43,57 @@
                         blue: '#1ea7fd',
                         purple: '#a855f7',
                         yellow: '#facc15',
-                        dark: '#111827',
+                        dark: '#1e293b',
                         chalk: '#f8fafc',
                     },
                     fontFamily: {
                         heading: ['Fredoka', 'sans-serif'],
                         body: ['Nunito', 'sans-serif'],
                     },
+                    borderWidth: {
+                        '3': '3px',
+                    },
                     boxShadow: {
-                        'hard': '4px 4px 0px 0px rgba(17, 24, 39, 1)',
-                        'hard-lg': '8px 8px 0px 0px rgba(17, 24, 39, 1)',
-                        'hard-xl': '12px 12px 0px 0px rgba(17, 24, 39, 1)',
+                        'hard': '4px 4px 0px 0px #1e293b',
+                        'hard-sm': '2px 2px 0px 0px #1e293b',
+                        'hard-lg': '8px 8px 0px 0px #1e293b',
+                        'hard-xl': '12px 12px 0px 0px #1e293b',
                     }
                 }
             }
         }
     </script>
 
+    <link rel="stylesheet" href="../../../css/base.css" />
+    <link rel="stylesheet" href="../../../css/components.css" />
+
     <style>
-        /* Desktop-Focused Background */
+        :focus-visible {
+            outline: 3px solid #1ea7fd;
+            outline-offset: 2px;
+        }
+
         body {
-            background-color: #f8fafc;
-            background-image:
-                radial-gradient(#cbd5e1 2px, transparent 2px);
-            background-size: 32px 32px;
             transition: background-color 0.3s ease;
-            min-height: 100dvh; /* Swapped to min-height and dvh for better iPad/iOS support */
-            overflow-x: hidden; /* Only prevent horizontal scrolling */
+            min-height: 100dvh;
+            overflow-x: hidden;
             touch-action: manipulation;
         }
 
-        .dark body {
-            background-color: #0f172a;
-            background-image:
-                radial-gradient(#1e293b 2px, transparent 2px);
+        .dark .shadow-hard {
+            box-shadow: 4px 4px 0px 0px #000000;
         }
 
-        /* --- SCALING LOGIC FOR CHROMEBOOK/LAPTOPS --- */
-        @media (max-height: 800px) and (min-width: 1024px) {
-            #game-root {
-                transform: scale(0.85);
-                transform-origin: top center;
-            }
-            header {
-                height: 3.5rem !important;
-            }
-            .header-content {
-                height: 3.5rem !important;
-            }
+        .dark .shadow-hard-sm {
+            box-shadow: 2px 2px 0px 0px #000000;
+        }
+
+        .dark .shadow-hard-lg {
+            box-shadow: 8px 8px 0px 0px #000000;
+        }
+
+        .dark .shadow-hard-xl {
+            box-shadow: 12px 12px 0px 0px #000000;
         }
 
         /* Gravity Animation */
@@ -107,7 +121,7 @@
             width: 82%;
             height: 82%;
             border-radius: 50%;
-            border: 4px solid rgba(30, 41, 59, 0.8);
+            border: 4px solid rgba(30, 41, 59, 0.85);
             box-shadow:
                 inset 4px 4px 8px rgba(255, 255, 255, 0.4),
                 inset -4px -4px 8px rgba(0, 0, 0, 0.2),
@@ -155,27 +169,35 @@
         }
 
         .btn-chunky {
-            transition: all 0.1s;
+            transition: transform 0.12s ease, box-shadow 0.12s ease, background-color 0.15s ease;
         }
 
-        .btn-chunky:hover {
-            transform: translateY(-4px) rotate(1deg);
-            box-shadow: 8px 8px 0px 0px rgba(17, 24, 39, 1);
+        .btn-chunky:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 6px 6px 0px 0px #1e293b;
         }
 
-        .btn-chunky:active {
-            transform: translateY(2px) scale(0.98);
-            box-shadow: 2px 2px 0px 0px rgba(17, 24, 39, 1);
+        .dark .btn-chunky:hover:not(:disabled) {
+            box-shadow: 6px 6px 0px 0px #000000;
+        }
+
+        .btn-chunky:active:not(:disabled) {
+            transform: translateY(3px);
+            box-shadow: 0px 0px 0px 0px #1e293b;
+        }
+
+        .dark .btn-chunky:active:not(:disabled) {
+            box-shadow: 0px 0px 0px 0px #000000;
         }
 
         .board-glare {
-            background: linear-gradient(135deg, rgba(255, 255, 255, 0.3) 0%, transparent 50%, rgba(255, 255, 255, 0.1) 100%);
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.28) 0%, transparent 50%, rgba(255, 255, 255, 0.1) 100%);
             pointer-events: none;
         }
 
         /* Modal Entrance */
         .animate-pop-in {
-            animation: popIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+            animation: popIn 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
         }
 
         @keyframes popIn {
@@ -183,80 +205,73 @@
             100% { transform: scale(1); opacity: 1; }
         }
 
-        /* Glassmorphism Classes */
-        .glass-header {
-            background: rgba(255, 255, 255, 0.8);
-            backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
-            border-bottom: 4px solid #111827;
-        }
-
-        .dark .glass-header {
-            background: rgba(15, 23, 42, 0.8);
-            border-bottom-color: #334155;
-        }
-
         .player-card-active {
-            box-shadow: 0 0 0 4px var(--active-color), 12px 12px 0px 0px rgba(17, 24, 39, 1) !important;
-            transform: translateY(-8px) rotate(-1deg) !important;
+            box-shadow: 0 0 0 4px var(--active-color), 10px 10px 0px 0px #1e293b !important;
+            transform: translateY(-6px) rotate(-1deg) !important;
+        }
+
+        .dark .player-card-active {
+            box-shadow: 0 0 0 4px var(--active-color), 10px 10px 0px 0px #000000 !important;
         }
 
         .player-card-inactive {
             opacity: 0.6;
             filter: grayscale(0.4);
         }
-        
-        select {
-            appearance: none;
-            background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
-            background-repeat: no-repeat;
-            background-position: right 1rem center;
-            background-size: 1.2em;
-        }
     </style>
-    <link rel="stylesheet" href="../../../css/base.css" />
-    <link rel="stylesheet" href="../../../css/components.css" />
 
 </head>
 
-<body class="min-h-screen font-body text-dark dark:text-white flex flex-col"
+<body class="min-h-screen font-body text-dark dark:text-white flex flex-col transition-colors duration-300"
     onkeydown="Game.handleKey(event)">
 
+    <!-- Tailwind dynamic color safelist -->
     <div class="hidden bg-pink bg-green bg-orange bg-blue bg-purple bg-yellow text-pink text-green text-orange text-blue text-purple text-yellow"></div>
 
-    <header class="glass-header sticky top-0 z-50 transition-all">
-        <div class="max-w-7xl mx-auto px-4 h-20 header-content flex justify-between items-center">
-            <div class="flex items-center gap-4">
-                <div class="w-12 h-12 bg-blue rounded-2xl border-4 border-dark shadow-hard flex items-center justify-center text-white transform -rotate-3">
-                    <i data-lucide="layout-grid" class="w-7 h-7"></i>
+    <!-- Unified Top Glassmorphic Header -->
+    <header class="sticky top-0 z-50 glass-panel border-b-4 border-dark dark:border-slate-500 px-4 py-2.5 transition-all">
+        <div class="max-w-7xl mx-auto flex justify-between items-center gap-3">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 bg-blue rounded-xl border-3 border-dark dark:border-slate-500 shadow-hard-sm flex items-center justify-center text-white transform -rotate-3 shrink-0">
+                    <i data-lucide="layout-grid" class="w-6 h-6"></i>
                 </div>
                 <div>
-                    <h1 class="font-heading text-2xl font-bold tracking-tight leading-none uppercase">Connect Four</h1>
-                    <p class="text-[0.6rem] font-black opacity-40 uppercase tracking-[0.2em] mt-1">Strategic Battle</p>
+                    <h1 class="font-heading text-xl sm:text-2xl font-bold tracking-tight leading-none uppercase">Connect Four</h1>
+                    <p class="text-[10px] font-black text-slate-400 dark:text-slate-400 uppercase tracking-[0.2em] mt-0.5">Strategic Battle</p>
                 </div>
             </div>
 
-            <div class="flex gap-2 md:gap-3">
-                <button onclick="toggleTheme()"
-                    class="w-10 h-10 rounded-xl bg-chalk dark:bg-slate-700 border-2 border-dark dark:border-slate-500 shadow-hard flex items-center justify-center hover:scale-105 transition-all">
+            <div class="flex items-center gap-2">
+                <button onclick="SoundEngine.toggleMute()" id="sound-btn" type="button"
+                    class="btn-chunky w-10 h-10 rounded-xl bg-white dark:bg-slate-800 border-3 border-dark dark:border-slate-500 shadow-hard-sm flex items-center justify-center"
+                    title="Toggle Sound" aria-label="Toggle Sound" aria-pressed="true">
+                    <i data-lucide="volume-2" class="w-5 h-5"></i>
+                </button>
+
+                <button onclick="toggleTheme()" id="theme-btn" type="button"
+                    class="btn-chunky w-10 h-10 rounded-xl bg-white dark:bg-slate-800 border-3 border-dark dark:border-slate-500 shadow-hard-sm flex items-center justify-center"
+                    title="Toggle Dark Mode" aria-label="Toggle Dark Mode">
                     <i data-lucide="moon" class="w-5 h-5 dark:hidden"></i>
                     <i data-lucide="sun" class="w-5 h-5 hidden dark:block text-orange"></i>
                 </button>
-                
-                <button onclick="SoundEngine.playClick(); document.getElementById('setup-modal').style.display = 'flex';"
-                    class="btn-chunky px-3 md:px-5 bg-pink text-white font-heading font-bold rounded-xl border-2 border-dark shadow-hard flex items-center gap-2 text-xs md:text-sm">
+
+                <button onclick="SoundEngine.playClick(); Game.openSetup()" type="button"
+                    class="btn-chunky px-3 md:px-4 h-10 bg-pink text-white font-heading font-bold rounded-xl border-3 border-dark dark:border-slate-500 shadow-hard-sm flex items-center gap-2 text-xs md:text-sm"
+                    aria-label="Open Setup">
                     <i data-lucide="settings" class="w-4 h-4"></i>
                     <span class="hidden sm:inline">SETUP</span>
                 </button>
 
-                <button onclick="Game.undoMove(); SoundEngine.playClick()"
-                    class="btn-chunky px-3 md:px-5 bg-orange text-white font-heading font-bold rounded-xl border-2 border-dark shadow-hard flex items-center gap-2 text-xs md:text-sm">
+                <button onclick="Game.undoMove(); SoundEngine.playClick()" id="undo-btn" type="button"
+                    class="btn-chunky px-3 md:px-4 h-10 bg-orange text-white font-heading font-bold rounded-xl border-3 border-dark dark:border-slate-500 shadow-hard-sm flex items-center gap-2 text-xs md:text-sm"
+                    title="Undo Last Move (Z)" aria-label="Undo Move">
                     <i data-lucide="undo-2" class="w-4 h-4"></i>
                     <span class="hidden sm:inline">UNDO</span>
                 </button>
 
-                <button onclick="Game.showResetModal(); SoundEngine.playClick()"
-                    class="btn-chunky px-3 md:px-5 bg-blue text-white font-heading font-bold rounded-xl border-2 border-dark shadow-hard flex items-center gap-2 text-xs md:text-sm">
+                <button onclick="Game.showResetModal(); SoundEngine.playClick()" type="button"
+                    class="btn-chunky px-3 md:px-4 h-10 bg-blue text-white font-heading font-bold rounded-xl border-3 border-dark dark:border-slate-500 shadow-hard-sm flex items-center gap-2 text-xs md:text-sm"
+                    title="Reset Board (R)" aria-label="Reset Board">
                     <i data-lucide="rotate-ccw" class="w-4 h-4"></i>
                     <span class="hidden sm:inline">RESET</span>
                 </button>
@@ -264,63 +279,63 @@
         </div>
     </header>
 
-    <main id="game-root" class="flex-1 flex items-start pt-4 md:pt-8 justify-center pb-8 overflow-visible">
+    <main id="game-root" class="flex-1 flex items-center pt-4 md:pt-5 justify-center pb-6 overflow-visible">
 
-        <div class="w-full max-w-[1300px] grid grid-cols-2 lg:grid-cols-[250px_1fr_250px] gap-4 lg:gap-8 items-start justify-items-center px-4 lg:px-0">
+        <div class="w-full max-w-[1240px] grid grid-cols-2 lg:grid-cols-[230px_1fr_230px] gap-4 lg:gap-6 items-center justify-items-center px-4">
 
             <div id="p1-card"
-                class="col-span-1 lg:col-span-1 order-1 w-full max-w-[300px] lg:max-w-none bg-white dark:bg-slate-800 p-6 rounded-[2.5rem] border-4 border-dark dark:border-slate-500 shadow-hard-lg flex flex-col items-center gap-2 relative transition-all duration-500 transform mt-8 lg:mt-0 hover:rotate-1">
-                <div id="p1-icon-container" class="absolute -top-7 bg-pink p-4 rounded-2xl border-4 border-dark shadow-hard text-white transition-all duration-300">
-                    <i data-lucide="users" class="w-7 h-7"></i>
+                class="col-span-1 lg:col-span-1 order-1 w-full max-w-[260px] lg:max-w-none bg-white/95 dark:bg-slate-800/95 backdrop-blur-md p-5 rounded-3xl border-4 border-dark dark:border-slate-500 shadow-hard-lg flex flex-col items-center gap-2 relative transition-all duration-500 transform mt-6 lg:mt-0 hover:rotate-1">
+                <div id="p1-icon-container" class="absolute -top-6 bg-pink p-3.5 rounded-2xl border-4 border-dark dark:border-slate-500 shadow-hard text-white transition-all duration-300">
+                    <i data-lucide="users" class="w-6 h-6"></i>
                 </div>
-                <h2 id="p1-name-display" class="font-heading text-2xl font-bold mt-6 text-center truncate w-full uppercase tracking-tight">Team 1</h2>
-                <div class="text-6xl md:text-7xl lg:text-8xl font-black text-pink drop-shadow-md transition-colors leading-none my-2" id="p1-score">0</div>
-                <div class="w-full h-4 bg-gray-200 dark:bg-slate-900 rounded-full mt-2 overflow-hidden border-2 border-dark">
+                <h2 id="p1-name-display" class="font-heading text-xl sm:text-2xl font-bold mt-5 text-center truncate w-full uppercase tracking-tight">Team 1</h2>
+                <div class="text-5xl md:text-6xl lg:text-7xl font-black text-pink drop-shadow-sm transition-colors leading-none my-1" id="p1-score">0</div>
+                <div class="w-full h-3.5 bg-gray-200 dark:bg-slate-900 rounded-full mt-1 overflow-hidden border-2 border-dark dark:border-slate-500">
                     <div id="p1-turn-bar" class="h-full bg-pink w-0 transition-all duration-700 ease-out"></div>
                 </div>
             </div>
 
             <div id="p2-card"
-                class="col-span-1 lg:col-span-1 order-2 lg:order-3 w-full max-w-[300px] lg:max-w-none bg-white dark:bg-slate-800 p-6 rounded-[2.5rem] border-4 border-dark dark:border-slate-500 shadow-hard-lg flex flex-col items-center gap-2 relative transition-all duration-500 transform mt-8 lg:mt-0 opacity-50 grayscale hover:-rotate-1">
-                <div id="p2-icon-container" class="absolute -top-7 bg-green p-4 rounded-2xl border-4 border-dark shadow-hard text-white transition-all duration-300">
-                    <i data-lucide="users" class="w-7 h-7"></i>
+                class="col-span-1 lg:col-span-1 order-2 lg:order-3 w-full max-w-[260px] lg:max-w-none bg-white/95 dark:bg-slate-800/95 backdrop-blur-md p-5 rounded-3xl border-4 border-dark dark:border-slate-500 shadow-hard-lg flex flex-col items-center gap-2 relative transition-all duration-500 transform mt-6 lg:mt-0 opacity-50 grayscale hover:-rotate-1">
+                <div id="p2-icon-container" class="absolute -top-6 bg-green p-3.5 rounded-2xl border-4 border-dark dark:border-slate-500 shadow-hard text-white transition-all duration-300">
+                    <i data-lucide="users" class="w-6 h-6"></i>
                 </div>
-                <h2 id="p2-name-display" class="font-heading text-2xl font-bold mt-6 text-center truncate w-full uppercase tracking-tight">Team 2</h2>
-                <div class="text-6xl md:text-7xl lg:text-8xl font-black text-green drop-shadow-md transition-colors leading-none my-2" id="p2-score">0</div>
-                <div class="w-full h-4 bg-gray-200 dark:bg-slate-900 rounded-full mt-2 overflow-hidden border-2 border-dark">
+                <h2 id="p2-name-display" class="font-heading text-xl sm:text-2xl font-bold mt-5 text-center truncate w-full uppercase tracking-tight">Team 2</h2>
+                <div class="text-5xl md:text-6xl lg:text-7xl font-black text-green drop-shadow-sm transition-colors leading-none my-1" id="p2-score">0</div>
+                <div class="w-full h-3.5 bg-gray-200 dark:bg-slate-900 rounded-full mt-1 overflow-hidden border-2 border-dark dark:border-slate-500">
                     <div id="p2-turn-bar" class="h-full bg-green w-0 transition-all duration-700 ease-out"></div>
                 </div>
             </div>
 
-            <div class="col-span-2 lg:col-span-1 order-3 lg:order-2 flex flex-col items-center relative z-10 w-full mt-4 lg:mt-0">
+            <div class="col-span-2 lg:col-span-1 order-3 lg:order-2 flex flex-col items-center relative z-10 w-full mt-2 lg:mt-0">
 
                 <div id="status-bubble"
-                    class="mb-6 px-10 py-3 bg-dark text-white font-heading text-xl font-bold rounded-2xl border-4 border-dark shadow-hard flex items-center gap-4 transform -rotate-1">
-                    <div id="status-icon" class="w-4 h-4 rounded-full bg-pink animate-ping"></div>
+                    class="mb-4 px-8 py-2.5 bg-dark dark:bg-slate-800 text-white font-heading text-lg sm:text-xl font-bold rounded-2xl border-4 border-dark dark:border-slate-500 shadow-hard flex items-center gap-3 transform -rotate-1">
+                    <div id="status-icon" class="w-3.5 h-3.5 rounded-full bg-pink animate-ping"></div>
                     <span id="status-text" class="tracking-tight">PREPARING...</span>
                 </div>
 
                 <div class="relative">
-                    <div class="absolute -bottom-6 -left-4 w-6 h-20 bg-blue-800 border-4 border-dark rounded-full -z-10 transform rotate-12"></div>
-                    <div class="absolute -bottom-6 -right-4 w-6 h-20 bg-blue-800 border-4 border-dark rounded-full -z-10 transform -rotate-12"></div>
+                    <div class="absolute -bottom-5 -left-4 w-5 h-16 bg-blue-800 dark:bg-slate-700 border-4 border-dark dark:border-slate-500 rounded-full -z-10 transform rotate-12"></div>
+                    <div class="absolute -bottom-5 -right-4 w-5 h-16 bg-blue-800 dark:bg-slate-700 border-4 border-dark dark:border-slate-500 rounded-full -z-10 transform -rotate-12"></div>
 
                     <div id="board-shell"
-                        class="relative p-3 md:p-5 bg-blue dark:bg-slate-800 rounded-[2.5rem] border-4 border-dark shadow-hard-xl transition-all cursor-pointer hover:shadow-[16px_16px_0px_0px_rgba(17,24,39,1)]">
+                        class="relative p-3 md:p-4 bg-blue dark:bg-slate-800 rounded-[2.2rem] border-4 border-dark dark:border-slate-500 shadow-hard-xl transition-all cursor-pointer">
 
-                        <div class="absolute inset-0 board-glare rounded-[2.3rem] z-20"></div>
+                        <div class="absolute inset-0 board-glare rounded-[2rem] z-20"></div>
 
-                        <div class="grid grid-cols-7 gap-2 px-4 mb-3">
-                            <div class="col-indicator w-full h-4 rounded-full bg-transparent transition-all duration-300" id="ind-0"></div>
-                            <div class="col-indicator w-full h-4 rounded-full bg-transparent transition-all duration-300" id="ind-1"></div>
-                            <div class="col-indicator w-full h-4 rounded-full bg-transparent transition-all duration-300" id="ind-2"></div>
-                            <div class="col-indicator w-full h-4 rounded-full bg-transparent transition-all duration-300" id="ind-3"></div>
-                            <div class="col-indicator w-full h-4 rounded-full bg-transparent transition-all duration-300" id="ind-4"></div>
-                            <div class="col-indicator w-full h-4 rounded-full bg-transparent transition-all duration-300" id="ind-5"></div>
-                            <div class="col-indicator w-full h-4 rounded-full bg-transparent transition-all duration-300" id="ind-6"></div>
+                        <div class="grid grid-cols-7 gap-2 px-3 mb-2">
+                            <div class="col-indicator w-full h-3.5 rounded-full bg-transparent transition-all duration-300" id="ind-0"></div>
+                            <div class="col-indicator w-full h-3.5 rounded-full bg-transparent transition-all duration-300" id="ind-1"></div>
+                            <div class="col-indicator w-full h-3.5 rounded-full bg-transparent transition-all duration-300" id="ind-2"></div>
+                            <div class="col-indicator w-full h-3.5 rounded-full bg-transparent transition-all duration-300" id="ind-3"></div>
+                            <div class="col-indicator w-full h-3.5 rounded-full bg-transparent transition-all duration-300" id="ind-4"></div>
+                            <div class="col-indicator w-full h-3.5 rounded-full bg-transparent transition-all duration-300" id="ind-5"></div>
+                            <div class="col-indicator w-full h-3.5 rounded-full bg-transparent transition-all duration-300" id="ind-6"></div>
                         </div>
 
                         <div id="game-grid"
-                            class="grid grid-cols-7 gap-1.5 sm:gap-3 p-4 bg-blue-700/40 dark:bg-slate-900/40 rounded-[1.8rem] border-4 border-dark/30">
+                            class="grid grid-cols-7 gap-1.5 sm:gap-2.5 p-3 sm:p-3.5 bg-blue-700/40 dark:bg-slate-900/50 rounded-[1.5rem] border-4 border-dark/30 dark:border-slate-600/60">
                         </div>
                     </div>
                 </div>
@@ -331,28 +346,32 @@
 
     <div id="setup-modal"
         class="fixed inset-0 bg-dark/80 backdrop-blur-xl z-[100] flex items-center justify-center p-4">
-        <div class="bg-white dark:bg-slate-800 w-full max-w-md p-10 rounded-[3rem] border-4 border-dark shadow-hard-xl max-h-[90vh] overflow-y-auto animate-pop-in">
-            <h2 class="text-3xl font-heading font-bold text-center mb-6">Class Match</h2>
-            
-            <div class="space-y-6">
-                <div class="bg-chalk dark:bg-slate-900 p-5 rounded-[2rem] border-2 border-dark shadow-hard-sm">
-                    <label class="font-heading font-bold text-dark dark:text-white text-sm ml-1 block mb-3 uppercase tracking-wider">Team 1</label>
-                    <div class="space-y-4">
-                        <input type="text" id="input-p1" value="Team 1" placeholder="Enter name..." 
-                            class="w-full bg-white dark:bg-slate-800 border-2 border-dark rounded-xl p-3 font-bold outline-none focus:ring-2 ring-blue/50 transition-all">
-                        
+        <div class="bg-white dark:bg-slate-800 w-full max-w-md p-6 sm:p-8 rounded-3xl border-4 border-dark dark:border-slate-500 shadow-hard-xl max-h-[92vh] overflow-y-auto custom-scrollbar animate-pop-in relative">
+            <button onclick="Game.closeSetup()" id="setup-close-btn" type="button" aria-label="Close Setup"
+                class="hidden absolute top-5 right-5 p-1.5 rounded-xl text-slate-400 hover:text-pink hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
+                <i data-lucide="x" class="w-6 h-6"></i>
+            </button>
+            <h2 class="text-2xl sm:text-3xl font-heading font-bold text-center mb-5 uppercase">Class Match</h2>
+
+            <div class="space-y-4">
+                <div class="bg-chalk dark:bg-slate-900 p-4 rounded-2xl border-2 border-dark dark:border-slate-500 shadow-hard-sm">
+                    <label for="input-p1" class="font-heading font-bold text-dark dark:text-white text-xs ml-1 block mb-2 uppercase tracking-wider">Team 1</label>
+                    <div class="space-y-3">
+                        <input type="text" id="input-p1" value="Team 1" placeholder="Enter name..."
+                            class="w-full bg-white dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-xl p-2.5 font-bold outline-none focus:ring-2 ring-blue/50 transition-all">
+
                         <div class="flex flex-wrap gap-2 justify-center" id="color-picker-p1">
                             <!-- JS will populate -->
                         </div>
                     </div>
                 </div>
 
-                <div class="bg-chalk dark:bg-slate-900 p-5 rounded-[2rem] border-2 border-dark shadow-hard-sm">
-                    <label class="font-heading font-bold text-dark dark:text-white text-sm ml-1 block mb-3 uppercase tracking-wider">Team 2</label>
-                    <div class="space-y-4">
-                        <input type="text" id="input-p2" value="Team 2" placeholder="Enter name..." 
-                            class="w-full bg-white dark:bg-slate-800 border-2 border-dark rounded-xl p-3 font-bold outline-none focus:ring-2 ring-blue/50 transition-all">
-                        
+                <div class="bg-chalk dark:bg-slate-900 p-4 rounded-2xl border-2 border-dark dark:border-slate-500 shadow-hard-sm">
+                    <label for="input-p2" class="font-heading font-bold text-dark dark:text-white text-xs ml-1 block mb-2 uppercase tracking-wider">Team 2</label>
+                    <div class="space-y-3">
+                        <input type="text" id="input-p2" value="Team 2" placeholder="Enter name..."
+                            class="w-full bg-white dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-xl p-2.5 font-bold outline-none focus:ring-2 ring-blue/50 transition-all">
+
                         <div class="flex flex-wrap gap-2 justify-center" id="color-picker-p2">
                             <!-- JS will populate -->
                         </div>
@@ -360,8 +379,8 @@
                 </div>
             </div>
 
-            <button onclick="Game.init(); SoundEngine.playClick()"
-                class="btn-chunky w-full mt-6 bg-blue text-white font-heading font-bold text-xl py-4 rounded-2xl border-4 border-dark shadow-hard hover:bg-blue-600">
+            <button onclick="Game.init(); SoundEngine.playClick()" type="button"
+                class="btn-chunky w-full mt-5 bg-blue text-white font-heading font-bold text-xl py-3.5 rounded-2xl border-4 border-dark dark:border-slate-500 shadow-hard">
                 START MATCH
             </button>
         </div>
@@ -370,20 +389,20 @@
     <div id="winner-modal"
         class="hidden fixed inset-0 bg-dark/80 backdrop-blur-xl z-[110] flex items-center justify-center p-4">
         <div
-            class="bg-white dark:bg-slate-800 w-full max-w-md p-12 rounded-[3.5rem] border-4 border-dark shadow-hard-xl text-center transform animate-pop-in">
+            class="bg-white dark:bg-slate-800 w-full max-w-md p-8 sm:p-10 rounded-3xl border-4 border-dark dark:border-slate-500 shadow-hard-xl text-center transform animate-pop-in">
             <div id="winner-crown"
-                class="w-24 h-24 mx-auto mb-6 bg-orange rounded-[1.5rem] border-4 border-dark shadow-hard flex items-center justify-center rotate-6">
-                <i data-lucide="trophy" class="w-12 h-12 text-white"></i>
+                class="w-20 h-20 mx-auto mb-5 bg-orange rounded-2xl border-4 border-dark dark:border-slate-500 shadow-hard flex items-center justify-center rotate-6">
+                <i data-lucide="trophy" class="w-10 h-10 text-white"></i>
             </div>
-            <h3 class="text-lg font-heading font-bold opacity-50 uppercase mb-1">WINNER</h3>
-            <h2 id="winner-name" class="text-4xl font-heading font-bold text-pink mb-8 leading-tight tracking-tight">
+            <h3 class="text-base font-heading font-bold opacity-50 uppercase mb-1">WINNER</h3>
+            <h2 id="winner-name" class="text-3xl sm:text-4xl font-heading font-bold text-pink mb-6 leading-tight tracking-tight">
                 PLAYER</h2>
-            <button onclick="Game.resetBoard(); SoundEngine.playClick()"
-                class="btn-chunky w-full bg-green text-white font-heading font-bold py-4 rounded-2xl border-4 border-dark shadow-hard text-2xl mb-4">
+            <button onclick="Game.resetBoard(); SoundEngine.playClick()" type="button"
+                class="btn-chunky w-full bg-green text-dark font-heading font-bold py-3.5 rounded-2xl border-4 border-dark dark:border-slate-500 shadow-hard text-xl mb-3">
                 PLAY AGAIN
             </button>
-            <button onclick="Game.closeWinnerModal(); SoundEngine.playClick()"
-                class="font-heading font-bold text-dark dark:text-white opacity-40 hover:opacity-100 transition-all uppercase tracking-widest text-xs">
+            <button onclick="Game.closeWinnerModal(); SoundEngine.playClick()" type="button"
+                class="font-heading font-bold text-dark dark:text-white opacity-50 hover:opacity-100 transition-all uppercase tracking-widest text-xs">
                 View Board
             </button>
         </div>
@@ -392,20 +411,20 @@
     <div id="draw-modal"
         class="hidden fixed inset-0 bg-dark/80 backdrop-blur-xl z-[110] flex items-center justify-center p-4">
         <div
-            class="bg-white dark:bg-slate-800 w-full max-w-md p-12 rounded-[3.5rem] border-4 border-dark shadow-hard-xl text-center transform animate-pop-in">
+            class="bg-white dark:bg-slate-800 w-full max-w-md p-8 sm:p-10 rounded-3xl border-4 border-dark dark:border-slate-500 shadow-hard-xl text-center transform animate-pop-in">
             <div
-                class="w-24 h-24 mx-auto mb-6 bg-blue rounded-[1.5rem] border-4 border-dark shadow-hard flex items-center justify-center -rotate-6">
-                <i data-lucide="scale" class="w-12 h-12 text-white"></i>
+                class="w-20 h-20 mx-auto mb-5 bg-blue rounded-2xl border-4 border-dark dark:border-slate-500 shadow-hard flex items-center justify-center -rotate-6">
+                <i data-lucide="scale" class="w-10 h-10 text-white"></i>
             </div>
-            <h3 class="text-lg font-heading font-bold opacity-50 uppercase mb-1">BOARD FULL</h3>
-            <h2 class="text-4xl font-heading font-bold text-blue mb-8 leading-tight tracking-tight">
+            <h3 class="text-base font-heading font-bold opacity-50 uppercase mb-1">BOARD FULL</h3>
+            <h2 class="text-3xl sm:text-4xl font-heading font-bold text-blue mb-6 leading-tight tracking-tight">
                 IT'S A DRAW!</h2>
-            <button onclick="Game.resetBoard(); SoundEngine.playClick()"
-                class="btn-chunky w-full bg-green text-white font-heading font-bold py-4 rounded-2xl border-4 border-dark shadow-hard text-2xl mb-4">
+            <button onclick="Game.resetBoard(); SoundEngine.playClick()" type="button"
+                class="btn-chunky w-full bg-green text-dark font-heading font-bold py-3.5 rounded-2xl border-4 border-dark dark:border-slate-500 shadow-hard text-xl mb-3">
                 PLAY AGAIN
             </button>
-            <button onclick="Game.closeDrawModal(); SoundEngine.playClick()"
-                class="font-heading font-bold text-dark dark:text-white opacity-40 hover:opacity-100 transition-all uppercase tracking-widest text-xs">
+            <button onclick="Game.closeDrawModal(); SoundEngine.playClick()" type="button"
+                class="font-heading font-bold text-dark dark:text-white opacity-50 hover:opacity-100 transition-all uppercase tracking-widest text-xs">
                 View Board
             </button>
         </div>
@@ -414,22 +433,26 @@
     <div id="reset-modal"
         class="hidden fixed inset-0 bg-dark/80 backdrop-blur-xl z-[120] flex items-center justify-center p-4">
         <div
-            class="bg-white dark:bg-slate-800 w-full max-w-md p-10 rounded-[3rem] border-4 border-dark shadow-hard-xl text-center animate-pop-in">
+            class="bg-white dark:bg-slate-800 w-full max-w-md p-8 rounded-3xl border-4 border-dark dark:border-slate-500 shadow-hard-xl text-center animate-pop-in">
             <div
-                class="w-24 h-24 mx-auto mb-6 bg-pink rounded-[1.5rem] border-4 border-dark shadow-hard flex items-center justify-center rotate-3">
-                <i data-lucide="alert-triangle" class="w-12 h-12 text-white"></i>
+                class="w-20 h-20 mx-auto mb-5 bg-pink rounded-2xl border-4 border-dark dark:border-slate-500 shadow-hard flex items-center justify-center rotate-3">
+                <i data-lucide="alert-triangle" class="w-10 h-10 text-white"></i>
             </div>
-            <h3 class="text-lg font-heading font-bold opacity-50 uppercase mb-1">WARNING</h3>
-            <h2 class="text-3xl font-heading font-bold text-pink mb-4 leading-tight tracking-tight">
+            <h3 class="text-base font-heading font-bold opacity-50 uppercase mb-1">WARNING</h3>
+            <h2 class="text-2xl sm:text-3xl font-heading font-bold text-pink mb-3 leading-tight tracking-tight">
                 RESET BOARD?</h2>
-            <p class="text-sm font-bold opacity-70 mb-8 px-4">This action is irreversible and will clear all progress for this match.</p>
+            <p class="text-sm font-bold opacity-70 mb-6 px-2">Clear all pieces from the current board, or start fresh with 0–0 scores.</p>
             <div class="flex flex-col gap-3">
-                <button onclick="Game.resetBoard(); Game.hideResetModal(); SoundEngine.playClick()"
-                    class="btn-chunky w-full bg-pink text-white font-heading font-bold py-4 rounded-2xl border-4 border-dark shadow-hard text-xl">
-                    YES, RESET
+                <button onclick="Game.resetBoard(); Game.hideResetModal(); SoundEngine.playClick()" type="button"
+                    class="btn-chunky w-full bg-pink text-white font-heading font-bold py-3.5 rounded-2xl border-4 border-dark dark:border-slate-500 shadow-hard text-lg">
+                    YES, RESET BOARD
                 </button>
-                <button onclick="Game.hideResetModal(); SoundEngine.playClick()"
-                    class="font-heading font-bold text-dark dark:text-white opacity-40 hover:opacity-100 transition-all uppercase tracking-widest text-xs py-2">
+                <button onclick="Game.resetScoresAndBoard(); Game.hideResetModal(); SoundEngine.playClick()" type="button"
+                    class="btn-chunky w-full bg-orange text-white font-heading font-bold py-3 rounded-2xl border-4 border-dark dark:border-slate-500 shadow-hard text-base">
+                    RESET BOARD &amp; SCORES (0–0)
+                </button>
+                <button onclick="Game.hideResetModal(); SoundEngine.playClick()" type="button"
+                    class="font-heading font-bold text-dark dark:text-white opacity-50 hover:opacity-100 transition-all uppercase tracking-widest text-xs py-2">
                     Cancel
                 </button>
             </div>
@@ -437,7 +460,6 @@
     </div>
 
     <script>
-        // Dictionary for color hex codes
         const COLORS = {
             pink: '#ff4785',
             orange: '#ff7e33',
@@ -449,9 +471,20 @@
 
         const SoundEngine = {
             ctx: null,
-            init() { if (!this.ctx) this.ctx = new (window.AudioContext || window.webkitAudioContext)(); },
+            muted: localStorage.getItem('sound_connect-four') === 'muted',
+            init() {
+                if (!this.ctx) {
+                    const Ctx = window.AudioContext || window.webkitAudioContext;
+                    if (Ctx) this.ctx = new Ctx();
+                }
+                if (this.ctx && this.ctx.state === 'suspended') {
+                    this.ctx.resume().catch(() => { });
+                }
+            },
             playTone(freq, type, duration, vol = 0.1) {
-                if (!this.ctx) this.init();
+                if (this.muted) return;
+                this.init();
+                if (!this.ctx) return;
                 const osc = this.ctx.createOscillator();
                 const gain = this.ctx.createGain();
                 osc.type = type;
@@ -464,14 +497,29 @@
                 osc.stop(this.ctx.currentTime + duration);
             },
             playDrop() {
-                this.playTone(150, 'triangle', 0.1, 0.4);
-                setTimeout(() => this.playTone(100, 'sine', 0.3, 0.5), 50);
+                this.playTone(150, 'triangle', 0.1, 0.35);
+                setTimeout(() => this.playTone(100, 'sine', 0.3, 0.45), 50);
             },
             playWin() {
-                if (!this.ctx) this.init();
-                [523.25, 659.25, 783.99, 1046.50].forEach((f, i) => setTimeout(() => this.playTone(f, 'square', 0.4, 0.15), i * 120));
+                if (this.muted) return;
+                this.init();
+                [523.25, 659.25, 783.99, 1046.50].forEach((f, i) => setTimeout(() => this.playTone(f, 'square', 0.4, 0.12), i * 120));
             },
-            playClick() { this.playTone(800, 'sine', 0.05, 0.1); }
+            playClick() { this.playTone(800, 'sine', 0.05, 0.08); },
+            toggleMute() {
+                this.muted = !this.muted;
+                localStorage.setItem('sound_connect-four', this.muted ? 'muted' : 'unmuted');
+                this.updateUI();
+                if (!this.muted) this.playClick();
+            },
+            updateUI() {
+                const btn = document.getElementById('sound-btn');
+                if (!btn) return;
+                btn.setAttribute('aria-pressed', String(!this.muted));
+                btn.title = this.muted ? 'Unmute Sound' : 'Mute Sound';
+                btn.innerHTML = `<i data-lucide="${this.muted ? 'volume-x' : 'volume-2'}" class="w-5 h-5 ${this.muted ? 'text-slate-400' : ''}"></i>`;
+                lucide.createIcons();
+            }
         };
 
         const Game = {
@@ -486,6 +534,8 @@
             cells: [],
             hoverCol: 3,
             moveHistory: [],
+            gameOverTimeout: null,
+            dropTimeouts: [],
 
             async init() {
                 SoundEngine.init();
@@ -493,13 +543,13 @@
                 const n2 = document.getElementById('input-p2').value.trim();
                 this.names[1] = n1 || 'Team 1';
                 this.names[2] = n2 || 'Team 2';
-                
-                // Colors are already set by the visual picker
+
+                this.validateColors();
 
                 document.getElementById('p1-name-display').textContent = this.names[1];
                 document.getElementById('p2-name-display').textContent = this.names[2];
                 document.getElementById('setup-modal').style.display = 'none';
-                
+
                 this.applyThemeColors();
                 this.createHoles();
                 this.resetBoard();
@@ -507,21 +557,38 @@
                 syncToCloud();
             },
 
+            openSetup() {
+                const closeBtn = document.getElementById('setup-close-btn');
+                if (closeBtn) {
+                    closeBtn.classList.toggle('hidden', this.cells.length === 0);
+                }
+                document.getElementById('setup-modal').style.display = 'flex';
+            },
+
+            closeSetup() {
+                if (this.cells.length === 0) return;
+                document.getElementById('setup-modal').style.display = 'none';
+            },
+
             renderColorPickers() {
                 const p1Container = document.getElementById('color-picker-p1');
                 const p2Container = document.getElementById('color-picker-p2');
-                
+
                 [p1Container, p2Container].forEach((container, playerIdx) => {
                     const playerNum = playerIdx + 1;
                     container.innerHTML = '';
                     Object.keys(COLORS).forEach(colorName => {
                         const btn = document.createElement('button');
+                        btn.type = 'button';
                         const isSelected = this.colors[playerNum] === colorName;
                         const isOtherSelected = this.colors[playerNum === 1 ? 2 : 1] === colorName;
-                        
-                        btn.className = `w-10 h-10 rounded-full border-4 border-dark transition-all transform hover:scale-110 active:scale-95 shadow-hard-sm ${isSelected ? 'scale-110 ring-4 ring-offset-2 ring-blue' : ''} ${isOtherSelected ? 'opacity-20 cursor-not-allowed grayscale' : 'cursor-pointer'}`;
+
+                        btn.setAttribute('aria-label', `Select ${colorName} for Team ${playerNum}`);
+                        btn.setAttribute('aria-pressed', String(isSelected));
+                        btn.className = `w-9 h-9 rounded-full border-3 border-dark dark:border-slate-500 transition-all transform hover:scale-110 active:scale-95 shadow-hard-sm ${isSelected ? 'scale-110 ring-4 ring-offset-2 ring-blue' : ''} ${isOtherSelected ? 'opacity-20 cursor-not-allowed grayscale' : 'cursor-pointer'}`;
                         btn.style.backgroundColor = COLORS[colorName];
-                        
+                        btn.disabled = isOtherSelected;
+
                         if (!isOtherSelected) {
                             btn.onclick = () => {
                                 SoundEngine.playClick();
@@ -529,14 +596,13 @@
                                 this.renderColorPickers();
                             };
                         }
-                        
+
                         container.appendChild(btn);
                     });
                 });
             },
 
             validateColors() {
-                // If players have same color, pick next available for player 2
                 if (this.colors[1] === this.colors[2]) {
                     const available = Object.keys(COLORS).filter(c => c !== this.colors[1]);
                     this.colors[2] = available[0];
@@ -548,25 +614,14 @@
                 const c2 = this.colors[2];
 
                 const p1Card = document.getElementById('p1-icon-container');
-                p1Card.className = `absolute -top-6 bg-${c1} p-3 rounded-2xl border-4 border-dark shadow-hard text-white transition-colors`;
-                document.getElementById('p1-score').className = `text-5xl md:text-6xl lg:text-7xl font-black text-${c1} drop-shadow-sm transition-colors leading-none`;
+                p1Card.className = `absolute -top-6 bg-${c1} p-3.5 rounded-2xl border-4 border-dark dark:border-slate-500 shadow-hard text-white transition-colors`;
+                document.getElementById('p1-score').className = `text-5xl md:text-6xl lg:text-7xl font-black text-${c1} drop-shadow-sm transition-colors leading-none my-1`;
                 document.getElementById('p1-turn-bar').className = `h-full bg-${c1} w-0 transition-all duration-500`;
 
                 const p2Card = document.getElementById('p2-icon-container');
-                p2Card.className = `absolute -top-6 bg-${c2} p-3 rounded-2xl border-4 border-dark shadow-hard text-white transition-colors`;
-                document.getElementById('p2-score').className = `text-5xl md:text-6xl lg:text-7xl font-black text-${c2} drop-shadow-sm transition-colors leading-none`;
+                p2Card.className = `absolute -top-6 bg-${c2} p-3.5 rounded-2xl border-4 border-dark dark:border-slate-500 shadow-hard text-white transition-colors`;
+                document.getElementById('p2-score').className = `text-5xl md:text-6xl lg:text-7xl font-black text-${c2} drop-shadow-sm transition-colors leading-none my-1`;
                 document.getElementById('p2-turn-bar').className = `h-full bg-${c2} w-0 transition-all duration-500`;
-
-                // Update board hole masks to match current board color (blue)
-                const boardColor = '#1ea7fd';
-                document.querySelectorAll('.hole-mask').forEach(m => {
-                    m.style.background = `radial-gradient(circle at center, transparent 66%, ${boardColor} 67%)`;
-                });
-                if (document.documentElement.classList.contains('dark')) {
-                    document.querySelectorAll('.hole-mask').forEach(m => {
-                        m.style.background = `radial-gradient(circle at center, transparent 66%, #111827 67%)`;
-                    });
-                }
             },
 
             createHoles() {
@@ -577,12 +632,14 @@
                     this.cells[r] = [];
                     for (let c = 0; c < this.cols; c++) {
                         const cell = document.createElement('div');
-                        cell.className = "w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14 lg:w-16 lg:h-16 xl:w-20 xl:h-20 relative flex items-center justify-center";
+                        cell.className = "w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14 lg:w-[60px] lg:h-[60px] 2xl:w-20 2xl:h-20 relative flex items-center justify-center";
+                        cell.setAttribute('role', 'button');
+                        cell.setAttribute('aria-label', `Drop disc in column ${c + 1}`);
                         cell.onclick = () => this.handleMove(c);
                         cell.onmouseenter = () => this.setHover(c);
 
                         const back = document.createElement('div');
-                        back.className = "absolute inset-0.5 bg-blue-900/60 dark:bg-slate-950/60 rounded-full shadow-[inset_0_4px_6px_rgba(0,0,0,0.6)]";
+                        back.className = "absolute inset-0.5 bg-blue-900/60 dark:bg-slate-950/75 rounded-full shadow-[inset_0_4px_6px_rgba(0,0,0,0.6)]";
 
                         const pieceLayer = document.createElement('div');
                         pieceLayer.className = "absolute inset-0 flex items-center justify-center z-10 pointer-events-none";
@@ -599,7 +656,17 @@
                 }
             },
 
+            clearDropTimeouts() {
+                this.dropTimeouts.forEach(id => clearTimeout(id));
+                this.dropTimeouts = [];
+            },
+
             resetBoard() {
+                if (this.gameOverTimeout) {
+                    clearTimeout(this.gameOverTimeout);
+                    this.gameOverTimeout = null;
+                }
+                this.clearDropTimeouts();
                 this.board = Array(this.rows).fill().map(() => Array(this.cols).fill(0));
                 this.currentPlayer = 1;
                 this.gameActive = true;
@@ -612,6 +679,11 @@
                 syncToCloud();
             },
 
+            resetScoresAndBoard() {
+                this.scores = { 1: 0, 2: 0 };
+                this.resetBoard();
+            },
+
             showResetModal() { document.getElementById('reset-modal').classList.remove('hidden'); },
             hideResetModal() { document.getElementById('reset-modal').classList.add('hidden'); },
 
@@ -622,13 +694,14 @@
                 if (!this.gameActive) return;
                 this.hoverCol = c;
                 const activeColorHex = COLORS[this.colors[this.currentPlayer]];
-                
+
                 for (let i = 0; i < 7; i++) {
                     const el = document.getElementById(`ind-${i}`);
+                    if (!el) continue;
                     if (i === c) {
                         el.style.backgroundColor = activeColorHex;
                         el.style.opacity = '1';
-                        el.style.transform = 'translateY(8px) scaleX(1.1)';
+                        el.style.transform = 'translateY(6px) scaleX(1.1)';
                         el.classList.add('shadow-hard-sm');
                     } else {
                         el.style.backgroundColor = 'transparent';
@@ -639,15 +712,71 @@
                 }
             },
 
+            isModalOpen() {
+                const setupOpen = document.getElementById('setup-modal').style.display !== 'none';
+                const winnerOpen = !document.getElementById('winner-modal').classList.contains('hidden');
+                const drawOpen = !document.getElementById('draw-modal').classList.contains('hidden');
+                const resetOpen = !document.getElementById('reset-modal').classList.contains('hidden');
+                return setupOpen || winnerOpen || drawOpen || resetOpen;
+            },
+
             handleKey(e) {
+                if (e.key === 'Escape') {
+                    if (!document.getElementById('reset-modal').classList.contains('hidden')) {
+                        this.hideResetModal();
+                        return;
+                    }
+                    if (!document.getElementById('winner-modal').classList.contains('hidden')) {
+                        this.closeWinnerModal();
+                        return;
+                    }
+                    if (!document.getElementById('draw-modal').classList.contains('hidden')) {
+                        this.closeDrawModal();
+                        return;
+                    }
+                    if (document.getElementById('setup-modal').style.display !== 'none' && this.cells.length > 0) {
+                        this.closeSetup();
+                        return;
+                    }
+                }
+
+                const tag = (e.target && e.target.tagName) ? e.target.tagName.toUpperCase() : '';
+                if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (e.target && e.target.isContentEditable)) {
+                    return;
+                }
+                if (this.isModalOpen()) return;
+                if (e.ctrlKey || e.metaKey || e.altKey) return;
+
+                if (e.key === 'r' || e.key === 'R') {
+                    e.preventDefault();
+                    this.showResetModal();
+                    return;
+                }
+                if (e.key === 'z' || e.key === 'Z' || e.key === 'u' || e.key === 'U') {
+                    e.preventDefault();
+                    this.undoMove();
+                    return;
+                }
+
                 if (!this.gameActive) return;
+
                 if (e.key === 'ArrowLeft') {
+                    e.preventDefault();
                     this.setHover(Math.max(0, this.hoverCol - 1));
                 } else if (e.key === 'ArrowRight') {
+                    e.preventDefault();
                     this.setHover(Math.min(6, this.hoverCol + 1));
                 } else if (e.key === 'Enter' || e.key === ' ') {
+                    if (tag === 'BUTTON' || (e.target && e.target.getAttribute && e.target.getAttribute('role') === 'button')) {
+                        return;
+                    }
                     e.preventDefault();
                     this.handleMove(this.hoverCol);
+                } else if (e.key >= '1' && e.key <= '7') {
+                    e.preventDefault();
+                    const col = parseInt(e.key, 10) - 1;
+                    this.setHover(col);
+                    this.handleMove(col);
                 }
             },
 
@@ -668,15 +797,17 @@
                 const win = this.checkWin(targetRow, c);
                 if (win) {
                     this.gameActive = false;
-                    setTimeout(() => {
+                    this.gameOverTimeout = setTimeout(() => {
                         this.highlightWin(win);
                         SoundEngine.playWin();
                         this.handleGameOver(true);
+                        this.gameOverTimeout = null;
                     }, 600);
                 } else if (this.board[0].every(cell => cell !== 0)) {
                     this.gameActive = false;
-                    setTimeout(() => {
+                    this.gameOverTimeout = setTimeout(() => {
                         this.handleGameOver(false);
+                        this.gameOverTimeout = null;
                     }, 600);
                 } else {
                     this.currentPlayer = this.currentPlayer === 1 ? 2 : 1;
@@ -688,6 +819,7 @@
 
             undoMove() {
                 if (this.moveHistory.length === 0 || !this.gameActive) return;
+                this.clearDropTimeouts();
                 const lastMove = this.moveHistory.pop();
                 const { row, col, player } = lastMove;
 
@@ -713,13 +845,17 @@
                 piece.className = `piece ${colorClass} piece-drop-anim`;
                 layer.appendChild(piece);
 
-                setTimeout(() => {
+                const dropTid = setTimeout(() => {
+                    this.dropTimeouts = this.dropTimeouts.filter(id => id !== dropTid);
                     SoundEngine.playDrop();
                     const board = document.getElementById('board-shell');
-                    board.classList.remove('shake-anim');
-                    void board.offsetWidth;
-                    board.classList.add('shake-anim');
+                    if (board) {
+                        board.classList.remove('shake-anim');
+                        void board.offsetWidth;
+                        board.classList.add('shake-anim');
+                    }
                 }, 450);
+                this.dropTimeouts.push(dropTid);
             },
 
             checkWin(row, col) {
@@ -752,23 +888,28 @@
                 const icon = document.getElementById('status-icon');
                 const bar1 = document.getElementById('p1-turn-bar');
                 const bar2 = document.getElementById('p2-turn-bar');
-                
+                const undoBtn = document.getElementById('undo-btn');
+
                 const c1 = this.colors[1];
                 const c2 = this.colors[2];
 
                 document.getElementById('p1-score').textContent = this.scores[1];
                 document.getElementById('p2-score').textContent = this.scores[2];
+                if (undoBtn) {
+                    undoBtn.disabled = this.moveHistory.length === 0 || !this.gameActive;
+                    undoBtn.classList.toggle('opacity-50', undoBtn.disabled);
+                }
 
                 if (this.currentPlayer === 1) {
                     p1.classList.remove('player-card-inactive');
                     p1.classList.add('player-card-active');
                     p1.style.setProperty('--active-color', COLORS[c1]);
-                    
+
                     p2.classList.add('player-card-inactive');
                     p2.classList.remove('player-card-active');
 
                     status.textContent = `${this.names[1].toUpperCase()}'S TURN`;
-                    icon.className = `w-4 h-4 rounded-full bg-${c1} animate-ping`;
+                    icon.className = `w-3.5 h-3.5 rounded-full bg-${c1} animate-ping`;
 
                     bar1.style.width = '100%';
                     bar2.style.width = '0%';
@@ -776,12 +917,12 @@
                     p2.classList.remove('player-card-inactive');
                     p2.classList.add('player-card-active');
                     p2.style.setProperty('--active-color', COLORS[c2]);
-                    
+
                     p1.classList.add('player-card-inactive');
                     p1.classList.remove('player-card-active');
 
                     status.textContent = `${this.names[2].toUpperCase()}'S TURN`;
-                    icon.className = `w-4 h-4 rounded-full bg-${c2} animate-ping`;
+                    icon.className = `w-3.5 h-3.5 rounded-full bg-${c2} animate-ping`;
 
                     bar1.style.width = '0%';
                     bar2.style.width = '100%';
@@ -793,13 +934,14 @@
                     this.scores[this.currentPlayer]++;
                     const name = this.names[this.currentPlayer].toUpperCase();
                     const winColor = this.colors[this.currentPlayer];
-                    
+
                     document.getElementById('winner-name').textContent = name;
-                    document.getElementById('winner-name').className = `text-4xl font-heading font-bold mb-8 leading-tight tracking-tight text-${winColor}`;
-                    document.getElementById('winner-crown').className = `w-24 h-24 mx-auto mb-6 rounded-[1.5rem] border-4 border-dark shadow-hard flex items-center justify-center rotate-6 bg-${winColor}`;
+                    document.getElementById('winner-name').className = `text-3xl sm:text-4xl font-heading font-bold mb-6 leading-tight tracking-tight text-${winColor}`;
+                    document.getElementById('winner-crown').className = `w-20 h-20 mx-auto mb-5 rounded-2xl border-4 border-dark dark:border-slate-500 shadow-hard flex items-center justify-center rotate-6 bg-${winColor}`;
 
                     document.getElementById('winner-modal').classList.remove('hidden');
                     lucide.createIcons();
+                    this.updateUI();
                     syncToCloud();
                 } else {
                     document.getElementById('status-text').textContent = "MATCH DRAW!";
@@ -823,7 +965,11 @@
             }
         };
 
-        function toggleTheme() { document.documentElement.classList.toggle('dark'); }
+        function toggleTheme() {
+            const isDark = document.documentElement.classList.toggle('dark');
+            localStorage.setItem('theme_connect-four', isDark ? 'dark' : 'light');
+            lucide.createIcons();
+        }
         lucide.createIcons();
 
         let syncTimeout = null;
@@ -844,21 +990,42 @@
 
         window.onload = async () => {
             await requireAuth();
-            
+            SoundEngine.updateUI();
+
+            ['input-p1', 'input-p2'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) {
+                    el.addEventListener('keydown', (e) => {
+                        if (e.key === 'Enter') {
+                            e.preventDefault();
+                            Game.init();
+                            SoundEngine.playClick();
+                        }
+                    });
+                }
+            });
+
+            const setupModal = document.getElementById('setup-modal');
+            if (setupModal) {
+                setupModal.addEventListener('click', (e) => {
+                    if (e.target === setupModal && Game.cells.length > 0) {
+                        Game.closeSetup();
+                    }
+                });
+            }
+
             const cloudData = await loadProgress('connect_four');
             if (cloudData) {
                 if (cloudData.names) Game.names = cloudData.names;
                 if (cloudData.colors) Game.colors = cloudData.colors;
                 if (cloudData.scores) Game.scores = cloudData.scores;
-                
-                // Update UI inputs from cloud data
+
                 if (Game.names[1]) document.getElementById('input-p1').value = Game.names[1];
                 if (Game.names[2]) document.getElementById('input-p2').value = Game.names[2];
-                
+
                 Game.validateColors();
                 Game.renderColorPickers();
-                
-                // Restore active game if exists
+
                 if (cloudData.gameActive && cloudData.board) {
                     Game.board = cloudData.board;
                     Game.currentPlayer = cloudData.currentPlayer || 1;
@@ -869,7 +1036,8 @@
                     Game.createHoles();
                     Game.renderPersistedBoard();
                     Game.updateUI();
-                    
+                    Game.setHover(3);
+
                     document.getElementById('setup-modal').style.display = 'none';
                     document.getElementById('p1-name-display').textContent = Game.names[1];
                     document.getElementById('p2-name-display').textContent = Game.names[2];
@@ -880,7 +1048,8 @@
             } else {
                 Game.renderColorPickers();
             }
-        }
+        };
     </script>
 </body>
+
 </html>

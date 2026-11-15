@@ -1,6 +1,11 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    <script>
+        if (localStorage.getItem('theme_task-assigner') === 'dark') {
+            document.documentElement.classList.add('dark');
+        }
+    </script>
     <!-- Supabase Auth -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.105.4"></script>
     <script src="/supabase.js"></script>
@@ -22,14 +27,15 @@
             theme: {
                 extend: {
                     colors: {
-                        pink: '#FF6B95',
-                        orange: '#FF8C42',
-                        green: '#00E676',
-                        blue: '#2979FF',
-                        dark: '#0f172a',
+                        pink: '#ff4785',
+                        orange: '#ff7e33',
+                        green: '#00d063',
+                        blue: '#1ea7fd',
+                        purple: '#A855F7',
+                        dark: '#1e293b',
                         chalk: '#f8fafc',
                         surface: 'rgba(255, 255, 255, 0.85)',
-                        border: 'rgba(203, 213, 225, 0.6)',
+                        border: '#1e293b',
                     },
                     fontFamily: {
                         heading: ['Fredoka', 'sans-serif'],
@@ -37,9 +43,9 @@
                         mono: ['JetBrains Mono', 'monospace'],
                     },
                     boxShadow: {
-                        'neo': '4px 4px 0px 0px rgba(51, 65, 85, 0.15)',
-                        'neo-sm': '2px 2px 0px 0px rgba(51, 65, 85, 0.15)',
-                        'neo-lg': '8px 8px 0px 0px rgba(51, 65, 85, 0.15)',
+                        'neo': '4px 4px 0px 0px #1e293b',
+                        'neo-sm': '2px 2px 0px 0px #1e293b',
+                        'neo-lg': '8px 8px 0px 0px #1e293b',
                     },
                     animation: {
                         'pop': 'pop 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
@@ -84,17 +90,24 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Nunito:wght@400;600;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../../../css/base.css" />
+    <link rel="stylesheet" href="../../../css/components.css" />
 
     <style>
+        :focus-visible {
+            outline: 3px solid #1ea7fd;
+            outline-offset: 2px;
+        }
+
         .bg-float-icon {
-            color: rgba(203, 213, 225, 0.4);
-            opacity: 0.3;
+            color: rgba(203, 213, 225, 0.45);
+            opacity: 0.35;
             position: fixed;
             z-index: 0;
             pointer-events: none;
         }
         html.dark .bg-float-icon {
-            opacity: 0.15;
+            opacity: 0.12;
             color: white;
         }
 
@@ -120,41 +133,45 @@
             color: #e2e8f0;
         }
 
+        html.dark .shadow-neo { box-shadow: 4px 4px 0px 0px #000000; }
+        html.dark .shadow-neo-sm { box-shadow: 2px 2px 0px 0px #000000; }
+        html.dark .shadow-neo-lg { box-shadow: 8px 8px 0px 0px #000000; }
+
         .glass-panel {
             background: rgba(255, 255, 255, 0.85);
-            backdrop-filter: blur(24px);
-            -webkit-backdrop-filter: blur(24px);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
         }
 
         html.dark .glass-panel {
-            background: rgba(15, 23, 42, 0.8);
-            border-color: rgba(255, 255, 255, 0.1);
+            background: rgba(15, 23, 42, 0.82);
+            border-color: rgba(100, 116, 139, 0.5);
         }
 
         .console-frame {
-            background: rgba(255, 255, 255, 0.6);
-            backdrop-filter: blur(24px);
-            -webkit-backdrop-filter: blur(24px);
-            border: 1px solid rgba(203, 213, 225, 0.6);
+            background: rgba(255, 255, 255, 0.72);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 3px solid #1e293b;
             border-radius: 1.5rem;
-            box-shadow: 8px 8px 0px rgba(51, 65, 85, 0.15);
+            box-shadow: 8px 8px 0px #1e293b;
             display: flex;
             overflow: hidden;
             transition: all 0.3s ease;
         }
 
         html.dark .console-frame {
-            background: rgba(15, 23, 42, 0.8);
-            border-color: rgba(255, 255, 255, 0.1);
-            box-shadow: 8px 8px 0px rgba(0, 0, 0, 0.4);
+            background: rgba(15, 23, 42, 0.85);
+            border-color: #64748b;
+            box-shadow: 8px 8px 0px #000000;
         }
 
         .btn-chunky {
-            transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            transition: all 0.15s cubic-bezier(0.175, 0.885, 0.32, 1.275);
             transform: translateY(0);
             position: relative;
-            border: 1px solid rgba(203, 213, 225, 0.6);
-            box-shadow: 4px 4px 0 rgba(51, 65, 85, 0.15);
+            border: 2px solid #1e293b;
+            box-shadow: 0 4px 0 #1e293b;
             font-family: 'Fredoka', sans-serif;
             font-weight: 700;
             text-transform: uppercase;
@@ -162,29 +179,39 @@
         }
 
         html.dark .btn-chunky {
-            border-color: rgba(255, 255, 255, 0.1);
-            box-shadow: 4px 4px 0 rgba(0, 0, 0, 0.4);
-            background-color: rgba(30, 41, 59, 0.8);
+            border-color: #64748b;
+            box-shadow: 0 4px 0 #000000;
+            background-color: rgba(30, 41, 59, 0.9);
             color: #e2e8f0;
         }
 
         .btn-chunky:hover:not(:disabled) {
-            transform: translate(-2px, -2px);
-            box-shadow: 6px 6px 0 rgba(51, 65, 85, 0.15);
-            filter: brightness(105%);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 0 #1e293b;
+            filter: brightness(103%);
         }
 
         html.dark .btn-chunky:hover:not(:disabled) {
-            box-shadow: 6px 6px 0 rgba(0, 0, 0, 0.4);
+            box-shadow: 0 6px 0 #000000;
         }
 
         .btn-chunky:active:not(:disabled) {
-            transform: translate(2px, 2px);
-            box-shadow: 2px 2px 0 rgba(51, 65, 85, 0.15) !important;
+            transform: translateY(4px);
+            box-shadow: 0 0 0 #1e293b !important;
         }
 
         html.dark .btn-chunky:active:not(:disabled) {
-            box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.4) !important;
+            box-shadow: 0 0 0 #000000 !important;
+        }
+
+        .btn-chunky.active {
+            background-color: #1ea7fd !important;
+            color: #ffffff !important;
+            border-color: #1e293b !important;
+        }
+
+        html.dark .btn-chunky.active {
+            border-color: #93c5fd !important;
         }
 
         .custom-scrollbar::-webkit-scrollbar {
@@ -193,7 +220,7 @@
         }
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
         .custom-scrollbar::-webkit-scrollbar-thumb {
-            background: rgba(203, 213, 225, 0.6);
+            background: rgba(148, 163, 184, 0.5);
             border-radius: 10px;
             border: 2px solid transparent;
             background-clip: content-box;
@@ -201,14 +228,14 @@
         html.dark .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.2); }
 
         textarea.input-styled {
-            background-image: radial-gradient(rgba(203, 213, 225, 0.6) 1px, transparent 1px);
+            background-image: radial-gradient(rgba(148, 163, 184, 0.35) 1px, transparent 1px);
             background-size: 10px 10px;
-            border: 1px solid rgba(203, 213, 225, 0.6);
-            transition: all 0.3s;
+            border: 2px solid #334155;
+            transition: all 0.2s;
         }
         html.dark textarea.input-styled {
             background-image: radial-gradient(rgba(255, 255, 255, 0.1) 1px, transparent 1px);
-            border-color: rgba(255, 255, 255, 0.1);
+            border-color: #475569;
         }
 
         .switch {
@@ -222,38 +249,67 @@
             position: absolute;
             cursor: pointer;
             top: 0; left: 0; right: 0; bottom: 0;
-            background-color: rgba(203, 213, 225, 0.6);
-            border: 1px solid rgba(203, 213, 225, 0.8);
+            background-color: rgba(203, 213, 225, 0.8);
+            border: 2px solid #334155;
             transition: .3s;
             border-radius: 34px;
         }
         html.dark .slider {
-            background-color: rgba(30, 41, 59, 0.8);
-            border-color: rgba(255, 255, 255, 0.1);
+            background-color: rgba(30, 41, 59, 0.9);
+            border-color: #64748b;
         }
         .slider:before {
             position: absolute;
             content: "";
-            height: 16px;
-            width: 16px;
+            height: 14px;
+            width: 14px;
             left: 3px;
             bottom: 3px;
             background-color: white;
-            box-shadow: 2px 2px 0px rgba(51, 65, 85, 0.15);
+            box-shadow: 1px 1px 0px #1e293b;
             transition: .3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
             border-radius: 50%;
         }
-        input:checked + .slider { background-color: rgba(0, 230, 118, 0.3); border-color: #00E676; }
-        input:checked + .slider:before { transform: translateX(24px); background-color: #00E676; }
+        input:checked + .slider { background-color: rgba(0, 208, 99, 0.3); border-color: #00d063; }
+        input:checked + .slider:before { transform: translateX(24px); background-color: #00d063; }
 
-        .hidden-panel-desktop { margin-left: -24rem; }
+        .assign-card {
+            min-height: 14rem;
+        }
+        .assign-card-col {
+            width: 50%;
+            min-width: 0;
+        }
+        .assign-fit-container {
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            min-width: 0;
+            min-height: 0;
+            flex: 1 1 0%;
+            overflow: hidden;
+        }
+        .fit-text {
+            width: 100%;
+            max-width: 100%;
+            text-align: center;
+            overflow-wrap: normal;
+            word-break: normal;
+        }
+
+        @media (min-width: 768px) {
+            .hidden-panel-desktop { margin-left: -24rem; }
+        }
+        @media (max-width: 767px) {
+            .hidden-panel-mobile { display: none; }
+        }
     </style>
-    <link rel="stylesheet" href="../../../css/base.css" />
-    <link rel="stylesheet" href="../../../css/components.css" />
   
 </head>
 
-<body class="h-screen w-screen flex flex-col items-center justify-center p-2 md:p-6 overflow-hidden transition-colors duration-300">
+<body class="h-screen w-screen flex flex-col items-center justify-center p-2 md:p-4 overflow-hidden transition-colors duration-300">
 
     <div id="toast-container" class="fixed top-4 left-1/2 -translate-x-1/2 z-[100] flex flex-col gap-2 pointer-events-none"></div>
 
@@ -265,186 +321,188 @@
     <div class="console-frame w-full h-full relative flex-col md:flex-row z-10">
         
         <!-- SIDEBAR -->
-        <aside id="controls" class="w-full md:w-96 glass-panel border-b-[1px] md:border-b-0 md:border-r-[1px] border-slate-300 dark:border-white/10 flex flex-col z-50 transition-all duration-300 shadow-xl md:shadow-none h-[45%] md:h-full relative shrink-0">
+        <aside id="controls" class="w-full md:w-96 glass-panel border-b-2 md:border-b-0 md:border-r-2 border-dark dark:border-slate-500 flex flex-col z-50 transition-all duration-300 shadow-xl md:shadow-none h-[45%] md:h-full relative shrink-0">
             
-            <div class="p-6 border-b-[1px] border-slate-300 dark:border-white/10 bg-slate-50/50 dark:bg-slate-800/50 flex justify-between items-center shrink-0">
+            <div class="px-5 py-3.5 border-b-2 border-dark dark:border-slate-500 bg-slate-50/70 dark:bg-slate-800/70 flex justify-between items-center shrink-0">
                 <div>
-                    <h1 class="text-3xl font-heading text-dark dark:text-slate-100 tracking-wide leading-none drop-shadow-sm">
+                    <h1 class="text-2xl sm:text-3xl font-heading font-bold text-dark dark:text-slate-100 tracking-wide leading-none">
                         TASK<span class="text-blue">ASSIGNER</span>
                     </h1>
-                    <div class="flex items-center gap-2 mt-2">
-                        <button onclick="toggleTheme()" class="px-2 py-1 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 text-[10px] font-bold rounded flex items-center gap-1 hover:bg-slate-300 dark:hover:bg-slate-600 transition-colors">
+                    <div class="flex items-center gap-2 mt-1.5">
+                        <button onclick="toggleTheme()" id="theme-toggle" type="button" aria-label="Toggle Dark Mode" aria-pressed="false" class="px-2 py-1 bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-400 dark:border-slate-500 text-[10px] font-bold rounded-md flex items-center gap-1 hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors">
                             <i data-lucide="moon" class="w-3 h-3 hidden dark:block"></i>
                             <i data-lucide="sun" class="w-3 h-3 block dark:hidden"></i>
                             <span class="hidden dark:inline">DARK</span>
                             <span class="inline dark:hidden">LIGHT</span>
                         </button>
-                        <span class="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Auto-Save</span>
+                        <span class="text-[10px] text-slate-400 dark:text-slate-400 font-bold uppercase tracking-widest">Auto-Save</span>
                     </div>
                 </div>
-                <!-- Mobile toggle (if needed) or simple header for mobile -->
-                <button onclick="toggleControlPanel()" class="p-2 bg-pink/10 text-pink border-[1px] border-slate-300 dark:border-white/20 rounded-lg shadow-neo-sm">
-                    <i data-lucide="x" class="w-6 h-6"></i>
+                <button onclick="toggleControlPanel()" type="button" aria-label="Close Sidebar" class="p-2 bg-pink/10 text-pink border-2 border-pink/40 dark:border-pink/50 rounded-lg shadow-neo-sm hover:bg-pink/20 transition-colors">
+                    <i data-lucide="x" class="w-5 h-5"></i>
                 </button>
             </div>
 
-            <div class="flex-1 p-6 overflow-y-auto custom-scrollbar space-y-6 bg-transparent relative">
+            <div class="flex-1 p-4 overflow-y-auto custom-scrollbar space-y-4 bg-transparent relative">
                 
-                <!-- PRESET MANAGEMENT (Integrated like Word Animator) -->
-                <div class="space-y-3 pb-6 border-b-[1px] border-slate-200 dark:border-white/10 border-dashed">
-                    <label class="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                <!-- PRESET MANAGEMENT -->
+                <div class="space-y-2 pb-4 border-b-2 border-slate-200 dark:border-slate-700 border-dashed">
+                    <label for="preset-select" class="text-xs font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest flex items-center gap-2">
                         <i data-lucide="folder-open" class="w-4 h-4 text-blue"></i> Presets
                     </label>
-                    <select id="preset-select" onchange="onPresetSelect()" class="w-full p-3 bg-white/50 dark:bg-slate-900/50 text-dark dark:text-slate-200 text-sm border-[1px] border-slate-300 dark:border-white/10 rounded-xl outline-none shadow-inner transition-colors">
+                    <select id="preset-select" onchange="onPresetSelect()" class="w-full p-2.5 bg-white/80 dark:bg-slate-900/70 text-dark dark:text-slate-200 text-sm font-bold border-2 border-slate-400 dark:border-slate-600 rounded-xl outline-none focus:border-blue transition-colors">
                         <option value="">-- Select a Preset --</option>
                     </select>
-                    <input type="text" id="preset-name" placeholder="Preset name..." class="w-full p-3 bg-white/50 dark:bg-slate-900/50 text-dark dark:text-slate-200 font-mono text-sm border-[1px] border-slate-300 dark:border-white/10 rounded-xl outline-none shadow-inner transition-colors">
+                    <input type="text" id="preset-name" placeholder="Preset name..." aria-label="Preset Name" class="w-full p-2.5 bg-white/80 dark:bg-slate-900/70 text-dark dark:text-slate-200 font-mono text-sm border-2 border-slate-400 dark:border-slate-600 rounded-xl outline-none focus:border-blue transition-colors">
                     <div class="flex gap-2">
-                        <button onclick="saveCurrentPreset()" class="flex-1 btn-chunky bg-green text-dark py-2 rounded-xl text-xs font-bold tracking-wider flex items-center justify-center gap-1">
-                            <i data-lucide="save" class="w-3 h-3"></i> SAVE
+                        <button onclick="saveCurrentPreset()" type="button" class="flex-1 btn-chunky bg-green text-dark py-2 rounded-xl text-xs font-bold tracking-wider flex items-center justify-center gap-1">
+                            <i data-lucide="save" class="w-3.5 h-3.5"></i> SAVE
                         </button>
-                        <button onclick="createNewPreset()" class="flex-1 btn-chunky bg-white dark:bg-slate-700 !text-blue py-2 rounded-xl text-xs font-bold tracking-wider flex items-center justify-center gap-1">
-                            <i data-lucide="plus" class="w-3 h-3"></i> NEW
+                        <button onclick="createNewPreset()" type="button" class="flex-1 btn-chunky bg-white dark:bg-slate-700 !text-blue py-2 rounded-xl text-xs font-bold tracking-wider flex items-center justify-center gap-1">
+                            <i data-lucide="plus" class="w-3.5 h-3.5"></i> NEW
                         </button>
-                        <button onclick="deleteCurrentPreset()" class="flex-1 btn-chunky bg-white dark:bg-slate-700 !text-pink py-2 rounded-xl text-xs font-bold tracking-wider flex items-center justify-center gap-1">
-                            <i data-lucide="trash-2" class="w-3 h-3"></i> DEL
+                        <button onclick="deleteCurrentPreset()" type="button" class="flex-1 btn-chunky bg-white dark:bg-slate-700 !text-pink py-2 rounded-xl text-xs font-bold tracking-wider flex items-center justify-center gap-1">
+                            <i data-lucide="trash-2" class="w-3.5 h-3.5"></i> DEL
                         </button>
                     </div>
                 </div>
 
                 <!-- SETUP INPUTS -->
-                <div class="space-y-4">
+                <div class="space-y-3">
                     <div>
-                        <div class="flex justify-between items-end mb-1">
-                            <label class="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                        <div class="flex justify-between items-center mb-1">
+                            <label for="peopleInput" class="text-xs font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest flex items-center gap-2">
                                 <i data-lucide="users" class="w-4 h-4 text-pink"></i> Students
                             </label>
-                            <span id="peopleCount" class="text-pink font-black text-xs">0</span>
+                            <div class="flex items-center gap-2">
+                                <button onclick="dedupePeople()" type="button" title="Remove duplicate names" class="text-[10px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded bg-slate-200/80 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-pink/20 hover:text-pink transition-colors">Dedupe</button>
+                                <span id="peopleCount" class="text-pink font-black text-xs">0</span>
+                            </div>
                         </div>
-                        <textarea id="peopleInput" rows="4" spellcheck="false" class="input-styled w-full p-3 bg-white/50 dark:bg-slate-900/50 text-dark dark:text-slate-200 font-mono text-sm rounded-xl outline-none resize-none shadow-inner transition-colors" placeholder="Enter names..."></textarea>
+                        <textarea id="peopleInput" rows="3" spellcheck="false" class="input-styled w-full p-2.5 bg-white/80 dark:bg-slate-900/70 text-dark dark:text-slate-200 font-mono text-sm rounded-xl outline-none resize-none transition-colors" placeholder="Enter names (comma or line separated)..."></textarea>
                     </div>
 
                     <div>
-                        <div class="flex justify-between items-end mb-1">
-                            <label class="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                        <div class="flex justify-between items-center mb-1">
+                            <label for="taskInput" class="text-xs font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest flex items-center gap-2">
                                 <i data-lucide="target" class="w-4 h-4 text-orange"></i> Missions
                             </label>
                             <span id="taskCount" class="text-orange font-black text-xs">0</span>
                         </div>
-                        <textarea id="taskInput" rows="4" spellcheck="false" class="input-styled w-full p-3 bg-white/50 dark:bg-slate-900/50 text-dark dark:text-slate-200 font-mono text-sm rounded-xl outline-none resize-none shadow-inner transition-colors" placeholder="Enter tasks..."></textarea>
+                        <textarea id="taskInput" rows="3" spellcheck="false" class="input-styled w-full p-2.5 bg-white/80 dark:bg-slate-900/70 text-dark dark:text-slate-200 font-mono text-sm rounded-xl outline-none resize-none transition-colors" placeholder="Enter missions/tasks..."></textarea>
                     </div>
 
                     <!-- Group Size -->
-                    <div class="p-4 bg-slate-50/50 dark:bg-slate-800/50 border-[1px] border-slate-300 dark:border-white/10 rounded-xl space-y-3">
-                        <label class="text-xs font-black text-slate-400 uppercase tracking-widest block text-center">Group Size</label>
+                    <div class="p-3 bg-slate-50/70 dark:bg-slate-800/60 border-2 border-slate-300 dark:border-slate-600 rounded-xl space-y-2">
+                        <span class="text-xs font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest block text-center">Group Size</span>
                         <div class="grid grid-cols-4 gap-2">
-                            <button onclick="setGroupSize(1)" id="btnSize1" class="btn-chunky bg-white dark:bg-slate-700 py-2 rounded-xl text-sm font-bold">1</button>
-                            <button onclick="setGroupSize(2)" id="btnSize2" class="btn-chunky bg-white dark:bg-slate-700 py-2 rounded-xl text-sm font-bold">2</button>
-                            <button onclick="setGroupSize(3)" id="btnSize3" class="btn-chunky bg-white dark:bg-slate-700 py-2 rounded-xl text-sm font-bold">3</button>
-                            <button onclick="setGroupSize(4)" id="btnSize4" class="btn-chunky bg-white dark:bg-slate-700 py-2 rounded-xl text-sm font-bold">4</button>
+                            <button onclick="setGroupSize(1)" id="btnSize1" type="button" class="btn-chunky bg-white dark:bg-slate-700 py-1.5 rounded-xl text-sm font-bold">1</button>
+                            <button onclick="setGroupSize(2)" id="btnSize2" type="button" class="btn-chunky bg-white dark:bg-slate-700 py-1.5 rounded-xl text-sm font-bold">2</button>
+                            <button onclick="setGroupSize(3)" id="btnSize3" type="button" class="btn-chunky bg-white dark:bg-slate-700 py-1.5 rounded-xl text-sm font-bold">3</button>
+                            <button onclick="setGroupSize(4)" id="btnSize4" type="button" class="btn-chunky bg-white dark:bg-slate-700 py-1.5 rounded-xl text-sm font-bold">4</button>
                         </div>
                     </div>
 
                     <!-- Sorting Mode -->
-                    <div class="p-4 bg-slate-50/50 dark:bg-slate-800/50 border-[1px] border-slate-300 dark:border-white/10 rounded-xl flex items-center justify-between">
+                    <div class="p-3 bg-slate-50/70 dark:bg-slate-800/60 border-2 border-slate-300 dark:border-slate-600 rounded-xl flex items-center justify-between">
                         <div class="flex items-center gap-2">
                             <i data-lucide="shuffle" id="sort-icon-ui" class="w-4 h-4 text-blue"></i>
-                            <label class="text-xs font-black text-slate-400 uppercase tracking-widest">Sorting</label>
+                            <label for="sort-mode-toggle" class="text-xs font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest cursor-pointer">Sorting</label>
                         </div>
                         <div class="flex items-center gap-2 text-right">
-                            <span class="text-[10px] font-bold text-slate-400">A-Z</span>
+                            <span class="text-[10px] font-bold text-slate-500 dark:text-slate-400">A-Z</span>
                             <label class="switch">
-                                <input type="checkbox" id="sort-mode-toggle" onchange="updateSortIcon()">
+                                <input type="checkbox" id="sort-mode-toggle" onchange="updateSortIcon()" aria-label="Toggle Random Sorting">
                                 <span class="slider"></span>
                             </label>
-                            <span class="text-[10px] font-bold text-slate-400">RANDOM</span>
+                            <span class="text-[10px] font-bold text-slate-500 dark:text-slate-400">RANDOM</span>
                         </div>
                     </div>
 
                     <!-- Image Upload -->
-                    <div class="p-4 bg-slate-50/50 dark:bg-slate-800/50 border-[1px] border-slate-300 dark:border-white/10 rounded-xl space-y-2">
-                        <label class="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                    <div class="p-3 bg-slate-50/70 dark:bg-slate-800/60 border-2 border-slate-300 dark:border-slate-600 rounded-xl space-y-2">
+                        <span class="text-xs font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest flex items-center gap-2">
                             <i data-lucide="image" class="w-4 h-4 text-purple"></i> Mission Images
-                        </label>
-                        <label class="w-full cursor-pointer flex items-center justify-center gap-2 p-2 border-2 border-dashed border-slate-300 dark:border-white/20 rounded-xl hover:border-purple transition-colors text-xs font-bold text-slate-500">
+                        </span>
+                        <label class="w-full cursor-pointer flex items-center justify-center gap-2 p-2 border-2 border-dashed border-slate-300 dark:border-slate-500 rounded-xl hover:border-purple transition-colors text-xs font-bold text-slate-600 dark:text-slate-300">
                             <i data-lucide="upload" class="w-4 h-4"></i>
                             <span id="image-upload-label">Upload Images</span>
                             <input type="file" id="card-image-input" class="hidden" accept="image/*" multiple onchange="handleImageUpload(this)">
                         </label>
                         <div id="image-preview-list" class="flex gap-2 flex-wrap"></div>
-                        <div class="flex bg-slate-200 dark:bg-slate-700 rounded-lg p-1 gap-1 mt-2">
-                            <button id="text-mission-btn" onclick="setMissionMode('text')" class="flex-1 py-1.5 px-2 rounded-md text-[10px] font-bold uppercase transition-all bg-white dark:bg-slate-600 text-dark dark:text-white shadow-neo-sm">Text Mission</button>
-                            <button id="image-mission-btn" onclick="setMissionMode('image')" class="flex-1 py-1.5 px-2 rounded-md text-[10px] font-bold uppercase transition-all text-slate-500 dark:text-slate-400 hover:bg-white/50 dark:hover:bg-slate-600/50">Image Mission</button>
+                        <div class="flex bg-slate-200 dark:bg-slate-700 rounded-lg p-1 gap-1 mt-1">
+                            <button id="text-mission-btn" type="button" onclick="setMissionMode('text')" class="flex-1 py-1.5 px-2 rounded-md text-[10px] font-bold uppercase transition-all bg-white dark:bg-slate-600 text-dark dark:text-white shadow-neo-sm">Text Mission</button>
+                            <button id="image-mission-btn" type="button" onclick="setMissionMode('image')" class="flex-1 py-1.5 px-2 rounded-md text-[10px] font-bold uppercase transition-all text-slate-500 dark:text-slate-400 hover:bg-white/50 dark:hover:bg-slate-600/50">Image Mission</button>
                         </div>
                         <input type="checkbox" id="image-mission-toggle" class="hidden" onchange="onImageMissionToggle()">
                     </div>
                 </div>
 
-                <div class="pt-4 flex gap-3">
-                     <button onclick="clearAll()" class="btn-chunky bg-white dark:bg-slate-700 !text-slate-400 w-14 h-14 rounded-xl flex items-center justify-center" title="Clear All">
-                        <i data-lucide="trash-2" class="w-6 h-6"></i>
+                <div class="pt-2 flex gap-2.5">
+                     <button onclick="clearAll()" type="button" class="btn-chunky bg-white dark:bg-slate-700 !text-slate-500 dark:!text-slate-300 w-12 h-12 rounded-xl flex items-center justify-center shrink-0" title="Clear All" aria-label="Clear All Inputs">
+                        <i data-lucide="trash-2" class="w-5 h-5"></i>
                     </button>
-                    <button onclick="assignTasks()" class="flex-grow btn-chunky bg-green text-dark py-4 rounded-xl text-lg font-bold tracking-wide flex items-center justify-center gap-2">
-                        <i data-lucide="wand-2" class="w-6 h-6"></i> ASSIGN
+                    <button onclick="assignTasks()" type="button" class="flex-grow btn-chunky bg-green text-dark py-3 rounded-xl text-base font-bold tracking-wide flex items-center justify-center gap-2" title="Assign Tasks (Ctrl+Enter)">
+                        <i data-lucide="wand-2" class="w-5 h-5"></i> ASSIGN
                     </button>
                 </div>
             </div>
 
-            <div class="p-4 border-t-[1px] border-slate-300 dark:border-white/10 bg-slate-50/50 dark:bg-slate-800/50 flex justify-between items-center shrink-0">
-                <button id="sound-toggle" class="p-2 glass-panel border-[1px] border-slate-300 dark:border-white/10 rounded-xl text-slate-400 hover:text-dark dark:hover:text-slate-200 transition-colors">
+            <div class="px-4 py-2.5 border-t-2 border-dark dark:border-slate-500 bg-slate-50/70 dark:bg-slate-800/70 flex justify-between items-center shrink-0">
+                <button id="sound-toggle" type="button" aria-label="Toggle Sound" aria-pressed="true" class="p-2 glass-panel border-2 border-slate-400 dark:border-slate-500 rounded-xl text-slate-500 dark:text-slate-300 hover:text-dark dark:hover:text-white transition-colors">
                     <i data-lucide="volume-2" class="w-5 h-5"></i>
                 </button>
-                <div class="font-heading font-black text-slate-400 text-xs uppercase tracking-wider">READY</div>
+                <div class="font-heading font-black text-slate-400 dark:text-slate-400 text-xs uppercase tracking-wider">READY</div>
             </div>
         </aside>
 
         <!-- MAIN CONTENT AREA -->
-        <main class="flex-1 relative h-[55%] md:h-full bg-slate-50/50 dark:bg-slate-900/50 flex flex-col overflow-hidden transition-colors duration-300">
+        <main class="flex-1 relative min-h-0 md:h-full bg-slate-50/40 dark:bg-slate-900/40 flex flex-col overflow-hidden transition-colors duration-300">
             <div class="absolute inset-0 opacity-10 pointer-events-none" style="background-image: radial-gradient(currentColor 2px, transparent 2px); background-size: 24px 24px;"></div>
             
             <!-- Main display header with Sidebar toggle and action buttons -->
-            <div class="absolute top-4 left-4 z-20 flex gap-2">
-                <button onclick="toggleControlPanel()" class="p-2 glass-panel border-[1px] border-slate-300 dark:border-white/10 rounded-xl shadow-neo-sm hover:translate-y-[-2px] transition-transform text-slate-400 hover:text-dark dark:hover:text-slate-200" title="Toggle Sidebar">
+            <div class="absolute top-3 left-3 right-3 z-20 flex flex-wrap gap-2">
+                <button onclick="toggleControlPanel()" type="button" class="btn-chunky bg-white dark:bg-slate-800 p-2 rounded-xl text-slate-600 dark:text-slate-200 flex items-center justify-center" title="Toggle Sidebar" aria-label="Toggle Sidebar">
                     <i data-lucide="settings" class="w-5 h-5"></i>
                 </button>
-                <button onclick="assignTasks()" class="btn-chunky bg-green text-dark px-4 py-1.5 rounded-xl text-xs font-bold shadow-neo-sm flex items-center gap-2">
+                <button onclick="assignTasks()" type="button" class="btn-chunky bg-green text-dark px-4 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5">
                     <i data-lucide="wand-2" class="w-4 h-4"></i> ASSIGN
                 </button>
-                <button onclick="autoFitCards()" class="btn-chunky bg-white dark:bg-slate-700 text-blue px-3 py-1.5 rounded-xl text-xs font-bold shadow-neo-sm flex items-center gap-1" title="Autofit card layout">
+                <button onclick="autoFitCards()" type="button" class="btn-chunky bg-white dark:bg-slate-700 text-blue px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1" title="Autofit card layout">
                     <i data-lucide="layout-template" class="w-4 h-4"></i> Fit Cards <span id="fit-cards-indicator" class="ml-1 bg-blue/10 dark:bg-blue/20 text-blue px-1 py-0.5 rounded text-[10px]">Default</span>
                 </button>
-                <button onclick="autoFitTextAll()" class="btn-chunky bg-white dark:bg-slate-700 text-orange px-3 py-1.5 rounded-xl text-xs font-bold shadow-neo-sm flex items-center gap-1" title="Autofit text in cards">
+                <button onclick="autoFitTextAll()" type="button" class="btn-chunky bg-white dark:bg-slate-700 text-orange px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1" title="Autofit text in cards">
                     <i data-lucide="type" class="w-4 h-4"></i> Fit Text
                 </button>
             </div>
 
-            <div id="resultsArea" class="flex-grow w-full h-full relative p-6 overflow-y-auto custom-scrollbar hidden">
-                <div id="cardsGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-6 pt-12">
+            <div id="resultsArea" class="flex-grow w-full h-full relative p-5 overflow-y-auto custom-scrollbar hidden">
+                <div id="cardsGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-5 pt-14">
                     <!-- Cards will be injected here -->
                 </div>
             </div>
 
             <div id="emptyState" class="absolute inset-0 flex flex-col items-center justify-center z-10 text-center p-8 animate-pop">
-                <div class="w-32 h-32 glass-panel border-[1px] border-slate-300 dark:border-white/10 rounded-full flex items-center justify-center mb-6 shadow-neo-lg rotate-3">
-                    <i data-lucide="rocket" class="w-16 h-16 text-blue"></i>
+                <div class="w-28 h-28 glass-panel border-4 border-dark dark:border-slate-500 rounded-full flex items-center justify-center mb-5 shadow-neo-lg rotate-3">
+                    <i data-lucide="rocket" class="w-14 h-14 text-blue"></i>
                 </div>
                 <h3 class="text-4xl font-heading text-dark dark:text-slate-100 mb-2">Ready?</h3>
-                <p class="text-xl text-slate-400 font-bold max-w-md">Enter your class list and missions, then hit Assign.</p>
+                <p class="text-lg text-slate-500 dark:text-slate-400 font-bold max-w-md">Enter your class list and missions, then hit Assign.</p>
             </div>
         </main>
     </div>
 
-    <!-- Modals (Reused for Error, with new styling) -->
-    <div id="errorModal" class="fixed inset-0 bg-dark/40 hidden z-[100] items-center justify-center backdrop-blur-sm">
-        <div class="glass-panel border-[1px] border-white/20 p-8 rounded-3xl shadow-neo-lg max-w-sm w-full animate-pop flex flex-col items-center text-center gap-6 m-4 bg-white/95 dark:bg-slate-800/95">
-            <div class="bg-pink/10 p-4 rounded-2xl border-2 border-pink/30 shadow-neo-sm">
+    <!-- Modals -->
+    <div id="errorModal" class="fixed inset-0 bg-dark/50 hidden z-[100] items-center justify-center backdrop-blur-sm" onclick="if(event.target === this) hideModal()">
+        <div class="glass-panel border-4 border-dark dark:border-slate-500 p-7 rounded-3xl shadow-neo-lg max-w-sm w-full animate-pop flex flex-col items-center text-center gap-5 m-4 bg-white dark:bg-slate-800">
+            <div class="bg-pink/10 p-4 rounded-2xl border-2 border-pink/40 shadow-neo-sm">
                 <i data-lucide="alert-triangle" class="w-12 h-12 text-pink"></i>
             </div>
             <div>
                 <h2 class="font-heading text-3xl mb-2 text-dark dark:text-white">Hold up!</h2>
-                <p class="text-lg font-bold text-slate-500 dark:text-slate-400">Please enter both students and missions before assigning.</p>
+                <p class="text-base font-bold text-slate-600 dark:text-slate-300">Please enter both students and missions before assigning.</p>
             </div>
-            <button onclick="hideModal()" class="btn-chunky bg-dark text-white dark:bg-white dark:text-dark px-8 py-3 rounded-2xl w-full text-xl shadow-neo">GOT IT</button>
+            <button onclick="hideModal()" type="button" class="btn-chunky bg-dark text-white dark:bg-white dark:text-dark px-8 py-3 rounded-2xl w-full text-xl">GOT IT</button>
         </div>
     </div>
 
@@ -456,28 +514,40 @@
         const STORE_SETTINGS = 'settings';
         const STORE_IMAGES = 'images';
         const LS_KEY_THEME = 'theme_task-assigner';
+        const LS_KEY_SOUND = 'sound_task-assigner';
+        const LS_KEY_DRAFT = 'taskAssigner_draft_v1';
 
         let idb = null;
         let currentPresetId = null;
         let currentGroupSize = 1;
-        let audioEnabled = true;
+        let audioEnabled = localStorage.getItem(LS_KEY_SOUND) !== 'off';
         let uploadedImages = []; // { id, url, name }
+
+        function escapeHTML(str) {
+            return String(str == null ? '' : str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
 
         // --- THEME & UI ---
         function toggleTheme() {
             const html = document.documentElement;
-            if (html.classList.contains('dark')) {
-                html.classList.remove('dark');
-                localStorage.setItem(LS_KEY_THEME, 'light');
-            } else {
-                html.classList.add('dark');
-                localStorage.setItem(LS_KEY_THEME, 'dark');
-            }
+            const isDark = html.classList.toggle('dark');
+            localStorage.setItem(LS_KEY_THEME, isDark ? 'dark' : 'light');
+            const btn = document.getElementById('theme-toggle');
+            if (btn) btn.setAttribute('aria-pressed', String(isDark));
+            lucide.createIcons();
         }
 
         function loadTheme() {
             const savedTheme = localStorage.getItem(LS_KEY_THEME) || 'light';
-            if (savedTheme === 'dark') document.documentElement.classList.add('dark');
+            const isDark = savedTheme === 'dark';
+            document.documentElement.classList.toggle('dark', isDark);
+            const btn = document.getElementById('theme-toggle');
+            if (btn) btn.setAttribute('aria-pressed', String(isDark));
         }
 
         function toggleControlPanel() {
@@ -498,10 +568,10 @@
             const container = document.getElementById('toast-container');
             const toast = document.createElement('div');
             const colors = {
-                success: 'bg-green text-dark border-green',
-                error: 'bg-pink text-white border-pink',
-                info: 'bg-blue text-white border-blue',
-                warning: 'bg-orange text-dark border-orange'
+                success: 'bg-green text-dark border-dark dark:border-slate-500',
+                error: 'bg-pink text-white border-dark dark:border-slate-500',
+                info: 'bg-blue text-white border-dark dark:border-slate-500',
+                warning: 'bg-orange text-dark border-dark dark:border-slate-500'
             };
             const icons = {
                 success: 'check-circle',
@@ -509,8 +579,8 @@
                 info: 'info',
                 warning: 'alert-triangle'
             };
-            toast.className = `${colors[type]} px-4 py-3 rounded-xl shadow-neo border-[1px] font-bold text-sm flex items-center gap-2 pointer-events-auto transform transition-all duration-300 translate-y-[-20px] opacity-0`;
-            toast.innerHTML = `<i data-lucide="${icons[type]}" class="w-4 h-4"></i> ${message}`;
+            toast.className = `${colors[type]} px-4 py-2.5 rounded-xl shadow-neo border-2 font-bold text-sm flex items-center gap-2 pointer-events-auto transform transition-all duration-300 translate-y-[-20px] opacity-0`;
+            toast.innerHTML = `<i data-lucide="${icons[type]}" class="w-4 h-4"></i> <span>${escapeHTML(message)}</span>`;
             container.appendChild(toast);
             lucide.createIcons();
             requestAnimationFrame(() => toast.classList.remove('translate-y-[-20px]', 'opacity-0'));
@@ -520,39 +590,33 @@
             }, duration);
         }
 
-        function showConfirmToast(message, onConfirm) {
-            const container = document.getElementById('toast-container');
-            const toast = document.createElement('div');
-            toast.className = 'bg-slate-800 text-white dark:bg-slate-100 dark:text-slate-800 px-4 py-3 rounded-xl shadow-neo-lg border-[1px] border-slate-600 dark:border-slate-300 font-bold text-sm flex items-center gap-3 pointer-events-auto';
-            toast.innerHTML = `
-                <span>${message}</span>
-                <div class="flex gap-2">
-                    <button id="toast-confirm" class="text-green hover:underline">YES</button>
-                    <button id="toast-cancel" class="text-pink hover:underline">NO</button>
-                </div>
-            `;
-            container.appendChild(toast);
-            toast.querySelector('#toast-confirm').onclick = () => { onConfirm(); toast.remove(); };
-            toast.querySelector('#toast-cancel').onclick = () => { toast.remove(); };
-        }
-
         // --- AUDIO ---
         const AudioEngine = {
-            init: async () => { try{ await Tone.start(); }catch(e){} },
+            synths: {},
+            init: async () => { try { await Tone.start(); } catch (e) {} },
+            _getSynth: (type) => {
+                if (typeof Tone === 'undefined') return null;
+                if (!AudioEngine.synths[type]) {
+                    if (type === 'click') AudioEngine.synths.click = new Tone.MembraneSynth().toDestination();
+                    else if (type === 'success') AudioEngine.synths.success = new Tone.PolySynth().toDestination();
+                    else if (type === 'error') AudioEngine.synths.error = new Tone.PluckSynth().toDestination();
+                }
+                return AudioEngine.synths[type];
+            },
             playClick: () => {
-                if(!audioEnabled) return;
-                const synth = new Tone.MembraneSynth().toDestination();
-                synth.triggerAttackRelease("C2", "32n");
+                if (!audioEnabled) return;
+                const s = AudioEngine._getSynth('click');
+                if (s) s.triggerAttackRelease("C2", "32n");
             },
             playSuccess: () => {
-                if(!audioEnabled) return;
-                const synth = new Tone.PolySynth().toDestination();
-                synth.triggerAttackRelease(["C4", "E4", "A4"], "16n");
+                if (!audioEnabled) return;
+                const s = AudioEngine._getSynth('success');
+                if (s) s.triggerAttackRelease(["C4", "E4", "A4"], "16n");
             },
             playError: () => {
-                if(!audioEnabled) return;
-                const synth = new Tone.PluckSynth().toDestination();
-                synth.triggerAttackRelease("E2", "16n");
+                if (!audioEnabled) return;
+                const s = AudioEngine._getSynth('error');
+                if (s) s.triggerAttackRelease("E2", "16n");
             }
         };
 
@@ -638,7 +702,8 @@
         }
 
         async function handleImageUpload(input) {
-            const files = Array.from(input.files);
+            const files = Array.from(input.files || []).filter(f => f.type.startsWith('image/'));
+            input.value = '';
             if (!files.length) return;
             for (const file of files) {
                 const id = crypto.randomUUID();
@@ -646,10 +711,14 @@
             }
             await refreshImagePreviews();
             showToast(`${files.length} image(s) uploaded`, 'success');
-            input.value = '';
         }
 
         async function refreshImagePreviews() {
+            uploadedImages.forEach(img => {
+                if (img && img.url) {
+                    try { URL.revokeObjectURL(img.url); } catch (_) {}
+                }
+            });
             uploadedImages = await getAllImagesFromDB();
             const container = document.getElementById('image-preview-list');
             if (!container) return;
@@ -660,12 +729,12 @@
             }
             document.getElementById('image-upload-label').textContent = `${uploadedImages.length} image(s)`;
             container.innerHTML = uploadedImages.map(img => `
-                <div class="relative group w-10 h-10 rounded-lg border border-slate-300 dark:border-white/20 overflow-hidden cursor-pointer" onclick="removeImage('${img.id}')">
-                    <img src="${img.url}" class="w-full h-full object-cover">
+                <button type="button" title="Remove ${escapeHTML(img.name)}" aria-label="Remove ${escapeHTML(img.name)}" class="relative group w-10 h-10 rounded-lg border-2 border-slate-400 dark:border-slate-500 overflow-hidden cursor-pointer" onclick="removeImage('${escapeHTML(img.id)}')">
+                    <img src="${escapeHTML(img.url)}" alt="${escapeHTML(img.name)}" class="w-full h-full object-cover">
                     <div class="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
                         <i data-lucide="x" class="w-4 h-4 text-white"></i>
                     </div>
-                </div>
+                </button>
             `).join('');
             lucide.createIcons();
         }
@@ -704,11 +773,12 @@
         async function loadFromCloud() {
             try {
                 const data = await loadProgress('task_assigner_presets');
-                if (data && data.presets) {
+                if (data && Array.isArray(data.presets)) {
                     for (const p of data.presets) {
+                        if (!p || !p.id) continue;
                         const local = await getPreset(p.id);
-                        if (!local || p.updatedAt > local.updatedAt) {
-                            await savePreset(p.name, p.content, p.id);
+                        if (!local || (p.updatedAt || 0) > (local.updatedAt || 0)) {
+                            await savePreset(p.name, p.content, p.id, p.updatedAt);
                         }
                     }
                     await renderPresetSelector();
@@ -764,7 +834,52 @@
 
             AudioEngine.playClick();
             // Re-fit text after layout change
-            setTimeout(autoFitTextAll, 150);
+            setTimeout(() => fitAllCardTexts(true), 150);
+        }
+
+        let renderGenerationId = 0;
+
+        function fitAllCardTexts(silent = false) {
+            const cardsGrid = document.getElementById('cardsGrid');
+            if (!cardsGrid || cardsGrid.children.length === 0) return false;
+
+            const cardElements = Array.from(cardsGrid.children);
+            const containersAndTexts = [];
+
+            // Collapse all .fit-text nodes first so no card panel bloats the un-fitted box height
+            cardElements.forEach(card => {
+                const els = Array.from(card.querySelectorAll('.fit-text'));
+                els.forEach(el => {
+                    el.style.display = 'none';
+                });
+                els.forEach(el => {
+                    const container = el.parentElement;
+                    if (!container) return;
+                    containersAndTexts.push({
+                        el,
+                        container,
+                        w: container.clientWidth,
+                        h: container.clientHeight
+                    });
+                });
+            });
+
+            containersAndTexts.forEach(({ el, container, w, h }) => {
+                fitText(el, w, h);
+            });
+
+            // Safety restore in case any element had no container
+            cardElements.forEach(card => {
+                card.querySelectorAll('.fit-text').forEach(el => {
+                    if (el.style.display === 'none') el.style.display = '';
+                });
+            });
+
+            if (!silent) {
+                showToast('Text fitted', 'success');
+                AudioEngine.playClick();
+            }
+            return true;
         }
 
         function autoFitTextAll() {
@@ -773,28 +888,52 @@
                 showToast('Generate cards first', 'warning');
                 return;
             }
-            document.querySelectorAll('.fit-text').forEach(el => fitText(el));
-            showToast('Text fitted', 'success');
-            AudioEngine.playClick();
+            fitAllCardTexts(false);
         }
 
-        function fitText(el) {
+        function fitText(el, measuredW, measuredH) {
             const container = el.parentElement;
             if (!container) return;
-            // Reset first to get natural size
-            el.style.fontSize = '';
-            el.style.whiteSpace = '';
 
-            const computed = window.getComputedStyle(el);
-            const baseSize = parseInt(computed.fontSize) || 24;
-            const maxFontSize = Math.max(baseSize, 72);
-            const minFontSize = 10;
-            const containerW = container.clientWidth;
-            const containerH = container.clientHeight;
+            let containerW = measuredW;
+            let containerH = measuredH;
+
+            if (containerW == null || containerH == null) {
+                const card = el.closest ? el.closest('.assign-card') : null;
+                const siblingTexts = card ? Array.from(card.querySelectorAll('.fit-text')) : [el];
+                const prevDisplays = siblingTexts.map(s => s.style.display);
+                siblingTexts.forEach(s => { s.style.display = 'none'; });
+                containerW = container.clientWidth;
+                containerH = container.clientHeight;
+                siblingTexts.forEach((s, idx) => { s.style.display = prevDisplays[idx]; });
+            }
+
+            if (containerW <= 0 || containerH <= 0) {
+                el.style.display = '';
+                return;
+            }
+
+            const maxW = Math.max(24, containerW - 6);
+            const maxH = Math.max(24, containerH - 6);
+            const isSingleWord = el.dataset && el.dataset.fitMode === 'single';
+            const minFontSize = 8;
+            const maxFontSize = 72;
+
+            // Measure out-of-flow inside the real container so font/styles match without stretching the card
+            el.style.display = isSingleWord ? 'inline-block' : 'block';
+            el.style.position = 'absolute';
+            el.style.left = '0';
+            el.style.top = '0';
+            el.style.visibility = 'hidden';
+            el.style.pointerEvents = 'none';
+            el.style.width = isSingleWord ? 'auto' : maxW + 'px';
+            el.style.whiteSpace = isSingleWord ? 'nowrap' : 'normal';
+            el.style.overflowWrap = 'normal';
+            el.style.wordBreak = 'normal';
 
             function isOverflowing(size) {
                 el.style.fontSize = size + 'px';
-                return el.scrollWidth > containerW || el.scrollHeight > containerH;
+                return el.scrollWidth > maxW || el.scrollHeight > maxH;
             }
 
             // Binary search for optimal font size
@@ -808,7 +947,40 @@
                     low = mid + 1;
                 }
             }
+
             el.style.fontSize = best + 'px';
+
+            // Only break mid-word if an unbroken mega-word exceeds width even at minFontSize
+            if (el.scrollWidth > maxW) {
+                el.style.whiteSpace = 'normal';
+                el.style.width = maxW + 'px';
+                el.style.overflowWrap = 'anywhere';
+                el.style.wordBreak = 'break-word';
+                let bLow = minFontSize, bHigh = maxFontSize, bBest = minFontSize;
+                while (bLow <= bHigh) {
+                    const mid = Math.floor((bLow + bHigh) / 2);
+                    el.style.fontSize = mid + 'px';
+                    if (el.scrollWidth > maxW || el.scrollHeight > maxH) {
+                        bHigh = mid - 1;
+                    } else {
+                        bBest = mid;
+                        bLow = mid + 1;
+                    }
+                }
+                el.style.fontSize = bBest + 'px';
+            } else {
+                el.style.whiteSpace = isSingleWord ? 'nowrap' : 'normal';
+            }
+
+            // Restore in-flow centered presentation
+            el.style.position = '';
+            el.style.left = '';
+            el.style.top = '';
+            el.style.visibility = '';
+            el.style.pointerEvents = '';
+            el.style.display = '';
+            el.style.width = '100%';
+            el.style.textAlign = 'center';
         }
 
         async function migrateFromLocalStorage() {
@@ -822,12 +994,12 @@
             }
         }
 
-        async function savePreset(name, content, id = null) {
+        async function savePreset(name, content, id = null, customUpdatedAt = null) {
             if (!idb) return;
             return new Promise((resolve, reject) => {
                 const tx = idb.transaction(STORE_PRESETS, 'readwrite');
                 const store = tx.objectStore(STORE_PRESETS);
-                const data = { name, content, updatedAt: Date.now() };
+                const data = { name, content, updatedAt: customUpdatedAt || Date.now() };
                 if (id) data.id = id;
                 const request = id ? store.put(data) : store.add(data);
                 request.onsuccess = () => resolve(request.result);
@@ -904,14 +1076,44 @@
             });
         }
 
+        function saveDraft() {
+            try {
+                const draft = {
+                    people: document.getElementById('peopleInput').value,
+                    tasks: document.getElementById('taskInput').value,
+                    groupSize: currentGroupSize,
+                    isRandom: document.getElementById('sort-mode-toggle').checked,
+                    useImageMission: document.getElementById('image-mission-toggle').checked
+                };
+                localStorage.setItem(LS_KEY_DRAFT, JSON.stringify(draft));
+            } catch (_) {}
+        }
+
+        function loadDraft() {
+            try {
+                const raw = localStorage.getItem(LS_KEY_DRAFT);
+                if (!raw) return null;
+                return JSON.parse(raw);
+            } catch (_) {
+                return null;
+            }
+        }
+
         async function onPresetSelect() {
             const select = document.getElementById('preset-select');
             const id = parseInt(select.value);
             if (!id) return;
             const preset = await getPreset(id);
             if (preset) {
+                let data = {};
+                try {
+                    data = JSON.parse(preset.content || '{}') || {};
+                } catch (err) {
+                    console.warn('Invalid preset JSON', err);
+                    showToast('Preset data corrupted', 'error');
+                    return;
+                }
                 currentPresetId = id;
-                const data = JSON.parse(preset.content);
                 document.getElementById('peopleInput').value = data.people || '';
                 document.getElementById('taskInput').value = data.tasks || '';
                 document.getElementById('preset-name').value = preset.name;
@@ -922,10 +1124,14 @@
                 if (data.useImageMission !== undefined) {
                     document.getElementById('image-mission-toggle').checked = data.useImageMission;
                 }
+                if ([1, 2, 3, 4].includes(Number(data.groupSize))) {
+                    setGroupSize(Number(data.groupSize), true);
+                }
                 syncMissionModeButtons();
                 await saveCurrentPresetId(id);
                 await renderPresetSelector();
                 updateCounts();
+                saveDraft();
             }
         }
 
@@ -934,12 +1140,16 @@
             const content = JSON.stringify({
                 people: document.getElementById('peopleInput').value,
                 tasks: document.getElementById('taskInput').value,
+                groupSize: currentGroupSize,
                 isRandom: document.getElementById('sort-mode-toggle').checked,
                 useImageMission: document.getElementById('image-mission-toggle').checked
             });
             const id = await savePreset(name, content, currentPresetId);
-            currentPresetId = id;
-            await saveCurrentPresetId(id);
+            if (id !== undefined && id !== null) {
+                currentPresetId = id;
+                await saveCurrentPresetId(id);
+            }
+            saveDraft();
             await saveToCloud();
             await renderPresetSelector();
             showToast('Preset saved!', 'success');
@@ -954,6 +1164,7 @@
             await renderPresetSelector();
             document.getElementById('preset-select').value = '';
             updateCounts();
+            saveDraft();
         }
 
         async function deleteCurrentPreset() {
@@ -961,18 +1172,25 @@
                 showToast('No preset selected', 'error');
                 return;
             }
-            showConfirmToast('Delete this preset?', async () => {
-                await deletePreset(currentPresetId);
-                currentPresetId = null;
-                document.getElementById('preset-name').value = '';
-                document.getElementById('peopleInput').value = '';
-                document.getElementById('taskInput').value = '';
-                await saveCurrentPresetId(null);
-                await saveToCloud();
-                await renderPresetSelector();
-                updateCounts();
-                showToast('Preset deleted', 'success');
+            const confirmed = await showConfirmModal('Delete this preset?', {
+                title: 'Delete Preset',
+                confirmText: 'Delete',
+                cancelText: 'Cancel',
+                icon: 'trash-2',
+                iconColor: 'pink'
             });
+            if (!confirmed) return;
+            await deletePreset(currentPresetId);
+            currentPresetId = null;
+            document.getElementById('preset-name').value = '';
+            document.getElementById('peopleInput').value = '';
+            document.getElementById('taskInput').value = '';
+            await saveCurrentPresetId(null);
+            saveDraft();
+            await saveToCloud();
+            await renderPresetSelector();
+            updateCounts();
+            showToast('Preset deleted', 'success');
         }
 
         // --- DATA LOGIC ---
@@ -983,19 +1201,42 @@
             document.getElementById('taskCount').textContent = t;
         }
 
-        function setGroupSize(size) {
+        function dedupePeople() {
+            const input = document.getElementById('peopleInput');
+            const items = input.value.split(/[\n,;]/).map(s => s.trim()).filter(Boolean);
+            const seen = new Set();
+            const unique = [];
+            for (const name of items) {
+                const key = name.toLowerCase();
+                if (!seen.has(key)) {
+                    seen.add(key);
+                    unique.push(name);
+                }
+            }
+            const removed = items.length - unique.length;
+            if (removed > 0) {
+                input.value = unique.join('\n');
+                updateCounts();
+                saveDraft();
+                showToast(`Removed ${removed} duplicate${removed > 1 ? 's' : ''}`, 'success');
+                AudioEngine.playClick();
+            } else {
+                showToast('No duplicates found', 'info');
+            }
+        }
+
+        function setGroupSize(size, silent = false) {
             currentGroupSize = size;
             [1, 2, 3, 4].forEach(id => {
                 const btn = document.getElementById(`btnSize${id}`);
                 if (btn) {
-                    if (id === size) {
-                        btn.classList.add('active');
-                    } else {
-                        btn.classList.remove('active');
-                    }
+                    const isActive = id === size;
+                    btn.classList.toggle('active', isActive);
+                    btn.setAttribute('aria-pressed', String(isActive));
                 }
             });
-            AudioEngine.playClick();
+            saveDraft();
+            if (!silent) AudioEngine.playClick();
         }
 
         function shuffle(array) {
@@ -1028,8 +1269,10 @@
             let taskInput = document.getElementById('taskInput');
             let people = peopleInput.value.split(/[\n,;]/).map(s => s.trim()).filter(s => s.length > 0);
             let tasks = taskInput.value.split(/[\n,;]/).map(s => s.trim()).filter(s => s.length > 0);
+            const useImageMission = document.getElementById('image-mission-toggle')?.checked || false;
+            const hasImageMissions = useImageMission && uploadedImages.length > 0;
 
-            if (people.length === 0 || tasks.length === 0) {
+            if (people.length === 0 || (tasks.length === 0 && !hasImageMissions)) {
                 showModal();
                 return;
             }
@@ -1056,12 +1299,14 @@
             renderGrid(groups, tasks);
             AudioEngine.playSuccess();
             
-            confetti({
-                particleCount: 100,
-                spread: 70,
-                origin: { y: 0.6 },
-                colors: ['#FF6B95', '#FF8C42', '#00E676', '#2979FF']
-            });
+            if (typeof confetti === 'function') {
+                confetti({
+                    particleCount: 100,
+                    spread: 70,
+                    origin: { y: 0.6 },
+                    colors: ['#FF6B95', '#FF8C42', '#00E676', '#2979FF']
+                });
+            }
         }
 
         function renderGrid(groups, tasks) {
@@ -1083,10 +1328,13 @@
 
             let currentTaskBucket = [];
             groups.forEach((groupArray, index) => {
-                if (currentTaskBucket.length === 0) {
-                    currentTaskBucket = shuffle(tasks);
+                let task = 'Image Mission';
+                if (tasks.length > 0) {
+                    if (currentTaskBucket.length === 0) {
+                        currentTaskBucket = shuffle(tasks);
+                    }
+                    task = currentTaskBucket.pop();
                 }
-                const task = currentTaskBucket.pop();
                 const colorTheme = cardColors[index % cardColors.length];
                 const isGroup = groupArray.length > 1;
                 const label = isGroup ? 'TEAM' : 'STUDENT';
@@ -1097,42 +1345,46 @@
 
                 // --- Image Logic ---
                 const img = uploadedImages.length > 0 ? uploadedImages[index % uploadedImages.length] : null;
+                const safeImgUrl = img ? escapeHTML(img.url) : '';
                 const imgHtml = img ? (useImageMission
-                    ? `<div class="w-full h-full max-h-[280px] rounded-xl overflow-hidden border-2 border-white/30 shadow-neo flex items-center justify-center"><img src="${img.url}" class="w-full h-full object-contain"></div>`
-                    : `<div class="w-full h-24 mb-2 rounded-xl overflow-hidden border border-white/20 shadow-neo-sm shrink-0"><img src="${img.url}" class="w-full h-full object-cover"></div>`
+                    ? `<div class="w-full h-full max-h-[280px] rounded-xl overflow-hidden border-2 border-dark/20 dark:border-slate-500 shadow-neo-sm flex items-center justify-center bg-white/40 dark:bg-slate-900/40"><img src="${safeImgUrl}" alt="Mission preview" class="w-full h-full object-contain"></div>`
+                    : `<div class="w-full h-24 mb-2 rounded-xl overflow-hidden border-2 border-dark/20 dark:border-slate-500 shadow-neo-sm shrink-0"><img src="${safeImgUrl}" alt="Mission preview" class="w-full h-full object-cover"></div>`
                 ) : '';
+
+                const safeLabel = escapeHTML(label);
+                const safeTask = escapeHTML(task);
 
                 let namesHtml = '';
                 if (isGroup) {
-                    namesHtml = `<div class="flex flex-wrap gap-2 mt-2">${groupArray.map(n => `<span class="bg-white/50 dark:bg-slate-800/50 border-[1px] border-dark/20 dark:border-white/20 px-3 py-1 rounded-xl text-lg font-black text-dark dark:text-white shadow-neo-sm">${n}</span>`).join('')}</div>`;
+                    namesHtml = `<div class="flex flex-wrap gap-2 mt-2 justify-center">${groupArray.map(n => `<span class="bg-white/75 dark:bg-slate-800/85 border-2 border-dark/25 dark:border-slate-500 px-3 py-1 rounded-xl text-lg font-black text-dark dark:text-white shadow-neo-sm">${escapeHTML(n)}</span>`).join('')}</div>`;
                 } else {
                     const studentName = groupArray[0];
                     const nameWords = studentName.split(/\s+/).filter(w => w.length > 0);
                     const isMultiWordName = nameWords.length >= 2;
-                    namesHtml = `<div class="fit-text text-3xl md:text-5xl font-black text-dark dark:text-white mt-2 leading-none ${isMultiWordName ? 'break-words' : 'whitespace-nowrap'}" style="max-height: 100px; display: flex; align-items: center; justify-content: center;">${studentName}</div>`;
+                    namesHtml = `<div class="fit-text font-black text-dark dark:text-white leading-[1.12] ${isMultiWordName ? '' : 'whitespace-nowrap'}" data-fit-mode="${isMultiWordName ? 'multi' : 'single'}" style="font-size: 24px;">${escapeHTML(studentName)}</div>`;
                 }
 
                 const card = document.createElement('div');
-                card.className = `w-full min-h-[14rem] glass-panel border-[1px] border-slate-300 dark:border-white/10 rounded-2xl flex shadow-neo animate-pop overflow-hidden`;
+                card.className = `assign-card w-full min-h-[14rem] glass-panel border-2 border-dark dark:border-slate-500 rounded-2xl flex shadow-neo animate-pop overflow-hidden`;
                 card.style.animationDelay = `${index * 0.1}s`;
 
                 card.innerHTML = `
-                    <div class="w-1/2 p-4 flex flex-col justify-center border-r-[1px] border-slate-300 dark:border-white/10 border-dashed relative z-10 overflow-hidden">
+                    <div class="assign-card-col w-1/2 p-4 flex flex-col justify-center border-r-2 border-dark/20 dark:border-slate-500 border-dashed relative z-10 overflow-hidden">
                         <div class="flex items-center gap-2 mb-2 shrink-0">
-                            <div class="w-10 h-10 ${colorTheme.accent} rounded-xl border-[1px] border-dark/20 flex items-center justify-center text-dark shadow-neo-sm">
+                            <div class="w-10 h-10 ${colorTheme.accent} rounded-xl border-2 border-dark/30 dark:border-slate-500 flex items-center justify-center text-dark shadow-neo-sm">
                                 <i data-lucide="${isGroup ? 'users' : 'user'}" class="w-5 h-5"></i>
                             </div>
-                            <span class="text-xs font-bold text-slate-400 tracking-widest uppercase">${label}</span>
+                            <span class="text-xs font-extrabold text-slate-500 dark:text-slate-300 tracking-widest uppercase">${safeLabel}</span>
                         </div>
-                        <div class="flex-grow flex items-center justify-center overflow-hidden">
+                        <div class="${isGroup ? 'flex-grow flex items-center justify-center overflow-hidden' : 'assign-fit-container'}">
                             ${namesHtml}
                         </div>
                     </div>
 
-                    <div class="w-1/2 p-4 ${colorTheme.accent} flex flex-col ${useImageMission ? 'justify-start pt-4' : 'justify-center'} items-center text-center relative overflow-hidden">
-                        <div class="bg-white/50 dark:bg-slate-900/40 border-[1px] border-dark/20 px-3 py-1 rounded-lg text-[10px] font-black text-dark dark:text-white mb-3 tracking-widest uppercase shadow-neo-sm shrink-0">MISSION</div>
-                        <div class="flex-grow flex ${useImageMission ? 'items-start justify-start pt-1' : 'items-center justify-center'} w-full overflow-hidden">
-                            ${useImageMission ? imgHtml || `<div class="fit-text font-heading text-2xl md:text-4xl font-black leading-tight text-dark dark:text-white z-10 w-full ${isMultiWordTask ? 'break-words' : 'whitespace-nowrap'}">${task}</div>` : `<div class="fit-text font-heading text-2xl md:text-4xl font-black leading-tight text-dark dark:text-white z-10 w-full ${isMultiWordTask ? 'break-words' : 'whitespace-nowrap'}">${task}</div>`}
+                    <div class="assign-card-col w-1/2 p-4 ${colorTheme.accent} flex flex-col ${useImageMission && imgHtml ? 'justify-start pt-4' : 'justify-center'} items-center text-center relative overflow-hidden">
+                        <div class="bg-white/65 dark:bg-slate-900/60 border-2 border-dark/25 dark:border-slate-500 px-3 py-1 rounded-lg text-[10px] font-black text-dark dark:text-white mb-3 tracking-widest uppercase shadow-neo-sm shrink-0">MISSION</div>
+                        <div class="${useImageMission && imgHtml ? 'flex-grow flex items-start justify-start pt-1 w-full overflow-hidden' : 'assign-fit-container'}">
+                            ${useImageMission && imgHtml ? imgHtml : `<div class="fit-text font-heading font-black leading-[1.12] ${colorTheme.text} z-10 ${isMultiWordTask ? '' : 'whitespace-nowrap'}" data-fit-mode="${isMultiWordTask ? 'multi' : 'single'}" style="font-size: 24px;">${safeTask}</div>`}
                         </div>
                         <i data-lucide="target" class="absolute -bottom-6 -right-6 w-32 h-32 text-dark/10 z-0"></i>
                     </div>
@@ -1141,22 +1393,39 @@
                 cardsGrid.appendChild(card);
             });
 
-            // Apply text fitting after cards are in the DOM
-            document.querySelectorAll('.fit-text').forEach(el => fitText(el));
+            // Fit immediately and re-fit after Tailwind CDN styles & webfonts settle
+            const genId = ++renderGenerationId;
+            fitAllCardTexts(true);
+            requestAnimationFrame(() => {
+                if (genId === renderGenerationId) fitAllCardTexts(true);
+            });
+            setTimeout(() => {
+                if (genId === renderGenerationId) fitAllCardTexts(true);
+            }, 60);
+            if (document.fonts && document.fonts.ready) {
+                document.fonts.ready.then(() => {
+                    if (genId === renderGenerationId) fitAllCardTexts(true);
+                });
+            }
             lucide.createIcons();
         }
 
-        function clearAll() {
-            showConfirmToast('Clear everything?', () => {
-                document.getElementById('peopleInput').value = '';
-                document.getElementById('taskInput').value = '';
-                updateCounts();
-                document.getElementById('cardsGrid').innerHTML = '';
-                document.getElementById('resultsArea').classList.add('hidden');
-                document.getElementById('emptyState').classList.remove('hidden');
-                AudioEngine.playClick();
-                showToast('Cleared!', 'info');
+        async function clearAll() {
+            const confirmed = await showConfirmModal('Clear all names, missions, and generated results?', {
+                title: 'Clear Everything?',
+                confirmText: 'Clear All'
             });
+            if (!confirmed) return;
+
+            document.getElementById('peopleInput').value = '';
+            document.getElementById('taskInput').value = '';
+            updateCounts();
+            saveDraft();
+            document.getElementById('cardsGrid').innerHTML = '';
+            document.getElementById('resultsArea').classList.add('hidden');
+            document.getElementById('emptyState').classList.remove('hidden');
+            AudioEngine.playClick();
+            showToast('Cleared!', 'info');
         }
 
         function updateSortIcon() {
@@ -1177,6 +1446,8 @@
             if (!textBtn || !imgBtn) return;
             const activeClass = 'flex-1 py-1.5 px-2 rounded-md text-[10px] font-bold uppercase transition-all bg-white dark:bg-slate-600 text-dark dark:text-white shadow-neo-sm';
             const inactiveClass = 'flex-1 py-1.5 px-2 rounded-md text-[10px] font-bold uppercase transition-all text-slate-500 dark:text-slate-400 hover:bg-white/50 dark:hover:bg-slate-600/50';
+            textBtn.setAttribute('aria-pressed', String(!enabled));
+            imgBtn.setAttribute('aria-pressed', String(enabled));
             if (enabled) {
                 textBtn.className = inactiveClass;
                 imgBtn.className = activeClass;
@@ -1198,9 +1469,11 @@
                 showToast('Upload images first', 'warning');
                 document.getElementById('image-mission-toggle').checked = false;
                 syncMissionModeButtons();
+                saveDraft();
                 return;
             }
             syncMissionModeButtons();
+            saveDraft();
             // If cards are already rendered, refresh them
             const cardsGrid = document.getElementById('cardsGrid');
             if (cardsGrid && cardsGrid.children.length > 0) {
@@ -1208,39 +1481,95 @@
             }
         }
 
+        function updateSoundButtonUI() {
+            const button = document.getElementById('sound-toggle');
+            if (!button) return;
+            const icon = audioEnabled ? 'volume-2' : 'volume-x';
+            button.setAttribute('aria-pressed', String(audioEnabled));
+            button.innerHTML = `<i data-lucide="${icon}" class="w-5 h-5"></i>`;
+        }
+
         // --- INIT ---
         async function initializeApp() {
             loadTheme();
             await initDB();
             currentPresetId = await getCurrentPresetId();
+            let loadedPreset = false;
             if (currentPresetId) {
                 const preset = await getPreset(currentPresetId);
                 if (preset) {
-                    const data = JSON.parse(preset.content);
-                    document.getElementById('peopleInput').value = data.people || '';
-                    document.getElementById('taskInput').value = data.tasks || '';
-                    if (data.isRandom !== undefined) document.getElementById('sort-mode-toggle').checked = data.isRandom;
-                    if (data.useImageMission !== undefined) document.getElementById('image-mission-toggle').checked = data.useImageMission;
-                    document.getElementById('preset-name').value = preset.name;
+                    try {
+                        const data = JSON.parse(preset.content || '{}') || {};
+                        loadedPreset = true;
+                        document.getElementById('peopleInput').value = data.people || '';
+                        document.getElementById('taskInput').value = data.tasks || '';
+                        if (data.isRandom !== undefined) document.getElementById('sort-mode-toggle').checked = data.isRandom;
+                        if (data.useImageMission !== undefined) document.getElementById('image-mission-toggle').checked = data.useImageMission;
+                        if ([1, 2, 3, 4].includes(Number(data.groupSize))) currentGroupSize = Number(data.groupSize);
+                        document.getElementById('preset-name').value = preset.name;
+                    } catch (err) {
+                        console.warn('Corrupt preset ignored', err);
+                    }
+                }
+            }
+            if (!loadedPreset) {
+                const draft = loadDraft();
+                if (draft) {
+                    if (typeof draft.people === 'string') document.getElementById('peopleInput').value = draft.people;
+                    if (typeof draft.tasks === 'string') document.getElementById('taskInput').value = draft.tasks;
+                    if (draft.isRandom !== undefined) document.getElementById('sort-mode-toggle').checked = !!draft.isRandom;
+                    if (draft.useImageMission !== undefined) document.getElementById('image-mission-toggle').checked = !!draft.useImageMission;
+                    if ([1, 2, 3, 4].includes(Number(draft.groupSize))) currentGroupSize = Number(draft.groupSize);
                 }
             }
             syncMissionModeButtons();
             updateSortIcon();
+            setGroupSize(currentGroupSize, true);
+            updateSoundButtonUI();
             await renderPresetSelector();
             await refreshImagePreviews();
             updateCounts();
             lucide.createIcons();
 
             // Listeners
-            document.getElementById('peopleInput').addEventListener('input', updateCounts);
-            document.getElementById('taskInput').addEventListener('input', updateCounts);
-            
-            document.getElementById('sound-toggle').addEventListener('click', (e) => {
+            document.getElementById('peopleInput').addEventListener('input', () => {
+                updateCounts();
+                saveDraft();
+            });
+            document.getElementById('taskInput').addEventListener('input', () => {
+                updateCounts();
+                saveDraft();
+            });
+            document.getElementById('sort-mode-toggle').addEventListener('change', () => {
+                saveDraft();
+            });
+
+            document.getElementById('sound-toggle').addEventListener('click', () => {
                 audioEnabled = !audioEnabled;
-                const icon = audioEnabled ? 'volume-2' : 'volume-x';
-                const button = e.currentTarget;
-                button.innerHTML = `<i data-lucide="${icon}" class="w-5 h-5"></i>`;
+                localStorage.setItem(LS_KEY_SOUND, audioEnabled ? 'on' : 'off');
+                updateSoundButtonUI();
                 lucide.createIcons();
+                if (audioEnabled) AudioEngine.playClick();
+            });
+
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') {
+                    const errModal = document.getElementById('errorModal');
+                    if (errModal && !errModal.classList.contains('hidden')) {
+                        hideModal();
+                    }
+                } else if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+                    const errModal = document.getElementById('errorModal');
+                    if (errModal && !errModal.classList.contains('hidden')) return;
+                    e.preventDefault();
+                    assignTasks();
+                }
+            });
+
+            let resizeFitTimer = null;
+            window.addEventListener('resize', () => {
+                clearTimeout(resizeFitTimer);
+                resizeFitTimer = setTimeout(() => fitAllCardTexts(true), 120);
             });
         }
 

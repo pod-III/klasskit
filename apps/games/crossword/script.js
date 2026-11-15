@@ -1,4 +1,42 @@
 lucide.createIcons();
+
+function escapeHTML(str) {
+    return String(str ?? '').replace(/[&<>"']/g, (ch) => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#39;'
+    }[ch]));
+}
+
+function shuffleArray(arr) {
+    const copy = [...arr];
+    for (let i = copy.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [copy[i], copy[j]] = [copy[j], copy[i]];
+    }
+    return copy;
+}
+
+function showBuildFeedback(message, tone = 'error') {
+    const el = document.getElementById('build-feedback');
+    if (!el) return;
+    if (!message) {
+        el.textContent = '';
+        el.classList.add('hidden');
+        return;
+    }
+    el.textContent = message;
+    el.className = 'text-xs font-bold px-3 py-2 rounded-lg border transition-colors ' + (
+        tone === 'error'
+            ? 'bg-pink/15 text-pink border-pink/40 dark:bg-pink/20 dark:text-pink'
+            : tone === 'warn'
+                ? 'bg-orange/15 text-orange border-orange/40 dark:bg-orange/20 dark:text-orange'
+                : 'bg-green/15 text-green-700 border-green/40 dark:bg-green/20 dark:text-green-400'
+    );
+}
+
 let syncTimeout = null;
 async function syncToCloud() {
     if (syncTimeout) clearTimeout(syncTimeout);
@@ -196,16 +234,16 @@ async function renderWordSets() {
     list.innerHTML = '';
     sets.forEach(set => {
         const item = document.createElement('div');
-        item.className = 'flex items-center gap-2 p-2 bg-white/60 dark:bg-slate-800/60 border border-slate-200 dark:border-white/10 rounded-lg group hover:border-blue/40 transition-all';
+        item.className = 'flex items-center gap-2 p-2 bg-white/60 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-500/40 rounded-lg group hover:border-blue/40 transition-all';
         item.innerHTML = `
             <div class="flex-1 min-w-0">
-                <p class="text-sm font-bold text-dark dark:text-slate-100 truncate">${set.name}</p>
+                <p class="text-sm font-bold text-dark dark:text-slate-100 truncate">${escapeHTML(set.name)}</p>
                 <p class="text-[10px] text-slate-400 dark:text-slate-500 truncate">${set.content.split('\n').filter(l => l.trim()).length} words</p>
             </div>
-            <button class="set-load-btn p-1.5 bg-blue/10 dark:bg-blue/20 text-blue rounded-md border border-blue/20 hover:bg-blue hover:text-white hover:translate-y-[-1px] active:translate-y-[2px] transition-all" title="Load Set" data-id="${set.id}">
+            <button class="set-load-btn p-1.5 bg-blue/10 dark:bg-blue/20 text-blue rounded-md border border-blue/20 hover:bg-blue hover:text-white hover:translate-y-[-1px] active:translate-y-[2px] transition-all" title="Load Set" aria-label="Load word set" data-id="${escapeHTML(set.id)}">
                 <i data-lucide="upload" class="w-3.5 h-3.5 pointer-events-none"></i>
             </button>
-            <button class="set-delete-btn p-1.5 bg-pink/10 dark:bg-pink/20 text-pink rounded-md border border-pink/20 hover:bg-pink hover:text-white hover:translate-y-[-1px] active:translate-y-[2px] transition-all" title="Delete Set" data-id="${set.id}">
+            <button class="set-delete-btn p-1.5 bg-pink/10 dark:bg-pink/20 text-pink rounded-md border border-pink/20 hover:bg-pink hover:text-white hover:translate-y-[-1px] active:translate-y-[2px] transition-all" title="Delete Set" aria-label="Delete word set" data-id="${escapeHTML(set.id)}">
                 <i data-lucide="trash-2" class="w-3.5 h-3.5 pointer-events-none"></i>
             </button>
         `;
@@ -213,6 +251,7 @@ async function renderWordSets() {
         // Load button
         item.querySelector('.set-load-btn').addEventListener('click', async () => {
             els.input.value = set.content;
+            showBuildFeedback('');
             saveGameState();
             Sound.click();
         });
@@ -232,8 +271,8 @@ async function renderWordSets() {
 // --- THEME ---
 const THEME_KEY = 'theme_crossword';
 function initTheme() {
-    const savedTheme = localStorage.getItem(THEME_KEY) || 'light';
-    if (savedTheme === 'dark') {
+    const savedTheme = localStorage.getItem(THEME_KEY);
+    if (savedTheme === 'dark' || (!savedTheme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
         document.documentElement.classList.add('dark');
     } else {
         document.documentElement.classList.remove('dark');
@@ -257,26 +296,56 @@ let currentFocus = { r: -1, c: -1 };
 let currentDir = 'across';
 
 // --- AUDIO ---
-const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+const SOUND_KEY = 'sound_crossword';
+let audioCtx = null;
+let soundEnabled = localStorage.getItem(SOUND_KEY) !== 'off';
+
+function getAudioCtx() {
+    if (!audioCtx) {
+        const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+        if (AudioContextClass) audioCtx = new AudioContextClass();
+    }
+    return audioCtx;
+}
+
 const playTone = (freq, type, duration) => {
-    if (audioCtx.state === 'suspended') audioCtx.resume();
-    const osc = audioCtx.createOscillator();
-    const gain = audioCtx.createGain();
+    if (!soundEnabled) return;
+    const ctx = getAudioCtx();
+    if (!ctx) return;
+    if (ctx.state === 'suspended') ctx.resume();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
     osc.type = type;
-    osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
-    gain.gain.setValueAtTime(0.05, audioCtx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+    osc.frequency.setValueAtTime(freq, ctx.currentTime);
+    gain.gain.setValueAtTime(0.05, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
     osc.connect(gain);
-    gain.connect(audioCtx.destination);
+    gain.connect(ctx.destination);
     osc.start();
-    osc.stop(audioCtx.currentTime + duration);
+    osc.stop(ctx.currentTime + duration);
 };
+
+function updateSoundToggleUI() {
+    const btn = document.getElementById('sound-toggle');
+    const onIcon = document.getElementById('sound-icon-on');
+    const offIcon = document.getElementById('sound-icon-off');
+    if (btn) btn.setAttribute('aria-pressed', String(soundEnabled));
+    if (onIcon) onIcon.classList.toggle('hidden', !soundEnabled);
+    if (offIcon) offIcon.classList.toggle('hidden', soundEnabled);
+}
+
 const Sound = {
     type: () => playTone(800, 'sine', 0.05),
     back: () => playTone(600, 'sine', 0.05),
     click: () => playTone(400, 'triangle', 0.05),
     success: () => { playTone(500, 'sine', 0.1); setTimeout(() => playTone(1000, 'sine', 0.2), 100); },
-    error: () => playTone(150, 'sawtooth', 0.2)
+    error: () => playTone(150, 'sawtooth', 0.2),
+    toggleMute: () => {
+        soundEnabled = !soundEnabled;
+        localStorage.setItem(SOUND_KEY, soundEnabled ? 'on' : 'off');
+        updateSoundToggleUI();
+        if (soundEnabled) Sound.click();
+    }
 };
 
 // --- ELEMENTS ---
@@ -307,6 +376,7 @@ function toggleControlPanel(forceHide = false) {
 
     if (forceHide || !isHidden) els.controls.classList.add('hidden-panel-mobile', 'hidden-panel-desktop');
     else els.controls.classList.remove('hidden-panel-mobile', 'hidden-panel-desktop');
+    setTimeout(autoFitGrid, 320);
 }
 
 function updateGridSize() {
@@ -398,9 +468,8 @@ function findBestGrid(inputWords, attempts, size) {
         const currentGrid = Array(size).fill(null).map(() => Array(size).fill(null));
         const currentPlacedWords = [];
         const wordsToPlace = JSON.parse(JSON.stringify(inputWords));
-        
-        // Place first word centered
-        const first = wordsToPlace[0];
+        const anchorIdx = i < 5 ? 0 : (i % Math.min(wordsToPlace.length, 4));
+        const first = wordsToPlace[anchorIdx];
         const startR = Math.floor(size / 2);
         const startC = Math.floor((size - first.word.length) / 2);
         
@@ -417,7 +486,8 @@ function findBestGrid(inputWords, attempts, size) {
         place(first, startR, startC, 'across');
         first.placed = true;
 
-        const remaining = wordsToPlace.slice(1);
+        const rest = wordsToPlace.filter((_, idx) => idx !== anchorIdx);
+        const remaining = i === 0 ? rest : shuffleArray(rest);
         let placedCount = 1;
 
         for (let pass = 0; pass < 50; pass++) {
@@ -560,7 +630,7 @@ function render() {
             const li = document.createElement('div');
             li.className = 'clue-item';
             li.id = `clue-${w.num}-across`;
-            li.innerHTML = `<span class="font-bold text-blue mr-2">${w.num}.</span> ${w.clue}`;
+            li.innerHTML = `<span class="font-bold text-blue mr-2">${w.num}.</span> ${escapeHTML(w.clue)}`;
             li.onclick = () => selectWordByClue(w);
             els.across.appendChild(li);
         });
@@ -568,7 +638,7 @@ function render() {
             const li = document.createElement('div');
             li.className = 'clue-item';
             li.id = `clue-${w.num}-down`;
-            li.innerHTML = `<span class="font-bold text-pink mr-2">${w.num}.</span> ${w.clue}`;
+            li.innerHTML = `<span class="font-bold text-pink mr-2">${w.num}.</span> ${escapeHTML(w.clue)}`;
             li.onclick = () => selectWordByClue(w);
             els.down.appendChild(li);
         });
@@ -746,7 +816,7 @@ function preparePrintVersion() {
     words.forEach(w => {
         const div = document.createElement('div'); 
         div.className = 'print-clue'; 
-        div.innerHTML = `<strong>${w.num}.</strong> ${w.clue}`;
+        div.innerHTML = `<strong>${w.num}.</strong> ${escapeHTML(w.clue)}`;
         if (w.dir === 'across') pa.appendChild(div); 
         else pd.appendChild(div);
     });
@@ -852,34 +922,97 @@ if (bc && IS_PLAYER_WINDOW) {
     };
 }
 
-function buildPuzzleFromInput({ autoCloseMobile = true, celebrate = true } = {}) {
-    const lines = els.input.value.split('\n').filter(l => l.includes(':'));
-    const inputData = lines.map(l => {
-        const idx = l.indexOf(':');
-        const w = idx >= 0 ? l.slice(0, idx) : '';
-        const c = idx >= 0 ? l.slice(idx + 1) : '';
-        return { word: w.trim().toUpperCase().replace(/[^A-Z]/g, ''), clue: c.trim() };
-    }).filter(item => item.word.length >= 2 && item.clue.length > 0)
+function dedupeWords() {
+    const rawLines = els.input.value.split('\n');
+    const seen = new Set();
+    const kept = [];
+    let removed = 0;
+
+    rawLines.forEach(line => {
+        const trimmed = line.trim();
+        if (!trimmed) return;
+        const colonIdx = trimmed.indexOf(':');
+        const keySource = colonIdx !== -1 ? trimmed.slice(0, colonIdx) : trimmed;
+        const key = keySource.trim().toUpperCase().replace(/[^A-Z]/g, '');
+        if (!key) {
+            kept.push(line);
+            return;
+        }
+        if (seen.has(key)) {
+            removed++;
+            return;
+        }
+        seen.add(key);
+        kept.push(trimmed);
+    });
+
+    if (removed > 0) {
+        els.input.value = kept.join('\n');
+        saveGameState();
+        showBuildFeedback(`Removed ${removed} duplicate word${removed === 1 ? '' : 's'}.`, 'success');
+        Sound.click();
+    } else {
+        showBuildFeedback('No duplicate words found.', 'warn');
+        Sound.click();
+    }
+}
+
+function clearBoardLetters() {
+    if (!puzzle || words.length === 0) {
+        Sound.error();
+        return;
+    }
+    document.querySelectorAll('.cw-cell').forEach(cell => {
+        cell.classList.remove('locked', 'error', 'cell-focused', 'word-highlight');
+        const inp = cell.querySelector('input');
+        if (inp) inp.value = '';
+    });
+    document.querySelectorAll('.clue-item').forEach(el => el.classList.remove('solved', 'active'));
+    currentFocus = { r: -1, c: -1 };
+    Sound.back();
+    broadcastFullState();
+}
+
+// --- INIT & EVENTS ---
+document.getElementById('dedupe-btn')?.addEventListener('click', dedupeWords);
+
+document.getElementById('generate-btn').onclick = () => {
+    showBuildFeedback('');
+    const rawLines = els.input.value.split('\n').filter(l => l.includes(':'));
+    const inputData = rawLines.map(l => {
+        const colonIdx = l.indexOf(':');
+        const w = l.slice(0, colonIdx);
+        const c = l.slice(colonIdx + 1);
+        return {
+            word: w.trim().toUpperCase().replace(/[^A-Z]/g, ''),
+            clue: c.trim()
+        };
+    }).filter(item => item.word.length > 0 && item.clue.length > 0)
       .sort((a, b) => b.word.length - a.word.length);
 
     if (inputData.length < 2) {
+        showBuildFeedback('Add at least 2 valid "WORD : CLUE" lines.', 'error');
         Sound.error();
         const btn = document.getElementById('generate-btn');
-        if (btn) {
-            btn.classList.add('bg-pink', 'animate-shake');
-            setTimeout(() => btn.classList.remove('bg-pink', 'animate-shake'), 400);
-        }
-        return false;
+        btn.classList.add('animate-shake');
+        setTimeout(() => btn.classList.remove('animate-shake'), 400);
+        return;
     }
 
     if (generateLayout(inputData)) {
-        if (autoCloseMobile && window.innerWidth < 768) toggleControlPanel(true);
-        if (celebrate && typeof confetti === 'function') {
-            confetti({ particleCount: 50, spread: 60, origin: { y: 0.6 }, colors: ['#2979FF', '#FF6B95'] });
+        if (words.length < inputData.length) {
+            showBuildFeedback(`Placed ${words.length} of ${inputData.length} words (others could not intersect).`, 'warn');
+        } else {
+            showBuildFeedback(`Puzzle built with all ${words.length} words!`, 'success');
+            setTimeout(() => showBuildFeedback(''), 3000);
         }
+        if (window.innerWidth < 768) toggleControlPanel(true);
+        confetti({ particleCount: 50, spread: 60, origin: { y: 0.6 }, colors: ['#1ea7fd', '#ff4785'] });
         broadcastFullState();
         return true;
     } else {
+        showBuildFeedback('Could not generate a puzzle from these words.', 'error');
+        Sound.error();
         const btn = document.getElementById('generate-btn');
         if (btn) {
             btn.classList.add('bg-pink', 'animate-shake');
@@ -918,6 +1051,10 @@ function showCwToast(message, type = 'info') {
 document.getElementById('generate-btn').onclick = () => buildPuzzleFromInput();
 
 document.getElementById('solution-btn').onclick = () => {
+    if (!puzzle || words.length === 0) {
+        Sound.error();
+        return;
+    }
     document.querySelectorAll('.cw-cell input').forEach(inp => {
         const r = inp.dataset.r; const c = inp.dataset.c;
         inp.value = grid[r][c]; inp.parentElement.classList.add('locked');
@@ -927,211 +1064,10 @@ document.getElementById('solution-btn').onclick = () => {
     broadcastFullState();
 };
 
-function parseCrosswordImport(rawText) {
-    const validLevels = new Set(['A1', 'A2', 'B1', 'B1+', 'B2', 'B2+', 'C1', 'C2']);
-    const blocks = window.KlassKitBulkImport.splitImportBlocks(rawText);
-    const items = [];
-    const warnings = [];
-    const badges = [];
+document.getElementById('clear-grid-btn')?.addEventListener('click', clearBoardLetters);
 
-    blocks.forEach((block, blockIdx) => {
-        const setNum = blockIdx + 1;
-        let level = '';
-        const entries = [];
-        const seen = new Set();
-
-        for (const rawLine of block.lines) {
-            const trimmed = rawLine.trim();
-            if (!trimmed) continue;
-
-            if (trimmed.startsWith('@') && !/\s/.test(trimmed.slice(1).trim())) {
-                const lvl = trimmed.slice(1).trim().toUpperCase();
-                if (validLevels.has(lvl)) {
-                    level = lvl;
-                } else {
-                    warnings.push(`Set ${setNum}: Unknown level "${trimmed}" — ignored.`);
-                }
-                continue;
-            }
-
-            // Tolerate optional list bullet (- , * , 1. ) only before a WORD : Clue pair
-            const cleanedLine = trimmed.replace(/^(?:[-*•]|\d+[.)])\s+(?=[^:=|]+[:=|])/, '');
-            const pairMatch = cleanedLine.match(/^([^:=|]+?)\s*[:=|]\s*(.*)$/);
-            if (!pairMatch) {
-                warnings.push(`Set ${setNum}: Line "${trimmed.slice(0, 32)}" missing ": Clue" separator — skipped.`);
-                continue;
-            }
-
-            const rawWord = pairMatch[1].trim();
-            const word = rawWord.toUpperCase().replace(/[^A-Z]/g, '');
-            const clue = pairMatch[2].trim();
-
-            if (word.length < 2) {
-                warnings.push(`Set ${setNum}: "${rawWord}" skipped (words need at least 2 A–Z letters).`);
-                continue;
-            }
-            if (!clue) {
-                warnings.push(`Set ${setNum}: "${word}" skipped (missing clue).`);
-                continue;
-            }
-            if (seen.has(word)) {
-                warnings.push(`Set ${setNum}: Duplicate word "${word}" skipped.`);
-                continue;
-            }
-            if (word.length > 22) {
-                warnings.push(`Set ${setNum}: "${word}" is ${word.length} letters long and may not fit cleanly.`);
-            }
-
-            seen.add(word);
-            entries.push({ word, clue });
-        }
-
-        if (entries.length < 2) {
-            if (entries.length > 0 || block.hasExplicitTitle) {
-                warnings.push(`Set ${setNum}${block.title ? ` ("${block.title}")` : ''}: Needs at least 2 valid WORD : Clue pairs (found ${entries.length}).`);
-            }
-            return;
-        }
-
-        const cleanTitle = block.title || `Imported Crossword ${items.length + 1}`;
-        const formatted = entries.map(e => `${e.word} : ${e.clue}`).join('\n');
-        items.push({ title: cleanTitle, level, entries, content: formatted });
-        badges.push({
-            tag: level || 'CROSSWORD',
-            label: cleanTitle,
-            meta: `${entries.length} words`,
-            tone: window.KlassKitBulkImport.LEVEL_TONES[level] || 'green',
-            title: `${cleanTitle}: ${entries.map(e => e.word).join(', ')}`,
-        });
-    });
-
-    return { items, warnings, badges };
-}
-
-function initCrosswordImportAndPresets() {
-    if (IS_PLAYER_WINDOW || !window.KlassKitBulkImport) return;
-
-    const CW_TEMPLATE = `// ============================================================
-//  KLASSKIT CROSSWORD BULK IMPORT TEMPLATE
-//  Lines starting with // or single # are ignored comments.
-// ============================================================
-//
-// Format per word set (separate multiple sets with ## Title or ---):
-// ## Set Title
-// @A1   (optional CEFR badge: A1, A2, B1, B1+, B2, C1, C2)
-// WORD : Short, clear clue for students
-// (Also accepts = or | instead of : , letters A-Z only, min 2 letters)
-
-## Classroom Objects
-@A1
-TEACHER : The person who helps students learn
-PENCIL : Wooden tool used for writing
-ERASER : Removes pencil marks from paper
-NOTEBOOK : Book with lined pages for writing notes
-RULER : Tool used to measure or draw straight lines
-BACKPACK : Bag carried on your shoulders to school
-
----
-
-## Weather & Sky
-@A2
-RAINBOW : Colorful arc in the sky after rain
-CLOUD : White or gray mass floating high in the sky
-BREEZE : A gentle, pleasant wind
-THUNDER : Loud rumbling sound during a storm
-SUNSHINE : Warm bright light coming from the sun`;
-
-    const importModal = window.KlassKitBulkImport.create({
-        id: 'cw-import-overlay',
-        title: 'Bulk Import Word Sets',
-        subtitle: 'Copy AI template or paste WORD : Clue lists',
-        accentColor: 'blue',
-        unitLabel: 'word set',
-        unitLabelPlural: 'word sets',
-        guideItems: [
-            { label: 'Set Title', syntax: '## My Word Set', color: 'orange', desc: 'Optional name; starts a new word set (or divide with ---).' },
-            { label: 'Word & Clue', syntax: 'WORD : Clue', color: 'blue', desc: 'One pair per line (also accepts = or |).' },
-            { label: 'Level Tag', syntax: '@A1 … @B2', color: 'green', desc: 'Optional CEFR badge shown in the preview bar.' },
-        ],
-        tips: [
-            '<strong>Tips:</strong> Use at least <b>2 words</b> per set; letters A–Z only.',
-            '<strong>Comments:</strong> Lines starting with <code>//</code> or single <code>#</code> are ignored.',
-        ],
-        placeholder: `## Animals\n@A1\nELEPHANT : Large gray animal with a trunk\nGIRAFFE : Tall animal with a very long neck\nMONKEY : Playful animal that climbs trees`,
-        template: CW_TEMPLATE,
-        sample: `## Kitchen & Cooking\n@A2\nTOMATO : Red juicy fruit used in pasta sauce\nCHEESE : Dairy food melted on pizza\nSPOON : Round utensil used for eating soup\nOVEN : Appliance used for baking bread\nRECIPE : Step-by-step instructions for cooking a meal\nGARLIC : Flavorful bulb used to season dishes`,
-        options: [
-            { id: 'saveToSets', label: 'Save imported list(s) to Saved Word Sets', defaultChecked: true },
-        ],
-        parse: parseCrosswordImport,
-        onCopyTemplate: () => {
-            Sound.click();
-            showCwToast('Template copied — paste into any AI or editor!', 'success');
-        },
-        onImport: async (result, opts) => {
-            const items = result.items || [];
-            if (!items.length) return false;
-
-            if (opts.saveToSets || items.length > 1) {
-                for (const item of items) {
-                    const label = item.level ? `[${item.level}] ${item.title}` : item.title;
-                    await saveWordSet(label, item.content);
-                }
-                await renderWordSets();
-            }
-
-            const first = items[0];
-            els.input.value = first.content;
-            const setNameEl = document.getElementById('set-name-input');
-            if (setNameEl && first.title) setNameEl.value = first.title;
-            await saveGameState();
-            buildPuzzleFromInput({ autoCloseMobile: false, celebrate: true });
-
-            if (items.length === 1) {
-                showCwToast(`Imported "${first.title}" (${first.entries.length} words)`, 'success');
-            } else {
-                showCwToast(`Imported ${items.length} sets & built "${first.title}"!`, 'success');
-            }
-            return true;
-        },
-    });
-
-    document.getElementById('open-import-btn')?.addEventListener('click', () => {
-        Sound.click();
-        importModal.open();
-    });
-
-    window.KlassKitBulkImport.mountPresets({
-        container: '#crossword-presets-slot',
-        url: 'presets.json',
-        collapsible: false,
-        maxHeightClass: 'max-h-52',
-        getMeta: (p) => ({ icon: 'hash', label: `${(p.items || []).length}w` }),
-        onSelect: async (preset) => {
-            const lines = (preset.items || []).map(it => `${it.word} : ${it.clue}`).join('\n');
-            if (!lines) return;
-            els.input.value = lines;
-            const setNameEl = document.getElementById('set-name-input');
-            if (setNameEl) setNameEl.value = preset.title || '';
-            await saveGameState();
-            Sound.click();
-            buildPuzzleFromInput({ autoCloseMobile: false, celebrate: false });
-            showCwToast(`Loaded "${preset.title}" (${preset.level})`, 'success');
-        },
-    });
-}
-
-document.querySelectorAll('.grid-btn').forEach(b => {
-    b.onclick = (e) => {
-        document.querySelectorAll('.grid-btn').forEach(btn => {
-            btn.classList.remove('bg-blue', 'text-white', 'shadow-neo-sm');
-            btn.classList.add('bg-slate-100', 'dark:bg-slate-800', 'text-slate-400', 'dark:text-slate-500');
-        });
-        e.target.classList.remove('bg-slate-100', 'dark:bg-slate-800', 'text-slate-400', 'dark:text-slate-500');
-        e.target.classList.add('bg-blue', 'text-white', 'shadow-neo-sm');
-        GRID_SIZE = parseInt(e.target.dataset.size);
-        saveGameState();
-    }
+document.querySelectorAll('.preset-btn').forEach(b => {
+    b.onclick = () => { els.input.value = b.dataset.text; showBuildFeedback(''); saveGameState(); Sound.click(); };
 });
 
 document.getElementById('zoom-in').onclick = () => { CELL_SIZE = Math.min(CELL_SIZE + 5, 80); updateGridSize(); };
@@ -1154,18 +1090,27 @@ document.getElementById('save-set-btn').onclick = async () => {
 };
 
 window.onload = async () => {
+    initTheme();
+    const themeBtn = document.getElementById('theme-toggle');
+    if (themeBtn) themeBtn.onclick = toggleTheme;
+    const soundBtn = document.getElementById('sound-toggle');
+    if (soundBtn) soundBtn.onclick = () => Sound.toggleMute();
+    updateSoundToggleUI();
+
     if (IS_PLAYER_WINDOW) {
         document.documentElement.classList.add('player-mode');
         document.title = 'Student View | Crossword';
         document.getElementById('controls')?.style.setProperty('display', 'none');
         document.getElementById('btn-open-player')?.style.setProperty('display', 'none');
         document.getElementById('solution-btn')?.style.setProperty('display', 'none');
+        document.getElementById('clear-grid-btn')?.style.setProperty('display', 'none');
+        document.getElementById('sound-toggle')?.style.setProperty('display', 'none');
         document.getElementById('generate-btn')?.style.setProperty('display', 'none');
         document.getElementById('player-toolbar')?.classList.remove('hidden');
         lucide.createIcons();
         const loadingEl = document.createElement('div');
-        loadingEl.className = 'fixed top-4 right-4 z-[9999] flex items-center gap-2 px-4 py-2.5 bg-white/95 border-2 border-dark rounded-full shadow-neo backdrop-blur-sm';
-        loadingEl.innerHTML = `<svg class="w-4 h-4 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M12 2a10 10 0 1 0 10 10"/></svg><span class="font-bold text-xs text-slate-500 uppercase tracking-widest">Connecting...</span>`;
+        loadingEl.className = 'fixed top-4 right-4 z-[9999] flex items-center gap-2 px-4 py-2.5 bg-white/95 dark:bg-slate-800/95 border-2 border-dark dark:border-slate-500 rounded-full shadow-hard-sm backdrop-blur-sm';
+        loadingEl.innerHTML = `<svg class="w-4 h-4 animate-spin text-blue" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M12 2a10 10 0 1 0 10 10"/></svg><span class="font-bold text-xs text-slate-600 dark:text-slate-200 uppercase tracking-widest">Connecting...</span>`;
         document.body.appendChild(loadingEl);
         window._playerLoadingEl = loadingEl;
         const ping = () => bc?.postMessage({ type: 'player-ready' });
@@ -1174,9 +1119,6 @@ window.onload = async () => {
     }
 
     await requireAuth();
-    initTheme();
-    const themeBtn = document.getElementById('theme-toggle');
-    if (themeBtn) themeBtn.onclick = toggleTheme;
     await loadGameState();
     await loadFromCloud();
     await renderWordSets();

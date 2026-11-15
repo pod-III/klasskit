@@ -11,6 +11,17 @@
     <link rel="icon" type="image/x-icon" href="../../../media/icon.ico" />
     <link rel="icon" type="image/webp" href="../../../media/icon.webp" />
 
+    <!-- Early Theme Init -->
+    <script>
+        (function () {
+            const saved = localStorage.getItem('theme_card-memory');
+            const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+            if (saved === 'dark' || (!saved && prefersDark)) {
+                document.documentElement.classList.add('dark');
+            }
+        })();
+    </script>
+
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link
@@ -28,10 +39,10 @@
                 extend: {
                     colors: {
                         brand: {
-                            pink: '#FF6B95',
-                            orange: '#FF8C42',
-                            green: '#00E676',
-                            blue: '#2979FF',
+                            pink: '#ff4785',
+                            orange: '#ff7e33',
+                            green: '#00d063',
+                            blue: '#1ea7fd',
                             dark: '#1e293b',
                             chalk: '#f8fafc',
                         }
@@ -40,32 +51,39 @@
                         sans: ['Nunito', 'sans-serif'],
                         heading: ['Fredoka', 'sans-serif'],
                     },
+                    borderWidth: {
+                        '3': '3px',
+                    },
                     boxShadow: {
-                        'neo': '4px 4px 0px 0px rgba(30, 41, 59, 1)',
-                        'neo-sm': '2px 2px 0px 0px rgba(30, 41, 59, 1)',
-                        'neo-lg': '8px 8px 0px 0px rgba(30, 41, 59, 1)',
-                        'neo-pressed': '0px 0px 0px 0px rgba(30, 41, 59, 1)',
+                        'neo': '4px 4px 0px 0px #1e293b',
+                        'neo-sm': '2px 2px 0px 0px #1e293b',
+                        'neo-lg': '8px 8px 0px 0px #1e293b',
+                        'neo-pressed': '0px 0px 0px 0px #1e293b',
                     }
                 }
             }
         }
     </script>
 
+    <link rel="stylesheet" href="../../../css/base.css" />
+    <link rel="stylesheet" href="../../../css/components.css" />
+
     <style>
-        /* Background Pattern */
-        body {
-            background-color: #f8fafc;
-            background-image:
-                linear-gradient(rgba(30, 41, 59, 0.07) 1px, transparent 1px),
-                linear-gradient(90deg, rgba(30, 41, 59, 0.07) 1px, transparent 1px);
-            background-size: 40px 40px;
+        :focus-visible {
+            outline: 3px solid #1ea7fd;
+            outline-offset: 2px;
         }
 
-        .dark body {
-            background-color: #0f172a;
-            background-image:
-                linear-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px),
-                linear-gradient(90deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+        .dark .shadow-neo {
+            box-shadow: 4px 4px 0px 0px #000000;
+        }
+
+        .dark .shadow-neo-sm {
+            box-shadow: 2px 2px 0px 0px #000000;
+        }
+
+        .dark .shadow-neo-lg {
+            box-shadow: 8px 8px 0px 0px #000000;
         }
 
         /* 3D Mechanics */
@@ -79,6 +97,7 @@
 
         .backface-hidden {
             backface-visibility: hidden;
+            -webkit-backface-visibility: hidden;
         }
 
         .rotate-y-180 {
@@ -87,17 +106,25 @@
 
         /* Button Interaction */
         .btn-neo {
-            transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+            transition: transform 0.15s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.15s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.15s ease;
         }
 
-        .btn-neo:hover {
+        .btn-neo:hover:not(:disabled) {
             transform: translate(-2px, -2px);
-            box-shadow: 6px 6px 0px 0px rgba(30, 41, 59, 1);
+            box-shadow: 6px 6px 0px 0px #1e293b;
         }
 
-        .btn-neo:active {
+        .dark .btn-neo:hover:not(:disabled) {
+            box-shadow: 6px 6px 0px 0px #000000;
+        }
+
+        .btn-neo:active:not(:disabled) {
             transform: translate(2px, 2px);
-            box-shadow: 0px 0px 0px 0px rgba(30, 41, 59, 1);
+            box-shadow: 0px 0px 0px 0px #1e293b;
+        }
+
+        .dark .btn-neo:active:not(:disabled) {
+            box-shadow: 0px 0px 0px 0px #000000;
         }
 
         /* Image Handling */
@@ -115,92 +142,99 @@
         }
 
         .drop-zone.drag-over {
-            background-color: #e0f2fe;
-            border-color: #2979FF;
-            transform: scale(1.02);
+            background-color: rgba(30, 167, 253, 0.12);
+            border-color: #1ea7fd;
+            transform: scale(1.01);
         }
     </style>
-    <link rel="stylesheet" href="../../../css/base.css" />
-    <link rel="stylesheet" href="../../../css/components.css" />
-  
+
 </head>
 
-<body class="text-brand-dark min-h-screen flex flex-col items-center justify-center p-4">
+<body class="text-brand-dark dark:text-white min-h-screen flex flex-col font-sans transition-colors duration-300">
 
-    <header class="w-full max-w-7xl flex flex-col md:flex-row justify-between items-center mb-8 gap-4 z-20">
-        <div
-            class="flex items-center gap-4 bg-white dark:bg-slate-800 border-4 border-brand-dark shadow-neo rounded-2xl p-3 md:p-4 w-full md:w-auto transform hover:rotate-1 transition-transform">
-            <div class="bg-brand-blue p-2 rounded-xl border-2 border-brand-dark text-white">
-                <i data-lucide="brain" class="w-8 h-8"></i>
+    <!-- Unified Top Glassmorphic Header -->
+    <header class="sticky top-0 z-40 w-full glass-panel border-b-4 border-brand-dark dark:border-slate-500 px-4 py-2.5">
+        <div class="max-w-6xl mx-auto flex justify-between items-center gap-3">
+            <div class="flex items-center gap-3 min-w-0">
+                <div class="w-10 h-10 bg-brand-blue rounded-xl border-3 border-brand-dark dark:border-slate-500 shadow-neo-sm text-white flex items-center justify-center shrink-0 -rotate-3">
+                    <i data-lucide="brain" class="w-6 h-6"></i>
+                </div>
+                <div class="min-w-0">
+                    <h1 class="font-heading text-xl sm:text-2xl font-bold text-brand-dark dark:text-brand-chalk leading-none tracking-tight uppercase truncate">
+                        Memory Card</h1>
+                    <div id="status-text"
+                        class="font-sans text-xs sm:text-sm font-extrabold text-brand-orange dark:text-brand-green uppercase tracking-wider truncate mt-0.5">
+                        Shuffle Edition</div>
+                </div>
             </div>
-            <div>
-                <h1
-                    class="font-heading text-2xl md:text-3xl font-black text-brand-dark dark:text-brand-chalk leading-none tracking-tight">
-                    Memory Card</h1>
-                <div id="status-text"
-                    class="font-sans text-sm md:text-base font-bold text-brand-orange dark:text-brand-green uppercase tracking-wider">
-                    Shuffle Edition</div>
-            </div>
-        </div>
 
-        <div class="flex gap-3">
-            <button onclick="Game.openSetup()"
-                class="btn-neo bg-brand-orange text-white font-heading font-bold text-lg px-6 py-3 rounded-xl border-4 border-brand-dark shadow-neo flex items-center gap-2">
-                <i data-lucide="settings" class="w-5 h-5"></i> <span class="hidden sm:inline">Setup</span>
-            </button>
-            <button onclick="Game.toggleTheme()"
-                class="btn-neo bg-brand-dark text-white p-3 rounded-xl border-4 border-brand-dark shadow-neo hover:text-brand-pink">
-                <i data-lucide="moon" id="theme-icon"></i>
-            </button>
+            <div class="flex items-center gap-2 shrink-0">
+                <button onclick="Game.toggleSound()" id="sound-btn" type="button"
+                    class="btn-neo bg-white dark:bg-slate-800 text-brand-dark dark:text-white w-10 h-10 rounded-xl border-3 border-brand-dark dark:border-slate-500 shadow-neo-sm flex items-center justify-center"
+                    title="Toggle Sound" aria-label="Toggle Sound" aria-pressed="true">
+                    <i data-lucide="volume-2" class="w-5 h-5"></i>
+                </button>
+                <button onclick="Game.toggleTheme()" id="theme-btn" type="button"
+                    class="btn-neo bg-white dark:bg-slate-800 text-brand-dark dark:text-white w-10 h-10 rounded-xl border-3 border-brand-dark dark:border-slate-500 shadow-neo-sm flex items-center justify-center"
+                    title="Toggle Dark Mode" aria-label="Toggle Dark Mode">
+                    <i data-lucide="moon" class="w-5 h-5 dark:hidden"></i>
+                    <i data-lucide="sun" class="w-5 h-5 hidden dark:block text-brand-orange"></i>
+                </button>
+                <button onclick="Game.openSetup()" type="button"
+                    class="btn-neo bg-brand-orange text-white font-heading font-bold text-sm sm:text-base px-4 py-2 rounded-xl border-3 border-brand-dark dark:border-slate-500 shadow-neo-sm flex items-center gap-2"
+                    aria-label="Open Setup">
+                    <i data-lucide="settings" class="w-4 h-4"></i> <span class="hidden sm:inline uppercase">Setup</span>
+                </button>
+            </div>
         </div>
     </header>
 
-    <main class="w-full max-w-7xl flex flex-col items-center relative z-10">
+    <main class="w-full max-w-6xl mx-auto flex-1 flex flex-col items-center justify-center p-4 relative z-10">
 
         <div id="timer-container"
-            class="w-full max-w-3xl h-10 bg-brand-dark rounded-full mb-8 overflow-hidden border-4 border-brand-dark shadow-neo hidden relative">
+            class="w-full max-w-3xl h-8 bg-brand-dark dark:bg-slate-900 rounded-full mb-5 overflow-hidden border-3 border-brand-dark dark:border-slate-500 shadow-neo hidden relative">
             <div id="timer-fill" class="h-full bg-brand-green w-full origin-left"></div>
             <div id="timer-number"
-                class="absolute inset-0 flex items-center justify-center font-heading font-bold text-white text-lg drop-shadow-md tracking-wider">
+                class="absolute inset-0 flex items-center justify-center font-heading font-bold text-white text-base drop-shadow-md tracking-wider">
                 00s</div>
         </div>
 
-        <div id="game-grid" class="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6 w-full px-2">
+        <div id="game-grid" class="grid grid-cols-2 md:grid-cols-4 gap-4 w-full px-1">
             <div
-                class="col-span-full flex flex-col items-center justify-center h-96 bg-white/60 dark:bg-slate-800/60 border-[6px] border-dashed border-brand-dark/20 rounded-3xl backdrop-blur-sm">
-                <div class="bg-brand-pink/20 p-6 rounded-full mb-4 animate-bounce">
-                    <i data-lucide="layers" class="w-16 h-16 text-brand-pink"></i>
+                class="col-span-full flex flex-col items-center justify-center h-72 sm:h-80 bg-white/75 dark:bg-slate-800/75 border-4 border-dashed border-brand-dark/25 dark:border-slate-500/50 rounded-3xl backdrop-blur-md">
+                <div class="bg-brand-pink/20 p-5 rounded-full mb-4 animate-bounce">
+                    <i data-lucide="layers" class="w-14 h-14 text-brand-pink"></i>
                 </div>
-                <p class="font-heading text-3xl font-bold text-brand-dark/60 dark:text-white/60">Ready to Play?</p>
-                <button onclick="Game.openSetup()"
-                    class="mt-4 px-6 py-2 bg-brand-blue/10 text-brand-blue font-bold rounded-lg hover:bg-brand-blue hover:text-white transition-colors border-2 border-transparent hover:border-brand-dark">
+                <p class="font-heading text-2xl sm:text-3xl font-bold text-brand-dark/70 dark:text-white/80">Ready to Play?</p>
+                <button onclick="Game.openSetup()" type="button"
+                    class="btn-neo mt-4 px-6 py-2.5 bg-brand-blue text-white font-heading font-bold rounded-xl border-3 border-brand-dark dark:border-slate-500 shadow-neo-sm uppercase">
                     Open Setup
                 </button>
             </div>
         </div>
 
-        <div class="mt-12 flex flex-wrap justify-center gap-4 w-full">
-            <button id="btn-start" onclick="Game.startMemorization()"
-                class="hidden btn-neo bg-brand-green text-white font-heading font-black text-2xl px-12 py-5 rounded-2xl border-4 border-brand-dark shadow-neo hover:scale-105 active:scale-95 transition-transform">
+        <div class="mt-6 flex flex-wrap justify-center gap-3 w-full">
+            <button id="btn-start" onclick="Game.startMemorization()" type="button"
+                class="hidden btn-neo bg-brand-green text-brand-dark font-heading font-black text-xl px-10 py-3.5 rounded-2xl border-4 border-brand-dark dark:border-slate-500 shadow-neo uppercase tracking-wide">
                 Start Memorizing
             </button>
 
-            <button id="btn-hide" onclick="Game.hideCards()"
-                class="hidden btn-neo bg-brand-pink text-white font-heading font-black text-2xl px-12 py-5 rounded-2xl border-4 border-brand-dark shadow-neo hover:scale-105 active:scale-95 transition-transform">
+            <button id="btn-hide" onclick="Game.hideCards()" type="button"
+                class="hidden btn-neo bg-brand-pink text-white font-heading font-black text-xl px-10 py-3.5 rounded-2xl border-4 border-brand-dark dark:border-slate-500 shadow-neo uppercase tracking-wide">
                 Hide Now!
             </button>
 
-            <div id="controls-reveal" class="hidden flex flex-wrap justify-center gap-4">
-                <button onclick="Game.shuffleAndRestart()"
-                    class="btn-neo bg-brand-orange text-white font-heading font-bold text-xl px-8 py-4 rounded-2xl border-4 border-brand-dark shadow-neo flex items-center gap-2">
-                    <i data-lucide="shuffle"></i> Shuffle & Play Again
+            <div id="controls-reveal" class="hidden flex flex-wrap justify-center gap-3">
+                <button onclick="Game.shuffleAndRestart()" type="button"
+                    class="btn-neo bg-brand-orange text-white font-heading font-bold text-base sm:text-lg px-6 py-3 rounded-2xl border-3 border-brand-dark dark:border-slate-500 shadow-neo flex items-center gap-2 uppercase">
+                    <i data-lucide="shuffle" class="w-5 h-5"></i> Shuffle &amp; Play Again
                 </button>
-                <button onclick="Game.startMemorization()"
-                    class="btn-neo bg-white text-brand-dark font-heading font-bold text-xl px-8 py-4 rounded-2xl border-4 border-brand-dark shadow-neo flex items-center gap-2">
-                    <i data-lucide="rotate-ccw"></i> Restart Same
+                <button onclick="Game.startMemorization()" type="button"
+                    class="btn-neo bg-white dark:bg-slate-800 text-brand-dark dark:text-white font-heading font-bold text-base sm:text-lg px-6 py-3 rounded-2xl border-3 border-brand-dark dark:border-slate-500 shadow-neo flex items-center gap-2 uppercase">
+                    <i data-lucide="rotate-ccw" class="w-5 h-5"></i> Restart Same
                 </button>
-                <button onclick="Game.revealAll()"
-                    class="btn-neo bg-brand-blue text-white font-heading font-bold text-xl px-10 py-4 rounded-2xl border-4 border-brand-dark shadow-neo">
+                <button onclick="Game.revealAll()" type="button"
+                    class="btn-neo bg-brand-blue text-white font-heading font-bold text-base sm:text-lg px-7 py-3 rounded-2xl border-3 border-brand-dark dark:border-slate-500 shadow-neo uppercase">
                     Reveal Answers
                 </button>
             </div>
@@ -208,86 +242,91 @@
     </main>
 
     <div id="setup-modal"
-        class="fixed inset-0 bg-brand-dark/80 flex items-center justify-center z-50 hidden backdrop-blur-md p-4 animate-in fade-in duration-200">
+        class="fixed inset-0 bg-brand-dark/80 flex items-center justify-center z-50 hidden backdrop-blur-md p-4">
         <div
-            class="bg-white dark:bg-slate-800 border-4 border-brand-dark shadow-neo-lg rounded-3xl p-6 md:p-8 max-w-2xl w-full max-h-[90vh] overflow-y-auto custom-scrollbar relative">
+            class="bg-white dark:bg-slate-800 border-4 border-brand-dark dark:border-slate-500 shadow-neo-lg rounded-3xl p-5 sm:p-6 max-w-2xl w-full max-h-[92vh] overflow-y-auto custom-scrollbar relative animate-pop-in">
 
-            <div class="flex justify-between items-center mb-6 border-b-4 border-brand-dark/10 pb-4">
-                <h2 class="font-heading text-3xl font-black text-brand-dark dark:text-brand-chalk tracking-tight">GAME
-                    SETUP</h2>
-                <button onclick="Game.closeSetup()"
-                    class="text-brand-dark dark:text-white hover:text-brand-pink transition-transform hover:rotate-90">
-                    <i data-lucide="x" class="w-8 h-8"></i>
+            <div class="flex justify-between items-center mb-4 border-b-3 border-brand-dark/10 dark:border-slate-700 pb-3">
+                <div class="flex items-center gap-3">
+                    <h2 class="font-heading text-2xl sm:text-3xl font-black text-brand-dark dark:text-brand-chalk tracking-tight uppercase">GAME SETUP</h2>
+                    <span id="setup-item-count" class="px-2.5 py-0.5 text-xs font-heading font-bold rounded-full bg-brand-blue text-white border-2 border-brand-dark dark:border-slate-500">0 items</span>
+                </div>
+                <button onclick="Game.closeSetup()" type="button" aria-label="Close Setup"
+                    class="p-1.5 rounded-xl text-brand-dark dark:text-white hover:text-brand-pink hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
+                    <i data-lucide="x" class="w-7 h-7"></i>
                 </button>
             </div>
 
-            <div class="space-y-8">
+            <div class="space-y-4">
 
                 <div>
-                    <label
-                        class="block font-heading text-xl font-bold text-brand-dark dark:text-brand-chalk mb-3 flex items-center gap-2">
-                        <div class="bg-brand-orange text-white p-1 rounded border-2 border-brand-dark"><i
-                                data-lucide="type" class="w-4 h-4"></i></div>
-                        Vocabulary Words
-                    </label>
+                    <div class="flex items-center justify-between gap-2 mb-2">
+                        <label for="input-words"
+                            class="font-heading text-lg font-bold text-brand-dark dark:text-brand-chalk flex items-center gap-2">
+                            <span class="bg-brand-orange text-white p-1 rounded border-2 border-brand-dark dark:border-slate-500 inline-flex"><i
+                                    data-lucide="type" class="w-4 h-4"></i></span>
+                            Vocabulary Words
+                        </label>
+                        <button onclick="Game.dedupeWords()" type="button"
+                            class="px-2.5 py-1 text-xs font-heading font-bold rounded-lg border-2 border-brand-dark dark:border-slate-500 bg-brand-chalk dark:bg-slate-700 text-brand-dark dark:text-white hover:bg-brand-orange hover:text-white transition-colors"
+                            title="Remove duplicate words">
+                            Dedupe
+                        </button>
+                    </div>
 
-                    <textarea id="input-words" rows="2"
-                        class="w-full font-sans text-xl p-4 border-4 border-brand-dark rounded-xl shadow-neo-sm focus:outline-none focus:ring-4 focus:ring-brand-orange/30 dark:bg-slate-900 dark:text-white transition-all resize-none"
+                    <textarea id="input-words" rows="3"
+                        class="w-full font-sans text-base sm:text-lg font-bold p-3 border-3 border-brand-dark dark:border-slate-500 rounded-xl shadow-neo-sm focus:outline-none focus:ring-4 focus:ring-brand-blue/30 dark:bg-slate-900 dark:text-white transition-all resize-none"
                         placeholder="Apple, Banana, Orange..."></textarea>
 
-                    <div class="flex flex-wrap gap-2 mt-3">
+                    <div class="flex flex-wrap gap-2 mt-2.5">
                         <span
-                            class="text-xs font-black text-brand-dark/40 dark:text-white/40 self-center mr-1 uppercase tracking-wider">Quick
+                            class="text-xs font-black text-brand-dark/50 dark:text-slate-400 self-center mr-1 uppercase tracking-wider">Quick
                             Sets:</span>
-                        <button onclick="Game.usePreset('animals')"
-                            class="px-3 py-1.5 bg-brand-green/10 text-brand-green border-2 border-brand-green rounded-lg font-bold text-sm hover:bg-brand-green hover:text-white transition">Animals</button>
-                        <button onclick="Game.usePreset('fruits')"
-                            class="px-3 py-1.5 bg-brand-orange/10 text-brand-orange border-2 border-brand-orange rounded-lg font-bold text-sm hover:bg-brand-orange hover:text-white transition">Fruits</button>
-                        <button onclick="Game.usePreset('classroom')"
-                            class="px-3 py-1.5 bg-brand-blue/10 text-brand-blue border-2 border-brand-blue rounded-lg font-bold text-sm hover:bg-brand-blue hover:text-white transition">Classroom</button>
-                        <button onclick="Game.usePreset('actions')"
-                            class="px-3 py-1.5 bg-brand-pink/10 text-brand-pink border-2 border-brand-pink rounded-lg font-bold text-sm hover:bg-brand-pink hover:text-white transition">Actions</button>
+                        <button onclick="Game.usePreset('animals')" type="button"
+                            class="px-3 py-1 bg-brand-green/10 text-brand-green border-2 border-brand-green rounded-lg font-bold text-xs sm:text-sm hover:bg-brand-green hover:text-white transition">Animals</button>
+                        <button onclick="Game.usePreset('fruits')" type="button"
+                            class="px-3 py-1 bg-brand-orange/10 text-brand-orange border-2 border-brand-orange rounded-lg font-bold text-xs sm:text-sm hover:bg-brand-orange hover:text-white transition">Fruits</button>
+                        <button onclick="Game.usePreset('classroom')" type="button"
+                            class="px-3 py-1 bg-brand-blue/10 text-brand-blue border-2 border-brand-blue rounded-lg font-bold text-xs sm:text-sm hover:bg-brand-blue hover:text-white transition">Classroom</button>
+                        <button onclick="Game.usePreset('actions')" type="button"
+                            class="px-3 py-1 bg-brand-pink/10 text-brand-pink border-2 border-brand-pink rounded-lg font-bold text-xs sm:text-sm hover:bg-brand-pink hover:text-white transition">Actions</button>
                     </div>
                 </div>
 
-                <div class="drop-zone border-4 border-dashed border-brand-dark/30 dark:border-white/30 rounded-2xl p-6 bg-brand-chalk dark:bg-slate-900/50"
+                <div class="drop-zone border-3 border-dashed border-brand-dark/30 dark:border-slate-500 rounded-2xl p-4 bg-brand-chalk dark:bg-slate-900/60"
                     id="drop-area">
-                    <label
-                        class="block font-heading text-xl font-bold text-brand-dark dark:text-brand-chalk mb-4 flex items-center gap-2">
-                        <div class="bg-brand-pink text-white p-1 rounded border-2 border-brand-dark"><i
-                                data-lucide="image" class="w-4 h-4"></i></div>
-                        Images
-                    </label>
-
-                    <div class="flex flex-col items-center justify-center gap-3">
-                        <i data-lucide="upload-cloud" class="w-12 h-12 text-brand-blue opacity-50"></i>
-                        <p class="text-brand-dark/60 dark:text-white/60 font-bold text-center">Drag & Drop images
-                            here<br>or</p>
-                        <button onclick="document.getElementById('input-file').click()"
-                            class="btn-neo bg-brand-blue text-white font-bold py-2 px-6 rounded-xl border-2 border-brand-dark shadow-neo-sm flex items-center gap-2 hover:bg-blue-600">
-                            Browse Files
+                    <div class="flex items-center justify-between gap-2 mb-3">
+                        <label
+                            class="font-heading text-lg font-bold text-brand-dark dark:text-brand-chalk flex items-center gap-2">
+                            <span class="bg-brand-pink text-white p-1 rounded border-2 border-brand-dark dark:border-slate-500 inline-flex"><i
+                                    data-lucide="image" class="w-4 h-4"></i></span>
+                            Images
+                        </label>
+                        <button onclick="document.getElementById('input-file').click()" type="button"
+                            class="btn-neo bg-brand-blue text-white font-bold py-1.5 px-4 rounded-xl border-2 border-brand-dark dark:border-slate-500 shadow-neo-sm flex items-center gap-1.5 text-sm">
+                            <i data-lucide="upload-cloud" class="w-4 h-4"></i> Browse Files
                         </button>
-                        <input type="file" id="input-file" multiple accept="image/*" class="hidden"
-                            onchange="Game.handleFiles(this.files)">
                     </div>
 
-                    <div id="image-preview" class="flex flex-wrap gap-3 mt-6 min-h-[0px] transition-all">
+                    <p class="text-brand-dark/60 dark:text-slate-400 font-bold text-xs sm:text-sm text-center py-1">Drag &amp; Drop images anywhere in this box</p>
+                    <input type="file" id="input-file" multiple accept="image/*" class="hidden"
+                        onchange="Game.handleFiles(this.files)">
+
+                    <div id="image-preview" class="flex flex-wrap gap-2.5 mt-3 min-h-[0px] transition-all">
                     </div>
                 </div>
 
-                <div class="grid grid-cols-2 gap-6 bg-brand-dark/5 p-4 rounded-xl border-2 border-brand-dark/10">
+                <div class="grid grid-cols-2 gap-4 bg-brand-dark/5 dark:bg-slate-900/60 p-3.5 rounded-xl border-2 border-brand-dark/15 dark:border-slate-600">
                     <div>
-                        <label
-                            class="block font-bold text-sm text-brand-dark/70 dark:text-white/70 uppercase mb-1">Timer
-                            (Sec)</label>
-                        <input type="number" id="input-time" value="30"
-                            class="w-full p-2 border-4 border-brand-dark rounded-lg text-center font-bold text-xl dark:bg-slate-900 dark:text-white">
+                        <label for="input-time"
+                            class="block font-bold text-xs text-brand-dark/70 dark:text-slate-300 uppercase mb-1">Timer (3–300 Sec)</label>
+                        <input type="number" id="input-time" value="30" min="3" max="300"
+                            class="w-full p-2 border-3 border-brand-dark dark:border-slate-500 rounded-lg text-center font-bold text-lg bg-white dark:bg-slate-900 dark:text-white">
                     </div>
                     <div>
-                        <label class="block font-bold text-sm text-brand-dark/70 dark:text-white/70 uppercase mb-1">Card
-                            Style</label>
+                        <label for="input-color" class="block font-bold text-xs text-brand-dark/70 dark:text-slate-300 uppercase mb-1">Card Style</label>
                         <select id="input-color"
-                            class="w-full p-2 border-4 border-brand-dark rounded-lg font-bold text-brand-dark cursor-pointer dark:bg-slate-900 dark:text-white">
+                            class="w-full p-2 border-3 border-brand-dark dark:border-slate-500 rounded-lg font-bold text-brand-dark bg-white cursor-pointer dark:bg-slate-900 dark:text-white text-base">
                             <option value="random">Colorful Mix</option>
                             <option value="white">Clean White</option>
                             <option value="pink">Hot Pink</option>
@@ -295,13 +334,13 @@
                     </div>
                 </div>
 
-                <div class="flex gap-4 pt-2">
-                    <button onclick="Game.saveSetup()"
-                        class="flex-[2] btn-neo bg-brand-green text-white font-heading font-black text-xl py-4 rounded-xl border-4 border-brand-dark shadow-neo hover:bg-green-500">
+                <div class="flex gap-3 pt-1">
+                    <button onclick="Game.saveSetup()" type="button"
+                        class="flex-[2] btn-neo bg-brand-green text-brand-dark font-heading font-black text-lg py-3 rounded-xl border-3 border-brand-dark dark:border-slate-500 shadow-neo uppercase">
                         START GAME
                     </button>
-                    <button onclick="Game.clearAll()"
-                        class="flex-1 btn-neo bg-slate-200 text-brand-dark font-heading font-bold text-xl py-4 rounded-xl border-4 border-brand-dark shadow-neo hover:bg-slate-300">
+                    <button onclick="Game.clearAll()" type="button"
+                        class="flex-1 btn-neo bg-slate-200 dark:bg-slate-700 text-brand-dark dark:text-white font-heading font-bold text-lg py-3 rounded-xl border-3 border-brand-dark dark:border-slate-500 shadow-neo">
                         Clear
                     </button>
                 </div>
@@ -310,6 +349,63 @@
     </div>
 
     <script>
+        function escapeHTML(str) {
+            if (str === null || str === undefined) return '';
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
+        function shuffleArray(arr) {
+            const copy = arr.slice();
+            for (let i = copy.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [copy[i], copy[j]] = [copy[j], copy[i]];
+            }
+            return copy;
+        }
+
+        const AudioFX = {
+            ctx: null,
+            muted: localStorage.getItem('sound_card-memory') === 'muted',
+            init() {
+                if (!this.ctx) {
+                    const Ctx = window.AudioContext || window.webkitAudioContext;
+                    if (Ctx) this.ctx = new Ctx();
+                }
+                if (this.ctx && this.ctx.state === 'suspended') {
+                    this.ctx.resume().catch(() => { });
+                }
+            },
+            playTone(freq, type, duration, vol = 0.08) {
+                if (this.muted) return;
+                this.init();
+                if (!this.ctx) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = type;
+                osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+                gain.gain.setValueAtTime(vol, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + duration);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + duration);
+            },
+            playFlip() { this.playTone(440, 'sine', 0.08, 0.05); },
+            playHide() {
+                this.playTone(520, 'triangle', 0.12, 0.08);
+                setTimeout(() => this.playTone(390, 'triangle', 0.18, 0.08), 90);
+            },
+            playReveal() {
+                this.playTone(523.25, 'triangle', 0.12, 0.08);
+                setTimeout(() => this.playTone(659.25, 'triangle', 0.18, 0.08), 90);
+            }
+        };
+
         /**
          * Game Module
          * Handles hybrid input (text + images), drag-and-drop, and game states.
@@ -322,6 +418,7 @@
                 duration: 30,
                 theme: 'random',
                 timerInterval: null,
+                flipTimeouts: [],
                 isRevealing: false
             };
 
@@ -335,8 +432,8 @@
 
             const colors = {
                 pink: 'bg-brand-pink text-white',
-                white: 'bg-white text-brand-dark',
-                random: ['bg-brand-pink text-white', 'bg-brand-orange text-white', 'bg-brand-green text-white', 'bg-brand-blue text-white']
+                white: 'bg-white dark:bg-slate-800 text-brand-dark dark:text-white',
+                random: ['bg-brand-pink text-white', 'bg-brand-orange text-white', 'bg-brand-green text-brand-dark', 'bg-brand-blue text-white']
             };
 
             // --- DOM Elements ---
@@ -348,6 +445,8 @@
                 timerNum: document.getElementById('timer-number'),
                 preview: document.getElementById('image-preview'),
                 dropZone: document.getElementById('drop-area'),
+                itemCount: document.getElementById('setup-item-count'),
+                soundBtn: document.getElementById('sound-btn'),
                 inputs: {
                     words: document.getElementById('input-words'),
                     time: document.getElementById('input-time'),
@@ -364,31 +463,33 @@
             // --- Init ---
             async function init() {
                 await requireAuth();
+                updateSoundUI();
                 lucide.createIcons();
                 setupDragDrop();
+                setupKeyboardAndInputs();
+                updateSetupCount();
 
                 // Load Cloud Progress
                 try {
                     const data = await loadProgress('card-memory');
                     if (data) {
                         state.items = data.items || [];
-                        state.duration = data.duration || 30;
+                        state.duration = clampDuration(data.duration);
                         state.theme = data.theme || 'random';
-                        
-                        // Hydrate UI if we have data
+
                         if (state.items.length > 0) {
                             els.inputs.words.value = state.items
                                 .filter(i => i.type === 'text')
                                 .map(i => i.value).join(', ');
                             els.inputs.time.value = state.duration;
                             els.inputs.theme.value = state.theme;
-                            
-                            // Load images to pending
+
                             state.pendingImages = state.items
                                 .filter(i => i.type === 'image')
                                 .map(i => i.value);
                             updatePreview();
-                            
+                            updateSetupCount();
+
                             renderGrid();
                             resetUI();
                             els.status.textContent = `${state.items.length} items restored. Press Start!`;
@@ -397,6 +498,69 @@
                 } catch (e) {
                     console.error("Cloud load failed", e);
                 }
+            }
+
+            function clampDuration(val) {
+                const n = parseInt(val, 10);
+                if (isNaN(n)) return 30;
+                return Math.min(300, Math.max(3, n));
+            }
+
+            function clearFlipTimeouts() {
+                state.flipTimeouts.forEach(id => clearTimeout(id));
+                state.flipTimeouts = [];
+            }
+
+            function setupKeyboardAndInputs() {
+                els.inputs.words.addEventListener('input', updateSetupCount);
+                els.modal.addEventListener('click', (e) => {
+                    if (e.target === els.modal) closeSetup();
+                });
+
+                document.addEventListener('keydown', (e) => {
+                    const isSetupOpen = !els.modal.classList.contains('hidden');
+                    const inputModal = document.getElementById('universalInputModal');
+                    const isAlertOpen = inputModal && !inputModal.classList.contains('hidden');
+
+                    if (e.key === 'Escape' && isSetupOpen && !isAlertOpen) {
+                        closeSetup();
+                        return;
+                    }
+
+                    const tag = (e.target && e.target.tagName) ? e.target.tagName.toUpperCase() : '';
+                    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (e.target && e.target.isContentEditable)) {
+                        return;
+                    }
+                    if (isSetupOpen || isAlertOpen) return;
+
+                    if (e.key === ' ' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+                        if (tag === 'BUTTON' || (e.target && e.target.getAttribute && e.target.getAttribute('role') === 'button')) {
+                            return;
+                        }
+                        if (!els.btns.start.classList.contains('hidden')) {
+                            e.preventDefault();
+                            startMemorization();
+                        } else if (!els.btns.hide.classList.contains('hidden')) {
+                            e.preventDefault();
+                            hideCards();
+                        }
+                    } else if ((e.key === 'r' || e.key === 'R') && !e.ctrlKey && !e.metaKey && !e.altKey) {
+                        if (!els.btns.revealGroup.classList.contains('hidden')) {
+                            e.preventDefault();
+                            revealAll();
+                        }
+                    }
+                });
+            }
+
+            function updateSetupCount() {
+                if (!els.itemCount) return;
+                const textWords = els.inputs.words.value
+                    .split(/[\n,]+/)
+                    .map(w => w.trim())
+                    .filter(Boolean).length;
+                const total = textWords + state.pendingImages.length;
+                els.itemCount.textContent = `${total} item${total === 1 ? '' : 's'}`;
             }
 
             function setupDragDrop() {
@@ -428,8 +592,14 @@
 
             // --- Setup Logic ---
 
-            function openSetup() { els.modal.classList.remove('hidden'); }
-            function closeSetup() { els.modal.classList.add('hidden'); }
+            function openSetup() {
+                updateSetupCount();
+                els.modal.classList.remove('hidden');
+            }
+
+            function closeSetup() {
+                els.modal.classList.add('hidden');
+            }
 
             function usePreset(key) {
                 const current = els.inputs.words.value.trim();
@@ -440,17 +610,37 @@
                 } else {
                     els.inputs.words.value = newVal;
                 }
+                updateSetupCount();
+            }
+
+            function dedupeWords() {
+                const raw = els.inputs.words.value;
+                const words = raw.split(/[\n,]+/).map(w => w.trim()).filter(Boolean);
+                const seen = new Set();
+                const unique = [];
+                for (const w of words) {
+                    const k = w.toLowerCase();
+                    if (!seen.has(k)) {
+                        seen.add(k);
+                        unique.push(w);
+                    }
+                }
+                els.inputs.words.value = unique.join(', ');
+                updateSetupCount();
             }
 
             function handleFiles(files) {
                 if (files && files.length > 0) {
-                    Array.from(files).forEach(file => {
+                    const fileList = Array.from(files);
+                    if (els.inputs.file) els.inputs.file.value = '';
+                    fileList.forEach(file => {
                         if (!file.type.startsWith('image/')) return;
 
                         const reader = new FileReader();
                         reader.onload = function (e) {
                             state.pendingImages.push(e.target.result);
                             updatePreview();
+                            updateSetupCount();
                         };
                         reader.readAsDataURL(file);
                     });
@@ -463,15 +653,22 @@
 
                 state.pendingImages.forEach((src, idx) => {
                     const thumb = document.createElement('div');
-                    thumb.className = "w-16 h-16 border-2 border-brand-dark rounded-lg bg-cover bg-center relative shadow-sm hover:scale-105 transition-transform bg-white";
-                    thumb.style.backgroundImage = `url(${src})`;
+                    thumb.className = "w-14 h-14 border-2 border-brand-dark dark:border-slate-500 rounded-lg relative shadow-sm hover:scale-105 transition-transform bg-white overflow-visible";
 
-                    // Delete btn
-                    thumb.innerHTML = `
-                        <button onclick="Game.removeImage(${idx})" class="absolute -top-2 -right-2 bg-brand-pink text-white rounded-full w-5 h-5 flex items-center justify-center text-xs border border-brand-dark hover:bg-red-600 shadow-sm font-bold">
-                            ×
-                        </button>
-                    `;
+                    const img = document.createElement('img');
+                    img.src = src;
+                    img.alt = `Uploaded image ${idx + 1}`;
+                    img.className = "w-full h-full object-cover rounded-md";
+
+                    const delBtn = document.createElement('button');
+                    delBtn.type = "button";
+                    delBtn.setAttribute('aria-label', `Remove image ${idx + 1}`);
+                    delBtn.className = "absolute -top-2 -right-2 bg-brand-pink text-white rounded-full w-5 h-5 flex items-center justify-center text-xs border-2 border-brand-dark hover:bg-red-600 shadow-sm font-bold";
+                    delBtn.textContent = "×";
+                    delBtn.onclick = () => removeImage(idx);
+
+                    thumb.appendChild(img);
+                    thumb.appendChild(delBtn);
                     els.preview.appendChild(thumb);
                 });
             }
@@ -479,31 +676,31 @@
             function removeImage(idx) {
                 state.pendingImages.splice(idx, 1);
                 updatePreview();
+                updateSetupCount();
             }
 
             function clearAll() {
                 state.pendingImages = [];
                 els.inputs.words.value = '';
                 updatePreview();
+                updateSetupCount();
             }
 
             async function saveSetup() {
                 state.items = [];
 
-                // 1. Process Text
                 const textRaw = els.inputs.words.value;
                 if (textRaw.trim()) {
                     const words = textRaw.split(/[\n,]+/).map(w => w.trim()).filter(w => w.length > 0);
                     words.forEach(w => state.items.push({ type: 'text', value: w }));
                 }
 
-                // 2. Process Images
                 state.pendingImages.forEach(src => {
                     state.items.push({ type: 'image', value: src });
                 });
 
-                // 3. Settings
-                state.duration = parseInt(els.inputs.time.value) || 30;
+                state.duration = clampDuration(els.inputs.time.value);
+                els.inputs.time.value = state.duration;
                 state.theme = els.inputs.theme.value;
 
                 if (state.items.length === 0) {
@@ -511,22 +708,33 @@
                     return;
                 }
 
-                shuffleItems(); // Initial Shuffle
+                clearInterval(state.timerInterval);
+                clearFlipTimeouts();
+                state.isRevealing = false;
+
+                shuffleItems();
                 renderGrid();
                 resetUI();
                 closeSetup();
                 els.status.textContent = `${state.items.length} items loaded. Press Start!`;
+                els.status.className = "font-sans text-xs sm:text-sm font-extrabold text-brand-orange dark:text-brand-green uppercase tracking-wider truncate mt-0.5";
 
-                // Save to Cloud
-                saveProgress('card-memory', {
-                    items: state.items,
-                    duration: state.duration,
-                    theme: state.theme
-                });
+                try {
+                    const p = saveProgress('card-memory', {
+                        items: state.items,
+                        duration: state.duration,
+                        theme: state.theme
+                    });
+                    if (p && typeof p.catch === 'function') {
+                        p.catch(err => console.warn('Cloud/local progress save warning:', err));
+                    }
+                } catch (err) {
+                    console.warn('Could not persist card-memory setup locally (quota exceeded?):', err);
+                }
             }
 
             function shuffleItems() {
-                state.items.sort(() => Math.random() - 0.5);
+                state.items = shuffleArray(state.items);
             }
 
             // --- Game Logic ---
@@ -542,87 +750,117 @@
                 els.grid.innerHTML = '';
                 const count = state.items.length;
 
-                // Adaptive Grid
-                let gridClass = "grid gap-4 md:gap-6 w-full ";
-                if (count <= 4) gridClass += "grid-cols-2 md:grid-cols-2 max-w-3xl";
-                else if (count <= 8) gridClass += "grid-cols-3 md:grid-cols-4 max-w-5xl";
-                else gridClass += "grid-cols-3 md:grid-cols-5";
+                let gridClass = "grid gap-3 sm:gap-4 w-full ";
+                let cardHeightClass = "h-32 sm:h-36 md:h-40";
+                if (count <= 4) {
+                    gridClass += "grid-cols-2 md:grid-cols-2 max-w-3xl";
+                    cardHeightClass = "h-36 sm:h-44 md:h-48";
+                } else if (count <= 8) {
+                    gridClass += "grid-cols-3 md:grid-cols-4 max-w-5xl";
+                } else if (count <= 10) {
+                    gridClass += "grid-cols-3 md:grid-cols-5 max-w-6xl";
+                } else if (count <= 20) {
+                    gridClass += "grid-cols-3 md:grid-cols-5 max-w-6xl";
+                    cardHeightClass = "h-28 sm:h-32";
+                } else {
+                    gridClass += "grid-cols-3 md:grid-cols-5 lg:grid-cols-6 max-w-6xl";
+                    cardHeightClass = "h-24 sm:h-28";
+                }
 
                 els.grid.className = gridClass;
 
                 state.items.forEach((item, index) => {
-                    // Color Logic
                     let bgClass = '';
                     if (state.theme === 'random') {
                         bgClass = colors.random[index % colors.random.length];
                     } else {
-                        bgClass = colors[state.theme];
+                        bgClass = colors[state.theme] || colors.random[0];
                     }
 
-                    // Card Generation
                     const card = document.createElement('div');
-                    card.className = "group h-40 md:h-52 perspective-1000 cursor-pointer select-none animate-in zoom-in duration-300";
-                    card.style.animationDelay = `${index * 50}ms`;
+                    card.className = `group ${cardHeightClass} perspective-1000 cursor-pointer select-none`;
+                    card.setAttribute('role', 'button');
+                    card.setAttribute('tabindex', '0');
+                    card.setAttribute('aria-label', `Card ${index + 1}`);
 
                     let content = '';
                     if (item.type === 'text') {
-                        content = `<span class="font-heading text-2xl md:text-3xl font-black break-words px-2 drop-shadow-sm">${item.value}</span>`;
+                        const safeVal = escapeHTML(item.value);
+                        const len = String(item.value).length;
+                        const txtSize = len > 18 ? 'text-lg md:text-xl' : len > 10 ? 'text-xl md:text-2xl' : 'text-2xl md:text-3xl';
+                        content = `<span class="font-heading ${txtSize} font-black break-words px-3 leading-tight drop-shadow-sm">${safeVal}</span>`;
                     } else {
-                        content = `<img src="${item.value}" class="card-img bg-white rounded-lg border-2 border-brand-dark/10">`;
+                        const safeSrc = escapeHTML(item.value);
+                        content = `<img src="${safeSrc}" alt="Memory card" class="card-img bg-white rounded-lg border-2 border-brand-dark/10">`;
                     }
 
                     card.innerHTML = `
-                        <div class="card-inner relative w-full h-full text-center transition-all duration-700 transform-style-3d shadow-neo rounded-2xl border-[3px] border-brand-dark" id="card-${index}">
+                        <div class="card-inner relative w-full h-full text-center transition-all duration-700 transform-style-3d shadow-neo rounded-2xl border-[3px] border-brand-dark dark:border-slate-500" id="card-${index}">
                             <div class="absolute inset-0 w-full h-full ${bgClass} rounded-xl backface-hidden flex items-center justify-center z-20 overflow-hidden">
                                 ${content}
                             </div>
-                            <div class="absolute inset-0 w-full h-full bg-brand-dark rounded-xl rotate-y-180 backface-hidden flex items-center justify-center z-10 border-[3px] border-white/10">
-                                <span class="font-heading text-6xl text-brand-chalk opacity-20 font-black">?</span>
+                            <div class="absolute inset-0 w-full h-full bg-brand-dark dark:bg-slate-800 rounded-xl rotate-y-180 backface-hidden flex items-center justify-center z-10 border-[3px] border-white/15 dark:border-slate-500/40">
+                                <span class="font-heading text-5xl text-brand-chalk opacity-40 dark:opacity-50 font-black">?</span>
                             </div>
                         </div>
                     `;
 
                     card.onclick = () => toggleCard(index);
+                    card.onkeydown = (e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            toggleCard(index);
+                        }
+                    };
                     els.grid.appendChild(card);
                 });
             }
 
             function toggleCard(index) {
-                if (!state.isRevealing) return; // Locked during memorization
+                if (!state.isRevealing) return;
                 const card = document.getElementById(`card-${index}`);
-                if (card) card.classList.toggle('rotate-y-180');
+                if (card) {
+                    card.classList.toggle('rotate-y-180');
+                    AudioFX.playFlip();
+                }
             }
 
             function startMemorization() {
+                clearFlipTimeouts();
+                clearInterval(state.timerInterval);
                 state.isRevealing = false;
 
-                // Flip all to front
                 document.querySelectorAll('.card-inner').forEach(c => c.classList.remove('rotate-y-180'));
 
                 els.btns.start.classList.add('hidden');
                 els.btns.revealGroup.classList.add('hidden');
                 els.btns.hide.classList.remove('hidden');
 
+                AudioFX.init();
                 startTimer();
                 els.status.textContent = "Memorize the items!";
-                els.status.className = "font-sans text-sm md:text-base font-bold text-brand-blue uppercase tracking-wider animate-pulse";
+                els.status.className = "font-sans text-xs sm:text-sm font-extrabold text-brand-blue uppercase tracking-wider animate-pulse truncate mt-0.5";
             }
 
             function shuffleAndRestart() {
-                // 1. Flip everything over first (optional visual polish)
+                clearFlipTimeouts();
+                clearInterval(state.timerInterval);
                 document.querySelectorAll('.card-inner').forEach(c => c.classList.remove('rotate-y-180'));
 
-                // 2. Small delay then shuffle
-                setTimeout(() => {
+                const tid = setTimeout(() => {
                     shuffleItems();
                     renderGrid();
                     startMemorization();
                 }, 300);
+                state.flipTimeouts.push(tid);
             }
 
             function startTimer() {
                 els.timerBar.classList.remove('hidden');
                 let timeLeft = state.duration;
+
+                els.timerFill.classList.remove('bg-brand-pink');
+                els.timerFill.classList.add('bg-brand-green');
 
                 els.timerNum.textContent = timeLeft + "s";
                 els.timerFill.style.transition = 'none';
@@ -635,11 +873,15 @@
                 clearInterval(state.timerInterval);
                 state.timerInterval = setInterval(() => {
                     timeLeft--;
-                    els.timerNum.textContent = timeLeft + "s";
+                    els.timerNum.textContent = Math.max(0, timeLeft) + "s";
 
-                    // Warning colors
-                    if (timeLeft <= 5) els.timerFill.classList.replace('bg-brand-green', 'bg-brand-pink');
-                    else els.timerFill.classList.replace('bg-brand-pink', 'bg-brand-green');
+                    if (timeLeft <= 5) {
+                        els.timerFill.classList.remove('bg-brand-green');
+                        els.timerFill.classList.add('bg-brand-pink');
+                    } else {
+                        els.timerFill.classList.remove('bg-brand-pink');
+                        els.timerFill.classList.add('bg-brand-green');
+                    }
 
                     if (timeLeft <= 0) hideCards();
                 }, 1000);
@@ -647,39 +889,60 @@
 
             function hideCards() {
                 clearInterval(state.timerInterval);
+                clearFlipTimeouts();
                 state.isRevealing = true;
+                AudioFX.playHide();
 
-                // Cascade flip
                 document.querySelectorAll('.card-inner').forEach((c, i) => {
-                    setTimeout(() => c.classList.add('rotate-y-180'), i * 30);
+                    const tid = setTimeout(() => c.classList.add('rotate-y-180'), i * 30);
+                    state.flipTimeouts.push(tid);
                 });
 
                 els.timerBar.classList.add('hidden');
                 els.btns.hide.classList.add('hidden');
                 els.btns.revealGroup.classList.remove('hidden');
                 els.status.textContent = "TIME'S UP! Write it down!";
-                els.status.className = "font-sans text-sm md:text-base font-bold text-brand-pink uppercase tracking-wider";
+                els.status.className = "font-sans text-xs sm:text-sm font-extrabold text-brand-pink uppercase tracking-wider truncate mt-0.5";
             }
 
             function revealAll() {
+                clearFlipTimeouts();
+                AudioFX.playReveal();
                 document.querySelectorAll('.card-inner').forEach((c, i) => {
-                    setTimeout(() => c.classList.remove('rotate-y-180'), i * 30);
+                    const tid = setTimeout(() => c.classList.remove('rotate-y-180'), i * 30);
+                    state.flipTimeouts.push(tid);
                 });
                 els.status.textContent = "Checking answers...";
-                els.status.className = "font-sans text-sm md:text-base font-bold text-brand-green uppercase tracking-wider";
+                els.status.className = "font-sans text-xs sm:text-sm font-extrabold text-brand-green uppercase tracking-wider truncate mt-0.5";
             }
 
             function toggleTheme() {
-                document.documentElement.classList.toggle('dark');
+                const isDark = document.documentElement.classList.toggle('dark');
+                localStorage.setItem('theme_card-memory', isDark ? 'dark' : 'light');
+                lucide.createIcons();
+            }
+
+            function toggleSound() {
+                AudioFX.muted = !AudioFX.muted;
+                localStorage.setItem('sound_card-memory', AudioFX.muted ? 'muted' : 'unmuted');
+                updateSoundUI();
+                if (!AudioFX.muted) AudioFX.playFlip();
+            }
+
+            function updateSoundUI() {
+                if (!els.soundBtn) return;
+                els.soundBtn.setAttribute('aria-pressed', String(!AudioFX.muted));
+                els.soundBtn.title = AudioFX.muted ? 'Unmute Sound' : 'Mute Sound';
+                els.soundBtn.innerHTML = `<i data-lucide="${AudioFX.muted ? 'volume-x' : 'volume-2'}" class="w-5 h-5 ${AudioFX.muted ? 'text-slate-400' : ''}"></i>`;
+                lucide.createIcons();
             }
 
             // Public API
             return {
-                init, openSetup, closeSetup, usePreset,
+                init, openSetup, closeSetup, usePreset, dedupeWords,
                 handleFiles, removeImage, clearAll, saveSetup,
                 startMemorization, hideCards, revealAll, toggleCard,
-                shuffleAndRestart,
-                toggleTheme
+                shuffleAndRestart, toggleTheme, toggleSound
             };
         })();
 

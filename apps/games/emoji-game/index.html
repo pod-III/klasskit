@@ -10,6 +10,14 @@
     <title>Guess the Emoji</title>
     <link rel="icon" type="image/x-icon" href="../../../media/icon.ico" />
     <link rel="icon" type="image/webp" href="../../../media/icon.webp" />
+    <script>
+        (function () {
+            const st = localStorage.getItem('theme_emoji-game');
+            if (st === 'dark' || (!st && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+                document.documentElement.classList.add('dark');
+            }
+        })();
+    </script>
 
     <script src="https://unpkg.com/lucide@1.16.0"></script>
     <script src="../../../components/input-modal.js"></script>
@@ -35,13 +43,13 @@
                 extend: {
                     colors: {
                         // Brand Palette
-                        pink: '#FF6B95',   // Playful
-                        orange: '#FF8C42', // Energy
-                        green: '#00E676',  // Success
-                        blue: '#2979FF',   // Logic
+                        pink: '#ff4785',   // Playful
+                        orange: '#ff7e33', // Energy
+                        green: '#00d063',  // Success
+                        blue: '#1ea7fd',   // Logic
 
                         // Neutrals
-                        dark: '#1e293b',   // Borders/Text (Slate-900)
+                        dark: '#0f172a',   // Borders/Text (Slate-900)
                         chalk: '#f8fafc',  // Backgrounds (Slate-50)
                         surface: '#FFFFFF',
                     },
@@ -88,16 +96,18 @@
         /* --- Base & Background --- */
         body {
             font-family: 'Nunito', sans-serif;
-            overflow: hidden;
-            background-color: #f8fafc;
-            /* Chalk */
+            overflow-x: hidden;
+            overflow-y: auto;
+            color: #0f172a;
+        }
 
-            /* Graph Paper Pattern */
-            background-image:
-                linear-gradient(#e2e8f0 1px, transparent 1px),
-                linear-gradient(90deg, #e2e8f0 1px, transparent 1px);
-            background-size: 24px 24px;
-            color: #1e293b;
+        .dark body {
+            color: #f8fafc;
+        }
+
+        :focus-visible {
+            outline: 3px solid #1ea7fd;
+            outline-offset: 2px;
         }
 
         h1,
@@ -114,24 +124,40 @@
         /* The "Physical" Card Look */
         .neo-card {
             background: #FFFFFF;
-            border: 3px solid #1e293b;
-            box-shadow: 6px 6px 0px #1e293b;
+            border: 3px solid #0f172a;
+            box-shadow: 6px 6px 0px #0f172a;
             border-radius: 1.5rem;
-            transition: transform 0.2s;
+            transition: transform 0.2s, background-color 0.2s, border-color 0.2s;
+        }
+
+        .dark .neo-card {
+            background: rgba(15, 23, 42, 0.92);
+            border-color: #64748b;
+            box-shadow: 6px 6px 0px #000000;
+            color: #f8fafc;
         }
 
         /* Primary Action Button */
         .btn-primary {
-            background-color: #2979FF;
+            background-color: #1ea7fd;
             color: white;
-            border: 3px solid #1e293b;
-            box-shadow: 4px 4px 0px #1e293b;
+            border: 3px solid #0f172a;
+            box-shadow: 4px 4px 0px #0f172a;
+        }
+
+        .dark .btn-primary {
+            border-color: #64748b;
+            box-shadow: 4px 4px 0px #000000;
         }
 
         .btn-primary:hover {
             filter: brightness(110%);
             transform: translate(-1px, -1px);
-            box-shadow: 6px 6px 0px #1e293b;
+            box-shadow: 6px 6px 0px #0f172a;
+        }
+
+        .dark .btn-primary:hover {
+            box-shadow: 6px 6px 0px #000000;
         }
 
         /* 3D Click Effect Class */
@@ -143,22 +169,38 @@
         .btn-click-anim:active,
         .btn-click-anim.active-press {
             transform: translateY(4px);
-            box-shadow: 0px 0px 0px #1e293b !important;
+            box-shadow: 0px 0px 0px #0f172a !important;
             margin-top: 4px;
             margin-bottom: -4px;
             /* Layout shift prevention */
         }
 
+        .dark .btn-click-anim:active,
+        .dark .btn-click-anim.active-press {
+            box-shadow: 0px 0px 0px #000000 !important;
+        }
+
         /* Secondary/Icon Button */
         .btn-icon {
             background: #FFFFFF;
-            border: 2px solid #1e293b;
-            box-shadow: 3px 3px 0px #1e293b;
-            color: #1e293b;
+            border: 2px solid #0f172a;
+            box-shadow: 3px 3px 0px #0f172a;
+            color: #0f172a;
         }
 
         .btn-icon:hover {
             background-color: #f1f5f9;
+        }
+
+        .dark .btn-icon {
+            background: #1e293b;
+            border-color: #64748b;
+            box-shadow: 3px 3px 0px #000000;
+            color: #f8fafc;
+        }
+
+        .dark .btn-icon:hover {
+            background-color: #334155;
         }
 
         /* --- Typography Helpers --- */
@@ -183,6 +225,11 @@
             border-radius: 20px;
         }
 
+        .dark .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #475569;
+            border-color: #0f172a;
+        }
+
         .custom-scrollbar::-webkit-scrollbar-thumb:hover {
             background: #94a3b8;
         }
@@ -196,7 +243,7 @@
             align-items: center;
             justify-content: center;
             padding: 1rem;
-            background: rgba(30, 41, 59, 0.6);
+            background: rgba(15, 23, 42, 0.65);
             backdrop-filter: blur(4px);
             opacity: 0;
             pointer-events: none;
@@ -252,21 +299,30 @@
             transform: translateY(-1px);
         }
         .set-card.active {
-            border-color: #2979FF;
-            background: rgba(41, 121, 255, 0.05);
+            border-color: #1ea7fd;
+            background: rgba(30, 167, 253, 0.08);
+        }
+
+        .dark .set-card.active {
+            background: rgba(30, 167, 253, 0.16);
         }
 
         /* --- Emoji Picker Popover --- */
         #emoji-picker-container {
             position: fixed;
             z-index: 150;
-            box-shadow: 8px 8px 0px rgba(30, 41, 59, 1);
+            box-shadow: 8px 8px 0px rgba(15, 23, 42, 1);
             /* Hard shadow */
             border-radius: 1rem;
-            border: 3px solid #1e293b;
+            border: 3px solid #0f172a;
             overflow: hidden;
             display: none;
             /* Controlled by JS */
+        }
+
+        .dark #emoji-picker-container {
+            border-color: #64748b;
+            box-shadow: 8px 8px 0px #000000;
         }
 
         emoji-picker {
@@ -274,6 +330,16 @@
             height: 400px;
             --background: #FFFFFF;
             --border-color: #E2E8F0;
+        }
+
+        .dark emoji-picker {
+            --background: #0f172a;
+            --border-color: #334155;
+            --text-color: #f8fafc;
+            --secondary-text-color: #94a3b8;
+            --input-border-color: #475569;
+            --input-font-color: #f8fafc;
+            --button-hover-background: #1e293b;
         }
     </style>
     <link rel="stylesheet" href="../../../css/base.css" />
@@ -284,7 +350,13 @@
 <body class="flex flex-col min-h-screen selection:bg-pink selection:text-white">
 
     <div id="welcome-view" class="fixed inset-0 z-40 flex flex-col items-center justify-center overflow-hidden hidden">
-        <div class="absolute inset-0 bg-white/95 backdrop-blur-sm z-0"></div>
+        <div class="absolute inset-0 bg-white/95 dark:bg-slate-950/92 backdrop-blur-sm z-0"></div>
+
+        <button onclick="UI.toggleTheme()" title="Toggle Dark Mode" aria-label="Toggle Dark Mode"
+            class="fixed top-5 right-5 z-50 btn-icon p-3 rounded-xl hover:-translate-y-0.5 transition-transform">
+            <i data-lucide="moon" class="w-5 h-5 block dark:hidden text-blue"></i>
+            <i data-lucide="sun" class="w-5 h-5 hidden dark:block text-orange"></i>
+        </button>
 
         <div class="absolute inset-0 pointer-events-none opacity-20 select-none">
             <div class="absolute top-10 left-10 text-6xl delay-0">🤔</div>
@@ -293,34 +365,34 @@
             <div class="absolute bottom-1/3 left-1/4 text-5xl delay-3000">✨</div>
         </div>
 
-        <div class="relative z-10 text-center space-y-8 animate-pop p-4">
-            <div class="inline-block p-8 rounded-[2.5rem] bg-white border-[4px] border-dark shadow-hard-lg mb-4">
-                <div class="text-8xl md:text-9xl cursor-default select-none emoji-font">🤔🌏</div>
+        <div class="relative z-10 text-center space-y-6 animate-pop p-4">
+            <div class="inline-block p-6 md:p-8 rounded-[2.5rem] bg-white dark:bg-slate-900 border-[4px] border-dark dark:border-slate-500 shadow-hard-lg dark:shadow-[8px_8px_0px_0px_#000000] mb-2">
+                <div class="text-7xl md:text-8xl cursor-default select-none emoji-font">🤔🌏</div>
             </div>
 
             <div class="space-y-2">
-                <h1 class="text-6xl md:text-8xl font-heading text-dark tracking-wider drop-shadow-sm">
+                <h1 class="text-5xl md:text-7xl font-heading text-dark dark:text-white tracking-wider drop-shadow-sm">
                     Guess the Emoji
                 </h1>
                 <div
-                    class="inline-block bg-blue/10 px-6 py-2 rounded-full border-2 border-blue border-dashed transform -rotate-2">
-                    <p class="text-blue font-mono text-lg tracking-[0.3em] uppercase font-bold">Classroom Edition</p>
+                    class="inline-block bg-blue/10 dark:bg-blue/20 px-6 py-2 rounded-full border-2 border-blue border-dashed transform -rotate-2">
+                    <p class="text-blue font-mono text-base md:text-lg tracking-[0.3em] uppercase font-bold">Classroom Edition</p>
                 </div>
             </div>
 
             <button onclick="GameLogic.startGame()"
-                class="group relative btn-click-anim btn-primary px-16 py-6 rounded-2xl font-heading text-4xl tracking-widest mt-8 overflow-hidden">
+                class="group relative btn-click-anim btn-primary px-12 md:px-16 py-4 md:py-5 rounded-2xl font-heading text-3xl md:text-4xl tracking-widest mt-6 overflow-hidden">
                 <span class="relative z-10 flex items-center gap-4">
-                    PLAY GAME <i data-lucide="play-circle" class="w-10 h-10 fill-current"></i>
+                    PLAY GAME <i data-lucide="play-circle" class="w-9 h-9 fill-current"></i>
                 </span>
                 <div
                     class="absolute top-0 left-0 w-full h-full bg-gradient-to-r from-transparent via-white/30 to-transparent -translate-x-full group-hover:animate-shimmer">
                 </div>
             </button>
 
-            <div class="mt-8">
+            <div class="mt-4">
                 <button onclick="UI.showEditor()"
-                    class="btn-icon bg-white px-6 py-3 rounded-xl text-dark text-sm font-bold uppercase tracking-widest hover:-translate-y-1 transition-transform">
+                    class="btn-icon px-6 py-3 rounded-xl text-sm font-bold uppercase tracking-widest hover:-translate-y-1 transition-transform">
                     <i data-lucide="settings" class="w-4 h-4 inline mr-2"></i> Teacher Setup
                 </button>
             </div>
@@ -331,28 +403,35 @@
 
         <header
             class="w-full neo-card rounded-none md:rounded-b-2xl border-t-0 sticky top-0 z-40 md:mx-auto md:max-w-7xl md:mt-[-4px]">
-            <div class="px-6 h-20 flex items-center justify-between">
-                <div class="flex items-center gap-4 group cursor-pointer" onclick="UI.showWelcome()">
+            <div class="px-5 h-16 flex items-center justify-between">
+                <button type="button" class="flex items-center gap-3 group cursor-pointer text-left" onclick="UI.showWelcome()" aria-label="Back to title screen">
                     <div
-                        class="bg-chalk w-12 h-12 rounded-xl border-2 border-dark flex items-center justify-center text-2xl shadow-hard-sm group-hover:rotate-12 transition-transform">
+                        class="bg-chalk dark:bg-slate-800 w-10 h-10 rounded-xl border-2 border-dark dark:border-slate-500 flex items-center justify-center text-xl shadow-hard-sm dark:shadow-[2px_2px_0px_0px_#000000] group-hover:rotate-12 transition-transform">
                         🤔
                     </div>
                     <div class="hidden sm:block">
                         <h1
-                            class="text-2xl font-heading tracking-widest text-dark group-hover:text-blue transition-colors">
+                            class="text-xl md:text-2xl font-heading tracking-widest text-dark dark:text-white group-hover:text-blue transition-colors">
                             Guess the Emoji</h1>
                     </div>
-                </div>
+                </button>
 
-                <div class="flex items-center gap-3 bg-chalk px-5 py-2 rounded-full border-2 border-dark shadow-inner">
+                <div class="flex items-center gap-3 bg-chalk dark:bg-slate-800 px-4 py-1.5 rounded-full border-2 border-dark dark:border-slate-500 shadow-inner">
                     <span
-                        class="text-[10px] text-slate-500 uppercase font-bold tracking-widest hidden sm:inline">Question</span>
-                    <span id="progress-display" class="font-mono text-blue font-bold text-xl">1 / 15</span>
+                        class="text-[10px] text-slate-500 dark:text-slate-400 uppercase font-bold tracking-widest hidden sm:inline">Question</span>
+                    <span id="progress-display" class="font-mono text-blue font-bold text-lg">1 / 15</span>
                 </div>
 
-                <div class="flex items-center gap-2 md:gap-3">
-                    <button id="sound-toggle" class="btn-icon p-2 rounded-lg">
+                <div class="flex items-center gap-2">
+                    <button id="theme-toggle" onclick="UI.toggleTheme()" title="Toggle Dark Mode" aria-label="Toggle Dark Mode" class="btn-icon p-2 rounded-lg">
+                        <i data-lucide="moon" class="w-5 h-5 block dark:hidden"></i>
+                        <i data-lucide="sun" class="w-5 h-5 hidden dark:block text-orange"></i>
+                    </button>
+                    <button id="sound-toggle" title="Toggle Sound" aria-label="Toggle Sound" aria-pressed="true" class="btn-icon p-2 rounded-lg">
                         <i data-lucide="volume-2" class="w-5 h-5"></i>
+                    </button>
+                    <button id="btn-shuffle-deck" onclick="GameLogic.shuffleDeck()" title="Shuffle Questions" aria-label="Shuffle Questions" class="btn-icon p-2 rounded-lg">
+                        <i data-lucide="shuffle" class="w-5 h-5"></i>
                     </button>
                     <button onclick="UI.showEditor()"
                         class="btn-icon px-4 py-2 rounded-lg font-heading text-sm tracking-wider">
@@ -362,14 +441,14 @@
             </div>
         </header>
 
-        <main class="flex-grow flex flex-col items-center justify-center p-4 w-full max-w-7xl mx-auto relative">
+        <main class="flex-grow flex flex-col items-center justify-center p-3 md:p-4 w-full max-w-7xl mx-auto relative">
 
             <div id="game-card"
-                class="w-full max-w-5xl aspect-[16/10] md:aspect-[21/9] neo-card flex flex-col items-center justify-center relative overflow-hidden bg-white">
+                class="w-full max-w-5xl min-h-[300px] h-[52vh] max-h-[430px] neo-card flex flex-col items-center justify-center relative overflow-hidden bg-white dark:bg-slate-900">
 
-                <div class="absolute top-6 left-6 z-20">
+                <div class="absolute top-5 left-5 z-20">
                     <span id="category-display"
-                        class="bg-white text-orange border-2 border-orange px-4 py-1 rounded-lg text-sm font-bold font-mono uppercase tracking-widest shadow-hard-sm flex items-center gap-2 transform -rotate-2">
+                        class="bg-white dark:bg-slate-800 text-orange border-2 border-orange px-4 py-1 rounded-lg text-sm font-bold font-mono uppercase tracking-widest shadow-hard-sm dark:shadow-[2px_2px_0px_0px_#000000] flex items-center gap-2 transform -rotate-2">
                     </span>
                 </div>
 
@@ -377,119 +456,128 @@
 
                     <div id="emoji-container" class="transition-all duration-500 transform will-change-transform">
                         <div id="emoji-display"
-                            class="emoji-font text-7xl md:text-9xl lg:text-[10rem] text-center leading-tight select-none animate-slide-up hover:scale-105 transition-transform duration-300 cursor-help"
+                            class="emoji-font text-7xl md:text-8xl lg:text-9xl text-center leading-tight select-none animate-slide-up hover:scale-105 transition-transform duration-300 cursor-help"
                             title="Guess the word!">
                         </div>
                     </div>
 
                     <div id="answer-container"
-                        class="hidden animate-pop absolute inset-0 flex flex-col items-center justify-center bg-white/95 backdrop-blur-md z-30 rounded-[1.3rem]">
-                        <h2 class="text-slate-400 font-bold tracking-[0.6em] text-xs mb-4 uppercase animate-pulse">
+                        class="hidden animate-pop absolute inset-0 flex flex-col items-center justify-center bg-white/95 dark:bg-slate-900/95 backdrop-blur-md z-30 rounded-[1.3rem]">
+                        <h2 class="text-slate-400 dark:text-slate-400 font-bold tracking-[0.6em] text-xs mb-3 uppercase animate-pulse">
                             CORRECT ANSWER</h2>
 
                         <h1 id="answer-text"
-                            class="text-5xl md:text-8xl lg:text-9xl font-heading text-dark mb-8 text-center px-4 break-words max-w-full drop-shadow-sm">
+                            class="text-5xl md:text-7xl lg:text-8xl font-heading text-dark dark:text-white mb-5 text-center px-4 break-words max-w-full drop-shadow-sm">
                         </h1>
 
                         <div id="bonus-box"
-                            class="hidden max-w-xl mx-auto bg-[#fffbeb] border-2 border-[#fbbf24] shadow-hard-sm p-6 rounded-xl transform rotate-1 relative">
+                            class="hidden max-w-xl mx-auto bg-[#fffbeb] dark:bg-amber-950/75 border-2 border-[#fbbf24] dark:border-amber-500 shadow-hard-sm dark:shadow-[2px_2px_0px_0px_#000000] p-5 rounded-xl transform rotate-1 relative">
                             <div
-                                class="absolute -top-3 left-1/2 -translate-x-1/2 w-4 h-4 rounded-full bg-red-500 border-2 border-dark shadow-sm">
+                                class="absolute -top-3 left-1/2 -translate-x-1/2 w-4 h-4 rounded-full bg-red-500 border-2 border-dark dark:border-slate-400 shadow-sm">
                             </div>
                             <h3
-                                class="text-yellow-700 font-bold flex items-center gap-2 mb-2 text-xs uppercase tracking-widest border-b border-yellow-200 pb-2">
+                                class="text-yellow-700 dark:text-amber-300 font-bold flex items-center gap-2 mb-2 text-xs uppercase tracking-widest border-b border-yellow-200 dark:border-amber-700 pb-2">
                                 <i data-lucide="star" class="w-4 h-4 fill-current"></i> Bonus Challenge
                             </h3>
-                            <p class="text-dark text-xl font-heading text-center">
+                            <p class="text-dark dark:text-amber-100 text-lg md:text-xl font-heading text-center">
                                 "Make a full sentence using the answer!"
                             </p>
                         </div>
 
                         <button onclick="GameLogic.showBonus()" id="btn-show-bonus"
-                            class="mt-6 text-blue hover:underline decoration-2 underline-offset-4 font-bold uppercase tracking-wider text-sm flex items-center gap-2">
+                            class="mt-4 text-blue hover:underline decoration-2 underline-offset-4 font-bold uppercase tracking-wider text-sm flex items-center gap-2">
                             <i data-lucide="plus-circle" class="w-4 h-4"></i> Show Bonus Challenge
                         </button>
                     </div>
                 </div>
 
-                <div class="absolute bottom-0 left-0 w-full h-4 bg-slate-100 border-t-2 border-dark">
+                <div class="absolute bottom-0 left-0 w-full h-4 bg-slate-100 dark:bg-slate-800 border-t-2 border-dark dark:border-slate-500">
                     <div id="timer-bar" class="h-full bg-green w-full origin-left"></div>
                 </div>
             </div>
 
-            <div class="w-full max-w-4xl mt-6 grid grid-cols-12 gap-3 md:gap-4">
+            <div class="w-full max-w-4xl mt-4 grid grid-cols-12 gap-3 md:gap-4">
                 <div class="col-span-3 flex gap-2">
-                    <button onclick="GameLogic.prevQuestion()" id="btn-prev"
+                    <button onclick="GameLogic.prevQuestion()" id="btn-prev" title="Previous Question" aria-label="Previous Question"
                         class="w-full btn-click-anim btn-icon rounded-xl flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed group">
                         <i data-lucide="arrow-left" class="w-6 h-6 group-hover:-translate-x-1 transition-transform"></i>
                     </button>
-                    <button onclick="GameLogic.startTimer()" id="btn-timer"
-                        class="w-full btn-click-anim bg-white text-orange border-2 border-dark shadow-hard-sm rounded-xl flex items-center justify-center hover:bg-orange/10">
+                    <button onclick="GameLogic.startTimer()" id="btn-timer" title="Start Timer (T)" aria-label="Start Timer"
+                        class="w-full btn-click-anim bg-white dark:bg-slate-800 text-orange border-2 border-dark dark:border-slate-500 shadow-hard-sm dark:shadow-[2px_2px_0px_0px_#000000] rounded-xl flex items-center justify-center hover:bg-orange/10 dark:hover:bg-slate-700">
                         <i data-lucide="clock" class="w-6 h-6"></i>
                     </button>
                 </div>
 
                 <button id="btn-reveal" onclick="GameLogic.revealAnswer()"
-                    class="col-span-6 btn-click-anim btn-primary rounded-xl font-heading text-3xl tracking-wider py-4 group">
+                    class="col-span-6 btn-click-anim btn-primary rounded-xl font-heading text-2xl md:text-3xl tracking-wider py-3.5 group">
                     REVEAL
                 </button>
 
                 <button id="btn-next" onclick="GameLogic.nextQuestion()"
-                    class="hidden col-span-6 btn-click-anim btn-primary bg-green border-green-900 text-white rounded-xl font-heading text-3xl tracking-wider py-4">
-                    NEXT <i data-lucide="arrow-right" class="inline w-8 h-8 ml-2"></i>
+                    class="hidden col-span-6 btn-click-anim btn-primary !bg-green border-dark dark:border-slate-500 !text-dark rounded-xl font-heading text-2xl md:text-3xl tracking-wider py-3.5">
+                    NEXT <i data-lucide="arrow-right" class="inline w-7 h-7 ml-2"></i>
                 </button>
 
-                <button onclick="GameLogic.nextQuestion()" id="btn-skip"
-                    class="col-span-3 btn-click-anim btn-icon rounded-xl flex items-center justify-center group text-slate-400 hover:text-dark">
+                <button onclick="GameLogic.nextQuestion()" id="btn-skip" title="Skip Question" aria-label="Skip Question"
+                    class="col-span-3 btn-click-anim btn-icon rounded-xl flex items-center justify-center group text-slate-500 dark:text-slate-300 hover:text-dark dark:hover:text-white">
                     <span class="hidden md:inline font-bold text-xs mr-2 uppercase">Skip</span>
                     <i data-lucide="skip-forward" class="w-6 h-6 group-hover:translate-x-1 transition-transform"></i>
                 </button>
             </div>
 
             <div
-                class="mt-8 flex gap-8 text-slate-400 text-[10px] font-mono uppercase tracking-[0.2em] opacity-70 select-none">
+                class="mt-4 flex flex-wrap justify-center gap-6 text-slate-500 dark:text-slate-400 text-[10px] font-mono uppercase tracking-[0.2em] opacity-80 select-none">
                 <span class="flex items-center gap-2"><kbd
-                        class="bg-white border border-slate-300 rounded px-1.5 py-0.5 font-bold text-dark shadow-sm">SPACE</kbd>
-                    Action</span>
+                        class="bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-500 rounded px-1.5 py-0.5 font-bold text-dark dark:text-white shadow-sm">SPACE</kbd>
+                    Reveal / Next</span>
                 <span class="flex items-center gap-2"><kbd
-                        class="bg-white border border-slate-300 rounded px-1.5 py-0.5 font-bold text-dark shadow-sm">← /
+                        class="bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-500 rounded px-1.5 py-0.5 font-bold text-dark dark:text-white shadow-sm">← /
                         →</kbd> Navigate</span>
+                <span class="flex items-center gap-2"><kbd
+                        class="bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-500 rounded px-1.5 py-0.5 font-bold text-dark dark:text-white shadow-sm">T</kbd>
+                    Timer</span>
             </div>
         </main>
     </div>
 
     <div id="editor-modal"
-        class="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm hidden">
+        class="fixed inset-0 z-[100] flex items-center justify-center p-3 md:p-4 bg-slate-900/65 backdrop-blur-sm hidden">
         <div class="neo-card w-full max-w-5xl h-[90vh] flex flex-col animate-pop overflow-hidden">
 
             <!-- Header -->
-            <div class="p-5 border-b-2 border-dark bg-chalk flex justify-between items-center shrink-0">
-                <div class="flex items-center gap-4">
-                    <div class="p-3 bg-blue text-white rounded-lg border-2 border-dark shadow-hard-sm">
+            <div class="p-4 md:p-5 border-b-2 border-dark dark:border-slate-500 bg-chalk dark:bg-slate-800 flex justify-between items-center shrink-0">
+                <div class="flex items-center gap-3 md:gap-4">
+                    <div class="p-2.5 md:p-3 bg-blue text-white rounded-lg border-2 border-dark dark:border-slate-500 shadow-hard-sm dark:shadow-[2px_2px_0px_0px_#000000]">
                         <i data-lucide="settings-2" class="w-6 h-6"></i>
                     </div>
                     <div>
-                        <h1 class="text-2xl font-display text-kkdark tracking-wide leading-none">Guess the Emoji</h1>
+                        <h1 class="text-xl md:text-2xl font-heading text-dark dark:text-white tracking-wide leading-none">Guess the Emoji</h1>
                         <div class="flex items-center gap-2 mt-1">
-                            <p class="text-[11px] text-slate-500 font-mono uppercase tracking-widest">Setup your
+                            <p class="text-[11px] text-slate-500 dark:text-slate-400 font-mono uppercase tracking-widest">Setup your
                                 questions</p>
-                            <span id="active-set-badge" class="hidden text-[9px] font-bold text-green uppercase tracking-widest bg-green/10 px-2 py-0.5 rounded-full border border-green/20">Editing: —</span>
+                            <span id="active-set-badge" class="hidden text-[9px] font-bold text-green uppercase tracking-widest bg-green/10 px-2 py-0.5 rounded-full border border-green/30">Editing: —</span>
                         </div>
                     </div>
                 </div>
 
-                <div class="flex items-center gap-3 bg-white px-4 py-2 rounded-lg border-2 border-dark shadow-hard-sm">
-                    <i data-lucide="hourglass" class="w-4 h-4 text-orange"></i>
-                    <div class="flex flex-col">
-                        <span
-                            class="text-[10px] font-bold text-slate-400 uppercase tracking-wide leading-none">Timer</span>
-                        <div class="flex items-center gap-1">
-                            <input type="number" id="timer-setting" value="10" min="5" max="60"
-                                onchange="GameLogic.onTimerChange()"
-                                class="w-10 bg-transparent text-dark font-heading text-lg font-bold text-center outline-none border-b-2 border-slate-200 focus:border-blue p-0">
-                            <span class="text-xs text-slate-400 font-bold">sec</span>
+                <div class="flex items-center gap-2 md:gap-3">
+                    <div class="flex items-center gap-3 bg-white dark:bg-slate-900 px-3 md:px-4 py-1.5 rounded-lg border-2 border-dark dark:border-slate-500 shadow-hard-sm dark:shadow-[2px_2px_0px_0px_#000000]">
+                        <i data-lucide="hourglass" class="w-4 h-4 text-orange"></i>
+                        <div class="flex flex-col">
+                            <span
+                                class="text-[10px] font-bold text-slate-400 uppercase tracking-wide leading-none">Timer</span>
+                            <div class="flex items-center gap-1">
+                                <input type="number" id="timer-setting" value="10" min="5" max="60" aria-label="Timer duration in seconds"
+                                    onchange="GameLogic.onTimerChange()"
+                                    class="w-10 bg-transparent text-dark dark:text-white font-heading text-lg font-bold text-center outline-none border-b-2 border-slate-200 dark:border-slate-600 focus:border-blue p-0">
+                                <span class="text-xs text-slate-400 font-bold">sec</span>
+                            </div>
                         </div>
                     </div>
+                    <button type="button" onclick="UI.closeEditor()" title="Close Setup" aria-label="Close Setup"
+                        class="btn-icon p-2.5 rounded-lg hover:text-pink transition-colors">
+                        <i data-lucide="x" class="w-5 h-5"></i>
+                    </button>
                 </div>
             </div>
 
@@ -497,21 +585,21 @@
             <div class="flex-1 flex flex-col md:flex-row min-h-0">
 
                 <!-- Sets Library Sidebar -->
-                <div class="md:w-64 shrink-0 border-b-2 md:border-b-0 md:border-r-2 border-dark bg-white flex flex-col min-h-0">
-                    <div class="p-4 border-b border-dark/10 shrink-0">
+                <div class="md:w-64 shrink-0 border-b-2 md:border-b-0 md:border-r-2 border-dark dark:border-slate-500 bg-white dark:bg-slate-900 flex flex-col min-h-0">
+                    <div class="p-4 border-b border-dark/10 dark:border-slate-700 shrink-0">
                         <div class="flex gap-2 mb-3">
                             <button onclick="GameLogic.newWorkspace()"
                                 class="flex-1 btn-icon px-3 py-2 rounded-lg text-xs font-bold tracking-wider flex items-center justify-center gap-1 shadow-hard-sm">
                                 <i data-lucide="plus" class="w-3.5 h-3.5"></i> NEW
                             </button>
                             <button onclick="GameLogic.promptSaveAs()"
-                                class="flex-1 px-3 py-2 rounded-lg text-xs font-bold tracking-wider flex items-center justify-center gap-1 shadow-hard-sm bg-blue/10 text-blue border-2 border-blue/30 hover:bg-blue hover:text-white transition">
+                                class="flex-1 px-3 py-2 rounded-lg text-xs font-bold tracking-wider flex items-center justify-center gap-1 shadow-hard-sm bg-blue/10 dark:bg-blue/20 text-blue border-2 border-blue/30 hover:bg-blue hover:text-white transition">
                                 <i data-lucide="save" class="w-3.5 h-3.5"></i> SAVE AS
                             </button>
                         </div>
                         <div class="relative">
-                            <select id="sets-sort" onchange="UI.renderSetsLibrary()"
-                                class="w-full text-[10px] font-bold uppercase tracking-widest border-2 border-slate-200 rounded-lg py-1.5 pl-2 pr-6 bg-chalk text-slate-500 focus:border-blue outline-none cursor-pointer appearance-none">
+                            <select id="sets-sort" onchange="UI.renderSetsLibrary()" aria-label="Sort saved sets"
+                                class="w-full text-[10px] font-bold uppercase tracking-widest border-2 border-slate-200 dark:border-slate-600 rounded-lg py-1.5 pl-2 pr-6 bg-chalk dark:bg-slate-800 text-slate-600 dark:text-slate-300 focus:border-blue outline-none cursor-pointer appearance-none">
                                 <option value="recent">Recent</option>
                                 <option value="alpha">Alphabetical</option>
                                 <option value="popular">Popular</option>
@@ -527,28 +615,32 @@
                 <!-- Editor Area -->
                 <div class="flex-1 flex flex-col min-h-0">
                     <!-- Built-in Presets -->
-                    <div class="px-5 py-2 border-b-2 border-dark bg-white flex items-center gap-3 shadow-sm shrink-0">
-                        <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5 shrink-0">
+                    <div class="px-5 py-2 border-b-2 border-dark dark:border-slate-500 bg-white dark:bg-slate-800 flex items-center gap-3 shadow-sm shrink-0">
+                        <label for="preset-selector" class="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest flex items-center gap-1.5 shrink-0">
                             <i data-lucide="library" class="w-3.5 h-3.5"></i> Presets:
                         </label>
                         <select id="preset-selector" onchange="GameLogic.loadPreset(this.value)"
-                            class="flex-1 py-1.5 pl-2 pr-6 border-2 border-slate-200 rounded-lg bg-chalk text-dark font-heading text-xs focus:ring-0 outline-none cursor-pointer hover:bg-slate-100 transition-colors text-[11px] appearance-none">
+                            class="flex-1 py-1.5 pl-2 pr-6 border-2 border-slate-200 dark:border-slate-600 rounded-lg bg-chalk dark:bg-slate-900 text-dark dark:text-white font-heading text-xs focus:ring-0 outline-none cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors text-[11px] appearance-none">
                         </select>
                     </div>
 
                     <!-- Editor list -->
-                    <div class="flex-1 overflow-y-auto p-6 space-y-4 bg-slate-50 custom-scrollbar" id="editor-list">
+                    <div class="flex-1 overflow-y-auto p-4 md:p-5 space-y-3 bg-slate-50 dark:bg-slate-950/60 custom-scrollbar" id="editor-list">
                     </div>
 
                     <!-- Footer -->
-                    <div class="p-4 border-t-2 border-dark bg-white flex flex-col md:flex-row gap-3 items-center shrink-0">
-                        <div class="flex gap-2 w-full md:w-auto">
+                    <div class="p-3.5 md:p-4 border-t-2 border-dark dark:border-slate-500 bg-white dark:bg-slate-900 flex flex-col md:flex-row gap-3 items-center shrink-0">
+                        <div class="flex gap-2 w-full md:w-auto flex-wrap">
                             <button onclick="UI.addEditorRow()"
-                                class="px-4 py-2.5 border-2 border-dashed border-slate-300 text-slate-400 rounded-xl hover:border-blue hover:text-blue hover:bg-blue/5 transition font-bold text-sm tracking-wide flex items-center justify-center gap-2">
+                                class="px-3.5 py-2 border-2 border-dashed border-slate-300 dark:border-slate-600 text-slate-500 dark:text-slate-300 rounded-xl hover:border-blue hover:text-blue hover:bg-blue/5 transition font-bold text-sm tracking-wide flex items-center justify-center gap-1.5">
                                 <i data-lucide="plus" class="w-4 h-4"></i> ADD
                             </button>
+                            <button onclick="GameLogic.shuffleQuestions()" title="Shuffle question order"
+                                class="btn-icon px-3.5 py-2 rounded-xl font-bold text-sm tracking-wide flex items-center justify-center gap-1.5">
+                                <i data-lucide="shuffle" class="w-4 h-4"></i> SHUFFLE
+                            </button>
                             <button onclick="openImportModal()"
-                                class="px-4 py-2.5 bg-orange text-white rounded-xl font-bold text-sm tracking-wide flex items-center justify-center gap-2 border-2 border-dark shadow-hard-sm hover:brightness-110 transition"
+                                class="px-3.5 py-2 bg-orange text-white rounded-xl font-bold text-sm tracking-wide flex items-center justify-center gap-1.5 border-2 border-dark dark:border-slate-500 shadow-hard-sm dark:shadow-[2px_2px_0px_0px_#000000] hover:brightness-110 transition"
                                 title="Bulk import questions">
                                 <i data-lucide="file-up" class="w-4 h-4"></i> IMPORT
                             </button>
@@ -562,11 +654,11 @@
 
                         <div class="flex gap-2 w-full md:w-auto">
                             <button onclick="GameLogic.saveData(false)"
-                                class="flex-1 md:flex-none px-5 py-2.5 text-slate-500 font-bold text-sm hover:bg-slate-100 rounded-xl transition border-2 border-transparent hover:border-slate-200">
+                                class="flex-1 md:flex-none px-5 py-2 text-slate-600 dark:text-slate-300 font-bold text-sm hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition border-2 border-transparent hover:border-slate-200 dark:hover:border-slate-600">
                                 SAVE
                             </button>
                             <button onclick="GameLogic.saveAndLaunch()"
-                                class="flex-1 md:flex-none btn-click-anim btn-primary px-6 py-2.5 rounded-xl font-bold tracking-wide flex items-center justify-center gap-2 text-base">
+                                class="flex-1 md:flex-none btn-click-anim btn-primary px-6 py-2 rounded-xl font-bold tracking-wide flex items-center justify-center gap-2 text-base">
                                 LAUNCH <i data-lucide="rocket" class="w-4 h-4"></i>
                             </button>
                         </div>
@@ -577,22 +669,22 @@
     </div>
 
     <div id="game-over-view"
-        class="fixed inset-0 z-[90] hidden flex flex-col items-center justify-center bg-white/95 backdrop-blur-xl animate-pop">
-        <div class="relative mb-8">
-            <div class="text-9xl animate-bounce filter drop-shadow-xl relative z-10">🏆</div>
+        class="fixed inset-0 z-[90] hidden flex flex-col items-center justify-center bg-white/95 dark:bg-slate-950/95 backdrop-blur-xl animate-pop">
+        <div class="relative mb-6">
+            <div class="text-8xl md:text-9xl animate-bounce filter drop-shadow-xl relative z-10">🏆</div>
             <div class="absolute inset-0 bg-yellow-400 blur-[60px] opacity-20 animate-pulse"></div>
         </div>
 
-        <h1 class="text-6xl md:text-9xl font-heading text-dark mb-6 tracking-wide drop-shadow-sm text-center">FANTASTIC!
+        <h1 class="text-6xl md:text-8xl font-heading text-dark dark:text-white mb-5 tracking-wide drop-shadow-sm text-center">FANTASTIC!
         </h1>
         <p
-            class="text-slate-500 font-mono text-lg mb-12 uppercase tracking-widest border-2 border-slate-200 px-8 py-2 rounded-full bg-white">
+            class="text-slate-500 dark:text-slate-300 font-mono text-base md:text-lg mb-10 uppercase tracking-widest border-2 border-slate-200 dark:border-slate-600 px-8 py-2 rounded-full bg-white dark:bg-slate-900">
             Class Completed
         </p>
 
         <div class="flex gap-4">
             <button onclick="UI.showEditor()"
-                class="btn-click-anim bg-chalk text-dark px-8 py-4 rounded-xl font-heading text-xl border-2 border-dark shadow-hard-sm">
+                class="btn-click-anim bg-chalk dark:bg-slate-800 text-dark dark:text-white px-8 py-4 rounded-xl font-heading text-xl border-2 border-dark dark:border-slate-500 shadow-hard-sm dark:shadow-[2px_2px_0px_0px_#000000]">
                 <i data-lucide="settings" class="inline-block w-5 h-5 mr-2 mb-1"></i> Setup
             </button>
             <button onclick="UI.showWelcome()"
@@ -604,22 +696,22 @@
     </div>
 
     <div id="confirm-modal"
-        class="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm hidden">
-        <div class="bg-white border-2 border-dark shadow-hard-lg p-8 w-full max-w-sm rounded-2xl text-center">
+        class="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm hidden">
+        <div class="bg-white dark:bg-slate-900 border-2 border-dark dark:border-slate-500 shadow-hard-lg dark:shadow-[8px_8px_0px_0px_#000000] p-8 w-full max-w-sm rounded-2xl text-center">
             <div
-                class="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4 text-red-500 border-2 border-red-200">
+                class="w-12 h-12 bg-red-100 dark:bg-red-950/60 rounded-full flex items-center justify-center mx-auto mb-4 text-red-500 border-2 border-red-200 dark:border-red-700">
                 <i data-lucide="alert-triangle" class="w-6 h-6"></i>
             </div>
-            <h3 class="text-xl font-heading text-dark mb-2">Are you sure?</h3>
-            <p class="text-sm text-slate-500 mb-6 leading-relaxed" id="confirm-message">This action cannot be undone.
+            <h3 class="text-xl font-heading text-dark dark:text-white mb-2">Are you sure?</h3>
+            <p class="text-sm text-slate-500 dark:text-slate-300 mb-6 leading-relaxed" id="confirm-message">This action cannot be undone.
             </p>
             <div class="flex justify-center gap-3">
                 <button id="confirm-no"
-                    class="btn-click-anim bg-slate-100 text-slate-700 px-6 py-2 rounded-xl font-heading text-md border-2 border-slate-200">
+                    class="btn-click-anim bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 px-6 py-2 rounded-xl font-heading text-md border-2 border-slate-200 dark:border-slate-600">
                     Cancel
                 </button>
                 <button id="confirm-yes"
-                    class="btn-click-anim bg-pink text-white px-6 py-2 rounded-xl font-heading text-md border-2 border-dark shadow-hard-sm">
+                    class="btn-click-anim bg-pink text-white px-6 py-2 rounded-xl font-heading text-md border-2 border-dark dark:border-slate-500 shadow-hard-sm dark:shadow-[2px_2px_0px_0px_#000000]">
                     Yes, Do it
                 </button>
             </div>
@@ -630,39 +722,39 @@
     <div id="import-overlay" class="import-overlay" onclick="if(event.target===this)closeImportModal()">
         <div class="import-modal neo-card w-full max-w-3xl flex flex-col overflow-hidden" style="max-height: 92vh;">
             <div class="w-full h-1.5 bg-orange shrink-0"></div>
-            <div class="flex items-center gap-4 px-6 pt-5 pb-4 border-b-2 border-dark shrink-0">
-                <div class="w-10 h-10 rounded-xl bg-orange flex items-center justify-center border-2 border-dark shadow-hard-sm shrink-0">
+            <div class="flex items-center gap-4 px-6 pt-5 pb-4 border-b-2 border-dark dark:border-slate-500 shrink-0">
+                <div class="w-10 h-10 rounded-xl bg-orange flex items-center justify-center border-2 border-dark dark:border-slate-500 shadow-hard-sm dark:shadow-[2px_2px_0px_0px_#000000] shrink-0">
                     <i data-lucide="file-up" class="w-5 h-5 text-white"></i>
                 </div>
                 <div class="flex-1">
-                    <h2 class="text-xl font-heading uppercase tracking-tight text-dark">BULK IMPORT</h2>
+                    <h2 class="text-xl font-heading uppercase tracking-tight text-dark dark:text-white">BULK IMPORT</h2>
                     <p class="text-[9px] font-black text-orange tracking-[0.25em] uppercase">Paste questions using the template below</p>
                 </div>
-                <button onclick="closeImportModal()" class="btn-icon w-10 h-10 rounded-xl shadow-hard-sm flex items-center justify-center text-dark hover:bg-slate-100" title="Close">
+                <button onclick="closeImportModal()" class="btn-icon w-10 h-10 rounded-xl shadow-hard-sm flex items-center justify-center text-dark dark:text-white" title="Close" aria-label="Close bulk import modal">
                     <i data-lucide="x" class="w-5 h-5"></i>
                 </button>
             </div>
 
             <div class="flex flex-col lg:flex-row flex-1 overflow-hidden min-h-0">
                 <!-- Template Guide -->
-                <div class="lg:w-60 shrink-0 px-5 py-4 border-b-2 lg:border-b-0 lg:border-r-2 border-dark/10 overflow-y-auto custom-scrollbar bg-slate-50">
+                <div class="lg:w-60 shrink-0 px-5 py-4 border-b-2 lg:border-b-0 lg:border-r-2 border-dark/10 dark:border-slate-700 overflow-y-auto custom-scrollbar bg-slate-50 dark:bg-slate-800/70">
                     <p class="text-[9px] font-black text-slate-400 uppercase tracking-[0.25em] mb-3">Format Guide</p>
                     <div class="space-y-2.5 text-xs">
                         <div>
                             <p class="text-[9px] font-black text-blue uppercase tracking-widest mb-1">Per line</p>
-                            <p class="text-slate-500 font-semibold"><code class="bg-blue/10 text-blue px-1 rounded">CATEGORY</code> | Answer | Emojis</p>
-                            <p class="text-[10px] text-slate-400 mt-0.5">Pipe <code class="bg-slate-100 text-slate-500 px-1 rounded">|</code> separates the 3 columns</p>
+                            <p class="text-slate-500 dark:text-slate-300 font-semibold"><code class="bg-blue/10 text-blue px-1 rounded">CATEGORY</code> | Answer | Emojis</p>
+                            <p class="text-[10px] text-slate-400 mt-0.5">Pipe <code class="bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-300 px-1 rounded">|</code> separates the 3 columns</p>
                         </div>
                         <div>
                             <p class="text-[9px] font-black text-green uppercase tracking-widest mb-1">Multiline mode</p>
-                            <p class="text-slate-500 font-semibold"><code class="bg-green/10 text-green px-1 rounded">[CATEGORY]</code></p>
-                            <p class="text-[10px] text-slate-400 mt-0.5">Then <code class="bg-slate-100 text-slate-500 px-1 rounded">Answer | Emojis</code> on each line</p>
+                            <p class="text-slate-500 dark:text-slate-300 font-semibold"><code class="bg-green/10 text-green px-1 rounded">[CATEGORY]</code></p>
+                            <p class="text-[10px] text-slate-400 mt-0.5">Then <code class="bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-300 px-1 rounded">Answer | Emojis</code> on each line</p>
                         </div>
                     </div>
-                    <div class="mt-4 bg-white border-2 border-dark/10 rounded-xl p-3 text-[11px] leading-relaxed text-slate-500 font-semibold">
-                        <p class="mb-1"><strong class="text-dark">Tip:</strong> Separate questions with a blank line.</p>
-                        <p class="mb-1"><strong class="text-dark">Comments:</strong> Lines starting with <code class="bg-slate-100 text-slate-500 px-1 rounded">//</code> or <code class="bg-slate-100 text-slate-500 px-1 rounded">#</code> are ignored.</p>
-                        <p><strong class="text-dark">Columns:</strong> Category | Answer | Emojis</p>
+                    <div class="mt-4 bg-white dark:bg-slate-900 border-2 border-dark/10 dark:border-slate-600 rounded-xl p-3 text-[11px] leading-relaxed text-slate-500 dark:text-slate-300 font-semibold">
+                        <p class="mb-1"><strong class="text-dark dark:text-white">Tip:</strong> Separate questions with a blank line.</p>
+                        <p class="mb-1"><strong class="text-dark dark:text-white">Comments:</strong> Lines starting with <code class="bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-300 px-1 rounded">//</code> or <code class="bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-300 px-1 rounded">#</code> are ignored.</p>
+                        <p><strong class="text-dark dark:text-white">Columns:</strong> Category | Answer | Emojis</p>
                     </div>
                     <button onclick="copyTemplate()" class="mt-3 w-full bg-orange/10 hover:bg-orange text-orange hover:text-white py-2 rounded-xl shadow-hard-sm font-heading text-xs flex items-center justify-center gap-2 transition-colors border-2 border-orange/20 hover:border-orange">
                         <i data-lucide="clipboard-copy" class="w-3.5 h-3.5"></i> COPY TEMPLATE
@@ -673,7 +765,7 @@
                 <div class="flex-1 flex flex-col min-h-0 overflow-hidden">
                     <!-- Input area -->
                     <div class="flex-1 flex flex-col min-h-0 p-5 pb-0">
-                        <textarea id="import-textarea" class="import-textarea w-full flex-1 bg-chalk border-2 border-dark/15 rounded-xl px-4 py-3 text-dark focus:outline-none focus:border-orange resize-none custom-scrollbar min-h-[160px]" placeholder="// Lines starting with // or # are comments and are ignored
+                        <textarea id="import-textarea" class="import-textarea w-full flex-1 bg-chalk dark:bg-slate-950 border-2 border-dark/15 dark:border-slate-600 rounded-xl px-4 py-3 text-dark dark:text-slate-100 focus:outline-none focus:border-orange resize-none custom-scrollbar min-h-[160px]" placeholder="// Lines starting with // or # are comments and are ignored
 
 // One line per question — Category | Answer | Emojis
 NATIONS | Australia | 🦘🐨🌊☀️
@@ -687,7 +779,7 @@ Dog | 🐶🦴🎾
 // Mixing both styles in one paste is okay!" oninput="updateImportPreview()"></textarea>
                     </div>
                     <!-- Preview + Actions bar -->
-                    <div class="shrink-0 px-5 py-3 border-t border-dark/5 bg-slate-50/50">
+                    <div class="shrink-0 px-5 py-3 border-t border-dark/5 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/60">
                         <div id="import-preview-panel" class="hidden mb-3 max-h-24 overflow-y-auto custom-scrollbar">
                             <div id="import-preview-list" class="flex flex-wrap gap-1.5"></div>
                             <div id="import-warnings" class="mt-2 space-y-1"></div>
@@ -697,10 +789,10 @@ Dog | 🐶🦴🎾
                                 <i data-lucide="info" class="w-3.5 h-3.5"></i> <span>0 questions detected</span>
                             </div>
                             <div class="flex gap-2">
-                                <button onclick="closeImportModal()" class="btn-icon px-5 py-2 rounded-xl shadow-hard-sm font-heading text-sm text-dark hover:bg-slate-100">
+                                <button onclick="closeImportModal()" class="btn-icon px-5 py-2 rounded-xl shadow-hard-sm font-heading text-sm text-dark dark:text-white">
                                     CANCEL
                                 </button>
-                                <button id="import-confirm-btn" onclick="confirmImport()" class="btn-click-anim bg-green text-dark px-6 py-2 rounded-xl shadow-hard font-heading text-sm flex items-center gap-2 disabled:opacity-40 disabled:grayscale border-2 border-dark" disabled>
+                                <button id="import-confirm-btn" onclick="confirmImport()" class="btn-click-anim bg-green text-dark px-6 py-2 rounded-xl shadow-hard font-heading text-sm flex items-center gap-2 disabled:opacity-40 disabled:grayscale border-2 border-dark dark:border-slate-500" disabled>
                                     <i data-lucide="check-circle" class="w-4 h-4"></i> IMPORT
                                 </button>
                             </div>
@@ -766,43 +858,65 @@ Dog | 🐶🦴🎾
          * AUDIO CONTROLLER
          * Handles Tone.js logic
          */
+        const SOUND_KEY = 'sound_emoji-game';
         const AudioController = {
-            enabled: true,
+            enabled: localStorage.getItem(SOUND_KEY) !== 'off',
 
             async init() {
-                await Tone.start();
+                try {
+                    if (typeof Tone !== 'undefined' && Tone.context && Tone.context.state !== 'running') {
+                        await Tone.start();
+                    }
+                } catch (_) {}
+            },
+
+            syncUI() {
+                const btn = document.getElementById('sound-toggle');
+                if (!btn) return;
+                const icon = this.enabled ? 'volume-2' : 'volume-x';
+                btn.innerHTML = `<i data-lucide="${icon}" class="w-5 h-5"></i>`;
+                btn.setAttribute('aria-pressed', String(this.enabled));
+                lucide.createIcons();
             },
 
             toggle() {
                 this.enabled = !this.enabled;
-                const icon = this.enabled ? 'volume-2' : 'volume-x';
-                document.getElementById('sound-toggle').innerHTML = `<i data-lucide="${icon}" class="w-5 h-5"></i>`;
-                lucide.createIcons();
-                if (this.enabled) this.init();
+                localStorage.setItem(SOUND_KEY, this.enabled ? 'on' : 'off');
+                this.syncUI();
+                if (this.enabled) {
+                    this.init();
+                    this.playPop();
+                }
             },
 
             playPop() {
-                if (!this.enabled) return;
-                const synth = new Tone.MembraneSynth().toDestination();
-                synth.triggerAttackRelease("C2", "16n");
-                setTimeout(() => synth.dispose(), 500);
+                if (!this.enabled || typeof Tone === 'undefined') return;
+                try {
+                    const synth = new Tone.MembraneSynth().toDestination();
+                    synth.triggerAttackRelease("C2", "16n");
+                    setTimeout(() => synth.dispose(), 500);
+                } catch (_) {}
             },
 
             playReveal() {
-                if (!this.enabled) return;
-                const synth = new Tone.PolySynth(Tone.Synth).toDestination();
-                synth.triggerAttackRelease(["C4", "E4", "G4", "B4"], "8n");
-                setTimeout(() => synth.dispose(), 1000);
+                if (!this.enabled || typeof Tone === 'undefined') return;
+                try {
+                    const synth = new Tone.PolySynth(Tone.Synth).toDestination();
+                    synth.triggerAttackRelease(["C4", "E4", "G4", "B4"], "8n");
+                    setTimeout(() => synth.dispose(), 1000);
+                } catch (_) {}
             },
 
             playWin() {
-                if (!this.enabled) return;
-                const synth = new Tone.PolySynth(Tone.Synth).toDestination();
-                const now = Tone.now();
-                synth.triggerAttackRelease(["C4", "E4", "G4", "C5"], "8n", now);
-                synth.triggerAttackRelease(["G4", "B4", "D5", "G5"], "8n", now + 0.2);
-                synth.triggerAttackRelease(["C5", "E5", "G5", "C6"], "2n", now + 0.4);
-                setTimeout(() => synth.dispose(), 3000);
+                if (!this.enabled || typeof Tone === 'undefined') return;
+                try {
+                    const synth = new Tone.PolySynth(Tone.Synth).toDestination();
+                    const now = Tone.now();
+                    synth.triggerAttackRelease(["C4", "E4", "G4", "C5"], "8n", now);
+                    synth.triggerAttackRelease(["G4", "B4", "D5", "G5"], "8n", now + 0.2);
+                    synth.triggerAttackRelease(["C5", "E5", "G5", "C6"], "2n", now + 0.4);
+                    setTimeout(() => synth.dispose(), 3000);
+                } catch (_) {}
             }
         };
 
@@ -810,11 +924,17 @@ Dog | 🐶🦴🎾
          * UI CONTROLLER
          * Handles View Switching, Rendering, and Animations
          */
+        const THEME_KEY = 'theme_emoji-game';
         const UI = {
             activeEmojiInput: null,
             activePickerButton: null,
+            lastView: 'welcome',
 
             init() {
+                // Sync sound + theme UI
+                AudioController.syncUI();
+                this.syncPickerTheme();
+
                 // Initialize Icons
                 lucide.createIcons();
 
@@ -843,20 +963,44 @@ Dog | 🐶🦴🎾
                 });
             },
 
+            syncPickerTheme() {
+                const pickerEl = document.querySelector('emoji-picker');
+                if (!pickerEl) return;
+                const isDark = document.documentElement.classList.contains('dark');
+                pickerEl.classList.toggle('dark', isDark);
+                pickerEl.classList.toggle('light', !isDark);
+            },
+
+            toggleTheme() {
+                const isDark = document.documentElement.classList.toggle('dark');
+                localStorage.setItem(THEME_KEY, isDark ? 'dark' : 'light');
+                this.syncPickerTheme();
+                lucide.createIcons();
+                AudioController.playPop();
+            },
+
             // --- Navigation ---
             showWelcome() {
+                this.lastView = 'welcome';
                 this.hideAll();
                 document.getElementById('welcome-view').classList.remove('hidden');
             },
 
             showGame() {
+                this.lastView = 'game';
                 this.hideAll();
                 document.getElementById('game-view').classList.remove('hidden');
             },
 
             showEditor() {
+                const keepGameBg = !document.getElementById('game-view').classList.contains('hidden');
+                if (keepGameBg) this.lastView = 'game';
                 this.hideAll();
-                document.getElementById('welcome-view').classList.remove('hidden'); // Keep BG
+                if (this.lastView === 'game' && GameLogic.questions.length > 0) {
+                    document.getElementById('game-view').classList.remove('hidden');
+                } else {
+                    document.getElementById('welcome-view').classList.remove('hidden');
+                }
                 document.getElementById('editor-modal').classList.remove('hidden');
 
                 // Set Selector Value
@@ -864,6 +1008,17 @@ Dog | 🐶🦴🎾
                 this.renderEditorRows();
                 this.renderSetsLibrary();
                 this.updateActiveIndicator();
+            },
+
+            closeEditor() {
+                document.getElementById('editor-modal').classList.add('hidden');
+                this.hideEmojiPicker();
+                if (this.lastView === 'game' && GameLogic.questions.length > 0) {
+                    this.showGame();
+                    GameLogic.renderCard();
+                } else {
+                    this.showWelcome();
+                }
             },
 
             hideAll() {
@@ -886,39 +1041,39 @@ Dog | 🐶🦴🎾
                     const div = document.createElement('div');
                     const color = borderColors[index % borderColors.length];
 
-                    div.className = `bg-white p-4 rounded-xl border-l-[6px] ${color} border-y-2 border-r-2 border-slate-200 shadow-sm flex flex-col md:flex-row gap-4 items-start relative group hover:border-slate-300 transition-colors`;
+                    div.className = `bg-white dark:bg-slate-900 p-4 rounded-xl border-l-[6px] ${color} border-y-2 border-r-2 border-slate-200 dark:border-slate-600 shadow-sm flex flex-col md:flex-row gap-4 items-start relative group hover:border-slate-300 dark:hover:border-slate-400 transition-colors`;
 
                     div.innerHTML = `
-                        <div class="absolute -left-3 top-4 w-6 h-6 bg-white text-slate-400 border-2 border-slate-200 rounded-full flex items-center justify-center font-bold text-xs z-10">${index + 1}</div>
+                        <div class="absolute -left-3 top-4 w-6 h-6 bg-white dark:bg-slate-800 text-slate-400 dark:text-slate-300 border-2 border-slate-200 dark:border-slate-600 rounded-full flex items-center justify-center font-bold text-xs z-10">${index + 1}</div>
                         
                         <div class="flex-1 grid grid-cols-1 md:grid-cols-12 gap-4 w-full pl-2">
                             <div class="md:col-span-3">
                                 <label class="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1 block">Category</label>
-                                <input type="text" value="${q.category}" onchange="GameLogic.updateQuestion(${index}, 'category', this.value)" 
-                                    class="w-full px-3 py-2 rounded-lg bg-chalk border-b-2 border-slate-200 focus:border-blue outline-none text-sm font-bold uppercase text-slate-600 transition-colors" placeholder="Ex: VERBS">
+                                <input type="text" value="${escapeHtml(q.category)}" onchange="GameLogic.updateQuestion(${index}, 'category', this.value)" 
+                                    class="w-full px-3 py-2 rounded-lg bg-chalk dark:bg-slate-800 border-b-2 border-slate-200 dark:border-slate-600 focus:border-blue outline-none text-sm font-bold uppercase text-slate-600 dark:text-slate-200 transition-colors" placeholder="Ex: VERBS">
                             </div>
                             <div class="md:col-span-5">
                                 <label class="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1 block">Answer Word</label>
-                                <input type="text" value="${q.answer}" onchange="GameLogic.updateQuestion(${index}, 'answer', this.value)"
-                                    class="w-full px-3 py-2 rounded-lg bg-chalk border-b-2 border-slate-200 focus:border-green outline-none font-bold text-lg text-dark transition-colors" placeholder="Ex: Running">
+                                <input type="text" value="${escapeHtml(q.answer)}" onchange="GameLogic.updateQuestion(${index}, 'answer', this.value)"
+                                    class="w-full px-3 py-2 rounded-lg bg-chalk dark:bg-slate-800 border-b-2 border-slate-200 dark:border-slate-600 focus:border-green outline-none font-bold text-lg text-dark dark:text-white transition-colors" placeholder="Ex: Running">
                             </div>
                             <div class="md:col-span-4 relative">
                                 <label class="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1 block">Emojis</label>
                                 <div class="flex items-center gap-2">
-                                    <input type="text" id="emoji-input-${index}" value="${q.emojis}" 
+                                    <input type="text" id="emoji-input-${index}" value="${escapeHtml(q.emojis)}" 
                                         oninput="GameLogic.updateQuestion(${index}, 'emojis', this.value)"
-                                        class="emoji-font w-full px-3 py-2 rounded-lg bg-chalk border-b-2 border-slate-200 focus:border-orange outline-none text-2xl tracking-widest text-dark" placeholder="🏃💨">
+                                        class="emoji-font w-full px-3 py-2 rounded-lg bg-chalk dark:bg-slate-800 border-b-2 border-slate-200 dark:border-slate-600 focus:border-orange outline-none text-2xl tracking-widest text-dark dark:text-white" placeholder="🏃💨">
                                     
-                                    <button type="button" 
+                                    <button type="button" aria-label="Open emoji picker" title="Choose emoji"
                                         onclick="event.stopPropagation(); UI.showEmojiPicker(document.getElementById('emoji-input-${index}'), this);"
-                                        class="shrink-0 w-10 h-10 bg-white hover:bg-yellow-50 text-slate-400 hover:text-yellow-500 rounded-lg border-2 border-slate-200 hover:border-yellow-300 transition-all flex items-center justify-center">
+                                        class="shrink-0 w-10 h-10 bg-white dark:bg-slate-800 hover:bg-yellow-50 dark:hover:bg-slate-700 text-slate-400 hover:text-yellow-500 rounded-lg border-2 border-slate-200 dark:border-slate-600 hover:border-yellow-300 transition-all flex items-center justify-center">
                                         ✨
                                     </button>
                                 </div>
                             </div>
                         </div>
                         
-                        <button onclick="GameLogic.removeQuestion(${index})" class="self-end md:self-center p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition" title="Delete">
+                        <button onclick="GameLogic.removeQuestion(${index})" aria-label="Delete question ${index + 1}" class="self-end md:self-center p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/50 rounded-lg transition" title="Delete">
                             <i data-lucide="trash-2" class="w-5 h-5"></i>
                         </button>
                     `;
@@ -934,7 +1089,7 @@ Dog | 🐶🦴🎾
                 // Scroll to bottom
                 setTimeout(() => {
                     const list = document.getElementById('editor-list');
-                    list.lastElementChild.scrollIntoView({ behavior: 'smooth' });
+                    list.lastElementChild?.scrollIntoView({ behavior: 'smooth' });
                 }, 100);
             },
 
@@ -972,7 +1127,7 @@ Dog | 🐶🦴🎾
                 sorted.forEach(set => {
                     const isActive = set.id == GameLogic.activeId;
                     const div = document.createElement('div');
-                    div.className = `set-card group relative p-3 rounded-xl border-2 cursor-pointer ${isActive ? 'active' : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50'}`;
+                    div.className = `set-card group relative p-3 rounded-xl border-2 cursor-pointer ${isActive ? 'active' : 'border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800/70'}`;
                     div.onclick = (e) => {
                         if (e.target.closest('.delete-btn')) return;
                         GameLogic.loadSet(set.id);
@@ -981,15 +1136,15 @@ Dog | 🐶🦴🎾
                     div.innerHTML = `
                         <div class="flex items-center justify-between gap-2">
                             <div class="flex items-center gap-2 min-w-0">
-                                <div class="w-2 h-2 rounded-full shrink-0 ${isActive ? 'bg-blue' : 'bg-slate-300'}"></div>
-                                <span class="font-bold text-sm truncate ${isActive ? 'text-blue' : 'text-dark'}">${escapeHtml(set.name || 'Unnamed')}</span>
+                                <div class="w-2 h-2 rounded-full shrink-0 ${isActive ? 'bg-blue' : 'bg-slate-300 dark:bg-slate-600'}"></div>
+                                <span class="font-bold text-sm truncate ${isActive ? 'text-blue' : 'text-dark dark:text-slate-100'}">${escapeHtml(set.name || 'Unnamed')}</span>
                             </div>
                             ${isActive ? '<span class="text-[8px] font-black text-blue uppercase tracking-widest shrink-0">ACTIVE</span>' : ''}
                         </div>
                         <div class="flex items-center justify-between mt-1.5 pl-4">
                             <span class="text-[10px] text-slate-400 font-mono">${set.questions?.length || 0} items</span>
                             <div class="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                                <button onclick="GameLogic.deleteSet('${set.id}')" class="delete-btn p-1 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded transition" title="Delete">
+                                <button onclick="GameLogic.deleteSet('${escapeHtml(set.id)}')" aria-label="Delete saved set" class="delete-btn p-1 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/50 rounded transition" title="Delete">
                                     <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
                                 </button>
                             </div>
@@ -1000,7 +1155,7 @@ Dog | 🐶🦴🎾
 
                 if (sorted.length === 0) {
                     container.innerHTML = `
-                        <div class="text-center py-8 text-slate-300">
+                        <div class="text-center py-8 text-slate-400 dark:text-slate-500">
                             <i data-lucide="folder-open" class="w-8 h-8 mx-auto mb-2 opacity-50"></i>
                             <p class="text-[10px] font-bold uppercase tracking-widest">No saved sets</p>
                             <p class="text-[10px] mt-1">Create a new set or import questions</p>
@@ -1018,13 +1173,13 @@ Dog | 🐶🦴🎾
                 const picker = document.getElementById('emoji-picker-container');
                 const rect = button.getBoundingClientRect();
 
-                // Position logic
                 picker.style.display = 'block';
-                picker.style.top = `${rect.bottom + 10}px`;
-                picker.style.left = `${rect.left - 280}px`; // Align roughly left of button
-
-                // Boundary check (simple)
-                if (parseInt(picker.style.left) < 10) picker.style.left = '10px';
+                const maxLeft = Math.max(10, window.innerWidth - 336);
+                const maxTop = Math.max(10, window.innerHeight - 416);
+                const left = Math.max(10, Math.min(rect.left - 280, maxLeft));
+                const top = Math.max(10, Math.min(rect.bottom + 10, maxTop));
+                picker.style.top = `${top}px`;
+                picker.style.left = `${left}px`;
             },
 
             hideEmojiPicker() {
@@ -1071,8 +1226,14 @@ Dog | 🐶🦴🎾
         }
 
         function escapeHtml(str) {
-            if (!str) return '';
-            return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            if (str === null || str === undefined) return '';
+            return String(str).replace(/[&<>"']/g, ch => ({
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#39;'
+            }[ch]));
         }
 
         function parseBulkImport(text) {
@@ -1431,11 +1592,15 @@ Soccer | ⚽🏃🥅`;
                 // Confirmation Modal Listeners
                 document.getElementById('confirm-yes').onclick = () => {
                     document.getElementById('confirm-modal').classList.add('hidden');
-                    if (this.confirmCallback) { this.confirmCallback(true); this.confirmCallback = null; }
+                    const cb = this.confirmCallback;
+                    this.confirmCallback = null;
+                    if (cb) cb(true);
                 };
                 document.getElementById('confirm-no').onclick = () => {
                     document.getElementById('confirm-modal').classList.add('hidden');
-                    if (this.confirmCallback) { this.confirmCallback(false); this.confirmCallback = null; }
+                    const cb = this.confirmCallback;
+                    this.confirmCallback = null;
+                    if (cb) cb(false);
                 };
 
                 // Show Welcome
@@ -1444,14 +1609,48 @@ Soccer | ⚽🏃🥅`;
 
                 // Audio Context Start on first interaction
                 document.body.addEventListener('click', () => {
-                    if (Tone.context.state !== 'running') Tone.start();
+                    try {
+                        if (typeof Tone !== 'undefined' && Tone.context && Tone.context.state !== 'running') Tone.start();
+                    } catch (_) {}
                 }, { once: true });
+            },
+
+            _clampTimer(val) {
+                const parsed = parseInt(val, 10);
+                return Number.isFinite(parsed) ? Math.min(60, Math.max(5, parsed)) : 10;
+            },
+
+            _shuffleArray(arr) {
+                const copy = [...arr];
+                for (let i = copy.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [copy[i], copy[j]] = [copy[j], copy[i]];
+                }
+                return copy;
+            },
+
+            shuffleQuestions() {
+                if (this.questions.length < 2) return;
+                this.questions = this._shuffleArray(this.questions);
+                this.autoSave();
+                UI.renderEditorRows();
+                AudioController.playPop();
+            },
+
+            shuffleDeck() {
+                if (this.questions.length < 2) return;
+                this._clearTimerTimeouts();
+                this.questions = this._shuffleArray(this.questions);
+                this.currentIndex = 0;
+                this.autoSave();
+                this.renderCard();
+                AudioController.playPop();
             },
 
             // --- Sets Management ---
             autoSave() {
-                const timerVal = document.getElementById('timer-setting').value;
-                this.timerDuration = parseInt(timerVal) || 10;
+                const timerInput = document.getElementById('timer-setting');
+                this.timerDuration = this._clampTimer(timerInput.value);
                 this.dirty = true;
                 if (!this.activeId) return;
                 const set = this.sets.find(s => s.id == this.activeId);
@@ -1495,11 +1694,14 @@ Soccer | ⚽🏃🥅`;
                 while (this.sets.some(s => s.name === finalName)) {
                     finalName = `${name} (${counter++})`;
                 }
+                const clamped = this._clampTimer(timerVal);
+                this.timerDuration = clamped;
+                document.getElementById('timer-setting').value = clamped;
                 const newSet = {
                     id: this._makeId(),
                     name: finalName,
                     questions: JSON.parse(JSON.stringify(this.questions)),
-                    timer: parseInt(timerVal) || 10,
+                    timer: clamped,
                     presetId: this.currentPresetId,
                     createdAt: Date.now(),
                     lastUsed: Date.now(),
@@ -1560,8 +1762,10 @@ Soccer | ⚽🏃🥅`;
             },
 
             onTimerChange() {
-                const val = document.getElementById('timer-setting').value;
-                this.timerDuration = parseInt(val) || 10;
+                const input = document.getElementById('timer-setting');
+                const clamped = this._clampTimer(input.value);
+                input.value = clamped;
+                this.timerDuration = clamped;
                 this.autoSave();
             },
 
@@ -1569,12 +1773,13 @@ Soccer | ⚽🏃🥅`;
             async startGame() {
                 if (this.questions.length === 0) {
                     await showAlertModal("Please add questions in the setup menu first!", { title: "No Questions", icon: "alert-circle", iconColor: "orange" });
-                    return;
+                    return false;
                 }
                 this.currentIndex = 0;
                 UI.showGame();
                 this.renderCard();
                 AudioController.playPop();
+                return true;
             },
 
             renderCard() {
@@ -1596,7 +1801,7 @@ Soccer | ⚽🏃🥅`;
                     btnPrev: document.getElementById('btn-prev')
                 };
 
-                els.category.innerHTML = `<span class="w-2 h-2 rounded-full bg-orange animate-pulse"></span> ${q.category}`;
+                els.category.innerHTML = `<span class="w-2 h-2 rounded-full bg-orange animate-pulse"></span> ${escapeHtml(q.category || 'GENERAL')}`;
                 els.emoji.innerText = q.emojis;
                 els.answer.innerText = q.answer;
                 els.progress.innerText = `${this.currentIndex + 1} / ${this.questions.length}`;
@@ -1614,7 +1819,7 @@ Soccer | ⚽🏃🥅`;
                 this._clearTimerTimeouts();
                 els.timer.style.transition = 'none';
                 els.timer.style.width = '100%';
-                els.timer.style.backgroundColor = '#00E676';
+                els.timer.style.backgroundColor = '#00d063';
                 this.timerRunning = false;
                 document.getElementById('btn-timer').classList.remove('opacity-50', 'pointer-events-none');
 
@@ -1668,7 +1873,7 @@ Soccer | ⚽🏃🥅`;
                     particleCount: 200,
                     spread: 120,
                     origin: { y: 0.6 },
-                    colors: ['#FF6B95', '#FF8C42', '#00E676', '#2979FF']
+                    colors: ['#ff4785', '#ff7e33', '#00d063', '#1ea7fd']
                 });
             },
 
@@ -1686,8 +1891,8 @@ Soccer | ⚽🏃🥅`;
                 bar.style.width = '0%';
 
                 const ms = this.timerDuration * 1000;
-                this.timerTimeouts.push(setTimeout(() => { if (this.timerRunning) bar.style.backgroundColor = '#FF8C42'; }, ms * 0.5));
-                this.timerTimeouts.push(setTimeout(() => { if (this.timerRunning) bar.style.backgroundColor = '#FF6B95'; }, ms * 0.8));
+                this.timerTimeouts.push(setTimeout(() => { if (this.timerRunning) bar.style.backgroundColor = '#ff7e33'; }, ms * 0.5));
+                this.timerTimeouts.push(setTimeout(() => { if (this.timerRunning) bar.style.backgroundColor = '#ff4785'; }, ms * 0.8));
 
                 this.timerTimeouts.push(setTimeout(() => {
                     this.timerRunning = false;
@@ -1710,14 +1915,14 @@ Soccer | ⚽🏃🥅`;
                     UI.renderEditorRows();
                 };
 
-                this._confirmIfDirty(() => {
-                    this.confirmCallback = (yes) => {
-                        if (yes) doLoad();
-                        else document.getElementById('preset-selector').value = this.currentPresetId;
-                    };
-                    document.getElementById('confirm-message').innerText = `Load "${preset.name}"? This will overwrite your current list.`;
-                    document.getElementById('confirm-modal').classList.remove('hidden');
-                });
+                this.confirmCallback = (yes) => {
+                    if (yes) doLoad();
+                    else document.getElementById('preset-selector').value = this.currentPresetId;
+                };
+                document.getElementById('confirm-message').innerText = this.dirty
+                    ? `Discard unsaved changes and load "${preset.name}"? This will overwrite your current list.`
+                    : `Load "${preset.name}"? This will overwrite your current list.`;
+                document.getElementById('confirm-modal').classList.remove('hidden');
             },
 
             updateQuestion(index, field, value) {
@@ -1739,17 +1944,17 @@ Soccer | ⚽🏃🥅`;
                 document.getElementById('confirm-modal').classList.remove('hidden');
             },
 
-            saveData(launch = false) {
-                const timerVal = document.getElementById('timer-setting').value;
-                this.timerDuration = parseInt(timerVal) || 10;
+            async saveData(launch = false) {
+                const timerInput = document.getElementById('timer-setting');
+                const clamped = this._clampTimer(timerInput.value);
+                timerInput.value = clamped;
+                this.timerDuration = clamped;
                 this.autoSave();
                 this.dirty = false;
                 Storage.saveSets(this.sets);
                 Storage.saveActiveId(this.activeId);
                 if (launch) {
-                    this.startGame();
-                    UI.hideAll();
-                    UI.showGame();
+                    await this.startGame();
                 } else {
                     UI.showSaveConfirmation();
                 }
@@ -1760,7 +1965,31 @@ Soccer | ⚽🏃🥅`;
             },
 
             handleKey(e) {
+                if (document.getElementById('import-overlay')?.classList.contains('open')) return;
+
+                if (e.code === 'Escape') {
+                    if (!document.getElementById('confirm-modal').classList.contains('hidden')) {
+                        document.getElementById('confirm-no')?.click();
+                        return;
+                    }
+                    if (!document.getElementById('editor-modal').classList.contains('hidden')) {
+                        const picker = document.getElementById('emoji-picker-container');
+                        if (picker && picker.style.display === 'block') {
+                            UI.hideEmojiPicker();
+                        } else {
+                            UI.closeEditor();
+                        }
+                        return;
+                    }
+                }
+
+                if (!document.getElementById('confirm-modal').classList.contains('hidden')) return;
+                if (!document.getElementById('editor-modal').classList.contains('hidden')) return;
                 if (document.getElementById('game-view').classList.contains('hidden')) return;
+                if (e.ctrlKey || e.metaKey || e.altKey) return;
+
+                const tag = document.activeElement?.tagName;
+                if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
 
                 const triggerBtn = (id) => {
                     const btn = document.getElementById(id);
@@ -1774,13 +2003,19 @@ Soccer | ⚽🏃🥅`;
                 switch (e.code) {
                     case 'ArrowRight': triggerBtn('btn-skip'); break;
                     case 'ArrowLeft': triggerBtn('btn-prev'); break;
+                    case 'KeyT':
+                        e.preventDefault();
+                        triggerBtn('btn-timer');
+                        break;
                     case 'Space':
-                    case 'Enter':
+                    case 'Enter': {
+                        if (tag === 'BUTTON') return;
                         e.preventDefault();
                         const isRevealed = !document.getElementById('answer-container').classList.contains('hidden');
                         if (!isRevealed) triggerBtn('btn-reveal');
                         else triggerBtn('btn-next');
                         break;
+                    }
                 }
             }
         };
