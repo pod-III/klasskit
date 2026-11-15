@@ -35,6 +35,15 @@
         { id: 'extra',  icon: 'repeat',           name: 'Go again!',   short: 'Go Again',    desc: () => 'Take an extra turn right away!' }
     ];
 
+    const SIMPLE_TRAPS = ['lose', 'skip'];
+    const SIMPLE_GIFTS = ['bonus', 'extra'];
+    const SIMPLE_SIZE_PLANS = {
+        '12': { targetTiles: 12, minEach: 1, maxEach: 2 },
+        '16': { targetTiles: 16, minEach: 2, maxEach: 3 },
+        '18': { targetTiles: 18, minEach: 2, maxEach: 3 },
+        '24': { targetTiles: 24, minEach: 3, maxEach: 4 }
+    };
+
     const FALLBACK_DEFAULT_Q = [
         { q: 'What is the past tense of "go"?', a: 'went' },
         { q: 'What is the opposite of "expensive"?', a: 'cheap' },
@@ -135,6 +144,7 @@
     ========================================================================= */
     const state = {
         view: 'setup', // 'setup' | 'game' | 'end'
+        setupMode: 'simple', // 'simple' | 'complex'
         presets: [],
         customSets: [],
         activeSetId: null, // preset id or custom set id or null
@@ -144,6 +154,8 @@
             teamCount: 3,
             teamNames: ['Team 1', 'Team 2', 'Team 3', 'Team 4', 'Team 5', 'Team 6'],
             teamColors: [0, 1, 2, 3, 4, 5],
+            simpleSize: 'auto',
+            maxQuestions: 0,
             pts: 10,
             traps: 3,
             gifts: 3,
@@ -194,6 +206,12 @@
         btnShuffleTeams: $('btn-shuffle-teams'),
         teamCountGroup: $('team-count-group'),
         teamList: $('team-list'),
+
+        btnModeSimple: $('btn-mode-simple'),
+        btnModeComplex: $('btn-mode-complex'),
+        setupModeHint: $('setup-mode-hint'),
+        simpleSizeGroup: $('simple-size-group'),
+        selectMaxQuestions: $('select-max-questions'),
 
         setupTileSummary: $('setup-tile-summary'),
         inputPts: $('input-pts'),
@@ -437,6 +455,7 @@
                 ? { ...state.game, modal: null, history: (state.game.history || []).slice(-MAX_UNDO_HISTORY) }
                 : null;
             localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify({
+                setupMode: state.setupMode,
                 activeSetId: state.activeSetId,
                 setup: state.setup,
                 game: safeGame
@@ -544,6 +563,9 @@
             const rawDraft = localStorage.getItem(DRAFT_STORAGE_KEY);
             if (rawDraft) {
                 const parsed = JSON.parse(rawDraft);
+                if (parsed && (parsed.setupMode === 'simple' || parsed.setupMode === 'complex')) {
+                    state.setupMode = parsed.setupMode;
+                }
                 if (parsed && parsed.setup) {
                     state.setup = { ...state.setup, ...parsed.setup };
                     state.activeSetId = parsed.activeSetId || null;
@@ -789,16 +811,188 @@
         }
     }
 
+    /**
+     * Compute selected questions, trap count, and gift count for either Simple or Complex setup.
+     * In Simple mode, traps and gifts are randomly chosen per game while keeping an equal count between the two.
+     */
+    function buildTileGenerationPlan(allQuestions, sampleShuffle = false, cfg = state.setup, mode = state.setupMode) {
+        const sourceQs = Array.isArray(allQuestions) ? allQuestions : [];
+
+        if (mode === 'simple') {
+            const sizeKey = String(cfg.simpleSize || 'auto');
+            const plan = SIMPLE_SIZE_PLANS[sizeKey] || null;
+            let candidates = [];
+
+            if (plan) {
+                for (let n = plan.minEach; n <= plan.maxEach; n++) {
+                    const neededQ = plan.targetTiles - n * 2;
+                    if (neededQ >= 1 && neededQ <= sourceQs.length) {
+                        candidates.push(n);
+                    }
+                }
+                if (candidates.length === 0) {
+                    const cap = sourceQs.length >= 2 ? Math.max(1, Math.floor(sourceQs.length / 2)) : 0;
+                    if (cap === 0) {
+                        candidates = [0];
+                    } else {
+                        const lo = Math.min(plan.minEach, cap);
+                        const hi = Math.min(plan.maxEach, cap);
+                        for (let n = lo; n <= hi; n++) candidates.push(n);
+                    }
+                }
+            } else {
+                const qLen = sourceQs.length;
+                if (qLen <= 1) {
+                    candidates = [0];
+                } else if (qLen <= 3) {
+                    candidates = [1];
+                } else {
+                    const lo = Math.max(1, Math.min(4, Math.round(qLen * 0.15)));
+                    const hi = Math.max(lo, Math.min(5, Math.ceil(qLen * 0.25)));
+                    for (let n = lo; n <= hi; n++) candidates.push(n);
+                }
+            }
+
+            const minN = candidates[0];
+            const maxN = candidates[candidates.length - 1];
+            const chosenN = sampleShuffle
+                ? candidates[Math.floor(Math.random() * candidates.length)]
+                : minN;
+
+            const qLimitFor = n => {
+                if (plan && plan.targetTiles - n * 2 <= sourceQs.length && plan.targetTiles - n * 2 >= 1) {
+                    return plan.targetTiles - n * 2;
+                }
+                return sourceQs.length;
+            };
+
+            const qLimit = qLimitFor(chosenN);
+            const selectedQs = sourceQs.length > qLimit
+                ? (sampleShuffle ? shuffle(sourceQs).slice(0, qLimit) : sourceQs.slice(0, qLimit))
+                : (sampleShuffle ? shuffle(sourceQs) : sourceQs);
+
+            const minTiles = qLimitFor(maxN) + maxN * 2;
+            const maxTiles = qLimitFor(minN) + minN * 2;
+
+            return {
+                questions: selectedQs,
+                trapCount: chosenN,
+                giftCount: chosenN,
+                totalTiles: selectedQs.length + chosenN * 2,
+                minN,
+                maxN,
+                minTiles: Math.min(minTiles, maxTiles),
+                maxTiles: Math.max(minTiles, maxTiles),
+                isRandomSplit: maxN > minN
+            };
+        }
+
+        let selectedQs = sourceQs;
+        const maxQ = Math.max(0, parseInt(cfg.maxQuestions, 10) || 0);
+        if (maxQ > 0 && sourceQs.length > maxQ) {
+            selectedQs = sampleShuffle ? shuffle(sourceQs).slice(0, maxQ) : sourceQs.slice(0, maxQ);
+        }
+        const trapCount = Math.max(0, parseInt(cfg.traps, 10) || 0);
+        const giftCount = Math.max(0, parseInt(cfg.gifts, 10) || 0);
+        const totalTiles = selectedQs.length + trapCount + giftCount;
+
+        return {
+            questions: selectedQs,
+            trapCount,
+            giftCount,
+            totalTiles,
+            minN: trapCount,
+            maxN: giftCount,
+            minTiles: totalTiles,
+            maxTiles: totalTiles,
+            isRandomSplit: false
+        };
+    }
+
+    /**
+     * Switch setup UI complexity between Simple and Complex without erasing Complex preferences.
+     */
+    function setSetupMode(mode, persist = true) {
+        state.setupMode = mode === 'complex' ? 'complex' : 'simple';
+        const isSimple = state.setupMode === 'simple';
+
+        document.body.classList.toggle('setup-simple', isSimple);
+        document.body.classList.toggle('setup-complex', !isSimple);
+
+        if (els.btnModeSimple) {
+            els.btnModeSimple.classList.toggle('bg-blue', isSimple);
+            els.btnModeSimple.classList.toggle('text-white', isSimple);
+            els.btnModeSimple.classList.toggle('text-slate-600', !isSimple);
+            els.btnModeSimple.classList.toggle('dark:text-slate-300', !isSimple);
+        }
+        if (els.btnModeComplex) {
+            els.btnModeComplex.classList.toggle('bg-blue', !isSimple);
+            els.btnModeComplex.classList.toggle('text-white', !isSimple);
+            els.btnModeComplex.classList.toggle('text-slate-600', isSimple);
+            els.btnModeComplex.classList.toggle('dark:text-slate-300', isSimple);
+        }
+        if (els.setupModeHint) {
+            els.setupModeHint.textContent = isSimple
+                ? 'Quick setup with straightforward surprises and balanced tile sizes.'
+                : 'Full control over exact trap/gift counts, timers, steal rule, and custom sets.';
+        }
+
+        if (isSimple && state.editorMode !== 'text') {
+            state.editorMode = 'text';
+            renderEditorMode();
+        }
+
+        updateTileCountsSummary();
+        if (persist) saveDraftToLocal();
+    }
+
     function updateTileCountsSummary() {
         const qs = parseQuestionsText(state.setup.questionsText);
-        const total = qs.length + state.setup.traps + state.setup.gifts;
+        const plan = buildTileGenerationPlan(qs, false);
+        const total = plan.totalTiles;
         els.qCountBadge.textContent = `${qs.length} Question${qs.length === 1 ? '' : 's'}`;
-        els.setupTileSummary.textContent = `${qs.length}Q + ${state.setup.traps}T + ${state.setup.gifts}G = ${total} Tiles`;
-        els.btnStartLabel.textContent = total > 0 ? `Start Mystery Game (${total} Tiles)` : 'Add Questions to Start';
-        els.btnStartGame.disabled = qs.length === 0;
-        if (els.btnStartLabelTop && els.btnStartGameTop) {
-            els.btnStartLabelTop.textContent = total > 0 ? `Start (${total} Tiles)` : 'Add Questions';
-            els.btnStartGameTop.disabled = qs.length === 0;
+
+        if (qs.length === 0) {
+            els.setupTileSummary.textContent = '0 Tiles';
+            els.btnStartLabel.textContent = 'Add Questions to Start';
+            els.btnStartGame.disabled = true;
+            if (els.btnStartLabelTop && els.btnStartGameTop) {
+                els.btnStartLabelTop.textContent = 'Add Questions';
+                els.btnStartGameTop.disabled = true;
+            }
+        } else if (plan.isRandomSplit) {
+            const rangeTiles = plan.minTiles === plan.maxTiles
+                ? `${plan.minTiles} Tiles`
+                : `${plan.minTiles}–${plan.maxTiles} Tiles`;
+            els.setupTileSummary.textContent = plan.minTiles === plan.maxTiles
+                ? `${plan.minTiles} Tiles (${plan.minN}–${plan.maxN} each T/G)`
+                : `${plan.questions.length}Q + ${plan.minN}–${plan.maxN} each T/G`;
+            els.btnStartLabel.textContent = `Start Mystery Game (${rangeTiles})`;
+            els.btnStartGame.disabled = false;
+            if (els.btnStartLabelTop && els.btnStartGameTop) {
+                els.btnStartLabelTop.textContent = `Start (${rangeTiles})`;
+                els.btnStartGameTop.disabled = false;
+            }
+        } else {
+            els.setupTileSummary.textContent = `${plan.questions.length}Q + ${plan.trapCount}T + ${plan.giftCount}G = ${total} Tiles`;
+            els.btnStartLabel.textContent = `Start Mystery Game (${total} Tiles)`;
+            els.btnStartGame.disabled = false;
+            if (els.btnStartLabelTop && els.btnStartGameTop) {
+                els.btnStartLabelTop.textContent = `Start (${total} Tiles)`;
+                els.btnStartGameTop.disabled = false;
+            }
+        }
+
+        // Highlight active simple board size chip
+        if (els.simpleSizeGroup) {
+            const activeSize = String(state.setup.simpleSize || 'auto');
+            els.simpleSizeGroup.querySelectorAll('.simple-size-chip').forEach(btn => {
+                const matches = btn.dataset.simpleSize === activeSize;
+                btn.classList.toggle('bg-orange', matches);
+                btn.classList.toggle('text-dark', matches);
+                btn.classList.toggle('bg-chalk', !matches);
+                btn.classList.toggle('dark:bg-slate-800', !matches);
+            });
         }
 
         // Highlight active quick point chip
@@ -884,6 +1078,9 @@
         els.inputPts.value = state.setup.pts;
         els.inputTraps.value = state.setup.traps;
         els.inputGifts.value = state.setup.gifts;
+        if (els.selectMaxQuestions) {
+            els.selectMaxQuestions.value = String(state.setup.maxQuestions || 0);
+        }
         els.selectTimer.value = String(state.setup.timerSec || 0);
         els.toggleRevealBadge.checked = state.setup.revealBadge !== false;
         els.toggleAllowSteal.checked = state.setup.allowSteal !== false;
@@ -893,7 +1090,7 @@
         renderPowerUpPools();
         renderLibraryStrips();
         renderEditorMode();
-        updateTileCountsSummary();
+        setSetupMode(state.setupMode, false);
     }
 
     /* =========================================================================
@@ -964,19 +1161,18 @@
 
     function startNewGame(overrideSetup) {
         const cfg = overrideSetup || state.setup;
-        const questions = parseQuestionsText(cfg.questionsText);
-        if (questions.length === 0) {
+        const isSimple = state.setupMode === 'simple';
+        const allQuestions = parseQuestionsText(cfg.questionsText);
+        if (allQuestions.length === 0) {
             showToast('Add at least 1 question before starting!', 'bg-pink text-white');
             return;
         }
 
-        const trapCount = Math.max(0, parseInt(cfg.traps, 10) || 0);
-        const giftCount = Math.max(0, parseInt(cfg.gifts, 10) || 0);
-
+        const plan = buildTileGenerationPlan(allQuestions, true, cfg, state.setupMode);
         const pool = shuffle([
-            ...questions.map(item => ({ kind: 'q', q: item.q, a: item.a })),
-            ...Array.from({ length: trapCount }, () => ({ kind: 'trap' })),
-            ...Array.from({ length: giftCount }, () => ({ kind: 'gift' }))
+            ...plan.questions.map(item => ({ kind: 'q', q: item.q, a: item.a })),
+            ...Array.from({ length: plan.trapCount }, () => ({ kind: 'trap' })),
+            ...Array.from({ length: plan.giftCount }, () => ({ kind: 'gift' }))
         ]).map(tile => ({ ...tile, used: false, outcome: null }));
 
         const teams = Array.from({ length: cfg.teamCount }, (_, i) => {
@@ -997,11 +1193,15 @@
             teams,
             cur: 0,
             pts: Math.max(1, parseInt(cfg.pts, 10) || 10),
-            timerSec: parseInt(cfg.timerSec, 10) || 0,
-            revealBadge: cfg.revealBadge !== false,
-            allowSteal: cfg.allowSteal !== false,
-            enabledTraps: cfg.enabledTraps.length ? [...cfg.enabledTraps] : TRAPS.map(t => t.id),
-            enabledGifts: cfg.enabledGifts.length ? [...cfg.enabledGifts] : GIFTS.map(g => g.id),
+            timerSec: isSimple ? 0 : (parseInt(cfg.timerSec, 10) || 0),
+            revealBadge: isSimple ? true : (cfg.revealBadge !== false),
+            allowSteal: isSimple ? false : (cfg.allowSteal !== false),
+            enabledTraps: isSimple
+                ? [...SIMPLE_TRAPS]
+                : (cfg.enabledTraps.length ? [...cfg.enabledTraps] : TRAPS.map(t => t.id)),
+            enabledGifts: isSimple
+                ? [...SIMPLE_GIFTS]
+                : (cfg.enabledGifts.length ? [...cfg.enabledGifts] : GIFTS.map(g => g.id)),
             tiles: pool,
             modal: null,
             history: []
@@ -1937,6 +2137,30 @@ Describe your favorite weekend activity.`;
             showToast('Team order shuffled!', 'bg-pink text-white');
         });
 
+        // Setup Complexity Toggle (Simple vs Complex)
+        if (els.btnModeSimple) {
+            els.btnModeSimple.addEventListener('click', () => {
+                SoundEngine.click();
+                setSetupMode('simple');
+            });
+        }
+        if (els.btnModeComplex) {
+            els.btnModeComplex.addEventListener('click', () => {
+                SoundEngine.click();
+                setSetupMode('complex');
+            });
+        }
+        if (els.simpleSizeGroup) {
+            els.simpleSizeGroup.addEventListener('click', e => {
+                const chip = e.target.closest('.simple-size-chip');
+                if (!chip) return;
+                state.setup.simpleSize = chip.dataset.simpleSize || 'auto';
+                SoundEngine.click();
+                updateTileCountsSummary();
+                saveDraftToLocal();
+            });
+        }
+
         // Tiles & Rules Controls
         els.inputPts.addEventListener('input', () => {
             state.setup.pts = Math.max(1, parseInt(els.inputPts.value, 10) || 1);
@@ -1953,6 +2177,13 @@ Describe your favorite weekend activity.`;
             updateTileCountsSummary();
             saveDraftToLocal();
         });
+        if (els.selectMaxQuestions) {
+            els.selectMaxQuestions.addEventListener('change', () => {
+                state.setup.maxQuestions = Math.max(0, parseInt(els.selectMaxQuestions.value, 10) || 0);
+                updateTileCountsSummary();
+                saveDraftToLocal();
+            });
+        }
         els.quickPtsGroup.addEventListener('click', e => {
             const chip = e.target.closest('.pts-chip');
             if (!chip) return;
