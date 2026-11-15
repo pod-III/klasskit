@@ -1009,14 +1009,46 @@ document.getElementById('generate-btn').onclick = () => {
         if (window.innerWidth < 768) toggleControlPanel(true);
         confetti({ particleCount: 50, spread: 60, origin: { y: 0.6 }, colors: ['#1ea7fd', '#ff4785'] });
         broadcastFullState();
+        return true;
     } else {
         showBuildFeedback('Could not generate a puzzle from these words.', 'error');
         Sound.error();
         const btn = document.getElementById('generate-btn');
-        btn.classList.add('bg-pink', 'animate-shake');
-        setTimeout(() => btn.classList.remove('bg-pink', 'animate-shake'), 400);
+        if (btn) {
+            btn.classList.add('bg-pink', 'animate-shake');
+            setTimeout(() => btn.classList.remove('bg-pink', 'animate-shake'), 400);
+        }
+        return false;
     }
-};
+}
+
+function showCwToast(message, type = 'info') {
+    let container = document.getElementById('cw-toast-container');
+    if (!container) {
+        container = document.createElement('div');
+        container.id = 'cw-toast-container';
+        container.className = 'no-print fixed bottom-6 left-1/2 -translate-x-1/2 z-[700] flex flex-col gap-2 pointer-events-none';
+        document.body.appendChild(container);
+    }
+    const bgMap = {
+        success: 'bg-green text-dark',
+        warning: 'bg-orange text-dark',
+        info: 'bg-dark text-white',
+    };
+    const toast = document.createElement('div');
+    toast.className = `px-4 py-2.5 rounded-2xl border-2 border-dark shadow-hard font-heading text-xs uppercase tracking-wide flex items-center gap-2 ${bgMap[type] || bgMap.info}`;
+    toast.textContent = message;
+    container.appendChild(toast);
+    setTimeout(() => {
+        toast.style.transition = 'opacity 0.2s ease, transform 0.2s ease';
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateY(8px)';
+        setTimeout(() => toast.remove(), 220);
+    }, 2200);
+}
+
+// --- INIT & EVENTS ---
+document.getElementById('generate-btn').onclick = () => buildPuzzleFromInput();
 
 document.getElementById('solution-btn').onclick = () => {
     if (!puzzle || words.length === 0) {
@@ -1090,6 +1122,7 @@ window.onload = async () => {
     await loadGameState();
     await loadFromCloud();
     await renderWordSets();
+    initCrosswordImportAndPresets();
     if (window.innerWidth < 768) toggleControlPanel(true);
 
     if (bc) {
