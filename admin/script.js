@@ -283,6 +283,7 @@ async function fetchData() {
         const catDisplayNames = {
             'myspace': 'My Space',
             'tool': 'Tools',
+            'printable': 'Printables',
             'workshop': 'Workshop',
             'game': 'Games',
             'under-construction': 'Tools'
@@ -1649,6 +1650,7 @@ function renderDashboardInsights(unifiedEvents, metricsProfiles, adoptedCanonica
             const catGroups = [
                 { key: 'game', label: 'Games', color: '#00d063' },
                 { key: 'tool', label: 'Tools', color: '#1ea7fd' },
+                { key: 'printable', label: 'Printables', color: '#ff7e33' },
                 { key: 'myspace', label: 'My Space', color: '#ff7e33' },
                 { key: 'workshop', label: 'Workshop', color: '#ff4785' }
             ]

@@ -454,7 +454,10 @@ const UI = {
 
   updateUserUI() {
     const profile = State.userProfile;
-    if (!profile) return;
+    if (!profile) {
+      document.querySelectorAll('.pro-only-card, .pro-only-btn').forEach(el => el.classList.add('hidden'));
+      return;
+    }
 
     const nameEl = document.getElementById('auth-username');
     const adminLink = document.getElementById('auth-admin-link');
@@ -743,9 +746,10 @@ const Hero = {
       return true;
     });
     const tools = active.filter(g => g.category === 'tool').length;
+    const printables = active.filter(g => g.category === 'printable').length;
     const games = active.filter(g => g.category === 'game').length;
     const workshop = active.filter(g => g.category === 'workshop').length;
-    const activities = tools + games + workshop;
+    const activities = tools + printables + games + workshop;
     const pinned = PinnedGames.get().filter(id => {
       const game = State.getGameById(id);
       if (!game) return false;
@@ -754,16 +758,19 @@ const Hero = {
     }).length;
 
     const toolsEl = document.getElementById('stat-tools');
+    const printablesEl = document.getElementById('stat-printables');
     const gamesEl = document.getElementById('stat-games');
     const workshopEl = document.getElementById('stat-workshop');
     const pinnedEl = document.getElementById('stat-pinned');
 
     if (toolsEl) toolsEl.textContent = tools;
+    if (printablesEl) printablesEl.textContent = printables;
     if (gamesEl) gamesEl.textContent = games;
     if (workshopEl) workshopEl.textContent = workshop;
     if (pinnedEl) pinnedEl.textContent = pinned;
 
     document.querySelectorAll('[data-stat="tools"]').forEach(el => { el.textContent = tools; });
+    document.querySelectorAll('[data-stat="printables"]').forEach(el => { el.textContent = printables; });
     document.querySelectorAll('[data-stat="games"]').forEach(el => { el.textContent = games; });
     document.querySelectorAll('[data-stat="workshop"]').forEach(el => { el.textContent = workshop; });
     document.querySelectorAll('[data-stat="activities"]').forEach(el => { el.textContent = activities; });
@@ -1516,7 +1523,7 @@ const PinnedGames = {
 
     if (visibleGames.length === 0) return;
 
-    const categoryLabels = { tool: 'Tool', game: 'Game', workshop: 'Workshop', myspace: 'My Space', 'under-construction': 'WIP' };
+    const categoryLabels = { tool: 'Tool', printable: 'Printable', game: 'Game', workshop: 'Workshop', myspace: 'My Space', 'under-construction': 'WIP' };
 
     container.innerHTML = visibleGames.map(game => {
       const catLabel = categoryLabels[game.category] || game.category;
@@ -1571,20 +1578,24 @@ const GameGrid = {
 
     // Group by category
     const tools = gamesToRender.filter(g => g.category === 'tool');
+    const printables = gamesToRender.filter(g => g.category === 'printable');
     const gamesList = gamesToRender.filter(g => g.category === 'game');
     const workshop = gamesToRender.filter(g => g.category === 'workshop');
-    const other = gamesToRender.filter(g => !['myspace', 'tool', 'game', 'workshop'].includes(g.category));
+    const other = gamesToRender.filter(g => !['myspace', 'tool', 'printable', 'game', 'workshop'].includes(g.category));
 
     let html = '';
 
+    if (printables.length > 0) {
+      html += this.renderCategorySection('printables', 'printer', 'var(--color-orange)', 'Printables', printables);
+    }
     if (tools.length > 0) {
       html += this.renderCategorySection('tools', 'wrench', 'var(--color-blue)', 'Teaching Tools', tools);
     }
-    if (workshop.length > 0) {
-      html += this.renderCategorySection('workshop', 'hammer', 'var(--color-pink)', 'Workshop Tools', workshop);
-    }
     if (gamesList.length > 0) {
       html += this.renderCategorySection('games', 'gamepad-2', 'var(--color-green)', 'Classroom Games', gamesList);
+    }
+    if (workshop.length > 0) {
+      html += this.renderCategorySection('workshop', 'hammer', 'var(--color-pink)', 'Workshop Tools', workshop);
     }
     if (other.length > 0) {
       html += this.renderCategorySection('other', 'box', 'var(--color-orange)', 'Other', other);
@@ -1685,7 +1696,7 @@ const GameGrid = {
 
   getGuideText(game) {
     if (!game.guide) {
-      return (game.category === 'tool' || game.category === 'workshop')
+      return (game.category === 'tool' || game.category === 'workshop' || game.category === 'printable')
         ? "<ul class='list-disc pl-5 space-y-2'><li>Adjust settings using the on-screen controls.</li><li>Use fullscreen mode for better visibility.</li></ul>"
         : "<ul class='list-disc pl-5 space-y-2'><li>Follow the on-screen prompts to start.</li><li>Customize words in setup if available.</li></ul>";
     }
@@ -1747,10 +1758,10 @@ const GameGrid = {
 
 // --- VIEW MODE ---
 const ViewMode = {
-  current: 'cards', // 'cards' | 'list' | 'icons'
+  current: 'icons', // 'cards' | 'list' | 'icons'
 
   init() {
-    this.current = Storage.get(CONFIG.storageKeys.viewMode, 'cards') || 'cards';
+    this.current = Storage.get(CONFIG.storageKeys.viewMode, 'icons') || 'icons';
     this.apply();
     this.updateToggleUI();
   },
@@ -1785,19 +1796,23 @@ const ViewMode = {
 
 // --- VIEW MANAGER (formerly LandingPage & Filters) ---
 const ViewManager = {
-  currentView: 'landing', // 'landing', 'myspace', 'library-all', 'library-tool', 'library-game', 'library-workshop'
+  currentView: 'landing', // 'landing', 'myspace', 'library-all', 'library-tool', 'library-printable', 'library-game', 'library-workshop'
   renderedViews: new Set(['landing', 'myspace']),
 
   init(activity = null) {
     const saved = Storage.get(CONFIG.storageKeys.homeView);
     if (saved) {
-      this.show(saved, true);
+      if ((saved === 'myspace' || saved === 'library-myspace') && !State.isPro()) {
+        this.show('landing', true);
+      } else {
+        this.show(saved, true);
+      }
       return;
     }
 
     // Default Smart Landing logic
     if (activity) {
-      if (activity.hasMySpace) {
+      if (activity.hasMySpace && State.isPro()) {
         this.show('myspace', true);
       } else if (activity.hasActivity) {
         this.show('library-all', true);
@@ -1806,7 +1821,7 @@ const ViewManager = {
       }
     } else {
       // Fallback to local check if no database activity data available
-      if (MySpace && MySpace.isPopulated && MySpace.isPopulated()) {
+      if (State.isPro() && MySpace && MySpace.isPopulated && MySpace.isPopulated()) {
         this.show('myspace', true);
       } else {
         // Check local storage for any game activity
@@ -1823,6 +1838,9 @@ const ViewManager = {
   },
 
   show(viewId, silent = false) {
+    if ((viewId === 'myspace' || viewId === 'library-myspace') && !State.isPro()) {
+      viewId = 'landing';
+    }
     if (!document.getElementById(`${viewId}-view`)) {
       viewId = viewId === 'library-myspace' ? 'myspace' : 'landing';
     }
@@ -1895,6 +1913,7 @@ const ViewManager = {
     const titles = {
       all: "Let's start teaching",
       tool: "Teaching Tools",
+      printable: "Printables",
       game: "Classroom Games",
       workshop: "Workshop Tools",
       'under-construction': "Under Construction"
@@ -1903,6 +1922,8 @@ const ViewManager = {
 
     const statsHtml = category === 'all' ? `
       <div class="flex items-center gap-2 mt-2 flex-wrap opacity-80">
+        <span class="hero-stat"><i data-lucide="printer" class="w-3.5 h-3.5"></i> <strong id="stat-printables">0</strong> Printables</span>
+        <span class="hero-stat-dot"></span>
         <span class="hero-stat"><i data-lucide="wrench" class="w-3.5 h-3.5"></i> <strong id="stat-tools">0</strong> Tools</span>
         <span class="hero-stat-dot"></span>
         <span class="hero-stat"><i data-lucide="gamepad-2" class="w-3.5 h-3.5"></i> <strong id="stat-games">0</strong> Games</span>
@@ -1916,9 +1937,18 @@ const ViewManager = {
     const icons = {
       all: "graduation-cap",
       tool: "wrench",
+      printable: "printer",
       game: "gamepad-2",
       workshop: "hammer",
       'under-construction': "construction"
+    };
+    const gridHeadings = {
+      all: 'Library',
+      tool: 'Tools',
+      printable: 'Printables',
+      game: 'Games',
+      workshop: 'Workshop',
+      'under-construction': 'Under Construction'
     };
     const icon = icons[category] || "layout-grid";
     const headingClass = category === 'all' ? 'greeting-display ' : '';
@@ -2014,7 +2044,7 @@ const ViewManager = {
 
       <!-- Grid Header -->
       <div class="flex items-center justify-between mb-6">
-        <h3 class="text-2xl font-heading font-black text-dark dark:text-white uppercase tracking-tight">${category === 'all' ? 'Library' : category + 's'}</h3>
+        <h3 class="text-2xl font-heading font-black text-dark dark:text-white uppercase tracking-tight">${gridHeadings[category] || category + 's'}</h3>
         <div class="view-toggle-group">
           <button data-action="setViewMode" data-param="cards" aria-label="Card View" aria-pressed="${ViewMode.current === 'cards'}" title="Card View" class="view-toggle-btn ${ViewMode.current === 'cards' ? 'active' : ''}"><i data-lucide="layout-grid" class="w-4 h-4" aria-hidden="true"></i></button>
           <button data-action="setViewMode" data-param="icons" aria-label="Icon View" aria-pressed="${ViewMode.current === 'icons'}" title="Icon View" class="view-toggle-btn ${ViewMode.current === 'icons' ? 'active' : ''}"><i data-lucide="grip" class="w-4 h-4" aria-hidden="true"></i></button>
@@ -2064,7 +2094,7 @@ const ViewManager = {
     if (category !== 'all') {
       games = games.filter(g => g.category === category);
     } else {
-      games = games.filter(g => ['tool', 'game', 'workshop'].includes(g.category));
+      games = games.filter(g => ['tool', 'printable', 'game', 'workshop'].includes(g.category));
     }
     
     if (searchTerm) {
@@ -2090,6 +2120,7 @@ const ViewManager = {
         const categoryNames = {
           all: 'Library',
           tool: 'Teaching Tools',
+          printable: 'Printables',
           game: 'Classroom Games',
           workshop: 'Workshop Tools',
           'under-construction': 'Under Construction'
@@ -2154,13 +2185,15 @@ const ViewManager = {
     } else {
       if (category === 'all') {
         const tools = games.filter(g => g.category === 'tool');
+        const printables = games.filter(g => g.category === 'printable');
         const gamesList = games.filter(g => g.category === 'game');
         const workshop = games.filter(g => g.category === 'workshop');
         
         let html = '';
+        if (printables.length > 0) html += GameGrid.renderCategorySection('printables', 'printer', 'var(--color-orange)', 'Printables', printables);
         if (tools.length > 0) html += GameGrid.renderCategorySection('tools', 'wrench', 'var(--color-blue)', 'Teaching Tools', tools);
-        if (workshop.length > 0) html += GameGrid.renderCategorySection('workshop', 'hammer', 'var(--color-pink)', 'Workshop Tools', workshop);
         if (gamesList.length > 0) html += GameGrid.renderCategorySection('games', 'gamepad-2', 'var(--color-green)', 'Classroom Games', gamesList);
+        if (workshop.length > 0) html += GameGrid.renderCategorySection('workshop', 'hammer', 'var(--color-pink)', 'Workshop Tools', workshop);
         grid.innerHTML = html;
       } else {
         grid.innerHTML = `<div class="category-grid">${games.map(game => GameGrid.createCard(game)).join('')}</div>`;
@@ -2263,6 +2296,11 @@ const MySpace = {
   },
 
   show(silent = false) {
+    if (!State.isPro()) {
+      if (!silent) UI.showToast("My Space is exclusive to PRO users", "warning");
+      ViewManager.show('landing', silent);
+      return;
+    }
     ViewManager.show('myspace', silent);
   },
 
