@@ -16,6 +16,7 @@
     <!-- Supabase Auth & Persistence -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.105.4"></script>
     <script src="/supabase.js"></script>
+    <script src="../../../components/bulk-import-modal.js"></script>
 
     <!-- Tailwind CSS & Lucide Icons -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -807,11 +808,21 @@
                 <!-- STEP 1: SOURCE TEXT & TITLE -->
                 <section class="p-3.5 rounded-2xl bg-slate-50/80 dark:bg-slate-800/50 border-3 border-dark dark:border-slate-600 space-y-3">
                     <div>
-                        <div class="field-label flex items-center gap-2">
-                            <span class="step-badge">1</span> Source Text &amp; Title
+                        <div class="flex items-center justify-between gap-2">
+                            <div class="field-label flex items-center gap-2">
+                                <span class="step-badge">1</span> Source Text &amp; Title
+                            </div>
+                            <button type="button" id="open-import-btn"
+                                class="btn-chunky px-2.5 py-1 rounded-xl text-[11px] bg-orange text-dark inline-flex items-center gap-1"
+                                title="Copy template or bulk-paste passages">
+                                <i data-lucide="file-up" class="w-3.5 h-3.5"></i> Import
+                            </button>
                         </div>
                         <p class="step-help mt-1.5">Paste a passage or numbered sentences. The full text prints on the <b>Wall Poster / Strips</b>, and the gapped version prints on the <b>Student Worksheet</b>.</p>
                     </div>
+
+                    <!-- Starter Presets (loaded from presets.json) -->
+                    <div id="presets-slot"></div>
 
                     <div class="space-y-1">
                         <label for="activity-title" class="sub-label block">Activity Title</label>
@@ -1072,9 +1083,14 @@
                     </div>
                     <h3 class="font-heading text-2xl uppercase">No passage yet</h3>
                     <p class="mt-2 max-w-md text-sm font-semibold text-slate-500 dark:text-slate-400">Paste a reading passage in <b>Step 1</b>, or load the example to try Running Dictation right away.</p>
-                    <button id="empty-example-btn" type="button" class="btn-chunky mt-4 px-5 py-2.5 rounded-xl text-xs bg-green text-dark inline-flex items-center gap-1.5">
-                        <i data-lucide="book-open" class="w-4 h-4"></i> Load Example
-                    </button>
+                    <div class="mt-4 flex flex-wrap items-center justify-center gap-2.5">
+                        <button id="empty-example-btn" type="button" class="btn-chunky px-5 py-2.5 rounded-xl text-xs bg-green text-dark inline-flex items-center gap-1.5">
+                            <i data-lucide="book-open" class="w-4 h-4"></i> Load Example
+                        </button>
+                        <button id="empty-import-btn" type="button" class="btn-chunky px-5 py-2.5 rounded-xl text-xs bg-orange text-dark inline-flex items-center gap-1.5">
+                            <i data-lucide="file-up" class="w-4 h-4"></i> Bulk Import
+                        </button>
+                    </div>
                 </div>
 
                 <!-- Notice -->
@@ -1413,6 +1429,9 @@ They brought a watering can, planted fresh strawberry seeds, and painted a colou
                 help: $('help-btn'),
                 loadExample: $('load-example-btn'),
                 emptyExample: $('empty-example-btn'),
+                openImport: $('open-import-btn'),
+                emptyImport: $('empty-import-btn'),
+                presetsSlot: $('presets-slot'),
                 clearText: $('clear-text-btn'),
                 previewTitle: $('preview-title'),
                 previewSubtitle: $('preview-subtitle'),
@@ -2347,12 +2366,263 @@ They brought a watering can, planted fresh strawberry seeds, and painted a colou
                 }
             });
 
+            // ----- Guided Bulk Import & Starter Presets -----
+            const VALID_CEFR_LEVELS = new Set(['A1', 'A2', 'B1', 'B1+', 'B2', 'B2+', 'C1', 'C2']);
+
+            function parseTaggedDictationSource(rawBody) {
+                return window.KlassKitBulkImport.extractTaggedSpans(
+                    rawBody,
+                    /\[([^\]\n]*)\]/g,
+                    WORD_RE,
+                    (m) => {
+                        const inner = m[1].trim();
+                        if (!inner) return null;
+                        return { replacement: inner, value: 1 };
+                    }
+                );
+            }
+
+            function parseRunningDictationImport(rawText) {
+                const blocks = window.KlassKitBulkImport.splitImportBlocks(rawText);
+                const items = [];
+                const warnings = [];
+                const badges = [];
+
+                blocks.forEach((block, blockIdx) => {
+                    let level = '';
+                    let wallFormat = '';
+                    const bodyLines = [];
+
+                    for (const line of block.lines) {
+                        const trimmed = line.trim();
+                        if (trimmed.startsWith('@') && !/\s/.test(trimmed.slice(1).trim())) {
+                            const lvl = trimmed.slice(1).trim().toUpperCase();
+                            if (VALID_CEFR_LEVELS.has(lvl)) {
+                                level = lvl;
+                            } else {
+                                warnings.push(`Item ${blockIdx + 1}: Unknown level "${trimmed}" — kept as general text.`);
+                            }
+                            continue;
+                        }
+                        if (/^!strips$/i.test(trimmed)) {
+                            wallFormat = 'strips';
+                            continue;
+                        }
+                        if (/^!poster$/i.test(trimmed)) {
+                            wallFormat = 'poster';
+                            continue;
+                        }
+                        bodyLines.push(line);
+                    }
+
+                    const rawBody = bodyLines.join('\n').trim();
+                    if (!rawBody) {
+                        warnings.push(`Item ${blockIdx + 1}${block.title ? ` ("${block.title}")` : ''}: No passage text found — skipped.`);
+                        return;
+                    }
+
+                    if (/\[\s*\]/.test(rawBody)) {
+                        warnings.push(`Item ${blockIdx + 1}: Empty "[]" brackets ignored.`);
+                    }
+                    const openBrackets = (rawBody.match(/\[/g) || []).length;
+                    const closeBrackets = (rawBody.match(/\]/g) || []).length;
+                    if (openBrackets !== closeBrackets) {
+                        warnings.push(`Item ${blockIdx + 1}: Mismatched [ and ] brackets detected.`);
+                    }
+
+                    const extracted = parseTaggedDictationSource(rawBody);
+                    const parsedDoc = parse(extracted.cleanText);
+                    if (parsedDoc.words.length === 0) {
+                        warnings.push(`Item ${blockIdx + 1}: No readable words found — skipped.`);
+                        return;
+                    }
+                    if (parsedDoc.words.length < 3) {
+                        warnings.push(`Item ${blockIdx + 1}: Very short passage (only ${parsedDoc.words.length} word${parsedDoc.words.length === 1 ? '' : 's'}).`);
+                    }
+
+                    const blankedArr = extracted.states.length === parsedDoc.words.length
+                        ? extracted.states
+                        : new Array(parsedDoc.words.length).fill(0);
+                    const markedBlanks = blankedArr.reduce((acc, v) => acc + (v ? 1 : 0), 0);
+                    const cleanTitle = block.title || `Imported Dictation ${items.length + 1}`;
+                    const detectedStrips = wallFormat || (/^\s*\d+[\).\s]/m.test(extracted.cleanText) ? 'strips' : '');
+
+                    items.push({
+                        title: cleanTitle,
+                        level,
+                        wallFormat: detectedStrips,
+                        source: extracted.cleanText,
+                        blanked: blankedArr,
+                        markedBlanks,
+                        wordCount: parsedDoc.words.length,
+                    });
+
+                    badges.push({
+                        tag: level || (detectedStrips === 'strips' ? 'STRIPS' : 'TEXT'),
+                        label: cleanTitle,
+                        meta: markedBlanks > 0 ? `${markedBlanks} blanks` : `${parsedDoc.words.length}w · auto`,
+                        tone: window.KlassKitBulkImport.LEVEL_TONES[level] || 'orange',
+                        title: `${cleanTitle} (${parsedDoc.words.length} words)`,
+                    });
+                });
+
+                return { items, warnings, badges };
+            }
+
+            const RD_TEMPLATE = `// ============================================================
+//  KLASSKIT RUNNING DICTATION IMPORT TEMPLATE
+//  Lines starting with // or single # are ignored comments.
+// ============================================================
+//
+// Format per passage (start new passages with ## Title or ---):
+// ## Activity Title
+// @A1   (optional level: A1, A2, B1, B1+, B2, B2+, C1, C2)
+// !poster   or   !strips   (optional Wall layout preference)
+// Write your passage or numbered sentences below.
+// Wrap words in [brackets] to pre-select Worksheet blanks!
+// (If no [brackets] are used, Step 2 auto-blank rules apply.)
+
+## A Rainy Walk Home
+@A1
+!poster
+After school, [Maya] opened her [umbrella] and walked down the quiet [street]. Warm rain splashed on her [yellow] boots as she hurried [home].
+
+At the corner [bakery], her father was waiting with two hot [cinnamon] buns.
+
+---
+
+## Kitchen Safety Rules
+@A2
+!strips
+1. Always [wash] your hands with soap before touching [fresh] food.
+2. Keep sharp [knives] away from the edge of the [counter].
+3. Turn pot [handles] inward so nobody knocks them [over].
+4. Use thick oven [gloves] whenever lifting hot trays.`;
+
+            const importModal = window.KlassKitBulkImport.create({
+                id: 'rd-import-overlay',
+                title: 'Bulk Import Passages',
+                subtitle: 'Copy AI template or paste marked passages',
+                accentColor: 'orange',
+                unitLabel: 'passage',
+                unitLabelPlural: 'passages',
+                guideItems: [
+                    { label: 'Title & Splitter', syntax: '## My Title', color: 'orange', desc: 'Sets Activity Title and starts a new passage block (or use ---).' },
+                    { label: 'CEFR Level', syntax: '@A1 … @B2', color: 'blue', desc: 'Optional level badge in the live import preview.' },
+                    { label: 'Pre-Mark Blanks', syntax: 'a [quiet] street', color: 'pink', desc: 'Words in [brackets] become exact Worksheet blanks. Omit for auto-blanks.' },
+                    { label: 'Wall Format', syntax: '!poster / !strips', color: 'green', desc: 'Optional Wall Poster layout override.' },
+                ],
+                tips: [
+                    '<strong>Paragraphs:</strong> Blank lines stay inside a passage until the next <code>## Title</code> or <code>---</code>.',
+                    '<strong>Comments:</strong> Lines starting with <code>//</code> or single <code>#</code> are ignored.',
+                ],
+                placeholder: `## My Daily Routine\n@A1\n!poster\nEvery day, Marco [wakes] up at six [thirty] and eats a quick [breakfast].`,
+                template: RD_TEMPLATE,
+                sample: `## The Night Market\n@A2\n!poster\nEvery [Friday] evening, bright [lanterns] glow above the narrow market lane. Families gather beside steaming noodle [stalls] while street musicians play cheerful [melodies].\n\n---\n\n## Three Morning Habits\n@A1\n!strips\n1. Drink a full [glass] of water right after waking [up].\n2. Open the bedroom [curtains] to let natural sunlight [inside].\n3. Pack your school [backpack] before eating [breakfast].`,
+                options: [
+                    { id: 'saveToLibrary', label: 'Save imported passage(s) to Saved Passages library', defaultChecked: true },
+                ],
+                parse: parseRunningDictationImport,
+                onCopyTemplate: () => showToast('Template copied — paste into any AI or editor!', 'success'),
+                onImport: async (result, opts) => {
+                    const items = result.items || [];
+                    if (!items.length) return false;
+
+                    let loadedSetId = null;
+                    if (opts.saveToLibrary || items.length > 1) {
+                        const sets = readSets();
+                        const baseNow = Date.now();
+                        items.forEach((item, idx) => {
+                            const id = 'rd_' + baseNow + '_' + idx;
+                            if (idx === 0) loadedSetId = id;
+                            const baseBlanked = item.markedBlanks > 0 ? item.blanked : new Array(item.wordCount).fill(0);
+                            sets.push({
+                                id,
+                                name: item.level ? `[${item.level}] ${item.title}` : item.title,
+                                ...getWorkspaceData(),
+                                title: item.title,
+                                source: item.source,
+                                blanked: baseBlanked,
+                                wallFormat: item.wallFormat || choice('wall-format', 'poster'),
+                                activeSetId: id,
+                                createdAt: baseNow + idx,
+                                lastUsed: baseNow + (items.length - idx),
+                                usageCount: idx === 0 ? 1 : 0,
+                            });
+                        });
+                        writeSets(sets);
+                    }
+
+                    const first = items[0];
+                    activeSetId = loadedSetId;
+                    applyWorkspaceData({
+                        title: first.title,
+                        source: first.source,
+                        blanked: first.markedBlanks > 0 ? first.blanked : new Array(first.wordCount).fill(0),
+                        wallFormat: first.wallFormat || undefined,
+                        activeSetId: loadedSetId,
+                    }, { keepPrefs: !first.wallFormat });
+
+                    if (first.markedBlanks === 0) {
+                        applyAutoBlanks(true);
+                    } else if (loadedSetId) {
+                        // Already saved exact blanked array; persist current state cleanly.
+                    }
+
+                    setView('editor');
+                    renderLibrary();
+                    persistState();
+
+                    if (items.length === 1) {
+                        showToast(`Imported "${first.title}"`, 'success');
+                    } else {
+                        showToast(`Imported ${items.length} passages & saved all to Library`, 'success');
+                    }
+                    return true;
+                },
+            });
+
+            el.openImport.addEventListener('click', () => importModal.open());
+            el.emptyImport.addEventListener('click', () => importModal.open());
+
+            async function loadStarterPresets() {
+                await window.KlassKitBulkImport.mountPresets({
+                    container: el.presetsSlot,
+                    url: 'presets.json',
+                    title: 'Starter Presets',
+                    collapsible: true,
+                    getMeta: (p) => ({
+                        icon: p.wallFormat === 'strips' ? 'scissors' : 'file-text',
+                        label: p.wallFormat === 'strips' ? 'Strips' : 'Poster',
+                    }),
+                    onSelect: (preset) => {
+                        const extracted = parseTaggedDictationSource(preset.taggedSource || '');
+                        const parsedDoc = parse(extracted.cleanText);
+                        const blankArr = extracted.states.length === parsedDoc.words.length ? extracted.states : [];
+
+                        activeSetId = null;
+                        applyWorkspaceData({
+                            title: preset.title,
+                            source: extracted.cleanText,
+                            blanked: blankArr,
+                            wallFormat: preset.wallFormat || 'poster',
+                            activeSetId: null,
+                        }, { keepPrefs: !preset.wallFormat });
+                        if (!blankArr.some(Boolean)) applyAutoBlanks(true);
+                        renderLibrary();
+                        persistState();
+                        showToast(`Loaded "${preset.title}" (${preset.level})`, 'success');
+                    },
+                });
+            }
+
             // ----- Startup -----
             (async function init() {
                 updateSliderLabel();
                 syncModeVisibility();
                 updateTabs();
                 await loadPersistedState();
+                await loadStarterPresets();
                 syncPageSetup();
                 el.theme.setAttribute('aria-pressed', String(document.documentElement.classList.contains('dark')));
                 renderLibrary();

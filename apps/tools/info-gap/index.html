@@ -40,6 +40,7 @@
     <!-- Supabase Auth & Cloud Persistence -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.105.4"></script>
     <script src="/supabase.js"></script>
+    <script src="../../../components/bulk-import-modal.js"></script>
 
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -730,11 +731,21 @@
                 <!-- STEP 1: PASSAGE & TITLE -->
                 <section class="p-3.5 rounded-2xl bg-slate-50/80 dark:bg-slate-800/50 border-3 border-dark dark:border-slate-600 space-y-3">
                     <div>
-                        <div class="field-label flex items-center gap-2">
-                            <span class="step-badge">1</span> Passage &amp; Title
+                        <div class="flex items-center justify-between gap-2">
+                            <div class="field-label flex items-center gap-2">
+                                <span class="step-badge">1</span> Passage &amp; Title
+                            </div>
+                            <button type="button" id="open-import-btn"
+                                class="btn-chunky px-2.5 py-1 rounded-xl text-[11px] bg-pink text-white inline-flex items-center gap-1"
+                                title="Copy AI template or paste [A:...] / [B:...] passages">
+                                <i data-lucide="file-up" class="w-3.5 h-3.5"></i> Import
+                            </button>
                         </div>
                         <p class="step-help mt-1.5">Paste a short reading text (a story, timetable, profile…). Both students get the same text — only the blanks differ. The preview updates as you type.</p>
                     </div>
+
+                    <!-- Starter Presets (loaded from presets.json) -->
+                    <div id="presets-slot"></div>
 
                     <div class="space-y-1">
                         <label for="activity-title" class="sub-label block">Activity Title</label>
@@ -989,9 +1000,14 @@
                     </div>
                     <h3 class="font-heading text-2xl uppercase">No passage yet</h3>
                     <p class="mt-2 max-w-md text-sm font-semibold text-slate-500 dark:text-slate-400">Paste a reading text in <b>Step 1</b>, or load the example to see how an info gap works.</p>
-                    <button id="empty-example-btn" type="button" class="btn-chunky mt-4 px-5 py-2.5 rounded-xl text-xs bg-green text-dark inline-flex items-center gap-1.5">
-                        <i data-lucide="book-open" class="w-4 h-4"></i> Load Example
-                    </button>
+                    <div class="mt-4 flex flex-wrap items-center justify-center gap-2.5">
+                        <button id="empty-example-btn" type="button" class="btn-chunky px-5 py-2.5 rounded-xl text-xs bg-green text-dark inline-flex items-center gap-1.5">
+                            <i data-lucide="book-open" class="w-4 h-4"></i> Load Example
+                        </button>
+                        <button id="empty-import-btn" type="button" class="btn-chunky px-5 py-2.5 rounded-xl text-xs bg-pink text-white inline-flex items-center gap-1.5">
+                            <i data-lucide="file-up" class="w-4 h-4"></i> Bulk Import
+                        </button>
+                    </div>
                 </div>
 
                 <!-- Notice (e.g. no blanks for this view) -->
@@ -1447,6 +1463,9 @@ Nico helps his aunt. He waters the plants, feeds the horses, and feeds the cows.
                 preview: $('preview'),
                 loadExample: $('load-example-btn'),
                 emptyExample: $('empty-example-btn'),
+                openImport: $('open-import-btn'),
+                emptyImport: $('empty-import-btn'),
+                presetsSlot: $('presets-slot'),
                 newSet: $('new-set-btn'),
                 saveSet: $('save-set-btn'),
                 librarySort: $('library-sort'),
@@ -2403,11 +2422,297 @@ Nico helps his aunt. He waters the plants, feeds the horses, and feeds the cows.
                 }
             });
 
+            // ----- Guided Bulk Import & Starter Presets -----
+            const VALID_CEFR_LEVELS = new Set(['A1', 'A2', 'B1', 'B1+', 'B2', 'B2+', 'C1', 'C2']);
+
+            function parseTaggedInfoGapSource(rawBody) {
+                return window.KlassKitBulkImport.extractTaggedSpans(
+                    rawBody,
+                    /\[\s*([AB])\s*:\s*([^\]\n]*?)\s*\]/gi,
+                    WORD_RE,
+                    (m) => {
+                        const side = m[1].toUpperCase() === 'A' ? 1 : 2;
+                        const inner = m[2].trim();
+                        if (!inner) return null;
+                        return { replacement: inner, value: side };
+                    }
+                );
+            }
+
+            function parseInfoGapImport(rawText) {
+                const blocks = window.KlassKitBulkImport.splitImportBlocks(rawText);
+                const items = [];
+                const warnings = [];
+                const badges = [];
+
+                blocks.forEach((block, blockIdx) => {
+                    let level = '';
+                    let instructions = DEFAULT_INSTRUCTIONS;
+                    const helperALines = [];
+                    const helperBLines = [];
+                    const bodyLines = [];
+
+                    for (const line of block.lines) {
+                        const trimmed = line.trim();
+                        if (trimmed.startsWith('@')) {
+                            const instrMatch = trimmed.match(/^@instructions?\s*:\s*(.+)$/i);
+                            if (instrMatch) {
+                                instructions = instrMatch[1].trim();
+                                continue;
+                            }
+                            const lvl = trimmed.slice(1).trim().toUpperCase();
+                            if (VALID_CEFR_LEVELS.has(lvl)) {
+                                level = lvl;
+                            } else {
+                                warnings.push(`Activity ${blockIdx + 1}: Unknown directive "${trimmed}" — ignored.`);
+                            }
+                            continue;
+                        }
+                        if (trimmed.startsWith('?')) {
+                            const customInstr = trimmed.slice(1).trim();
+                            if (customInstr) instructions = customInstr;
+                            continue;
+                        }
+                        const qMatch = trimmed.match(/^([AB])\s*>\s*(.+)$/i);
+                        if (qMatch) {
+                            const side = qMatch[1].toUpperCase();
+                            const qText = qMatch[2].trim();
+                            if (side === 'A') helperALines.push(qText);
+                            else helperBLines.push(qText);
+                            continue;
+                        }
+                        bodyLines.push(line);
+                    }
+
+                    const rawBody = bodyLines.join('\n').trim();
+                    if (!rawBody) {
+                        warnings.push(`Activity ${blockIdx + 1}${block.title ? ` ("${block.title}")` : ''}: No passage text found — skipped.`);
+                        return;
+                    }
+
+                    if (/\[\s*[AB]\s*:\s*\]/i.test(rawBody)) {
+                        warnings.push(`Activity ${blockIdx + 1}: Empty [A:] or [B:] tag ignored.`);
+                    }
+                    const badPrefixMatch = rawBody.match(/\[\s*([C-Zc-z])\s*:[^\]]*\]/);
+                    if (badPrefixMatch) {
+                        warnings.push(`Activity ${blockIdx + 1}: Unknown tag prefix "[${badPrefixMatch[1]}:...]" — only [A:...] and [B:...] map to Student A/B blanks.`);
+                    }
+                    const openBrackets = (rawBody.match(/\[/g) || []).length;
+                    const closeBrackets = (rawBody.match(/\]/g) || []).length;
+                    if (openBrackets !== closeBrackets) {
+                        warnings.push(`Activity ${blockIdx + 1}: Mismatched [ and ] brackets detected.`);
+                    }
+
+                    const extracted = parseTaggedInfoGapSource(rawBody);
+                    const parsedDoc = parse(extracted.cleanText);
+                    if (parsedDoc.words.length === 0) {
+                        warnings.push(`Activity ${blockIdx + 1}: No readable words found — skipped.`);
+                        return;
+                    }
+
+                    const stateArr = extracted.states.length === parsedDoc.words.length
+                        ? extracted.states
+                        : new Array(parsedDoc.words.length).fill(0);
+                    const aBlanks = stateArr.filter((v) => v === 1).length;
+                    const bBlanks = stateArr.filter((v) => v === 2).length;
+
+                    if (aBlanks > 0 && bBlanks === 0) {
+                        warnings.push(`Activity ${blockIdx + 1}: Student B has 0 blanks (only Student A gaps marked).`);
+                    } else if (bBlanks > 0 && aBlanks === 0) {
+                        warnings.push(`Activity ${blockIdx + 1}: Student A has 0 blanks (only Student B gaps marked).`);
+                    }
+
+                    const cleanTitle = block.title || `Imported Info Gap ${items.length + 1}`;
+                    items.push({
+                        title: cleanTitle,
+                        level,
+                        instructions,
+                        source: extracted.cleanText,
+                        state: stateArr,
+                        aBlanks,
+                        bBlanks,
+                        wordCount: parsedDoc.words.length,
+                        helperA: helperALines.join('\n'),
+                        helperB: helperBLines.join('\n'),
+                    });
+
+                    badges.push({
+                        tag: level || 'PAIR',
+                        label: cleanTitle,
+                        meta: (aBlanks + bBlanks) > 0 ? `A:${aBlanks} · B:${bBlanks}` : `${parsedDoc.words.length}w · smart split`,
+                        tone: window.KlassKitBulkImport.LEVEL_TONES[level] || 'pink',
+                        title: `${cleanTitle} (A: ${aBlanks}, B: ${bBlanks}, Helpers: ${helperALines.length + helperBLines.length})`,
+                    });
+                });
+
+                return { items, warnings, badges };
+            }
+
+            const IG_TEMPLATE = `// ============================================================
+//  KLASSKIT INFO GAP BULK IMPORT TEMPLATE
+//  Lines starting with // or single # are ignored comments.
+// ============================================================
+//
+// Format per activity (start new ones with ## Title or ---):
+// ## Activity Title
+// @A1                  (optional level: A1, A2, B1, B1+, B2, B2+)
+// ? Instructions       (optional custom student prompt)
+// Use [A:word] for Student A blanks and [B:word] for Student B blanks!
+// (If no [A:]/[B:] tags are found, Smart Auto-Split creates A/B blanks.)
+// Optional Question Helpers:
+// A> Question for Student A to ask? (Answer: word)
+// B> Question for Student B to ask? (Answer: word)
+
+## The Weekend Café
+@A1
+? Work with your partner. Ask questions to fill in every blank!
+On [A:Sunday] mornings, Leo works at his aunt's [B:bakery] from [A:seven] o'clock until noon. He bakes warm [B:banana] muffins and pours fresh [A:orange] juice for friendly [B:neighbours].
+
+A> When does Leo work at his aunt's shop? (Answer: Sunday)
+A> What time does his shift start? (Answer: seven o'clock)
+B> Whose shop does Leo work at? (Answer: his aunt's bakery)
+B> What kind of muffins does he bake? (Answer: banana)`;
+
+            const importModal = window.KlassKitBulkImport.create({
+                id: 'ig-import-overlay',
+                title: 'Bulk Import Info Gaps',
+                subtitle: 'Copy AI template or paste [A:...] / [B:...] passages',
+                accentColor: 'pink',
+                unitLabel: 'activity',
+                unitLabelPlural: 'activities',
+                guideItems: [
+                    { label: 'Title & Splitter', syntax: '## My Title', color: 'orange', desc: 'Sets Activity Title and starts a new activity block (or use ---).' },
+                    { label: 'Student A & B Gaps', syntax: '[A:word]  [B:word]', color: 'pink', desc: 'Marks exact Pink (A) and Blue (B) blanks. Supports phrases too!' },
+                    { label: 'Helper Questions', syntax: 'A> ...   B> ...', color: 'blue', desc: 'Optional prompt questions shown on Student A / B sheets.' },
+                    { label: 'Instructions / Level', syntax: '? Prompt  ·  @A1', color: 'green', desc: 'Optional student instruction line and CEFR badge.' },
+                ],
+                tips: [
+                    '<strong>Auto Balance:</strong> Omit <code>[A:]</code> / <code>[B:]</code> tags to let Smart Auto-Split balance gaps automatically.',
+                    '<strong>Paragraphs:</strong> Blank lines stay inside a passage until the next <code>## Title</code> or <code>---</code>.',
+                ],
+                placeholder: `## The Morning Train\n@A2\nThe express train leaves [A:Platform 3] at [B:8:15 AM]...\n\nA> Where does the train leave from?\nB> What time does the train leave?`,
+                template: IG_TEMPLATE,
+                sample: `## City Aquarium Visit\n@A1\n? Do not look at your partner's sheet! Ask clear questions.\nOn [A:Friday] afternoon, Class 4B takes a [B:yellow] bus to the City Aquarium. First, they watch [A:twelve] silver sharks glide above a [B:glass] tunnel.\n\nLater, a keeper feeds crisp [A:fish] to three playful [B:dolphins] at [A:two] thirty.\n\nA> Which day does Class 4B visit the aquarium? (Answer: Friday)\nA> How many sharks do they count? (Answer: twelve)\nB> What colour bus do the students take? (Answer: yellow)\nB> Which playful animals eat at two thirty? (Answer: dolphins)`,
+                options: [
+                    { id: 'saveToLibrary', label: 'Save imported activity to Saved Sets library', defaultChecked: true },
+                ],
+                parse: parseInfoGapImport,
+                onCopyTemplate: () => showToast('Template copied — paste into any AI or editor!', 'success'),
+                onImport: async (result, opts) => {
+                    const items = result.items || [];
+                    if (!items.length) return false;
+
+                    let loadedSetId = null;
+                    if (opts.saveToLibrary || items.length > 1) {
+                        const sets = readSets();
+                        const baseNow = Date.now();
+                        items.forEach((item, idx) => {
+                            const id = 'ig_' + baseNow + '_' + idx;
+                            if (idx === 0) loadedSetId = id;
+                            const hasMarkers = (item.aBlanks + item.bBlanks) > 0;
+                            sets.push({
+                                id,
+                                name: item.level ? `[${item.level}] ${item.title}` : item.title,
+                                ...getWorkspaceData(),
+                                title: item.title,
+                                instructions: item.instructions,
+                                source: item.source,
+                                stateSource: item.source,
+                                state: hasMarkers ? item.state : Array.from(smartSplit(parse(item.source).words, Number(el.density.value) || 25)),
+                                helperAOn: Boolean(item.helperA),
+                                helperA: item.helperA,
+                                helperBOn: Boolean(item.helperB),
+                                helperB: item.helperB,
+                                activeSetId: id,
+                                createdAt: baseNow + idx,
+                                lastUsed: baseNow + (items.length - idx),
+                                usageCount: idx === 0 ? 1 : 0,
+                            });
+                        });
+                        writeSets(sets);
+                    }
+
+                    const first = items[0];
+                    const hasMarkers = (first.aBlanks + first.bBlanks) > 0;
+                    const savedFirst = loadedSetId ? readSets().find((s) => s.id === loadedSetId) : null;
+                    const firstState = savedFirst ? savedFirst.state : first.state;
+
+                    activeSetId = loadedSetId;
+                    applyWorkspaceData({
+                        source: first.source,
+                        stateSource: first.source,
+                        state: firstState,
+                        title: first.title,
+                        instructions: first.instructions,
+                        helperAOn: Boolean(first.helperA || !first.helperB),
+                        helperA: first.helperA,
+                        helperBOn: Boolean(first.helperB || !first.helperA),
+                        helperB: first.helperB,
+                        activeSetId: loadedSetId,
+                    }, { keepPrefs: true });
+
+                    if (!hasMarkers && !savedFirst) {
+                        state = smartSplit(doc.words, Number(el.density.value) || 25);
+                        recountBlanks();
+                        syncSpans();
+                    }
+
+                    setView('editor');
+                    renderLibrary();
+                    persistState();
+
+                    if (items.length === 1) {
+                        showToast(`Imported "${first.title}"`, 'success');
+                    } else {
+                        showToast(`Imported ${items.length} activities & saved all to Library`, 'success');
+                    }
+                    return true;
+                },
+            });
+
+            el.openImport.addEventListener('click', () => importModal.open());
+            el.emptyImport.addEventListener('click', () => importModal.open());
+
+            async function loadStarterPresets() {
+                await window.KlassKitBulkImport.mountPresets({
+                    container: el.presetsSlot,
+                    url: 'presets.json',
+                    title: 'Starter Presets',
+                    collapsible: true,
+                    getMeta: () => ({ icon: 'split', label: 'A/B Pair' }),
+                    onSelect: (preset) => {
+                        const extracted = parseTaggedInfoGapSource(preset.taggedSource || '');
+                        const parsedDoc = parse(extracted.cleanText);
+                        const presetState = extracted.states.length === parsedDoc.words.length
+                            ? extracted.states
+                            : Array.from(smartSplit(parsedDoc.words, Number(el.density.value) || 25));
+
+                        activeSetId = null;
+                        applyWorkspaceData({
+                            title: preset.title,
+                            instructions: preset.instructions || DEFAULT_INSTRUCTIONS,
+                            source: extracted.cleanText,
+                            stateSource: extracted.cleanText,
+                            state: presetState,
+                            helperAOn: true,
+                            helperA: preset.helperA || '',
+                            helperBOn: true,
+                            helperB: preset.helperB || '',
+                            activeSetId: null,
+                        }, { keepPrefs: true });
+                        renderLibrary();
+                        persistState();
+                        showToast(`Loaded "${preset.title}" (${preset.level})`, 'success');
+                    },
+                });
+            }
+
             // ----- Startup -----
             (async function init() {
                 updateDensityLabel();
                 updateTabs();
                 await loadPersistedState();
+                await loadStarterPresets();
                 syncPageSetup();
                 el.theme.setAttribute('aria-pressed', String(document.documentElement.classList.contains('dark')));
                 renderLibrary();
