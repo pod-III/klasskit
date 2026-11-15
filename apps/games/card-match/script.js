@@ -1,62 +1,40 @@
-// --- 1. CONFIGURATION ---
-tailwind.config = {
-    darkMode: 'class',
-    theme: {
-        extend: {
-            colors: {
-                pink: '#FF6B95',
-                orange: '#FF8C42',
-                green: '#00E676',
-                blue: '#2979FF',
-                dark: '#1e293b',
-                surface: '#F8FAFC',
-            },
-            fontFamily: {
-                heading: ['Fredoka', 'sans-serif'],
-                body: ['Nunito', 'sans-serif'],
-                mono: ['JetBrains Mono', 'monospace'],
-            },
-            boxShadow: {
-                'hard': '4px 4px 0px 0px #1e293b',
-                'hard-lg': '8px 8px 0px 0px #1e293b',
-                'hard-sm': '2px 2px 0px 0px #1e293b',
-            },
-            animation: {
-                'pop': 'pop 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards',
-                'slide-up': 'slideUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards',
-                'fade-in': 'fadeIn 0.5s ease-out forwards',
-                'bounce-slight': 'bounceSlight 2s infinite',
-            },
-            keyframes: {
-                pop: {
-                    '0%': { transform: 'scale(0.95)', opacity: '0' },
-                    '100%': { transform: 'scale(1)', opacity: '1' }
-                },
-                slideUp: {
-                    '0%': { transform: 'translateY(20px)', opacity: '0' },
-                    '100%': { transform: 'translateY(0)', opacity: '1' }
-                },
-                fadeIn: {
-                    '0%': { opacity: '0' },
-                    '100%': { opacity: '1' }
-                },
-                bounceSlight: {
-                    '0%, 100%': { transform: 'translateY(0)' },
-                    '50%': { transform: 'translateY(-5px)' }
-                }
-            }
-        }
+// --- 1. HELPERS ---
+function escapeHTML(str) {
+    if (str === null || str === undefined) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+function shuffleArray(arr) {
+    const copy = arr.slice();
+    for (let i = copy.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [copy[i], copy[j]] = [copy[j], copy[i]];
     }
+    return copy;
 }
 
 // --- 2. AUDIO ENGINE ---
 const AudioEngine = {
     ctx: null,
+    muted: localStorage.getItem('sound_card-match') === 'muted',
     init: function () {
-        if (!this.ctx) this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+        if (!this.ctx) {
+            const Ctx = window.AudioContext || window.webkitAudioContext;
+            if (Ctx) this.ctx = new Ctx();
+        }
+        if (this.ctx && this.ctx.state === 'suspended') {
+            this.ctx.resume().catch(() => { });
+        }
     },
     playTone: function (freq, type, duration, vol = 0.1) {
-        if (!this.ctx) this.init();
+        if (this.muted) return;
+        this.init();
+        if (!this.ctx) return;
         const osc = this.ctx.createOscillator();
         const gain = this.ctx.createGain();
         osc.type = type;
@@ -83,7 +61,7 @@ const AudioEngine = {
 const DB_NAME = 'KlassKitMemoryDB_V3'; // Bump version for multi-preset, V2 was a single array
 const STORE_NAME = 'Presets';
 
-const dbPromise = new Promise((resolve, reject) => {
+const dbPromise = new Promise((resolve) => {
     const req = indexedDB.open(DB_NAME, 1);
     req.onupgradeneeded = (e) => {
         const db = e.target.result;
@@ -105,7 +83,7 @@ async function getAllPresets() {
 
 async function savePresetToDB(preset) {
     const db = await dbPromise;
-    if (!db) return;
+    if (!db || !preset) return;
     const tx = db.transaction(STORE_NAME, 'readwrite');
     tx.objectStore(STORE_NAME).put(preset);
 }
@@ -139,7 +117,6 @@ async function syncToCloud() {
 // Migration from V2 (if any)
 async function migrateLegacyV2() {
     try {
-        // Peek at V2
         const req = indexedDB.open('KlassKitMemoryDB_V2', 1);
         req.onsuccess = async (e) => {
             const db = e.target.result;
@@ -155,9 +132,8 @@ async function migrateLegacyV2() {
                             lastAccessed: Date.now()
                         };
                         await savePresetToDB(legacyPreset);
-                        // Delete legacy v2 to prevent remigrating
                         indexedDB.deleteDatabase('KlassKitMemoryDB_V2');
-                        location.reload(); // Reload to pick up migrated data
+                        location.reload();
                     }
                 };
             }
@@ -171,6 +147,9 @@ const app = {
     presetsList: [],
     activePresetId: null,
     presetToDeleteCallback: null,
+    toastTimeout: null,
+    mismatchTimeout: null,
+    winTimeout: null,
     gameState: {
         active: false,
         flipped: [],
@@ -184,6 +163,7 @@ const app = {
         // 0. Auth Guard
         await requireAuth();
 
+        this.updateSoundUI();
         lucide.createIcons();
 
         // 1. Try migration
@@ -192,7 +172,6 @@ const app = {
         // 2. Cloud Sync Load
         const cloudData = await loadProgress('card-match');
         if (cloudData && cloudData.presets) {
-            // Merge/Overwrite local with cloud
             for (const p of cloudData.presets) {
                 await savePresetToDB(p);
             }
@@ -221,39 +200,76 @@ const app = {
         this.renderPresetDropdown();
 
         this.setupEventListeners();
-        this.toggleInputMode(); // Initialize helper text
+        this.toggleInputMode();
 
         this.showModeSelection();
     },
 
+    toggleTheme: function () {
+        const isDark = document.documentElement.classList.toggle('dark');
+        localStorage.setItem('theme_card-match', isDark ? 'dark' : 'light');
+        lucide.createIcons();
+    },
+
+    toggleSound: function () {
+        AudioEngine.muted = !AudioEngine.muted;
+        localStorage.setItem('sound_card-match', AudioEngine.muted ? 'muted' : 'unmuted');
+        this.updateSoundUI();
+        if (!AudioEngine.muted) AudioEngine.playFlip();
+    },
+
+    updateSoundUI: function () {
+        const btn = document.getElementById('sound-toggle-btn');
+        if (!btn) return;
+        btn.setAttribute('aria-pressed', String(!AudioEngine.muted));
+        btn.title = AudioEngine.muted ? 'Unmute Sound' : 'Mute Sound';
+        btn.innerHTML = `<i data-lucide="${AudioEngine.muted ? 'volume-x' : 'volume-2'}" class="w-5 h-5 ${AudioEngine.muted ? 'text-slate-400' : ''}"></i>`;
+        lucide.createIcons();
+    },
+
+    clearPendingTimers: function () {
+        if (this.gameState.timerInterval) {
+            clearInterval(this.gameState.timerInterval);
+            this.gameState.timerInterval = null;
+        }
+        if (this.mismatchTimeout) {
+            clearTimeout(this.mismatchTimeout);
+            this.mismatchTimeout = null;
+        }
+        if (this.winTimeout) {
+            clearTimeout(this.winTimeout);
+            this.winTimeout = null;
+        }
+    },
+
     showModeSelection: function () {
+        this.clearPendingTimers();
+        this.gameState.active = false;
         document.getElementById('mode-selection').classList.remove('hidden');
         document.getElementById('teacher-console').classList.add('hidden');
         document.getElementById('game-screen').classList.add('hidden');
         document.getElementById('win-modal').classList.add('hidden');
-        document.getElementById('teacher-mode-btn').classList.add('invisible');
+        document.getElementById('teacher-mode-btn').classList.add('hidden');
     },
 
     showConsole: function () {
-        // Stop any running game
-        if (this.gameState.timerInterval) clearInterval(this.gameState.timerInterval);
+        this.clearPendingTimers();
         this.gameState.active = false;
 
         document.getElementById('mode-selection').classList.add('hidden');
         document.getElementById('teacher-console').classList.remove('hidden');
         document.getElementById('game-screen').classList.add('hidden');
         document.getElementById('win-modal').classList.add('hidden');
-        document.getElementById('teacher-mode-btn').classList.remove('invisible');
-        
+        document.getElementById('teacher-mode-btn').classList.add('hidden');
+
         lucide.createIcons();
     },
 
     selectMode: function (mode) {
         document.getElementById('mode-selection').classList.add('hidden');
         document.getElementById('teacher-console').classList.remove('hidden');
-        document.getElementById('teacher-mode-btn').classList.remove('invisible');
+        document.getElementById('teacher-mode-btn').classList.add('hidden');
 
-        // Reset UI before switching
         const sameWordToggle = document.getElementById('single-word-mode');
 
         if (mode === 'text-definition') {
@@ -268,10 +284,10 @@ const app = {
             this.switchTab('image');
         }
         this.toggleInputMode();
+        lucide.createIcons();
     },
 
     setupEventListeners: function () {
-        // Preset Dropdown
         const select = document.getElementById('presetSelect');
         if (select) {
             select.addEventListener('change', (e) => {
@@ -279,20 +295,58 @@ const app = {
             });
         }
 
-        // Drag & Drop / File Select Wiring
         this.setupDropZone('mixed-drop', 'mixed-file');
         this.setupDropZone('img1-drop', 'img1-file');
         this.setupDropZone('img2-drop', 'img2-file');
 
-        // Buttons
         const startBtn = document.getElementById('start-game-btn');
         if (startBtn) startBtn.onclick = () => this.startGame();
-        
+
         const teacherBtn = document.getElementById('teacher-mode-btn');
         if (teacherBtn) teacherBtn.onclick = () => this.showConsole();
-        
+
         const restartBtn = document.getElementById('restart-btn');
         if (restartBtn) restartBtn.onclick = () => this.restartGame();
+
+        const mixedInput = document.getElementById('mixed-text');
+        if (mixedInput) {
+            mixedInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    this.addMixedPair();
+                }
+            });
+        }
+
+        document.addEventListener('keydown', (e) => {
+            const confirmModal = document.getElementById('confirmModal');
+            const winModal = document.getElementById('win-modal');
+            const isConfirmOpen = confirmModal && !confirmModal.classList.contains('hidden');
+            const isWinOpen = winModal && !winModal.classList.contains('hidden');
+
+            if (e.key === 'Escape') {
+                if (isConfirmOpen) {
+                    this.closeConfirmModal(false);
+                    return;
+                }
+                if (isWinOpen) {
+                    winModal.classList.add('hidden');
+                    return;
+                }
+            }
+
+            const tag = (e.target && e.target.tagName) ? e.target.tagName.toUpperCase() : '';
+            if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (e.target && e.target.isContentEditable)) {
+                return;
+            }
+            if (isConfirmOpen || isWinOpen) return;
+
+            const isGameVisible = !document.getElementById('game-screen').classList.contains('hidden');
+            if (isGameVisible && (e.key === 'r' || e.key === 'R') && !e.ctrlKey && !e.metaKey && !e.altKey) {
+                e.preventDefault();
+                this.restartGame();
+            }
+        });
     },
 
     setupDropZone: function (dropId, fileId) {
@@ -302,28 +356,40 @@ const app = {
 
         file.addEventListener('change', () => {
             if (file.files && file.files[0]) {
+                if (!file.files[0].type.startsWith('image/')) {
+                    this.toast("Please select an image file.", "error");
+                    file.value = '';
+                    return;
+                }
                 const name = file.files[0].name;
                 const p = drop.querySelector('p');
                 if (p) p.innerText = name;
-                drop.classList.add('bg-blue/5', 'border-blue');
-                const icon = drop.querySelector('i');
-                if (icon) icon.setAttribute('data-lucide', 'check-circle');
+                drop.classList.add('bg-blue/5', 'border-blue', 'drag-over');
+                const icon = drop.querySelector('i, svg');
+                if (icon) {
+                    const replacement = document.createElement('i');
+                    replacement.setAttribute('data-lucide', 'check-circle');
+                    replacement.className = icon.className.baseVal || icon.className;
+                    icon.replaceWith(replacement);
+                }
                 lucide.createIcons();
             }
         });
 
         drop.onclick = () => file.click();
-        drop.addEventListener('dragover', (e) => { e.preventDefault(); drop.classList.add('border-blue', 'scale-[0.98]', 'bg-blue/5'); });
+        drop.addEventListener('dragover', (e) => { e.preventDefault(); drop.classList.add('border-blue', 'scale-[0.98]', 'bg-blue/5', 'drag-over'); });
         drop.addEventListener('dragleave', () => {
             if (!file.files || !file.files[0]) {
-                drop.classList.remove('border-blue', 'scale-[0.98]', 'bg-blue/5');
+                drop.classList.remove('border-blue', 'scale-[0.98]', 'bg-blue/5', 'drag-over');
             }
         });
         drop.addEventListener('drop', (e) => {
             e.preventDefault();
             drop.classList.remove('scale-[0.98]');
             if (e.dataTransfer && e.dataTransfer.files.length > 0) {
-                file.files = e.dataTransfer.files;
+                const dt = new DataTransfer();
+                dt.items.add(e.dataTransfer.files[0]);
+                file.files = dt.files;
                 file.dispatchEvent(new Event('change'));
             }
         });
@@ -334,19 +400,24 @@ const app = {
         if (!drop) return;
         const p = drop.querySelector('p');
         if (p) p.innerText = originalText;
-        const icon = drop.querySelector('i');
-        if (icon) icon.setAttribute('data-lucide', originalIcon);
-        drop.classList.remove('bg-blue/5', 'border-blue');
+        const icon = drop.querySelector('i, svg');
+        if (icon) {
+            const replacement = document.createElement('i');
+            replacement.setAttribute('data-lucide', originalIcon);
+            replacement.className = 'w-8 h-8 text-slate-300 dark:text-slate-500 mx-auto mb-2';
+            if (dropId === 'mixed-drop') {
+                replacement.className = 'w-10 h-10 text-slate-300 dark:text-slate-500 mx-auto mb-2 group-hover:text-blue group-hover:scale-110 transition-transform';
+            }
+            icon.replaceWith(replacement);
+        }
+        drop.classList.remove('bg-blue/5', 'border-blue', 'drag-over');
         lucide.createIcons();
     },
 
     switchTab: function (tabName) {
-        // UI Toggles
         document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
         document.querySelectorAll('.tab-content').forEach(content => content.classList.add('hidden'));
 
-        // Activate
-        // Find the specific button that triggered this change
         const targetButton = document.querySelector(`.tab-btn[onclick*="app.switchTab('${tabName}')"]`);
         if (targetButton) {
             targetButton.classList.add('active');
@@ -370,7 +441,6 @@ const app = {
         }
     },
 
-    // Mode 1: Text-Text (or Text-Definition)
     addTextPairs: function () {
         const input = document.getElementById('simple-input');
         const isSingleMode = document.getElementById('single-word-mode').checked;
@@ -385,16 +455,20 @@ const app = {
             let val1, val2;
 
             if (isSingleMode) {
-                // Same Word Mode: Treat the whole line as one word
                 val1 = line.trim();
                 val2 = val1;
             } else {
-                // Standard Pair Mode: Split by comma
-                const parts = line.split(',');
-                val1 = parts[0].trim();
-                // If no comma, default to self (failsafe), but user intends definition
-                val2 = parts[1] ? parts[1].trim() : val1;
+                const commaIdx = line.indexOf(',');
+                if (commaIdx !== -1) {
+                    val1 = line.slice(0, commaIdx).trim();
+                    val2 = line.slice(commaIdx + 1).trim() || val1;
+                } else {
+                    val1 = line.trim();
+                    val2 = val1;
+                }
             }
+
+            if (!val1) return;
 
             this.pairs.push({
                 id: Date.now() + Math.random(),
@@ -408,15 +482,14 @@ const app = {
         if (addedCount > 0) {
             input.value = '';
             this.saveAndRender();
-            this.toast(`Added ${addedCount} text pairs!`);
+            this.toast(`Added ${addedCount} text pairs!`, 'success');
         } else {
-            this.toast("Limit reached or empty.");
+            this.toast("Max 12 pairs limit reached or empty.", "error");
         }
     },
 
-    // Mode 2: Text-Image
     addMixedPair: async function () {
-        if (this.pairs.length >= 12) return this.toast("Max 12 pairs allowed!");
+        if (this.pairs.length >= 12) return this.toast("Max 12 pairs allowed!", "error");
 
         const btn = document.querySelector('#tab-mixed button[onclick="app.addMixedPair()"]');
         const txtInput = document.getElementById('mixed-text');
@@ -424,7 +497,7 @@ const app = {
         const textVal = txtInput.value.trim();
         const file = imgInput.files[0];
 
-        if (!textVal || !file) return this.toast("Please provide both text and image.");
+        if (!textVal || !file) return this.toast("Please provide both text and image.", "error");
 
         const originalHTML = btn.innerHTML;
         btn.disabled = true;
@@ -452,12 +525,11 @@ const app = {
                 item2: { type: 'image', content: imgSource }
             });
 
-            // Reset
             txtInput.value = '';
             imgInput.value = '';
             this.resetDropZone('mixed-drop', 'Click or drag image here', 'upload-cloud');
             this.saveAndRender();
-            this.toast("Mixed pair added!");
+            this.toast("Mixed pair added!", "success");
         } catch (err) {
             console.error("Mixed Pair Add Failed:", err);
             this.toast(`Upload failed: ${err.message || 'Unknown error'}`, "error");
@@ -468,15 +540,14 @@ const app = {
         }
     },
 
-    // Mode 3: Image-Image
     addImagePair: async function () {
-        if (this.pairs.length >= 12) return this.toast("Max 12 pairs allowed!");
+        if (this.pairs.length >= 12) return this.toast("Max 12 pairs allowed!", "error");
 
         const btn = document.querySelector('#tab-image button[onclick="app.addImagePair()"]');
         const f1 = document.getElementById('img1-file').files[0];
         const f2 = document.getElementById('img2-file').files[0];
 
-        if (!f1 || !f2) return this.toast("Please upload both images.");
+        if (!f1 || !f2) return this.toast("Please upload both images.", "error");
 
         const originalHTML = btn.innerHTML;
         btn.disabled = true;
@@ -507,13 +578,12 @@ const app = {
                 item2: { type: 'image', content: src2 }
             });
 
-            // Reset
             document.getElementById('img1-file').value = '';
             document.getElementById('img2-file').value = '';
             this.resetDropZone('img1-drop', 'Card 1', 'image');
             this.resetDropZone('img2-drop', 'Card 2', 'image');
             this.saveAndRender();
-            this.toast("Image pair added!");
+            this.toast("Image pair added!", "success");
         } catch (err) {
             console.error("Image Pair Add Failed:", err);
             this.toast(`Upload failed: ${err.message || 'Unknown error'}`, "error");
@@ -524,10 +594,43 @@ const app = {
         }
     },
 
+    dedupePairs: function () {
+        if (this.pairs.length < 2) return this.toast("Nothing to dedupe.");
+        const seen = new Set();
+        const unique = [];
+        let removed = 0;
+
+        for (const pair of this.pairs) {
+            const key = `${pair.type}|${pair.item1.type}:${pair.item1.content.trim().toLowerCase()}|${pair.item2.type}:${pair.item2.content.trim().toLowerCase()}`;
+            if (seen.has(key)) {
+                removed++;
+            } else {
+                seen.add(key);
+                unique.push(pair);
+            }
+        }
+
+        if (removed > 0) {
+            this.pairs = unique;
+            this.saveAndRender();
+            this.toast(`Removed ${removed} duplicate pair${removed > 1 ? 's' : ''}!`, "success");
+        } else {
+            this.toast("No duplicate pairs found.");
+        }
+    },
+
     clearPairs: function () {
-        this.pairs = [];
-        this.saveAndRender();
-        this.toast("All pairs have been cleared!", "success");
+        if (this.pairs.length === 0) return;
+        this.showConfirmModal({
+            title: 'Clear Active Deck?',
+            message: `Remove all ${this.pairs.length} pairs from this deck?`,
+            confirmText: 'Clear All',
+            callback: () => {
+                this.pairs = [];
+                this.saveAndRender();
+                this.toast("All pairs have been cleared!", "success");
+            }
+        });
     },
 
     // --- PRESET MANAGEMENT ---
@@ -569,28 +672,28 @@ const app = {
 
     saveCurrentDeck: async function () {
         const btn = document.getElementById('save-deck-btn');
-        const icon = btn.querySelector('i');
-        const text = btn.querySelector('span') || btn;
+        if (!btn || btn.dataset.saving === 'true') return;
 
         try {
+            btn.dataset.saving = 'true';
             await this.updatePresetTitle();
             await savePresetToDB(this.presetsList.find(p => p.id === this.activePresetId));
             await syncToCloud();
 
-            // Success State
             btn.classList.replace('bg-blue', 'bg-green');
-            const originalHTML = btn.innerHTML;
             btn.innerHTML = '<i data-lucide="check" class="w-4 h-4"></i> Saved!';
             lucide.createIcons();
 
             setTimeout(() => {
                 btn.classList.replace('bg-green', 'bg-blue');
-                btn.innerHTML = originalHTML;
+                btn.innerHTML = '<i data-lucide="save" class="w-4 h-4"></i> Save';
+                btn.dataset.saving = 'false';
                 lucide.createIcons();
-            }, 2000);
+            }, 1800);
 
             this.toast("Deck saved successfully!", "success");
         } catch (err) {
+            btn.dataset.saving = 'false';
             this.toast("Failed to save deck", "error");
         }
     },
@@ -625,12 +728,27 @@ const app = {
         this.toast("New preset created!", "success");
     },
 
-    // Confirm Modal Logic
-    showConfirmModal: function (callback) {
-        this.presetToDeleteCallback = callback;
+    showConfirmModal: function (configOrCallback) {
         const modal = document.getElementById('confirmModal');
         const content = document.getElementById('confirmModalContent');
+        const titleEl = document.getElementById('confirmModalTitle');
+        const msgEl = document.getElementById('confirmModalMessage');
+        const actionBtn = document.getElementById('confirmModalActionBtn');
+
         if (!modal || !content) return;
+
+        if (typeof configOrCallback === 'function') {
+            this.presetToDeleteCallback = configOrCallback;
+            if (titleEl) titleEl.textContent = 'Delete Preset?';
+            if (msgEl) msgEl.textContent = 'Are you sure you want to delete this preset? This cannot be undone.';
+            if (actionBtn) actionBtn.textContent = 'Delete';
+        } else {
+            this.presetToDeleteCallback = configOrCallback.callback;
+            if (titleEl) titleEl.textContent = configOrCallback.title || 'Confirm?';
+            if (msgEl) msgEl.textContent = configOrCallback.message || 'Are you sure?';
+            if (actionBtn) actionBtn.textContent = configOrCallback.confirmText || 'Confirm';
+        }
+
         modal.classList.remove('hidden');
         requestAnimationFrame(() => {
             modal.classList.remove('opacity-0');
@@ -657,7 +775,6 @@ const app = {
     },
 
     executeDeletePreset: async function () {
-        // Cloud Cleanup
         const { data: { user } } = await db.auth.getUser();
         if (!isSandbox() && user) {
             deleteFolder(`${user.id}/card_match/${this.activePresetId}`).catch(e => console.warn("Cloud folder delete failed", e));
@@ -701,9 +818,9 @@ const app = {
 
         if (this.pairs.length === 0) {
             container.innerHTML = `
-                <div class="flex flex-col items-center justify-center py-20 text-slate-300">
-                    <i data-lucide="layers-2" class="w-12 h-12 mb-4 opacity-20"></i>
-                    <p class="font-bold uppercase tracking-widest text-xs">Deck is empty</p>
+                <div class="flex flex-col items-center justify-center py-14 text-slate-400 dark:text-slate-500">
+                    <i data-lucide="layers-2" class="w-10 h-10 mb-3 opacity-40"></i>
+                    <p class="font-bold uppercase tracking-widest text-xs">Deck is empty (add at least 2 pairs)</p>
                 </div>
             `;
             lucide.createIcons();
@@ -712,29 +829,32 @@ const app = {
 
         this.pairs.forEach((pair, idx) => {
             const div = document.createElement('div');
-            div.className = 'flex items-center justify-between bg-white p-3 rounded-xl border-2 border-dark mb-3 animate-pop shadow-hard-sm';
+            div.className = 'flex items-center justify-between bg-white dark:bg-slate-800 p-2.5 rounded-xl border-2 border-dark dark:border-slate-500 mb-2.5 animate-pop shadow-hard-sm';
 
-            // Helper to render preview
             const renderItem = (item) => {
-                if (item.type === 'text') return `<span class="px-2 py-1 bg-slate-50 border border-slate-100 rounded-md text-xs font-bold text-dark truncate max-w-[100px]">${item.content}</span>`;
-                return `<div class="w-10 h-10 rounded-lg border border-dark overflow-hidden shadow-sm"><img src="${item.content}" class="w-full h-full object-cover"></div>`;
+                if (item.type === 'text') {
+                    const safeText = escapeHTML(item.content);
+                    return `<span class="px-2 py-1 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-md text-xs font-bold text-dark dark:text-white truncate max-w-[110px]" title="${safeText}">${safeText}</span>`;
+                }
+                const safeUrl = escapeHTML(item.content);
+                return `<div class="w-9 h-9 rounded-lg border border-dark dark:border-slate-500 overflow-hidden shadow-sm card-preview"><img src="${safeUrl}" alt="Card preview" class="w-full h-full object-cover"></div>`;
             };
 
             const icon = pair.type === 'text-text' ? 'type' : pair.type === 'image-image' ? 'copy' : 'image-plus';
-            const colorClass = pair.type === 'text-text' ? 'bg-pink' : pair.type === 'image-image' ? 'bg-green' : 'bg-blue';
+            const colorClass = pair.type === 'text-text' ? 'bg-pink' : pair.type === 'image-image' ? 'bg-green text-dark' : 'bg-blue';
 
             div.innerHTML = `
-                <div class="flex items-center gap-3">
-                    <div class="${colorClass} text-white p-1.5 rounded-lg border-2 border-dark">
+                <div class="flex items-center gap-2.5 min-w-0">
+                    <div class="${colorClass} text-white p-1.5 rounded-lg border-2 border-dark dark:border-slate-500 shrink-0">
                         <i data-lucide="${icon}" class="w-3.5 h-3.5"></i>
                     </div>
-                    <div class="flex items-center gap-2">
+                    <div class="flex items-center gap-2 min-w-0">
                         ${renderItem(pair.item1)}
-                        <i data-lucide="arrow-right-left" class="w-3 h-3 text-slate-200"></i>
+                        <i data-lucide="arrow-right-left" class="w-3 h-3 text-slate-300 dark:text-slate-500 shrink-0"></i>
                         ${renderItem(pair.item2)}
                     </div>
                 </div>
-                <button onclick="app.removePair(${idx})" class="p-1.5 text-slate-300 hover:text-pink transition-colors">
+                <button type="button" onclick="app.removePair(${idx})" aria-label="Remove pair ${idx + 1}" class="p-1.5 text-slate-400 hover:text-pink transition-colors shrink-0">
                     <i data-lucide="x-circle" class="w-5 h-5"></i>
                 </button>
             `;
@@ -770,24 +890,23 @@ const app = {
     // --- GAME LOGIC ---
 
     startGame: async function () {
-        if (this.pairs.length < 2) return this.toast("Need at least 2 pairs!");
+        if (this.pairs.length < 2) return this.toast("Need at least 2 pairs!", "error");
 
-        // Switch Screens
+        this.clearPendingTimers();
+
+        document.getElementById('mode-selection').classList.add('hidden');
         document.getElementById('teacher-console').classList.add('hidden');
         document.getElementById('game-screen').classList.remove('hidden');
-        document.getElementById('teacher-mode-btn').classList.add('invisible');
+        document.getElementById('teacher-mode-btn').classList.remove('hidden');
 
-        // Generate Cards
         let cards = [];
         this.pairs.forEach(pair => {
-            // Card A
             cards.push({
                 id: pair.id + '_1',
                 matchId: pair.id,
                 type: pair.item1.type,
                 content: pair.item1.content
             });
-            // Card B
             cards.push({
                 id: pair.id + '_2',
                 matchId: pair.id,
@@ -796,30 +915,26 @@ const app = {
             });
         });
 
-        // Resolve all images
         for (let card of cards) {
             if (card.type === 'image') card.content = await resolveMediaUrl(card.content);
         }
 
-        // Shuffle
-        cards.sort(() => Math.random() - 0.5);
+        cards = shuffleArray(cards);
 
-        // Render Grid
-        // Dynamic Grid Columns based on card count
         const grid = document.getElementById('game-grid');
         if (!grid) return;
         grid.innerHTML = '';
-        grid.className = 'grid gap-3 sm:gap-6 mx-auto perspective-1000';
-        
+        grid.className = 'grid gap-3 sm:gap-4 mx-auto perspective-1000';
+
         const count = cards.length;
         if (count <= 8) {
             grid.classList.add('grid-cols-2', 'sm:grid-cols-4', 'max-w-4xl');
         } else if (count <= 12) {
             grid.classList.add('grid-cols-3', 'sm:grid-cols-4', 'max-w-5xl');
         } else if (count <= 16) {
-            grid.classList.add('grid-cols-4', 'sm:grid-cols-4', 'max-w-6xl');
+            grid.classList.add('grid-cols-4', 'sm:grid-cols-4', 'max-w-5xl', 'grid-compact');
         } else {
-            grid.classList.add('grid-cols-4', 'sm:grid-cols-6', 'max-w-full');
+            grid.classList.add('grid-cols-4', 'sm:grid-cols-6', 'max-w-6xl', 'grid-compact');
         }
 
         cards.forEach((card, index) => {
@@ -827,38 +942,48 @@ const app = {
             el.className = 'game-card';
             el.dataset.index = index;
             el.dataset.matchId = card.matchId;
+            el.setAttribute('role', 'button');
+            el.setAttribute('tabindex', '0');
+            el.setAttribute('aria-label', `Card ${index + 1}`);
 
             const len = card.content.length;
-            // Bumped sizes significantly for better visibility
-            const sizeClass = len > 60 ? 'text-xs sm:text-sm' : len > 30 ? 'text-sm sm:text-lg' : len > 12 ? 'text-xl sm:text-2xl' : 'text-3xl sm:text-4xl';
-            const weightClass = 'font-black'; // Always heavy for Brutalist look
-            
+            const sizeClass = len > 60 ? 'text-xs sm:text-sm' : len > 30 ? 'text-sm sm:text-base' : len > 12 ? 'text-lg sm:text-xl' : 'text-2xl sm:text-3xl';
+            const weightClass = 'font-black';
+
+            let innerContent = '';
             if (card.type === 'image') {
-                innerContent = `<div class="w-full h-full p-2"><img src="${card.content}" class="w-full h-full object-contain rounded-lg"></div>`;
+                const safeSrc = escapeHTML(card.content);
+                innerContent = `<div class="w-full h-full p-2"><img src="${safeSrc}" alt="Memory card" class="w-full h-full object-contain rounded-lg"></div>`;
             } else {
-                innerContent = `<div class="w-full h-full flex items-center justify-center p-4 text-center leading-[1] overflow-hidden">
-                    <span class="${sizeClass} ${weightClass} text-dark break-words uppercase font-heading tracking-tight w-full">${card.content}</span>
+                const safeText = escapeHTML(card.content);
+                innerContent = `<div class="w-full h-full flex items-center justify-center p-3 text-center leading-[1.05] overflow-hidden">
+                    <span class="${sizeClass} ${weightClass} text-dark dark:text-white break-words uppercase font-heading tracking-tight w-full">${safeText}</span>
                 </div>`;
             }
 
             el.innerHTML = `
                 <div class="card-inner">
                     <div class="card-front">
-                        <i data-lucide="sparkle" class="text-white/40 w-10 h-10 animate-pulse"></i>
+                        <i data-lucide="sparkle" class="text-white/40 w-8 h-8 animate-pulse"></i>
                     </div>
-                    <div class="card-back border-4 border-dark bg-white overflow-hidden rounded-xl shadow-inner">
+                    <div class="card-back border-3 border-dark dark:border-slate-500 bg-white dark:bg-slate-900 overflow-hidden rounded-xl shadow-inner">
                         ${innerContent}
                     </div>
                 </div>
             `;
 
             el.onclick = () => this.handleCardClick(index);
+            el.onkeydown = (e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    this.handleCardClick(index);
+                }
+            };
             grid.appendChild(el);
         });
 
         lucide.createIcons();
 
-        // Reset Stats
         this.gameState = {
             active: true,
             flipped: [],
@@ -867,22 +992,23 @@ const app = {
             startTime: Date.now(),
             timerInterval: setInterval(() => this.updateTimer(), 1000)
         };
+        const timerEl = document.getElementById('timer');
+        if (timerEl) timerEl.innerText = '00:00';
         this.updateUI();
 
-        // Init Audio
         AudioEngine.init();
     },
 
     handleCardClick: function (index) {
-        const { flipped, matched, active } = this.gameState;
+        const { flipped, active } = this.gameState;
         const cardEl = document.querySelector(`.game-card[data-index="${index}"]`);
+        if (!cardEl) return;
 
         if (!active) return;
         if (flipped.includes(index)) return;
         if (cardEl.classList.contains('matched')) return;
         if (flipped.length >= 2) return;
 
-        // Flip it
         AudioEngine.playFlip();
         cardEl.classList.add('flipped');
         flipped.push(index);
@@ -898,6 +1024,7 @@ const app = {
         const [idx1, idx2] = this.gameState.flipped;
         const card1 = document.querySelector(`.game-card[data-index="${idx1}"]`);
         const card2 = document.querySelector(`.game-card[data-index="${idx2}"]`);
+        if (!card1 || !card2) return;
 
         const match1 = card1.dataset.matchId;
         const match2 = card2.dataset.matchId;
@@ -913,28 +1040,33 @@ const app = {
                 this.handleWin();
             }
         } else {
-            setTimeout(() => {
+            this.mismatchTimeout = setTimeout(() => {
                 card1.classList.remove('flipped');
                 card2.classList.remove('flipped');
                 this.gameState.flipped = [];
+                this.mismatchTimeout = null;
                 AudioEngine.playFlip();
-            }, 1000);
+            }, 900);
         }
     },
 
     handleWin: function () {
-        clearInterval(this.gameState.timerInterval);
+        this.clearPendingTimers();
+        this.gameState.active = false;
         AudioEngine.playWin();
 
         const finalTimeStr = document.getElementById('timer').innerText;
         document.getElementById('final-time').innerText = finalTimeStr;
         document.getElementById('final-moves').innerText = this.gameState.moves;
 
-        confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 }, colors: ['#FF6B95', '#FF8C42', '#00E676', '#2979FF'] });
+        if (typeof confetti === 'function') {
+            confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 }, colors: ['#ff4785', '#ff7e33', '#00d063', '#1ea7fd'] });
+        }
 
-        setTimeout(() => {
+        this.winTimeout = setTimeout(() => {
             document.getElementById('win-modal').classList.remove('hidden');
-        }, 500);
+            this.winTimeout = null;
+        }, 450);
     },
 
     updateTimer: function () {
@@ -952,16 +1084,8 @@ const app = {
 
     restartGame: function () {
         document.getElementById('win-modal').classList.add('hidden');
-        clearInterval(this.gameState.timerInterval);
+        this.clearPendingTimers();
         this.startGame();
-    },
-
-    showConsole: function () {
-        document.getElementById('win-modal').classList.add('hidden');
-        document.getElementById('game-screen').classList.add('hidden');
-        document.getElementById('teacher-console').classList.remove('hidden');
-        document.getElementById('teacher-mode-btn').classList.remove('invisible');
-        clearInterval(this.gameState.timerInterval);
     },
 
     toast: function (msg, type = 'info') {
@@ -969,12 +1093,11 @@ const app = {
         const txt = document.getElementById('toast-msg');
         if (!el || !txt) return;
         const container = el.querySelector('.flex.items-center.gap-3');
+        if (!container) return;
 
-        // Remove existing icon (i or svg replaced by Lucide)
         const oldIcon = container.querySelector('i, svg');
         if (oldIcon && oldIcon !== txt) oldIcon.remove();
 
-        // Create new i tag for Lucide
         const icon = document.createElement('i');
         txt.innerText = msg;
 
@@ -992,8 +1115,12 @@ const app = {
         container.prepend(icon);
         lucide.createIcons();
 
+        if (this.toastTimeout) clearTimeout(this.toastTimeout);
         el.classList.remove('opacity-0', 'translate-y-24');
-        setTimeout(() => el.classList.add('opacity-0', 'translate-y-24'), 3000);
+        this.toastTimeout = setTimeout(() => {
+            el.classList.add('opacity-0', 'translate-y-24');
+            this.toastTimeout = null;
+        }, 3000);
     }
 };
 

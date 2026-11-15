@@ -12,8 +12,70 @@
     <link rel="icon" type="image/x-icon" href="../../../media/icon.ico" />
     <link rel="icon" type="image/webp" href="../../../media/icon.webp" />
 
+    <!-- Early Theme Init (prevents flash of light mode) -->
+    <script>
+        (function () {
+            const saved = localStorage.getItem('theme_card-match');
+            const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+            if (saved === 'dark' || (!saved && prefersDark)) {
+                document.documentElement.classList.add('dark');
+            }
+        })();
+    </script>
+
     <!-- External Libraries -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        pink: '#ff4785',
+                        orange: '#ff7e33',
+                        green: '#00d063',
+                        blue: '#1ea7fd',
+                        dark: '#1e293b',
+                        surface: '#f8fafc',
+                    },
+                    fontFamily: {
+                        heading: ['Fredoka', 'sans-serif'],
+                        body: ['Nunito', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                    boxShadow: {
+                        'hard': '4px 4px 0px 0px #1e293b',
+                        'hard-lg': '8px 8px 0px 0px #1e293b',
+                        'hard-sm': '2px 2px 0px 0px #1e293b',
+                    },
+                    animation: {
+                        'pop': 'pop 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards',
+                        'slide-up': 'slideUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards',
+                        'fade-in': 'fadeIn 0.5s ease-out forwards',
+                        'bounce-slight': 'bounceSlight 2s infinite',
+                    },
+                    keyframes: {
+                        pop: {
+                            '0%': { transform: 'scale(0.95)', opacity: '0' },
+                            '100%': { transform: 'scale(1)', opacity: '1' }
+                        },
+                        slideUp: {
+                            '0%': { transform: 'translateY(20px)', opacity: '0' },
+                            '100%': { transform: 'translateY(0)', opacity: '1' }
+                        },
+                        fadeIn: {
+                            '0%': { opacity: '0' },
+                            '100%': { opacity: '1' }
+                        },
+                        bounceSlight: {
+                            '0%, 100%': { transform: 'translateY(0)' },
+                            '50%': { transform: 'translateY(-5px)' }
+                        }
+                    }
+                }
+            }
+        };
+    </script>
     <script src="https://unpkg.com/lucide@1.16.0"></script>
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
 
@@ -24,48 +86,63 @@
         href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Nunito:wght@400;600;700;800&family=JetBrains+Mono:wght@500&display=swap"
         rel="stylesheet">
 
-    <!-- Styles -->
-    <link rel="stylesheet" href="style.css">
+    <!-- Global & Local Styles -->
     <link rel="stylesheet" href="../../../css/base.css" />
     <link rel="stylesheet" href="../../../css/components.css" />
+    <link rel="stylesheet" href="style.css">
 
 </head>
 
-<body class="min-h-screen overflow-x-hidden">
+<body class="min-h-screen flex flex-col font-body text-dark dark:text-white overflow-x-hidden transition-colors duration-300">
 
-    <!-- MAIN CONTAINER -->
-    <main class="main-content">
-
-        <!-- Navbar / Header -->
-        <header class="w-full flex justify-between items-center mb-12 animate-fade-in px-2">
-            <div class="flex items-center gap-4">
+    <!-- Top Glassmorphic Header -->
+    <header class="sticky top-0 z-40 glass-panel border-b-4 border-dark dark:border-slate-500 px-4 py-2.5">
+        <div class="max-w-6xl mx-auto flex justify-between items-center gap-3">
+            <div class="flex items-center gap-3">
                 <div
-                    class="w-12 h-12 bg-orange border-3 border-dark rounded-xl shadow-hard-sm flex items-center justify-center rotate-3">
-                    <i data-lucide="brain-circuit" class="text-white w-7 h-7"></i>
+                    class="w-10 h-10 bg-orange border-3 border-dark dark:border-slate-500 rounded-xl shadow-hard-sm flex items-center justify-center rotate-3 shrink-0">
+                    <i data-lucide="brain-circuit" class="text-white w-6 h-6"></i>
                 </div>
                 <div>
-                    <h1 class="font-heading text-3xl text-dark leading-none tracking-tighter">CARD MATCH</h1>
-                    <p class="text-[10px] font-black text-slate-400 tracking-[0.3em] uppercase">KlassKit Studio</p>
+                    <h1 class="font-heading text-xl sm:text-2xl font-bold text-dark dark:text-white leading-none tracking-tight uppercase">CARD MATCH</h1>
+                    <p class="text-[10px] font-black text-slate-400 dark:text-slate-400 tracking-[0.25em] uppercase mt-0.5">KlassKit Studio</p>
                 </div>
             </div>
 
-            <button id="teacher-mode-btn"
-                class="btn-brutal px-5 py-2.5 bg-white text-dark rounded-xl text-sm flex items-center gap-2 invisible">
-                <i data-lucide="settings" class="w-4 h-4"></i>
-                <span class="hidden sm:inline">Setup</span>
-            </button>
-        </header>
+            <div class="flex items-center gap-2">
+                <button id="sound-toggle-btn" onclick="app.toggleSound()" type="button"
+                    class="btn-brutal w-10 h-10 bg-white dark:bg-slate-800 text-dark dark:text-white rounded-xl flex items-center justify-center"
+                    title="Toggle Sound" aria-label="Toggle Sound" aria-pressed="true">
+                    <i data-lucide="volume-2" class="w-5 h-5" id="sound-icon"></i>
+                </button>
+                <button id="theme-toggle-btn" onclick="app.toggleTheme()" type="button"
+                    class="btn-brutal w-10 h-10 bg-white dark:bg-slate-800 text-dark dark:text-white rounded-xl flex items-center justify-center"
+                    title="Toggle Dark Mode" aria-label="Toggle Dark Mode">
+                    <i data-lucide="moon" class="w-5 h-5 dark:hidden"></i>
+                    <i data-lucide="sun" class="w-5 h-5 hidden dark:block text-orange"></i>
+                </button>
+                <button id="teacher-mode-btn" type="button"
+                    class="btn-brutal px-4 py-2 bg-white dark:bg-slate-800 text-dark dark:text-white rounded-xl text-sm flex items-center gap-2 hidden">
+                    <i data-lucide="settings" class="w-4 h-4"></i>
+                    <span class="hidden sm:inline">Setup</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- MAIN CONTAINER -->
+    <main class="main-content flex-1 flex flex-col justify-center">
 
         <!-- 0. MODE SELECTION SCREEN -->
-        <div id="mode-selection" class="w-full max-w-5xl mx-auto py-6 sm:py-12 px-4">
-            <div class="text-center mb-12 animate-fade-in">
-                <div class="inline-flex items-center gap-2 bg-blue/10 text-blue px-3 py-1 rounded-full border-2 border-blue/20 mb-4">
+        <div id="mode-selection" class="w-full max-w-5xl mx-auto py-2 sm:py-4 px-2">
+            <div class="text-center mb-5 sm:mb-7 animate-fade-in">
+                <div class="inline-flex items-center gap-2 bg-blue/10 dark:bg-blue/20 text-blue px-3 py-1 rounded-full border-2 border-blue/30 mb-3">
                     <i data-lucide="sparkles" class="w-3.5 h-3.5"></i>
                     <span class="text-[10px] font-black uppercase tracking-[0.2em]">Learning Tool</span>
                 </div>
-                <h2 class="font-heading text-4xl sm:text-5xl lg:text-6xl text-dark mb-4 uppercase tracking-tighter leading-[1.1]">CHOOSE YOUR<br><span class="text-blue">MATCH MODE</span></h2>
-                <p class="font-body text-base sm:text-lg font-bold text-slate-500 max-w-3xl mx-auto leading-relaxed mb-6 px-4">
-                    Master any subject with interactive memory cards! Card Match uses active recall to help you practice vocabulary, definitions, and visual recognition.
+                <h2 class="font-heading text-3xl sm:text-4xl lg:text-5xl font-bold text-dark dark:text-white mb-2.5 uppercase tracking-tight leading-[1.1]">CHOOSE YOUR <span class="text-blue">MATCH MODE</span></h2>
+                <p class="font-body text-sm sm:text-base font-bold text-slate-500 dark:text-slate-300 max-w-2xl mx-auto leading-relaxed mb-4 px-2">
+                    Master any subject with interactive memory cards! Practice vocabulary, definitions, and visual recognition.
                 </p>
                 <div class="flex items-center justify-center gap-2">
                     <div class="h-1.5 w-8 bg-pink rounded-full"></div>
@@ -74,62 +151,62 @@
                 </div>
             </div>
 
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 sm:gap-10">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
                 <!-- Mode Card 1: Text-Definition -->
-                <div style="animation-delay: 100ms" class="animate-slide-up opacity-0">
-                    <button onclick="app.selectMode('text-definition')" class="mode-card group w-full bg-white border-4 border-dark rounded-[3rem] p-10 text-left shadow-hard hover:scale-[1.03] active:scale-[0.98] transition-all duration-300">
-                        <div class="flex items-start gap-8">
-                            <div class="w-20 h-20 bg-pink border-4 border-dark rounded-3xl flex items-center justify-center shadow-hard-sm group-hover:rotate-12 transition-transform shrink-0">
-                                <i data-lucide="book-open" class="text-white w-10 h-10"></i>
+                <div style="animation-delay: 80ms" class="animate-slide-up opacity-0">
+                    <button type="button" onclick="app.selectMode('text-definition')" class="mode-card group w-full bg-white/90 dark:bg-slate-800/90 border-4 border-dark dark:border-slate-500 rounded-3xl p-5 sm:p-7 text-left shadow-hard hover:scale-[1.02] active:scale-[0.98] transition-all duration-300">
+                        <div class="flex items-start gap-5">
+                            <div class="w-14 h-14 sm:w-16 sm:h-16 bg-pink border-3 border-dark dark:border-slate-500 rounded-2xl flex items-center justify-center shadow-hard-sm group-hover:rotate-12 transition-transform shrink-0">
+                                <i data-lucide="book-open" class="text-white w-7 h-7 sm:w-8 sm:h-8"></i>
                             </div>
-                            <div class="pt-2">
-                                <h3 class="font-heading text-3xl text-dark mb-3 group-hover:text-pink transition-colors">TERM & DEFINITION</h3>
-                                <p class="text-base font-bold text-slate-400 leading-relaxed group-hover:text-slate-600 transition-colors">Perfect for vocabulary, concepts, or foreign language translations.</p>
+                            <div class="pt-0.5">
+                                <h3 class="font-heading text-xl sm:text-2xl font-bold text-dark dark:text-white mb-1.5 group-hover:text-pink transition-colors uppercase">TERM &amp; DEFINITION</h3>
+                                <p class="text-sm sm:text-base font-bold text-slate-500 dark:text-slate-300 leading-relaxed">Perfect for vocabulary, concepts, or foreign language translations.</p>
                             </div>
                         </div>
                     </button>
                 </div>
 
                 <!-- Mode Card 2: Text-Text -->
-                <div style="animation-delay: 200ms" class="animate-slide-up opacity-0">
-                    <button onclick="app.selectMode('text-text')" class="mode-card group w-full bg-white border-4 border-dark rounded-[3rem] p-10 text-left shadow-hard hover:scale-[1.03] active:scale-[0.98] transition-all duration-300">
-                        <div class="flex items-start gap-8">
-                            <div class="w-20 h-20 bg-orange border-4 border-dark rounded-3xl flex items-center justify-center shadow-hard-sm group-hover:-rotate-12 transition-transform shrink-0">
-                                <i data-lucide="type" class="text-white w-10 h-10"></i>
+                <div style="animation-delay: 160ms" class="animate-slide-up opacity-0">
+                    <button type="button" onclick="app.selectMode('text-text')" class="mode-card group w-full bg-white/90 dark:bg-slate-800/90 border-4 border-dark dark:border-slate-500 rounded-3xl p-5 sm:p-7 text-left shadow-hard hover:scale-[1.02] active:scale-[0.98] transition-all duration-300">
+                        <div class="flex items-start gap-5">
+                            <div class="w-14 h-14 sm:w-16 sm:h-16 bg-orange border-3 border-dark dark:border-slate-500 rounded-2xl flex items-center justify-center shadow-hard-sm group-hover:-rotate-12 transition-transform shrink-0">
+                                <i data-lucide="type" class="text-white w-7 h-7 sm:w-8 sm:h-8"></i>
                             </div>
-                            <div class="pt-2">
-                                <h3 class="font-heading text-3xl text-dark mb-3 group-hover:text-orange transition-colors">WORD MATCH</h3>
-                                <p class="text-base font-bold text-slate-400 leading-relaxed group-hover:text-slate-600 transition-colors">Classic memory matching. Find pairs with identical text or symbols.</p>
+                            <div class="pt-0.5">
+                                <h3 class="font-heading text-xl sm:text-2xl font-bold text-dark dark:text-white mb-1.5 group-hover:text-orange transition-colors uppercase">WORD MATCH</h3>
+                                <p class="text-sm sm:text-base font-bold text-slate-500 dark:text-slate-300 leading-relaxed">Classic memory matching. Find pairs with identical text or symbols.</p>
                             </div>
                         </div>
                     </button>
                 </div>
 
                 <!-- Mode Card 3: Text-Img -->
-                <div style="animation-delay: 300ms" class="animate-slide-up opacity-0">
-                    <button onclick="app.selectMode('text-img')" class="mode-card group w-full bg-white border-4 border-dark rounded-[3rem] p-10 text-left shadow-hard hover:scale-[1.03] active:scale-[0.98] transition-all duration-300">
-                        <div class="flex items-start gap-8">
-                            <div class="w-20 h-20 bg-blue border-4 border-dark rounded-3xl flex items-center justify-center shadow-hard-sm group-hover:rotate-12 transition-transform shrink-0">
-                                <i data-lucide="image-plus" class="text-white w-10 h-10"></i>
+                <div style="animation-delay: 240ms" class="animate-slide-up opacity-0">
+                    <button type="button" onclick="app.selectMode('text-img')" class="mode-card group w-full bg-white/90 dark:bg-slate-800/90 border-4 border-dark dark:border-slate-500 rounded-3xl p-5 sm:p-7 text-left shadow-hard hover:scale-[1.02] active:scale-[0.98] transition-all duration-300">
+                        <div class="flex items-start gap-5">
+                            <div class="w-14 h-14 sm:w-16 sm:h-16 bg-blue border-3 border-dark dark:border-slate-500 rounded-2xl flex items-center justify-center shadow-hard-sm group-hover:rotate-12 transition-transform shrink-0">
+                                <i data-lucide="image-plus" class="text-white w-7 h-7 sm:w-8 sm:h-8"></i>
                             </div>
-                            <div class="pt-2">
-                                <h3 class="font-heading text-3xl text-dark mb-3 group-hover:text-blue transition-colors">TEXT TO IMAGE</h3>
-                                <p class="text-base font-bold text-slate-400 leading-relaxed group-hover:text-slate-600 transition-colors">Build visual associations by matching written labels with pictures.</p>
+                            <div class="pt-0.5">
+                                <h3 class="font-heading text-xl sm:text-2xl font-bold text-dark dark:text-white mb-1.5 group-hover:text-blue transition-colors uppercase">TEXT TO IMAGE</h3>
+                                <p class="text-sm sm:text-base font-bold text-slate-500 dark:text-slate-300 leading-relaxed">Build visual associations by matching written labels with pictures.</p>
                             </div>
                         </div>
                     </button>
                 </div>
 
                 <!-- Mode Card 4: Img-Img -->
-                <div style="animation-delay: 400ms" class="animate-slide-up opacity-0">
-                    <button onclick="app.selectMode('img-img')" class="mode-card group w-full bg-white border-4 border-dark rounded-[3rem] p-10 text-left shadow-hard hover:scale-[1.03] active:scale-[0.98] transition-all duration-300">
-                        <div class="flex items-start gap-8">
-                            <div class="w-20 h-20 bg-green border-4 border-dark rounded-3xl flex items-center justify-center shadow-hard-sm group-hover:-rotate-12 transition-transform shrink-0">
-                                <i data-lucide="copy" class="text-white w-10 h-10"></i>
+                <div style="animation-delay: 320ms" class="animate-slide-up opacity-0">
+                    <button type="button" onclick="app.selectMode('img-img')" class="mode-card group w-full bg-white/90 dark:bg-slate-800/90 border-4 border-dark dark:border-slate-500 rounded-3xl p-5 sm:p-7 text-left shadow-hard hover:scale-[1.02] active:scale-[0.98] transition-all duration-300">
+                        <div class="flex items-start gap-5">
+                            <div class="w-14 h-14 sm:w-16 sm:h-16 bg-green border-3 border-dark dark:border-slate-500 rounded-2xl flex items-center justify-center shadow-hard-sm group-hover:-rotate-12 transition-transform shrink-0">
+                                <i data-lucide="copy" class="text-white w-7 h-7 sm:w-8 sm:h-8"></i>
                             </div>
-                            <div class="pt-2">
-                                <h3 class="font-heading text-3xl text-dark mb-3 group-hover:text-green transition-colors">IMAGE MATCHING</h3>
-                                <p class="text-base font-bold text-slate-400 leading-relaxed group-hover:text-slate-600 transition-colors">Pure visual recognition. Find identical pairs of pictures or icons.</p>
+                            <div class="pt-0.5">
+                                <h3 class="font-heading text-xl sm:text-2xl font-bold text-dark dark:text-white mb-1.5 group-hover:text-green transition-colors uppercase">IMAGE MATCHING</h3>
+                                <p class="text-sm sm:text-base font-bold text-slate-500 dark:text-slate-300 leading-relaxed">Pure visual recognition. Find identical pairs of pictures or icons.</p>
                             </div>
                         </div>
                     </button>
@@ -139,97 +216,99 @@
 
         <!-- 1. TEACHER CONSOLE (SETUP) -->
         <div id="teacher-console" class="card-panel p-4 sm:p-6 animate-pop hidden">
-            
+
             <!-- Compact Header Bar -->
-            <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8 bg-slate-50 p-4 rounded-2xl border-2 border-slate-200">
-                <div class="flex items-center gap-3 flex-grow">
-                    <button onclick="app.showModeSelection()" class="btn-brutal p-2 bg-white rounded-lg hover:bg-slate-100" title="Change Mode">
+            <div class="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-5 bg-slate-50 dark:bg-slate-900/70 p-3.5 rounded-2xl border-2 border-slate-200 dark:border-slate-600">
+                <div class="flex items-center gap-3 flex-grow min-w-0">
+                    <button type="button" onclick="app.showModeSelection()" class="btn-brutal p-2 bg-white dark:bg-slate-800 text-dark dark:text-white rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 shrink-0" title="Change Mode" aria-label="Change Mode">
                         <i data-lucide="arrow-left" class="w-4 h-4"></i>
                     </button>
-                    <div class="flex-grow">
-                        <input type="text" id="presetTitleInput" class="bg-transparent border-none focus:ring-0 w-full font-heading text-xl text-dark p-0 placeholder:text-slate-300" placeholder="Deck Name..." onblur="app.updatePresetTitle()">
+                    <div class="flex-grow min-w-0">
+                        <input type="text" id="presetTitleInput" aria-label="Deck Name" class="bg-transparent border-none focus:ring-0 w-full font-heading font-bold text-xl text-dark dark:text-white p-0 placeholder:text-slate-300 dark:placeholder:text-slate-500" placeholder="Deck Name..." onblur="app.updatePresetTitle()">
                     </div>
                 </div>
-                
-                <div class="flex items-center gap-2">
-                    <select id="presetSelect" class="input-brutal px-3 py-2 text-xs font-bold text-dark bg-white rounded-lg outline-none min-w-[120px]">
+
+                <div class="flex items-center gap-2 flex-wrap">
+                    <select id="presetSelect" aria-label="Select Preset" class="input-brutal px-3 py-2 text-xs font-bold text-dark dark:text-white bg-white dark:bg-slate-800 rounded-lg outline-none min-w-[140px]">
                         <!-- Options generated by JS -->
                     </select>
                     <div class="flex gap-2">
-                        <button id="save-deck-btn" onclick="app.saveCurrentDeck()" class="btn-brutal bg-blue text-white px-3 py-2 rounded-lg text-xs font-bold flex items-center gap-2">
+                        <button type="button" id="save-deck-btn" onclick="app.saveCurrentDeck()" class="btn-brutal bg-blue text-white px-3 py-2 rounded-lg text-xs font-bold flex items-center gap-1.5">
                             <i data-lucide="save" class="w-4 h-4"></i> Save
                         </button>
-                        <button onclick="app.createNewPreset()" class="btn-brutal bg-green p-2 rounded-lg" title="New Preset">
+                        <button type="button" onclick="app.createNewPreset()" class="btn-brutal bg-green text-dark p-2 rounded-lg" title="New Preset" aria-label="New Preset">
                             <i data-lucide="plus" class="w-4 h-4 text-dark"></i>
                         </button>
-                        <button onclick="app.deleteCurrentPreset()" class="btn-brutal bg-pink p-2 rounded-lg" title="Delete Preset">
+                        <button type="button" onclick="app.deleteCurrentPreset()" class="btn-brutal bg-pink text-white p-2 rounded-lg" title="Delete Preset" aria-label="Delete Preset">
                             <i data-lucide="trash-2" class="w-4 h-4 text-white"></i>
                         </button>
                     </div>
                 </div>
             </div>
 
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-10">
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <!-- Left: Input Methods (Tabs) -->
-                <div class="space-y-6">
+                <div class="space-y-4">
 
-                    <!-- Tabs Header - ENLARGED -->
-                    <div class="flex border-b-4 border-slate-100 gap-4 overflow-x-auto pb-0">
-                        <button class="tab-btn active text-lg pb-3" onclick="app.switchTab('text')">Text</button>
-                        <button class="tab-btn text-lg pb-3" onclick="app.switchTab('mixed')">Mixed</button>
-                        <button class="tab-btn text-lg pb-3" onclick="app.switchTab('image')">Images</button>
+                    <!-- Tabs Header -->
+                    <div class="flex border-b-4 border-slate-100 dark:border-slate-700 gap-4 overflow-x-auto pb-0">
+                        <button type="button" class="tab-btn active text-base pb-2.5" onclick="app.switchTab('text')">Text</button>
+                        <button type="button" class="tab-btn text-base pb-2.5" onclick="app.switchTab('mixed')">Mixed</button>
+                        <button type="button" class="tab-btn text-base pb-2.5" onclick="app.switchTab('image')">Images</button>
                     </div>
 
                     <!-- TAB 1: TEXT PAIRS (Default) -->
                     <div id="tab-text" class="tab-content block animate-fade-in">
-                        <div class="bg-slate-50 border-4 border-slate-100 rounded-[2rem] p-8">
-                            <div class="flex items-center justify-between mb-6">
+                        <div class="bg-slate-50 dark:bg-slate-900/60 border-3 border-slate-200 dark:border-slate-600 rounded-3xl p-5 sm:p-6">
+                            <div class="flex items-center justify-between mb-4">
                                 <div class="flex items-center gap-3">
-                                    <div class="bg-pink text-white p-2 rounded-xl border-3 border-dark shadow-hard-sm">
-                                        <i data-lucide="type" class="w-6 h-6"></i>
+                                    <div class="bg-pink text-white p-2 rounded-xl border-3 border-dark dark:border-slate-500 shadow-hard-sm">
+                                        <i data-lucide="type" class="w-5 h-5"></i>
                                     </div>
-                                    <h3 class="font-heading text-xl text-dark">Add Word Pairs</h3>
+                                    <h3 class="font-heading text-lg font-bold text-dark dark:text-white">Add Word Pairs</h3>
                                 </div>
                             </div>
 
                             <!-- TOGGLE SWITCH -->
-                            <div class="mb-6 bg-white p-4 rounded-2xl border-3 border-dark shadow-hard-sm">
-                                <label class="flex items-center cursor-pointer gap-4">
+                            <div class="mb-4 bg-white dark:bg-slate-800 p-3 rounded-2xl border-3 border-dark dark:border-slate-500 shadow-hard-sm">
+                                <label class="flex items-center cursor-pointer gap-3">
                                     <div class="relative">
                                         <input type="checkbox" id="single-word-mode" class="sr-only peer" onchange="app.toggleInputMode()">
-                                        <div class="w-12 h-7 bg-slate-200 peer-focus:outline-none rounded-full border-3 border-dark peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[4px] after:left-[4px] after:bg-white after:border-dark after:border-2 after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue"></div>
+                                        <div class="w-12 h-7 bg-slate-200 dark:bg-slate-700 peer-focus:outline-none rounded-full border-3 border-dark dark:border-slate-500 peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[4px] after:left-[4px] after:bg-white after:border-dark after:border-2 after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue"></div>
                                     </div>
-                                    <span class="text-sm font-bold text-dark select-none">Same Word Match (A ↔ A)</span>
+                                    <span class="text-sm font-bold text-dark dark:text-white select-none">Same Word Match (A ↔ A)</span>
                                 </label>
                             </div>
 
-                            <p id="text-input-helper" class="text-sm font-bold text-slate-500 mb-3">Format: <code>Word, Definition</code></p>
-                            <textarea id="simple-input" rows="6" class="input-brutal w-full rounded-2xl p-5 font-mono text-base mb-4 placeholder:text-slate-300" placeholder="Apple, Fruit&#10;Sun, Star"></textarea>
-                            <button onclick="app.addTextPairs()" class="btn-brutal bg-blue text-white w-full py-4 rounded-2xl text-lg font-heading uppercase tracking-wider hover:scale-[1.02] transition-transform">
+                            <p id="text-input-helper" class="text-xs font-bold text-slate-500 dark:text-slate-300 mb-2">Format: <code>Word, Definition</code></p>
+                            <textarea id="simple-input" rows="5" class="input-brutal w-full rounded-2xl p-4 font-mono text-sm mb-3 bg-white dark:bg-slate-800 text-dark dark:text-white placeholder:text-slate-300 dark:placeholder:text-slate-500 resize-none" placeholder="Apple, Fruit&#10;Sun, Star"></textarea>
+                            <button type="button" onclick="app.addTextPairs()" class="btn-brutal bg-blue text-white w-full py-3 rounded-2xl text-base font-heading uppercase tracking-wider">
                                 Add to Deck
                             </button>
                         </div>
-                    </div>                    <!-- TAB 2: MIXED (Text - Image) -->
+                    </div>
+
+                    <!-- TAB 2: MIXED (Text - Image) -->
                     <div id="tab-mixed" class="tab-content hidden animate-fade-in">
-                        <div class="bg-slate-50 border-4 border-slate-100 rounded-[2rem] p-8">
-                            <div class="flex items-center gap-3 mb-6">
-                                <div class="bg-blue text-white p-2 rounded-xl border-3 border-dark shadow-hard-sm">
-                                    <i data-lucide="image-plus" class="w-6 h-6"></i>
+                        <div class="bg-slate-50 dark:bg-slate-900/60 border-3 border-slate-200 dark:border-slate-600 rounded-3xl p-5 sm:p-6">
+                            <div class="flex items-center gap-3 mb-4">
+                                <div class="bg-blue text-white p-2 rounded-xl border-3 border-dark dark:border-slate-500 shadow-hard-sm">
+                                    <i data-lucide="image-plus" class="w-5 h-5"></i>
                                 </div>
-                                <h3 class="font-heading text-xl text-dark">Text ↔ Image</h3>
+                                <h3 class="font-heading text-lg font-bold text-dark dark:text-white">Text ↔ Image</h3>
                             </div>
 
-                            <div class="space-y-6">
+                            <div class="space-y-4">
                                 <div>
-                                    <label class="block text-sm font-bold text-slate-500 mb-2">Word or Label</label>
-                                    <input type="text" id="mixed-text" class="input-brutal w-full rounded-xl p-4 text-lg" placeholder="e.g., Lion">
+                                    <label class="block text-xs font-bold text-slate-500 dark:text-slate-300 mb-1.5 uppercase tracking-wider">Word or Label</label>
+                                    <input type="text" id="mixed-text" class="input-brutal w-full rounded-xl p-3 text-base bg-white dark:bg-slate-800 text-dark dark:text-white" placeholder="e.g., Lion">
                                 </div>
-                                <div id="mixed-drop" class="drag-zone bg-white rounded-2xl p-10 text-center border-4 border-dashed border-slate-200 hover:border-blue transition-colors cursor-pointer group">
-                                    <i data-lucide="upload-cloud" class="w-12 h-12 text-slate-300 mx-auto mb-3 group-hover:text-blue group-hover:scale-110 transition-transform"></i>
-                                    <p class="text-base font-bold text-slate-400">Click or drag image here</p>
+                                <div id="mixed-drop" class="drag-zone bg-white dark:bg-slate-800 rounded-2xl p-6 text-center border-3 border-dashed border-slate-300 dark:border-slate-500 hover:border-blue transition-colors cursor-pointer group">
+                                    <i data-lucide="upload-cloud" class="w-10 h-10 text-slate-300 dark:text-slate-500 mx-auto mb-2 group-hover:text-blue group-hover:scale-110 transition-transform"></i>
+                                    <p class="text-sm font-bold text-slate-400 dark:text-slate-300">Click or drag image here</p>
                                     <input type="file" id="mixed-file" class="hidden" accept="image/*">
                                 </div>
-                                <button onclick="app.addMixedPair()" class="btn-brutal bg-blue text-white w-full py-4 rounded-2xl text-lg font-heading uppercase tracking-wider hover:scale-[1.02] transition-transform">
+                                <button type="button" onclick="app.addMixedPair()" class="btn-brutal bg-blue text-white w-full py-3 rounded-2xl text-base font-heading uppercase tracking-wider">
                                     Add Pair
                                 </button>
                             </div>
@@ -238,27 +317,27 @@
 
                     <!-- TAB 3: IMAGES ONLY -->
                     <div id="tab-image" class="tab-content hidden animate-fade-in">
-                        <div class="bg-slate-50 border-4 border-slate-100 rounded-[2rem] p-8">
-                            <div class="flex items-center gap-3 mb-6">
-                                <div class="bg-green text-white p-2 rounded-xl border-3 border-dark shadow-hard-sm">
-                                    <i data-lucide="images" class="w-6 h-6 text-dark"></i>
+                        <div class="bg-slate-50 dark:bg-slate-900/60 border-3 border-slate-200 dark:border-slate-600 rounded-3xl p-5 sm:p-6">
+                            <div class="flex items-center gap-3 mb-4">
+                                <div class="bg-green text-dark p-2 rounded-xl border-3 border-dark dark:border-slate-500 shadow-hard-sm">
+                                    <i data-lucide="images" class="w-5 h-5 text-dark"></i>
                                 </div>
-                                <h3 class="font-heading text-xl text-dark">Image ↔ Image</h3>
+                                <h3 class="font-heading text-lg font-bold text-dark dark:text-white">Image ↔ Image</h3>
                             </div>
 
-                            <div class="grid grid-cols-2 gap-4 mb-6">
-                                <div id="img1-drop" class="drag-zone bg-white rounded-2xl p-6 text-center border-4 border-dashed border-slate-200 hover:border-green transition-colors cursor-pointer">
-                                    <i data-lucide="image" class="w-8 h-8 text-slate-300 mx-auto mb-2"></i>
-                                    <p class="text-xs font-bold text-slate-400">Card 1</p>
+                            <div class="grid grid-cols-2 gap-4 mb-4">
+                                <div id="img1-drop" class="drag-zone bg-white dark:bg-slate-800 rounded-2xl p-5 text-center border-3 border-dashed border-slate-300 dark:border-slate-500 hover:border-green transition-colors cursor-pointer">
+                                    <i data-lucide="image" class="w-8 h-8 text-slate-300 dark:text-slate-500 mx-auto mb-2"></i>
+                                    <p class="text-xs font-bold text-slate-400 dark:text-slate-300">Card 1</p>
                                     <input type="file" id="img1-file" class="hidden" accept="image/*">
                                 </div>
-                                <div id="img2-drop" class="drag-zone bg-white rounded-2xl p-6 text-center border-4 border-dashed border-slate-200 hover:border-green transition-colors cursor-pointer">
-                                    <i data-lucide="image" class="w-8 h-8 text-slate-300 mx-auto mb-2"></i>
-                                    <p class="text-xs font-bold text-slate-400">Card 2</p>
+                                <div id="img2-drop" class="drag-zone bg-white dark:bg-slate-800 rounded-2xl p-5 text-center border-3 border-dashed border-slate-300 dark:border-slate-500 hover:border-green transition-colors cursor-pointer">
+                                    <i data-lucide="image" class="w-8 h-8 text-slate-300 dark:text-slate-500 mx-auto mb-2"></i>
+                                    <p class="text-xs font-bold text-slate-400 dark:text-slate-300">Card 2</p>
                                     <input type="file" id="img2-file" class="hidden" accept="image/*">
                                 </div>
                             </div>
-                            <button onclick="app.addImagePair()" class="btn-brutal bg-green text-dark w-full py-4 rounded-2xl text-lg font-heading uppercase tracking-wider hover:scale-[1.02] transition-transform">
+                            <button type="button" onclick="app.addImagePair()" class="btn-brutal bg-green text-dark w-full py-3 rounded-2xl text-base font-heading uppercase tracking-wider">
                                 Add Image Pair
                             </button>
                         </div>
@@ -267,65 +346,70 @@
 
                 <!-- Right: Active Pairs List -->
                 <div class="flex flex-col h-full">
-                    <div class="flex justify-between items-center mb-6">
-                        <div class="flex items-center gap-3">
-                            <div class="bg-dark text-white p-2 rounded-xl">
-                                <i data-lucide="layers" class="w-5 h-5"></i>
+                    <div class="flex justify-between items-center mb-3 gap-2">
+                        <div class="flex items-center gap-2.5">
+                            <div class="bg-dark dark:bg-slate-700 text-white p-2 rounded-xl border-2 border-dark dark:border-slate-500">
+                                <i data-lucide="layers" class="w-4 h-4"></i>
                             </div>
-                            <h3 class="font-heading text-xl text-dark">Active Deck</h3>
-                            <span id="pair-count" class="bg-blue text-white text-xs px-3 py-1 rounded-full font-black border-2 border-dark">0</span>
+                            <h3 class="font-heading text-lg font-bold text-dark dark:text-white">Active Deck</h3>
+                            <span id="pair-count" class="bg-blue text-white text-xs px-2.5 py-0.5 rounded-full font-black border-2 border-dark dark:border-slate-500">0</span>
                         </div>
-                        <button onclick="app.clearPairs()" class="text-xs font-black text-pink hover:bg-pink/10 px-3 py-1.5 rounded-lg transition-colors uppercase tracking-wider">
-                            Clear All
-                        </button>
+                        <div class="flex items-center gap-2">
+                            <button type="button" onclick="app.dedupePairs()" class="text-xs font-heading font-bold text-slate-600 dark:text-slate-200 bg-slate-100 dark:bg-slate-700 hover:bg-orange hover:text-white px-2.5 py-1 rounded-lg border-2 border-dark/20 dark:border-slate-500 transition-colors uppercase tracking-wider" title="Remove duplicate pairs">
+                                Dedupe
+                            </button>
+                            <button type="button" onclick="app.clearPairs()" class="text-xs font-black text-pink hover:bg-pink/10 px-2.5 py-1 rounded-lg transition-colors uppercase tracking-wider">
+                                Clear All
+                            </button>
+                        </div>
                     </div>
 
-                    <div class="flex-1 bg-white border-4 border-dark rounded-[2rem] p-6 overflow-y-auto max-h-[500px] shadow-inner-brutal" id="pairs-list">
+                    <div class="flex-1 bg-slate-50 dark:bg-slate-900/70 border-3 border-dark dark:border-slate-500 rounded-3xl p-4 overflow-y-auto max-h-[300px] lg:max-h-[340px] custom-scrollbar shadow-inner-brutal" id="pairs-list">
                         <!-- Pair Items will be injected here -->
                     </div>
 
-                    <!-- Play Button - MASSIVE -->
-                    <button id="start-game-btn" onclick="app.startGame()"
-                        class="btn-brutal w-full bg-green text-dark py-6 rounded-[2rem] mt-8 text-2xl font-heading uppercase tracking-widest flex items-center justify-center gap-4 disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-slate-200">
-                        START GAME <i data-lucide="play" class="w-8 h-8 fill-dark"></i>
+                    <!-- Play Button -->
+                    <button id="start-game-btn" type="button" onclick="app.startGame()"
+                        class="btn-brutal w-full bg-green text-dark py-4 rounded-2xl mt-4 text-xl font-heading font-bold uppercase tracking-widest flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-slate-200 dark:disabled:bg-slate-700 dark:disabled:text-slate-400">
+                        START GAME <i data-lucide="play" class="w-6 h-6 fill-dark"></i>
                     </button>
                 </div>
             </div>
         </div>
 
         <!-- 2. GAME BOARD (PLAY) -->
-        <div id="game-screen" class="hidden">
+        <div id="game-screen" class="hidden w-full">
             <!-- Dynamic Stats Bar -->
-            <div class="flex flex-wrap justify-between items-center mb-10 bg-white/80 backdrop-blur-md border-4 border-dark p-3 sm:p-5 rounded-[2rem] shadow-hard-lg">
-                <div class="flex items-center gap-6 sm:gap-10 px-2">
-                    <div class="flex items-center gap-3">
-                        <div class="w-10 h-10 bg-blue/10 text-blue rounded-xl flex items-center justify-center border-2 border-blue/20">
-                            <i data-lucide="timer" class="w-5 h-5"></i>
+            <div class="flex flex-wrap justify-between items-center mb-4 bg-white/85 dark:bg-slate-800/85 backdrop-blur-md border-4 border-dark dark:border-slate-500 p-2.5 sm:p-3.5 rounded-2xl shadow-hard">
+                <div class="flex items-center gap-5 sm:gap-8 px-2">
+                    <div class="flex items-center gap-2.5">
+                        <div class="w-9 h-9 bg-blue/10 dark:bg-blue/20 text-blue rounded-xl flex items-center justify-center border-2 border-blue/30">
+                            <i data-lucide="timer" class="w-4 h-4"></i>
                         </div>
                         <div>
-                            <span class="block text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Time</span>
-                            <div id="timer" class="font-heading text-2xl text-dark leading-none">00:00</div>
+                            <span class="block text-[10px] font-black text-slate-400 dark:text-slate-400 uppercase tracking-widest leading-none mb-0.5">Time</span>
+                            <div id="timer" class="font-heading text-xl font-bold text-dark dark:text-white leading-none">00:00</div>
                         </div>
                     </div>
-                    <div class="flex items-center gap-3 border-l-2 border-slate-100 pl-6 sm:pl-10">
-                        <div class="w-10 h-10 bg-pink/10 text-pink rounded-xl flex items-center justify-center border-2 border-pink/20">
-                            <i data-lucide="mouse-pointer-click" class="w-5 h-5"></i>
+                    <div class="flex items-center gap-2.5 border-l-2 border-slate-200 dark:border-slate-600 pl-5 sm:pl-8">
+                        <div class="w-9 h-9 bg-pink/10 dark:bg-pink/20 text-pink rounded-xl flex items-center justify-center border-2 border-pink/30">
+                            <i data-lucide="mouse-pointer-click" class="w-4 h-4"></i>
                         </div>
                         <div>
-                            <span class="block text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Moves</span>
-                            <div id="moves" class="font-heading text-2xl text-dark leading-none">0</div>
+                            <span class="block text-[10px] font-black text-slate-400 dark:text-slate-400 uppercase tracking-widest leading-none mb-0.5">Moves</span>
+                            <div id="moves" class="font-heading text-xl font-bold text-dark dark:text-white leading-none">0</div>
                         </div>
                     </div>
                 </div>
-                
-                <div class="flex gap-3 mt-4 sm:mt-0 w-full sm:w-auto justify-end px-2">
-                    <button id="restart-btn" class="btn-brutal bg-orange text-white p-3 rounded-xl flex items-center gap-2 font-bold text-sm" title="Restart">
-                        <i data-lucide="rotate-ccw" class="w-5 h-5"></i>
-                        <span class="hidden lg:inline">RESTART</span>
+
+                <div class="flex gap-2.5 mt-2 sm:mt-0 w-full sm:w-auto justify-end px-1">
+                    <button id="restart-btn" type="button" class="btn-brutal bg-orange text-white px-3.5 py-2 rounded-xl flex items-center gap-2 font-bold text-xs sm:text-sm" title="Restart (R)" aria-label="Restart Game">
+                        <i data-lucide="rotate-ccw" class="w-4 h-4"></i>
+                        <span class="hidden sm:inline">RESTART</span>
                     </button>
-                    <button onclick="app.showConsole()" class="btn-brutal bg-slate-100 text-dark p-3 rounded-xl flex items-center gap-2 font-bold text-sm" title="Exit to Setup">
-                        <i data-lucide="log-out" class="w-5 h-5"></i>
-                        <span class="hidden lg:inline">EXIT</span>
+                    <button type="button" onclick="app.showConsole()" class="btn-brutal bg-slate-100 dark:bg-slate-700 text-dark dark:text-white px-3.5 py-2 rounded-xl flex items-center gap-2 font-bold text-xs sm:text-sm" title="Exit to Setup" aria-label="Exit to Setup">
+                        <i data-lucide="log-out" class="w-4 h-4"></i>
+                        <span class="hidden sm:inline">EXIT</span>
                     </button>
                 </div>
             </div>
@@ -341,34 +425,34 @@
         <div id="win-modal"
             class="fixed inset-0 bg-dark/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
             <div
-                class="bg-white border-4 border-dark rounded-2xl p-8 max-w-sm w-full text-center shadow-hard animate-pop relative overflow-hidden">
+                class="bg-white dark:bg-slate-800 border-4 border-dark dark:border-slate-500 rounded-2xl p-7 max-w-sm w-full text-center shadow-hard animate-pop relative overflow-hidden">
                 <!-- Decorative Top Bar -->
                 <div class="absolute top-0 left-0 w-full h-3 bg-gradient-to-r from-pink via-orange to-green"></div>
 
                 <div
-                    class="w-20 h-20 bg-yellow-300 border-3 border-dark rounded-full flex items-center justify-center mx-auto mb-6 shadow-hard-sm">
+                    class="w-18 h-18 w-20 h-20 bg-yellow-300 border-3 border-dark rounded-full flex items-center justify-center mx-auto mb-5 shadow-hard-sm">
                     <i data-lucide="trophy" class="w-10 h-10 text-dark"></i>
                 </div>
 
-                <h2 class="font-heading text-3xl text-dark mb-2">YOU WON!</h2>
-                <p class="text-slate-500 font-bold mb-6 text-sm">Amazing memory skills!</p>
+                <h2 class="font-heading text-3xl font-bold text-dark dark:text-white mb-1.5 uppercase">YOU WON!</h2>
+                <p class="text-slate-500 dark:text-slate-300 font-bold mb-5 text-sm">Amazing memory skills!</p>
 
                 <div class="grid grid-cols-2 gap-3 mb-6">
-                    <div class="bg-slate-100 p-3 rounded-lg border-2 border-slate-200">
-                        <div class="text-[10px] uppercase font-bold text-slate-400">Time</div>
+                    <div class="bg-slate-100 dark:bg-slate-700 p-3 rounded-xl border-2 border-slate-200 dark:border-slate-600">
+                        <div class="text-[10px] uppercase font-bold text-slate-400 dark:text-slate-300">Time</div>
                         <div id="final-time" class="font-mono text-xl font-bold text-blue">00:00</div>
                     </div>
-                    <div class="bg-slate-100 p-3 rounded-lg border-2 border-slate-200">
-                        <div class="text-[10px] uppercase font-bold text-slate-400">Moves</div>
+                    <div class="bg-slate-100 dark:bg-slate-700 p-3 rounded-xl border-2 border-slate-200 dark:border-slate-600">
+                        <div class="text-[10px] uppercase font-bold text-slate-400 dark:text-slate-300">Moves</div>
                         <div id="final-moves" class="font-mono text-xl font-bold text-orange">0</div>
                     </div>
                 </div>
 
                 <div class="flex flex-col gap-3">
-                    <button onclick="app.restartGame()"
-                        class="btn-brutal bg-green text-dark py-3 rounded-xl w-full">Play Again</button>
-                    <button onclick="app.showConsole()"
-                        class="font-bold text-slate-400 text-sm hover:text-dark underline">Back to Setup</button>
+                    <button type="button" onclick="app.restartGame()"
+                        class="btn-brutal bg-green text-dark py-3 rounded-xl w-full text-base">Play Again</button>
+                    <button type="button" onclick="app.showConsole()"
+                        class="font-bold text-slate-400 dark:text-slate-300 text-sm hover:text-dark dark:hover:text-white underline">Back to Setup</button>
                 </div>
             </div>
         </div>
@@ -377,22 +461,22 @@
 
     <!-- Confirm Modal -->
     <div id="confirmModal" class="fixed inset-0 z-[110] flex items-center justify-center bg-dark/50 backdrop-blur-sm hidden opacity-0 transition-opacity duration-300">
-        <div class="bg-white p-8 max-w-sm w-full text-center border-3 border-dark shadow-hard-lg rounded-2xl transform scale-95 transition-transform duration-300 m-4" id="confirmModalContent">
-            <div class="w-20 h-20 bg-pink rounded-full border-4 border-dark mx-auto mb-4 flex items-center justify-center shadow-hard-sm">
-                <i data-lucide="trash-2" class="w-10 h-10 text-dark"></i>
+        <div class="bg-white dark:bg-slate-800 p-7 max-w-sm w-full text-center border-4 border-dark dark:border-slate-500 shadow-hard-lg rounded-2xl transform scale-95 transition-transform duration-300 m-4" id="confirmModalContent">
+            <div class="w-16 h-16 bg-pink rounded-full border-4 border-dark dark:border-slate-500 mx-auto mb-4 flex items-center justify-center shadow-hard-sm">
+                <i data-lucide="trash-2" class="w-8 h-8 text-white"></i>
             </div>
-            <h3 class="font-heading text-2xl font-black mb-2 text-dark">Delete Preset?</h3>
-            <p class="font-body font-bold text-slate-500 mb-6">Are you sure you want to delete this preset? This cannot be undone.</p>
-            <div class="flex gap-4">
-                <button onclick="app.closeConfirmModal(false)" class="btn-brutal flex-1 py-3 bg-slate-200 text-dark rounded-xl">Cancel</button>
-                <button onclick="app.closeConfirmModal(true)" class="btn-brutal flex-1 py-3 bg-pink text-dark rounded-xl">Delete</button>
+            <h3 id="confirmModalTitle" class="font-heading text-2xl font-black mb-2 text-dark dark:text-white">Delete Preset?</h3>
+            <p id="confirmModalMessage" class="font-body font-bold text-slate-500 dark:text-slate-300 mb-6 text-sm">Are you sure you want to delete this preset? This cannot be undone.</p>
+            <div class="flex gap-3">
+                <button type="button" onclick="app.closeConfirmModal(false)" class="btn-brutal flex-1 py-3 bg-slate-200 dark:bg-slate-700 text-dark dark:text-white rounded-xl">Cancel</button>
+                <button type="button" id="confirmModalActionBtn" onclick="app.closeConfirmModal(true)" class="btn-brutal flex-1 py-3 bg-pink text-white rounded-xl">Delete</button>
             </div>
         </div>
     </div>
 
     <!-- Toast Notification -->
-    <div id="toast" class="fixed bottom-6 right-6 transition-all duration-300 transform translate-y-24 opacity-0 z-50">
-        <div class="bg-dark text-white px-5 py-3 rounded-lg shadow-hard border-2 border-white flex items-center gap-3">
+    <div id="toast" class="fixed bottom-6 right-6 transition-all duration-300 transform translate-y-24 opacity-0 z-50 pointer-events-none">
+        <div class="bg-dark dark:bg-slate-800 text-white px-5 py-3 rounded-xl shadow-hard border-2 border-white dark:border-slate-500 flex items-center gap-3">
             <i data-lucide="info" class="w-5 h-5 text-blue"></i>
             <span id="toast-msg" class="font-bold text-sm">Notification</span>
         </div>
