@@ -51,6 +51,9 @@
                         sans: ['Nunito', 'sans-serif'],
                         heading: ['Fredoka', 'sans-serif'],
                     },
+                    borderWidth: {
+                        '3': '3px',
+                    },
                     boxShadow: {
                         'neo': '4px 4px 0px 0px #1e293b',
                         'neo-sm': '2px 2px 0px 0px #1e293b',
@@ -531,6 +534,9 @@
                     if (isSetupOpen || isAlertOpen) return;
 
                     if (e.key === ' ' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+                        if (tag === 'BUTTON' || (e.target && e.target.getAttribute && e.target.getAttribute('role') === 'button')) {
+                            return;
+                        }
                         if (!els.btns.start.classList.contains('hidden')) {
                             e.preventDefault();
                             startMemorization();
@@ -625,7 +631,9 @@
 
             function handleFiles(files) {
                 if (files && files.length > 0) {
-                    Array.from(files).forEach(file => {
+                    const fileList = Array.from(files);
+                    if (els.inputs.file) els.inputs.file.value = '';
+                    fileList.forEach(file => {
                         if (!file.type.startsWith('image/')) return;
 
                         const reader = new FileReader();
@@ -711,11 +719,18 @@
                 els.status.textContent = `${state.items.length} items loaded. Press Start!`;
                 els.status.className = "font-sans text-xs sm:text-sm font-extrabold text-brand-orange dark:text-brand-green uppercase tracking-wider truncate mt-0.5";
 
-                saveProgress('card-memory', {
-                    items: state.items,
-                    duration: state.duration,
-                    theme: state.theme
-                });
+                try {
+                    const p = saveProgress('card-memory', {
+                        items: state.items,
+                        duration: state.duration,
+                        theme: state.theme
+                    });
+                    if (p && typeof p.catch === 'function') {
+                        p.catch(err => console.warn('Cloud/local progress save warning:', err));
+                    }
+                } catch (err) {
+                    console.warn('Could not persist card-memory setup locally (quota exceeded?):', err);
+                }
             }
 
             function shuffleItems() {
@@ -744,9 +759,12 @@
                     gridClass += "grid-cols-3 md:grid-cols-4 max-w-5xl";
                 } else if (count <= 10) {
                     gridClass += "grid-cols-3 md:grid-cols-5 max-w-6xl";
-                } else {
+                } else if (count <= 20) {
                     gridClass += "grid-cols-3 md:grid-cols-5 max-w-6xl";
                     cardHeightClass = "h-28 sm:h-32";
+                } else {
+                    gridClass += "grid-cols-3 md:grid-cols-5 lg:grid-cols-6 max-w-6xl";
+                    cardHeightClass = "h-24 sm:h-28";
                 }
 
                 els.grid.className = gridClass;
@@ -781,8 +799,8 @@
                             <div class="absolute inset-0 w-full h-full ${bgClass} rounded-xl backface-hidden flex items-center justify-center z-20 overflow-hidden">
                                 ${content}
                             </div>
-                            <div class="absolute inset-0 w-full h-full bg-brand-dark dark:bg-slate-900 rounded-xl rotate-y-180 backface-hidden flex items-center justify-center z-10 border-[3px] border-white/10">
-                                <span class="font-heading text-5xl text-brand-chalk opacity-25 font-black">?</span>
+                            <div class="absolute inset-0 w-full h-full bg-brand-dark dark:bg-slate-800 rounded-xl rotate-y-180 backface-hidden flex items-center justify-center z-10 border-[3px] border-white/15 dark:border-slate-500/40">
+                                <span class="font-heading text-5xl text-brand-chalk opacity-40 dark:opacity-50 font-black">?</span>
                             </div>
                         </div>
                     `;

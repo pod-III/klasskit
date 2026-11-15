@@ -84,15 +84,64 @@ async function getAllPresets() {
 async function savePresetToDB(preset) {
     const db = await dbPromise;
     if (!db || !preset) return;
-    const tx = db.transaction(STORE_NAME, 'readwrite');
-    tx.objectStore(STORE_NAME).put(preset);
+    return new Promise((resolve) => {
+        const tx = db.transaction(STORE_NAME, 'readwrite');
+        tx.objectStore(STORE_NAME).put(preset);
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => resolve();
+        tx.onabort = () => resolve();
+    });
 }
 
 async function deletePresetFromDB(id) {
     const db = await dbPromise;
     if (!db) return;
-    const tx = db.transaction(STORE_NAME, 'readwrite');
-    tx.objectStore(STORE_NAME).delete(id);
+    return new Promise((resolve) => {
+        const tx = db.transaction(STORE_NAME, 'readwrite');
+        tx.objectStore(STORE_NAME).delete(id);
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => resolve();
+        tx.onabort = () => resolve();
+    });
+}
+
+function mergePresetWithLocalImages(cloudPreset, localPreset) {
+    if (!localPreset) return cloudPreset;
+    const localPairMap = new Map((localPreset.pairs || []).map(p => [p.id, p]));
+    const mergedPairs = (cloudPreset.pairs || []).map(cp => {
+        const lp = localPairMap.get(cp.id);
+        if (!lp) return cp;
+        const fixItem = (cloudItem, localItem) => {
+            if (cloudItem && cloudItem.type === 'image' && !cloudItem.content && localItem && localItem.content) {
+                return { ...cloudItem, content: localItem.content };
+            }
+            return cloudItem;
+        };
+        return {
+            ...cp,
+            item1: fixItem(cp.item1, lp.item1),
+            item2: fixItem(cp.item2, lp.item2)
+        };
+    });
+    return { ...cloudPreset, pairs: mergedPairs };
+}
+
+function generatePairId() {
+    return 'pair_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+}
+
+async function mergeCloudPresets(cloudPresets) {
+    const localPresets = await getAllPresets();
+    const localMap = new Map(localPresets.map(p => [p.id, p]));
+    for (const cp of cloudPresets) {
+        if (!cp || !cp.id) continue;
+        const lp = localMap.get(cp.id);
+        if (!lp) {
+            await savePresetToDB(cp);
+        } else if ((cp.lastAccessed || 0) > (lp.lastAccessed || 0)) {
+            await savePresetToDB(mergePresetWithLocalImages(cp, lp));
+        }
+    }
 }
 
 // --- CLOUD SYNC HELPERS ---
@@ -115,30 +164,47 @@ async function syncToCloud() {
 }
 
 // Migration from V2 (if any)
-async function migrateLegacyV2() {
-    try {
-        const req = indexedDB.open('KlassKitMemoryDB_V2', 1);
-        req.onsuccess = async (e) => {
-            const db = e.target.result;
-            if (db.objectStoreNames.contains('Configs')) {
+function migrateLegacyV2() {
+    return new Promise((resolve) => {
+        try {
+            const req = indexedDB.open('KlassKitMemoryDB_V2', 1);
+            req.onsuccess = (e) => {
+                const db = e.target.result;
+                if (!db.objectStoreNames.contains('Configs')) {
+                    db.close();
+                    resolve();
+                    return;
+                }
                 const tx = db.transaction('Configs', 'readonly');
                 const getReq = tx.objectStore('Configs').get('pairs_v2');
                 getReq.onsuccess = async () => {
-                    if (getReq.result && Array.isArray(getReq.result) && getReq.result.length > 0) {
-                        const legacyPreset = {
-                            id: 'preset_legacy_' + Date.now(),
-                            title: 'Migrated Pairs',
-                            pairs: getReq.result,
-                            lastAccessed: Date.now()
-                        };
-                        await savePresetToDB(legacyPreset);
-                        indexedDB.deleteDatabase('KlassKitMemoryDB_V2');
-                        location.reload();
+                    try {
+                        if (getReq.result && Array.isArray(getReq.result) && getReq.result.length > 0) {
+                            const legacyPreset = {
+                                id: 'preset_legacy_' + Date.now(),
+                                title: 'Migrated Pairs',
+                                pairs: getReq.result,
+                                lastAccessed: Date.now()
+                            };
+                            await savePresetToDB(legacyPreset);
+                            db.close();
+                            indexedDB.deleteDatabase('KlassKitMemoryDB_V2');
+                            location.reload();
+                            return;
+                        }
+                    } finally {
+                        db.close();
+                        resolve();
                     }
                 };
-            }
-        };
-    } catch (e) { }
+                getReq.onerror = () => { db.close(); resolve(); };
+            };
+            req.onerror = () => resolve();
+            req.onblocked = () => resolve();
+        } catch (e) {
+            resolve();
+        }
+    });
 }
 
 // --- 4. APP LOGIC ---
@@ -169,12 +235,10 @@ const app = {
         // 1. Try migration
         await migrateLegacyV2();
 
-        // 2. Cloud Sync Load
+        // 2. Cloud Sync Load (preserve local DataURL images when merging)
         const cloudData = await loadProgress('card-match');
-        if (cloudData && cloudData.presets) {
-            for (const p of cloudData.presets) {
-                await savePresetToDB(p);
-            }
+        if (cloudData && Array.isArray(cloudData.presets)) {
+            await mergeCloudPresets(cloudData.presets);
         }
 
         // 3. Load presets from DB
@@ -471,7 +535,7 @@ const app = {
             if (!val1) return;
 
             this.pairs.push({
-                id: Date.now() + Math.random(),
+                id: generatePairId(),
                 type: 'text-text',
                 item1: { type: 'text', content: val1 },
                 item2: { type: 'text', content: val2 }
@@ -506,8 +570,8 @@ const app = {
 
         try {
             let imgSource;
-            const { data: { user } } = await db.auth.getUser();
-            if (!isSandbox() && user) {
+            const user = !isSandbox() ? (await db.auth.getUser()).data?.user : null;
+            if (user) {
                 imgSource = await uploadMedia(file, 'card_match', this.activePresetId);
             } else {
                 imgSource = await new Promise((resolve, reject) => {
@@ -519,7 +583,7 @@ const app = {
             }
 
             this.pairs.push({
-                id: Date.now() + Math.random(),
+                id: generatePairId(),
                 type: 'text-image',
                 item1: { type: 'text', content: textVal },
                 item2: { type: 'image', content: imgSource }
@@ -555,8 +619,8 @@ const app = {
         lucide.createIcons();
 
         try {
-            const { data: { user } } = await db.auth.getUser();
-            const canUpload = !isSandbox() && user;
+            const user = !isSandbox() ? (await db.auth.getUser()).data?.user : null;
+            const canUpload = Boolean(user);
 
             const processFile = async (file) => {
                 if (canUpload) return await uploadMedia(file, 'card_match', this.activePresetId);
@@ -572,7 +636,7 @@ const app = {
             const src2 = await processFile(f2);
 
             this.pairs.push({
-                id: Date.now() + Math.random(),
+                id: generatePairId(),
                 type: 'image-image',
                 item1: { type: 'image', content: src1 },
                 item2: { type: 'image', content: src2 }
@@ -768,16 +832,19 @@ const app = {
             modal.classList.add('hidden');
         }, 300);
 
-        if (confirmed && this.presetToDeleteCallback) {
-            this.presetToDeleteCallback();
-        }
+        const cb = this.presetToDeleteCallback;
         this.presetToDeleteCallback = null;
+        if (confirmed && cb) {
+            cb();
+        }
     },
 
     executeDeletePreset: async function () {
-        const { data: { user } } = await db.auth.getUser();
-        if (!isSandbox() && user) {
-            deleteFolder(`${user.id}/card_match/${this.activePresetId}`).catch(e => console.warn("Cloud folder delete failed", e));
+        if (!isSandbox()) {
+            const { data: { user } } = await db.auth.getUser();
+            if (user) {
+                deleteFolder(`${user.id}/card_match/${this.activePresetId}`).catch(e => console.warn("Cloud folder delete failed", e));
+            }
         }
 
         await deletePresetFromDB(this.activePresetId);
@@ -900,16 +967,17 @@ const app = {
         document.getElementById('teacher-mode-btn').classList.remove('hidden');
 
         let cards = [];
-        this.pairs.forEach(pair => {
+        this.pairs.forEach((pair, pairIdx) => {
+            const matchKey = `m_${pairIdx}`;
             cards.push({
-                id: pair.id + '_1',
-                matchId: pair.id,
+                id: `${matchKey}_1`,
+                matchId: matchKey,
                 type: pair.item1.type,
                 content: pair.item1.content
             });
             cards.push({
-                id: pair.id + '_2',
-                matchId: pair.id,
+                id: `${matchKey}_2`,
+                matchId: matchKey,
                 type: pair.item2.type,
                 content: pair.item2.content
             });

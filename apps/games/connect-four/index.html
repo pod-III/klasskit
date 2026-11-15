@@ -50,6 +50,9 @@
                         heading: ['Fredoka', 'sans-serif'],
                         body: ['Nunito', 'sans-serif'],
                     },
+                    borderWidth: {
+                        '3': '3px',
+                    },
                     boxShadow: {
                         'hard': '4px 4px 0px 0px #1e293b',
                         'hard-sm': '2px 2px 0px 0px #1e293b',
@@ -532,6 +535,7 @@
             hoverCol: 3,
             moveHistory: [],
             gameOverTimeout: null,
+            dropTimeouts: [],
 
             async init() {
                 SoundEngine.init();
@@ -652,11 +656,17 @@
                 }
             },
 
+            clearDropTimeouts() {
+                this.dropTimeouts.forEach(id => clearTimeout(id));
+                this.dropTimeouts = [];
+            },
+
             resetBoard() {
                 if (this.gameOverTimeout) {
                     clearTimeout(this.gameOverTimeout);
                     this.gameOverTimeout = null;
                 }
+                this.clearDropTimeouts();
                 this.board = Array(this.rows).fill().map(() => Array(this.cols).fill(0));
                 this.currentPlayer = 1;
                 this.gameActive = true;
@@ -757,6 +767,9 @@
                     e.preventDefault();
                     this.setHover(Math.min(6, this.hoverCol + 1));
                 } else if (e.key === 'Enter' || e.key === ' ') {
+                    if (tag === 'BUTTON' || (e.target && e.target.getAttribute && e.target.getAttribute('role') === 'button')) {
+                        return;
+                    }
                     e.preventDefault();
                     this.handleMove(this.hoverCol);
                 } else if (e.key >= '1' && e.key <= '7') {
@@ -806,6 +819,7 @@
 
             undoMove() {
                 if (this.moveHistory.length === 0 || !this.gameActive) return;
+                this.clearDropTimeouts();
                 const lastMove = this.moveHistory.pop();
                 const { row, col, player } = lastMove;
 
@@ -831,7 +845,8 @@
                 piece.className = `piece ${colorClass} piece-drop-anim`;
                 layer.appendChild(piece);
 
-                setTimeout(() => {
+                const dropTid = setTimeout(() => {
+                    this.dropTimeouts = this.dropTimeouts.filter(id => id !== dropTid);
                     SoundEngine.playDrop();
                     const board = document.getElementById('board-shell');
                     if (board) {
@@ -840,6 +855,7 @@
                         board.classList.add('shake-anim');
                     }
                 }, 450);
+                this.dropTimeouts.push(dropTid);
             },
 
             checkWin(row, col) {

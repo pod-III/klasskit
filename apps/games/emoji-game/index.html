@@ -1592,11 +1592,15 @@ Soccer | ⚽🏃🥅`;
                 // Confirmation Modal Listeners
                 document.getElementById('confirm-yes').onclick = () => {
                     document.getElementById('confirm-modal').classList.add('hidden');
-                    if (this.confirmCallback) { this.confirmCallback(true); this.confirmCallback = null; }
+                    const cb = this.confirmCallback;
+                    this.confirmCallback = null;
+                    if (cb) cb(true);
                 };
                 document.getElementById('confirm-no').onclick = () => {
                     document.getElementById('confirm-modal').classList.add('hidden');
-                    if (this.confirmCallback) { this.confirmCallback(false); this.confirmCallback = null; }
+                    const cb = this.confirmCallback;
+                    this.confirmCallback = null;
+                    if (cb) cb(false);
                 };
 
                 // Show Welcome
@@ -1769,12 +1773,13 @@ Soccer | ⚽🏃🥅`;
             async startGame() {
                 if (this.questions.length === 0) {
                     await showAlertModal("Please add questions in the setup menu first!", { title: "No Questions", icon: "alert-circle", iconColor: "orange" });
-                    return;
+                    return false;
                 }
                 this.currentIndex = 0;
                 UI.showGame();
                 this.renderCard();
                 AudioController.playPop();
+                return true;
             },
 
             renderCard() {
@@ -1910,14 +1915,14 @@ Soccer | ⚽🏃🥅`;
                     UI.renderEditorRows();
                 };
 
-                this._confirmIfDirty(() => {
-                    this.confirmCallback = (yes) => {
-                        if (yes) doLoad();
-                        else document.getElementById('preset-selector').value = this.currentPresetId;
-                    };
-                    document.getElementById('confirm-message').innerText = `Load "${preset.name}"? This will overwrite your current list.`;
-                    document.getElementById('confirm-modal').classList.remove('hidden');
-                });
+                this.confirmCallback = (yes) => {
+                    if (yes) doLoad();
+                    else document.getElementById('preset-selector').value = this.currentPresetId;
+                };
+                document.getElementById('confirm-message').innerText = this.dirty
+                    ? `Discard unsaved changes and load "${preset.name}"? This will overwrite your current list.`
+                    : `Load "${preset.name}"? This will overwrite your current list.`;
+                document.getElementById('confirm-modal').classList.remove('hidden');
             },
 
             updateQuestion(index, field, value) {
@@ -1939,7 +1944,7 @@ Soccer | ⚽🏃🥅`;
                 document.getElementById('confirm-modal').classList.remove('hidden');
             },
 
-            saveData(launch = false) {
+            async saveData(launch = false) {
                 const timerInput = document.getElementById('timer-setting');
                 const clamped = this._clampTimer(timerInput.value);
                 timerInput.value = clamped;
@@ -1949,9 +1954,7 @@ Soccer | ⚽🏃🥅`;
                 Storage.saveSets(this.sets);
                 Storage.saveActiveId(this.activeId);
                 if (launch) {
-                    this.startGame();
-                    UI.hideAll();
-                    UI.showGame();
+                    await this.startGame();
                 } else {
                     UI.showSaveConfirmation();
                 }
