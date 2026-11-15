@@ -250,7 +250,6 @@ const Jeopardy = (function() {
         modals: {
             play: document.getElementById('modal-play'),
             edit: document.getElementById('modal-edit'),
-            data: document.getElementById('modal-data'),
             system: document.getElementById('modal-system'),
             setup: document.getElementById('modal-setup')
         },
@@ -1597,50 +1596,6 @@ const Jeopardy = (function() {
         }
     }
 
-    // --- Export / Import JSON ---
-    function exportData() {
-        const exportObj = normalizeState(state);
-        document.getElementById('data-json').value = JSON.stringify(exportObj, null, 2);
-        els.modals.data.classList.remove('hidden');
-    }
-
-    function copyDataJson() {
-        const textarea = document.getElementById('data-json');
-        if (!textarea) return;
-        textarea.select();
-        if (navigator.clipboard && navigator.clipboard.writeText) {
-            navigator.clipboard.writeText(textarea.value).then(() => {
-                showToast('Copied JSON to clipboard!', 'bg-brand-blue');
-            });
-        } else {
-            document.execCommand('copy');
-            showToast('Copied JSON to clipboard!', 'bg-brand-blue');
-        }
-    }
-
-    function importData() {
-        try {
-            const raw = JSON.parse(document.getElementById('data-json').value);
-            if (raw && Array.isArray(raw.questions) && Array.isArray(raw.categories)) {
-                state = normalizeState(raw);
-                state.activeGameId = 'custom-' + Date.now();
-                state.sourcePresetId = null;
-                state.hasCustomEdits = true;
-                save({ immediate: true, markEdited: true, toastMsg: 'JSON imported & saved!' });
-                closeDataModal();
-                hideLandingPage();
-            } else {
-                throw new Error("Missing questions or categories");
-            }
-        } catch (e) {
-            showSystemModal({ type: 'alert', title: 'Error', message: 'Invalid Game Data JSON. Please check the format and try again.' });
-        }
-    }
-
-    function closeDataModal() {
-        els.modals.data.classList.add('hidden');
-    }
-
     function resetBoardState() {
         showSystemModal({
             type: 'confirm',
@@ -1673,9 +1628,367 @@ const Jeopardy = (function() {
         localStorage.setItem(STORAGE_KEY_THEME, isDark ? 'dark' : 'light');
     }
 
+    // --- Guided Bulk Import (Plain Text -> Quiz Board) ---
+    let bulkImportModal = null;
+    let bulkImportSource = 'landing';
+
+    const QUIZ_BLOCK_IMPORT_TEMPLATE = [
+        '## Classroom Review Challenge',
+        '@points 100  @timer 15  @teams 4',
+        '',
+        '== Grammar',
+        '- Rewrite in the past simple: "She goes to school by bus."',
+        '= She went to school by bus.',
+        '- Choose the correct word: "There isn\'t ___ milk left." (many / much)',
+        '= much',
+        '- Correct the mistake: "He don\'t like spicy food."',
+        '= He doesn\'t like spicy food.',
+        '- Form a polite question using "Could you..." to ask for the menu. *bonus @500',
+        '= Could you bring me the menu, please? (or equivalent)',
+        '',
+        '== Vocabulary',
+        '- What is the opposite of "ancient"?',
+        '= Modern / new',
+        '- Name three vegetables that grow underground.',
+        '= Carrots, potatoes, onions (any 3 valid answers)',
+        '- A person whose job is to fix water pipes and sinks.',
+        '= Plumber',
+        '- Give two synonyms for "delicious". @400',
+        '= Tasty, yummy, flavorful (any 2 valid answers)',
+        '',
+        '== World & Culture',
+        '- Which continent has the most countries?',
+        '= Africa (54 countries)',
+        '- What currency is used in Japan?',
+        '= Japanese Yen',
+        '- Which planet is known as the Red Planet?',
+        '= Mars',
+        '- Name two countries that speak Portuguese as an official language. *bonus',
+        '= Brazil, Portugal, Angola, Mozambique (any 2)',
+        '',
+        '== Quick Brainteasers',
+        '- What has keys that open no locks?',
+        '= A piano / keyboard',
+        '- Spell the day of the week that comes after Tuesday.',
+        '= W-E-D-N-E-S-D-A-Y',
+        '- Unscramble the travel word: "S A P S T R O P".',
+        '= Passport',
+        '- Name four English words that start with "QU". @500',
+        '= Queen, quiet, question, quick (any 4 valid answers)'
+    ].join('\n');
+
+    function parseQuizBlockImport(rawText) {
+        const lines = String(rawText || '').replace(/\r\n/g, '\n').split('\n');
+        let gameName = '';
+        let pointMultiplier = 100;
+        let timerDuration = 15;
+        let teamsCount = null;
+
+        const columns = [];
+        let currentCol = null;
+        let currentTile = null;
+        let inAnswer = false;
+
+        const ensureColumn = (fallbackTitle) => {
+            if (!currentCol) {
+                currentCol = { name: fallbackTitle || `Category ${columns.length + 1}`, items: [] };
+                columns.push(currentCol);
+            }
+            return currentCol;
+        };
+
+        const stripInlineMeta = (str, tile) => {
+            let clean = str;
+            // Detect *bonus or [bonus] or ★
+            if (/(?:^|\s)(?:\*bonus|\[bonus\]|★)(?=$|\s)/i.test(clean)) {
+                tile.bonus = true;
+                clean = clean.replace(/(?:^|\s)(?:\*bonus|\[bonus\]|★)(?=$|\s)/ig, ' ');
+            }
+            // Detect explicit points tag like @300 or @250pts (preserves prices like $20 inside questions)
+            clean = clean.replace(/(?:^|\s)@(\d+)(?:pts?)?(?=$|\s)/ig, (_, numStr) => {
+                const pts = parseInt(numStr, 10);
+                if (pts > 0) tile.points = pts;
+                return ' ';
+            });
+            return clean.replace(/\s{2,}/g, ' ').trim();
+        };
+
+        const flushTile = () => {
+            if (!currentTile) return;
+            currentTile.q = currentTile.q.trim();
+            currentTile.a = currentTile.a.trim();
+            if (currentTile.q || currentTile.a) {
+                currentCol.items.push(currentTile);
+            }
+            currentTile = null;
+            inAnswer = false;
+        };
+
+        lines.forEach((rawLine) => {
+            const line = rawLine.trim();
+            if (!line) {
+                // Blank line cleanly closes the open tile while staying in the same category
+                flushTile();
+                return;
+            }
+
+            // Board title: ## Game Title
+            const titleMatch = line.match(/^##+\s*(.+)$/);
+            if (titleMatch) {
+                flushTile();
+                gameName = titleMatch[1].trim();
+                return;
+            }
+
+            // Board-level settings line: @points 100 @timer 20 @teams 4
+            if (/^@(?:points|timer|teams)\b/i.test(line)) {
+                const ptsM = line.match(/@points\s+(\d+)\b/i);
+                const tmrM = line.match(/@timer\s+(\d+)\b/i);
+                const tmM = line.match(/@teams\s+(\d+)\b/i);
+                if (ptsM) {
+                    const pVal = parseInt(ptsM[1], 10);
+                    if (pVal >= 10) pointMultiplier = pVal;
+                }
+                if (tmrM) {
+                    const tVal = parseInt(tmrM[1], 10);
+                    if (tVal >= 5 && tVal <= 120) timerDuration = tVal;
+                }
+                if (tmM) {
+                    const cVal = parseInt(tmM[1], 10);
+                    if (cVal >= 1 && cVal <= 8) teamsCount = cVal;
+                }
+                return;
+            }
+
+            // Category header: == Category Name or [Category Name]
+            const catHeaderEq = line.match(/^==+\s*(.+)$/);
+            const catHeaderBracket = line.match(/^\[([^\]]+)\]$/) && !/^\[bonus\]$/i.test(line)
+                ? line.match(/^\[([^\]]+)\]$/)
+                : null;
+            const catMatch = catHeaderEq || catHeaderBracket;
+            if (catMatch) {
+                flushTile();
+                currentCol = { name: catMatch[1].trim(), items: [] };
+                columns.push(currentCol);
+                return;
+            }
+
+            // Explicit answer starter: = Answer or A: Answer
+            const ansMatch = line.match(/^(?:=\s*|a(?:nswer)?\s*:\s*)(.*)$/i);
+            if (ansMatch) {
+                ensureColumn();
+                if (!currentTile) {
+                    currentTile = { q: 'Edit Me', a: '', points: null, bonus: false };
+                }
+                const cleanedA = stripInlineMeta(ansMatch[1], currentTile);
+                currentTile.a = currentTile.a ? `${currentTile.a}\n${cleanedA}` : cleanedA;
+                inAnswer = true;
+                return;
+            }
+
+            // Explicit question starter: - Q, Q: Q, or numbered 1. Q
+            const qMatch = line.match(/^(?:-\s+|q(?:uestion)?\s*:\s*|\d+[.)]\s+)(.+)$/i);
+            if (qMatch) {
+                flushTile();
+                ensureColumn();
+                currentTile = { q: '', a: '', points: null, bonus: false };
+                currentTile.q = stripInlineMeta(qMatch[1], currentTile);
+                inAnswer = false;
+                return;
+            }
+
+            // Fallback line inside a category
+            ensureColumn();
+            if (!currentTile) {
+                currentTile = { q: '', a: '', points: null, bonus: false };
+                currentTile.q = stripInlineMeta(line, currentTile);
+                inAnswer = false;
+            } else if (inAnswer) {
+                const cleanedA = stripInlineMeta(line, currentTile);
+                if (cleanedA) currentTile.a = currentTile.a ? `${currentTile.a} ${cleanedA}` : cleanedA;
+            } else {
+                const cleanedQ = stripInlineMeta(line, currentTile);
+                if (cleanedQ) currentTile.q = currentTile.q ? `${currentTile.q} ${cleanedQ}` : cleanedQ;
+            }
+        });
+        flushTile();
+
+        const warnings = [];
+        const activeCols = columns.filter(c => c.name || c.items.length > 0);
+        if (activeCols.length === 0) {
+            return { items: [], warnings, badges: [], board: null };
+        }
+
+        const totalParsedTiles = [];
+        let missingAnswers = 0;
+        let bonusCount = 0;
+
+        activeCols.forEach((col, colIdx) => {
+            if (col.items.length === 0) {
+                warnings.push(`Category "${col.name || 'Category ' + (colIdx + 1)}" has no questions yet.`);
+            }
+            col.items.forEach(item => {
+                if (!item.q) item.q = 'Edit Me';
+                if (!item.a) {
+                    item.a = 'Answer';
+                    missingAnswers++;
+                }
+                if (item.bonus) bonusCount++;
+                totalParsedTiles.push(item);
+            });
+        });
+
+        if (activeCols.length === 1) {
+            activeCols.push({ name: 'Category 2', items: [] });
+            warnings.push('Only 1 category found — added a placeholder 2nd category so the board has at least 2 columns.');
+        }
+
+        const numCols = activeCols.length;
+        const maxColLen = Math.max(1, ...activeCols.map(c => c.items.length));
+        const numRows = maxColLen;
+
+        if (numCols > 6) {
+            warnings.push(`${numCols} categories found — Quiz Block layouts fit best with 2–6 columns.`);
+        }
+        if (numRows > 6) {
+            warnings.push(`${numRows} rows detected — Quiz Block boards work best with 3–6 rows.`);
+        }
+
+        const hasUneven = activeCols.some(c => c.items.length < numRows);
+        if (hasUneven) {
+            warnings.push(`Uneven category lengths — shorter columns padded with "Edit Me" tiles to complete ${numCols}×${numRows} grid.`);
+        }
+        if (missingAnswers > 0) {
+            warnings.push(`${missingAnswers} question(s) are missing an "= Answer" line (filled with "Answer").`);
+        }
+
+        // Transpose column lists into row-major questions[row][col]
+        const questions = Array.from({ length: numRows }, (_, r) =>
+            Array.from({ length: numCols }, (__, c) => {
+                const rawItem = activeCols[c].items[r];
+                const defaultPts = (r + 1) * pointMultiplier;
+                if (!rawItem) {
+                    return { q: 'Edit Me', a: 'Answer', points: defaultPts, bonus: false };
+                }
+                return {
+                    q: rawItem.q,
+                    a: rawItem.a,
+                    points: typeof rawItem.points === 'number' ? rawItem.points : defaultPts,
+                    bonus: Boolean(rawItem.bonus)
+                };
+            })
+        );
+
+        const colTones = ['pink', 'orange', 'green', 'blue'];
+        const badges = activeCols.map((col, idx) => {
+            const colBonus = col.items.filter(it => it.bonus).length;
+            return {
+                tag: `COL ${idx + 1}`,
+                label: col.name || `Category ${idx + 1}`,
+                meta: `${col.items.length} Q${col.items.length === 1 ? '' : 's'}${colBonus ? ` · ★${colBonus}` : ''}`,
+                tone: colTones[idx % colTones.length],
+                title: `${col.name}: ${col.items.length} questions`
+            };
+        });
+
+        return {
+            items: totalParsedTiles,
+            warnings,
+            badges,
+            board: {
+                gameName: gameName || 'Imported Quiz Board',
+                pointMultiplier,
+                timerDuration,
+                teamsCount,
+                numCols,
+                numRows,
+                categories: activeCols.map((c, idx) => c.name || `Category ${idx + 1}`),
+                questions,
+                bonusCount
+            }
+        };
+    }
+
+    function ensureBulkImportModal() {
+        if (bulkImportModal || !window.KlassKitBulkImport) return bulkImportModal;
+        bulkImportModal = window.KlassKitBulkImport.create({
+            id: 'qb-bulk-import-overlay',
+            title: 'BULK IMPORT QUIZ BOARD',
+            subtitle: 'Paste plain text or AI-generated categories & Q/A pairs to build a full Jeopardy board instantly.',
+            accentColor: '#FF6B95',
+            unitLabel: 'tile',
+            unitLabelPlural: 'tiles',
+            guideItems: [
+                { label: 'Board Title', syntax: '## My Quiz Title', color: '#2979FF', desc: 'Optional board title & optional @points 100 @timer 20 @teams 4.' },
+                { label: 'Category Column', syntax: '== Category Name', color: '#FF6B95', desc: 'Starts a new board column (2–6 recommended). [Name] also works.' },
+                { label: 'Question & Answer', syntax: '- Question\n= Answer', color: '#00E676', desc: 'One pair per tile. Q:/A: or numbered 1. lines also supported.' },
+                { label: 'Points & Bonus', syntax: '@400 or *bonus', color: '#FF8C42', desc: 'Optional custom points or ★ surprise bonus tile anywhere on the line.' }
+            ],
+            tips: [
+                '<strong>AI Prompt Shortcut:</strong> Ask any AI to output a 4×4 Jeopardy quiz using <code class="px-1 rounded bg-slate-200 dark:bg-slate-700 font-mono">== Category</code> headings, <code class="px-1 rounded bg-slate-200 dark:bg-slate-700 font-mono">- Question</code>, and <code class="px-1 rounded bg-slate-200 dark:bg-slate-700 font-mono">= Answer</code>.',
+                'Row points default automatically to <code class="px-1 rounded bg-slate-200 dark:bg-slate-700 font-mono">$100, $200, $300...</code> unless you override a tile with <code class="px-1 rounded bg-slate-200 dark:bg-slate-700 font-mono">@500</code>.'
+            ],
+            placeholder: '## Classroom Review\n\n== Grammar\n- Past tense of "go"?\n= Went\n\n== Vocabulary\n- Opposite of "hot"?\n= Cold *bonus',
+            template: QUIZ_BLOCK_IMPORT_TEMPLATE,
+            sample: QUIZ_BLOCK_IMPORT_TEMPLATE,
+            options: [
+                { id: 'saveToLibrary', label: 'Save imported board to "My Saved Games"', defaultChecked: true },
+                { id: 'openInDesign', label: 'Open in Design Mode after importing', defaultChecked: false }
+            ],
+            confirmText: 'Import Quiz Board',
+            parse: parseQuizBlockImport,
+            onCopyTemplate: () => {
+                showToast('Template copied to clipboard!', 'bg-brand-orange');
+            },
+            onImport: (result, opts) => {
+                if (!result || !result.board) return false;
+                const b = result.board;
+                const targetTeamsCount = b.teamsCount || (state.teams && state.teams.length) || 4;
+                const nextTeams = Array.from({ length: targetTeamsCount }, (_, i) => `Team ${i + 1}`);
+                const nextScores = nextTeams.map(() => 0);
+
+                state = normalizeState({
+                    gameName: b.gameName,
+                    activeGameId: opts.saveToLibrary ? ('custom-' + Date.now()) : null,
+                    sourcePresetId: null,
+                    hasCustomEdits: Boolean(opts.saveToLibrary),
+                    updatedAt: Date.now(),
+                    timerDuration: b.timerDuration,
+                    pointMultiplier: b.pointMultiplier,
+                    categories: b.categories,
+                    teams: nextTeams,
+                    questions: b.questions,
+                    visited: createVisitedGrid(b.numRows, b.numCols),
+                    scores: nextScores
+                });
+
+                isEditMode = Boolean(opts.openInDesign);
+                save({
+                    immediate: true,
+                    markEdited: Boolean(opts.saveToLibrary),
+                    toastMsg: `Imported ${b.numCols}×${b.numRows} board (${result.items.length} tiles)!`
+                });
+                hideLandingPage();
+                return true;
+            }
+        });
+        return bulkImportModal;
+    }
+
+    function openBulkImport(source = 'landing') {
+        bulkImportSource = source;
+        const modal = ensureBulkImportModal();
+        if (!modal) {
+            showToast('Bulk Import module not loaded.', 'bg-brand-pink');
+            return;
+        }
+        modal.open();
+    }
+
     // --- Keyboard Shortcuts ---
     function setupKeyboardShortcuts() {
         window.addEventListener('keydown', (e) => {
+            if (document.querySelector('.kk-import-overlay.open')) return;
             if (!els.modals.edit.classList.contains('hidden')) {
                 if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
                     e.preventDefault();
@@ -1703,9 +2016,6 @@ const Jeopardy = (function() {
             if (!els.modals.setup.classList.contains('hidden') && e.key === 'Escape') {
                 closeSetupModal();
             }
-            if (!els.modals.data.classList.contains('hidden') && e.key === 'Escape') {
-                closeDataModal();
-            }
         });
     }
 
@@ -1724,10 +2034,6 @@ const Jeopardy = (function() {
         revealAnswer,
         showQuestionView,
         startTimer,
-        exportData,
-        copyDataJson,
-        importData,
-        closeDataModal,
         resetBoardState,
         toggleTheme,
         showLandingPage,
@@ -1737,6 +2043,7 @@ const Jeopardy = (function() {
         resizeBoard,
         renameGameTitle,
         saveToCustomGames,
+        openBulkImport,
         setSetupVal,
         confirmSetup,
         closeSetupModal
