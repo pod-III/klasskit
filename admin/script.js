@@ -116,6 +116,8 @@ const RAW_TOOL_TO_CATALOG_ID = {
     'wordsearch': 'wordsearch',
     'reveal_picture': 'reveal-picture-game',
     'reveal-picture-game': 'reveal-picture-game',
+    'mystery_tiles': 'mystery-tiles',
+    'mystery-tiles': 'mystery-tiles',
     'dnd-hub': 'dnd-hub',
     'tools_dnd': 'dnd-hub',
     'vtt_maps': 'dnd-hub',

@@ -1,0 +1,635 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mystery Tiles — KlassKit</title>
+
+    <!-- Supabase & KlassKit Auth Guard -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.105.4"></script>
+    <script src="/supabase.js"></script>
+
+    <!-- Early Dark Mode Init (prevents FOUC) -->
+    <script>
+        (function () {
+            try {
+                const saved = localStorage.getItem('theme_mystery-tiles') || localStorage.getItem('theme_hub');
+                if (saved === 'dark') {
+                    document.documentElement.classList.add('dark');
+                }
+            } catch (_) {}
+        })();
+    </script>
+
+    <!-- Fonts: Fredoka (Headings), Nunito (Body), JetBrains Mono (Quick Text) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&family=Nunito:wght@500;600;700;800;900&display=swap" rel="stylesheet">
+
+    <!-- Tailwind CSS CDN & KlassKit Palette -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        pink: '#ff4785',
+                        orange: '#ff7e33',
+                        green: '#00d063',
+                        blue: '#1ea7fd',
+                        dark: '#0f172a',
+                        chalk: '#f8fafc',
+                        slate: {
+                            850: '#172033',
+                            950: '#020617'
+                        }
+                    },
+                    fontFamily: {
+                        heading: ['Fredoka', 'sans-serif'],
+                        display: ['Fredoka', 'sans-serif'],
+                        body: ['Nunito', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace']
+                    }
+                }
+            }
+        };
+    </script>
+
+    <!-- Libraries -->
+    <script src="https://unpkg.com/lucide@1.16.0"></script>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <script src="../../../components/bulk-import-modal.js"></script>
+
+    <!-- KlassKit Shared Styles & Game Styles -->
+    <link rel="stylesheet" href="../../../css/base.css">
+    <link rel="stylesheet" href="../../../css/components.css">
+    <link rel="stylesheet" href="./style.css">
+
+    <script src="./script.js" defer></script>
+</head>
+<body class="font-body text-slate-900 dark:text-slate-100 min-h-screen flex flex-col selection:bg-pink selection:text-white">
+
+    <!-- Sticky Glassmorphic Header -->
+    <header class="sticky top-0 z-40 mt-glass backdrop-blur-md border-b-2 transition-colors">
+        <div class="max-w-7xl mx-auto px-4 md:px-6 h-16 md:h-[4.5rem] flex items-center justify-between gap-3">
+            <!-- Brand -->
+            <div class="flex items-center gap-3 min-w-0">
+                <div class="w-10 h-10 md:w-11 md:h-11 rounded-xl bg-orange text-dark border-[3px] border-dark dark:border-slate-500 shadow-[0_3px_0_#0f172a] dark:shadow-[0_3px_0_#000] flex items-center justify-center shrink-0 rotate-[-3deg]">
+                    <i data-lucide="dices" class="w-6 h-6 stroke-[2.5]"></i>
+                </div>
+                <div class="min-w-0">
+                    <h1 class="font-heading font-bold uppercase tracking-tight text-xl md:text-2xl leading-none truncate">
+                        Mystery Tiles
+                    </h1>
+                    <p id="header-subtitle" class="text-xs font-extrabold text-slate-500 dark:text-slate-400 truncate mt-0.5">
+                        Surprise Tile Classroom Battle
+                    </p>
+                </div>
+            </div>
+
+            <!-- Action Controls -->
+            <div class="flex items-center gap-2 shrink-0">
+                <!-- In-Game Controls -->
+                <div id="header-game-actions" class="hidden items-center gap-2">
+                    <button id="btn-undo" type="button" disabled
+                        class="mt-btn rounded-xl bg-white dark:bg-slate-800 px-3 py-2 font-heading font-semibold text-sm flex items-center gap-1.5"
+                        title="Undo last action (Z)">
+                        <i data-lucide="undo-2" class="w-4 h-4 stroke-[2.5]"></i>
+                        <span class="hidden sm:inline">Undo</span>
+                    </button>
+                    <button id="btn-end-game" type="button"
+                        class="mt-btn rounded-xl bg-pink text-white px-3.5 py-2 font-heading font-semibold text-sm flex items-center gap-1.5"
+                        title="End or Restart Game">
+                        <i data-lucide="flag" class="w-4 h-4 stroke-[2.5]"></i>
+                        <span class="hidden sm:inline">End / Reset</span>
+                    </button>
+                </div>
+
+                <!-- Global Controls -->
+                <button id="btn-sound" type="button"
+                    class="mt-btn rounded-xl bg-white dark:bg-slate-800 p-2 md:px-3 md:py-2 flex items-center gap-1.5"
+                    aria-label="Toggle Sound Effects" title="Toggle Sound (M)">
+                    <i data-lucide="volume-2" id="icon-sound-on" class="w-5 h-5 stroke-[2.5] text-blue"></i>
+                    <i data-lucide="volume-x" id="icon-sound-off" class="w-5 h-5 stroke-[2.5] text-slate-400 hidden"></i>
+                </button>
+
+                <button id="btn-theme" type="button"
+                    class="mt-btn rounded-xl bg-white dark:bg-slate-800 p-2 md:px-3 md:py-2 flex items-center"
+                    aria-label="Toggle Blackboard Dark Mode" title="Toggle Dark Mode">
+                    <i data-lucide="moon" class="w-5 h-5 stroke-[2.5] dark:hidden text-slate-700"></i>
+                    <i data-lucide="sun" class="w-5 h-5 stroke-[2.5] hidden dark:block text-orange"></i>
+                </button>
+
+                <button id="btn-help" type="button"
+                    class="mt-btn rounded-xl bg-blue text-white p-2 md:px-3 md:py-2 flex items-center gap-1.5 font-heading font-semibold text-sm"
+                    aria-label="How to Play & Power-Ups" title="Rules & Shortcuts">
+                    <i data-lucide="help-circle" class="w-5 h-5 stroke-[2.5]"></i>
+                    <span class="hidden md:inline">Rules</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main App Container -->
+    <main class="flex-1 w-full max-w-7xl mx-auto px-4 md:px-6 py-6">
+
+        <!-- Resume Unfinished Match Banner -->
+        <section id="resume-banner" class="hidden mb-6 animate-slide-down">
+            <div class="mt-card bg-orange/15 dark:bg-orange/20 p-4 flex flex-wrap items-center justify-between gap-4">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-orange text-dark border-[2.5px] border-dark dark:border-slate-500 flex items-center justify-center shrink-0">
+                        <i data-lucide="play" class="w-5 h-5 stroke-[2.5]"></i>
+                    </div>
+                    <div>
+                        <p class="font-heading font-bold uppercase text-base md:text-lg leading-tight">
+                            Unfinished Match Found
+                        </p>
+                        <p id="resume-banner-meta" class="text-sm font-bold text-slate-600 dark:text-slate-300">
+                            Resume where your teams left off or start a fresh setup.
+                        </p>
+                    </div>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button id="btn-resume-match" type="button"
+                        class="mt-btn rounded-xl bg-green text-dark px-4 py-2 font-heading font-bold text-sm uppercase flex items-center gap-1.5">
+                        <i data-lucide="play" class="w-4 h-4 stroke-[2.5]"></i> Resume Match
+                    </button>
+                    <button id="btn-discard-match" type="button"
+                        class="mt-btn rounded-xl bg-white dark:bg-slate-800 px-3.5 py-2 font-heading font-semibold text-sm">
+                        Discard
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- ================= VIEW 1: SETUP CONSOLE ================= -->
+        <section id="view-setup" class="space-y-6 animate-fade-in">
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+
+                <!-- Left Column: Teams, Board Counts & Rules -->
+                <div class="lg:col-span-5 space-y-6">
+
+                    <!-- Teams Builder Card -->
+                    <div class="mt-card bg-white dark:bg-slate-900 p-5 space-y-4">
+                        <div class="flex items-center justify-between gap-2">
+                            <h2 class="font-heading text-xl md:text-2xl font-bold uppercase tracking-tight flex items-center gap-2">
+                                <span class="w-8 h-8 rounded-xl bg-pink text-white border-2 border-dark dark:border-slate-500 flex items-center justify-center">
+                                    <i data-lucide="users" class="w-4 h-4 stroke-[2.5]"></i>
+                                </span>
+                                Teams
+                            </h2>
+                            <button id="btn-shuffle-teams" type="button"
+                                class="mt-btn rounded-xl bg-slate-100 dark:bg-slate-800 px-3 py-1.5 font-heading text-xs uppercase font-bold flex items-center gap-1.5"
+                                title="Randomize turn order">
+                                <i data-lucide="shuffle" class="w-3.5 h-3.5 stroke-[2.5]"></i> Shuffle Order
+                            </button>
+                        </div>
+
+                        <!-- Team Count Selector -->
+                        <div class="flex items-center gap-2 flex-wrap">
+                            <span class="text-xs font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400 mr-1">Count:</span>
+                            <div id="team-count-group" class="flex gap-2 flex-wrap"></div>
+                        </div>
+
+                        <!-- Dynamic Team Inputs & Swatches -->
+                        <div id="team-list" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2 gap-3"></div>
+                        <p class="text-xs font-bold text-slate-500 dark:text-slate-400">
+                            Tip: Click any team color square to cycle colors.
+                        </p>
+                    </div>
+
+                    <!-- Tiles & Rules Config Card -->
+                    <div class="mt-card bg-white dark:bg-slate-900 p-5 space-y-4">
+                        <div class="flex items-center justify-between gap-2">
+                            <h2 class="font-heading text-xl md:text-2xl font-bold uppercase tracking-tight flex items-center gap-2">
+                                <span class="w-8 h-8 rounded-xl bg-blue text-white border-2 border-dark dark:border-slate-500 flex items-center justify-center">
+                                    <i data-lucide="sliders" class="w-4 h-4 stroke-[2.5]"></i>
+                                </span>
+                                Tiles & Rules
+                            </h2>
+                            <div id="setup-tile-summary"
+                                class="px-3 py-1 rounded-full border-2 border-dark dark:border-slate-500 bg-orange/20 dark:bg-orange/25 font-heading font-bold text-xs uppercase">
+                                0 Tiles
+                            </div>
+                        </div>
+
+                        <!-- Points, Traps, Gifts Inputs -->
+                        <div class="grid grid-cols-3 gap-3">
+                            <label class="block">
+                                <span class="font-heading font-bold text-sm uppercase tracking-tight flex items-center gap-1">
+                                    Points
+                                </span>
+                                <input id="input-pts" type="number" min="1" max="1000" value="10"
+                                    class="input-chunky w-full mt-1 px-3 py-2 text-lg font-heading font-bold bg-chalk dark:bg-slate-800 border-dark dark:border-slate-500">
+                            </label>
+                            <label class="block">
+                                <span class="font-heading font-bold text-sm uppercase tracking-tight flex items-center gap-1 text-pink">
+                                    Traps
+                                </span>
+                                <input id="input-traps" type="number" min="0" max="30" value="3"
+                                    class="input-chunky w-full mt-1 px-3 py-2 text-lg font-heading font-bold bg-chalk dark:bg-slate-800 border-dark dark:border-slate-500">
+                            </label>
+                            <label class="block">
+                                <span class="font-heading font-bold text-sm uppercase tracking-tight flex items-center gap-1 text-green">
+                                    Gifts
+                                </span>
+                                <input id="input-gifts" type="number" min="0" max="30" value="3"
+                                    class="input-chunky w-full mt-1 px-3 py-2 text-lg font-heading font-bold bg-chalk dark:bg-slate-800 border-dark dark:border-slate-500">
+                            </label>
+                        </div>
+
+                        <!-- Quick Points Presets & Timer -->
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                            <div>
+                                <span class="text-xs font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400 block mb-1.5">Quick Points</span>
+                                <div id="quick-pts-group" class="flex gap-1.5 flex-wrap">
+                                    <button type="button" data-pts="5" class="pts-chip mt-btn rounded-lg bg-chalk dark:bg-slate-800 px-2.5 py-1 text-xs font-heading font-bold">5</button>
+                                    <button type="button" data-pts="10" class="pts-chip mt-btn rounded-lg bg-chalk dark:bg-slate-800 px-2.5 py-1 text-xs font-heading font-bold">10</button>
+                                    <button type="button" data-pts="50" class="pts-chip mt-btn rounded-lg bg-chalk dark:bg-slate-800 px-2.5 py-1 text-xs font-heading font-bold">50</button>
+                                    <button type="button" data-pts="100" class="pts-chip mt-btn rounded-lg bg-chalk dark:bg-slate-800 px-2.5 py-1 text-xs font-heading font-bold">100</button>
+                                </div>
+                            </div>
+                            <div>
+                                <span class="text-xs font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400 block mb-1.5">Question Timer</span>
+                                <select id="select-timer"
+                                    class="input-chunky w-full px-3 py-1.5 text-sm font-bold bg-chalk dark:bg-slate-800 border-dark dark:border-slate-500">
+                                    <option value="0">Off (Unlimited)</option>
+                                    <option value="15">15 Seconds</option>
+                                    <option value="30">30 Seconds</option>
+                                    <option value="45">45 Seconds</option>
+                                    <option value="60">60 Seconds</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Extra QoL Toggles -->
+                        <div class="space-y-2 pt-2 border-t-2 border-slate-100 dark:border-slate-800">
+                            <label class="flex items-center justify-between gap-3 cursor-pointer p-2 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors">
+                                <span class="text-sm font-bold">Show outcome badge on opened tiles</span>
+                                <input id="toggle-reveal-badge" type="checkbox" checked class="w-5 h-5 accent-blue cursor-pointer">
+                            </label>
+                            <label class="flex items-center justify-between gap-3 cursor-pointer p-2 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors">
+                                <span class="text-sm font-bold">Allow other team steal inside Question modal</span>
+                                <input id="toggle-allow-steal" type="checkbox" checked class="w-5 h-5 accent-green cursor-pointer">
+                            </label>
+                        </div>
+
+                        <!-- Trap & Gift Pool Customizer -->
+                        <details class="group pt-2 border-t-2 border-slate-100 dark:border-slate-800">
+                            <summary class="cursor-pointer list-none flex items-center justify-between font-heading font-bold text-sm uppercase tracking-tight py-1 select-none">
+                                <span class="flex items-center gap-1.5">
+                                    <i data-lucide="sparkles" class="w-4 h-4 text-orange stroke-[2.5]"></i>
+                                    Customize Traps & Gifts Pool
+                                </span>
+                                <span id="pool-count-pill" class="text-xs font-extrabold text-slate-500 dark:text-slate-400">All Active</span>
+                            </summary>
+                            <div class="mt-3 space-y-3 animate-slide-down">
+                                <div>
+                                    <p class="text-xs font-extrabold uppercase text-pink mb-1.5">Traps Pool</p>
+                                    <div id="pool-traps" class="flex flex-wrap gap-1.5"></div>
+                                </div>
+                                <div>
+                                    <p class="text-xs font-extrabold uppercase text-green mb-1.5">Gifts Pool</p>
+                                    <div id="pool-gifts" class="flex flex-wrap gap-1.5"></div>
+                                </div>
+                            </div>
+                        </details>
+                    </div>
+                </div>
+
+                <!-- Right Column: Sets Library + Dual-Mode Question Editor -->
+                <div class="lg:col-span-7 space-y-6">
+
+                    <!-- Starter Presets & Saved Sets Library -->
+                    <div class="mt-card bg-white dark:bg-slate-900 p-5 space-y-4">
+                        <div class="flex flex-wrap items-center justify-between gap-2">
+                            <h2 class="font-heading text-xl md:text-2xl font-bold uppercase tracking-tight flex items-center gap-2">
+                                <span class="w-8 h-8 rounded-xl bg-orange text-dark border-2 border-dark dark:border-slate-500 flex items-center justify-center">
+                                    <i data-lucide="book-open" class="w-4 h-4 stroke-[2.5]"></i>
+                                </span>
+                                Question Sets
+                            </h2>
+                            <div id="sync-status-pill" class="text-xs font-extrabold text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+                                <i data-lucide="cloud" class="w-3.5 h-3.5 text-blue"></i>
+                                <span>Local &amp; Cloud Ready</span>
+                            </div>
+                        </div>
+
+                        <!-- Active Set Title & Library Actions -->
+                        <div class="flex flex-wrap items-center gap-2">
+                            <input id="input-set-title" type="text" maxlength="48" placeholder="Set Title (e.g. Unit 4 Review)..."
+                                class="input-chunky flex-1 min-w-[180px] px-3.5 py-2 text-sm font-bold bg-chalk dark:bg-slate-800 border-dark dark:border-slate-500">
+                            <button id="btn-save-set" type="button"
+                                class="mt-btn rounded-xl bg-green text-dark px-3.5 py-2 font-heading font-bold text-xs uppercase flex items-center gap-1.5">
+                                <i data-lucide="save" class="w-4 h-4 stroke-[2.5]"></i> Save
+                            </button>
+                            <button id="btn-save-as" type="button"
+                                class="mt-btn rounded-xl bg-white dark:bg-slate-800 px-3 py-2 font-heading font-bold text-xs uppercase flex items-center gap-1.5"
+                                title="Save as a new custom set">
+                                <i data-lucide="copy" class="w-4 h-4 stroke-[2.5]"></i> Save As
+                            </button>
+                            <button id="btn-new-set" type="button"
+                                class="mt-btn rounded-xl bg-white dark:bg-slate-800 px-3 py-2 font-heading font-bold text-xs uppercase flex items-center gap-1.5"
+                                title="Start a blank question list">
+                                <i data-lucide="plus" class="w-4 h-4 stroke-[2.5]"></i> New
+                            </button>
+                            <button id="btn-delete-set" type="button"
+                                class="hidden mt-btn rounded-xl bg-pink text-white px-3 py-2 font-heading font-bold text-xs uppercase flex items-center gap-1.5"
+                                title="Delete current saved set">
+                                <i data-lucide="trash-2" class="w-4 h-4 stroke-[2.5]"></i>
+                            </button>
+                        </div>
+
+                        <!-- Starter Presets Chips -->
+                        <div>
+                            <p class="text-xs font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2">
+                                Starter Packs (1-Click Load)
+                            </p>
+                            <div id="presets-strip" class="flex flex-wrap gap-2"></div>
+                        </div>
+
+                        <!-- Saved Custom Sets Chips -->
+                        <div id="saved-sets-wrapper" class="hidden pt-2 border-t-2 border-slate-100 dark:border-slate-800">
+                            <p class="text-xs font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2">
+                                Your Saved Sets
+                            </p>
+                            <div id="saved-sets-strip" class="flex flex-wrap gap-2"></div>
+                        </div>
+                    </div>
+
+                    <!-- Dual-Mode Question Editor Card -->
+                    <div class="mt-card bg-white dark:bg-slate-900 p-5 space-y-4">
+                        <div class="flex flex-wrap items-center justify-between gap-3">
+                            <div class="flex items-center gap-2.5">
+                                <h2 class="font-heading text-xl md:text-2xl font-bold uppercase tracking-tight">Questions</h2>
+                                <span id="q-count-badge"
+                                    class="px-3 py-0.5 rounded-full border-2 border-dark dark:border-slate-500 bg-blue text-white font-heading font-bold text-xs">
+                                    12 Questions
+                                </span>
+                            </div>
+
+                            <div class="flex flex-wrap items-center gap-2">
+                                <!-- Editor Mode Switch -->
+                                <div class="inline-flex rounded-xl border-2 border-dark dark:border-slate-500 bg-slate-100 dark:bg-slate-800 p-0.5">
+                                    <button id="tab-mode-text" type="button"
+                                        class="px-3 py-1 rounded-lg font-heading font-bold text-xs uppercase transition-colors">
+                                        Quick Text
+                                    </button>
+                                    <button id="tab-mode-cards" type="button"
+                                        class="px-3 py-1 rounded-lg font-heading font-bold text-xs uppercase transition-colors">
+                                        Visual Cards
+                                    </button>
+                                </div>
+
+                                <button id="btn-shuffle-questions" type="button"
+                                    class="mt-btn rounded-xl bg-white dark:bg-slate-800 px-3 py-1.5 font-heading font-bold text-xs uppercase flex items-center gap-1.5"
+                                    title="Shuffle question list order">
+                                    <i data-lucide="shuffle" class="w-3.5 h-3.5 stroke-[2.5]"></i>
+                                </button>
+
+                                <button id="btn-bulk-import" type="button"
+                                    class="mt-btn rounded-xl bg-orange text-dark px-3 py-1.5 font-heading font-bold text-xs uppercase flex items-center gap-1.5">
+                                    <i data-lucide="upload" class="w-3.5 h-3.5 stroke-[2.5]"></i> Bulk Import
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Quick Text Pane -->
+                        <div id="pane-text" class="space-y-2">
+                            <p class="text-sm font-bold text-slate-600 dark:text-slate-300">
+                                One question per line. Add an optional answer after <code class="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-600 font-mono text-xs">|</code> to enable the “Show Answer” button.
+                            </p>
+                            <textarea id="input-questions-text" rows="12"
+                                placeholder="What is the past tense of &quot;go&quot;? | went&#10;Name three red fruits. | apple, strawberry, cherry&#10;Make a sentence with &quot;because&quot;."
+                                class="input-chunky w-full p-4 font-mono text-sm leading-relaxed bg-chalk dark:bg-slate-950 border-dark dark:border-slate-500 custom-scroll"></textarea>
+                        </div>
+
+                        <!-- Visual Cards Pane -->
+                        <div id="pane-cards" class="hidden space-y-3">
+                            <div id="visual-cards-list" class="space-y-2.5 max-h-[420px] overflow-y-auto pr-1 custom-scroll"></div>
+                            <button id="btn-add-q-card" type="button"
+                                class="mt-btn w-full rounded-xl bg-chalk dark:bg-slate-800 py-2.5 font-heading font-bold text-sm uppercase flex items-center justify-center gap-2 border-dashed">
+                                <i data-lucide="plus" class="w-4 h-4 stroke-[2.5]"></i> Add Question Row
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Start Game Primary CTA -->
+            <div class="pt-1">
+                <button id="btn-start-game" type="button"
+                    class="mt-btn w-full rounded-2xl bg-green text-dark py-4 md:py-5 px-6 font-heading font-bold uppercase tracking-tight text-2xl md:text-3xl flex items-center justify-center gap-3">
+                    <i data-lucide="play" class="w-7 h-7 stroke-[2.75]"></i>
+                    <span id="btn-start-label">Start Mystery Game</span>
+                </button>
+            </div>
+        </section>
+
+        <!-- ================= VIEW 2: GAME BOARD ================= -->
+        <section id="view-game" class="hidden space-y-5 animate-fade-in">
+
+            <!-- Scoreboard Strip -->
+            <div id="scoreboard-grid" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 md:gap-4"></div>
+
+            <!-- Active Turn Banner -->
+            <div id="turn-banner"
+                class="mt-card p-3.5 md:p-4 flex flex-wrap items-center justify-between gap-3 transition-colors">
+                <div class="flex items-center gap-3 min-w-0">
+                    <span id="turn-badge"
+                        class="px-3 py-1 rounded-full border-2 border-dark dark:border-slate-800 bg-white/90 text-dark font-heading font-bold text-xs uppercase shrink-0">
+                        Active Turn
+                    </span>
+                    <div id="turn-prompt" class="font-heading font-bold text-xl md:text-3xl leading-tight truncate">
+                        Team 1, pick a mystery tile!
+                    </div>
+                </div>
+
+                <div class="flex items-center gap-2 shrink-0">
+                    <div id="turn-notice"
+                        class="hidden px-3 py-1 rounded-xl bg-dark/15 font-extrabold text-xs md:text-sm"></div>
+                    <div id="remaining-pill"
+                        class="px-3.5 py-1.5 rounded-xl border-2 border-dark dark:border-slate-800 bg-white/90 text-dark font-heading font-bold text-sm">
+                        18 / 18 Left
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tile Grid -->
+            <div id="tiles-grid" class="mt-tile-grid pt-1"></div>
+        </section>
+
+        <!-- ================= VIEW 3: END / LEADERBOARD ================= -->
+        <section id="view-end" class="hidden max-w-3xl mx-auto py-4 animate-pop-in">
+            <div class="mt-card-lg bg-white dark:bg-slate-900 p-6 md:p-8 text-center space-y-6">
+                <div class="flex justify-center">
+                    <div class="w-24 h-24 rounded-3xl bg-orange text-dark border-4 border-dark dark:border-slate-500 shadow-[0_6px_0_#0f172a] dark:shadow-[0_6px_0_#000] flex items-center justify-center rotate-3">
+                        <i data-lucide="trophy" class="w-12 h-12 stroke-[2.5]"></i>
+                    </div>
+                </div>
+
+                <div class="space-y-1">
+                    <p class="font-heading font-bold uppercase tracking-widest text-xs text-pink">Game Over</p>
+                    <h2 id="end-headline" class="font-heading text-3xl md:text-5xl font-bold uppercase tracking-tight">
+                        Team 1 Wins!
+                    </h2>
+                </div>
+
+                <!-- Final Ranked Podium List -->
+                <div id="end-leaderboard" class="space-y-3 text-left"></div>
+
+                <!-- Actions -->
+                <div class="flex flex-wrap items-center justify-center gap-3 pt-2">
+                    <button id="btn-play-again" type="button"
+                        class="mt-btn rounded-2xl bg-green text-dark px-6 py-3.5 font-heading font-bold text-lg uppercase flex items-center gap-2">
+                        <i data-lucide="rotate-ccw" class="w-5 h-5 stroke-[2.5]"></i> Play Again (Reshuffle)
+                    </button>
+                    <button id="btn-back-setup" type="button"
+                        class="mt-btn rounded-2xl bg-white dark:bg-slate-800 px-6 py-3.5 font-heading font-bold text-lg uppercase flex items-center gap-2">
+                        <i data-lucide="sliders" class="w-5 h-5 stroke-[2.5]"></i> Edit Setup
+                    </button>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- ================= MODAL: TILE REVEAL (QUESTION / TRAP / GIFT) ================= -->
+    <div id="modal-tile"
+        class="hidden fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-sm p-4 flex items-center justify-center overflow-y-auto"
+        role="dialog" aria-modal="true" aria-labelledby="modal-tile-title">
+        <div id="modal-tile-card" class="mt-card-lg bg-white dark:bg-slate-900 w-full max-w-2xl overflow-hidden animate-pop-in my-auto">
+            <!-- Dynamic Header -->
+            <div id="modal-tile-header"
+                class="px-5 py-3.5 border-b-[3px] border-dark dark:border-slate-500 flex items-center justify-between gap-3">
+                <div class="flex items-center gap-2.5">
+                    <span id="modal-tile-icon-wrap" class="flex items-center justify-center"></span>
+                    <span id="modal-tile-title" class="font-heading font-bold uppercase text-xl md:text-2xl">Question</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <span id="modal-tile-num"
+                        class="px-3 py-0.5 rounded-full bg-white/85 text-dark border-2 border-dark font-heading font-bold text-sm">
+                        Tile #1
+                    </span>
+                    <button id="btn-return-tile" type="button"
+                        class="hidden px-2.5 py-1 rounded-xl bg-white/85 hover:bg-white text-dark border-2 border-dark font-heading font-bold text-xs uppercase transition-colors"
+                        title="Return unopened tile to board (misclick)">
+                        Return Tile
+                    </button>
+                </div>
+            </div>
+
+            <!-- Optional Question Countdown Bar -->
+            <div id="modal-timer-bar-wrap" class="hidden bg-slate-200 dark:bg-slate-800 border-b-2 border-dark dark:border-slate-600 px-5 py-2">
+                <div class="flex items-center justify-between gap-3 mb-1.5">
+                    <span class="font-heading font-bold text-xs uppercase flex items-center gap-1.5">
+                        <i data-lucide="timer" class="w-4 h-4 text-orange stroke-[2.5]"></i>
+                        <span id="modal-timer-text">30s left</span>
+                    </span>
+                    <div class="flex items-center gap-1.5">
+                        <button id="btn-timer-toggle" type="button"
+                            class="px-2 py-0.5 rounded-lg border-2 border-dark dark:border-slate-500 bg-white dark:bg-slate-700 font-heading font-bold text-xs">
+                            Pause
+                        </button>
+                        <button id="btn-timer-plus10" type="button"
+                            class="px-2 py-0.5 rounded-lg border-2 border-dark dark:border-slate-500 bg-white dark:bg-slate-700 font-heading font-bold text-xs">
+                            +10s
+                        </button>
+                    </div>
+                </div>
+                <div class="w-full h-3 rounded-full bg-white dark:bg-slate-950 border-2 border-dark dark:border-slate-500 overflow-hidden">
+                    <div id="modal-timer-fill" class="h-full bg-green transition-all duration-300" style="width: 100%"></div>
+                </div>
+            </div>
+
+            <!-- Dynamic Modal Body -->
+            <div id="modal-tile-body" class="p-5 md:p-7"></div>
+        </div>
+    </div>
+
+    <!-- ================= MODAL: RULES & POWER-UPS GUIDE ================= -->
+    <div id="modal-help"
+        class="hidden fixed inset-0 z-[100] bg-slate-950/75 backdrop-blur-sm p-4 flex items-center justify-center overflow-y-auto"
+        role="dialog" aria-modal="true" aria-labelledby="help-modal-title">
+        <div class="mt-card-lg bg-white dark:bg-slate-900 w-full max-w-2xl overflow-hidden animate-pop-in my-auto">
+            <div class="bg-blue text-white px-5 py-3.5 border-b-[3px] border-dark dark:border-slate-500 flex items-center justify-between">
+                <h2 id="help-modal-title" class="font-heading font-bold uppercase text-xl md:text-2xl flex items-center gap-2">
+                    <i data-lucide="help-circle" class="w-6 h-6 stroke-[2.5]"></i> How to Play Mystery Tiles
+                </h2>
+                <button id="btn-close-help" type="button"
+                    class="w-9 h-9 rounded-xl bg-white/20 hover:bg-white/30 flex items-center justify-center transition-colors"
+                    aria-label="Close help modal">
+                    <i data-lucide="x" class="w-5 h-5 stroke-[2.5]"></i>
+                </button>
+            </div>
+            <div class="p-5 md:p-6 space-y-5 max-h-[75vh] overflow-y-auto custom-scroll">
+                <p class="font-bold text-sm md:text-base text-slate-600 dark:text-slate-300">
+                    Questions, Traps, and Gifts are randomly hidden behind numbered tiles. Teams take turns choosing a tile number—answer correctly to earn points, or brace yourself for a surprise!
+                </p>
+
+                <div class="grid sm:grid-cols-2 gap-4">
+                    <div class="mt-card-sm bg-pink/10 dark:bg-pink/15 p-4 space-y-2">
+                        <h3 class="font-heading font-bold uppercase text-pink flex items-center gap-1.5">
+                            <i data-lucide="skull" class="w-5 h-5 stroke-[2.5]"></i> Traps
+                        </h3>
+                        <ul class="text-sm font-bold space-y-1.5">
+                            <li><strong>Bomb!</strong> Lose 1× question points (min 0).</li>
+                            <li><strong>Snip snip!</strong> Lose half your score (rounded down).</li>
+                            <li><strong>Frozen!</strong> Skip your next turn.</li>
+                            <li><strong>Generous!</strong> Give up to 1× points to another team.</li>
+                        </ul>
+                    </div>
+
+                    <div class="mt-card-sm bg-green/10 dark:bg-green/15 p-4 space-y-2">
+                        <h3 class="font-heading font-bold uppercase text-green flex items-center gap-1.5">
+                            <i data-lucide="gift" class="w-5 h-5 stroke-[2.5]"></i> Gifts
+                        </h3>
+                        <ul class="text-sm font-bold space-y-1.5">
+                            <li><strong>Bonus!</strong> Instant 2× question points!</li>
+                            <li><strong>Double up!</strong> Double your total score!</li>
+                            <li><strong>Sneaky!</strong> Steal up to 1× points from a team.</li>
+                            <li><strong>Switcheroo!</strong> Swap scores with any team.</li>
+                            <li><strong>Go again!</strong> Keep your turn for another tile!</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="mt-card-sm bg-slate-100 dark:bg-slate-800 p-4">
+                    <h3 class="font-heading font-bold uppercase text-sm mb-2">Classroom Shortcuts</h3>
+                    <div class="flex flex-wrap gap-3 text-xs font-extrabold">
+                        <span><kbd class="px-2 py-0.5 rounded bg-white dark:bg-slate-700 border border-dark dark:border-slate-500">Space</kbd> Show Answer</span>
+                        <span><kbd class="px-2 py-0.5 rounded bg-white dark:bg-slate-700 border border-dark dark:border-slate-500">Z</kbd> Undo Last Turn</span>
+                        <span><kbd class="px-2 py-0.5 rounded bg-white dark:bg-slate-700 border border-dark dark:border-slate-500">M</kbd> Mute / Unmute</span>
+                        <span><kbd class="px-2 py-0.5 rounded bg-white dark:bg-slate-700 border border-dark dark:border-slate-500">Esc</kbd> Close Dialog</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ================= MODAL: SYSTEM CONFIRM / PROMPT / END GAME ================= -->
+    <div id="modal-system"
+        class="hidden fixed inset-0 z-[500] bg-slate-950/75 backdrop-blur-sm p-4 flex items-center justify-center"
+        role="dialog" aria-modal="true" aria-labelledby="sys-modal-title">
+        <div class="mt-card-lg bg-white dark:bg-slate-900 w-full max-w-md overflow-hidden animate-pop-in">
+            <div id="sys-modal-header"
+                class="bg-orange text-dark px-5 py-3.5 border-b-[3px] border-dark dark:border-slate-500 flex items-center justify-between">
+                <h3 id="sys-modal-title" class="font-heading font-bold uppercase text-xl">Confirm</h3>
+            </div>
+            <div class="p-5 space-y-4">
+                <p id="sys-modal-msg" class="font-bold text-base text-slate-700 dark:text-slate-200 leading-snug"></p>
+                <input id="sys-modal-input" type="text"
+                    class="hidden input-chunky w-full px-3.5 py-2.5 text-base font-bold bg-chalk dark:bg-slate-800 border-dark dark:border-slate-500">
+                <div id="sys-modal-actions" class="flex flex-wrap justify-end gap-2.5 pt-1"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bulk Import Root Container -->
+    <div id="bulk-import-root"></div>
+
+    <!-- Toast Notification Stack -->
+    <div id="toast-container" class="fixed bottom-5 right-5 z-[400] flex flex-col gap-2 pointer-events-none"></div>
+
+</body>
+</html>
