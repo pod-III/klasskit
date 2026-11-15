@@ -20,13 +20,6 @@
         { name: 'Yellow', bg: '#facc15', text: '#0f172a', border: '#a16207' }
     ];
 
-    const TILE_COLOR_CLASSES = [
-        'bg-pink text-white',
-        'bg-orange text-dark',
-        'bg-green text-dark',
-        'bg-blue text-white'
-    ];
-
     const TRAPS = [
         { id: 'lose', icon: 'bomb',     name: 'Bomb!',      short: 'Bomb (-P)',   desc: P => `Lose ${P} points (min 0).` },
         { id: 'half', icon: 'scissors', name: 'Snip snip!', short: 'Snip (½)',    desc: () => 'Lose half of your points!' },
@@ -241,12 +234,9 @@
 
         scoreboardGrid: $('scoreboard-grid'),
         turnBanner: $('turn-banner'),
-        turnBadge: $('turn-badge'),
+        turnDot: $('turn-dot'),
         turnPrompt: $('turn-prompt'),
         turnNotice: $('turn-notice'),
-        remainingQPill: $('remaining-q-pill'),
-        remainingTrapPill: $('remaining-trap-pill'),
-        remainingGiftPill: $('remaining-gift-pill'),
         remainingPill: $('remaining-pill'),
         tilesGridWrap: $('tiles-grid-wrap'),
         tilesGrid: $('tiles-grid'),
@@ -1167,48 +1157,57 @@
             5: 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-5',
             6: 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-6'
         };
-        els.scoreboardGrid.className = `grid gap-2.5 md:gap-3 shrink-0 ${colMap[G.teams.length] || 'grid-cols-2 md:grid-cols-3'}`;
+        els.scoreboardGrid.className = `grid gap-2.5 shrink-0 ${colMap[G.teams.length] || 'grid-cols-2 md:grid-cols-3'}`;
 
         els.scoreboardGrid.innerHTML = G.teams.map((t, idx) => {
             const isActive = idx === G.cur;
             const isLeader = hasLeader && t.score === maxScore;
             const deltaText = deltas[idx] || '';
+            const activeBgStyle = isActive
+                ? `background: color-mix(in srgb, ${t.color} 13%, var(--bg-secondary, #ffffff)); outline: 3px solid ${t.color}; outline-offset: 1px;`
+                : '';
+
             return `
-                <div class="mt-card px-3 py-2.5 transition-all relative ${isActive ? 'team-card-active' : 'opacity-90'}"
-                    style="background:${t.color};color:${t.txt}">
+                <div class="mt-card bg-white dark:bg-slate-900 overflow-hidden transition-all relative ${isActive ? 'team-card-active' : 'opacity-85 hover:opacity-100'}"
+                    style="${activeBgStyle}">
+                    <div class="h-2 w-full" style="background:${t.color}"></div>
+
                     ${deltaText ? `
-                        <span class="score-delta-badge absolute -top-3 right-2 px-2.5 py-0.5 rounded-full bg-dark text-white border-2 border-white font-heading font-bold text-xs shadow">
+                        <span class="score-delta-badge absolute top-2.5 right-2 px-2 py-0.5 rounded-full bg-dark text-white font-heading font-bold text-xs">
                             ${esc(deltaText)}
                         </span>` : ''}
 
-                    <div class="flex items-center justify-between gap-1.5 mb-1.5">
-                        <div class="font-heading font-bold text-base md:text-lg truncate flex items-center gap-1">
-                            ${isLeader ? `<i data-lucide="crown" class="w-4 h-4 shrink-0 stroke-[2.5]"></i>` : ''}
-                            <span class="truncate">${esc(t.name)}</span>
+                    <div class="px-3 py-2">
+                        <div class="flex items-center justify-between gap-1.5 mb-1">
+                            <div class="font-heading font-bold text-sm md:text-base truncate flex items-center gap-1.5 text-slate-900 dark:text-slate-100">
+                                <span class="w-2.5 h-2.5 rounded-full shrink-0" style="background:${t.color}"></span>
+                                <span class="truncate">${esc(t.name)}</span>
+                                ${isLeader ? `<i data-lucide="crown" class="w-3.5 h-3.5 shrink-0 text-orange stroke-[2.5]"></i>` : ''}
+                            </div>
+                            ${isActive ? `<span class="px-2 py-0.5 rounded-full font-heading font-bold text-[10px] uppercase shrink-0" style="background:${t.color};color:${t.txt}">Turn</span>` : ''}
                         </div>
-                        ${isActive ? `<span class="px-2 py-0.5 rounded-full bg-white text-dark border-2 border-dark font-heading font-bold text-[10px] uppercase shrink-0">Your Turn</span>` : ''}
-                    </div>
 
-                    <div class="flex items-center justify-between gap-1.5">
-                        <button type="button" data-adj-team="${idx}" data-adj-dir="-1"
-                            class="mt-btn w-8 h-8 rounded-xl bg-white text-dark flex items-center justify-center shrink-0"
-                            aria-label="Subtract ${G.pts} points from ${esc(t.name)}" title="-${G.pts} pts">
-                            <i data-lucide="minus" class="w-4 h-4 stroke-[3]"></i>
-                        </button>
-                        <div class="font-heading font-bold text-2xl md:text-3xl tabular-nums leading-none">
-                            ${t.score}
+                        <div class="flex items-center justify-between gap-1">
+                            <button type="button" data-adj-team="${idx}" data-adj-dir="-1"
+                                class="w-7 h-7 rounded-lg text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-center transition-colors"
+                                aria-label="Subtract ${G.pts} points from ${esc(t.name)}" title="-${G.pts} pts">
+                                <i data-lucide="minus" class="w-3.5 h-3.5 stroke-[2.5]"></i>
+                            </button>
+                            <div class="font-heading font-bold text-2xl md:text-3xl tabular-nums leading-none text-slate-900 dark:text-white">
+                                ${t.score}
+                            </div>
+                            <button type="button" data-adj-team="${idx}" data-adj-dir="1"
+                                class="w-7 h-7 rounded-lg text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-center transition-colors"
+                                aria-label="Add ${G.pts} points to ${esc(t.name)}" title="+${G.pts} pts">
+                                <i data-lucide="plus" class="w-3.5 h-3.5 stroke-[2.5]"></i>
+                            </button>
                         </div>
-                        <button type="button" data-adj-team="${idx}" data-adj-dir="1"
-                            class="mt-btn w-8 h-8 rounded-xl bg-white text-dark flex items-center justify-center shrink-0"
-                            aria-label="Add ${G.pts} points to ${esc(t.name)}" title="+${G.pts} pts">
-                            <i data-lucide="plus" class="w-4 h-4 stroke-[3]"></i>
-                        </button>
-                    </div>
 
-                    ${t.skip ? `
-                        <div class="mt-1.5 px-2 py-0.5 rounded-lg bg-slate-950/25 text-[11px] font-extrabold flex items-center justify-center gap-1">
-                            <i data-lucide="pause" class="w-3 h-3 stroke-[2.5]"></i> Frozen (Skips Next Turn)
-                        </div>` : ''}
+                        ${t.skip ? `
+                            <div class="mt-1 text-[11px] font-extrabold text-pink flex items-center justify-center gap-1">
+                                <i data-lucide="pause" class="w-3 h-3 stroke-[2.5]"></i> Skips next turn
+                            </div>` : ''}
+                    </div>
                 </div>
             `;
         }).join('');
@@ -1216,30 +1215,24 @@
         // Clear one-shot floating deltas after painting them once
         state.scoreDeltas = {};
 
-        // Turn Banner & Live Mystery Mix Breakdown
+        // Quiet Turn & Status Strip
         const curTeam = G.teams[G.cur];
-        els.turnBanner.style.background = curTeam.color;
-        els.turnBanner.style.color = curTeam.txt;
-        els.turnPrompt.textContent = `${curTeam.name} — Pick a number!`;
+        if (els.turnDot) {
+            els.turnDot.style.background = curTeam.color;
+        }
+        els.turnPrompt.textContent = `${curTeam.name}’s turn — Pick a tile`;
 
         if (state.lastNotice) {
-            els.turnNotice.textContent = state.lastNotice;
+            els.turnNotice.textContent = `Last: ${state.lastNotice}`;
             els.turnNotice.classList.remove('hidden');
         } else {
             els.turnNotice.classList.add('hidden');
         }
 
-        const unused = G.tiles.filter(t => !t.used);
-        const remQ = unused.filter(t => t.kind === 'q').length;
-        const remTraps = unused.filter(t => t.kind === 'trap').length;
-        const remGifts = unused.filter(t => t.kind === 'gift').length;
+        const unusedCount = G.tiles.filter(t => !t.used).length;
+        els.remainingPill.textContent = `${unusedCount} left`;
 
-        els.remainingQPill.innerHTML = `<i data-lucide="help-circle" class="w-3.5 h-3.5 stroke-[2.5]"></i><span>${remQ} Q</span>`;
-        els.remainingTrapPill.innerHTML = `<i data-lucide="skull" class="w-3.5 h-3.5 stroke-[2.5]"></i><span>${remTraps} Trap</span>`;
-        els.remainingGiftPill.innerHTML = `<i data-lucide="gift" class="w-3.5 h-3.5 stroke-[2.5]"></i><span>${remGifts} Gift</span>`;
-        els.remainingPill.textContent = `${unused.length} Left`;
-
-        // Render Number Tiles cleanly
+        // Calm Cohesive Number Grid (high-contrast neutral unpicked cards + muted ghost used cards)
         els.tilesGrid.innerHTML = G.tiles.map((tile, i) => {
             if (tile.used) {
                 let outcomeBadge = '';
@@ -1251,28 +1244,20 @@
                         gift: tile.outcomeIcon || 'gift'
                     };
                     const iconName = iconMap[tile.outcome] || 'check';
-                    const toneCls = tile.outcome === 'right'
-                        ? 'text-green'
-                        : tile.outcome === 'trap'
-                            ? 'text-pink'
-                            : tile.outcome === 'gift'
-                                ? 'text-orange'
-                                : 'text-slate-400';
-                    outcomeBadge = `<i data-lucide="${iconName}" class="w-4 h-4 md:w-5 md:h-5 mt-1 ${toneCls}"></i>`;
+                    outcomeBadge = `<i data-lucide="${iconName}" class="w-3.5 h-3.5 md:w-4 md:h-4 mt-1 opacity-45"></i>`;
                 }
                 return `
                     <button type="button" disabled
-                        class="tile-btn tile-used flex flex-col items-center justify-center bg-slate-200/80 dark:bg-slate-800/80 text-slate-400 dark:text-slate-500">
-                        <span class="font-heading font-bold line-through leading-none opacity-65" style="font-size: calc(var(--tile-font, 36px) * 0.65)">${i + 1}</span>
+                        class="tile-btn tile-used flex flex-col items-center justify-center bg-slate-200/45 dark:bg-slate-900/40 text-slate-400/60 dark:text-slate-600 border-slate-300 dark:border-slate-700/70">
+                        <span class="font-heading font-bold line-through leading-none" style="font-size: calc(var(--tile-font, 36px) * 0.6)">${i + 1}</span>
                         ${outcomeBadge}
                     </button>
                 `;
             }
 
-            const colorCls = TILE_COLOR_CLASSES[i % TILE_COLOR_CLASSES.length];
             return `
                 <button type="button" data-open-tile="${i}"
-                    class="tile-btn flex items-center justify-center font-heading font-bold ${colorCls}"
+                    class="tile-btn flex items-center justify-center font-heading font-bold bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 hover:bg-sky-50 dark:hover:bg-slate-700/90"
                     aria-label="Open tile ${i + 1}">
                     <span class="tile-num">${i + 1}</span>
                 </button>
@@ -1280,7 +1265,6 @@
         }).join('');
 
         refreshIcons(els.scoreboardGrid);
-        refreshIcons(els.turnBanner);
         refreshIcons(els.tilesGrid);
         updateUndoButton();
         requestAnimationFrame(fitTileGridToViewport);
@@ -1351,7 +1335,7 @@
 
         tile.used = true;
         if (tile.kind === 'q') {
-            G.modal = { i: idx, kind: 'q', q: tile.q, a: tile.a, showAnswer: false };
+            G.modal = { i: idx, kind: 'q', q: tile.q, a: tile.a, showAnswer: false, showSteal: false };
             SoundEngine.openQuestion();
             startModalTimer(G.timerSec);
         } else if (tile.kind === 'trap') {
@@ -1441,59 +1425,60 @@
         els.modalTileNum.textContent = `Tile #${m.i + 1}`;
         els.btnReturnTile.classList.toggle('hidden', m.kind !== 'q');
 
-        // Reset and apply special reveal motion
+        // Gentle single entrance animation (no startling whole-modal screen shake)
         els.modalTileCard.classList.remove('animate-trap-shake', 'animate-gift-bounce', 'animate-pop-in');
         void els.modalTileCard.offsetWidth;
-        if (m.kind === 'trap') els.modalTileCard.classList.add('animate-trap-shake');
-        else if (m.kind === 'gift') els.modalTileCard.classList.add('animate-gift-bounce');
-        else els.modalTileCard.classList.add('animate-pop-in');
+        els.modalTileCard.classList.add('animate-pop-in');
 
         const curTeam = G.teams[G.cur];
 
         if (m.kind === 'q') {
             const answerBlock = m.a
                 ? (m.showAnswer
-                    ? `<div class="mt-card-sm border-dashed bg-green/15 dark:bg-green/20 px-5 py-4 text-center animate-pop-in">
-                            <span class="block text-[11px] font-heading font-bold uppercase tracking-widest text-green mb-1">Answer</span>
+                    ? `<div class="mt-card-sm border-dashed bg-green/10 dark:bg-green/15 px-5 py-3.5 text-center animate-pop-in">
+                            <span class="block text-[11px] font-heading font-bold uppercase tracking-widest text-green mb-0.5">Answer</span>
                             <p class="font-heading font-bold text-2xl md:text-3xl">${esc(m.a)}</p>
                        </div>`
                     : `<div class="text-center">
                             <button type="button" data-modal-act="show-answer"
-                                class="mt-btn rounded-xl bg-chalk dark:bg-slate-800 px-5 py-2.5 font-heading font-bold text-base uppercase inline-flex items-center gap-2">
-                                <i data-lucide="eye" class="w-5 h-5 stroke-[2.5]"></i> Show Answer (Space)
+                                class="mt-btn rounded-xl bg-chalk dark:bg-slate-800 px-5 py-2 font-heading font-bold text-sm md:text-base uppercase inline-flex items-center gap-2">
+                                <i data-lucide="eye" class="w-4 h-4 stroke-[2.5]"></i> Show Answer
                             </button>
                        </div>`)
-                : `<p class="text-center text-xs font-extrabold uppercase tracking-wider text-slate-400">Open Speaking / Class Prompt — Teacher Judges Live</p>`;
+                : '';
 
             const stealBlock = G.allowSteal && G.teams.length > 1
-                ? `<div class="pt-3 border-t-2 border-slate-100 dark:border-slate-800 space-y-2">
-                        <p class="text-center text-xs font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                            Wrong answer? Let another team steal +${G.pts} pts:
-                        </p>
-                        <div class="flex flex-wrap justify-center gap-2">
-                            ${G.teams.map((t, idx) => idx === G.cur ? '' : `
-                                <button type="button" data-modal-act="steal-answer" data-team="${idx}"
-                                    class="mt-btn rounded-xl px-3.5 py-1.5 font-heading font-bold text-xs uppercase flex items-center gap-1"
-                                    style="background:${t.color};color:${t.txt}">
-                                    <i data-lucide="zap" class="w-3.5 h-3.5 stroke-[2.5]"></i>
-                                    ${esc(t.name)} +${G.pts}
-                                </button>
-                            `).join('')}
-                        </div>
-                   </div>`
+                ? (m.showSteal
+                    ? `<div class="pt-3 border-t-2 border-slate-100 dark:border-slate-800 space-y-2 animate-slide-down">
+                            <p class="text-center text-xs font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                                Choose team stealing +${G.pts} pts:
+                            </p>
+                            <div class="flex flex-wrap justify-center gap-2">
+                                ${G.teams.map((t, idx) => idx === G.cur ? '' : `
+                                    <button type="button" data-modal-act="steal-answer" data-team="${idx}"
+                                        class="mt-btn rounded-xl px-3.5 py-1.5 font-heading font-bold text-xs uppercase"
+                                        style="background:${t.color};color:${t.txt}">
+                                        ${esc(t.name)} +${G.pts}
+                                    </button>
+                                `).join('')}
+                            </div>
+                       </div>`
+                    : `<div class="text-center pt-1">
+                            <button type="button" data-modal-act="toggle-steal"
+                                class="text-xs font-extrabold text-slate-400 hover:text-blue transition-colors underline underline-offset-4">
+                                Another team wants to steal?
+                            </button>
+                       </div>`)
                 : '';
 
             els.modalTileBody.innerHTML = `
                 <div class="space-y-5">
-                    <div class="text-center">
-                        <div class="flex items-center justify-center gap-2 flex-wrap mb-3">
-                            <span class="inline-block px-3 py-0.5 rounded-full border-2 border-dark dark:border-slate-600 text-xs font-heading font-bold uppercase"
-                                style="background:${curTeam.color};color:${curTeam.txt}">
-                                ${esc(curTeam.name)}’s Turn
-                            </span>
-                            <span class="inline-block px-3 py-0.5 rounded-full border-2 border-dark dark:border-slate-600 bg-orange/20 text-xs font-heading font-bold uppercase">
-                                Worth +${G.pts} Pts
-                            </span>
+                    <div class="text-center space-y-3">
+                        <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-xs font-extrabold">
+                            <span class="w-2.5 h-2.5 rounded-full" style="background:${curTeam.color}"></span>
+                            <span>${esc(curTeam.name)}</span>
+                            <span class="text-slate-400">·</span>
+                            <span class="text-blue">+${G.pts} pts</span>
                         </div>
                         <p class="font-heading font-bold projector-question-text">${esc(m.q)}</p>
                     </div>
@@ -1520,48 +1505,42 @@
             const previewText = fx.target ? '' : computeSingleEffectPreview(fx.id, curTeam, G.pts);
 
             const actionArea = fx.target
-                ? `<div class="space-y-2.5 pt-2">
+                ? `<div class="space-y-2.5 pt-1">
                         <p class="text-center text-xs font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                            Step 1: Choose Rival Team
+                            Choose a team
                         </p>
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                             ${G.teams.map((t, idx) => idx === G.cur ? '' : `
                                 <button type="button" data-modal-act="target" data-team="${idx}"
-                                    class="mt-btn rounded-2xl px-4 py-3 text-left flex items-center justify-between gap-2"
-                                    style="background:${t.color};color:${t.txt}">
-                                    <span class="font-heading font-bold text-lg truncate">${esc(t.name)}</span>
-                                    <span class="text-xs font-extrabold bg-black/15 px-2.5 py-1 rounded-lg shrink-0">
+                                    class="mt-btn rounded-2xl px-4 py-3 text-left flex items-center justify-between gap-2 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100">
+                                    <span class="font-heading font-bold text-base truncate flex items-center gap-2">
+                                        <span class="w-3 h-3 rounded-full shrink-0" style="background:${t.color}"></span>
+                                        <span class="truncate">${esc(t.name)}</span>
+                                    </span>
+                                    <span class="text-xs font-extrabold text-slate-500 dark:text-slate-300 shrink-0">
                                         ${esc(computeTargetPreview(fx.id, curTeam, t, G.pts))}
                                     </span>
                                 </button>
                             `).join('')}
                         </div>
                    </div>`
-                : `<div class="space-y-3 pt-1">
-                        ${previewText ? `
-                            <div class="mt-card-sm bg-slate-100 dark:bg-slate-800 px-4 py-2.5 font-heading font-bold text-base md:text-lg">
-                                ${esc(previewText)}
-                            </div>` : ''}
-                        <button type="button" data-modal-act="apply"
-                            class="mt-btn w-full rounded-2xl bg-orange text-dark py-3.5 font-heading font-bold text-xl uppercase">
-                            Apply Effect
-                        </button>
-                   </div>`;
+                : `<button type="button" data-modal-act="apply"
+                        class="mt-btn w-full rounded-2xl bg-orange text-dark py-3.5 font-heading font-bold text-xl uppercase">
+                        Apply
+                   </button>`;
 
             els.modalTileBody.innerHTML = `
                 <div class="text-center space-y-4">
                     <div class="flex justify-center">
-                        <div class="w-20 h-20 md:w-24 md:h-24 rounded-3xl ${badgeBg} border-4 border-dark dark:border-slate-500 shadow-[0_5px_0_#0f172a] dark:shadow-[0_5px_0_#000] flex items-center justify-center">
-                            <i data-lucide="${fx.icon}" class="w-11 h-11 md:w-12 md:h-12 stroke-[2.5]"></i>
+                        <div class="w-20 h-20 rounded-3xl ${badgeBg} border-4 border-dark dark:border-slate-500 shadow-[0_5px_0_#0f172a] dark:shadow-[0_5px_0_#000] flex items-center justify-center">
+                            <i data-lucide="${fx.icon}" class="w-10 h-10 stroke-[2.5]"></i>
                         </div>
                     </div>
-                    <div>
-                        <span class="inline-block px-3 py-0.5 rounded-full border-2 border-dark dark:border-slate-600 text-xs font-heading font-bold uppercase mb-2"
-                            style="background:${curTeam.color};color:${curTeam.txt}">
-                            ${esc(curTeam.name)}
-                        </span>
-                        <h3 class="font-heading font-bold text-4xl md:text-5xl uppercase tracking-tight">${esc(fx.name)}</h3>
-                        <p class="text-lg md:text-xl font-extrabold text-slate-600 dark:text-slate-300 mt-1">${esc(fx.desc(G.pts))}</p>
+                    <div class="space-y-1">
+                        <h3 class="font-heading font-bold text-3xl md:text-4xl uppercase tracking-tight">${esc(fx.name)}</h3>
+                        <p class="text-base md:text-lg font-extrabold text-slate-600 dark:text-slate-300">
+                            ${esc(fx.desc(G.pts))}${previewText ? ` — ${esc(previewText)}` : ''}
+                        </p>
                     </div>
                     ${actionArea}
                 </div>
@@ -2211,6 +2190,12 @@ Describe your favorite weekend activity.`;
 
             if (action === 'show-answer') {
                 m.showAnswer = true;
+                SoundEngine.click();
+                renderTileModal();
+                return;
+            }
+            if (action === 'toggle-steal') {
+                m.showSteal = true;
                 SoundEngine.click();
                 renderTileModal();
                 return;
