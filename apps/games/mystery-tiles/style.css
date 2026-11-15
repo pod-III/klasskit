@@ -16,11 +16,35 @@ html.dark {
     outline-offset: 2px;
 }
 
+/* Chromebook / Projector Viewport Lock during Active Gameplay */
+@media (min-width: 768px) {
+    body.in-game-viewport {
+        height: 100dvh;
+        overflow: hidden;
+    }
+
+    body.in-game-viewport main {
+        flex: 1 1 0%;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        padding-top: 0.65rem;
+        padding-bottom: 0.75rem;
+    }
+
+    body.in-game-viewport #view-game {
+        flex: 1 1 0%;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+    }
+}
+
 /* Tactile Soft-Brutal Card & Shadow Helpers */
 .mt-card {
     border: 3px solid var(--mt-border);
     box-shadow: 0 5px 0 var(--mt-shadow);
-    border-radius: 1.5rem;
+    border-radius: 1.35rem;
     transition: transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.18s ease;
 }
 
@@ -36,7 +60,7 @@ html.dark {
     border-radius: 2rem;
 }
 
-/* Chunky Game Buttons extending base .btn-chunky feel cleanly */
+/* Chunky Game Buttons */
 .mt-btn {
     border: 3px solid var(--mt-border);
     box-shadow: 0 4px 0 var(--mt-shadow);
@@ -64,22 +88,27 @@ html.dark {
     box-shadow: 0 2px 0 var(--mt-shadow);
 }
 
-/* Mystery Number Tile */
+/* Auto-Fit Mystery Tile Button */
 .tile-btn {
     position: relative;
+    width: 100%;
+    height: 100%;
+    min-height: 64px;
     border: 3.5px solid var(--mt-border);
-    box-shadow: 0 6px 0 var(--mt-shadow);
-    border-radius: 1.25rem;
-    transition: transform 0.16s cubic-bezier(0.34, 1.56, 0.64, 1),
-                box-shadow 0.16s ease,
+    box-shadow: 0 5px 0 var(--mt-shadow);
+    border-radius: 1.15rem;
+    transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1),
+                box-shadow 0.15s ease,
                 background-color 0.2s ease,
                 opacity 0.2s ease;
     user-select: none;
+    overflow: hidden;
 }
 
 .tile-btn:hover:not(:disabled) {
-    transform: translateY(-4px) rotate(-1.5deg) scale(1.03);
-    box-shadow: 0 9px 0 var(--mt-shadow);
+    transform: translateY(-3px) scale(1.025);
+    box-shadow: 0 8px 0 var(--mt-shadow);
+    z-index: 2;
 }
 
 .tile-btn:active:not(:disabled) {
@@ -89,22 +118,23 @@ html.dark {
 
 .tile-btn.tile-used {
     border-width: 2.5px;
-    box-shadow: inset 0 2px 4px rgba(15, 23, 42, 0.15);
+    box-shadow: inset 0 2px 5px rgba(15, 23, 42, 0.14);
     transform: none !important;
     cursor: default;
 }
 
 /* Active Team Spotlight Ring */
 .team-card-active {
-    transform: translateY(-4px) scale(1.02);
-    box-shadow: 0 8px 0 var(--mt-shadow), 0 0 0 4px var(--bg-primary), 0 0 0 8px var(--color-blue);
+    transform: translateY(-2px) scale(1.015);
+    box-shadow: 0 6px 0 var(--mt-shadow), 0 0 0 3px var(--bg-primary), 0 0 0 7px var(--color-blue);
+    z-index: 5;
 }
 
 html.dark .team-card-active {
-    box-shadow: 0 8px 0 #000000, 0 0 0 4px #020617, 0 0 0 8px #ffffff;
+    box-shadow: 0 6px 0 #000000, 0 0 0 3px #020617, 0 0 0 7px #ffffff;
 }
 
-/* Animated Reveal Effects */
+/* Animated Reveal & Score Effects */
 @keyframes trapShake {
     0%, 100% { transform: translateX(0); }
     15% { transform: translateX(-8px) rotate(-2deg); }
@@ -116,15 +146,16 @@ html.dark .team-card-active {
 
 @keyframes giftBounce {
     0% { transform: scale(0.75) translateY(14px); opacity: 0; }
-    55% { transform: scale(1.06) translateY(-6px); opacity: 1; }
+    55% { transform: scale(1.05) translateY(-6px); opacity: 1; }
     75% { transform: scale(0.98) translateY(2px); }
     100% { transform: scale(1) translateY(0); opacity: 1; }
 }
 
-@keyframes scoreBump {
-    0% { transform: scale(1); }
-    40% { transform: scale(1.22); }
-    100% { transform: scale(1); }
+@keyframes deltaPop {
+    0% { opacity: 0; transform: translateY(6px) scale(0.8); }
+    20% { opacity: 1; transform: translateY(-2px) scale(1.08); }
+    80% { opacity: 1; transform: translateY(-6px) scale(1); }
+    100% { opacity: 0; transform: translateY(-12px) scale(0.95); }
 }
 
 .animate-trap-shake {
@@ -135,13 +166,13 @@ html.dark .team-card-active {
     animation: giftBounce 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) both;
 }
 
-.animate-score-bump {
-    animation: scoreBump 0.35s ease-out;
+.score-delta-badge {
+    animation: deltaPop 1.8s ease-out forwards;
 }
 
 /* Projector Question Scaling */
 .projector-question-text {
-    font-size: clamp(1.45rem, 3.2vw, 2.35rem);
+    font-size: clamp(1.5rem, 3.2vw, 2.5rem);
     line-height: 1.24;
     word-break: break-word;
 }
@@ -167,29 +198,45 @@ html.dark .team-card-active {
 
 /* Glass Panel Dark Mode Override Guarantee */
 html.dark .mt-glass {
-    background-color: rgba(15, 23, 42, 0.85);
+    background-color: rgba(15, 23, 42, 0.88);
     border-color: rgba(148, 163, 184, 0.28);
 }
 
 html:not(.dark) .mt-glass {
-    background-color: rgba(255, 255, 255, 0.85);
+    background-color: rgba(255, 255, 255, 0.88);
     border-color: rgba(15, 23, 42, 0.12);
 }
 
-/* Subtle Tile Grid Adaptive Sizing */
+/* Tile Grid: Mobile auto-fill + Desktop Viewport Auto-Fit via CSS variables */
 .mt-tile-grid {
     display: grid;
-    gap: 0.85rem;
-    grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
+    gap: 0.75rem;
+    grid-template-columns: repeat(auto-fill, minmax(76px, 1fr));
+    width: 100%;
+}
+
+.mt-tile-grid .tile-num {
+    font-size: var(--tile-font, 36px);
+    line-height: 1;
+}
+
+@media (max-width: 767px) {
+    .tile-btn {
+        aspect-ratio: 1 / 1;
+    }
 }
 
 @media (min-width: 768px) {
-    .mt-tile-grid.density-roomy {
-        grid-template-columns: repeat(auto-fill, minmax(112px, 1fr));
-        gap: 1rem;
+    .mt-tile-grid {
+        height: 100%;
+        gap: var(--tile-gap, 12px);
+        grid-template-columns: repeat(var(--tile-cols, 6), minmax(0, 1fr));
+        grid-template-rows: repeat(var(--tile-rows, 3), minmax(0, 1fr));
     }
-    .mt-tile-grid.density-compact {
-        grid-template-columns: repeat(auto-fill, minmax(92px, 1fr));
-        gap: 0.75rem;
+
+    .mt-tile-grid.is-scrollable {
+        height: auto;
+        grid-template-rows: none;
+        grid-auto-rows: minmax(82px, 1fr);
     }
 }

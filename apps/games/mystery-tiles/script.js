@@ -169,6 +169,7 @@
             paused: false
         },
         lastNotice: '',
+        scoreDeltas: {},
         cloudSyncTimeout: null,
         bulkImportModal: null
     };
@@ -235,13 +236,19 @@
         btnAddQCard: $('btn-add-q-card'),
         btnStartGame: $('btn-start-game'),
         btnStartLabel: $('btn-start-label'),
+        btnStartGameTop: $('btn-start-game-top'),
+        btnStartLabelTop: $('btn-start-label-top'),
 
         scoreboardGrid: $('scoreboard-grid'),
         turnBanner: $('turn-banner'),
         turnBadge: $('turn-badge'),
         turnPrompt: $('turn-prompt'),
         turnNotice: $('turn-notice'),
+        remainingQPill: $('remaining-q-pill'),
+        remainingTrapPill: $('remaining-trap-pill'),
+        remainingGiftPill: $('remaining-gift-pill'),
         remainingPill: $('remaining-pill'),
+        tilesGridWrap: $('tiles-grid-wrap'),
         tilesGrid: $('tiles-grid'),
 
         endHeadline: $('end-headline'),
@@ -739,10 +746,12 @@
     }
 
     function renderPowerUpPools() {
+        const pts = Math.max(1, parseInt(state.setup.pts, 10) || 10);
         const makeChips = (list, activeIds, kind) => list.map(fx => {
             const on = activeIds.includes(fx.id);
             const activeClass = kind === 'trap' ? 'bg-pink text-white' : 'bg-green text-dark';
             return `<button type="button" data-pool-kind="${kind}" data-pool-id="${fx.id}"
+                title="${esc(fx.desc(pts))}"
                 class="mt-btn rounded-xl px-2.5 py-1.5 text-xs font-heading font-bold flex items-center gap-1.5 ${on ? activeClass : 'bg-slate-100 dark:bg-slate-800 opacity-60'}">
                 <i data-lucide="${fx.icon}" class="w-3.5 h-3.5 stroke-[2.5]"></i>
                 <span>${fx.short}</span>
@@ -795,8 +804,12 @@
         const total = qs.length + state.setup.traps + state.setup.gifts;
         els.qCountBadge.textContent = `${qs.length} Question${qs.length === 1 ? '' : 's'}`;
         els.setupTileSummary.textContent = `${qs.length}Q + ${state.setup.traps}T + ${state.setup.gifts}G = ${total} Tiles`;
-        els.btnStartLabel.textContent = total > 0 ? `Start Game (${total} Tiles)` : 'Add Questions to Start';
+        els.btnStartLabel.textContent = total > 0 ? `Start Mystery Game (${total} Tiles)` : 'Add Questions to Start';
         els.btnStartGame.disabled = qs.length === 0;
+        if (els.btnStartLabelTop && els.btnStartGameTop) {
+            els.btnStartLabelTop.textContent = total > 0 ? `Start (${total} Tiles)` : 'Add Questions';
+            els.btnStartGameTop.disabled = qs.length === 0;
+        }
 
         // Highlight active quick point chip
         els.quickPtsGroup.querySelectorAll('.pts-chip').forEach(btn => {
@@ -898,6 +911,7 @@
     ========================================================================= */
     function switchView(viewName) {
         state.view = viewName;
+        document.body.classList.toggle('in-game-viewport', viewName === 'game');
         els.viewSetup.classList.toggle('hidden', viewName !== 'setup');
         els.viewGame.classList.toggle('hidden', viewName !== 'game');
         els.viewEnd.classList.toggle('hidden', viewName !== 'end');
@@ -911,6 +925,7 @@
         } else if (viewName === 'game' && state.game) {
             els.headerSubtitle.textContent = `${state.game.setTitle || 'Active Match'} · ${state.game.pts} pts/Q`;
             els.resumeBanner.classList.add('hidden');
+            requestAnimationFrame(fitTileGridToViewport);
         } else if (viewName === 'end') {
             els.headerSubtitle.textContent = 'Final Classroom Leaderboard';
         }
@@ -1063,68 +1078,149 @@
     }
 
     /* =========================================================================
-       RENDER: GAME BOARD
+       RENDER: GAME BOARD & CHROMEBOOK AUTO-FIT GRID
     ========================================================================= */
+    function computeBestTileGrid(count, width, height, gap = 12) {
+        if (count <= 0 || width <= 0 || height <= 0) {
+            return { cols: 4, rows: 1, fontPx: 36, scrollable: false };
+        }
+        let best = null;
+        const capScale = count >= 100 ? 0.34 : 0.42;
+        for (let cols = 1; cols <= count; cols++) {
+            const rows = Math.ceil(count / cols);
+            const cellW = (width - gap * (cols - 1)) / cols;
+            const cellH = (height - gap * (rows - 1)) / rows;
+            if (cellW < 46 || cellH < 46) continue;
+
+            const ratio = Math.max(cellW / cellH, cellH / cellW);
+            if (ratio > 2.4 && cols > 1 && rows > 1) continue;
+
+            const emptySlots = cols * rows - count;
+            const emptyRatio = emptySlots / (cols * rows);
+            const fontFit = Math.min(cellW * capScale, cellH * 0.56);
+
+            // Maximize legible tile number size while preferring balanced shapes and clean rows
+            const aspectPenalty = Math.pow(ratio, 0.35);
+            const emptyPenalty = 1 + emptyRatio * 1.1;
+            const score = fontFit / (aspectPenalty * emptyPenalty);
+
+            if (!best || score > best.score) {
+                best = { cols, rows, cellW, cellH, fontFit, score };
+            }
+        }
+
+        if (!best) {
+            const cols = Math.min(count, Math.max(3, Math.floor((width + gap) / 86)));
+            const rows = Math.ceil(count / cols);
+            const cellW = (width - gap * (cols - 1)) / cols;
+            return {
+                cols,
+                rows,
+                fontPx: Math.max(22, Math.min(48, Math.round(cellW * 0.42))),
+                scrollable: true
+            };
+        }
+
+        const fontPx = Math.max(22, Math.min(96, Math.round(best.fontFit)));
+        return { cols: best.cols, rows: best.rows, fontPx, scrollable: false };
+    }
+
+    function fitTileGridToViewport() {
+        const G = state.game;
+        if (!G || state.view !== 'game' || !els.tilesGridWrap || !els.tilesGrid) return;
+
+        const isDesktopOrChromebook = window.innerWidth >= 768;
+        if (!isDesktopOrChromebook) {
+            els.tilesGrid.classList.remove('is-scrollable');
+            els.tilesGrid.style.removeProperty('--tile-cols');
+            els.tilesGrid.style.removeProperty('--tile-rows');
+            els.tilesGrid.style.setProperty('--tile-font', G.tiles.length > 24 ? '24px' : '30px');
+            return;
+        }
+
+        const W = els.tilesGridWrap.clientWidth;
+        const H = els.tilesGridWrap.clientHeight;
+        if (W <= 0 || H <= 0) return;
+
+        const gap = G.tiles.length > 24 ? 10 : 12;
+        const layout = computeBestTileGrid(G.tiles.length, W, H, gap);
+
+        els.tilesGrid.style.setProperty('--tile-cols', String(layout.cols));
+        els.tilesGrid.style.setProperty('--tile-rows', String(layout.rows));
+        els.tilesGrid.style.setProperty('--tile-gap', `${gap}px`);
+        els.tilesGrid.style.setProperty('--tile-font', `${layout.fontPx}px`);
+        els.tilesGrid.classList.toggle('is-scrollable', Boolean(layout.scrollable));
+    }
+
     function renderGameBoard() {
         const G = state.game;
         if (!G) return;
 
         const maxScore = Math.max(...G.teams.map(t => t.score));
         const hasLeader = maxScore > 0;
+        const deltas = state.scoreDeltas || {};
 
-        // Dynamic responsive grid cols based on team count
         const colMap = {
             2: 'grid-cols-2',
-            3: 'grid-cols-1 sm:grid-cols-3',
-            4: 'grid-cols-2 lg:grid-cols-4',
+            3: 'grid-cols-3',
+            4: 'grid-cols-2 md:grid-cols-4',
             5: 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-5',
             6: 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-6'
         };
-        els.scoreboardGrid.className = `grid gap-3 md:gap-4 ${colMap[G.teams.length] || 'grid-cols-2 md:grid-cols-3'}`;
+        els.scoreboardGrid.className = `grid gap-2.5 md:gap-3 shrink-0 ${colMap[G.teams.length] || 'grid-cols-2 md:grid-cols-3'}`;
 
         els.scoreboardGrid.innerHTML = G.teams.map((t, idx) => {
             const isActive = idx === G.cur;
             const isLeader = hasLeader && t.score === maxScore;
+            const deltaText = deltas[idx] || '';
             return `
-                <div class="mt-card p-3 md:p-4 transition-all relative ${isActive ? 'team-card-active' : 'opacity-95'}"
+                <div class="mt-card px-3 py-2.5 transition-all relative ${isActive ? 'team-card-active' : 'opacity-90'}"
                     style="background:${t.color};color:${t.txt}">
-                    <div class="flex items-center justify-between gap-1.5 mb-2">
-                        <div class="font-heading font-bold text-lg md:text-xl truncate flex items-center gap-1.5">
+                    ${deltaText ? `
+                        <span class="score-delta-badge absolute -top-3 right-2 px-2.5 py-0.5 rounded-full bg-dark text-white border-2 border-white font-heading font-bold text-xs shadow">
+                            ${esc(deltaText)}
+                        </span>` : ''}
+
+                    <div class="flex items-center justify-between gap-1.5 mb-1.5">
+                        <div class="font-heading font-bold text-base md:text-lg truncate flex items-center gap-1">
                             ${isLeader ? `<i data-lucide="crown" class="w-4 h-4 shrink-0 stroke-[2.5]"></i>` : ''}
                             <span class="truncate">${esc(t.name)}</span>
                         </div>
-                        ${isActive ? `<span class="px-2 py-0.5 rounded-full bg-white text-dark border-2 border-dark font-heading font-bold text-[10px] uppercase shrink-0">Turn</span>` : ''}
+                        ${isActive ? `<span class="px-2 py-0.5 rounded-full bg-white text-dark border-2 border-dark font-heading font-bold text-[10px] uppercase shrink-0">Your Turn</span>` : ''}
                     </div>
 
-                    <div class="flex items-center justify-between gap-2">
+                    <div class="flex items-center justify-between gap-1.5">
                         <button type="button" data-adj-team="${idx}" data-adj-dir="-1"
-                            class="mt-btn w-9 h-9 rounded-xl bg-white text-dark flex items-center justify-center shrink-0"
+                            class="mt-btn w-8 h-8 rounded-xl bg-white text-dark flex items-center justify-center shrink-0"
                             aria-label="Subtract ${G.pts} points from ${esc(t.name)}" title="-${G.pts} pts">
                             <i data-lucide="minus" class="w-4 h-4 stroke-[3]"></i>
                         </button>
-                        <div class="font-heading font-bold text-3xl md:text-4xl tabular-nums leading-none">
+                        <div class="font-heading font-bold text-2xl md:text-3xl tabular-nums leading-none">
                             ${t.score}
                         </div>
                         <button type="button" data-adj-team="${idx}" data-adj-dir="1"
-                            class="mt-btn w-9 h-9 rounded-xl bg-white text-dark flex items-center justify-center shrink-0"
+                            class="mt-btn w-8 h-8 rounded-xl bg-white text-dark flex items-center justify-center shrink-0"
                             aria-label="Add ${G.pts} points to ${esc(t.name)}" title="+${G.pts} pts">
                             <i data-lucide="plus" class="w-4 h-4 stroke-[3]"></i>
                         </button>
                     </div>
 
                     ${t.skip ? `
-                        <div class="mt-2 px-2 py-0.5 rounded-lg bg-slate-950/20 text-xs font-extrabold flex items-center justify-center gap-1">
-                            <i data-lucide="pause" class="w-3.5 h-3.5 stroke-[2.5]"></i> Skips Next Turn
+                        <div class="mt-1.5 px-2 py-0.5 rounded-lg bg-slate-950/25 text-[11px] font-extrabold flex items-center justify-center gap-1">
+                            <i data-lucide="pause" class="w-3 h-3 stroke-[2.5]"></i> Frozen (Skips Next Turn)
                         </div>` : ''}
                 </div>
             `;
         }).join('');
 
-        // Turn Banner
+        // Clear one-shot floating deltas after painting them once
+        state.scoreDeltas = {};
+
+        // Turn Banner & Live Mystery Mix Breakdown
         const curTeam = G.teams[G.cur];
         els.turnBanner.style.background = curTeam.color;
         els.turnBanner.style.color = curTeam.txt;
-        els.turnPrompt.textContent = `${curTeam.name}, pick a number!`;
+        els.turnPrompt.textContent = `${curTeam.name} — Pick a number!`;
 
         if (state.lastNotice) {
             els.turnNotice.textContent = state.lastNotice;
@@ -1133,12 +1229,17 @@
             els.turnNotice.classList.add('hidden');
         }
 
-        const remaining = G.tiles.filter(t => !t.used).length;
-        els.remainingPill.textContent = `${remaining} / ${G.tiles.length} Left`;
+        const unused = G.tiles.filter(t => !t.used);
+        const remQ = unused.filter(t => t.kind === 'q').length;
+        const remTraps = unused.filter(t => t.kind === 'trap').length;
+        const remGifts = unused.filter(t => t.kind === 'gift').length;
 
-        // Tile Grid Density
-        els.tilesGrid.className = `mt-tile-grid pt-1 ${G.tiles.length <= 20 ? 'density-roomy' : 'density-compact'}`;
+        els.remainingQPill.innerHTML = `<i data-lucide="help-circle" class="w-3.5 h-3.5 stroke-[2.5]"></i><span>${remQ} Q</span>`;
+        els.remainingTrapPill.innerHTML = `<i data-lucide="skull" class="w-3.5 h-3.5 stroke-[2.5]"></i><span>${remTraps} Trap</span>`;
+        els.remainingGiftPill.innerHTML = `<i data-lucide="gift" class="w-3.5 h-3.5 stroke-[2.5]"></i><span>${remGifts} Gift</span>`;
+        els.remainingPill.textContent = `${unused.length} Left`;
 
+        // Render Number Tiles cleanly
         els.tilesGrid.innerHTML = G.tiles.map((tile, i) => {
             if (tile.used) {
                 let outcomeBadge = '';
@@ -1150,12 +1251,19 @@
                         gift: tile.outcomeIcon || 'gift'
                     };
                     const iconName = iconMap[tile.outcome] || 'check';
-                    outcomeBadge = `<i data-lucide="${iconName}" class="w-4 h-4 mt-0.5 opacity-60"></i>`;
+                    const toneCls = tile.outcome === 'right'
+                        ? 'text-green'
+                        : tile.outcome === 'trap'
+                            ? 'text-pink'
+                            : tile.outcome === 'gift'
+                                ? 'text-orange'
+                                : 'text-slate-400';
+                    outcomeBadge = `<i data-lucide="${iconName}" class="w-4 h-4 md:w-5 md:h-5 mt-1 ${toneCls}"></i>`;
                 }
                 return `
                     <button type="button" disabled
-                        class="tile-btn tile-used aspect-square flex flex-col items-center justify-center bg-slate-200 dark:bg-slate-800 text-slate-400 dark:text-slate-500">
-                        <span class="font-heading font-bold text-2xl md:text-3xl line-through leading-none">${i + 1}</span>
+                        class="tile-btn tile-used flex flex-col items-center justify-center bg-slate-200/80 dark:bg-slate-800/80 text-slate-400 dark:text-slate-500">
+                        <span class="font-heading font-bold line-through leading-none opacity-65" style="font-size: calc(var(--tile-font, 36px) * 0.65)">${i + 1}</span>
                         ${outcomeBadge}
                     </button>
                 `;
@@ -1164,16 +1272,18 @@
             const colorCls = TILE_COLOR_CLASSES[i % TILE_COLOR_CLASSES.length];
             return `
                 <button type="button" data-open-tile="${i}"
-                    class="tile-btn aspect-square flex items-center justify-center font-heading font-bold text-3xl md:text-4xl ${colorCls}"
+                    class="tile-btn flex items-center justify-center font-heading font-bold ${colorCls}"
                     aria-label="Open tile ${i + 1}">
-                    ${i + 1}
+                    <span class="tile-num">${i + 1}</span>
                 </button>
             `;
         }).join('');
 
         refreshIcons(els.scoreboardGrid);
+        refreshIcons(els.turnBanner);
         refreshIcons(els.tilesGrid);
         updateUndoButton();
+        requestAnimationFrame(fitTileGridToViewport);
     }
 
     /* =========================================================================
@@ -1274,16 +1384,40 @@
         switch (fxId) {
             case 'give': {
                 const amt = Math.min(pts, curTeam.score);
-                return `+${amt} pts (${targetTeam.score} → ${targetTeam.score + amt})`;
+                return `Give +${amt} → ${targetTeam.score + amt}`;
             }
             case 'steal': {
                 const amt = Math.min(pts, targetTeam.score);
-                return `-${amt} pts (${targetTeam.score} → ${targetTeam.score - amt})`;
+                return `Steal +${amt} (${targetTeam.score} → ${targetTeam.score - amt})`;
             }
             case 'swap':
                 return `Swap (${targetTeam.score} ↔ ${curTeam.score})`;
             default:
                 return `${targetTeam.score} pts`;
+        }
+    }
+
+    function computeSingleEffectPreview(fxId, curTeam, pts) {
+        const s = curTeam.score;
+        switch (fxId) {
+            case 'lose': {
+                const after = Math.max(0, s - pts);
+                return `${curTeam.name}: ${s} → ${after} pts`;
+            }
+            case 'half': {
+                const after = Math.floor(s / 2);
+                return `${curTeam.name}: ${s} → ${after} pts`;
+            }
+            case 'skip':
+                return `${curTeam.name} skips next turn`;
+            case 'bonus':
+                return `${curTeam.name}: ${s} → ${s + pts * 2} pts (+${pts * 2})`;
+            case 'double':
+                return `${curTeam.name}: ${s} → ${s * 2} pts (×2)`;
+            case 'extra':
+                return `${curTeam.name} gets another pick!`;
+            default:
+                return '';
         }
     }
 
@@ -1326,20 +1460,20 @@
                     : `<div class="text-center">
                             <button type="button" data-modal-act="show-answer"
                                 class="mt-btn rounded-xl bg-chalk dark:bg-slate-800 px-5 py-2.5 font-heading font-bold text-base uppercase inline-flex items-center gap-2">
-                                <i data-lucide="eye" class="w-5 h-5 stroke-[2.5]"></i> Show Answer
+                                <i data-lucide="eye" class="w-5 h-5 stroke-[2.5]"></i> Show Answer (Space)
                             </button>
                        </div>`)
-                : `<p class="text-center text-xs font-extrabold uppercase tracking-wider text-slate-400">Open Prompt — Judge Answer Live</p>`;
+                : `<p class="text-center text-xs font-extrabold uppercase tracking-wider text-slate-400">Open Speaking / Class Prompt — Teacher Judges Live</p>`;
 
             const stealBlock = G.allowSteal && G.teams.length > 1
                 ? `<div class="pt-3 border-t-2 border-slate-100 dark:border-slate-800 space-y-2">
                         <p class="text-center text-xs font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                            Or Award Steal (+${G.pts}) to Another Team
+                            Wrong answer? Let another team steal +${G.pts} pts:
                         </p>
                         <div class="flex flex-wrap justify-center gap-2">
                             ${G.teams.map((t, idx) => idx === G.cur ? '' : `
                                 <button type="button" data-modal-act="steal-answer" data-team="${idx}"
-                                    class="mt-btn rounded-xl px-3 py-1.5 font-heading font-bold text-xs uppercase flex items-center gap-1"
+                                    class="mt-btn rounded-xl px-3.5 py-1.5 font-heading font-bold text-xs uppercase flex items-center gap-1"
                                     style="background:${t.color};color:${t.txt}">
                                     <i data-lucide="zap" class="w-3.5 h-3.5 stroke-[2.5]"></i>
                                     ${esc(t.name)} +${G.pts}
@@ -1350,12 +1484,17 @@
                 : '';
 
             els.modalTileBody.innerHTML = `
-                <div class="space-y-6">
+                <div class="space-y-5">
                     <div class="text-center">
-                        <span class="inline-block px-3 py-0.5 rounded-full border-2 border-dark dark:border-slate-600 text-xs font-heading font-bold uppercase mb-3"
-                            style="background:${curTeam.color};color:${curTeam.txt}">
-                            For ${esc(curTeam.name)}
-                        </span>
+                        <div class="flex items-center justify-center gap-2 flex-wrap mb-3">
+                            <span class="inline-block px-3 py-0.5 rounded-full border-2 border-dark dark:border-slate-600 text-xs font-heading font-bold uppercase"
+                                style="background:${curTeam.color};color:${curTeam.txt}">
+                                ${esc(curTeam.name)}’s Turn
+                            </span>
+                            <span class="inline-block px-3 py-0.5 rounded-full border-2 border-dark dark:border-slate-600 bg-orange/20 text-xs font-heading font-bold uppercase">
+                                Worth +${G.pts} Pts
+                            </span>
+                        </div>
                         <p class="font-heading font-bold projector-question-text">${esc(m.q)}</p>
                     </div>
 
@@ -1378,10 +1517,12 @@
         } else {
             const fx = m.fx;
             const badgeBg = m.kind === 'trap' ? 'bg-pink text-white' : 'bg-green text-dark';
+            const previewText = fx.target ? '' : computeSingleEffectPreview(fx.id, curTeam, G.pts);
+
             const actionArea = fx.target
                 ? `<div class="space-y-2.5 pt-2">
                         <p class="text-center text-xs font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                            Choose Target Team
+                            Step 1: Choose Rival Team
                         </p>
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                             ${G.teams.map((t, idx) => idx === G.cur ? '' : `
@@ -1396,16 +1537,22 @@
                             `).join('')}
                         </div>
                    </div>`
-                : `<button type="button" data-modal-act="apply"
-                        class="mt-btn w-full rounded-2xl bg-orange text-dark py-3.5 font-heading font-bold text-xl uppercase">
-                        Apply Effect
-                   </button>`;
+                : `<div class="space-y-3 pt-1">
+                        ${previewText ? `
+                            <div class="mt-card-sm bg-slate-100 dark:bg-slate-800 px-4 py-2.5 font-heading font-bold text-base md:text-lg">
+                                ${esc(previewText)}
+                            </div>` : ''}
+                        <button type="button" data-modal-act="apply"
+                            class="mt-btn w-full rounded-2xl bg-orange text-dark py-3.5 font-heading font-bold text-xl uppercase">
+                            Apply Effect
+                        </button>
+                   </div>`;
 
             els.modalTileBody.innerHTML = `
                 <div class="text-center space-y-4">
                     <div class="flex justify-center">
-                        <div class="w-24 h-24 rounded-3xl ${badgeBg} border-4 border-dark dark:border-slate-500 shadow-[0_5px_0_#0f172a] dark:shadow-[0_5px_0_#000] flex items-center justify-center">
-                            <i data-lucide="${fx.icon}" class="w-12 h-12 stroke-[2.5]"></i>
+                        <div class="w-20 h-20 md:w-24 md:h-24 rounded-3xl ${badgeBg} border-4 border-dark dark:border-slate-500 shadow-[0_5px_0_#0f172a] dark:shadow-[0_5px_0_#000] flex items-center justify-center">
+                            <i data-lucide="${fx.icon}" class="w-11 h-11 md:w-12 md:h-12 stroke-[2.5]"></i>
                         </div>
                     </div>
                     <div>
@@ -1428,44 +1575,71 @@
     function applyFx(fx, targetIdx) {
         const G = state.game;
         if (!G || !fx) return;
-        const curTeam = G.teams[G.cur];
+        const curIdx = G.cur;
+        const curTeam = G.teams[curIdx];
         const target = typeof targetIdx === 'number' ? G.teams[targetIdx] : null;
         const P = G.pts;
         let extraTurn = false;
+        let notice = '';
 
         switch (fx.id) {
-            case 'lose':
+            case 'lose': {
+                const lost = Math.min(P, curTeam.score);
                 curTeam.score = Math.max(0, curTeam.score - P);
+                state.scoreDeltas[curIdx] = `-${lost}`;
+                notice = `Bomb! ${curTeam.name} -${lost}`;
                 break;
-            case 'half':
+            }
+            case 'half': {
+                const prev = curTeam.score;
                 curTeam.score = Math.floor(curTeam.score / 2);
+                const diff = prev - curTeam.score;
+                state.scoreDeltas[curIdx] = diff > 0 ? `-${diff}` : '½';
+                notice = `Snip snip! ${curTeam.name} halved to ${curTeam.score}`;
                 break;
+            }
             case 'skip':
                 curTeam.skip = true;
+                notice = `Frozen! ${curTeam.name} skips next turn`;
                 break;
             case 'give':
                 if (target) {
                     const amt = Math.min(P, curTeam.score);
                     curTeam.score -= amt;
                     target.score += amt;
+                    state.scoreDeltas[curIdx] = `-${amt}`;
+                    state.scoreDeltas[targetIdx] = `+${amt}`;
+                    notice = `${curTeam.name} gave +${amt} to ${target.name}`;
                 }
                 break;
             case 'bonus':
                 curTeam.score += P * 2;
+                state.scoreDeltas[curIdx] = `+${P * 2}`;
+                notice = `Bonus! ${curTeam.name} +${P * 2}`;
                 break;
-            case 'double':
+            case 'double': {
+                const gained = curTeam.score;
                 curTeam.score *= 2;
+                state.scoreDeltas[curIdx] = gained > 0 ? `+${gained}` : '×2';
+                notice = `Double up! ${curTeam.name} now ${curTeam.score}`;
                 break;
+            }
             case 'steal':
                 if (target) {
                     const amt = Math.min(P, target.score);
                     target.score -= amt;
                     curTeam.score += amt;
+                    state.scoreDeltas[curIdx] = `+${amt}`;
+                    state.scoreDeltas[targetIdx] = `-${amt}`;
+                    notice = `${curTeam.name} stole +${amt} from ${target.name}`;
                 }
                 break;
             case 'swap':
                 if (target) {
                     [curTeam.score, target.score] = [target.score, curTeam.score];
+                    state.scoreDeltas[curIdx] = 'Swap';
+                    state.scoreDeltas[targetIdx] = 'Swap';
+                    notice = `Switcheroo! ${curTeam.name} ↔ ${target.name}`;
                 }
                 break;
             case 'extra':
@@ -1474,7 +1648,7 @@
         }
 
         closeTileModalDOM();
-        advanceTurn(extraTurn);
+        advanceTurn(extraTurn, notice);
     }
 
     function renderEndScreen() {
@@ -1962,6 +2136,15 @@ Describe your favorite weekend activity.`;
 
         els.btnBulkImport.addEventListener('click', openBulkImportModal);
         els.btnStartGame.addEventListener('click', () => startNewGame());
+        if (els.btnStartGameTop) {
+            els.btnStartGameTop.addEventListener('click', () => startNewGame());
+        }
+
+        // Keep Chromebook / Projector tile grid tightly fitted on resize
+        window.addEventListener('resize', fitTileGridToViewport);
+        if (typeof ResizeObserver === 'function' && els.tilesGridWrap) {
+            new ResizeObserver(fitTileGridToViewport).observe(els.tilesGridWrap);
+        }
 
         // Game Board Events
         els.scoreboardGrid.addEventListener('click', e => {
@@ -1971,7 +2154,12 @@ Describe your favorite weekend activity.`;
             const i = Number(adj.dataset.adjTeam);
             const delta = Number(adj.dataset.adjDir) * state.game.pts;
             const team = state.game.teams[i];
+            const prev = team.score;
             team.score = Math.max(0, team.score + delta);
+            const diff = team.score - prev;
+            if (diff !== 0) {
+                state.scoreDeltas[i] = diff > 0 ? `+${diff}` : `${diff}`;
+            }
             SoundEngine.click();
             saveDraftToLocal();
             renderGameBoard();
@@ -2032,17 +2220,20 @@ Describe your favorite weekend activity.`;
                 G.teams[G.cur].score += G.pts;
                 G.teams[G.cur].stats.right += 1;
                 G.tiles[m.i].outcome = 'right';
+                state.scoreDeltas[G.cur] = `+${G.pts}`;
+                const notice = `${G.teams[G.cur].name} +${G.pts} pts!`;
                 SoundEngine.correct();
                 closeTileModalDOM();
-                advanceTurn(false);
+                advanceTurn(false, notice);
                 return;
             }
             if (action === 'wrong') {
                 stopModalTimer();
                 G.tiles[m.i].outcome = 'wrong';
+                const notice = `${G.teams[G.cur].name} missed`;
                 SoundEngine.wrong();
                 closeTileModalDOM();
-                advanceTurn(false);
+                advanceTurn(false, notice);
                 return;
             }
             if (action === 'steal-answer') {
@@ -2052,6 +2243,7 @@ Describe your favorite weekend activity.`;
                 if (G.teams[targetIdx]) {
                     G.teams[targetIdx].score += G.pts;
                     G.teams[targetIdx].stats.right += 1;
+                    state.scoreDeltas[targetIdx] = `+${G.pts}`;
                     stealNotice = `${G.teams[targetIdx].name} stole +${G.pts} pts!`;
                 }
                 G.tiles[m.i].outcome = 'right';
@@ -2105,6 +2297,15 @@ Describe your favorite weekend activity.`;
                     m.showAnswer = true;
                     SoundEngine.click();
                     renderTileModal();
+                }
+                return;
+            }
+
+            if (e.key === 'Enter' && !els.modalTile.classList.contains('hidden')) {
+                const applyBtn = els.modalTileBody.querySelector('[data-modal-act="apply"]');
+                if (applyBtn) {
+                    e.preventDefault();
+                    applyBtn.click();
                 }
                 return;
             }
