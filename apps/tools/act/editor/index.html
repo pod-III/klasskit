@@ -1,1172 +1,945 @@
 <!doctype html>
 <html lang="en">
-    <head>
+
+<head>
+    <script>
+        (function () {
+            function readTheme(key) {
+                try {
+                    var raw = localStorage.getItem(key);
+                    if (raw == null) return null;
+                    try { return JSON.parse(raw); } catch (e) { return raw; }
+                } catch (e) { return null; }
+            }
+            function syncTheme() {
+                var toolTheme = readTheme('theme_act');
+                var hubTheme = readTheme('theme_hub');
+                var isDark = toolTheme
+                    ? toolTheme === 'dark'
+                    : hubTheme
+                        ? hubTheme === 'dark'
+                        : window.matchMedia('(prefers-color-scheme: dark)').matches;
+                document.documentElement.classList.toggle('dark', isDark);
+            }
+            syncTheme();
+            window.addEventListener('storage', function (e) {
+                if (e.key === 'theme_hub' || e.key === 'theme_act') syncTheme();
+            });
+        })();
+    </script>
+
     <!-- Supabase Auth -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.105.4"></script>
     <script src="/supabase.js"></script>
     <meta charset="UTF-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>Activity Manager | KlassKit</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Activity Studio — KlassKit</title>
     <link rel="icon" type="image/x-icon" href="../../../../media/icon.ico" />
     <link rel="icon" type="image/webp" href="../../../../media/icon.webp" />
 
-        <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet" />
 
-        <link
-            href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Nunito:wght@400;500;600;700;800&display=swap"
-            rel="stylesheet"
-        />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@1.16.0"></script>
+    <script src="../../../../components/input-modal.js"></script>
 
-        <script src="https://unpkg.com/lucide@1.16.0"></script>
-        <script src="../../../../components/input-modal.js"></script>
-
-        <script>
-            tailwind.config = {
-                theme: {
-                    extend: {
-                        colors: {
-                            brand: {
-                                pink: "#FF6B95",
-                                orange: "#FF8C42",
-                                green: "#00E676",
-                                blue: "#2979FF",
-                                dark: "#1e293b",
-                                chalk: "#f8fafc",
-                                yellow: "#FACC15",
-                            },
-                        },
-                        fontFamily: {
-                            heading: ["Fredoka", "sans-serif"],
-                            body: ["Nunito", "sans-serif"],
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            pink: "#ff4785",
+                            orange: "#ff7e33",
+                            green: "#00d063",
+                            blue: "#1ea7fd",
+                            purple: "#a855f7",
+                            dark: "#1e293b",
+                            chalk: "#f8fafc",
+                            yellow: "#FACC15",
                         },
                     },
+                    fontFamily: {
+                        heading: ["Fredoka", "sans-serif"],
+                        body: ["Nunito", "sans-serif"],
+                    },
                 },
-            };
-        </script>
+            },
+        };
+    </script>
 
-        <style>
-            body {
-                background-color: #f8fafc;
-                background-image:
-                    linear-gradient(
-                        rgba(30, 41, 59, 0.05) 1px,
-                        transparent 1px
-                    ),
-                    linear-gradient(
-                        90deg,
-                        rgba(30, 41, 59, 0.05) 1px,
-                        transparent 1px
-                    );
-                background-size: 24px 24px;
-            }
-
-            .neo-border {
-                border: 3px solid #1e293b;
-            }
-            .neo-shadow {
-                box-shadow: 4px 4px 0px 0px rgba(30, 41, 59, 1);
-            }
-            .neo-shadow-sm {
-                box-shadow: 2px 2px 0px 0px rgba(30, 41, 59, 1);
-            }
-
-            .neo-btn {
-                transition: all 0.1s ease;
-            }
-            .neo-btn:hover {
-                transform: translate(-1px, -1px);
-                box-shadow: 6px 6px 0px 0px rgba(30, 41, 59, 1);
-            }
-            .neo-btn:active {
-                transform: translate(2px, 2px);
-                box-shadow: 0px 0px 0px 0px rgba(30, 41, 59, 1);
-            }
-
-            input[type="text"],
-            input[type="number"],
-            select,
-            textarea {
-                border: 2px solid #1e293b !important;
-                box-shadow: 2px 2px 0px 0px rgba(30, 41, 59, 1);
-            }
-            input[type="text"]:focus,
-            input[type="number"]:focus,
-            select:focus,
-            textarea:focus {
-                outline: none;
-                box-shadow: 4px 4px 0px 0px rgba(30, 41, 59, 1);
-                transform: translate(-1px, -1px);
-            }
-
-            input[type="checkbox"] {
-                appearance: none;
-                width: 1.5rem;
-                height: 1.5rem;
-                border: 2px solid #1e293b;
-                border-radius: 0.375rem;
-                background-color: white;
-                cursor: pointer;
-                position: relative;
-            }
-            input[type="checkbox"]:checked {
-                background-color: #00e676;
-            }
-            input[type="checkbox"]:checked::after {
-                content: "✓";
-                position: absolute;
-                color: #1e293b;
-                font-weight: 900;
-                font-size: 1.1rem;
-                top: 50%;
-                left: 50%;
-                transform: translate(-50%, -50%);
-            }
-
-            .custom-scrollbar::-webkit-scrollbar {
-                width: 10px;
-            }
-            .custom-scrollbar::-webkit-scrollbar-track {
-                background: transparent;
-            }
-            .custom-scrollbar::-webkit-scrollbar-thumb {
-                background: #1e293b;
-                border-radius: 10px;
-                border: 2px solid #f8fafc;
-            }
-
-            dialog::backdrop {
-                background: rgba(30, 41, 59, 0.7);
-                backdrop-filter: blur(4px);
-            }
-        </style>
-        <link rel="stylesheet" href="../../../../css/base.css" />
+    <link rel="stylesheet" href="../../../../css/base.css" />
     <link rel="stylesheet" href="../../../../css/components.css" />
-  
+
+    <style>
+        :root {
+            --ed-border: #1e293b;
+            --ed-shadow: #1e293b;
+            --ed-surface: rgba(255, 255, 255, 0.88);
+            --ed-grid: #e2e8f0;
+        }
+        .dark {
+            --ed-border: #475569;
+            --ed-shadow: #000000;
+            --ed-surface: rgba(15, 23, 42, 0.84);
+            --ed-grid: rgba(255, 255, 255, 0.05);
+        }
+        body {
+            font-family: "Nunito", sans-serif;
+            background-color: #f8fafc;
+            background-image:
+                linear-gradient(var(--ed-grid) 1px, transparent 1px),
+                linear-gradient(90deg, var(--ed-grid) 1px, transparent 1px);
+            background-size: 32px 32px;
+        }
+        .dark body {
+            background-color: #020617;
+        }
+        .studio-panel {
+            background: var(--ed-surface);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 2px solid var(--ed-border);
+            box-shadow: 4px 4px 0 var(--ed-shadow);
+        }
+        .btn-chunky {
+            font-family: "Fredoka", sans-serif;
+            font-weight: 700;
+            border: 2px solid var(--ed-border);
+            box-shadow: 0 4px 0 var(--ed-shadow);
+            transition: transform 0.14s ease, box-shadow 0.14s ease;
+        }
+        .btn-chunky:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 0 var(--ed-shadow);
+        }
+        .btn-chunky:active:not(:disabled) {
+            transform: translateY(4px);
+            box-shadow: 0 0 0 var(--ed-shadow);
+        }
+        input[type="text"],
+        input[type="number"],
+        select,
+        textarea {
+            border: 2px solid var(--ed-border);
+            box-shadow: 2px 2px 0 var(--ed-shadow);
+        }
+        input:focus-visible,
+        select:focus-visible,
+        textarea:focus-visible,
+        button:focus-visible,
+        a:focus-visible {
+            outline: 3px solid #1ea7fd;
+            outline-offset: 2px;
+        }
+        dialog::backdrop {
+            background: rgba(2, 6, 23, 0.68);
+            backdrop-filter: blur(5px);
+        }
+        .custom-scrollbar::-webkit-scrollbar { width: 8px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #94a3b8; border-radius: 99px; }
+        .dark .custom-scrollbar::-webkit-scrollbar-thumb { background: #334155; }
+    </style>
 </head>
-    <body class="text-brand-dark font-body min-h-screen flex flex-col">
-        <nav
-            class="bg-brand-orange border-b-4 border-brand-dark p-4 sticky top-0 z-40 neo-shadow"
-        >
-            <div
-                class="max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-4"
-            >
-                <div
-                    class="flex items-center gap-3 bg-brand-chalk border-2 border-brand-dark rounded-xl px-4 py-2 neo-shadow-sm"
-                >
-                    <i data-lucide="zap" class="w-6 h-6 text-brand-orange"></i>
-                    <h1 class="font-heading text-xl font-bold">
-                        Activity Bank Manager
-                    </h1>
-                </div>
-                <div class="flex flex-wrap gap-3 justify-center">
-                    <button
-                        onclick="copyJson()"
-                        class="bg-brand-blue text-white border-2 border-brand-dark rounded-xl px-4 py-2 font-heading font-bold neo-shadow-sm neo-btn flex items-center gap-2"
-                    >
-                        <i data-lucide="copy" class="w-4 h-4"></i> Copy JSON
-                    </button>
-                    <button
-                        onclick="exportJson()"
-                        class="bg-brand-green border-2 border-brand-dark rounded-xl px-4 py-2 font-heading font-bold neo-shadow-sm neo-btn flex items-center gap-2"
-                    >
-                        <i data-lucide="download" class="w-4 h-4"></i> Export
-                        activities.json
-                    </button>
-                </div>
-            </div>
-        </nav>
 
-        <main class="flex-grow p-4 md:p-8">
-            <div
-                class="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8"
-            >
-                <div class="lg:col-span-4 space-y-6">
-                    <button
-                        onclick="resetForm()"
-                        class="w-full bg-brand-yellow border-4 border-brand-dark rounded-2xl py-4 font-heading text-xl font-bold neo-shadow neo-btn flex justify-center items-center gap-3"
-                    >
-                        <i data-lucide="plus-circle" class="w-6 h-6"></i> Add
-                        New Activity
-                    </button>
-
-                    <div
-                        class="bg-brand-blue border-4 border-brand-dark rounded-2xl p-5 neo-shadow text-white"
-                    >
-                        <p
-                            class="text-sm font-bold opacity-80 mb-3 uppercase tracking-widest"
-                        >
-                            Workspace Actions
-                        </p>
-                        <input
-                            type="file"
-                            id="importFile"
-                            accept=".json"
-                            class="hidden"
-                        />
-                        <button
-                            onclick="
-                                document.getElementById('importFile').click()
-                            "
-                            class="w-full bg-brand-chalk text-brand-dark border-2 border-brand-dark rounded-xl py-3 font-heading font-bold neo-shadow-sm neo-btn flex justify-center items-center gap-2"
-                        >
-                            <i data-lucide="file-up" class="w-5 h-5"></i> Import
-                            JSON
-                        </button>
+<body class="text-brand-dark dark:text-slate-100 min-h-screen flex flex-col">
+    <!-- TOP NAV -->
+    <nav class="sticky top-0 z-40 bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl border-b-2 border-brand-dark dark:border-slate-600 px-4 py-3">
+        <div class="max-w-7xl mx-auto flex flex-wrap justify-between items-center gap-3">
+            <div class="flex items-center gap-3">
+                <a href="../index.html"
+                    class="btn-chunky bg-brand-chalk dark:bg-slate-800 px-3.5 py-2 rounded-xl text-xs sm:text-sm flex items-center gap-1.5">
+                    <i data-lucide="arrow-left" class="w-4 h-4"></i> Back to Bank
+                </a>
+                <div class="flex items-center gap-2">
+                    <div class="w-9 h-9 rounded-xl bg-brand-orange text-white border-2 border-brand-dark flex items-center justify-center">
+                        <i data-lucide="wrench" class="w-5 h-5"></i>
                     </div>
-
-                    <button
-                        onclick="
-                            document.getElementById('pasteModal').showModal()
-                        "
-                        class="w-full mt-3 bg-brand-pink text-brand-dark border-2 border-brand-dark rounded-xl py-3 font-heading font-bold neo-shadow-sm neo-btn flex justify-center items-center gap-2"
-                    >
-                        <i data-lucide="clipboard-paste" class="w-5 h-5"></i>
-                        Paste JSON
-                    </button>
-
-                    <button
-                        onclick="reindexIds()"
-                        class="w-full mt-3 bg-brand-yellow text-brand-dark border-2 border-brand-dark rounded-xl py-3 font-heading font-bold neo-shadow-sm neo-btn flex justify-center items-center gap-2"
-                    >
-                        <i data-lucide="list-ordered" class="w-5 h-5"></i>
-                        Re-index IDs
-                    </button>
-
-                    <div
-                        class="bg-white border-4 border-brand-dark rounded-2xl neo-shadow flex flex-col h-[550px]"
-                    >
-                        <div
-                            class="p-4 border-b-4 border-brand-dark bg-brand-chalk font-heading font-bold flex justify-between items-center"
-                        >
-                            <span>Stored Activities</span>
-                            <span
-                                id="activityCount"
-                                class="bg-brand-dark text-white px-2 py-1 rounded-lg text-xs"
-                                >0</span
-                            >
-                        </div>
-                        <div
-                            id="activityList"
-                            class="flex-grow overflow-y-auto p-4 space-y-3 custom-scrollbar"
-                        ></div>
-                    </div>
-                </div>
-
-                <div class="lg:col-span-8">
-                    <div
-                        class="bg-white border-4 border-brand-dark rounded-2xl neo-shadow overflow-hidden"
-                    >
-                        <div
-                            id="formHeader"
-                            class="bg-brand-pink border-b-4 border-brand-dark p-6 flex justify-between items-center transition-colors"
-                        >
-                            <h2
-                                id="formTitle"
-                                class="font-heading text-2xl font-bold flex items-center gap-3 text-brand-dark"
-                            >
-                                <i data-lucide="pen-tool"></i> Adding New
-                                Activity
-                            </h2>
-                            <span
-                                id="idBadge"
-                                class="text-xs font-black bg-brand-dark/10 text-brand-dark px-3 py-1 rounded-lg border-2 border-brand-dark"
-                                >NEW</span
-                            >
-                        </div>
-
-                        <form
-                            id="activityForm"
-                            class="p-6 md:p-8 space-y-8"
-                            onsubmit="saveActivity(event)"
-                        >
-                            <div class="grid grid-cols-1 md:grid-cols-12 gap-6">
-                                <div class="space-y-2 md:col-span-2">
-                                    <label class="font-bold text-sm uppercase"
-                                        >JSON ID</label
-                                    >
-                                    <input
-                                        type="number"
-                                        id="activityId"
-                                        required
-                                        placeholder="e.g. 1"
-                                        class="w-full px-4 py-3 rounded-xl font-bold bg-brand-chalk"
-                                    />
-                                </div>
-                                <div class="space-y-2 md:col-span-6">
-                                    <label class="font-bold text-sm uppercase"
-                                        >Activity Title</label
-                                    >
-                                    <input
-                                        type="text"
-                                        id="title"
-                                        required
-                                        placeholder="e.g. Back-to-Back Drawing"
-                                        class="w-full px-4 py-3 rounded-xl font-bold"
-                                    />
-                                </div>
-                                <div class="space-y-2 md:col-span-4">
-                                    <label class="font-bold text-sm uppercase"
-                                        >Icon</label
-                                    >
-                                    <div class="flex gap-2">
-                                        <input
-                                            type="text"
-                                            id="icon"
-                                            required
-                                            placeholder="e.g. headphones"
-                                            class="w-full px-4 py-3 rounded-xl font-bold"
-                                        />
-                                        <button
-                                            type="button"
-                                            onclick="openIconPicker()"
-                                            class="shrink-0 bg-brand-dark text-white px-4 rounded-xl border-2 border-brand-dark neo-btn flex items-center justify-center"
-                                        >
-                                            <i
-                                                data-lucide="search"
-                                                class="w-5 h-5"
-                                            ></i>
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                <div class="space-y-2">
-                                    <label class="font-bold text-sm uppercase"
-                                        >Energy Type</label
-                                    >
-                                    <select
-                                        id="type"
-                                        class="w-full px-4 py-3 rounded-xl font-bold appearance-none bg-white"
-                                    >
-                                        <option value="Stirrer">
-                                            Stirrer (High Energy)
-                                        </option>
-                                        <option value="Settler">
-                                            Settler (Focus)
-                                        </option>
-                                    </select>
-                                </div>
-                                <div class="space-y-2">
-                                    <label class="font-bold text-sm uppercase"
-                                        >Difficulty</label
-                                    >
-                                    <select
-                                        id="difficulty"
-                                        class="w-full px-4 py-3 rounded-xl font-bold appearance-none bg-white"
-                                    >
-                                        <option value="Easy">Easy</option>
-                                        <option value="Medium">Medium</option>
-                                        <option value="Hard">Hard</option>
-                                    </select>
-                                </div>
-                                <div class="space-y-2">
-                                    <label class="font-bold text-sm uppercase"
-                                        >Time Estimate</label
-                                    >
-                                    <input
-                                        type="text"
-                                        id="time"
-                                        required
-                                        placeholder="e.g. 10-15 Min"
-                                        class="w-full px-4 py-3 rounded-xl font-bold"
-                                    />
-                                </div>
-                            </div>
-
-                            <div
-                                class="grid grid-cols-1 md:grid-cols-3 gap-6 p-5 bg-brand-chalk border-2 border-brand-dark rounded-xl border-dashed"
-                            >
-                                <div class="space-y-2">
-                                    <label class="font-bold text-sm uppercase"
-                                        >Grouping</label
-                                    >
-                                    <select
-                                        id="grouping"
-                                        class="w-full px-4 py-3 rounded-xl font-bold appearance-none bg-white"
-                                    >
-                                        <option value="Whole Class">
-                                            Whole Class
-                                        </option>
-                                        <option value="Teams">Teams</option>
-                                        <option value="Small Groups">
-                                            Small Groups
-                                        </option>
-                                        <option value="Pairs">Pairs</option>
-                                        <option value="Individual">
-                                            Individual
-                                        </option>
-                                        <option value="Individual / Pairs">
-                                            Individual / Pairs
-                                        </option>
-                                    </select>
-                                </div>
-                                <div class="space-y-2">
-                                    <label class="font-bold text-sm uppercase"
-                                        >Prep Time</label
-                                    >
-                                    <input
-                                        type="text"
-                                        id="prep_time"
-                                        required
-                                        placeholder="e.g. Zero Prep, 5 mins"
-                                        class="w-full px-4 py-3 rounded-xl font-bold"
-                                    />
-                                </div>
-                                <div class="space-y-2">
-                                    <label class="font-bold text-sm uppercase"
-                                        >Target Ages</label
-                                    >
-                                    <div
-                                        class="flex gap-4 pt-2"
-                                        id="targetAgesContainer"
-                                    >
-                                        <label
-                                            class="flex items-center gap-2 cursor-pointer font-bold select-none"
-                                        >
-                                            <input
-                                                type="checkbox"
-                                                value="3-6"
-                                            />
-                                            3-6
-                                        </label>
-                                        <label
-                                            class="flex items-center gap-2 cursor-pointer font-bold select-none"
-                                        >
-                                            <input
-                                                type="checkbox"
-                                                value="7-12"
-                                            />
-                                            7-12
-                                        </label>
-                                        <label
-                                            class="flex items-center gap-2 cursor-pointer font-bold select-none"
-                                        >
-                                            <input
-                                                type="checkbox"
-                                                value="13-18"
-                                            />
-                                            13-18
-                                        </label>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div class="space-y-2">
-                                <label class="font-bold text-sm uppercase"
-                                    >Short Description</label
-                                >
-                                <textarea
-                                    id="desc"
-                                    required
-                                    rows="2"
-                                    class="w-full px-4 py-3 rounded-xl font-bold resize-none"
-                                    placeholder="A one-sentence summary for the bank..."
-                                ></textarea>
-                            </div>
-
-                            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                <div class="space-y-2">
-                                    <label class="font-bold text-sm uppercase"
-                                        >Skills (Comma separated)</label
-                                    >
-                                    <input
-                                        type="text"
-                                        id="skills"
-                                        required
-                                        placeholder="e.g. Listening, Speaking"
-                                        class="w-full px-4 py-3 rounded-xl font-bold"
-                                    />
-                                </div>
-                                <div class="space-y-2">
-                                    <label class="font-bold text-sm uppercase"
-                                        >Materials (Comma separated)</label
-                                    >
-                                    <input
-                                        type="text"
-                                        id="materials"
-                                        required
-                                        placeholder="e.g. Whiteboard, Ball, Timer"
-                                        class="w-full px-4 py-3 rounded-xl font-bold"
-                                    />
-                                </div>
-                            </div>
-
-                            <div
-                                class="space-y-4 border-t-4 border-brand-dark pt-6"
-                            >
-                                <div class="flex justify-between items-center">
-                                    <h3
-                                        class="font-heading text-xl font-bold uppercase tracking-tight"
-                                    >
-                                        Step-by-Step Guide
-                                    </h3>
-                                    <button
-                                        type="button"
-                                        onclick="addStep()"
-                                        class="bg-brand-blue text-white border-2 border-brand-dark rounded-xl px-4 py-2 font-heading font-bold neo-shadow-sm neo-btn flex items-center gap-2"
-                                    >
-                                        <i
-                                            data-lucide="plus"
-                                            class="w-5 h-5"
-                                        ></i>
-                                        Add Step
-                                    </button>
-                                </div>
-                                <div
-                                    id="stepsContainer"
-                                    class="space-y-3"
-                                ></div>
-                            </div>
-
-                            <div class="space-y-2">
-                                <label
-                                    class="font-bold text-sm uppercase text-slate-500"
-                                    >Variation / Pro Tip</label
-                                >
-                                <textarea
-                                    id="variation"
-                                    rows="2"
-                                    class="w-full px-4 py-3 rounded-xl font-bold resize-none bg-white"
-                                    placeholder="Any optional changes for different levels?"
-                                ></textarea>
-                            </div>
-
-                            <button
-                                type="submit"
-                                class="w-full bg-brand-green border-4 border-brand-dark rounded-2xl py-5 font-heading text-2xl font-bold neo-shadow neo-btn mt-8"
-                            >
-                                Save to Activity Bank
-                            </button>
-                        </form>
+                    <div>
+                        <h1 class="font-heading text-lg sm:text-xl font-bold uppercase tracking-tight leading-none">Activity Studio</h1>
+                        <p class="text-[11px] font-bold text-slate-500 dark:text-slate-400">Syncs directly to Activity Bank &bull; JSON Import/Export</p>
                     </div>
                 </div>
             </div>
-        </main>
 
-        <dialog
-            id="iconModal"
-            class="p-0 rounded-2xl border-4 border-brand-dark neo-shadow m-auto w-[90%] max-w-2xl bg-white"
-        >
-            <div class="flex flex-col h-full max-h-[80vh]">
-                <div
-                    class="p-4 border-b-4 border-brand-dark bg-brand-chalk flex justify-between items-center shrink-0"
-                >
-                    <h3 class="font-heading text-xl font-bold">
-                        Select an Icon
-                    </h3>
-                    <button
-                        onclick="document.getElementById('iconModal').close()"
-                        class="p-2 border-2 border-brand-dark rounded-lg hover:bg-brand-pink hover:text-white transition-colors"
-                    >
-                        <i data-lucide="x" class="w-5 h-5"></i>
-                    </button>
-                </div>
-                <div class="p-6 overflow-y-auto custom-scrollbar">
-                    <div
-                        id="iconGrid"
-                        class="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-4"
-                    ></div>
-                </div>
-            </div>
-        </dialog>
-
-        <dialog
-            id="pasteModal"
-            class="p-0 rounded-2xl border-4 border-brand-dark neo-shadow m-auto w-[90%] max-w-2xl bg-white"
-        >
-            <div class="flex flex-col h-full max-h-[80vh]">
-                <div
-                    class="p-4 border-b-4 border-brand-dark bg-brand-chalk flex justify-between items-center shrink-0"
-                >
-                    <h3
-                        class="font-heading text-xl font-bold flex items-center gap-2"
-                    >
-                        <i data-lucide="clipboard-paste"></i> Paste JSON Data
-                    </h3>
-                    <button
-                        onclick="document.getElementById('pasteModal').close()"
-                        class="p-2 border-2 border-brand-dark rounded-lg hover:bg-brand-pink hover:text-white transition-colors"
-                    >
-                        <i data-lucide="x" class="w-5 h-5"></i>
-                    </button>
-                </div>
-                <div
-                    class="p-6 overflow-y-auto custom-scrollbar flex flex-col gap-4"
-                >
-                    <p class="font-bold text-sm text-slate-600">
-                        Paste a single activity object or an array of activities
-                        here. New IDs will be assigned automatically.
-                    </p>
-                    <textarea
-                        id="pasteArea"
-                        rows="10"
-                        class="w-full px-4 py-3 rounded-xl font-bold resize-y font-mono text-sm bg-brand-chalk border-2 border-brand-dark neo-shadow-sm focus:outline-none focus:ring-0"
-                        placeholder='[{ "title": "New Activity", "type": "Stirrer"... }]'
-                    ></textarea>
-                    <button
-                        onclick="processPastedJson()"
-                        class="w-full bg-brand-green border-4 border-brand-dark rounded-xl py-4 font-heading text-xl font-bold neo-shadow neo-btn mt-2"
-                    >
-                        Add to Workspace
-                    </button>
-                </div>
-            </div>
-        </dialog>
-
-        <div
-            id="toast"
-            class="fixed bottom-8 left-1/2 -translate-x-1/2 z-50 transform translate-y-32 opacity-0 transition-all duration-300"
-        >
-            <div
-                class="bg-brand-dark text-white neo-border rounded-2xl px-8 py-4 neo-shadow font-bold text-lg flex items-center gap-4"
-            >
-                <i data-lucide="check-circle" class="text-brand-green"></i>
-                <span id="toastMsg">Activity Saved!</span>
+            <div class="flex flex-wrap gap-2 items-center">
+                <button onclick="openCloneBuiltInModal()"
+                    class="btn-chunky bg-brand-yellow text-brand-dark rounded-xl px-3.5 py-2 text-xs sm:text-sm flex items-center gap-1.5">
+                    <i data-lucide="database" class="w-4 h-4"></i> Clone Built-In (140)
+                </button>
+                <button onclick="copyJson()"
+                    class="btn-chunky bg-brand-blue text-white rounded-xl px-3.5 py-2 text-xs sm:text-sm flex items-center gap-1.5">
+                    <i data-lucide="copy" class="w-4 h-4"></i> Copy JSON
+                </button>
+                <button onclick="exportJson()"
+                    class="btn-chunky bg-brand-green text-brand-dark rounded-xl px-3.5 py-2 text-xs sm:text-sm flex items-center gap-1.5">
+                    <i data-lucide="download" class="w-4 h-4"></i> Export JSON
+                </button>
+                <button onclick="toggleTheme()"
+                    class="btn-chunky bg-white dark:bg-slate-800 p-2 rounded-xl" aria-label="Toggle Dark Mode">
+                    <i data-lucide="moon" class="w-4 h-4 dark:hidden"></i>
+                    <i data-lucide="sun" class="w-4 h-4 text-brand-yellow hidden dark:block"></i>
+                </button>
             </div>
         </div>
+    </nav>
 
-        <script>
-            let activities = [];
-            let originalEditingId = null; // Tracks the ID we started editing, in case user changes it
+    <main class="flex-grow p-4 md:p-6">
+        <div class="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-6">
 
-            const commonIcons = [
-                "activity",
-                "anchor",
-                "arrow-left-right",
-                "book",
-                "book-open",
-                "bus",
-                "check",
-                "clock",
-                "edit",
-                "eye",
-                "eye-off",
-                "flag",
-                "flame",
-                "headphones",
-                "help-circle",
-                "image",
-                "lightbulb",
-                "message-square",
-                "mic",
-                "music",
-                "pen-tool",
-                "play",
-                "scissors",
-                "smile",
-                "star",
-                "users",
-                "video",
-                "zap",
-                "hash",
-                "list",
-            ];
+            <!-- LEFT COLUMN: WORKSPACE & ACTIVITY LIST -->
+            <div class="lg:col-span-4 space-y-4">
+                <button onclick="resetForm()"
+                    class="w-full btn-chunky bg-brand-yellow text-brand-dark rounded-2xl py-3.5 font-heading text-lg flex justify-center items-center gap-2">
+                    <i data-lucide="plus-circle" class="w-5 h-5"></i> New Custom Activity
+                </button>
 
-            lucide.createIcons();
-            let syncTimeout;
+                <div class="studio-panel rounded-2xl p-4 space-y-2.5">
+                    <p class="text-[11px] font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400">Batch Tools</p>
+                    <input type="file" id="importFile" accept=".json" class="hidden" />
+                    <div class="grid grid-cols-2 gap-2">
+                        <button onclick="document.getElementById('importFile').click()"
+                            class="btn-chunky bg-white dark:bg-slate-800 rounded-xl py-2.5 text-xs flex justify-center items-center gap-1.5">
+                            <i data-lucide="file-up" class="w-4 h-4 text-brand-blue"></i> Import JSON
+                        </button>
+                        <button onclick="document.getElementById('pasteModal').showModal()"
+                            class="btn-chunky bg-brand-pink text-white rounded-xl py-2.5 text-xs flex justify-center items-center gap-1.5">
+                            <i data-lucide="clipboard-paste" class="w-4 h-4"></i> Paste JSON
+                        </button>
+                    </div>
+                    <button onclick="reindexIds()"
+                        class="w-full btn-chunky bg-white dark:bg-slate-800 rounded-xl py-2 text-xs flex justify-center items-center gap-1.5">
+                        <i data-lucide="list-ordered" class="w-4 h-4 text-brand-orange"></i> Re-index Numeric IDs
+                    </button>
+                </div>
 
-            async function saveToCloud() {
-                if (syncTimeout) clearTimeout(syncTimeout);
-                syncTimeout = setTimeout(async () => {
-                    try {
-                        await saveProgress('act_custom_workspace', { activities, updatedAt: Date.now() });
-                        console.log("Cloud sync complete");
-                    } catch (e) {
-                        console.error("Cloud sync failed", e);
-                    }
-                }, 2000);
-            }
+                <div class="studio-panel rounded-2xl flex flex-col h-[540px] overflow-hidden">
+                    <div class="p-3.5 border-b-2 border-brand-dark dark:border-slate-600 bg-white/60 dark:bg-slate-800/60 flex justify-between items-center gap-2">
+                        <span class="font-heading font-bold uppercase text-sm">Studio Activities</span>
+                        <span id="activityCount" class="bg-brand-dark text-white dark:bg-brand-blue px-2.5 py-0.5 rounded-lg text-xs font-extrabold">0</span>
+                    </div>
+                    <div class="p-2.5 border-b border-slate-200 dark:border-slate-700">
+                        <input id="studioSearch" type="text" placeholder="Filter studio list..." oninput="updateActivityList()"
+                            class="w-full px-3 py-1.5 rounded-xl bg-white dark:bg-slate-900 text-xs font-bold" />
+                    </div>
+                    <div id="activityList" class="flex-grow overflow-y-auto p-3 space-y-2.5 custom-scrollbar"></div>
+                </div>
+            </div>
 
-            async function loadFromCloud() {
-                try {
-                    const data = await loadProgress('act_custom_workspace');
-                    if (data && data.activities) {
-                        activities = data.activities;
-                        updateActivityList();
-                        setNextAvailableId();
-                    }
-                } catch (e) {
-                    console.error("Cloud load failed", e);
-                }
-            }
+            <!-- RIGHT COLUMN: ENRICHED EDITOR FORM -->
+            <div class="lg:col-span-8">
+                <div class="studio-panel rounded-2xl overflow-hidden">
+                    <div id="formHeader" class="bg-brand-pink text-white border-b-2 border-brand-dark dark:border-slate-600 p-5 flex justify-between items-center transition-colors">
+                        <h2 id="formTitle" class="font-heading text-xl sm:text-2xl font-bold uppercase flex items-center gap-2.5">
+                            <i data-lucide="pen-tool" class="w-5 h-5"></i> Adding New Activity
+                        </h2>
+                        <span id="idBadge" class="text-xs font-extrabold bg-black/20 px-3 py-1 rounded-lg">NEW</span>
+                    </div>
 
-            // --- FILE & DATA HANDLING ---
-            document
-                .getElementById("importFile")
-                .addEventListener("change", function (e) {
-                    const file = e.target.files[0];
-                    if (!file) return;
-                    const reader = new FileReader();
-                    reader.onload = (event) => {
-                        try {
-                            activities = JSON.parse(event.target.result);
-                            updateActivityList();
-                            setNextAvailableId();
-                            showToast("Data Imported Successfully!");
-                        } catch (err) {
-                            showToast("Error: Invalid JSON format!", true);
-                        }
-                    };
-                    reader.readAsText(file);
-                });
-
-            function exportJson() {
-                if (activities.length === 0)
-                    return showToast("Nothing to export!", true);
-                const blob = new Blob([JSON.stringify(activities, null, 2)], {
-                    type: "application/json",
-                });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement("a");
-                a.href = url;
-                a.download = "activities.json";
-                a.click();
-                URL.revokeObjectURL(url);
-                showToast("Exporting File...");
-            }
-
-            async function copyJson() {
-                if (activities.length === 0)
-                    return showToast("Nothing to copy!", true);
-                const jsonString = JSON.stringify(activities, null, 2);
-                try {
-                    await navigator.clipboard.writeText(jsonString);
-                    showToast("JSON Copied to Clipboard!");
-                } catch (err) {
-                    const textarea = document.createElement("textarea");
-                    textarea.value = jsonString;
-                    textarea.style.position = "fixed";
-                    textarea.style.left = "-9999px";
-                    document.body.appendChild(textarea);
-                    textarea.select();
-                    document.execCommand("copy");
-                    document.body.removeChild(textarea);
-                    showToast("JSON Copied to Clipboard!");
-                }
-            }
-
-            function processPastedJson() {
-                const raw = document.getElementById("pasteArea").value.trim();
-                if (!raw)
-                    return showToast("Please paste some JSON first!", true);
-
-                try {
-                    let parsed = JSON.parse(raw);
-
-                    // If they pasted a single object, wrap it in an array
-                    if (!Array.isArray(parsed)) {
-                        parsed = [parsed];
-                    }
-
-                    let addedCount = 0;
-                    // Find the current highest ID to prevent collisions
-                    let maxId =
-                        activities.length > 0
-                            ? Math.max(...activities.map((a) => a.id))
-                            : 0;
-
-                    parsed.forEach((act) => {
-                        if (typeof act === "object" && act !== null) {
-                            maxId++;
-                            act.id = maxId; // Assign a fresh ID
-                            activities.push(act);
-                            addedCount++;
-                        }
-                    });
-
-                    if (addedCount > 0) {
-                        updateActivityList();
-                        setNextAvailableId();
-                        saveToCloud();
-
-                        // Clean up and close
-                        document.getElementById("pasteArea").value = "";
-                        document.getElementById("pasteModal").close();
-
-                        // Re-render icons since we added new elements to the DOM
-                        lucide.createIcons();
-
-                        showToast(
-                            `Successfully added ${addedCount} activities!`,
-                        );
-                    } else {
-                        showToast("No valid activity objects found.", true);
-                    }
-                } catch (err) {
-                    showToast("Invalid JSON format!", true);
-                }
-            }
-
-            // --- LIST MANAGEMENT ---
-            function updateActivityList() {
-                const list = document.getElementById("activityList");
-                document.getElementById("activityCount").innerText =
-                    activities.length;
-
-                if (activities.length === 0) {
-                    list.innerHTML = `<div class="text-center py-20 text-slate-400 font-bold italic">No activities found.</div>`;
-                    return;
-                }
-
-                list.innerHTML = activities
-                    .sort((a, b) => a.id - b.id)
-                    .map(
-                        (act) => `
-                    <div class="bg-white border-2 border-brand-dark rounded-xl p-3 neo-shadow-sm flex justify-between items-center group ${originalEditingId === act.id ? "ring-4 ring-brand-blue/30 border-brand-blue bg-brand-blue/5" : ""}">
-                        <div class="truncate pr-4 flex items-center gap-3">
-                            <span class="bg-brand-dark text-white text-xs font-bold px-2 py-1 rounded border border-brand-dark">#${act.id}</span>
-                            <div>
-                                <p class="font-bold text-sm truncate">${act.title}</p>
-                                <p class="text-[10px] font-black uppercase text-brand-blue">${act.type}</p>
+                    <form id="activityForm" class="p-5 sm:p-6 space-y-5" onsubmit="saveActivity(event)">
+                        <div class="grid grid-cols-1 md:grid-cols-12 gap-4">
+                            <div class="md:col-span-3 space-y-1">
+                                <label class="font-extrabold text-xs uppercase">ID</label>
+                                <input type="text" id="activityId" required placeholder="custom_1"
+                                    class="w-full px-3 py-2.5 rounded-xl font-bold text-sm bg-white dark:bg-slate-900" />
+                            </div>
+                            <div class="md:col-span-5 space-y-1">
+                                <label class="font-extrabold text-xs uppercase">Activity Title *</label>
+                                <input type="text" id="title" required placeholder="e.g. Back-to-Back Drawing"
+                                    class="w-full px-3 py-2.5 rounded-xl font-bold text-sm bg-white dark:bg-slate-900" />
+                            </div>
+                            <div class="md:col-span-4 space-y-1">
+                                <label class="font-extrabold text-xs uppercase">Lucide Icon</label>
+                                <div class="flex gap-2">
+                                    <input type="text" id="icon" required value="sparkles" placeholder="sparkles"
+                                        class="w-full px-3 py-2.5 rounded-xl font-bold text-sm bg-white dark:bg-slate-900" />
+                                    <button type="button" onclick="openIconPicker()"
+                                        class="shrink-0 btn-chunky bg-brand-dark text-white px-3 rounded-xl flex items-center justify-center">
+                                        <i data-lucide="search" class="w-4 h-4"></i>
+                                    </button>
+                                </div>
                             </div>
                         </div>
-                        <div class="flex gap-2 shrink-0">
-                            <button type="button" onclick="editActivity(${act.id})" class="p-2 border-2 border-brand-dark rounded-lg hover:bg-brand-blue hover:text-white transition-colors">
-                                <i data-lucide="edit-3" class="w-4 h-4"></i>
+
+                        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                            <div class="space-y-1">
+                                <label class="font-extrabold text-xs uppercase">Type</label>
+                                <select id="type" class="w-full px-3 py-2.5 rounded-xl font-bold text-sm bg-white dark:bg-slate-900">
+                                    <option value="Warmer">Warmer</option>
+                                    <option value="Icebreaker">Icebreaker</option>
+                                    <option value="Stirrer">Stirrer</option>
+                                    <option value="Settler">Settler</option>
+                                    <option value="Closer">Closer</option>
+                                </select>
+                            </div>
+                            <div class="space-y-1">
+                                <label class="font-extrabold text-xs uppercase">Difficulty</label>
+                                <select id="difficulty" class="w-full px-3 py-2.5 rounded-xl font-bold text-sm bg-white dark:bg-slate-900">
+                                    <option value="Easy">Easy</option>
+                                    <option value="Medium">Medium</option>
+                                    <option value="Hard">Hard</option>
+                                </select>
+                            </div>
+                            <div class="space-y-1">
+                                <label class="font-extrabold text-xs uppercase">Time Label</label>
+                                <input type="text" id="time" required value="10-15 Min"
+                                    class="w-full px-3 py-2.5 rounded-xl font-bold text-sm bg-white dark:bg-slate-900" />
+                            </div>
+                            <div class="space-y-1">
+                                <label class="font-extrabold text-xs uppercase">Duration (Mins)</label>
+                                <input type="number" id="duration_mins" min="1" max="180" value="12" required
+                                    class="w-full px-3 py-2.5 rounded-xl font-bold text-sm bg-white dark:bg-slate-900" />
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 bg-slate-100/80 dark:bg-slate-800/60 border-2 border-dashed border-brand-dark dark:border-slate-500 rounded-xl">
+                            <div class="space-y-1">
+                                <label class="font-extrabold text-xs uppercase">Grouping</label>
+                                <select id="grouping" class="w-full px-3 py-2 rounded-xl font-bold text-sm bg-white dark:bg-slate-900">
+                                    <option value="Whole Class">Whole Class</option>
+                                    <option value="Teams">Teams</option>
+                                    <option value="Small Groups">Small Groups</option>
+                                    <option value="Pairs">Pairs</option>
+                                    <option value="Individual">Individual</option>
+                                    <option value="Mingle">Mingle</option>
+                                </select>
+                            </div>
+                            <div class="space-y-1">
+                                <label class="font-extrabold text-xs uppercase">Prep Level</label>
+                                <select id="prep_level" class="w-full px-3 py-2 rounded-xl font-bold text-sm bg-white dark:bg-slate-900">
+                                    <option value="Zero Prep">Zero Prep</option>
+                                    <option value="Quick Prep">Quick Prep</option>
+                                    <option value="Needs Printouts">Needs Printouts</option>
+                                </select>
+                            </div>
+                            <div class="space-y-1">
+                                <label class="font-extrabold text-xs uppercase">Target Ages</label>
+                                <div class="flex flex-wrap gap-2.5 pt-1.5 text-xs font-bold" id="targetAgesContainer">
+                                    <label class="flex items-center gap-1 cursor-pointer"><input type="checkbox" value="3-6" class="w-4 h-4 accent-brand-green" /> 3–6</label>
+                                    <label class="flex items-center gap-1 cursor-pointer"><input type="checkbox" value="7-12" class="w-4 h-4 accent-brand-green" checked /> 7–12</label>
+                                    <label class="flex items-center gap-1 cursor-pointer"><input type="checkbox" value="13-18" class="w-4 h-4 accent-brand-green" checked /> 13–18</label>
+                                    <label class="flex items-center gap-1 cursor-pointer"><input type="checkbox" value="Adult" class="w-4 h-4 accent-brand-green" /> Adult</label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div class="space-y-1">
+                                <label class="font-extrabold text-xs uppercase">Short Description *</label>
+                                <textarea id="desc" required rows="2" placeholder="One crisp sentence for the activity card..."
+                                    class="w-full px-3 py-2 rounded-xl font-semibold text-sm bg-white dark:bg-slate-900"></textarea>
+                            </div>
+                            <div class="space-y-1">
+                                <label class="font-extrabold text-xs uppercase">Classroom Goal</label>
+                                <textarea id="goal" rows="2" placeholder="What students practice or achieve..."
+                                    class="w-full px-3 py-2 rounded-xl font-semibold text-sm bg-white dark:bg-slate-900"></textarea>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div class="space-y-1">
+                                <label class="font-extrabold text-xs uppercase">Skills (Comma separated) *</label>
+                                <input type="text" id="skills" required placeholder="Speaking, Listening, Vocabulary"
+                                    class="w-full px-3 py-2.5 rounded-xl font-bold text-sm bg-white dark:bg-slate-900" />
+                            </div>
+                            <div class="space-y-1">
+                                <label class="font-extrabold text-xs uppercase">Materials (Comma separated)</label>
+                                <input type="text" id="materials" placeholder="Whiteboard, Markers (or leave blank)"
+                                    class="w-full px-3 py-2.5 rounded-xl font-bold text-sm bg-white dark:bg-slate-900" />
+                            </div>
+                        </div>
+
+                        <div class="space-y-3 border-t-2 border-brand-dark dark:border-slate-600 pt-4">
+                            <div class="flex justify-between items-center">
+                                <h3 class="font-heading text-lg font-bold uppercase">Step-by-Step Instructions</h3>
+                                <button type="button" onclick="addStep()"
+                                    class="btn-chunky bg-brand-blue text-white rounded-xl px-3.5 py-2 text-xs flex items-center gap-1.5">
+                                    <i data-lucide="plus" class="w-4 h-4"></i> Add Step
+                                </button>
+                            </div>
+                            <div id="stepsContainer" class="space-y-2.5"></div>
+                        </div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div class="space-y-1">
+                                <label class="font-extrabold text-xs uppercase">Board Example / Teacher Script</label>
+                                <textarea id="example" rows="2" placeholder="Sample sentence frame or prompt to write on the board..."
+                                    class="w-full px-3 py-2 rounded-xl font-semibold text-sm bg-white dark:bg-slate-900"></textarea>
+                            </div>
+                            <div class="space-y-1">
+                                <label class="font-extrabold text-xs uppercase">Variation / Twist</label>
+                                <textarea id="variation" rows="2" placeholder="Optional twist for replayability..."
+                                    class="w-full px-3 py-2 rounded-xl font-semibold text-sm bg-white dark:bg-slate-900"></textarea>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                            <div class="space-y-1">
+                                <label class="font-extrabold text-[11px] uppercase text-emerald-600 dark:text-emerald-400">Easier / Lower-Level Tip</label>
+                                <textarea id="tipLower" rows="2" placeholder="Scaffolding or word bank tip..."
+                                    class="w-full px-3 py-2 rounded-xl font-semibold text-xs bg-white dark:bg-slate-900"></textarea>
+                            </div>
+                            <div class="space-y-1">
+                                <label class="font-extrabold text-[11px] uppercase text-brand-pink">Higher-Level Challenge</label>
+                                <textarea id="tipHigher" rows="2" placeholder="Stretch challenge..."
+                                    class="w-full px-3 py-2 rounded-xl font-semibold text-xs bg-white dark:bg-slate-900"></textarea>
+                            </div>
+                            <div class="space-y-1">
+                                <label class="font-extrabold text-[11px] uppercase text-brand-orange">Class Management Tip</label>
+                                <textarea id="tipManagement" rows="2" placeholder="Pacing or noise tip..."
+                                    class="w-full px-3 py-2 rounded-xl font-semibold text-xs bg-white dark:bg-slate-900"></textarea>
+                            </div>
+                        </div>
+
+                        <button type="submit"
+                            class="w-full btn-chunky bg-brand-green text-brand-dark rounded-2xl py-4 font-heading text-xl uppercase">
+                            Save Activity to Bank
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- ICON MODAL -->
+    <dialog id="iconModal" class="p-0 rounded-2xl border-2 border-brand-dark dark:border-slate-500 m-auto w-[90%] max-w-2xl bg-white dark:bg-slate-900 text-brand-dark dark:text-white">
+        <div class="flex flex-col max-h-[80vh]">
+            <div class="p-4 border-b-2 border-brand-dark dark:border-slate-600 flex justify-between items-center">
+                <h3 class="font-heading text-lg font-bold uppercase">Select an Icon</h3>
+                <button onclick="document.getElementById('iconModal').close()" class="btn-chunky bg-white dark:bg-slate-800 p-1.5 rounded-lg">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
+            </div>
+            <div class="p-5 overflow-y-auto custom-scrollbar">
+                <div id="iconGrid" class="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-3"></div>
+            </div>
+        </div>
+    </dialog>
+
+    <!-- PASTE JSON MODAL -->
+    <dialog id="pasteModal" class="p-0 rounded-2xl border-2 border-brand-dark dark:border-slate-500 m-auto w-[90%] max-w-2xl bg-white dark:bg-slate-900 text-brand-dark dark:text-white">
+        <div class="flex flex-col max-h-[80vh]">
+            <div class="p-4 border-b-2 border-brand-dark dark:border-slate-600 flex justify-between items-center">
+                <h3 class="font-heading text-lg font-bold uppercase flex items-center gap-2">
+                    <i data-lucide="clipboard-paste" class="w-5 h-5"></i> Paste JSON Data
+                </h3>
+                <button onclick="document.getElementById('pasteModal').close()" class="btn-chunky bg-white dark:bg-slate-800 p-1.5 rounded-lg">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
+            </div>
+            <div class="p-5 overflow-y-auto custom-scrollbar flex flex-col gap-4">
+                <p class="font-bold text-xs text-slate-500 dark:text-slate-400">
+                    Paste a single activity object or an array of activities. Missing IDs will be generated automatically.
+                </p>
+                <textarea id="pasteArea" rows="10"
+                    class="w-full px-3 py-2 rounded-xl font-mono text-xs bg-slate-50 dark:bg-slate-800"
+                    placeholder='[{ "title": "New Activity", "type": "Stirrer", "steps": ["Step 1"] }]'></textarea>
+                <button onclick="processPastedJson()" class="w-full btn-chunky bg-brand-green text-brand-dark rounded-xl py-3 text-base">
+                    Add to Studio
+                </button>
+            </div>
+        </div>
+    </dialog>
+
+    <!-- CLONE BUILT-IN MODAL -->
+    <dialog id="cloneModal" class="p-0 rounded-2xl border-2 border-brand-dark dark:border-slate-500 m-auto w-[92%] max-w-2xl bg-white dark:bg-slate-900 text-brand-dark dark:text-white">
+        <div class="flex flex-col max-h-[82vh]">
+            <div class="p-4 border-b-2 border-brand-dark dark:border-slate-600 bg-brand-yellow text-brand-dark flex justify-between items-center">
+                <h3 class="font-heading text-lg font-bold uppercase flex items-center gap-2">
+                    <i data-lucide="database" class="w-5 h-5"></i> Clone from Built-In Bank
+                </h3>
+                <button onclick="document.getElementById('cloneModal').close()" class="btn-chunky bg-white text-brand-dark p-1.5 rounded-lg">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
+            </div>
+            <div class="p-4 border-b border-slate-200 dark:border-slate-700">
+                <input id="cloneSearchInput" type="text" placeholder="Search 140 built-in activities to clone & customize..."
+                    oninput="renderCloneList()"
+                    class="w-full px-3 py-2 rounded-xl text-sm font-bold bg-white dark:bg-slate-800" />
+            </div>
+            <div id="cloneList" class="p-4 overflow-y-auto custom-scrollbar space-y-2"></div>
+        </div>
+    </dialog>
+
+    <!-- TOAST -->
+    <div id="toast" class="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 transform translate-y-32 opacity-0 transition-all duration-300">
+        <div class="bg-brand-dark text-white border-2 border-white/20 rounded-xl px-5 py-3 font-heading font-bold text-sm flex items-center gap-2.5 shadow-lg">
+            <span id="toastIconWrap" class="flex items-center"><i data-lucide="check-circle" class="w-4 h-4 text-brand-green"></i></span>
+            <span id="toastMsg">Saved!</span>
+        </div>
+    </div>
+
+    <script>
+        const CUSTOM_STORAGE_KEY = "klasskit_act_custom_activities";
+        const LEGACY_CUSTOM_KEY = "act_custom_activities";
+        let activities = [];
+        let builtInCache = [];
+        let originalEditingId = null;
+
+        const commonIcons = [
+            "sparkles", "activity", "anchor", "arrow-left-right", "book", "book-open", "box", "briefcase",
+            "bus", "camera", "clock", "compass", "dices", "dollar-sign", "edit", "eye", "eye-off", "feather",
+            "film", "flag", "flame", "footprints", "gift", "globe", "grid-3x3", "hand", "hash", "headphones",
+            "heart", "help-circle", "home", "image", "layers", "lightbulb", "link", "list", "mail", "map",
+            "map-pin", "message-circle", "message-square", "mic", "mic-off", "moon", "music", "palette",
+            "pen-tool", "phone", "play", "puzzle", "refresh-cw", "repeat", "rocket", "scale", "scissors",
+            "search", "share-2", "shield", "shuffle", "smile", "star", "sun", "target", "timer", "trophy",
+            "tv", "type", "user", "user-check", "user-plus", "users", "volume-2", "zap"
+        ];
+
+        function inferPrepLevel(str) {
+            const s = (str || "").toLowerCase();
+            if (!s || s.includes("zero") || s.includes("none")) return "Zero Prep";
+            if (s.includes("print") || s.includes("cut")) return "Needs Printouts";
+            return "Quick Prep";
+        }
+
+        function inferDurationMins(timeStr) {
+            const nums = String(timeStr || "").match(/\d+/g);
+            if (!nums || !nums.length) return 10;
+            if (nums.length === 1) return parseInt(nums[0], 10);
+            return Math.round((parseInt(nums[0], 10) + parseInt(nums[1], 10)) / 2);
+        }
+
+        let syncTimeout;
+        function persistStudio() {
+            const normalized = activities.map((a) => ({ ...a, isCustom: true }));
+            localStorage.setItem(CUSTOM_STORAGE_KEY, JSON.stringify(normalized));
+            clearTimeout(syncTimeout);
+            syncTimeout = setTimeout(async () => {
+                try {
+                    await saveProgress("act_custom_workspace", { activities: normalized, updatedAt: Date.now() });
+                } catch (e) {
+                    console.warn("Cloud sync skipped:", e);
+                }
+            }, 800);
+        }
+
+        async function loadStudioData() {
+            try {
+                const rawNew = localStorage.getItem(CUSTOM_STORAGE_KEY);
+                const rawLegacy = localStorage.getItem(LEGACY_CUSTOM_KEY);
+                const raw = rawNew !== null ? rawNew : rawLegacy;
+                if (raw) {
+                    const local = JSON.parse(raw);
+                    if (Array.isArray(local)) {
+                        activities = local;
+                        if (rawNew === null) localStorage.setItem(CUSTOM_STORAGE_KEY, raw);
+                    }
+                }
+            } catch (e) {}
+
+            try {
+                const cloud = await loadProgress("act_custom_workspace");
+                if (cloud && Array.isArray(cloud.activities) && cloud.activities.length > 0) {
+                    const map = new Map(activities.map((a) => [String(a.id), a]));
+                    cloud.activities.forEach((a) => {
+                        if (!map.has(String(a.id))) map.set(String(a.id), a);
+                    });
+                    activities = Array.from(map.values());
+                    localStorage.setItem(CUSTOM_STORAGE_KEY, JSON.stringify(activities));
+                }
+            } catch (e) {}
+        }
+
+        async function openCloneBuiltInModal() {
+            document.getElementById("cloneModal").showModal();
+            if (builtInCache.length === 0) {
+                document.getElementById("cloneList").innerHTML = `<p class="text-center py-8 text-sm font-bold text-slate-400">Loading built-in bank...</p>`;
+                try {
+                    const res = await fetch("../activities/activities.json?v=" + Date.now());
+                    builtInCache = await res.json();
+                } catch (e) {
+                    document.getElementById("cloneList").innerHTML = `<p class="text-center py-8 text-sm font-bold text-brand-pink">Could not load built-in activities.</p>`;
+                    return;
+                }
+            }
+            renderCloneList();
+        }
+
+        function renderCloneList() {
+            const q = (document.getElementById("cloneSearchInput").value || "").toLowerCase();
+            const matches = builtInCache.filter((a) =>
+                !q || a.title.toLowerCase().includes(q) || a.type.toLowerCase().includes(q) || (a.skills || []).join(" ").toLowerCase().includes(q)
+            );
+            document.getElementById("cloneList").innerHTML = matches.slice(0, 40).map((a) => `
+                <div class="p-3 rounded-xl border-2 border-brand-dark dark:border-slate-600 bg-slate-50 dark:bg-slate-800 flex items-center justify-between gap-3">
+                    <div class="min-w-0">
+                        <p class="font-heading font-bold text-sm truncate">${escapeHtml(a.title)}</p>
+                        <p class="text-[11px] font-bold text-slate-500 dark:text-slate-400">${escapeHtml(a.type)} &bull; ${escapeHtml(a.time)} &bull; ${(a.skills || []).slice(0, 3).join(", ")}</p>
+                    </div>
+                    <button type="button" onclick="cloneBuiltInActivity(${a.id})" class="btn-chunky bg-brand-green text-brand-dark px-3 py-1.5 rounded-xl text-xs shrink-0">
+                        Clone
+                    </button>
+                </div>`).join("");
+        }
+
+        function cloneBuiltInActivity(builtInId) {
+            const src = builtInCache.find((a) => Number(a.id) === Number(builtInId));
+            if (!src) return;
+            document.getElementById("cloneModal").close();
+            editActivityObject({
+                ...src,
+                id: `custom_${Date.now().toString().slice(-5)}`,
+                title: `${src.title} (Custom)`,
+            }, false);
+            showToast("Cloned into editor — customize & save!");
+        }
+
+        document.getElementById("importFile").addEventListener("change", function (e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                try {
+                    const parsed = JSON.parse(ev.target.result);
+                    const arr = Array.isArray(parsed) ? parsed : [parsed];
+                    activities = arr.map((a) => ({
+                        ...a,
+                        isCustom: true,
+                        prep_level: a.prep_level || inferPrepLevel(a.prep_time),
+                        duration_mins: Number(a.duration_mins) || inferDurationMins(a.time),
+                    }));
+                    persistStudio();
+                    updateActivityList();
+                    setNextAvailableId();
+                    showToast(`Imported ${activities.length} activities!`);
+                } catch (err) {
+                    showToast("Invalid JSON file!", true);
+                } finally {
+                    e.target.value = "";
+                }
+            };
+            reader.readAsText(file);
+        });
+
+        function exportJson() {
+            if (activities.length === 0) return showToast("Nothing to export!", true);
+            const blob = new Blob([JSON.stringify(activities, null, 2)], { type: "application/json" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = "activities.json";
+            a.click();
+            URL.revokeObjectURL(url);
+            showToast("Exported activities.json!");
+        }
+
+        async function copyJson() {
+            if (activities.length === 0) return showToast("Nothing to copy!", true);
+            const str = JSON.stringify(activities, null, 2);
+            try {
+                await navigator.clipboard.writeText(str);
+                showToast("JSON copied!");
+            } catch (err) {
+                showToast("Clipboard blocked", true);
+            }
+        }
+
+        function processPastedJson() {
+            const raw = document.getElementById("pasteArea").value.trim();
+            if (!raw) return showToast("Paste JSON first!", true);
+            try {
+                let parsed = JSON.parse(raw);
+                if (!Array.isArray(parsed)) parsed = [parsed];
+                let count = 0;
+                parsed.forEach((act) => {
+                    if (act && typeof act === "object") {
+                        if (!act.id || activities.some((x) => String(x.id) === String(act.id))) {
+                            act.id = `custom_${Date.now()}_${count}`;
+                        }
+                        activities.push(act);
+                        count++;
+                    }
+                });
+                persistStudio();
+                updateActivityList();
+                setNextAvailableId();
+                document.getElementById("pasteArea").value = "";
+                document.getElementById("pasteModal").close();
+                showToast(`Added ${count} activities!`);
+            } catch (err) {
+                showToast("Invalid JSON format!", true);
+            }
+        }
+
+        function updateActivityList() {
+            const list = document.getElementById("activityList");
+            const q = (document.getElementById("studioSearch")?.value || "").toLowerCase();
+            document.getElementById("activityCount").innerText = activities.length;
+
+            const filtered = activities.filter((a) => !q || (a.title || "").toLowerCase().includes(q) || (a.type || "").toLowerCase().includes(q));
+            if (filtered.length === 0) {
+                list.innerHTML = `<div class="text-center py-14 text-slate-400 font-bold text-sm">No activities in Studio yet.</div>`;
+                return;
+            }
+
+            list.innerHTML = filtered
+                .map((act) => `
+                    <div class="bg-white dark:bg-slate-800 border-2 border-brand-dark dark:border-slate-600 rounded-xl p-2.5 flex justify-between items-center gap-2 ${String(originalEditingId) === String(act.id) ? "ring-2 ring-brand-blue" : ""}">
+                        <div class="min-w-0">
+                            <p class="font-bold text-xs truncate">${escapeHtml(act.title)}</p>
+                            <p class="text-[10px] font-extrabold uppercase text-brand-blue">#${escapeHtml(String(act.id))} &bull; ${escapeHtml(act.type)}</p>
+                        </div>
+                        <div class="flex gap-1 shrink-0">
+                            <button type="button" onclick="editActivity('${escapeJs(String(act.id))}')" class="p-1.5 border-2 border-brand-dark dark:border-slate-500 rounded-lg hover:bg-brand-blue hover:text-white transition-colors">
+                                <i data-lucide="edit-3" class="w-3.5 h-3.5"></i>
                             </button>
-                            <button type="button" onclick="deleteActivity(${act.id})" class="p-2 border-2 border-brand-dark rounded-lg hover:bg-brand-pink hover:text-white transition-colors">
-                                <i data-lucide="trash-2" class="w-4 h-4"></i>
+                            <button type="button" onclick="deleteActivity('${escapeJs(String(act.id))}')" class="p-1.5 border-2 border-brand-dark dark:border-slate-500 rounded-lg hover:bg-brand-pink hover:text-white transition-colors">
+                                <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
                             </button>
                         </div>
-                    </div>
-                `,
-                    )
-                    .join("");
-                lucide.createIcons();
-            }
+                    </div>`
+                )
+                .join("");
+            lucide.createIcons();
+        }
 
-            // --- FORM LOGIC ---
-            function setNextAvailableId() {
-                if (originalEditingId !== null) return;
-                let maxId = 0;
-                activities.forEach((a) => {
-                    if (a.id > maxId) maxId = a.id;
-                });
-                document.getElementById("activityId").value = maxId + 1;
-            }
+        function setNextAvailableId() {
+            if (originalEditingId !== null) return;
+            document.getElementById("activityId").value = `custom_${Date.now().toString().slice(-5)}`;
+        }
 
-            function addStep(val = "") {
-                const container = document.getElementById("stepsContainer");
-                const stepDiv = document.createElement("div");
-                stepDiv.className = "flex gap-2 group items-center step-item";
-                stepDiv.innerHTML = `
-                    <div class="flex flex-col gap-1 shrink-0">
-                        <button type="button" onclick="moveStep(this, -1)" class="p-1 hover:bg-brand-chalk rounded text-slate-400 hover:text-brand-dark transition-colors"><i data-lucide="chevron-up" class="w-4 h-4"></i></button>
-                        <button type="button" onclick="moveStep(this, 1)" class="p-1 hover:bg-brand-chalk rounded text-slate-400 hover:text-brand-dark transition-colors"><i data-lucide="chevron-down" class="w-4 h-4"></i></button>
-                    </div>
-                    <div class="step-num flex-shrink-0 w-8 h-8 bg-brand-dark text-white rounded-lg flex items-center justify-center font-bold neo-shadow-sm border-2 border-brand-dark">
-                        ${container.children.length + 1}
-                    </div>
-                    <input type="text" required value="${val.replace(/"/g, "&quot;")}" class="flex-grow px-4 py-2 rounded-xl font-bold text-sm" placeholder="Actionable step description...">
-                    <button type="button" onclick="this.parentElement.remove(); reorderSteps();" class="shrink-0 p-2 text-brand-pink hover:bg-brand-pink/10 rounded-lg transition-colors border-2 border-transparent hover:border-brand-pink">
-                        <i data-lucide="x-circle" class="w-5 h-5"></i>
-                    </button>
-                `;
-                container.appendChild(stepDiv);
-                lucide.createIcons();
-                reorderSteps();
-            }
+        function addStep(val = "") {
+            const container = document.getElementById("stepsContainer");
+            const stepDiv = document.createElement("div");
+            stepDiv.className = "flex gap-2 items-center step-item";
+            stepDiv.innerHTML = `
+                <div class="flex flex-col shrink-0">
+                    <button type="button" onclick="moveStep(this, -1)" class="p-0.5 text-slate-400 hover:text-brand-dark dark:hover:text-white"><i data-lucide="chevron-up" class="w-3.5 h-3.5"></i></button>
+                    <button type="button" onclick="moveStep(this, 1)" class="p-0.5 text-slate-400 hover:text-brand-dark dark:hover:text-white"><i data-lucide="chevron-down" class="w-3.5 h-3.5"></i></button>
+                </div>
+                <div class="step-num w-7 h-7 bg-brand-dark text-white rounded-lg flex items-center justify-center font-bold text-xs shrink-0">${container.children.length + 1}</div>
+                <input type="text" required value="${escapeHtml(val)}" class="flex-grow px-3 py-2 rounded-xl font-semibold text-sm bg-white dark:bg-slate-900" placeholder="Actionable step instruction..." />
+                <button type="button" onclick="this.parentElement.remove(); reorderSteps();" class="p-1.5 text-brand-pink hover:bg-pink-50 dark:hover:bg-pink-950/40 rounded-lg">
+                    <i data-lucide="x-circle" class="w-4 h-4"></i>
+                </button>`;
+            container.appendChild(stepDiv);
+            lucide.createIcons();
+            reorderSteps();
+        }
 
-            function moveStep(btn, direction) {
-                const stepDiv = btn.closest(".step-item");
-                const container = document.getElementById("stepsContainer");
-                if (direction === -1 && stepDiv.previousElementSibling) {
-                    container.insertBefore(
-                        stepDiv,
-                        stepDiv.previousElementSibling,
-                    );
-                } else if (direction === 1 && stepDiv.nextElementSibling) {
-                    container.insertBefore(stepDiv.nextElementSibling, stepDiv);
-                }
-                reorderSteps();
-            }
+        function moveStep(btn, dir) {
+            const stepDiv = btn.closest(".step-item");
+            const container = document.getElementById("stepsContainer");
+            if (dir === -1 && stepDiv.previousElementSibling) container.insertBefore(stepDiv, stepDiv.previousElementSibling);
+            else if (dir === 1 && stepDiv.nextElementSibling) container.insertBefore(stepDiv.nextElementSibling, stepDiv);
+            reorderSteps();
+        }
 
-            function reorderSteps() {
-                const steps = document.querySelectorAll(
-                    "#stepsContainer > .step-item",
-                );
-                steps.forEach((s, i) => {
-                    s.querySelector(".step-num").innerText = i + 1;
-                    // Disable up button on first, down button on last
-                    const btns = s.querySelectorAll("button");
-                    btns[0].style.opacity = i === 0 ? "0.2" : "1";
-                    btns[1].style.opacity =
-                        i === steps.length - 1 ? "0.2" : "1";
-                });
-            }
+        function reorderSteps() {
+            document.querySelectorAll("#stepsContainer > .step-item").forEach((s, i) => {
+                s.querySelector(".step-num").innerText = i + 1;
+            });
+        }
 
-            function saveActivity(e) {
-                e.preventDefault();
+        function saveActivity(e) {
+            e.preventDefault();
+            const inputId = document.getElementById("activityId").value.trim();
+            if (!inputId) return showToast("ID is required!", true);
 
-                const inputId = parseInt(
-                    document.getElementById("activityId").value,
-                );
-                if (isNaN(inputId))
-                    return showToast("ID must be a number!", true);
+            const isDuplicate = activities.some((a) => String(a.id) === inputId && String(a.id) !== String(originalEditingId));
+            if (isDuplicate) return showToast(`ID "${inputId}" already exists!`, true);
 
-                // ID Duplication check
-                const isDuplicate = activities.some(
-                    (a) => a.id === inputId && a.id !== originalEditingId,
-                );
-                if (isDuplicate)
-                    return showToast(`ID #${inputId} is already in use!`, true);
+            const steps = Array.from(document.querySelectorAll('#stepsContainer input[type="text"]'))
+                .map((i) => i.value.trim())
+                .filter(Boolean);
+            if (steps.length === 0) return showToast("Add at least one step!", true);
 
-                const stepInputs = document.querySelectorAll(
-                    '#stepsContainer input[type="text"]',
-                );
-                const steps = Array.from(stepInputs)
-                    .map((i) => i.value.trim())
-                    .filter((val) => val !== "");
-                if (steps.length === 0)
-                    return showToast("Add at least one step!", true);
+            const checkedAges = Array.from(document.querySelectorAll("#targetAgesContainer input:checked")).map((cb) => cb.value);
+            if (checkedAges.length === 0) return showToast("Select at least one Target Age!", true);
 
-                const checkedAges = Array.from(
-                    document.querySelectorAll(
-                        "#targetAgesContainer input:checked",
-                    ),
-                ).map((cb) => cb.value);
-                if (checkedAges.length === 0)
-                    return showToast(
-                        "Select at least one Target Age group!",
-                        true,
-                    );
+            const prepLevel = document.getElementById("prep_level").value;
+            const mins = Math.max(1, parseInt(document.getElementById("duration_mins").value, 10) || 10);
 
-                const data = {
-                    id: inputId,
-                    title: document.getElementById("title").value.trim(),
-                    type: document.getElementById("type").value,
-                    difficulty: document.getElementById("difficulty").value,
-                    time: document.getElementById("time").value.trim(),
-                    target_ages: checkedAges,
-                    grouping: document.getElementById("grouping").value,
-                    prep_time: document
-                        .getElementById("prep_time")
-                        .value.trim(),
-                    materials: document
-                        .getElementById("materials")
-                        .value.split(",")
-                        .map((m) => m.trim())
-                        .filter((m) => m),
-                    desc: document.getElementById("desc").value.trim(),
-                    skills: document
-                        .getElementById("skills")
-                        .value.split(",")
-                        .map((s) => s.trim())
-                        .filter((s) => s),
-                    icon:
-                        document.getElementById("icon").value.trim() ||
-                        "activity",
-                    steps: steps,
-                    variation: document
-                        .getElementById("variation")
-                        .value.trim(),
-                };
-
-                if (originalEditingId !== null) {
-                    const idx = activities.findIndex(
-                        (a) => a.id === originalEditingId,
-                    );
-                    if (idx > -1) activities[idx] = data;
-                    showToast(`Activity #${inputId} Updated!`);
-                } else {
-                    activities.push(data);
-                    showToast(`Activity #${inputId} Added!`);
-                }
-
-                resetForm();
-                updateActivityList();
-                saveToCloud();
-            }
-
-            function editActivity(id) {
-                const act = activities.find((a) => a.id === id);
-                if (!act) return;
-
-                originalEditingId = id;
-                document.getElementById("formTitle").innerHTML =
-                    `<i data-lucide="edit"></i> Editing Activity`;
-                document
-                    .getElementById("formHeader")
-                    .classList.replace("bg-brand-pink", "bg-brand-blue");
-                document
-                    .getElementById("formHeader")
-                    .classList.replace("text-brand-dark", "text-white");
-
-                document.getElementById("idBadge").innerText = "EDITING";
-                document.getElementById("idBadge").className =
-                    "text-xs font-black bg-white text-brand-blue px-3 py-1 rounded-lg border-2 border-white";
-
-                document.getElementById("activityId").value = act.id;
-                document.getElementById("title").value = act.title || "";
-                document.getElementById("icon").value = act.icon || "";
-                document.getElementById("type").value = act.type || "Stirrer";
-                document.getElementById("difficulty").value =
-                    act.difficulty || "Medium";
-                document.getElementById("time").value = act.time || "";
-                document.getElementById("desc").value = act.desc || "";
-                document.getElementById("variation").value =
-                    act.variation || "";
-                document.getElementById("grouping").value =
-                    act.grouping || "Whole Class";
-                document.getElementById("prep_time").value =
-                    act.prep_time || "";
-                document.getElementById("skills").value = (
-                    act.skills || []
-                ).join(", ");
-                document.getElementById("materials").value = (
-                    act.materials || []
-                ).join(", ");
-
-                const ageCheckboxes = document.querySelectorAll(
-                    "#targetAgesContainer input",
-                );
-                ageCheckboxes.forEach((cb) => {
-                    cb.checked = act.target_ages
-                        ? act.target_ages.includes(cb.value)
-                        : false;
-                });
-
-                const container = document.getElementById("stepsContainer");
-                container.innerHTML = "";
-                (act.steps || []).forEach((s) => addStep(s));
-
-                window.scrollTo({ top: 0, behavior: "smooth" });
-                updateActivityList();
-                lucide.createIcons();
-            }
-
-            async function deleteActivity(id) {
-                const confirmed = await showConfirmModal("Remove this activity forever?", {
-                    title: "Delete Activity?",
-                    confirmText: "Remove",
-                    cancelText: "Keep",
-                    icon: "trash-2",
-                    iconColor: "red"
-                });
-                if (!confirmed) return;
-                activities = activities.filter((a) => a.id !== id);
-                if (originalEditingId === id) resetForm();
-                updateActivityList();
-                saveToCloud();
-                showToast(`Activity #${id} Deleted.`, true);
-            }
-
-            function reindexIds() {
-                if (activities.length === 0)
-                    return showToast("No activities to re-index!", true);
-
-                // Sort activities by their current ID first to maintain logical order
-                activities.sort((a, b) => a.id - b.id);
-
-                let wasEditing = originalEditingId !== null;
-                let newEditingId = null;
-
-                // Loop through and reassign IDs starting from 1
-                activities.forEach((act, index) => {
-                    const newId = index + 1;
-
-                    // If we are currently editing an activity, update its ID tracker
-                    if (wasEditing && act.id === originalEditingId) {
-                        newEditingId = newId;
-                    }
-
-                    act.id = newId;
-                });
-
-                // Update the form if the user was in the middle of editing
-                if (wasEditing) {
-                    originalEditingId = newEditingId;
-                    document.getElementById("activityId").value = newEditingId;
-                } else {
-                    setNextAvailableId();
-                }
-
-                updateActivityList();
-                saveToCloud();
-                showToast("All IDs successfully re-indexed!");
-            }
-
-            function resetForm() {
-                originalEditingId = null;
-                document.getElementById("activityForm").reset();
-
-                document.getElementById("stepsContainer").innerHTML = "";
-                document.getElementById("formTitle").innerHTML =
-                    `<i data-lucide="pen-tool"></i> Adding New Activity`;
-
-                const header = document.getElementById("formHeader");
-                header.classList.remove("bg-brand-blue", "text-white");
-                header.classList.add("bg-brand-pink", "text-brand-dark");
-
-                const badge = document.getElementById("idBadge");
-                badge.innerText = "NEW";
-                badge.className =
-                    "text-xs font-black bg-brand-dark/10 text-brand-dark px-3 py-1 rounded-lg border-2 border-brand-dark";
-
-                setNextAvailableId();
-                addStep();
-                updateActivityList();
-                lucide.createIcons();
-            }
-
-            // --- ICON PICKER LOGIC ---
-            function openIconPicker() {
-                const grid = document.getElementById("iconGrid");
-                grid.innerHTML = commonIcons
-                    .map(
-                        (iconName) => `
-                    <button type="button" onclick="selectIcon('${iconName}')" class="flex flex-col items-center justify-center p-4 gap-2 border-2 border-transparent hover:border-brand-dark hover:bg-brand-chalk rounded-xl transition-colors group">
-                        <i data-lucide="${iconName}" class="w-8 h-8 text-brand-dark group-hover:text-brand-pink transition-colors"></i>
-                        <span class="text-[10px] font-bold text-slate-500 truncate w-full text-center">${iconName}</span>
-                    </button>
-                `,
-                    )
-                    .join("");
-
-                document.getElementById("iconModal").showModal();
-                lucide.createIcons();
-            }
-
-            function selectIcon(iconName) {
-                document.getElementById("icon").value = iconName;
-                document.getElementById("iconModal").close();
-            }
-
-            // --- TOAST UI ---
-            function showToast(msg, isError = false) {
-                const toast = document.getElementById("toast");
-                document.getElementById("toastMsg").innerText = msg;
-
-                const icon = toast.querySelector("i");
-                if (isError) {
-                    icon.classList.replace(
-                        "text-brand-green",
-                        "text-brand-pink",
-                    );
-                    icon.setAttribute("data-lucide", "alert-triangle");
-                } else {
-                    icon.classList.replace(
-                        "text-brand-pink",
-                        "text-brand-green",
-                    );
-                    icon.setAttribute("data-lucide", "check-circle");
-                }
-                lucide.createIcons();
-
-                toast.classList.remove("translate-y-32", "opacity-0");
-                setTimeout(() => {
-                    toast.classList.add("translate-y-32", "opacity-0");
-                }, 3000);
-            }
-
-            window.onload = async () => {
-                await requireAuth();
-                await loadFromCloud();
-                setNextAvailableId();
-                if (activities.length === 0) addStep();
-                updateActivityList();
+            const data = {
+                id: /^\d+$/.test(inputId) ? parseInt(inputId, 10) : inputId,
+                isCustom: true,
+                title: document.getElementById("title").value.trim(),
+                type: document.getElementById("type").value,
+                difficulty: document.getElementById("difficulty").value,
+                time: document.getElementById("time").value.trim(),
+                duration_mins: mins,
+                target_ages: checkedAges,
+                grouping: document.getElementById("grouping").value,
+                prep_time: prepLevel,
+                prep_level: prepLevel,
+                materials: document.getElementById("materials").value.split(",").map((m) => m.trim()).filter(Boolean),
+                desc: document.getElementById("desc").value.trim(),
+                goal: document.getElementById("goal").value.trim() || document.getElementById("desc").value.trim(),
+                skills: document.getElementById("skills").value.split(",").map((s) => s.trim()).filter(Boolean),
+                icon: document.getElementById("icon").value.trim() || "sparkles",
+                steps,
+                example: document.getElementById("example").value.trim(),
+                variation: document.getElementById("variation").value.trim(),
+                tips: {
+                    lower_level: document.getElementById("tipLower").value.trim() || "Model one example slowly on the board.",
+                    higher_level: document.getElementById("tipHigher").value.trim() || "Add a time limit or require justification.",
+                    management: document.getElementById("tipManagement").value.trim() || "Use a clear start/stop signal.",
+                },
             };
-        </script>
-    </body>
+
+            if (originalEditingId !== null) {
+                const idx = activities.findIndex((a) => String(a.id) === String(originalEditingId));
+                if (idx > -1) activities[idx] = data;
+                showToast(`Updated "${data.title}"!`);
+            } else {
+                activities.unshift(data);
+                showToast(`Added "${data.title}" to Activity Bank!`);
+            }
+
+            resetForm();
+            updateActivityList();
+            persistStudio();
+        }
+
+        function editActivity(id) {
+            const act = activities.find((a) => String(a.id) === String(id));
+            if (!act) return;
+            editActivityObject(act, true);
+        }
+
+        function editActivityObject(act, isExisting) {
+            originalEditingId = isExisting ? act.id : null;
+            document.getElementById("formTitle").innerHTML = isExisting
+                ? `<i data-lucide="edit" class="w-5 h-5"></i> Editing Activity`
+                : `<i data-lucide="pen-tool" class="w-5 h-5"></i> Cloning Activity`;
+            const header = document.getElementById("formHeader");
+            if (isExisting) header.classList.replace("bg-brand-pink", "bg-brand-blue");
+            else header.classList.replace("bg-brand-blue", "bg-brand-pink");
+            document.getElementById("idBadge").innerText = isExisting ? "EDITING" : "CLONE";
+
+            document.getElementById("activityId").value = act.id;
+            document.getElementById("title").value = act.title || "";
+            document.getElementById("icon").value = act.icon || "sparkles";
+            document.getElementById("type").value = act.type || "Stirrer";
+            document.getElementById("difficulty").value = act.difficulty || "Medium";
+            document.getElementById("time").value = act.time || "10 Min";
+            document.getElementById("duration_mins").value = Number(act.duration_mins) || inferDurationMins(act.time);
+            document.getElementById("grouping").value = act.grouping || "Whole Class";
+            document.getElementById("prep_level").value = act.prep_level || inferPrepLevel(act.prep_time);
+            document.getElementById("desc").value = act.desc || "";
+            document.getElementById("goal").value = act.goal || "";
+            document.getElementById("skills").value = (act.skills || []).join(", ");
+            document.getElementById("materials").value = (act.materials || []).join(", ");
+            document.getElementById("example").value = act.example || "";
+            document.getElementById("variation").value = act.variation || "";
+            document.getElementById("tipLower").value = act.tips?.lower_level || "";
+            document.getElementById("tipHigher").value = act.tips?.higher_level || "";
+            document.getElementById("tipManagement").value = act.tips?.management || "";
+
+            document.querySelectorAll("#targetAgesContainer input").forEach((cb) => {
+                cb.checked = Array.isArray(act.target_ages) && act.target_ages.includes(cb.value);
+            });
+
+            const container = document.getElementById("stepsContainer");
+            container.innerHTML = "";
+            (act.steps || []).forEach((s) => addStep(s));
+
+            window.scrollTo({ top: 0, behavior: "smooth" });
+            updateActivityList();
+            lucide.createIcons();
+        }
+
+        async function deleteActivity(id) {
+            const confirmed = await showConfirmModal("Remove this activity from Studio & Activity Bank?", {
+                title: "Delete Activity?",
+                confirmText: "Remove",
+                cancelText: "Keep",
+                icon: "trash-2",
+                iconColor: "red"
+            });
+            if (!confirmed) return;
+            activities = activities.filter((a) => String(a.id) !== String(id));
+            if (String(originalEditingId) === String(id)) resetForm();
+            updateActivityList();
+            persistStudio();
+            showToast("Activity removed", true);
+        }
+
+        function reindexIds() {
+            if (activities.length === 0) return showToast("Nothing to re-index!", true);
+            activities.forEach((act, idx) => { act.id = idx + 1; });
+            originalEditingId = null;
+            setNextAvailableId();
+            updateActivityList();
+            persistStudio();
+            showToast("Re-indexed IDs 1.." + activities.length);
+        }
+
+        function resetForm() {
+            originalEditingId = null;
+            document.getElementById("activityForm").reset();
+            document.getElementById("stepsContainer").innerHTML = "";
+            document.getElementById("formTitle").innerHTML = `<i data-lucide="pen-tool" class="w-5 h-5"></i> Adding New Activity`;
+            document.getElementById("formHeader").classList.replace("bg-brand-blue", "bg-brand-pink");
+            document.getElementById("idBadge").innerText = "NEW";
+            setNextAvailableId();
+            addStep();
+            updateActivityList();
+            lucide.createIcons();
+        }
+
+        function openIconPicker() {
+            document.getElementById("iconGrid").innerHTML = commonIcons.map((name) => `
+                <button type="button" onclick="selectIcon('${name}')"
+                    class="flex flex-col items-center justify-center p-3 gap-1.5 border-2 border-transparent hover:border-brand-dark dark:hover:border-slate-500 rounded-xl transition-colors group">
+                    <i data-lucide="${name}" class="w-6 h-6 group-hover:text-brand-pink"></i>
+                    <span class="text-[10px] font-bold text-slate-400 truncate w-full text-center">${name}</span>
+                </button>`).join("");
+            document.getElementById("iconModal").showModal();
+            lucide.createIcons();
+        }
+
+        function selectIcon(name) {
+            document.getElementById("icon").value = name;
+            document.getElementById("iconModal").close();
+        }
+
+        function toggleTheme() {
+            const isDark = document.documentElement.classList.toggle("dark");
+            localStorage.setItem("theme_act", isDark ? "dark" : "light");
+        }
+
+        let toastTimer;
+        function showToast(msg, isError = false) {
+            const toast = document.getElementById("toast");
+            const wrap = document.getElementById("toastIconWrap");
+            document.getElementById("toastMsg").innerText = msg;
+            if (wrap) {
+                wrap.innerHTML = `<i data-lucide="${isError ? "alert-triangle" : "check-circle"}" class="w-4 h-4 ${isError ? "text-brand-pink" : "text-brand-green"}"></i>`;
+            }
+            lucide.createIcons();
+            toast.classList.remove("translate-y-32", "opacity-0");
+            clearTimeout(toastTimer);
+            toastTimer = setTimeout(() => toast.classList.add("translate-y-32", "opacity-0"), 2600);
+        }
+
+        document.querySelectorAll("dialog").forEach((dlg) => {
+            dlg.addEventListener("click", (e) => {
+                if (e.target === dlg) dlg.close();
+            });
+        });
+
+        function escapeHtml(s) {
+            return String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+        }
+        function escapeJs(s) {
+            return String(s ?? "").replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+        }
+
+        window.onload = async () => {
+            await requireAuth();
+            await loadStudioData();
+            setNextAvailableId();
+            addStep();
+            updateActivityList();
+            lucide.createIcons();
+        };
+    </script>
+</body>
+
 </html>

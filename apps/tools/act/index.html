@@ -2,20 +2,52 @@
 <html lang="en">
 
 <head>
-    <!-- Supabase Auth -->
+    <!-- Early theme sync to prevent flash of unstyled content -->
+    <script>
+        (function () {
+            function readTheme(key) {
+                try {
+                    var raw = localStorage.getItem(key);
+                    if (raw == null) return null;
+                    try { return JSON.parse(raw); } catch (e) { return raw; }
+                } catch (e) { return null; }
+            }
+            function syncTheme() {
+                var toolTheme = readTheme('theme_act');
+                var hubTheme = readTheme('theme_hub');
+                var isDark = toolTheme
+                    ? toolTheme === 'dark'
+                    : hubTheme
+                        ? hubTheme === 'dark'
+                        : window.matchMedia('(prefers-color-scheme: dark)').matches;
+                document.documentElement.classList.toggle('dark', isDark);
+            }
+            syncTheme();
+            window.addEventListener('storage', function (e) {
+                if (e.key === 'theme_hub' || e.key === 'theme_act') {
+                    syncTheme();
+                }
+            });
+        })();
+    </script>
+
+    <!-- Supabase Auth & Cloud Sync -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.105.4"></script>
     <script src="/supabase.js"></script>
+    <script src="../../../components/input-modal.js"></script>
+
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Activity Bank</title>
+    <title>Activity Bank — KlassKit</title>
     <link rel="icon" type="image/x-icon" href="../../../media/icon.ico" />
     <link rel="icon" type="image/webp" href="../../../media/icon.webp" />
 
+    <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-        href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Nunito:wght@400;600;700;800&display=swap"
-        rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet" />
+
+    <!-- Tailwind & Lucide -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@1.16.0"></script>
 
@@ -29,944 +61,872 @@
                         engOrange: "#ff7e33",
                         engGreen: "#00d063",
                         engBlue: "#1ea7fd",
-                        engDark: "#111827",
+                        engPurple: "#a855f7",
+                        engDark: "#1e293b",
                         engChalk: "#f8fafc",
                         engYellow: "#FACC15",
                     },
                     fontFamily: {
                         headings: ["Fredoka", "sans-serif"],
+                        heading: ["Fredoka", "sans-serif"],
                         body: ["Nunito", "sans-serif"],
-                    },
-                    boxShadow: {
-                        neo: "0 10px 15px -3px rgba(51, 65, 85, 0.15), 0 4px 6px -2px rgba(51, 65, 85, 0.15)",
-                        "neo-sm": "0 4px 6px -1px rgba(51, 65, 85, 0.15), 0 2px 4px -1px rgba(51, 65, 85, 0.15)",
-                        "neo-lg": "0 20px 25px -5px rgba(51, 65, 85, 0.15), 0 10px 10px -5px rgba(51, 65, 85, 0.15)",
-                        "tab-inactive": "inset 0 -4px 0 0 rgba(17, 24, 39, 0.2)",
                     },
                 },
             },
         };
     </script>
-    <script>
-        if (
-            window.matchMedia("(prefers-color-scheme: dark)").matches) {
-            document.documentElement.classList.add("dark");
-        } else {
-            document.documentElement.classList.remove("dark");
-        }
-    </script>
 
-    <style>
-        body {
-            background-color: #f8fafc;
-            background-image:
-                linear-gradient(#e2e8f0 1px, transparent 1px),
-                linear-gradient(90deg, #e2e8f0 1px, transparent 1px);
-            background-size: 32px 32px;
-            background-position: center center;
-        }
-
-        .dark body {
-            background-color: #020617;
-            /* OLED Navy */
-            background-image:
-                linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
-                linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
-        }
-
-        .btn-neo {
-            transition: all 0.15s cubic-bezier(0.2, 0.8, 0.2, 1);
-        }
-
-        .btn-neo:focus-visible {
-            outline: none;
-            box-shadow: 0 0 0 3px #1ea7fd;
-            /* Modern focus ring */
-        }
-
-        .btn-neo:active:not(:disabled) {
-            transform: translateY(2px);
-            box-shadow: none !important;
-        }
-
-        .btn-neo:hover:not(:disabled) {
-            transform: translateY(-2px);
-            box-shadow: 0 10px 15px -3px rgba(51, 65, 85, 0.15);
-        }
-
-        .card-hover {
-            transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.3s cubic-bezier(0.2, 0.8, 0.2, 1), border-color 0.3s ease;
-            border-color: rgba(255, 255, 255, 0.3);
-            /* For glass base */
-        }
-
-        .dark .card-hover {
-            border-color: rgba(255, 255, 255, 0.05);
-            /* For dark glass base */
-        }
-
-        .card-hover:hover {
-            transform: translateY(-6px) scale(1.02);
-            box-shadow: 0 25px 50px -12px rgba(51, 65, 85, 0.15);
-            border-color: #ff4785;
-        }
-
-        .card-hover:focus-within {
-            outline: none;
-            box-shadow: 0 0 0 3px #1ea7fd, 0 20px 25px -5px rgba(51, 65, 85, 0.15);
-        }
-
-        /* Floating Animation */
-        @keyframes float-icon-1 {
-
-            0%,
-            100% {
-                transform: translateY(0) rotate(-5deg);
-            }
-
-            50% {
-                transform: translateY(-15px) rotate(5deg);
-            }
-        }
-
-        @keyframes float-icon-2 {
-
-            0%,
-            100% {
-                transform: translateY(0) rotate(5deg);
-            }
-
-            50% {
-                transform: translateY(-20px) rotate(-10deg);
-            }
-        }
-
-        @keyframes float-icon-3 {
-
-            0%,
-            100% {
-                transform: translateY(0) scale(1);
-            }
-
-            50% {
-                transform: translateY(-10px) scale(1.1);
-            }
-        }
-
-        .bg-float-icon {
-            position: absolute;
-            opacity: 0.15;
-            pointer-events: none;
-            z-index: 1;
-        }
-
-        .dark .bg-float-icon {
-            opacity: 0.2;
-        }
-
-        /* Custom dropdown styling */
-        select {
-            appearance: none;
-            background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%231e293b' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
-            background-repeat: no-repeat;
-            background-position: right 1rem center;
-            background-size: 1.2em;
-        }
-
-        .dark select {
-            background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
-        }
-
-        @keyframes slideUp {
-            from {
-                transform: translate(-50%, 100%);
-                opacity: 0;
-            }
-
-            to {
-                transform: translate(-50%, 0);
-                opacity: 1;
-            }
-        }
-
-        .toast-anim {
-            animation: slideUp 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
-        }
-
-        dialog[open] {
-            animation: fadeIn 0.2s ease-out;
-        }
-
-        @keyframes fadeIn {
-            from {
-                opacity: 0;
-                transform: scale(0.95);
-            }
-
-            to {
-                opacity: 1;
-                transform: scale(1);
-            }
-        }
-
-        dialog::backdrop {
-            background: rgba(30, 41, 59, 0.7);
-            backdrop-filter: blur(4px);
-        }
-
-        @keyframes fadeInUp {
-            from {
-                opacity: 0;
-                transform: translateY(20px);
-            }
-
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-
-        .card-enter {
-            animation: fadeInUp 0.4s ease-out forwards;
-        }
-
-        .custom-scrollbar::-webkit-scrollbar {
-            width: 10px;
-        }
-
-        .custom-scrollbar::-webkit-scrollbar-track {
-            background: transparent;
-        }
-
-        .custom-scrollbar::-webkit-scrollbar-thumb {
-            background: #cbd5e1;
-            border-radius: 99px;
-            border: 3px solid #f8fafc;
-        }
-
-        .dark .custom-scrollbar::-webkit-scrollbar-thumb {
-            background: #475569;
-            border-color: #0f172a;
-        }
-    </style>
     <link rel="stylesheet" href="../../../css/base.css" />
     <link rel="stylesheet" href="../../../css/components.css" />
-    
+    <link rel="stylesheet" href="./style.css" />
 </head>
 
-<body
-    class="text-engDark font-body min-h-screen p-2 md:p-4 selection:bg-engPink selection:text-white transition-colors duration-300">
-    <div class="max-w-[1600px] mx-auto flex flex-col xl:flex-row gap-4 items-start">
+<body class="min-h-screen text-engDark dark:text-slate-100 font-body p-2 sm:p-4 selection:bg-engPink selection:text-white">
 
+    <!-- MAIN APP SHELL -->
+    <div id="appShell" class="max-w-[1640px] mx-auto flex flex-col xl:flex-row gap-4 items-start">
+
+        <!-- DESKTOP LESSON FLOW SIDEBAR -->
         <aside id="lessonPanel"
-            class="w-full xl:w-80 shrink-0 xl:sticky top-4 xl:h-[calc(100vh-2rem)] bg-white/85 dark:bg-[rgba(15,23,42,0.75)] backdrop-blur-2xl border-[1px] border-white/40 dark:border-white/5 rounded-xl shadow-neo flex flex-col order-2 xl:order-1 overflow-hidden transition-all z-30">
-            <div
-                class="p-4 border-b-[1px] border-slate-200 dark:border-slate-700/50 bg-white/50 dark:bg-transparent flex justify-between items-center z-10">
-                <h2 class="font-headings text-xl font-semibold text-engDark dark:text-white flex items-center gap-2">
-                    <i data-lucide="bookmark" class="w-5 h-5 text-engBlue"></i>
-                    Lesson Plan
-                    <span id="lessonCounter"
-                        class="bg-engDark text-white font-body text-xs font-bold px-2 py-0.5 rounded-lg border-[1px] border-white/20 hidden ml-2 shadow-sm">0</span>
-                </h2>
-            </div>
-
-            <div class="flex-grow overflow-y-auto custom-scrollbar p-4 bg-engChalk/50 dark:bg-slate-900/50">
-                <div id="lessonEmptyState" class="text-center py-8 flex flex-col items-center justify-center h-full">
-                    <div
-                        class="p-3 bg-slate-200 dark:bg-slate-800 rounded-full border-2 border-engDark shadow-neo-sm mb-4 inline-block">
-                        <i data-lucide="inbox" class="w-6 h-6 text-slate-500 dark:text-slate-400"></i>
-                    </div>
-                    <h3 class="font-headings text-lg font-semibold text-engDark dark:text-white mb-1">
-                        Plan is Empty
-                    </h3>
-                    <p class="text-slate-600 dark:text-slate-400 text-sm font-medium max-w-[200px] mx-auto">
-                        Click <i data-lucide="plus" class="w-3 h-3 inline bg-engDark text-white rounded-sm p-[1px]"></i>
-                        to add activities.
-                    </p>
-                    <p
-                        class="text-[10px] text-slate-500 mt-4 font-bold border-2 border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 inline-block px-2 py-1 rounded-lg shadow-sm">
-                        Press 'L' to toggle
-                    </p>
-                </div>
-                <ul id="lessonList" class="space-y-3"></ul>
-            </div>
-
-            <div
-                class="p-4 border-t-[1px] border-slate-200 dark:border-slate-700/50 bg-white/50 dark:bg-transparent z-10">
-                <button onclick="openConfirmModal()" id="clearLessonBtn"
-                    class="w-full btn-neo bg-slate-100 dark:bg-slate-700/50 text-engDark dark:text-white font-headings font-semibold text-base py-2.5 rounded-xl border-[1px] border-slate-300 dark:border-slate-600 shadow-neo-sm disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center gap-2 hover:bg-engPink hover:text-white hover:border-transparent transition-colors"
-                    disabled>
-                    <i data-lucide="trash-2" class="w-5 h-5"></i> Clear Plan
-                </button>
-            </div>
+            class="hidden xl:flex w-80 2xl:w-[340px] shrink-0 sticky top-4 h-[calc(100vh-2rem)] glass-panel-soft rounded-2xl flex-col overflow-hidden z-30">
+            <div id="desktopPlannerMount" class="flex flex-col h-full"></div>
         </aside>
 
-        <div class="flex-1 w-full flex flex-col gap-4 order-1 xl:order-2">
+        <!-- MAIN CONTENT COLUMN -->
+        <div class="flex-1 min-w-0 w-full flex flex-col gap-4">
 
-            <header
-                class="relative overflow-hidden flex flex-col md:flex-row justify-between items-center gap-4 bg-white/85 dark:bg-[rgba(15,23,42,0.65)] backdrop-blur-2xl p-6 md:px-8 border-[1px] border-white/40 dark:border-white/10 rounded-2xl shadow-neo">
+            <!-- HERO HEADER -->
+            <header class="relative overflow-hidden glass-panel-soft rounded-2xl p-4 sm:p-6 flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
+                <i data-lucide="gamepad-2" class="bg-float-icon text-engBlue w-16 h-16 right-8 top-2 rotate-12 hidden sm:block"></i>
+                <i data-lucide="sparkles" class="bg-float-icon text-engPink w-10 h-10 right-40 bottom-2 -rotate-12 hidden sm:block"></i>
+                <i data-lucide="book-open" class="bg-float-icon text-engOrange w-12 h-12 right-64 top-3 rotate-6 hidden lg:block"></i>
 
-                <!-- Animated Background Icons -->
-                <i data-lucide="gamepad-2" class="bg-float-icon text-engBlue"
-                    style="top: 15%; right: 10%; width: 4rem; height: 4rem;"></i>
-                <i data-lucide="book-open" class="bg-float-icon text-engBlue"
-                    style="bottom: 20%; right: 25%; width: 3rem; height: 3rem; transform: rotate(15deg);"></i>
-                <i data-lucide="sparkles" class="bg-float-icon text-engPink"
-                    style="top: 40%; right: 35%; width: 2rem; height: 2rem; transform: rotate(-20deg);"></i>
-
-                <div class="text-center md:text-left relative z-10">
-                    <h1 class="font-headings text-3xl md:text-4xl font-bold tracking-wide text-engDark dark:text-white">
-                        <span class="text-engBlue">Activity</span> Bank
-                    </h1>
-                    <p class="text-slate-500 dark:text-slate-400 font-semibold mt-2 text-sm tracking-widest uppercase">
-                        KlassKit &bull; Toolkit
-                    </p>
+                <div class="relative z-10 flex items-center gap-3.5">
+                    <div class="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-engBlue text-white border-2 border-engDark dark:border-slate-500 shadow-hard-sm flex items-center justify-center shrink-0 -rotate-3">
+                        <i data-lucide="database" class="w-7 h-7"></i>
+                    </div>
+                    <div>
+                        <div class="flex items-center gap-2 flex-wrap">
+                            <h1 class="font-heading text-2xl sm:text-3xl font-bold uppercase tracking-tight text-engDark dark:text-white leading-none">
+                                <span class="text-engBlue">Activity</span> Bank
+                            </h1>
+                            <span id="bankTotalBadge" class="px-2.5 py-0.5 rounded-full text-xs font-extrabold bg-engYellow text-engDark border-2 border-engDark dark:border-slate-500 shadow-hard-sm">
+                                140+
+                            </span>
+                        </div>
+                        <p class="text-xs sm:text-sm font-bold text-slate-500 dark:text-slate-400 mt-1">
+                            KlassKit &bull; Curated ESL &amp; Classroom Toolkit &bull; Lesson Flow &amp; Live Teach Mode
+                        </p>
+                    </div>
                 </div>
 
-                <div class="flex gap-3 relative z-10">
+                <!-- Quick Access Action Buttons -->
+                <div class="relative z-10 flex flex-wrap items-center gap-2 w-full lg:w-auto justify-start lg:justify-end">
+                    <button id="sosZeroPrepBtn" onclick="toggleZeroPrepSOS()"
+                        class="btn-chunky bg-engOrange text-white px-3.5 py-2 rounded-xl text-xs sm:text-sm flex items-center gap-1.5"
+                        title="Instant Zero-Prep activities under 15 minutes">
+                        <i data-lucide="zap" class="w-4 h-4"></i>
+                        <span>Zero-Prep SOS</span>
+                    </button>
+
+                    <button onclick="openRouletteModal()"
+                        class="btn-chunky bg-engYellow text-engDark px-3.5 py-2 rounded-xl text-xs sm:text-sm flex items-center gap-1.5"
+                        title="Pick a random activity (Shortcut: R)">
+                        <i data-lucide="dices" class="w-4 h-4"></i>
+                        <span>Surprise Me</span>
+                    </button>
+
+                    <button onclick="openTemplatesModal()"
+                        class="btn-chunky bg-white dark:bg-slate-800 text-engDark dark:text-white px-3.5 py-2 rounded-xl text-xs sm:text-sm flex items-center gap-1.5"
+                        title="Load starter lesson plan templates">
+                        <i data-lucide="layers" class="w-4 h-4 text-engBlue"></i>
+                        <span class="hidden sm:inline">Templates</span>
+                    </button>
+
+                    <button onclick="openCustomModal()"
+                        class="btn-chunky bg-engGreen text-engDark px-3.5 py-2 rounded-xl text-xs sm:text-sm flex items-center gap-1.5"
+                        title="Create your own custom activity">
+                        <i data-lucide="plus-circle" class="w-4 h-4"></i>
+                        <span>Create</span>
+                    </button>
+
+                    <a href="./editor/index.html"
+                        class="btn-chunky bg-white dark:bg-slate-800 text-engDark dark:text-white px-3 py-2 rounded-xl text-xs sm:text-sm flex items-center gap-1.5"
+                        title="Open Full Activity Studio (Batch JSON & Export)">
+                        <i data-lucide="wrench" class="w-4 h-4 text-engPink"></i>
+                        <span class="hidden md:inline">Studio</span>
+                    </a>
+
                     <button onclick="toggleTheme()"
-                        class="btn-neo bg-white dark:bg-slate-800 p-3 rounded-xl border-[1px] border-slate-200 dark:border-slate-700 shadow-neo-sm focus:outline-none"
-                        aria-label="Toggle Dark Mode">
-                        <i data-lucide="moon" class="w-5 h-5 text-engDark dark:hidden"></i>
-                        <i data-lucide="sun" class="w-5 h-5 text-engOrange hidden dark:block"></i>
+                        class="btn-chunky bg-white dark:bg-slate-800 text-engDark dark:text-white p-2 rounded-xl"
+                        aria-label="Toggle Dark Mode" title="Toggle Dark Mode">
+                        <i data-lucide="moon" class="w-4 h-4 dark:hidden"></i>
+                        <i data-lucide="sun" class="w-4 h-4 text-engYellow hidden dark:block"></i>
                     </button>
                 </div>
             </header>
 
-            <section class="sticky top-4 z-20">
-                <div
-                    class="bg-white/85 dark:bg-[rgba(15,23,42,0.75)] backdrop-blur-xl border-[1px] border-white/40 dark:border-white/10 rounded-2xl p-3 shadow-neo flex flex-col xl:flex-row gap-3 items-center justify-between">
-                    <div class="flex flex-wrap justify-center gap-2 w-full xl:w-auto items-center">
-                        <button onclick="filterActivities('all')"
-                            class="filter-btn active btn-neo font-headings text-sm md:text-base font-semibold bg-engDark text-white px-4 py-2 rounded-lg shadow-neo-sm focus:outline-none">
-                            All
-                        </button>
-                        <button onclick="filterActivities('Stirrer')"
-                            class="filter-btn btn-neo font-headings text-sm md:text-base font-semibold bg-white/50 dark:bg-slate-800/50 text-engDark dark:text-white px-4 py-2 rounded-lg shadow-neo-sm flex items-center gap-2 hover:bg-engOrange hover:text-white transition-colors focus:outline-none border-[1px] border-slate-200 dark:border-slate-700">
-                            <i data-lucide="zap" class="w-4 h-4"></i>
-                            Stirrers
-                        </button>
-                        <button onclick="filterActivities('Settler')"
-                            class="filter-btn btn-neo font-headings text-sm md:text-base font-semibold bg-white/50 dark:bg-slate-800/50 text-engDark dark:text-white px-4 py-2 rounded-lg shadow-neo-sm flex items-center gap-2 hover:bg-engBlue hover:text-white transition-colors focus:outline-none border-[1px] border-slate-200 dark:border-slate-700">
-                            <i data-lucide="anchor" class="w-4 h-4"></i>
-                            Settlers
-                        </button>
+            <!-- DISCOVERY & FILTER COMMAND BAR -->
+            <section class="sticky top-2 sm:top-4 z-20 glass-panel-soft rounded-2xl p-3 sm:p-4 flex flex-col gap-3">
 
-                        <div class="h-6 w-px bg-slate-300 dark:bg-slate-600 mx-1 hidden md:block"></div>
+                <!-- Row 1: Category Tabs -->
+                <div id="categoryTabs" class="flex items-center gap-2 overflow-x-auto custom-scrollbar pb-1">
+                    <!-- Rendered dynamically with counts -->
+                </div>
 
-                        <div class="relative shrink-0 w-full sm:w-auto">
-                            <select id="ageFilter" onchange="filterByAge(this.value)"
-                                class="w-full sm:w-auto pl-3 pr-8 py-2 border-[1px] border-transparent rounded-lg font-headings font-semibold bg-engYellow text-engDark shadow-neo-sm focus:outline-none focus:ring-2 focus:ring-engPink cursor-pointer text-sm md:text-base hover:brightness-105 transition-all">
-                                <option value="all">🌍 All Ages</option>
-                                <option value="3-6">🧸 Ages 3-6</option>
-                                <option value="7-12">🎒 Ages 7-12</option>
-                                <option value="13-18">🎓 Ages 13-18</option>
-                            </select>
-                        </div>
+                <!-- Row 2: Search + Primary Quick Facets + View Controls -->
+                <div class="flex flex-col md:flex-row gap-2.5 items-stretch md:items-center justify-between">
+                    <!-- Search -->
+                    <div class="relative flex-1 min-w-[200px] group">
+                        <i data-lucide="search" class="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-engPink transition-colors"></i>
+                        <input type="text" id="searchInput"
+                            placeholder="Search activities, skills, materials, or notes... (/)"
+                            class="w-full pl-10 pr-9 py-2 rounded-xl border-2 border-engDark dark:border-slate-500 bg-white dark:bg-slate-900/90 text-engDark dark:text-white font-semibold text-sm shadow-hard-sm" />
+                        <button id="clearSearchBtn" onclick="clearSearch()"
+                            class="hidden absolute right-2.5 top-1/2 -translate-y-1/2 p-1 rounded-lg text-slate-400 hover:text-engPink"
+                            aria-label="Clear search">
+                            <i data-lucide="x" class="w-4 h-4"></i>
+                        </button>
                     </div>
 
-                    <div class="flex items-center gap-3 w-full xl:w-auto">
-                        <div
-                            class="flex rounded-lg overflow-hidden shadow-neo-sm shrink-0 border-[1px] border-slate-200 dark:border-slate-700">
-                            <button id="btn-view-grid" onclick="setViewMode('grid')"
-                                class="bg-engDark text-white p-2 hover:bg-engDark/90 transition-colors focus:outline-none focus:bg-engPink">
-                                <i data-lucide="layout-grid" class="w-5 h-5"></i>
+                    <!-- Primary Selects & Controls -->
+                    <div class="flex flex-wrap items-center gap-2">
+                        <select id="ageFilter" onchange="setFilter('age', this.value)"
+                            class="kk-select py-2 pl-3 rounded-xl border-2 border-engDark dark:border-slate-500 bg-engYellow text-engDark font-heading font-bold text-xs sm:text-sm shadow-hard-sm cursor-pointer">
+                            <option value="all" class="bg-white text-engDark">All Ages</option>
+                            <option value="3-6" class="bg-white text-engDark">Ages 3–6 (Early)</option>
+                            <option value="7-12" class="bg-white text-engDark">Ages 7–12 (Kids)</option>
+                            <option value="13-18" class="bg-white text-engDark">Ages 13–18 (Teens)</option>
+                            <option value="Adult" class="bg-white text-engDark">Adult / University</option>
+                        </select>
+
+                        <select id="prepFilter" onchange="setFilter('prep', this.value)"
+                            class="kk-select py-2 pl-3 rounded-xl border-2 border-engDark dark:border-slate-500 bg-white dark:bg-slate-800 text-engDark dark:text-white font-heading font-bold text-xs sm:text-sm shadow-hard-sm cursor-pointer">
+                            <option value="all">Any Prep</option>
+                            <option value="Zero Prep">Zero Prep</option>
+                            <option value="Quick Prep">Quick Prep</option>
+                            <option value="Needs Printouts">Needs Printouts</option>
+                        </select>
+
+                        <button id="toggleMoreFiltersBtn" onclick="toggleAdvancedFilters()"
+                            class="btn-chunky bg-white dark:bg-slate-800 text-engDark dark:text-white px-3 py-2 rounded-xl text-xs sm:text-sm flex items-center gap-1.5">
+                            <i data-lucide="sliders-horizontal" class="w-4 h-4 text-engBlue"></i>
+                            <span>Filters</span>
+                            <span id="activeFilterCountBadge" class="hidden bg-engPink text-white text-[10px] px-1.5 py-0.5 rounded-full font-extrabold">0</span>
+                        </button>
+
+                        <!-- Grid / List Switch -->
+                        <div class="flex rounded-xl overflow-hidden border-2 border-engDark dark:border-slate-500 shadow-hard-sm shrink-0">
+                            <button id="btn-view-grid" onclick="setViewMode('grid')" class="p-2 transition-colors" title="Grid View">
+                                <i data-lucide="layout-grid" class="w-4 h-4"></i>
                             </button>
-                            <button id="btn-view-list" onclick="setViewMode('list')"
-                                class="bg-white text-engDark dark:bg-slate-800 dark:text-white p-2 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors border-l-[1px] border-slate-200 dark:border-slate-700 focus:outline-none focus:bg-engPink">
-                                <i data-lucide="list" class="w-5 h-5"></i>
+                            <button id="btn-view-list" onclick="setViewMode('list')" class="p-2 border-l-2 border-engDark dark:border-slate-500 transition-colors" title="Compact List View">
+                                <i data-lucide="list" class="w-4 h-4"></i>
                             </button>
                         </div>
 
-                        <div class="relative w-full xl:w-64 group">
-                            <i data-lucide="search"
-                                class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-engPink transition-colors"></i>
-                            <input type="text" id="searchInput" placeholder="Search... (/)"
-                                class="w-full pl-9 pr-3 py-2 border-[1px] border-slate-200 dark:border-slate-700 rounded-lg font-semibold bg-white/50 dark:bg-slate-800/50 dark:text-white focus:outline-none focus:ring-2 focus:ring-engPink transition-all text-sm md:text-base" />
-                        </div>
+                        <!-- Toggle Lesson Sidebar / Drawer -->
+                        <button onclick="toggleLessonPlanner()"
+                            class="btn-chunky bg-engBlue text-white px-3 py-2 rounded-xl text-xs sm:text-sm flex items-center gap-1.5"
+                            title="Toggle Lesson Plan Panel (Shortcut: L)">
+                            <i data-lucide="bookmark" class="w-4 h-4"></i>
+                            <span class="hidden sm:inline">Plan</span>
+                            <span id="headerPlanCount" class="bg-white text-engDark text-[10px] font-extrabold px-1.5 py-0.5 rounded-md">0</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Row 3: Collapsible Advanced Filters -->
+                <div id="advancedFiltersPanel" class="hidden animate-slide-down pt-2 border-t-2 border-dashed border-slate-200 dark:border-slate-700 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
+                    <div>
+                        <label class="block text-[10px] font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">Skill</label>
+                        <select id="skillFilter" onchange="setFilter('skill', this.value)"
+                            class="kk-select w-full py-1.5 pl-2.5 rounded-lg border-2 border-engDark dark:border-slate-500 bg-white dark:bg-slate-800 text-xs font-bold">
+                            <option value="all">All Skills</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">Duration</label>
+                        <select id="durationFilter" onchange="setFilter('duration', this.value)"
+                            class="kk-select w-full py-1.5 pl-2.5 rounded-lg border-2 border-engDark dark:border-slate-500 bg-white dark:bg-slate-800 text-xs font-bold">
+                            <option value="all">Any Length</option>
+                            <option value="short">Quick (&le; 10 min)</option>
+                            <option value="medium">Medium (11–15 min)</option>
+                            <option value="long">Extended (16+ min)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">Grouping</label>
+                        <select id="groupingFilter" onchange="setFilter('grouping', this.value)"
+                            class="kk-select w-full py-1.5 pl-2.5 rounded-lg border-2 border-engDark dark:border-slate-500 bg-white dark:bg-slate-800 text-xs font-bold">
+                            <option value="all">Any Grouping</option>
+                            <option value="Whole Class">Whole Class</option>
+                            <option value="Teams">Teams</option>
+                            <option value="Small Groups">Small Groups</option>
+                            <option value="Pairs">Pairs</option>
+                            <option value="Individual">Individual</option>
+                            <option value="Mingle">Mingle</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">Challenge</label>
+                        <select id="difficultyFilter" onchange="setFilter('difficulty', this.value)"
+                            class="kk-select w-full py-1.5 pl-2.5 rounded-lg border-2 border-engDark dark:border-slate-500 bg-white dark:bg-slate-800 text-xs font-bold">
+                            <option value="all">All Levels</option>
+                            <option value="Easy">Easy</option>
+                            <option value="Medium">Medium</option>
+                            <option value="Hard">Hard</option>
+                        </select>
+                    </div>
+                    <div class="col-span-2 sm:col-span-1">
+                        <label class="block text-[10px] font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">Sort By</label>
+                        <select id="sortFilter" onchange="setSort(this.value)"
+                            class="kk-select w-full py-1.5 pl-2.5 rounded-lg border-2 border-engDark dark:border-slate-500 bg-white dark:bg-slate-800 text-xs font-bold">
+                            <option value="default">Default Order</option>
+                            <option value="shortest">Shortest First</option>
+                            <option value="longest">Longest First</option>
+                            <option value="easiest">Easiest First</option>
+                            <option value="az">Alphabetical (A–Z)</option>
+                            <option value="recent">Recently Viewed</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Row 4: Result Summary, Active Filter Chips & Recently Viewed -->
+                <div class="flex flex-wrap items-center justify-between gap-2 text-xs">
+                    <div class="flex flex-wrap items-center gap-2">
+                        <span id="resultsCountText" class="font-extrabold text-slate-600 dark:text-slate-300">Loading...</span>
+                        <div id="activeFilterChips" class="flex flex-wrap items-center gap-1.5"></div>
+                        <button id="resetAllFiltersBtn" onclick="resetAllFilters()"
+                            class="hidden text-engPink font-extrabold hover:underline px-1.5 py-0.5">
+                            Reset all
+                        </button>
+                    </div>
+                    <div id="recentStrip" class="hidden flex items-center gap-1.5 overflow-x-auto max-w-full">
+                        <span class="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 shrink-0">Recent:</span>
+                        <div id="recentPills" class="flex items-center gap-1.5"></div>
                     </div>
                 </div>
             </section>
 
-            <main id="activitiesContainer" class="grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-3 gap-4 pb-12">
+            <!-- ACTIVITIES GRID / LIST -->
+            <main id="activitiesContainer" class="grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-3 gap-4 pb-24 xl:pb-12">
                 <div class="col-span-full text-center py-20 animate-pulse">
-                    <div
-                        class="inline-block p-4 rounded-full bg-slate-100 dark:bg-slate-800/80 border-[1px] border-slate-200 dark:border-slate-700/50 mb-4">
+                    <div class="inline-block p-4 rounded-2xl glass-card mb-4">
                         <i data-lucide="loader" class="w-8 h-8 text-engBlue animate-spin"></i>
                     </div>
-                    <p class="font-headings text-xl font-semibold text-slate-500">Loading your activities...</p>
+                    <p class="font-heading text-xl font-bold text-slate-500">Loading your activity bank...</p>
                 </div>
             </main>
 
-            <div id="emptyState"
-                class="hidden text-center py-16 bg-white/85 dark:bg-[rgba(15,23,42,0.75)] backdrop-blur-sm border-[1px] border-white/40 dark:border-white/10 rounded-2xl shadow-neo">
-                <div
-                    class="inline-block p-4 rounded-full bg-slate-100 dark:bg-slate-800/50 border-[1px] border-slate-200 dark:border-slate-700/50 mb-4">
-                    <i data-lucide="frown" class="w-10 h-10 text-slate-500 dark:text-slate-400"></i>
+            <!-- EMPTY STATE -->
+            <div id="emptyState" class="hidden text-center py-16 glass-panel-soft rounded-2xl mb-12">
+                <div class="inline-block p-4 rounded-2xl bg-slate-100 dark:bg-slate-800 border-2 border-engDark dark:border-slate-500 shadow-hard-sm mb-4">
+                    <i data-lucide="search" class="w-10 h-10 text-engPink"></i>
                 </div>
-                <h3 class="font-headings text-2xl font-semibold text-engDark dark:text-white">No activities found</h3>
-                <p class="text-slate-500 font-medium mt-1">Try adjusting your filters or search terms.</p>
+                <h3 class="font-heading text-2xl font-bold text-engDark dark:text-white">No activities match those filters</h3>
+                <p class="text-slate-500 dark:text-slate-400 font-semibold mt-1 text-sm">Try loosening one filter, clearing your search, or spinning Surprise Me!</p>
+                <div class="mt-5 flex justify-center gap-3">
+                    <button onclick="resetAllFilters()" class="btn-chunky bg-engBlue text-white px-5 py-2.5 rounded-xl text-sm">
+                        Reset All Filters
+                    </button>
+                    <button onclick="openCustomModal()" class="btn-chunky bg-engGreen text-engDark px-5 py-2.5 rounded-xl text-sm">
+                        + Create Custom Activity
+                    </button>
+                </div>
             </div>
         </div>
     </div>
 
-    <dialog id="guideModal"
-        class="p-0 rounded-3xl border-[1px] border-white/20 dark:border-white/10 shadow-neo-lg bg-transparent backdrop:backdrop-blur-sm backdrop:bg-slate-900/60 w-[95%] max-w-3xl m-auto relative">
-        <div
-            class="bg-white/95 dark:bg-[rgba(15,23,42,0.95)] backdrop-blur-2xl flex flex-col max-h-[85vh] overflow-hidden rounded-3xl">
-            <div
-                class="p-4 md:p-6 border-b-[1px] border-slate-200 dark:border-slate-700/50 flex justify-between items-center bg-white/50 dark:bg-transparent shrink-0">
-                <h2 id="modalTitle"
-                    class="font-headings text-2xl font-semibold text-engDark dark:text-white leading-tight pr-4">
-                    Activity Title</h2>
-                <button onclick="closeModal()"
-                    class="btn-neo shrink-0 bg-slate-100 dark:bg-slate-800/80 p-2.5 rounded-xl border-[1px] border-slate-200 dark:border-slate-700 hover:bg-slate-200 dark:hover:bg-slate-700 focus:outline-none transition-colors">
-                    <i data-lucide="x" class="w-5 h-5 text-engDark dark:text-white"></i>
+    <!-- FLOATING MOBILE / TABLET LESSON PLAN PILL -->
+    <div id="mobilePlanFab" class="xl:hidden fixed bottom-4 right-4 z-40">
+        <button onclick="toggleLessonPlanner(true)"
+            class="btn-chunky bg-engDark dark:bg-engBlue text-white px-4 py-3 rounded-2xl flex items-center gap-2.5 shadow-hard-lg">
+            <i data-lucide="bookmark" class="w-5 h-5 text-engYellow"></i>
+            <span class="text-sm">Lesson Plan</span>
+            <span id="mobilePlanCount" class="bg-engPink text-white text-xs font-extrabold px-2 py-0.5 rounded-lg">0</span>
+            <span id="mobilePlanMins" class="text-xs font-bold text-slate-300 dark:text-white/90">0m</span>
+        </button>
+    </div>
+
+    <!-- MOBILE / TABLET LESSON PLAN DRAWER -->
+    <div id="mobilePlanDrawer" class="hidden fixed inset-0 z-50 xl:hidden">
+        <div onclick="toggleLessonPlanner(false)" class="absolute inset-0 bg-slate-950/60 backdrop-blur-sm"></div>
+        <aside class="absolute right-0 top-0 bottom-0 w-full max-w-md bg-engChalk dark:bg-slate-900 border-l-2 border-engDark dark:border-slate-500 flex flex-col shadow-2xl animate-pop-in">
+            <div class="flex items-center justify-between px-4 py-2.5 bg-white dark:bg-slate-800 border-b-2 border-engDark dark:border-slate-600">
+                <span class="font-heading font-bold uppercase text-sm flex items-center gap-2">
+                    <i data-lucide="bookmark" class="w-4 h-4 text-engBlue"></i> Lesson Flow Builder
+                </span>
+                <button onclick="toggleLessonPlanner(false)" class="btn-chunky bg-slate-100 dark:bg-slate-700 p-1.5 rounded-lg">
+                    <i data-lucide="x" class="w-4 h-4"></i>
                 </button>
             </div>
+            <div id="mobilePlannerMount" class="flex-1 flex flex-col overflow-hidden"></div>
+        </aside>
+    </div>
 
-            <div
-                class="flex border-b-[1px] border-slate-200 dark:border-slate-700/50 bg-slate-100/50 dark:bg-slate-800/30 shrink-0 overflow-x-auto custom-scrollbar">
+    <!-- ============================================
+         MODAL 1: ACTIVITY GUIDE MODAL (Understandable Instructions)
+         ============================================ -->
+    <dialog id="guideModal" class="p-0 rounded-3xl bg-transparent w-[96%] max-w-4xl m-auto">
+        <div class="glass-panel-soft rounded-3xl flex flex-col max-h-[90vh] overflow-hidden bg-white/95 dark:bg-slate-900/95">
+            <!-- Modal Header -->
+            <div id="modalHeroHeader" class="p-4 sm:p-6 border-b-2 border-engDark dark:border-slate-600 flex flex-col gap-3 shrink-0">
+                <div class="flex justify-between items-start gap-3">
+                    <div class="flex items-start gap-3 min-w-0">
+                        <div id="modalIconBadge" class="w-12 h-12 rounded-2xl border-2 border-engDark dark:border-slate-500 shadow-hard-sm flex items-center justify-center shrink-0 bg-engOrange text-white">
+                            <i data-lucide="zap" class="w-6 h-6"></i>
+                        </div>
+                        <div class="min-w-0">
+                            <div class="flex flex-wrap items-center gap-1.5 mb-1">
+                                <span id="modalTypeBadge" class="px-2.5 py-0.5 rounded-lg border-2 border-engDark text-[11px] font-heading font-bold uppercase text-white bg-engOrange">Stirrer</span>
+                                <span id="modalCustomBadge" class="hidden px-2 py-0.5 rounded-lg border-2 border-engDark text-[11px] font-heading font-bold uppercase bg-engPurple text-white">Custom</span>
+                                <span id="modalTimePill" class="px-2 py-0.5 rounded-lg border-2 border-engDark dark:border-slate-500 text-[11px] font-bold bg-white dark:bg-slate-800 flex items-center gap-1">
+                                    <i data-lucide="clock" class="w-3 h-3"></i> 10 Min
+                                </span>
+                                <span id="modalPrepPill" class="px-2 py-0.5 rounded-lg border-2 border-engDark dark:border-slate-500 text-[11px] font-bold bg-engGreen/20 text-emerald-800 dark:text-emerald-300">Zero Prep</span>
+                                <span id="modalGroupingPill" class="px-2 py-0.5 rounded-lg border-2 border-engDark dark:border-slate-500 text-[11px] font-bold bg-slate-100 dark:bg-slate-800">Whole Class</span>
+                            </div>
+                            <h2 id="modalTitle" class="font-heading text-xl sm:text-2xl font-bold text-engDark dark:text-white leading-tight">
+                                Activity Title
+                            </h2>
+                        </div>
+                    </div>
+
+                    <div class="flex items-center gap-1.5 shrink-0">
+                        <button id="modalFavBtn" class="btn-chunky bg-white dark:bg-slate-800 p-2 rounded-xl" title="Toggle Favorite">
+                            <i data-lucide="star" class="w-4 h-4"></i>
+                        </button>
+                        <button id="modalDuplicateBtn" class="btn-chunky bg-white dark:bg-slate-800 p-2 rounded-xl" title="Duplicate & Customize">
+                            <i data-lucide="copy" class="w-4 h-4 text-engBlue"></i>
+                        </button>
+                        <button id="modalEditCustomBtn" class="hidden btn-chunky bg-white dark:bg-slate-800 p-2 rounded-xl" title="Edit Custom Activity">
+                            <i data-lucide="edit-3" class="w-4 h-4 text-engOrange"></i>
+                        </button>
+                        <button id="modalPrintBtn" class="btn-chunky bg-white dark:bg-slate-800 p-2 rounded-xl" title="Print Activity Card">
+                            <i data-lucide="printer" class="w-4 h-4"></i>
+                        </button>
+                        <button onclick="closeModal()" class="btn-chunky bg-slate-100 dark:bg-slate-800 p-2 rounded-xl" aria-label="Close modal">
+                            <i data-lucide="x" class="w-4 h-4"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Modal Tabs -->
+            <div class="flex border-b-2 border-engDark dark:border-slate-600 bg-slate-100 dark:bg-slate-800/80 shrink-0 overflow-x-auto">
                 <button id="tab-btn-steps" onclick="switchModalTab('steps')"
-                    class="flex-1 min-w-[100px] py-3.5 font-headings font-semibold text-base border-r-[1px] border-slate-200 dark:border-slate-700/50 focus:outline-none transition-colors">📝
-                    Steps</button>
-                <button id="tab-btn-variations" onclick="switchModalTab('variations')"
-                    class="flex-1 min-w-[100px] py-3.5 font-headings font-semibold text-base border-r-[1px] border-slate-200 dark:border-slate-700/50 focus:outline-none transition-colors">💡
-                    Variations</button>
-                <button id="tab-btn-details" onclick="switchModalTab('details')"
-                    class="flex-1 min-w-[100px] py-3.5 font-headings font-semibold text-base focus:outline-none transition-colors">ℹ️
-                    Details</button>
-            </div>
-
-            <div class="p-4 md:p-6 overflow-y-auto custom-scrollbar flex-grow bg-transparent">
-                <div id="modal-panel-steps" class="block">
-                    <ul id="modalSteps"
-                        class="space-y-4 text-slate-700 dark:text-slate-300 font-medium list-none text-sm md:text-base">
-                    </ul>
-                </div>
-
-                <div id="modal-panel-variations" class="hidden h-full">
-                    <div class="bg-engOrange/10 border-[1px] border-engOrange/30 p-5 rounded-2xl h-full shadow-neo-sm">
-                        <h3 class="font-headings text-lg font-semibold text-engOrange mb-3 flex items-center gap-2">
-                            <i data-lucide="lightbulb" class="w-5 h-5"></i> Teacher Tip
-                        </h3>
-                        <p id="modalVariation" class="text-slate-800 dark:text-slate-200 text-base leading-relaxed"></p>
-                    </div>
-                </div>
-
-                <div id="modal-panel-details" class="hidden space-y-4">
-                    <div class="grid grid-cols-2 md:grid-cols-3 gap-3">
-                        <div
-                            class="p-4 rounded-2xl border-[1px] border-slate-200 dark:border-slate-700/50 bg-slate-50/50 dark:bg-slate-800/50 text-center shadow-sm">
-                            <p class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">Energy</p>
-                            <span id="modalType"
-                                class="px-3 py-1.5 rounded-xl border-[1px] border-transparent font-headings text-sm font-semibold text-white bg-engOrange inline-block shadow-sm">Type</span>
-                        </div>
-                        <div
-                            class="p-4 rounded-2xl border-[1px] border-slate-200 dark:border-slate-700/50 bg-slate-50/50 dark:bg-slate-800/50 text-center shadow-sm">
-                            <p class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">Duration</p>
-                            <span id="modalTime"
-                                class="px-3 py-1.5 rounded-xl border-[1px] border-slate-200 dark:border-slate-600 font-headings text-sm font-semibold bg-white dark:bg-slate-700 text-engDark dark:text-white inline-block shadow-sm">Time</span>
-                        </div>
-                        <div
-                            class="p-4 rounded-2xl border-[1px] border-slate-200 dark:border-slate-700/50 bg-slate-50/50 dark:bg-slate-800/50 text-center shadow-sm">
-                            <p class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">Challenge</p>
-                            <span id="modalDiff"
-                                class="px-3 py-1.5 rounded-xl border-[1px] border-transparent font-headings text-sm font-semibold inline-block shadow-sm">Diff</span>
-                        </div>
-                        <div
-                            class="p-4 rounded-2xl border-[1px] border-slate-200 dark:border-slate-700/50 bg-slate-50/50 dark:bg-slate-800/50 text-center shadow-sm">
-                            <p class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">Grouping</p>
-                            <span id="modalGrouping"
-                                class="px-3 py-1.5 rounded-xl border-[1px] border-slate-200 dark:border-slate-600 font-headings text-sm font-semibold bg-white dark:bg-slate-700 text-engDark dark:text-white inline-block shadow-sm">Group</span>
-                        </div>
-                        <div
-                            class="p-4 rounded-2xl border-[1px] border-slate-200 dark:border-slate-700/50 bg-slate-50/50 dark:bg-slate-800/50 text-center shadow-sm">
-                            <p class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">Prep Time</p>
-                            <span id="modalPrep"
-                                class="px-3 py-1.5 rounded-xl border-[1px] border-slate-200 dark:border-slate-600 font-headings text-sm font-semibold bg-white dark:bg-slate-700 text-engDark dark:text-white inline-block shadow-sm">Prep</span>
-                        </div>
-                        <div
-                            class="p-4 rounded-2xl border-[1px] border-slate-200 dark:border-slate-700/50 bg-slate-50/50 dark:bg-slate-800/50 text-center shadow-sm col-span-2 md:col-span-1">
-                            <p class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">Target Ages</p>
-                            <span id="modalAges"
-                                class="px-3 py-1.5 rounded-xl border-[1px] border-transparent font-headings text-sm font-semibold bg-engPink text-white inline-block shadow-sm">Ages</span>
-                        </div>
-                    </div>
-
-                    <div
-                        class="bg-white/50 dark:bg-slate-800/50 border-[1px] border-slate-200 dark:border-slate-700/50 p-5 rounded-2xl shadow-sm">
-                        <h3
-                            class="font-headings text-lg font-semibold mb-4 flex items-center gap-2 text-engDark dark:text-white">
-                            <i data-lucide="package" class="w-5 h-5 text-engBlue"></i> Materials Needed
-                        </h3>
-                        <div id="modalMaterials" class="flex flex-wrap gap-2"></div>
-                    </div>
-                </div>
-            </div>
-
-            <div
-                class="p-4 md:p-6 border-t-[1px] border-slate-200 dark:border-slate-700/50 bg-white/50 dark:bg-transparent flex justify-between items-center gap-3 shrink-0">
-                <button id="modalCopyBtn"
-                    class="btn-neo bg-slate-100 dark:bg-slate-800/80 text-engDark dark:text-white font-headings font-semibold text-sm px-5 py-2.5 rounded-xl border-[1px] border-slate-200 dark:border-slate-700 shadow-neo-sm flex items-center gap-2 hover:bg-slate-200 dark:hover:bg-slate-700 focus:outline-none transition-colors">
-                    <i data-lucide="copy" class="w-4 h-4"></i> Copy
+                    class="flex-1 min-w-[130px] py-3 px-4 font-heading font-bold text-sm uppercase tracking-wide border-r-2 border-engDark dark:border-slate-600 flex items-center justify-center gap-2 transition-colors">
+                    <i data-lucide="list-ordered" class="w-4 h-4"></i> How to Run
                 </button>
-                <button onclick="closeModal()"
-                    class="btn-neo bg-engDark text-white font-headings font-semibold text-base px-8 py-2.5 rounded-xl shadow-neo-sm focus:outline-none hover:bg-slate-800 transition-colors">
-                    Got it!
+                <button id="tab-btn-adapt" onclick="switchModalTab('adapt')"
+                    class="flex-1 min-w-[130px] py-3 px-4 font-heading font-bold text-sm uppercase tracking-wide border-r-2 border-engDark dark:border-slate-600 flex items-center justify-center gap-2 transition-colors">
+                    <i data-lucide="lightbulb" class="w-4 h-4"></i> Adapt &amp; Tips
+                </button>
+                <button id="tab-btn-notes" onclick="switchModalTab('notes')"
+                    class="flex-1 min-w-[130px] py-3 px-4 font-heading font-bold text-sm uppercase tracking-wide flex items-center justify-center gap-2 transition-colors">
+                    <i data-lucide="edit-3" class="w-4 h-4"></i> Details &amp; Notes
+                </button>
+            </div>
+
+            <!-- Modal Body -->
+            <div class="p-4 sm:p-6 overflow-y-auto custom-scrollbar flex-grow space-y-5">
+
+                <!-- TAB 1: HOW TO RUN -->
+                <div id="modal-panel-steps" class="space-y-5">
+                    <!-- Goal Callout -->
+                    <div class="rounded-2xl border-2 border-engDark dark:border-slate-500 bg-engBlue/10 dark:bg-engBlue/15 p-4 flex items-start gap-3">
+                        <div class="p-2 rounded-xl bg-engBlue text-white border-2 border-engDark shrink-0">
+                            <i data-lucide="target" class="w-5 h-5"></i>
+                        </div>
+                        <div>
+                            <p class="text-[11px] font-extrabold uppercase tracking-wider text-engBlue">Classroom Goal</p>
+                            <p id="modalGoal" class="text-sm sm:text-base font-bold text-engDark dark:text-slate-100 mt-0.5"></p>
+                        </div>
+                    </div>
+
+                    <!-- Interactive Prep / Materials Checklist -->
+                    <div class="rounded-2xl border-2 border-engDark dark:border-slate-600 bg-slate-50 dark:bg-slate-800/60 p-4">
+                        <div class="flex items-center justify-between gap-2 mb-2.5">
+                            <h3 class="font-heading text-sm font-bold uppercase tracking-wide flex items-center gap-2">
+                                <i data-lucide="check-circle" class="w-4 h-4 text-engGreen"></i> Before You Start (Prep Checklist)
+                            </h3>
+                            <span id="modalPrepEstimate" class="text-xs font-extrabold text-slate-500 dark:text-slate-400"></span>
+                        </div>
+                        <div id="modalPrepChecklist" class="flex flex-wrap gap-2"></div>
+                    </div>
+
+                    <!-- Numbered Steps -->
+                    <div>
+                        <h3 class="font-heading text-base font-bold uppercase tracking-wide mb-3 flex items-center gap-2">
+                            <i data-lucide="footprints" class="w-4 h-4 text-engPink"></i> Step-by-Step Instructions
+                        </h3>
+                        <ol id="modalSteps" class="space-y-3 list-none"></ol>
+                    </div>
+
+                    <!-- Board Example / Teacher Script -->
+                    <div id="modalExampleBox" class="rounded-2xl border-2 border-engDark dark:border-slate-500 bg-engYellow/20 dark:bg-engYellow/10 p-4">
+                        <h3 class="font-heading text-sm font-bold uppercase tracking-wide text-amber-800 dark:text-engYellow flex items-center gap-2 mb-1.5">
+                            <i data-lucide="message-square" class="w-4 h-4"></i> Board Example &amp; Teacher Prompt
+                        </h3>
+                        <p id="modalExample" class="text-sm sm:text-base font-semibold text-engDark dark:text-slate-100 leading-relaxed"></p>
+                    </div>
+                </div>
+
+                <!-- TAB 2: ADAPT & TIPS -->
+                <div id="modal-panel-adapt" class="hidden space-y-4">
+                    <div class="rounded-2xl border-2 border-engDark dark:border-slate-500 bg-engOrange/10 p-4">
+                        <h3 class="font-heading text-base font-bold uppercase text-engOrange flex items-center gap-2 mb-1.5">
+                            <i data-lucide="shuffle" class="w-4 h-4"></i> Variation / Creative Twist
+                        </h3>
+                        <p id="modalVariation" class="text-sm sm:text-base font-semibold text-engDark dark:text-slate-200 leading-relaxed"></p>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <div class="rounded-2xl border-2 border-engDark dark:border-slate-600 bg-emerald-50 dark:bg-emerald-950/30 p-4">
+                            <h4 class="font-heading text-sm font-bold uppercase text-emerald-700 dark:text-emerald-400 flex items-center gap-1.5 mb-2">
+                                <i data-lucide="heart" class="w-4 h-4"></i> Easier / Scaffolding
+                            </h4>
+                            <p id="modalTipLower" class="text-sm font-semibold text-slate-700 dark:text-slate-300 leading-relaxed"></p>
+                        </div>
+
+                        <div class="rounded-2xl border-2 border-engDark dark:border-slate-600 bg-pink-50 dark:bg-pink-950/30 p-4">
+                            <h4 class="font-heading text-sm font-bold uppercase text-engPink flex items-center gap-1.5 mb-2">
+                                <i data-lucide="rocket" class="w-4 h-4"></i> Challenge / Stretch
+                            </h4>
+                            <p id="modalTipHigher" class="text-sm font-semibold text-slate-700 dark:text-slate-300 leading-relaxed"></p>
+                        </div>
+
+                        <div class="rounded-2xl border-2 border-engDark dark:border-slate-600 bg-amber-50 dark:bg-amber-950/30 p-4">
+                            <h4 class="font-heading text-sm font-bold uppercase text-amber-700 dark:text-amber-400 flex items-center gap-1.5 mb-2">
+                                <i data-lucide="shield-alert" class="w-4 h-4"></i> Class Management
+                            </h4>
+                            <p id="modalTipManagement" class="text-sm font-semibold text-slate-700 dark:text-slate-300 leading-relaxed"></p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TAB 3: DETAILS & PERSONAL NOTES -->
+                <div id="modal-panel-notes" class="hidden space-y-4">
+                    <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                        <div class="p-3.5 rounded-2xl border-2 border-engDark dark:border-slate-600 bg-slate-50 dark:bg-slate-800/70 text-center">
+                            <p class="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 mb-1">Challenge</p>
+                            <span id="modalDiff" class="px-3 py-1 rounded-lg border-2 border-engDark font-heading text-xs font-bold inline-block">Easy</span>
+                        </div>
+                        <div class="p-3.5 rounded-2xl border-2 border-engDark dark:border-slate-600 bg-slate-50 dark:bg-slate-800/70 text-center">
+                            <p class="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 mb-1">Target Ages</p>
+                            <span id="modalAges" class="px-3 py-1 rounded-lg border-2 border-engDark font-heading text-xs font-bold bg-engYellow text-engDark inline-block">7-12</span>
+                        </div>
+                        <div class="p-3.5 rounded-2xl border-2 border-engDark dark:border-slate-600 bg-slate-50 dark:bg-slate-800/70 text-center col-span-2 sm:col-span-1">
+                            <p class="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 mb-1">Prep Time</p>
+                            <span id="modalPrep" class="px-3 py-1 rounded-lg border-2 border-engDark dark:border-slate-500 font-heading text-xs font-bold bg-white dark:bg-slate-700 inline-block">Zero Prep</span>
+                        </div>
+                    </div>
+
+                    <div class="p-4 rounded-2xl border-2 border-engDark dark:border-slate-600 bg-slate-50 dark:bg-slate-800/60">
+                        <p class="text-xs font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2">Skills Practiced (click to filter)</p>
+                        <div id="modalSkills" class="flex flex-wrap gap-2"></div>
+                    </div>
+
+                    <div class="p-4 rounded-2xl border-2 border-engDark dark:border-slate-600 bg-white dark:bg-slate-800/80">
+                        <div class="flex justify-between items-center mb-2">
+                            <label for="modalTeacherNote" class="font-heading text-sm font-bold uppercase flex items-center gap-2">
+                                <i data-lucide="edit-3" class="w-4 h-4 text-engBlue"></i> My Teacher Notes
+                            </label>
+                            <span id="noteSaveStatus" class="text-[11px] font-bold text-slate-400">Auto-saved locally &amp; cloud</span>
+                        </div>
+                        <textarea id="modalTeacherNote" rows="4"
+                            placeholder="Jot down tweaks, vocab lists that worked great, or class reminders (e.g., 'Worked great with Grade 5B using Food flashcards!')..."
+                            class="w-full p-3 rounded-xl border-2 border-engDark dark:border-slate-500 bg-engChalk dark:bg-slate-900 text-sm font-semibold"></textarea>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Modal Footer -->
+            <div class="p-4 sm:p-5 border-t-2 border-engDark dark:border-slate-600 bg-slate-50 dark:bg-slate-800/60 flex flex-wrap justify-between items-center gap-2.5 shrink-0">
+                <div class="flex items-center gap-2">
+                    <button id="modalCopyBtn" class="btn-chunky bg-white dark:bg-slate-800 text-engDark dark:text-white px-4 py-2.5 rounded-xl text-xs sm:text-sm flex items-center gap-1.5">
+                        <i data-lucide="copy" class="w-4 h-4"></i> Copy Guide
+                    </button>
+                    <button id="modalPlanToggleBtn" class="btn-chunky bg-engYellow text-engDark px-4 py-2.5 rounded-xl text-xs sm:text-sm flex items-center gap-1.5">
+                        <i data-lucide="plus" class="w-4 h-4"></i> Add to Plan
+                    </button>
+                </div>
+
+                <button id="modalTeachModeBtn" class="btn-chunky bg-engPink text-white px-5 py-2.5 rounded-xl text-sm flex items-center gap-2">
+                    <i data-lucide="play" class="w-4 h-4"></i> Launch Teach Mode
                 </button>
             </div>
         </div>
     </dialog>
 
-    <dialog id="confirmModal"
-        class="p-0 rounded-3xl border-[1px] border-white/20 dark:border-white/10 shadow-neo-lg bg-transparent backdrop:backdrop-blur-sm backdrop:bg-slate-900/60 w-[90%] max-w-sm m-auto relative">
-        <div
-            class="bg-white/95 dark:bg-[rgba(15,23,42,0.95)] backdrop-blur-2xl flex flex-col p-8 text-center rounded-3xl">
-            <div
-                class="inline-block p-4 rounded-full bg-red-100/50 dark:bg-red-900/20 border-[1px] border-red-200 dark:border-red-800/30 mx-auto mb-5 shadow-sm">
-                <i data-lucide="alert-triangle" class="w-10 h-10 text-red-500"></i>
+    <!-- ============================================
+         MODAL 2: SURPRISE ME / ACTIVITY ROULETTE
+         ============================================ -->
+    <dialog id="rouletteModal" class="p-0 rounded-3xl bg-transparent w-[94%] max-w-lg m-auto">
+        <div class="glass-panel-soft rounded-3xl bg-white/95 dark:bg-slate-900/95 overflow-hidden">
+            <div class="p-5 bg-engYellow border-b-2 border-engDark flex justify-between items-center">
+                <h3 class="font-heading text-xl font-bold uppercase text-engDark flex items-center gap-2">
+                    <i data-lucide="dices" class="w-6 h-6"></i> Activity Roulette
+                </h3>
+                <button onclick="document.getElementById('rouletteModal').close()" class="btn-chunky bg-white text-engDark p-1.5 rounded-xl">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
             </div>
-            <h3 class="font-headings text-2xl font-semibold text-engDark dark:text-white mb-2">Clear Plan?</h3>
-            <p class="text-slate-600 dark:text-slate-300 text-sm mb-6">This will remove all activities from your queue.
-                Cannot be undone.</p>
-            <div class="flex gap-3 w-full">
-                <button onclick="closeConfirmModal()"
-                    class="flex-1 btn-neo bg-white dark:bg-slate-700 text-engDark dark:text-white font-headings font-semibold text-sm py-2 rounded-lg border-2 border-engDark focus:outline-none">Cancel</button>
-                <button onclick="confirmClearLessonPlan()"
-                    class="flex-1 btn-neo bg-engPink text-white font-headings font-semibold text-sm py-2 rounded-lg border-2 border-engDark shadow-neo-sm focus:outline-none">Clear
-                    It</button>
+            <div class="p-5 space-y-4">
+                <div class="grid grid-cols-2 gap-2.5">
+                    <div>
+                        <label class="block text-[10px] font-extrabold uppercase text-slate-500 mb-1">Type</label>
+                        <select id="rouletteType" class="kk-select w-full py-2 pl-3 rounded-xl border-2 border-engDark dark:border-slate-500 bg-white dark:bg-slate-800 text-xs font-bold">
+                            <option value="all">Any Type</option>
+                            <option value="Warmer">Warmer</option>
+                            <option value="Icebreaker">Icebreaker</option>
+                            <option value="Stirrer">Stirrer</option>
+                            <option value="Settler">Settler</option>
+                            <option value="Closer">Closer</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-extrabold uppercase text-slate-500 mb-1">Age Group</label>
+                        <select id="rouletteAge" class="kk-select w-full py-2 pl-3 rounded-xl border-2 border-engDark dark:border-slate-500 bg-white dark:bg-slate-800 text-xs font-bold">
+                            <option value="all">Any Age</option>
+                            <option value="3-6">Ages 3–6</option>
+                            <option value="7-12">Ages 7–12</option>
+                            <option value="13-18">Ages 13–18</option>
+                            <option value="Adult">Adult</option>
+                        </select>
+                    </div>
+                </div>
+
+                <label class="flex items-center gap-2.5 cursor-pointer select-none p-2.5 rounded-xl border-2 border-engDark dark:border-slate-600 bg-slate-50 dark:bg-slate-800/60">
+                    <input type="checkbox" id="rouletteZeroPrep" class="w-4 h-4 accent-engOrange" />
+                    <span class="text-xs font-extrabold">Zero-Prep Activities Only</span>
+                </label>
+
+                <div id="rouletteResultBox" class="p-5 rounded-2xl border-2 border-engDark dark:border-slate-500 bg-engChalk dark:bg-slate-800 text-center min-h-[150px] flex flex-col justify-center items-center">
+                    <i data-lucide="sparkles" class="w-8 h-8 text-engBlue mb-2"></i>
+                    <p class="font-heading text-lg font-bold">Ready to spin!</p>
+                    <p class="text-xs font-semibold text-slate-500 dark:text-slate-400">Pick optional filters above and hit Spin.</p>
+                </div>
+
+                <div class="flex flex-wrap gap-2">
+                    <button onclick="spinRoulette()" class="flex-1 btn-chunky bg-engPink text-white py-3 rounded-xl text-sm flex items-center justify-center gap-2">
+                        <i data-lucide="refresh-cw" class="w-4 h-4"></i> Spin Activity
+                    </button>
+                    <button id="rouletteOpenBtn" disabled onclick="openRoulettePick()" class="btn-chunky bg-engBlue text-white px-4 py-3 rounded-xl text-sm flex items-center gap-1.5">
+                        <i data-lucide="book-open" class="w-4 h-4"></i> Guide
+                    </button>
+                    <button id="rouletteAddBtn" disabled onclick="addRoulettePick()" class="btn-chunky bg-engGreen text-engDark px-4 py-3 rounded-xl text-sm flex items-center gap-1.5">
+                        <i data-lucide="plus" class="w-4 h-4"></i> Plan
+                    </button>
+                </div>
             </div>
         </div>
     </dialog>
 
-    <div id="toast"
-        class="fixed bottom-6 left-1/2 transform -translate-x-1/2 hidden bg-engDark text-white px-4 py-2 rounded-xl border-2 border-engDark shadow-neo-lg font-headings font-semibold text-sm z-[100] flex items-center gap-2 w-max">
-        <i id="toastIcon" data-lucide="check-circle" class="w-4 h-4 text-engGreen"></i>
-        <span id="toastMsg">Action successful!</span>
+    <!-- ============================================
+         MODAL 3: STARTER LESSON TEMPLATES
+         ============================================ -->
+    <dialog id="templatesModal" class="p-0 rounded-3xl bg-transparent w-[94%] max-w-2xl m-auto">
+        <div class="glass-panel-soft rounded-3xl bg-white/95 dark:bg-slate-900/95 overflow-hidden flex flex-col max-h-[85vh]">
+            <div class="p-5 bg-engBlue text-white border-b-2 border-engDark flex justify-between items-center">
+                <div>
+                    <h3 class="font-heading text-xl font-bold uppercase flex items-center gap-2">
+                        <i data-lucide="layers" class="w-5 h-5"></i> Starter Lesson Flows
+                    </h3>
+                    <p class="text-xs font-bold text-white/85">One-click curated activity sequences you can customize</p>
+                </div>
+                <button onclick="document.getElementById('templatesModal').close()" class="btn-chunky bg-white text-engDark p-1.5 rounded-xl">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
+            </div>
+            <div id="templatesList" class="p-5 space-y-3 overflow-y-auto custom-scrollbar"></div>
+        </div>
+    </dialog>
+
+    <!-- ============================================
+         MODAL 4: QUICK CREATE / EDIT CUSTOM ACTIVITY
+         ============================================ -->
+    <dialog id="customActivityModal" class="p-0 rounded-3xl bg-transparent w-[96%] max-w-2xl m-auto">
+        <div class="glass-panel-soft rounded-3xl bg-white/95 dark:bg-slate-900/95 overflow-hidden flex flex-col max-h-[90vh]">
+            <div class="p-5 bg-engGreen text-engDark border-b-2 border-engDark flex justify-between items-center shrink-0">
+                <h3 id="customModalHeading" class="font-heading text-xl font-bold uppercase flex items-center gap-2">
+                    <i data-lucide="plus-circle" class="w-5 h-5"></i> Create Custom Activity
+                </h3>
+                <button onclick="document.getElementById('customActivityModal').close()" class="btn-chunky bg-white text-engDark p-1.5 rounded-xl">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
+            </div>
+
+            <form id="customActivityForm" onsubmit="saveCustomActivity(event)" class="p-5 space-y-4 overflow-y-auto custom-scrollbar">
+                <input type="hidden" id="customEditId" />
+
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div class="sm:col-span-2">
+                        <label class="block text-xs font-extrabold uppercase mb-1">Title *</label>
+                        <input id="customTitle" type="text" required placeholder="e.g. Mystery Picture Zoom"
+                            class="w-full px-3 py-2 rounded-xl border-2 border-engDark dark:border-slate-500 bg-white dark:bg-slate-800 text-sm font-bold" />
+                    </div>
+                    <div>
+                        <label class="block text-xs font-extrabold uppercase mb-1">Type *</label>
+                        <select id="customType" class="kk-select w-full px-3 py-2 rounded-xl border-2 border-engDark dark:border-slate-500 bg-white dark:bg-slate-800 text-sm font-bold">
+                            <option value="Warmer">Warmer</option>
+                            <option value="Icebreaker">Icebreaker</option>
+                            <option value="Stirrer">Stirrer</option>
+                            <option value="Settler">Settler</option>
+                            <option value="Closer">Closer</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <div>
+                        <label class="block text-xs font-extrabold uppercase mb-1">Duration (Min)</label>
+                        <input id="customDurationMins" type="number" min="1" max="120" value="10" required
+                            class="w-full px-3 py-2 rounded-xl border-2 border-engDark dark:border-slate-500 bg-white dark:bg-slate-800 text-sm font-bold" />
+                    </div>
+                    <div>
+                        <label class="block text-xs font-extrabold uppercase mb-1">Difficulty</label>
+                        <select id="customDifficulty" class="kk-select w-full px-3 py-2 rounded-xl border-2 border-engDark dark:border-slate-500 bg-white dark:bg-slate-800 text-sm font-bold">
+                            <option value="Easy">Easy</option>
+                            <option value="Medium">Medium</option>
+                            <option value="Hard">Hard</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-extrabold uppercase mb-1">Grouping</label>
+                        <select id="customGrouping" class="kk-select w-full px-3 py-2 rounded-xl border-2 border-engDark dark:border-slate-500 bg-white dark:bg-slate-800 text-sm font-bold">
+                            <option value="Whole Class">Whole Class</option>
+                            <option value="Teams">Teams</option>
+                            <option value="Small Groups">Small Groups</option>
+                            <option value="Pairs">Pairs</option>
+                            <option value="Individual">Individual</option>
+                            <option value="Mingle">Mingle</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-extrabold uppercase mb-1">Prep Level</label>
+                        <select id="customPrepLevel" class="kk-select w-full px-3 py-2 rounded-xl border-2 border-engDark dark:border-slate-500 bg-white dark:bg-slate-800 text-sm font-bold">
+                            <option value="Zero Prep">Zero Prep</option>
+                            <option value="Quick Prep">Quick Prep</option>
+                            <option value="Needs Printouts">Needs Printouts</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-extrabold uppercase mb-1">Target Ages *</label>
+                    <div id="customAgesGroup" class="flex flex-wrap gap-3">
+                        <label class="flex items-center gap-1.5 text-xs font-bold cursor-pointer"><input type="checkbox" value="3-6" class="accent-engBlue w-4 h-4" /> 3–6</label>
+                        <label class="flex items-center gap-1.5 text-xs font-bold cursor-pointer"><input type="checkbox" value="7-12" checked class="accent-engBlue w-4 h-4" /> 7–12</label>
+                        <label class="flex items-center gap-1.5 text-xs font-bold cursor-pointer"><input type="checkbox" value="13-18" checked class="accent-engBlue w-4 h-4" /> 13–18</label>
+                        <label class="flex items-center gap-1.5 text-xs font-bold cursor-pointer"><input type="checkbox" value="Adult" class="accent-engBlue w-4 h-4" /> Adult</label>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-extrabold uppercase mb-1">Short Description *</label>
+                    <input id="customDesc" type="text" required placeholder="One crisp sentence explaining the activity..."
+                        class="w-full px-3 py-2 rounded-xl border-2 border-engDark dark:border-slate-500 bg-white dark:bg-slate-800 text-sm font-semibold" />
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-extrabold uppercase mb-1">Skills (comma separated)</label>
+                        <input id="customSkills" type="text" placeholder="Speaking, Vocabulary, Listening"
+                            class="w-full px-3 py-2 rounded-xl border-2 border-engDark dark:border-slate-500 bg-white dark:bg-slate-800 text-sm font-semibold" />
+                    </div>
+                    <div>
+                        <label class="block text-xs font-extrabold uppercase mb-1">Materials (comma separated)</label>
+                        <input id="customMaterials" type="text" placeholder="Whiteboard, Markers"
+                            class="w-full px-3 py-2 rounded-xl border-2 border-engDark dark:border-slate-500 bg-white dark:bg-slate-800 text-sm font-semibold" />
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-extrabold uppercase mb-1">Classroom Goal</label>
+                    <input id="customGoal" type="text" placeholder="What students practice or achieve..."
+                        class="w-full px-3 py-2 rounded-xl border-2 border-engDark dark:border-slate-500 bg-white dark:bg-slate-800 text-sm font-semibold" />
+                </div>
+
+                <div>
+                    <label class="block text-xs font-extrabold uppercase mb-1">Steps (one step per line) *</label>
+                    <textarea id="customSteps" rows="4" required placeholder="1. Divide the class into pairs.&#10;2. Display the prompt on the board.&#10;3. ..."
+                        class="w-full px-3 py-2 rounded-xl border-2 border-engDark dark:border-slate-500 bg-white dark:bg-slate-800 text-sm font-semibold"></textarea>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-extrabold uppercase mb-1">Board Example / Script</label>
+                        <textarea id="customExample" rows="2" placeholder="Sample sentence frame or prompt..."
+                            class="w-full px-3 py-2 rounded-xl border-2 border-engDark dark:border-slate-500 bg-white dark:bg-slate-800 text-sm font-semibold"></textarea>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-extrabold uppercase mb-1">Variation / Pro Tip</label>
+                        <textarea id="customVariation" rows="2" placeholder="Twist for faster or younger classes..."
+                            class="w-full px-3 py-2 rounded-xl border-2 border-engDark dark:border-slate-500 bg-white dark:bg-slate-800 text-sm font-semibold"></textarea>
+                    </div>
+                </div>
+
+                <div class="flex justify-between items-center pt-2 gap-2">
+                    <button id="customDeleteBtn" type="button" onclick="deleteCurrentCustomActivity()"
+                        class="hidden btn-chunky bg-engPink text-white px-4 py-2.5 rounded-xl text-sm flex items-center gap-1.5">
+                        <i data-lucide="trash-2" class="w-4 h-4"></i> Delete
+                    </button>
+                    <div class="ml-auto flex gap-2">
+                        <button type="button" onclick="document.getElementById('customActivityModal').close()"
+                            class="btn-chunky bg-white dark:bg-slate-800 px-4 py-2.5 rounded-xl text-sm">Cancel</button>
+                        <button type="submit" class="btn-chunky bg-engGreen text-engDark px-6 py-2.5 rounded-xl text-sm flex items-center gap-1.5">
+                            <i data-lucide="save" class="w-4 h-4"></i> Save Activity
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </dialog>
+
+    <!-- ============================================
+         MODAL 5: CONFIRM DIALOG
+         ============================================ -->
+    <dialog id="confirmModal" class="p-0 rounded-3xl bg-transparent w-[90%] max-w-sm m-auto">
+        <div class="glass-panel-soft rounded-3xl bg-white/95 dark:bg-slate-900/95 p-6 text-center">
+            <div class="inline-flex p-3.5 rounded-2xl bg-red-100 dark:bg-red-950/50 border-2 border-engDark dark:border-slate-500 mb-4">
+                <i data-lucide="alert-triangle" class="w-8 h-8 text-engPink"></i>
+            </div>
+            <h3 id="confirmTitle" class="font-heading text-xl font-bold text-engDark dark:text-white mb-1">Clear Plan?</h3>
+            <p id="confirmBody" class="text-slate-600 dark:text-slate-300 text-sm font-semibold mb-5">This will remove all activities from the active lesson plan.</p>
+            <div class="flex gap-3">
+                <button onclick="closeConfirmModal()" class="flex-1 btn-chunky bg-white dark:bg-slate-800 py-2.5 rounded-xl text-sm">Cancel</button>
+                <button id="confirmActionBtn" class="flex-1 btn-chunky bg-engPink text-white py-2.5 rounded-xl text-sm">Confirm</button>
+            </div>
+        </div>
+    </dialog>
+
+    <!-- ============================================
+         LIVE TEACH MODE OVERLAY (Fullscreen Runner)
+         ============================================ -->
+    <div id="teachModeOverlay" class="hidden fixed inset-0 z-[120] bg-slate-950 text-white flex flex-col">
+        <!-- Top Runner Bar -->
+        <div class="border-b-2 border-slate-700 bg-slate-900/95 px-4 sm:px-6 py-3 flex flex-wrap items-center justify-between gap-3">
+            <div class="flex items-center gap-3 min-w-0">
+                <span id="teachActivityBadge" class="px-2.5 py-1 rounded-lg text-xs font-heading font-bold uppercase bg-engOrange text-white border-2 border-slate-600 shrink-0">Stirrer</span>
+                <div class="min-w-0">
+                    <p id="teachLessonBreadcrumb" class="hidden text-[11px] font-extrabold uppercase tracking-wider text-engYellow"></p>
+                    <h2 id="teachTitle" class="font-heading text-lg sm:text-2xl font-bold truncate">Activity Title</h2>
+                </div>
+            </div>
+
+            <!-- Built-in Classroom Timer + Controls -->
+            <div class="flex flex-wrap items-center gap-2">
+                <div class="flex items-center gap-1.5 bg-slate-800 border-2 border-slate-600 rounded-xl px-2.5 py-1.5">
+                    <i data-lucide="timer" class="w-4 h-4 text-engYellow"></i>
+                    <span id="teachTimerDisplay" class="font-heading text-xl font-bold tabular-nums min-w-[64px] text-center">10:00</span>
+                    <button onclick="adjustTeachTimer(-60)" class="px-1.5 py-0.5 rounded bg-slate-700 hover:bg-slate-600 text-xs font-bold">-1m</button>
+                    <button onclick="adjustTeachTimer(60)" class="px-1.5 py-0.5 rounded bg-slate-700 hover:bg-slate-600 text-xs font-bold">+1m</button>
+                    <button id="teachTimerToggleBtn" onclick="toggleTeachTimer()" class="px-2.5 py-1 rounded-lg bg-engGreen text-engDark font-heading font-bold text-xs flex items-center gap-1">
+                        <i data-lucide="play" class="w-3.5 h-3.5"></i> Start
+                    </button>
+                    <button onclick="resetTeachTimer()" class="p-1 rounded-lg bg-slate-700 hover:bg-slate-600" title="Reset timer">
+                        <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i>
+                    </button>
+                </div>
+
+                <button id="teachPromptToggleBtn" onclick="toggleTeachPromptBanner()"
+                    class="btn-chunky bg-engYellow text-engDark px-3 py-2 rounded-xl text-xs flex items-center gap-1.5 border-slate-600">
+                    <i data-lucide="monitor" class="w-4 h-4"></i> Board Prompt
+                </button>
+
+                <button onclick="exitTeachMode()"
+                    class="btn-chunky bg-engPink text-white px-3.5 py-2 rounded-xl text-xs flex items-center gap-1.5 border-slate-600">
+                    <i data-lucide="x" class="w-4 h-4"></i> Exit (Esc)
+                </button>
+            </div>
+        </div>
+
+        <!-- Timer Progress Strip -->
+        <div class="h-1.5 bg-slate-800 w-full">
+            <div id="teachTimerBar" class="h-full bg-engGreen transition-all duration-500" style="width: 100%"></div>
+        </div>
+
+        <!-- Projectable Board Prompt Banner -->
+        <div id="teachPromptBanner" class="hidden bg-engYellow text-engDark px-6 py-4 border-b-4 border-engDark animate-slide-down">
+            <div class="max-w-5xl mx-auto flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                    <p class="text-[11px] font-extrabold uppercase tracking-wider opacity-75">On the Board / Class Prompt</p>
+                    <p id="teachPromptText" class="font-heading text-xl sm:text-2xl font-bold mt-0.5"></p>
+                </div>
+                <button onclick="toggleTeachPromptBanner()" class="self-start sm:self-center text-xs font-extrabold underline shrink-0">Hide</button>
+            </div>
+        </div>
+
+        <!-- Teach Mode Body -->
+        <div class="flex-1 grid grid-cols-1 lg:grid-cols-12 overflow-hidden">
+            <!-- Main Step Spotlight -->
+            <div class="lg:col-span-8 p-6 sm:p-10 flex flex-col justify-between overflow-y-auto custom-scrollbar">
+                <div class="max-w-3xl mx-auto w-full my-auto space-y-6">
+                    <div class="flex items-center justify-between">
+                        <span id="teachStepCounter" class="px-3.5 py-1 rounded-xl bg-engBlue text-white font-heading font-bold text-sm uppercase border-2 border-slate-700">
+                            Step 1 of 5
+                        </span>
+                        <span id="teachGroupingBadge" class="text-xs font-extrabold uppercase tracking-wider text-slate-400"></span>
+                    </div>
+
+                    <p id="teachCurrentStepText" class="font-heading text-2xl sm:text-4xl font-bold leading-snug text-white">
+                        Step text appears here...
+                    </p>
+
+                    <div id="teachQuickTipCard" class="p-4 rounded-2xl bg-slate-900 border-2 border-slate-700 text-sm text-slate-300 space-y-1">
+                        <p class="text-[11px] font-extrabold uppercase tracking-wider text-engOrange">Quick Classroom Tip</p>
+                        <p id="teachQuickTipText" class="font-semibold"></p>
+                    </div>
+                </div>
+
+                <!-- Step & Lesson Navigation -->
+                <div class="max-w-3xl mx-auto w-full pt-6 flex flex-wrap items-center justify-between gap-3 border-t border-slate-800">
+                    <button id="teachPrevStepBtn" onclick="prevTeachStep()" class="btn-chunky bg-slate-800 text-white px-5 py-3 rounded-xl text-sm flex items-center gap-2 border-slate-600">
+                        <i data-lucide="chevron-left" class="w-4 h-4"></i> Previous Step
+                    </button>
+
+                    <div id="teachLessonActivityControls" class="hidden flex items-center gap-2">
+                        <button id="teachPrevActivityBtn" onclick="switchTeachActivity(-1)" class="btn-chunky bg-slate-800 text-white px-3.5 py-3 rounded-xl text-xs border-slate-600">
+                            &laquo; Prev Activity
+                        </button>
+                        <button id="teachNextActivityBtn" onclick="switchTeachActivity(1)" class="btn-chunky bg-engYellow text-engDark px-3.5 py-3 rounded-xl text-xs border-slate-600">
+                            Next Activity &raquo;
+                        </button>
+                    </div>
+
+                    <button id="teachNextStepBtn" onclick="nextTeachStep()" class="btn-chunky bg-engGreen text-engDark px-6 py-3 rounded-xl text-sm flex items-center gap-2 border-slate-600">
+                        <span>Next Step</span> <i data-lucide="chevron-right" class="w-4 h-4"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Right Steps Overview & Materials -->
+            <aside class="lg:col-span-4 border-t-2 lg:border-t-0 lg:border-l-2 border-slate-800 bg-slate-900/70 p-5 overflow-y-auto custom-scrollbar space-y-5">
+                <div>
+                    <p class="text-xs font-extrabold uppercase tracking-wider text-slate-400 mb-2.5">All Steps (click to jump)</p>
+                    <ol id="teachAllStepsList" class="space-y-2 list-none"></ol>
+                </div>
+                <div class="pt-4 border-t border-slate-800">
+                    <p class="text-xs font-extrabold uppercase tracking-wider text-slate-400 mb-2">Materials Needed</p>
+                    <div id="teachMaterialsList" class="flex flex-wrap gap-1.5"></div>
+                </div>
+            </aside>
+        </div>
     </div>
 
-    <script>
-        /**
-         * 1. STATE MANAGEMENT
-         */
-        const AppState = {
-            activities: [],
-            lessonPlan: JSON.parse(localStorage.getItem("lessonPlan")) || [],
-            currentFilter: "all",
-            currentAgeFilter: "all",
-            currentSearch: "",
-            currentView: localStorage.getItem("viewMode") || "grid",
-            toastTimeout: null,
-        };
+    <!-- PRINTABLE PACKET CONTAINER (Visible only in @media print) -->
+    <div id="printSheet"></div>
 
-        const DOM = {
-            container: document.getElementById("activitiesContainer"),
-            emptyState: document.getElementById("emptyState"),
-            searchInput: document.getElementById("searchInput"),
-            lessonCounter: document.getElementById("lessonCounter"),
-            lessonList: document.getElementById("lessonList"),
-            lessonEmptyState: document.getElementById("lessonEmptyState"),
-            clearLessonBtn: document.getElementById("clearLessonBtn"),
-            viewGridBtn: document.getElementById("btn-view-grid"),
-            viewListBtn: document.getElementById("btn-view-list"),
-            toast: document.getElementById("toast"),
-            toastMsg: document.getElementById("toastMsg"),
-            toastIcon: document.getElementById("toastIcon"),
-        };
+    <!-- TOAST NOTIFICATION -->
+    <div id="toast"
+        class="hidden fixed bottom-6 left-1/2 -translate-x-1/2 z-[150] bg-engDark text-white px-4 py-2.5 rounded-xl border-2 border-white/20 shadow-hard-lg font-heading font-bold text-sm flex items-center gap-2 w-max">
+        <span id="toastIconWrap" class="flex items-center"><i data-lucide="check-circle" class="w-4 h-4 text-engGreen"></i></span>
+        <span id="toastMsg">Done!</span>
+    </div>
 
-        window.onload = async () => {
-            await requireAuth();
-            setViewMode(AppState.currentView, true);
-            await loadFromCloud();
-            await fetchActivities();
-        };
-
-        async function saveToCloud() {
-            try {
-                await saveProgress('act_lesson_plan', { lessonPlan: AppState.lessonPlan, updatedAt: Date.now() });
-            } catch (e) {
-                console.error("Cloud save failed", e);
-            }
-        }
-
-        async function loadFromCloud() {
-            try {
-                const data = await loadProgress('act_lesson_plan');
-                if (data && data.lessonPlan) {
-                    AppState.lessonPlan = data.lessonPlan;
-                    localStorage.setItem("lessonPlan", JSON.stringify(AppState.lessonPlan));
-                    updateLessonPlanUI();
-                }
-            } catch (e) {
-                console.error("Cloud load failed", e);
-            }
-        }
-
-        async function fetchActivities() {
-            try {
-                const response = await fetch("./activities/activities.json?v=" + new Date().getTime());
-                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-                AppState.activities = await response.json();
-                renderActivities(AppState.activities);
-                updateLessonPlanUI();
-                lucide.createIcons();
-            } catch (error) {
-                console.error("Data Fetch Failed:", error);
-                DOM.container.innerHTML = `
-                        <div class="col-span-full text-center py-8 bg-white dark:bg-slate-800 rounded-xl border-2 border-engDark shadow-neo">
-                            <div class="inline-block p-3 bg-red-100 rounded-full border-2 border-engDark mb-3">
-                                <i data-lucide="alert-triangle" class="w-8 h-8 text-red-500"></i>
-                            </div>
-                            <h3 class="font-headings text-xl font-semibold text-engDark dark:text-white">Failed to load activities</h3>
-                            <p class="text-slate-500 text-sm mt-1">Ensure 'activities.json' is in the root directory.</p>
-                        </div>`;
-                lucide.createIcons();
-            }
-        }
-
-        function setViewMode(mode, isInit = false) {
-            AppState.currentView = mode;
-            localStorage.setItem("viewMode", mode);
-            const isGrid = mode === "grid";
-
-            DOM.viewGridBtn.className = `p-2 transition-colors focus:outline-none focus:bg-engPink ${isGrid ? "bg-engDark text-white hover:bg-engDark/90" : "bg-white text-engDark dark:bg-slate-700 dark:text-white hover:bg-slate-100 dark:hover:bg-slate-600"}`;
-            DOM.viewListBtn.className = `p-2 transition-colors border-l-2 border-engDark focus:outline-none focus:bg-engPink ${!isGrid ? "bg-engDark text-white hover:bg-engDark/90" : "bg-white text-engDark dark:bg-slate-700 dark:text-white hover:bg-slate-100 dark:hover:bg-slate-600"}`;
-
-            // Changed gap-8 to gap-4
-            DOM.container.className = isGrid ? "grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-3 gap-4 pb-12" : "flex flex-col gap-4 pb-12";
-            if (!isInit) applyFilters();
-        }
-
-        function renderActivities(data) {
-            DOM.container.innerHTML = "";
-
-            if (data.length === 0) {
-                DOM.emptyState.classList.remove("hidden");
-                return;
-            } else {
-                DOM.emptyState.classList.add("hidden");
-            }
-
-            data.forEach((activity, index) => {
-                const isStirrer = activity.type === "Stirrer";
-                const isInLesson = AppState.lessonPlan.some((item) => item.id === activity.id);
-
-                const theme = { color: isStirrer ? "bg-engOrange" : "bg-engBlue", icon: isStirrer ? "zap" : "anchor" };
-                const addBtn = {
-                    icon: isInLesson ? "check" : "plus",
-                    class: isInLesson ? "bg-engGreen text-engDark border-transparent" : "bg-white text-engDark border-slate-200 hover:bg-slate-100 dark:bg-slate-800 dark:text-white dark:border-slate-700 dark:hover:bg-slate-700",
-                };
-
-                const ageText = activity.target_ages && activity.target_ages.length > 0 ? activity.target_ages.join(", ") : "All";
-                const ageHtml = `<span class="px-2 py-0.5 rounded-md border-[1px] border-white/20 bg-engYellow text-engDark font-bold text-[10px] uppercase tracking-wider shadow-sm"><i data-lucide="users" class="w-3 h-3 inline pb-[2px]"></i> ${ageText}</span>`;
-                const skillsHtml = activity.skills.map((skill) => `<span class="px-2 py-0.5 rounded-md border-[1px] border-slate-200 dark:border-slate-700 bg-engChalk dark:bg-slate-800/50 text-engDark dark:text-slate-200 font-bold text-[10px] uppercase tracking-wider shadow-sm">${skill}</span>`).join("");
-
-                const card = document.createElement("article");
-                card.style.animationDelay = `${index * 50}ms`;
-                card.setAttribute("tabindex", "0");
-                card.setAttribute("onclick", `openModal(${activity.id})`);
-                card.setAttribute("onkeydown", `if(event.key==='Enter') openModal(${activity.id})`);
-
-                if (AppState.currentView === "grid") {
-                    card.className = "cursor-pointer card-enter card-hover bg-white/85 dark:bg-[rgba(15,23,42,0.75)] backdrop-blur-sm rounded-xl border-[1px] border-white/40 dark:border-white/10 shadow-neo overflow-hidden flex flex-col h-full relative group focus:outline-none focus:ring-2 focus:ring-engPink";
-                    card.innerHTML = `
-                            <div class="${theme.color} p-3 border-b-[1px] border-white/20 flex justify-between items-center relative z-10 shrink-0">
-                                <span class="font-headings font-semibold text-white text-lg flex items-center gap-2">
-                                    <i data-lucide="${theme.icon}" class="w-5 h-5"></i> ${activity.type.toUpperCase()}
-                                </span>
-                                <div class="flex items-center gap-2">
-                                    <span class="bg-black/20 text-white text-xs font-semibold px-2 py-1 rounded-lg border-[1px] border-white/10 flex items-center hidden sm:flex backdrop-blur-sm shadow-sm gap-1">
-                                        <i data-lucide="clock" class="w-3 h-3"></i> ${activity.time}
-                                    </span>
-                                    <button onclick="event.stopPropagation(); toggleLessonActivity(${activity.id})" class="btn-neo ${addBtn.class} w-8 h-8 rounded-lg border-[1px] shadow-sm flex items-center justify-center transition-colors focus:outline-none" title="${isInLesson ? "Remove" : "Add"}">
-                                        <i data-lucide="${addBtn.icon}" class="w-4 h-4 font-bold"></i>
-                                    </button>
-                                </div>
-                            </div>
-                            <div class="p-4 flex-grow flex flex-col relative bg-transparent">
-                                <div class="mb-3 flex items-start justify-between gap-3">
-                                    <h2 class="font-headings text-xl font-semibold text-engDark dark:text-white leading-tight group-hover:text-engBlue transition-colors">${activity.title}</h2>
-                                    <div class="p-2 shrink-0 rounded-lg bg-slate-100 dark:bg-slate-800/80 border-[1px] border-slate-200 dark:border-slate-700 shadow-sm">
-                                        <i data-lucide="${activity.icon}" class="w-4 h-4 text-slate-500 dark:text-slate-300 group-hover:text-engPink transition-colors"></i>
-                                    </div>
-                                </div>
-                                <p class="text-slate-600 dark:text-slate-300 font-medium text-sm leading-relaxed mb-4 flex-grow">${activity.desc}</p>
-                                <div class="mt-auto pt-3 border-t-[1px] border-slate-200 dark:border-slate-700">
-                                    <div class="flex flex-wrap gap-1.5">${ageHtml} ${skillsHtml}</div>
-                                </div>
-                            </div>
-                        `;
-                } else {
-                    card.className = "cursor-pointer card-enter card-hover bg-white/85 dark:bg-[rgba(15,23,42,0.75)] backdrop-blur-sm rounded-xl border-[1px] border-white/40 dark:border-white/10 shadow-neo overflow-hidden flex flex-col md:flex-row relative group focus:outline-none focus:ring-2 focus:ring-engPink";
-                    card.innerHTML = `
-                            <div class="${theme.color} p-4 border-b-[1px] md:border-b-0 md:border-r-[1px] border-white/20 flex flex-row md:flex-col justify-between items-center md:items-start md:w-48 shrink-0 relative z-10">
-                                <span class="font-headings font-semibold text-white text-lg flex items-center gap-2">
-                                    <i data-lucide="${theme.icon}" class="w-5 h-5"></i> ${activity.type.toUpperCase()}
-                                </span>
-                                <span class="bg-black/20 text-white text-xs font-semibold px-2 py-1 rounded-lg border-[1px] border-white/10 mt-0 md:mt-3 backdrop-blur-sm shadow-sm flex items-center gap-1">
-                                    <i data-lucide="clock" class="w-3 h-3"></i> ${activity.time}
-                                </span>
-                            </div>
-                            <div class="p-4 flex-grow flex flex-col justify-center relative bg-transparent">
-                                <div class="flex items-center justify-between gap-3 mb-2">
-                                    <h2 class="font-headings text-xl font-semibold text-engDark dark:text-white leading-tight group-hover:text-engBlue transition-colors">${activity.title}</h2>
-                                </div>
-                                <p class="text-slate-600 dark:text-slate-300 font-medium text-sm leading-relaxed mb-3 md:line-clamp-2">${activity.desc}</p>
-                                <div class="flex flex-wrap gap-1.5">${ageHtml} ${skillsHtml}</div>
-                            </div>
-                            <div class="p-3 md:border-l-[1px] border-slate-200 dark:border-slate-700 flex items-center justify-center bg-white/50 dark:bg-transparent shrink-0 border-t-[1px] md:border-t-0">
-                                <button onclick="event.stopPropagation(); toggleLessonActivity(${activity.id})" class="btn-neo ${addBtn.class} w-full md:w-12 h-10 md:h-12 rounded-lg border-[1px] shadow-sm flex items-center justify-center transition-colors focus:outline-none" title="${isInLesson ? "Remove" : "Add"}">
-                                    <i data-lucide="${addBtn.icon}" class="w-5 h-5 font-bold"></i>
-                                </button>
-                            </div>
-                        `;
-                }
-                DOM.container.appendChild(card);
-            });
-            lucide.createIcons();
-        }
-
-        function toggleLessonActivity(id) {
-            const activity = AppState.activities.find((a) => a.id === id);
-            if (!activity) return;
-
-            const index = AppState.lessonPlan.findIndex((item) => item.id === id);
-            if (index > -1) {
-                AppState.lessonPlan.splice(index, 1);
-                showToast("Removed from plan", "info");
-            } else {
-                AppState.lessonPlan.push(activity);
-                showToast("Added to plan", "check-circle");
-            }
-            localStorage.setItem("lessonPlan", JSON.stringify(AppState.lessonPlan));
-            saveToCloud();
-            applyFilters();
-            updateLessonPlanUI();
-        }
-
-        function updateLessonPlanUI() {
-            const hasLessons = AppState.lessonPlan.length > 0;
-            DOM.lessonCounter.innerText = AppState.lessonPlan.length;
-            DOM.lessonCounter.classList.toggle("hidden", !hasLessons);
-            DOM.lessonEmptyState.classList.toggle("hidden", hasLessons);
-            DOM.clearLessonBtn.disabled = !hasLessons;
-
-            DOM.lessonList.innerHTML = AppState.lessonPlan.map((act, index) => `
-                    <li onclick="openModal(${act.id})" tabindex="0" onkeydown="if(event.key==='Enter') openModal(${act.id})" class="cursor-pointer bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm p-3 rounded-xl border-[1px] border-white/50 dark:border-slate-700/50 shadow-neo-sm flex flex-col gap-2 hover:-translate-y-1 hover:shadow-neo transition-all group focus:outline-none focus:ring-2 focus:ring-engPink">
-                        <div class="flex justify-between items-start gap-2">
-                            <h4 class="font-headings text-base font-semibold text-engDark dark:text-white leading-tight group-hover:text-engBlue transition-colors"><span class="text-slate-400 mr-1">${index + 1}.</span> ${act.title}</h4>
-                            <button onclick="event.stopPropagation(); toggleLessonActivity(${act.id})" class="btn-neo shrink-0 bg-slate-100 dark:bg-slate-700/50 p-1.5 rounded-lg border-[1px] border-slate-200 dark:border-slate-600 hover:bg-red-100 hover:text-red-500 hover:border-red-500 transition-colors focus:outline-none" aria-label="Remove">
-                                <i data-lucide="trash" class="w-4 h-4 text-slate-500"></i>
-                            </button>
-                        </div>
-                        <div class="flex gap-1.5">
-                            <span class="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md border-[1px] border-white/20 ${act.type === "Stirrer" ? "bg-engOrange text-white" : "bg-engBlue text-white"} shadow-sm">${act.type}</span>
-                            <span class="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md border-[1px] border-slate-200 dark:border-slate-700 bg-engChalk dark:bg-slate-800/80 text-engDark dark:text-slate-200 shadow-sm"><i data-lucide="clock" class="w-3 h-3 inline pb-[1px]"></i> ${act.time}</span>
-                        </div>
-                    </li>
-                `).join("");
-            lucide.createIcons();
-        }
-
-        function switchModalTab(tabId) {
-            ["steps", "variations", "details"].forEach((t) => {
-                const btn = document.getElementById(`tab-btn-${t}`);
-                const panel = document.getElementById(`modal-panel-${t}`);
-                const isActive = t === tabId;
-                panel.classList.toggle("hidden", !isActive);
-                panel.classList.toggle("block", isActive);
-                if (isActive) {
-                    btn.className = "flex-1 min-w-[100px] py-3 font-headings font-semibold text-base border-r-2 border-engDark focus:outline-none transition-colors bg-white dark:bg-slate-800 text-engDark dark:text-white";
-                } else {
-                    btn.className = "flex-1 min-w-[100px] py-3 font-headings font-semibold text-base border-r-2 border-engDark focus:outline-none transition-colors bg-slate-200 dark:bg-slate-700 shadow-tab-inactive text-slate-500 dark:text-slate-400 hover:text-engDark";
-                }
-            });
-        }
-
-        function getDifficultyInfo(level) {
-            const map = { Easy: "bg-engGreen text-engDark border-transparent", Medium: "bg-engOrange text-white border-transparent", Hard: "bg-engPink text-white border-transparent" };
-            return map[level] || "bg-slate-200 text-slate-600 border-slate-300";
-        }
-
-        function openModal(id) {
-            const act = AppState.activities.find((a) => a.id === id);
-            if (!act) return;
-
-            AppState.scrollPosition = window.scrollY;
-            document.getElementById("modalTitle").innerText = act.title;
-            document.getElementById("modalVariation").innerText = act.variation || "No specific variations provided.";
-
-            document.getElementById("modalType").innerText = act.type;
-            document.getElementById("modalType").className = `px-3 py-1 rounded-lg border-2 border-engDark font-headings text-sm font-semibold text-white inline-block shadow-sm ${act.type === "Stirrer" ? "bg-engOrange" : "bg-engBlue"}`;
-            document.getElementById("modalTime").innerText = act.time;
-            document.getElementById("modalDiff").innerText = act.difficulty;
-            document.getElementById("modalDiff").className = `px-3 py-1 rounded-lg border-2 border-engDark font-headings text-sm font-semibold inline-block shadow-sm ${getDifficultyInfo(act.difficulty)}`;
-
-            document.getElementById("modalGrouping").innerText = act.grouping || "Whole Class";
-            document.getElementById("modalPrep").innerText = act.prep_time || "Zero Prep";
-            document.getElementById("modalAges").innerText = act.target_ages && act.target_ages.length ? act.target_ages.join(", ") : "All Ages";
-
-            const materialsContainer = document.getElementById("modalMaterials");
-            if (act.materials && act.materials.length > 0 && act.materials[0].toLowerCase() !== "none") {
-                materialsContainer.innerHTML = act.materials.map((m) => `<span class="bg-white dark:bg-slate-800 border-2 border-engDark text-engDark dark:text-white px-3 py-1 rounded-lg font-semibold text-xs shadow-sm flex items-center gap-1"><i data-lucide="check" class="w-3 h-3 text-engGreen"></i> ${m}</span>`).join("");
-            } else {
-                materialsContainer.innerHTML = `<span class="bg-engGreen/20 border-2 border-engGreen text-engGreen px-3 py-1 rounded-lg font-semibold text-xs shadow-sm flex items-center gap-1"><i data-lucide="smile" class="w-3 h-3"></i> No prep needed!</span>`;
-            }
-
-            document.getElementById("modalSteps").innerHTML = act.steps.map((step, i) => `
-                        <li class="flex items-start gap-4 group">
-                            <span class="flex-shrink-0 w-2.5 h-2.5 mt-2.5 rounded-full border-2 border-engDark bg-engPink shadow-neo-sm group-hover:scale-125 transition-transform"></span>
-                            <p class="text-slate-800 dark:text-slate-200 text-base leading-relaxed">
-                                ${step}
-                            </p>
-                        </li>`).join("");
-
-            document.getElementById("modalCopyBtn").onclick = () => {
-                const bulletedText = act.steps.map((step) => `• ${step}`).join("\n");
-                copyToClipboard(bulletedText);
-            };
-
-            switchModalTab("steps");
-            document.getElementById("guideModal").showModal();
-            document.body.style.overflow = "hidden";
-            lucide.createIcons();
-        }
-
-        function closeModal() {
-            document.getElementById("guideModal").close();
-            document.body.style.overflow = "auto";
-            window.scrollTo(0, AppState.scrollPosition);
-        }
-
-        function openConfirmModal() {
-            AppState.scrollPosition = window.scrollY;
-            document.getElementById("confirmModal").showModal();
-            document.body.style.overflow = "hidden";
-        }
-
-        function closeConfirmModal() {
-            document.getElementById("confirmModal").close();
-            document.body.style.overflow = "auto";
-            window.scrollTo(0, AppState.scrollPosition);
-        }
-
-        function confirmClearLessonPlan() {
-            AppState.lessonPlan = [];
-            localStorage.setItem("lessonPlan", JSON.stringify(AppState.lessonPlan));
-            saveToCloud();
-            updateLessonPlanUI();
-            applyFilters();
-            closeConfirmModal();
-            showToast("Lesson plan cleared", "info");
-        }
-
-        document.querySelectorAll("dialog").forEach((dialog) => {
-            dialog.addEventListener("click", (e) => {
-                if (e.target === dialog) {
-                    dialog.close();
-                    document.body.style.overflow = "auto";
-                    if (AppState.scrollPosition !== undefined) window.scrollTo(0, AppState.scrollPosition);
-                }
-            });
-        });
-
-        function applyFilters() {
-            const searchLower = AppState.currentSearch.toLowerCase();
-            const filtered = AppState.activities.filter((act) => {
-                const matchesType = AppState.currentFilter === "all" || act.type === AppState.currentFilter;
-                const matchesSearch = act.title.toLowerCase().includes(searchLower) || (act.skills && act.skills.some((s) => s.toLowerCase().includes(searchLower)));
-                const matchesAge = AppState.currentAgeFilter === "all" || (act.target_ages && act.target_ages.includes(AppState.currentAgeFilter));
-                return matchesType && matchesSearch && matchesAge;
-            });
-            renderActivities(filtered);
-        }
-
-        function filterActivities(category) {
-            AppState.currentFilter = category;
-            document.querySelectorAll(".filter-btn").forEach((btn) => {
-                const text = btn.innerText.trim();
-                const isActive = (category === "all" && text === "All") || (category !== "all" && text.includes(category + "s"));
-                if (isActive) {
-                    btn.classList.replace("bg-engChalk", "bg-engDark");
-                    btn.classList.replace("text-engDark", "text-white");
-                } else {
-                    btn.classList.replace("bg-engDark", "bg-engChalk");
-                    btn.classList.replace("text-white", "text-engDark");
-                }
-            });
-            applyFilters();
-        }
-
-        function filterByAge(age) {
-            AppState.currentAgeFilter = age;
-            applyFilters();
-        }
-
-        DOM.searchInput.addEventListener("input", (e) => {
-            AppState.currentSearch = e.target.value;
-            applyFilters();
-        });
-
-        document.addEventListener("keydown", (e) => {
-            const isTyping = e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA";
-            if (e.key === "Escape") {
-                if (isTyping) DOM.searchInput.blur();
-                return;
-            }
-            if (e.key === "/" && !isTyping) {
-                e.preventDefault();
-                DOM.searchInput.focus();
-            }
-            if (e.key.toLowerCase() === "l" && !isTyping) {
-                e.preventDefault();
-                const panel = document.getElementById("lessonPanel");
-                if (panel.classList.contains("hidden")) {
-                    panel.classList.remove("hidden");
-                } else if (window.innerWidth < 1280) {
-                    panel.classList.add("hidden");
-                }
-            }
-        });
-
-        async function copyToClipboard(text) {
-            try {
-                await navigator.clipboard.writeText(text);
-                showToast("Steps copied!", "check-circle");
-            } catch (err) {
-                const textarea = document.createElement("textarea");
-                textarea.value = text;
-                textarea.style.position = "fixed";
-                textarea.style.left = "-9999px";
-                document.body.appendChild(textarea);
-                textarea.select();
-                document.execCommand("copy");
-                document.body.removeChild(textarea);
-                showToast("Steps copied!", "check-circle");
-            }
-        }
-
-        function showToast(message, iconName) {
-            DOM.toastMsg.innerText = message;
-            const isWarning = iconName === "trash-2" || iconName === "info";
-            DOM.toastIcon.setAttribute("data-lucide", iconName);
-            DOM.toastIcon.className = `w-4 h-4 ${isWarning ? "text-engOrange" : "text-engGreen"}`;
-            lucide.createIcons();
-
-            DOM.toast.classList.remove("hidden");
-            DOM.toast.classList.add("toast-anim");
-
-            clearTimeout(AppState.toastTimeout);
-            AppState.toastTimeout = setTimeout(() => {
-                DOM.toast.classList.add("hidden");
-                DOM.toast.classList.remove("toast-anim");
-            }, 2500);
-        }
-
-        function toggleTheme() {
-            document.documentElement.classList.toggle("dark");
-        }
-    </script>
+    <script src="./script.js"></script>
 </body>
 
 </html>
