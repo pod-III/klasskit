@@ -5,7 +5,7 @@
 ![Status](https://img.shields.io/badge/status-Active%20Development-orange?style=for-the-badge)
 ![Aesthetic](https://img.shields.io/badge/aesthetic-Soft%20Brutalism-pink?style=for-the-badge)
 
-KlassKit is a curated, **no-build ecosystem of 71 active interactive tools, printables, and classroom games** (plus 16 modules in active development) built for ELT and modern classrooms. Tailored for students aged 3–18, it turns any browser into a fast, zero-installation teaching dashboard optimized for classroom projectors and 1366×768 Chromebooks.
+KlassKit is a curated, **no-build ecosystem of 71 active interactive tools, printables, and classroom games** (plus 15 modules in active development) built for ELT and modern classrooms. Tailored for students aged 3–18, it turns any browser into a fast, zero-installation teaching dashboard optimized for classroom projectors and 1366×768 Chromebooks.
 
 > **Explore the Hub:** [klasskit.fun](https://klasskit.fun)
 
@@ -79,7 +79,7 @@ Educational software should be as joyful as it is reliable. KlassKit follows a c
 
 ## 🧩 The KlassKit Library
 
-The catalog in `games.json` organizes **71 active modules** into five core zones, plus **16 Work in Progress** modules:
+The catalog in `games.json` organizes **71 active modules** into five core zones, plus **15 Work in Progress** modules:
 
 ### 🖨️ Printables (11)
 *Ready-to-print A4 worksheets, handouts, flashcards, and classroom puzzles.*
@@ -182,7 +182,7 @@ The catalog in `games.json` organizes **71 active modules** into five core zones
 | **My Class** | Advanced Classroom Manager |
 | **My Admin** | Strategic Admin & Planning Hub |
 
-### 🚧 Work in Progress (16)
+### 🚧 Work in Progress (15)
 *Early-access prototypes and tools currently being refined or rebuilt.*
 
 | App | Description |
@@ -197,7 +197,6 @@ The catalog in `games.json` organizes **71 active modules** into five core zones
 | **Neo-Messenger** | Smart Classroom Messaging |
 | **Observation Form** | Classroom Observation Form |
 | **Poster Display** | High-Impact Visual Gallery |
-| **Puzzle Maker (WIP)** | Advanced Puzzle Generator |
 | **Random Card Shuffle** | Random Card Shuffler |
 | **Sentence Hangman** | Sentence Hangman Game |
 | **Skill Tracker** | Student Skill Tracker |
@@ -226,7 +225,7 @@ klasskit/
 ├── hub.html                # Main activity hub & workspace shell
 ├── login.html              # Authentication gateway (OAuth, Email, Sandbox)
 ├── 404.html                # Custom fallback page
-├── games.json              # Central catalog registry (87 entries, 71 active)
+├── games.json              # Central catalog registry (86 entries, 71 active)
 ├── manifest.json           # PWA manifest
 ├── sw.js                   # Service Worker for offline caching
 ├── supabase.js             # Supabase client, auth helpers, and role guards
