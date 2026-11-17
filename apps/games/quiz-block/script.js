@@ -212,6 +212,23 @@ const Jeopardy = (function() {
     let timerRemaining = 15;
     let toastTimeout = null;
 
+    // --- BroadcastChannel Student View ---
+    const BROADCAST_CHANNEL = 'quiz-block-sync';
+    const IS_PLAYER_WINDOW = new URLSearchParams(location.search).has('player');
+    const bc = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel(BROADCAST_CHANNEL) : null;
+    let _broadcastThrottle = null;
+    let _lastBroadcastTime = 0;
+    let playModalState = {
+        open: false,
+        answerRevealed: false,
+        timerRunning: false,
+        cat: '',
+        points: 100,
+        q: '',
+        a: '',
+        bonus: false
+    };
+
     // --- DOM Elements ---
     const els = {
         grid: document.getElementById('game-board'),
@@ -318,11 +335,226 @@ const Jeopardy = (function() {
         if (els.saveDot) els.saveDot.className = `w-1.5 h-1.5 rounded-full ${dotColor} inline-block`;
     }
 
+    // --- BroadcastChannel Sync Helpers ---
+    function broadcastState(options = {}) {
+        if (!bc || IS_PLAYER_WINDOW) return;
+
+        const now = performance.now();
+        const minInterval = options.immediate ? 0 : 16;
+
+        if (_broadcastThrottle) clearTimeout(_broadcastThrottle);
+
+        const doBroadcast = () => {
+            _lastBroadcastTime = performance.now();
+            _performBroadcast();
+        };
+
+        const elapsed = now - _lastBroadcastTime;
+        if (elapsed >= minInterval) {
+            doBroadcast();
+        } else {
+            _broadcastThrottle = setTimeout(doBroadcast, minInterval - elapsed);
+        }
+    }
+
+    function _performBroadcast() {
+        if (!bc || IS_PLAYER_WINDOW) return;
+        const isOnLanding = Boolean(els.landing.page && !els.landing.page.classList.contains('hidden'));
+        const duration = Number(state.timerDuration) > 0 ? Number(state.timerDuration) : 15;
+
+        bc.postMessage({
+            type: 'state-update',
+            view: isOnLanding ? 'landing' : 'board',
+            isDark: document.documentElement.classList.contains('dark'),
+            gameName: state.gameName,
+            categories: state.categories,
+            teams: state.teams,
+            scores: state.scores,
+            visited: state.visited,
+            pointMultiplier: state.pointMultiplier,
+            timerDuration: duration,
+            tilePoints: state.questions.map(row => row.map(cell => ({ points: cell.points }))),
+            play: {
+                open: playModalState.open,
+                answerRevealed: playModalState.answerRevealed,
+                timerRunning: playModalState.timerRunning,
+                timerRemaining,
+                timerTotal: duration,
+                cat: playModalState.cat,
+                points: playModalState.points,
+                q: playModalState.open ? playModalState.q : '',
+                a: playModalState.open && playModalState.answerRevealed ? playModalState.a : '',
+                bonus: playModalState.bonus
+            }
+        });
+    }
+
+    function openStudentView() {
+        if (IS_PLAYER_WINDOW) return;
+        if (typeof BroadcastChannel === 'undefined') {
+            showToast('Student View is not supported in this browser.', 'bg-brand-pink');
+            return;
+        }
+        window.open(
+            location.pathname + '?player=1',
+            'quiz-block-student',
+            'width=1280,height=800,menubar=no,toolbar=no,location=no,status=no'
+        );
+        broadcastState({ immediate: true });
+        showToast('Opened Student View window', 'bg-brand-blue');
+    }
+
+    function setupStudentWindowUI() {
+        document.body.classList.add('student-view');
+        if (els.landing.page) els.landing.page.classList.add('hidden');
+        if (els.designToolbar) els.designToolbar.classList.add('hidden');
+
+        const actionsBar = document.getElementById('header-actions-bar');
+        if (actionsBar) actionsBar.classList.add('hidden');
+
+        const studentBadge = document.getElementById('student-view-badge');
+        if (studentBadge) {
+            studentBadge.classList.remove('hidden');
+            studentBadge.classList.add('inline-flex');
+        }
+
+        const titleBtn = document.getElementById('current-game-title');
+        if (titleBtn) {
+            titleBtn.onclick = null;
+            titleBtn.style.pointerEvents = 'none';
+            const penIcon = titleBtn.querySelector('svg, i');
+            if (penIcon) penIcon.classList.add('hidden');
+        }
+
+        ['play-close-btn', 'play-q-actions', 'play-view-prompt-btn', 'play-award-section', 'play-continue-btn'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.classList.add('hidden');
+        });
+
+        const waiting = document.getElementById('student-waiting-overlay');
+        if (waiting) waiting.classList.remove('hidden');
+    }
+
+    function applyStudentPayload(payload) {
+        if (!payload || payload.type !== 'state-update') return;
+
+        document.documentElement.classList.toggle('dark', Boolean(payload.isDark));
+
+        const waiting = document.getElementById('student-waiting-overlay');
+        if (payload.view === 'landing') {
+            if (waiting) waiting.classList.remove('hidden');
+            els.gameWrappers.forEach(el => el && el.classList.add('hidden'));
+            els.modals.play.classList.add('hidden');
+            return;
+        }
+
+        if (waiting) waiting.classList.add('hidden');
+        els.gameWrappers[0].classList.replace('hidden', 'flex');
+        els.gameWrappers[1].classList.replace('hidden', 'flex');
+        els.gameWrappers[2].classList.remove('hidden');
+
+        isEditMode = false;
+        state.gameName = payload.gameName || 'Classroom Quiz';
+        state.categories = Array.isArray(payload.categories) ? payload.categories : state.categories;
+        state.teams = Array.isArray(payload.teams) ? payload.teams : state.teams;
+        state.scores = Array.isArray(payload.scores) ? payload.scores : state.scores;
+        state.visited = Array.isArray(payload.visited) ? payload.visited : state.visited;
+        state.pointMultiplier = payload.pointMultiplier || 100;
+        state.timerDuration = payload.timerDuration || 15;
+
+        if (Array.isArray(payload.tilePoints)) {
+            state.questions = payload.tilePoints.map((row, r) =>
+                row.map((cell, c) => ({
+                    q: '',
+                    a: '',
+                    points: typeof cell?.points === 'number' ? cell.points : (r + 1) * state.pointMultiplier,
+                    bonus: false
+                }))
+            );
+        }
+
+        if (els.gameTitleText) els.gameTitleText.textContent = state.gameName;
+        if (els.status) {
+            els.status.textContent = 'Live Projection';
+            els.status.className = 'text-[10px] font-bold text-brand-blue uppercase tracking-widest';
+        }
+        if (els.saveText) els.saveText.textContent = 'Synced with Host';
+
+        renderBoard();
+        renderScoreboard();
+
+        const play = payload.play;
+        if (play && play.open) {
+            els.play.cat.textContent = play.cat || '';
+            els.play.points.textContent = `$${play.points || 100}`;
+            els.play.text.textContent = play.q || '';
+            els.play.answer.textContent = play.a || '';
+            if (els.play.bonusBadge) {
+                els.play.bonusBadge.classList.toggle('hidden', !play.bonus);
+            }
+
+            if (play.answerRevealed) {
+                els.play.q.classList.add('hidden');
+                els.play.a.classList.remove('hidden');
+                els.play.a.classList.add('flex');
+            } else {
+                els.play.a.classList.add('hidden');
+                els.play.a.classList.remove('flex');
+                els.play.q.classList.remove('hidden');
+            }
+
+            if (els.play.timerReadout) {
+                const rem = Number(play.timerRemaining);
+                if (rem <= 0 && play.timerRunning === false && play.answerRevealed === false && play.timerTotal > 0) {
+                    els.play.timerReadout.textContent = "TIME'S UP!";
+                } else {
+                    els.play.timerReadout.textContent = `${Math.max(0, rem)}s`;
+                }
+                const urgent = rem > 0 ? rem <= 5 && play.timerRunning : !play.answerRevealed && rem === 0;
+                els.play.timerReadout.classList.toggle('bg-brand-red', urgent);
+                els.play.timerReadout.classList.toggle('text-white', urgent);
+                els.play.timerReadout.classList.toggle('timer-urgent', urgent);
+            }
+
+            if (els.play.timerBar) {
+                const total = Number(play.timerTotal) || 15;
+                const pct = play.timerRunning ? Math.max(0, Math.min(100, (Number(play.timerRemaining) / total) * 100)) : 100;
+                els.play.timerBar.style.transition = play.timerRunning ? 'width 1s linear' : 'none';
+                els.play.timerBar.style.width = `${pct}%`;
+                els.play.timerBar.className = `h-full w-full ${Number(play.timerRemaining) <= 5 && play.timerRunning ? 'bg-brand-red' : 'bg-brand-orange'}`;
+            }
+
+            els.modals.play.classList.remove('hidden');
+        } else {
+            els.modals.play.classList.add('hidden');
+        }
+
+        safeCreateIcons();
+    }
+
     // --- Core Init ---
     async function init() {
         // Restore theme preference immediately
         if (localStorage.getItem(STORAGE_KEY_THEME) === 'dark') {
             document.documentElement.classList.add('dark');
+        }
+
+        if (IS_PLAYER_WINDOW) {
+            setupStudentWindowUI();
+            safeCreateIcons();
+            if (bc) {
+                bc.onmessage = (event) => applyStudentPayload(event.data);
+                bc.postMessage({ type: 'player-ready' });
+            }
+            return;
+        }
+
+        if (bc) {
+            bc.onmessage = (event) => {
+                if (event.data && event.data.type === 'player-ready') {
+                    broadcastState({ immediate: true });
+                }
+            };
         }
 
         state = normalizeState(state);
@@ -614,6 +846,7 @@ const Jeopardy = (function() {
         els.gameWrappers.forEach(el => el.classList.add('hidden'));
         els.gameWrappers[1].classList.remove('flex');
         if (els.designToolbar) els.designToolbar.classList.add('hidden');
+        broadcastState({ immediate: true });
     }
 
     function hideLandingPage() {
@@ -629,6 +862,7 @@ const Jeopardy = (function() {
         renderBoard();
         renderScoreboard();
         safeCreateIcons();
+        broadcastState({ immediate: true });
     }
 
     function resumeCurrentGame(openInEditMode = false) {
@@ -1233,12 +1467,17 @@ const Jeopardy = (function() {
                     }
                 }
 
-                btn.onclick = () => handleTileClick(r, c);
+                if (IS_PLAYER_WINDOW) {
+                    btn.style.pointerEvents = 'none';
+                } else {
+                    btn.onclick = () => handleTileClick(r, c);
+                }
                 els.grid.appendChild(btn);
             }
         }
         updateHeaderTitleAndMeta();
         safeCreateIcons();
+        broadcastState();
     }
 
     // Complete static Tailwind class map so CDN JIT never drops dynamic team colors
@@ -1278,7 +1517,22 @@ const Jeopardy = (function() {
             const div = document.createElement('div');
             div.className = "bg-white dark:bg-slate-800 border-[3px] border-brand-dark shadow-neo-sm rounded-xl px-2.5 py-1.5 flex flex-col items-center relative overflow-hidden transition-all group";
 
-            div.innerHTML = `
+            div.innerHTML = IS_PLAYER_WINDOW
+                ? `
+                <div class="absolute top-0 left-0 w-full h-1.5 ${style.bar} border-b-2 border-brand-dark"></div>
+                <div class="flex items-center justify-center gap-1 mt-1 max-w-full z-10">
+                    ${isLeader ? '<span class="text-xs" title="Current Leader">👑</span>' : ''}
+                    <span class="font-heading font-bold text-xs sm:text-sm dark:text-white truncate max-w-full opacity-90">
+                        ${escapeHtml(teamName)}
+                    </span>
+                </div>
+                <div class="flex items-center justify-center w-full mt-1 z-10 px-0.5">
+                    <span class="text-lg sm:text-xl font-black font-sans text-brand-dark dark:text-brand-chalk leading-none px-1.5">
+                        ${score}
+                    </span>
+                </div>
+            `
+                : `
                 <div class="absolute top-0 left-0 w-full h-1.5 ${style.bar} border-b-2 border-brand-dark"></div>
                 
                 <div class="flex items-center justify-center gap-1 mt-1 max-w-full z-10">
@@ -1300,6 +1554,7 @@ const Jeopardy = (function() {
             `;
             els.scores.appendChild(div);
         });
+        broadcastState();
     }
 
     // --- Actions ---
@@ -1445,10 +1700,22 @@ const Jeopardy = (function() {
             els.play.bonusBadge.classList.toggle('hidden', !data.bonus);
         }
 
+        playModalState = {
+            open: true,
+            answerRevealed: false,
+            timerRunning: false,
+            cat,
+            points,
+            q: data.q,
+            a: data.a,
+            bonus: Boolean(data.bonus)
+        };
+
         stopTimer();
         renderPlayAwardBar();
         els.modals.play.classList.remove('hidden');
         safeCreateIcons();
+        broadcastState({ immediate: true });
     }
 
     function renderPlayAwardBar() {
@@ -1501,6 +1768,8 @@ const Jeopardy = (function() {
 
         els.play.timerBar.style.transition = `width ${duration}s linear`;
         els.play.timerBar.style.width = '0%';
+        playModalState.timerRunning = true;
+        broadcastState({ immediate: true });
 
         timerInterval = setInterval(() => {
             timerRemaining -= 1;
@@ -1512,13 +1781,16 @@ const Jeopardy = (function() {
                         els.play.timerBar.classList.replace('bg-brand-orange', 'bg-brand-red');
                     }
                 }
+                broadcastState({ immediate: true });
             } else {
                 clearInterval(timerInterval);
                 timerInterval = null;
+                playModalState.timerRunning = false;
                 if (els.play.timerReadout) {
                     els.play.timerReadout.textContent = "TIME'S UP!";
                     els.play.timerReadout.classList.add('bg-brand-red', 'text-white', 'timer-urgent');
                 }
+                broadcastState({ immediate: true });
             }
         }, 1000);
     }
@@ -1528,6 +1800,7 @@ const Jeopardy = (function() {
             clearInterval(timerInterval);
             timerInterval = null;
         }
+        playModalState.timerRunning = false;
         const duration = Number(state.timerDuration) > 0 ? Number(state.timerDuration) : 15;
         timerRemaining = duration;
         if (els.play.timerBar) {
@@ -1546,22 +1819,29 @@ const Jeopardy = (function() {
 
     function revealAnswer() {
         stopTimer();
+        playModalState.answerRevealed = true;
         els.play.q.classList.add('hidden');
         els.play.a.classList.remove('hidden');
         els.play.a.classList.add('flex');
         renderPlayAwardBar();
         safeCreateIcons();
+        broadcastState({ immediate: true });
     }
 
     function showQuestionView() {
+        playModalState.answerRevealed = false;
         els.play.a.classList.add('hidden');
         els.play.a.classList.remove('flex');
         els.play.q.classList.remove('hidden');
+        broadcastState({ immediate: true });
     }
 
     function closePlayModal() {
         stopTimer();
+        playModalState.open = false;
+        playModalState.answerRevealed = false;
         els.modals.play.classList.add('hidden');
+        broadcastState({ immediate: true });
     }
 
     // --- Edit Mode Toggle ---
@@ -1626,6 +1906,7 @@ const Jeopardy = (function() {
     function toggleTheme() {
         const isDark = document.documentElement.classList.toggle('dark');
         localStorage.setItem(STORAGE_KEY_THEME, isDark ? 'dark' : 'light');
+        broadcastState({ immediate: true });
     }
 
     // --- Guided Bulk Import (Plain Text -> Quiz Board) ---
@@ -2046,7 +2327,8 @@ const Jeopardy = (function() {
         openBulkImport,
         setSetupVal,
         confirmSetup,
-        closeSetupModal
+        closeSetupModal,
+        openStudentView
     };
 })();
 

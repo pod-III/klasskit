@@ -229,19 +229,21 @@ klasskit/
 ├── manifest.json           # PWA manifest
 ├── sw.js                   # Service Worker for offline caching
 ├── supabase.js             # Supabase client, auth helpers, and role guards
-├── script.js               # Core Hub logic (tabs, split screen, timer, search, shortcuts)
+├── js/
+│   └── hub/                # Modular Hub scripts (core, ui, views, workspace, timer, app)
 ├── bump.js                 # Version bumper (games.json, README.md, sw.js, package.json)
 ├── package.json            # Project metadata and Playwright dev dependencies
 ├── playwright.config.js    # Cross-browser E2E test configuration
 │
 ├── apps/                   # Self-contained activity modules
-│   ├── games/              # Classroom games & word puzzle modules
-│   ├── tools/              # Live teaching tools & A4 printable generators
-│   ├── workshop/           # Text, image, lesson parser, & report utilities
-│   ├── my-space/           # Teacher productivity suite (Pro/Admin)
-│   └── wip/                # Early-access prototypes
+│   ├── printables/         # A4 printable generators & word puzzle makers (11)
+│   ├── tools/              # Live teaching tools & classroom utilities (17)
+│   ├── games/              # Interactive classroom games (33)
+│   ├── workshop/           # Text, image, lesson parser, & report utilities (5)
+│   ├── my-space/           # Teacher productivity suite (5, Pro/Admin)
+│   └── wip/                # Early-access prototypes & rebuilds (15)
 │
-├── components/             # Shared UI modules (bulk-import-modal, input-modal, media-manager)
+├── components/             # Shared UI modules (app-bootstrap, bulk-import-modal, input-modal, media-manager)
 ├── css/                    # Global stylesheets (base, components, home, side-panel)
 ├── admin/                  # Admin dashboard (index.html, script.js, style.css)
 ├── api/                    # Auth & error pages (confirmation, reset-password, 500, unauthorized)
