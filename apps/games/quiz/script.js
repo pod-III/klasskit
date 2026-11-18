@@ -38,6 +38,12 @@
         let score = 0;
         let isSetupMode = false;
         let syncTimeout = null;
+        let playerScreenState = 'landing'; // 'landing' | 'quiz' | 'result'
+        let playerOutcome = null;
+        const BROADCAST_CHANNEL = 'quiz-maker-sync';
+        const IS_PLAYER_WINDOW = new URLSearchParams(location.search).has('player');
+        const bc = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel(BROADCAST_CHANNEL) : null;
+        let broadcastRafId = null;
 
         function initTheme() {
             const saved = localStorage.getItem('theme_hub');
@@ -51,6 +57,7 @@
             const isDark = document.documentElement.classList.toggle('dark');
             localStorage.setItem('theme_hub', isDark ? 'dark' : 'light');
             updateThemeUI();
+            broadcastQuizState();
         }
 
         function updateThemeUI() {
@@ -89,6 +96,7 @@
                 resetQuizState();
             }
             lucide.createIcons();
+            broadcastQuizState();
         }
 
         function createNewCollection() {
@@ -169,6 +177,7 @@
                 startBtn.disabled = true;
             }
             lucide.createIcons();
+            broadcastQuizState();
         }
 
         function addQuestion(type = 'mc') {
@@ -722,11 +731,14 @@ What is the capital of France?
 
         function resetQuizState() {
             currentStep = 0; score = 0; isAnswering = false;
+            playerScreenState = 'landing';
+            playerOutcome = null;
             document.getElementById('landing-screen').classList.remove('hidden');
             document.getElementById('quiz-screen').classList.add('hidden');
             document.getElementById('result-screen').classList.add('hidden');
             document.getElementById('feedback-controls').classList.add('hidden');
             document.getElementById('main-reveal-btn').classList.remove('hidden');
+            broadcastQuizState();
         }
 
         function isQuestionValid(q) {
@@ -752,6 +764,8 @@ What is the capital of France?
             }
             playQuestions = validQ;
             currentStep = 0; score = 0; isAnswering = false;
+            playerScreenState = 'quiz';
+            playerOutcome = null;
             document.getElementById('landing-screen').classList.add('hidden');
             document.getElementById('result-screen').classList.add('hidden');
             document.getElementById('quiz-screen').classList.remove('hidden');
@@ -807,6 +821,8 @@ What is the capital of France?
 
         function showQuestion() {
             isAnswering = false;
+            playerScreenState = 'quiz';
+            playerOutcome = null;
             const q = playQuestions[currentStep];
             const type = getQType(q);
             const qText = document.getElementById('question-text');
@@ -841,6 +857,7 @@ What is the capital of France?
                 default: renderMCPlay(q, container); break;
             }
             lucide.createIcons();
+            broadcastQuizState();
         }
 
         function renderMCPlay(q, container) {
@@ -850,9 +867,9 @@ What is the capital of France?
                 const btn = document.createElement('button');
                 const color = OPTION_COLORS[displayIdx % 4];
                 const shape = OPTION_SHAPES[displayIdx % 4];
-                btn.className = `option-btn btn-chunky ${color} text-white px-5 py-3 rounded-xl shadow-hard font-heading transition-all w-full h-full flex items-center text-left relative min-h-0`;
-                btn.innerHTML = `<div class="shape-indicator"><i data-lucide="${shape}" class="w-5 h-5 text-white fill-current"></i></div><div class="flex-1 h-full flex items-center overflow-hidden opt-text-container"><span class="leading-tight w-full break-words">${optObj.text}</span></div><span class="kbd-label">Key ${displayIdx + 1}</span>`;
-                btn.onclick = () => selectOption(optObj.index);
+                btn.className = `option-btn btn-chunky ${color} text-white px-5 py-3 rounded-xl shadow-hard font-heading transition-all w-full h-full flex items-center text-left relative min-h-0 ${IS_PLAYER_WINDOW ? 'cursor-default' : ''}`;
+                btn.innerHTML = `<div class="shape-indicator"><i data-lucide="${shape}" class="w-5 h-5 text-white fill-current"></i></div><div class="flex-1 h-full flex items-center overflow-hidden opt-text-container"><span class="leading-tight w-full break-words">${escapeHtml(optObj.text)}</span></div>${IS_PLAYER_WINDOW ? '' : `<span class="kbd-label">Key ${displayIdx + 1}</span>`}`;
+                if (!IS_PLAYER_WINDOW) btn.onclick = () => selectOption(optObj.index);
                 container.appendChild(btn);
                 const optText = btn.querySelector('span');
                 const optContainer = btn.querySelector('.opt-text-container');
@@ -868,9 +885,9 @@ What is the capital of France?
             ];
             btns.forEach(b => {
                 const btn = document.createElement('button');
-                btn.className = `tf-btn btn-chunky ${b.color} text-white rounded-2xl shadow-hard font-heading flex flex-col items-center justify-center gap-2`;
-                btn.innerHTML = `<i data-lucide="${b.icon}" class="w-12 h-12"></i><span class="tf-label">${b.label}</span><span class="kbd-label">Key ${b.idx + 1}</span>`;
-                btn.onclick = () => selectOption(b.idx);
+                btn.className = `tf-btn btn-chunky ${b.color} text-white rounded-2xl shadow-hard font-heading flex flex-col items-center justify-center gap-2 ${IS_PLAYER_WINDOW ? 'cursor-default' : ''}`;
+                btn.innerHTML = `<i data-lucide="${b.icon}" class="w-12 h-12"></i><span class="tf-label">${b.label}</span>${IS_PLAYER_WINDOW ? '' : `<span class="kbd-label">Key ${b.idx + 1}</span>`}`;
+                if (!IS_PLAYER_WINDOW) btn.onclick = () => selectOption(b.idx);
                 container.appendChild(btn);
                 fitText(btn.querySelector('.tf-label'), btn, 48, 16);
             });
@@ -878,6 +895,15 @@ What is the capital of France?
 
         function renderTextPlay(q, container) {
             container.className = 'flex-[3] min-h-0 overflow-hidden px-5 md:px-8 pb-2 flex flex-col items-center justify-center gap-4';
+            if (IS_PLAYER_WINDOW) {
+                container.innerHTML = `
+                    <div class="bg-slate-100 dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-2xl px-6 py-5 text-center max-w-lg w-full">
+                        <p class="font-heading text-xl uppercase text-slate-600 dark:text-slate-300">Open-Response Question</p>
+                        <p class="text-xs font-bold text-slate-400 mt-1">Discuss or write your answer — waiting for teacher reveal...</p>
+                    </div>
+                    <div id="text-answer-feedback" class="hidden"></div>`;
+                return;
+            }
             container.innerHTML = `
                 <input type="text" id="text-answer-field" class="text-answer-input" placeholder="Type your answer…" autocomplete="off" spellcheck="false">
                 <button id="text-submit-btn" onclick="submitTextAnswer()" class="btn-chunky bg-blue text-white px-10 py-3 rounded-xl shadow-hard font-heading text-xl flex items-center gap-2">
@@ -896,9 +922,9 @@ What is the capital of France?
             validOptions.forEach((optObj, displayIdx) => {
                 const btn = document.createElement('button');
                 const color = OPTION_COLORS[displayIdx % 4];
-                btn.className = `fill-option btn-chunky ${color} text-white px-4 py-3 rounded-xl shadow-hard font-heading transition-all w-full h-full flex items-center justify-center text-center min-h-0`;
-                btn.innerHTML = `<span class="break-words w-full">${optObj.text}</span>`;
-                btn.onclick = () => selectOption(optObj.index);
+                btn.className = `fill-option btn-chunky ${color} text-white px-4 py-3 rounded-xl shadow-hard font-heading transition-all w-full h-full flex items-center justify-center text-center min-h-0 ${IS_PLAYER_WINDOW ? 'cursor-default' : ''}`;
+                btn.innerHTML = `<span class="break-words w-full">${escapeHtml(optObj.text)}</span>`;
+                if (!IS_PLAYER_WINDOW) btn.onclick = () => selectOption(optObj.index);
                 container.appendChild(btn);
                 fitText(btn.querySelector('span'), btn, 28, 12);
             });
@@ -906,26 +932,32 @@ What is the capital of France?
 
         function renderOrderPlay(q, container) {
             container.className = 'flex-[3] min-h-0 overflow-y-auto custom-scrollbar px-5 md:px-8 pb-2 flex flex-col gap-2';
-            const items = q.items || [];
-            currentShuffledOrder = shuffleArray(items.map((item, i) => ({ text: item, correctIdx: i })));
-            // Ensure shuffled is different from correct if possible
-            if (items.length > 1) {
-                let attempts = 0;
-                while (attempts < 10 && currentShuffledOrder.every((s, i) => s.correctIdx === i)) {
-                    currentShuffledOrder = shuffleArray(items.map((item, i) => ({ text: item, correctIdx: i })));
-                    attempts++;
+            if (IS_PLAYER_WINDOW && Array.isArray(q.shuffledOrder)) {
+                currentShuffledOrder = q.shuffledOrder.map(item => ({ text: item.text }));
+            } else {
+                const items = q.items || [];
+                currentShuffledOrder = shuffleArray(items.map((item, i) => ({ text: item, correctIdx: i })));
+                // Ensure shuffled is different from correct if possible
+                if (items.length > 1) {
+                    let attempts = 0;
+                    while (attempts < 10 && currentShuffledOrder.every((s, i) => s.correctIdx === i)) {
+                        currentShuffledOrder = shuffleArray(items.map((item, i) => ({ text: item, correctIdx: i })));
+                        attempts++;
+                    }
                 }
             }
             renderOrderItems(container);
-            // Add check button
-            const checkDiv = document.createElement('div');
-            checkDiv.className = 'flex justify-center mt-2';
-            checkDiv.innerHTML = `<button id="order-check-btn" onclick="checkOrder()" class="btn-chunky bg-blue text-white px-10 py-3 rounded-xl shadow-hard font-heading text-xl flex items-center gap-2">
-                <i data-lucide="check-circle" class="w-5 h-5"></i> CHECK ORDER
-            </button>`;
-            container.appendChild(checkDiv);
-            // Hide the reveal button for order type — use CHECK ORDER instead
-            document.getElementById('main-reveal-btn').classList.add('hidden');
+            if (!IS_PLAYER_WINDOW) {
+                // Add check button
+                const checkDiv = document.createElement('div');
+                checkDiv.className = 'flex justify-center mt-2';
+                checkDiv.innerHTML = `<button id="order-check-btn" onclick="checkOrder()" class="btn-chunky bg-blue text-white px-10 py-3 rounded-xl shadow-hard font-heading text-xl flex items-center gap-2">
+                    <i data-lucide="check-circle" class="w-5 h-5"></i> CHECK ORDER
+                </button>`;
+                container.appendChild(checkDiv);
+                // Hide the reveal button for order type — use CHECK ORDER instead
+                document.getElementById('main-reveal-btn').classList.add('hidden');
+            }
         }
 
         function renderOrderItems(container) {
@@ -935,30 +967,33 @@ What is the capital of France?
             currentShuffledOrder.forEach((item, idx) => {
                 const div = document.createElement('div');
                 div.className = 'order-item';
-                div.draggable = true;
+                div.draggable = !IS_PLAYER_WINDOW;
                 div.dataset.idx = idx;
-                div.innerHTML = `<div class="drag-handle"><i data-lucide="grip-vertical" class="w-5 h-5"></i></div>
+                div.innerHTML = `${IS_PLAYER_WINDOW ? '' : `<div class="drag-handle"><i data-lucide="grip-vertical" class="w-5 h-5"></i></div>`}
                     <div class="order-num bg-slate-100 dark:bg-slate-700 text-dark dark:text-white">${idx + 1}</div>
-                    <span class="font-heading text-dark dark:text-white flex-1 order-item-text">${item.text}</span>`;
+                    <span class="font-heading text-dark dark:text-white flex-1 order-item-text">${escapeHtml(item.text)}</span>`;
                 const itemText = div.querySelector('.order-item-text');
                 if (itemText) fitText(itemText, div, 24, 14);
-                // Drag events
-                div.addEventListener('dragstart', (e) => { e.dataTransfer.setData('text/plain', idx); div.classList.add('dragging'); });
-                div.addEventListener('dragend', () => { div.classList.remove('dragging'); container.querySelectorAll('.order-item').forEach(el => el.classList.remove('drag-over')); });
-                div.addEventListener('dragover', (e) => { e.preventDefault(); div.classList.add('drag-over'); });
-                div.addEventListener('dragleave', () => { div.classList.remove('drag-over'); });
-                div.addEventListener('drop', (e) => {
-                    e.preventDefault();
-                    div.classList.remove('drag-over');
-                    if (isAnswering) return;
-                    const fromIdx = parseInt(e.dataTransfer.getData('text/plain'));
-                    const toIdx = idx;
-                    if (fromIdx === toIdx) return;
-                    const [moved] = currentShuffledOrder.splice(fromIdx, 1);
-                    currentShuffledOrder.splice(toIdx, 0, moved);
-                    renderOrderItems(container);
-                    lucide.createIcons();
-                });
+                if (!IS_PLAYER_WINDOW) {
+                    // Drag events
+                    div.addEventListener('dragstart', (e) => { e.dataTransfer.setData('text/plain', idx); div.classList.add('dragging'); });
+                    div.addEventListener('dragend', () => { div.classList.remove('dragging'); container.querySelectorAll('.order-item').forEach(el => el.classList.remove('drag-over')); });
+                    div.addEventListener('dragover', (e) => { e.preventDefault(); div.classList.add('drag-over'); });
+                    div.addEventListener('dragleave', () => { div.classList.remove('drag-over'); });
+                    div.addEventListener('drop', (e) => {
+                        e.preventDefault();
+                        div.classList.remove('drag-over');
+                        if (isAnswering) return;
+                        const fromIdx = parseInt(e.dataTransfer.getData('text/plain'));
+                        const toIdx = idx;
+                        if (fromIdx === toIdx) return;
+                        const [moved] = currentShuffledOrder.splice(fromIdx, 1);
+                        currentShuffledOrder.splice(toIdx, 0, moved);
+                        renderOrderItems(container);
+                        lucide.createIcons();
+                        broadcastQuizState();
+                    });
+                }
                 if (checkDiv) container.insertBefore(div, checkDiv);
                 else container.appendChild(div);
             });
@@ -1006,11 +1041,13 @@ What is the capital of France?
 
             if (idx === correct) { score++; AudioEngine.correct(); confetti({ particleCount: 60, spread: 60, origin: { y: 0.8 }, colors: ['#00E676', '#2979FF', '#FF8C42'] }); }
             else { AudioEngine.wrong(); }
+            playerOutcome = { kind: 'option', selectedIdx: idx, correctIdx: correct, isCorrect: idx === correct };
             document.getElementById('score-text').textContent = score;
             document.getElementById('feedback-controls').classList.remove('hidden');
             document.getElementById('main-reveal-btn').classList.add('hidden');
             showExplanation(q);
             lucide.createIcons();
+            broadcastQuizState();
         }
 
         function submitTextAnswer() {
@@ -1048,11 +1085,13 @@ What is the capital of France?
                 </div>`;
             }
 
+            playerOutcome = { kind: 'text', userText: userAnswer, isCorrect, accepted };
             document.getElementById('score-text').textContent = score;
             document.getElementById('feedback-controls').classList.remove('hidden');
             document.getElementById('main-reveal-btn').classList.add('hidden');
             showExplanation(q);
             lucide.createIcons();
+            broadcastQuizState();
         }
 
         function checkOrder() {
@@ -1090,10 +1129,17 @@ What is the capital of France?
                 container.appendChild(correctDiv);
             }
 
+            playerOutcome = {
+                kind: 'order',
+                allCorrect,
+                correctItems: q.items || [],
+                positionsCorrect: currentShuffledOrder.map((s, i) => s.correctIdx === i)
+            };
             document.getElementById('score-text').textContent = score;
             document.getElementById('feedback-controls').classList.remove('hidden');
             showExplanation(q);
             lucide.createIcons();
+            broadcastQuizState();
         }
 
         function revealAnswer() {
@@ -1148,11 +1194,17 @@ What is the capital of France?
                 });
             }
 
+            playerOutcome = {
+                kind: 'reveal',
+                correctIdx: correct,
+                accepted: (q.answers || []).filter(a => a.trim())
+            };
             AudioEngine.playTone(440, 'sine', 0.25, 0.15);
             document.getElementById('feedback-controls').classList.remove('hidden');
             document.getElementById('main-reveal-btn').classList.add('hidden');
             showExplanation(q);
             lucide.createIcons();
+            broadcastQuizState();
         }
 
         function showExplanation(q) {
@@ -1173,6 +1225,7 @@ What is the capital of France?
         function nextQuestion() { currentStep++; if (currentStep < playQuestions.length) showQuestion(); else showResult(); }
 
         function showResult() {
+            playerScreenState = 'result';
             document.getElementById('quiz-screen').classList.add('hidden');
             document.getElementById('result-screen').classList.remove('hidden');
             document.getElementById('final-score').textContent = `${score}/${playQuestions.length}`;
@@ -1186,9 +1239,11 @@ What is the capital of France?
             rankEl.textContent = rank; rankEl.className = 'text-4xl font-heading rank-' + rank.toLowerCase();
             document.getElementById('final-message').textContent = msg;
             if (ratio >= 0.8) confetti({ particleCount: 200, spread: 80, origin: { y: 0.6 } });
+            broadcastQuizState();
         }
 
         window.addEventListener('keydown', (e) => {
+            if (IS_PLAYER_WINDOW) return;
             // Close import modal on Escape
             if (e.key === 'Escape' && document.getElementById('import-overlay').classList.contains('open')) {
                 closeImportModal(); return;
@@ -1254,9 +1309,225 @@ What is the capital of France?
             wrong() { this.playTone(250, 'sawtooth', 0.3); }
         };
 
+        function openStudentView() {
+            if (IS_PLAYER_WINDOW) return;
+            window.open('index.html?player=1', 'klasskit_quiz_maker_player', 'noopener');
+        }
+
+        function buildQuizPlayerPayload() {
+            const theme = document.documentElement.classList.contains('dark') ? 'dark' : 'light';
+            const activeQuiz = collections.find(c => c.id === currentCollectionId);
+            const title = activeQuiz ? activeQuiz.name : 'Quiz Maker';
+            const validCount = currentQuestions.filter(q => isQuestionValid(q)).length;
+
+            if (isSetupMode || playerScreenState === 'landing' || playQuestions.length === 0) {
+                return {
+                    type: 'state-update',
+                    screen: 'landing',
+                    theme,
+                    title,
+                    desc: `${validCount} question${validCount !== 1 ? 's' : ''} ready for battle.`
+                };
+            }
+
+            if (playerScreenState === 'result') {
+                return {
+                    type: 'state-update',
+                    screen: 'result',
+                    theme,
+                    score,
+                    total: playQuestions.length
+                };
+            }
+
+            const q = playQuestions[currentStep];
+            const qType = getQType(q);
+            const safeQuestion = {
+                type: qType,
+                q: q.q || '',
+                o: (qType === 'mc' || qType === 'fill') ? (q.o || []) : [],
+                shuffledOrder: qType === 'order' ? currentShuffledOrder.map(item => ({ text: item.text })) : null
+            };
+
+            return {
+                type: 'state-update',
+                screen: 'quiz',
+                theme,
+                currentStep,
+                total: playQuestions.length,
+                score,
+                isAnswering,
+                question: safeQuestion,
+                outcome: isAnswering ? playerOutcome : null,
+                explanation: isAnswering && q.e ? q.e : ''
+            };
+        }
+
+        function broadcastQuizState() {
+            if (!bc || IS_PLAYER_WINDOW) return;
+            if (broadcastRafId) return;
+            broadcastRafId = requestAnimationFrame(() => {
+                broadcastRafId = null;
+                try {
+                    bc.postMessage(buildQuizPlayerPayload());
+                } catch (err) {
+                    console.warn('[Quiz Maker] Broadcast error:', err);
+                }
+            });
+        }
+
+        let lastRenderedStepKey = null;
+
+        function applyQuizOutcomeVisuals(type, question, outcome) {
+            const container = document.getElementById('options-container');
+            if (!outcome || !container) return;
+
+            if (type === 'tf') {
+                const btns = container.querySelectorAll('.tf-btn');
+                btns.forEach((btn, bIdx) => {
+                    btn.classList.add('dimmed');
+                    if (bIdx === outcome.correctIdx) { btn.classList.remove('dimmed'); btn.classList.add('correct'); }
+                    else if (outcome.kind === 'option' && bIdx === outcome.selectedIdx) { btn.classList.remove('dimmed'); btn.classList.add('wrong'); }
+                });
+            } else if (type === 'fill') {
+                const btns = container.querySelectorAll('.fill-option');
+                const validOptions = (question.o || []).map((opt, i) => ({ text: opt, index: i })).filter(o => o.text.trim() !== '');
+                btns.forEach((btn, dIdx) => {
+                    const originalIdx = validOptions[dIdx].index;
+                    btn.classList.add('dimmed');
+                    if (originalIdx === outcome.correctIdx) { btn.classList.remove('dimmed'); btn.classList.add('correct'); }
+                    else if (outcome.kind === 'option' && originalIdx === outcome.selectedIdx) { btn.classList.remove('dimmed'); btn.classList.add('wrong'); }
+                });
+                const blank = document.getElementById('fill-blank-display');
+                if (blank && question.o && question.o[outcome.correctIdx] !== undefined) {
+                    blank.textContent = question.o[outcome.correctIdx];
+                }
+            } else if (type === 'mc') {
+                const btns = container.querySelectorAll('.option-btn');
+                const validOptions = (question.o || []).map((opt, i) => ({ text: opt, index: i })).filter(o => o.text.trim() !== '');
+                btns.forEach((btn, dIdx) => {
+                    const originalIdx = validOptions[dIdx].index;
+                    btn.classList.add('dimmed');
+                    if (originalIdx === outcome.correctIdx) { btn.classList.remove('dimmed'); btn.classList.add('correct'); }
+                    else if (outcome.kind === 'option' && originalIdx === outcome.selectedIdx) { btn.classList.remove('dimmed'); btn.classList.add('wrong'); }
+                });
+            } else if (type === 'text') {
+                const feedback = document.getElementById('text-answer-feedback');
+                if (feedback) {
+                    feedback.classList.remove('hidden');
+                    const accepted = (outcome.accepted || []).map(escapeHtml).join(' / ');
+                    if (outcome.kind === 'text') {
+                        feedback.innerHTML = outcome.isCorrect
+                            ? `<div class="correct-answer-reveal bg-green/10 border-2 border-green/30 rounded-xl px-5 py-3 text-center"><span class="font-heading text-green text-xl">CORRECT! (${escapeHtml(outcome.userText)})</span></div>`
+                            : `<div class="correct-answer-reveal bg-pink/10 border-2 border-pink/30 rounded-xl px-5 py-3 text-center"><p class="font-heading text-pink text-lg">NOT QUITE (${escapeHtml(outcome.userText)})</p><p class="text-sm font-bold text-dark dark:text-white mt-1">Accepted: <span class="text-green font-black">${accepted}</span></p></div>`;
+                    } else {
+                        feedback.innerHTML = `<div class="correct-answer-reveal bg-blue/10 border-2 border-blue/30 rounded-xl px-5 py-3 text-center"><p class="text-sm font-bold text-dark dark:text-white">Answer: <span class="text-green font-black">${accepted}</span></p></div>`;
+                    }
+                }
+            } else if (type === 'order') {
+                const items = container.querySelectorAll('.order-item');
+                (outcome.positionsCorrect || []).forEach((ok, i) => {
+                    if (items[i]) items[i].classList.add(ok ? 'correct-pos' : 'wrong-pos');
+                });
+                if (!outcome.allCorrect && Array.isArray(outcome.correctItems) && !container.querySelector('.order-check-result')) {
+                    const correctDiv = document.createElement('div');
+                    correctDiv.className = 'order-check-result bg-green/10 border-2 border-green/30 rounded-xl px-4 py-3 mt-2';
+                    correctDiv.innerHTML = `<p class="text-[9px] font-black text-green uppercase tracking-[0.2em] mb-1">Correct Order</p>
+                        <p class="font-bold text-sm text-dark dark:text-white">${outcome.correctItems.map((item, i) => `<span class="inline-block mr-1">${i + 1}. ${escapeHtml(item)}</span>`).join(' → ')}</p>`;
+                    container.appendChild(correctDiv);
+                }
+            }
+        }
+
+        function applyQuizPlayerState(msg) {
+            if (!msg || msg.type !== 'state-update') return;
+            if (msg.theme) {
+                document.documentElement.classList.toggle('dark', msg.theme === 'dark');
+                updateThemeUI();
+            }
+
+            const landingEl = document.getElementById('landing-screen');
+            const quizEl = document.getElementById('quiz-screen');
+            const resultEl = document.getElementById('result-screen');
+
+            if (msg.screen === 'landing') {
+                lastRenderedStepKey = null;
+                landingEl.classList.remove('hidden');
+                quizEl.classList.add('hidden');
+                resultEl.classList.add('hidden');
+                document.getElementById('landing-title').textContent = (msg.title || 'QUIZ READY').toUpperCase();
+                document.getElementById('landing-desc').textContent = msg.desc || 'Waiting for teacher to start the quiz...';
+                return;
+            }
+
+            if (msg.screen === 'result') {
+                lastRenderedStepKey = null;
+                playQuestions = new Array(msg.total || 0).fill({});
+                score = msg.score || 0;
+                showResult();
+                return;
+            }
+
+            if (msg.screen === 'quiz' && msg.question) {
+                landingEl.classList.add('hidden');
+                resultEl.classList.add('hidden');
+                quizEl.classList.remove('hidden');
+
+                playQuestions = new Array(msg.total || 1).fill(msg.question);
+                currentStep = msg.currentStep || 0;
+                score = msg.score || 0;
+                isAnswering = !!msg.isAnswering;
+
+                const orderSig = msg.question.shuffledOrder ? msg.question.shuffledOrder.map(x => x.text).join('|') : '';
+                const stepKey = `${currentStep}:${msg.total}:${msg.question.type}:${msg.question.q}:${orderSig}`;
+                if (stepKey !== lastRenderedStepKey) {
+                    renderDots();
+                    showQuestion();
+                    lastRenderedStepKey = stepKey;
+                }
+
+                document.getElementById('score-text').textContent = score;
+
+                if (msg.isAnswering && msg.outcome) {
+                    applyQuizOutcomeVisuals(msg.question.type, msg.question, msg.outcome);
+                    if (msg.explanation) {
+                        showExplanation({ e: msg.explanation });
+                    }
+                    lucide.createIcons();
+                }
+            }
+        }
+
+        if (bc) {
+            bc.onmessage = (event) => {
+                const msg = event && event.data;
+                if (!msg) return;
+                if (!IS_PLAYER_WINDOW && msg.type === 'player-ready') {
+                    broadcastQuizState();
+                } else if (IS_PLAYER_WINDOW && msg.type === 'state-update') {
+                    applyQuizPlayerState(msg);
+                }
+            };
+        }
+
         window.onload = async () => {
-            await requireAuth();
             initTheme();
+            if (IS_PLAYER_WINDOW) {
+                document.body.classList.add('player-view');
+                const badge = document.getElementById('player-view-badge');
+                if (badge) { badge.classList.remove('hidden'); badge.classList.add('inline-flex'); }
+                document.getElementById('btn-student-view')?.classList.add('hidden');
+                document.getElementById('setup-toggle')?.classList.add('hidden');
+                document.getElementById('start-btn')?.classList.add('hidden');
+                document.getElementById('player-waiting-note')?.classList.remove('hidden');
+                document.getElementById('play-action-footer')?.classList.add('hidden');
+                document.getElementById('result-actions')?.classList.add('hidden');
+                lucide.createIcons();
+                if (bc) bc.postMessage({ type: 'player-ready' });
+                return;
+            }
+
+            await requireAuth();
             try {
                 const res = await fetch('presets.json');
                 PRESETS = await res.json();

@@ -968,6 +968,104 @@ window.onload = async () => {
         btn.onclick = () => { els.input.value = btn.dataset.words; };
     });
 
+    // Guided Bulk Import + CEFR Presets
+    if (window.KlassKitBulkImport) {
+        const wsBulkModal = window.KlassKitBulkImport.create({
+            id: 'ws-bulk-import-overlay',
+            title: 'Word Search Bulk Import',
+            subtitle: 'Paste a word list or vocabulary table',
+            accentColor: 'orange',
+            unitLabel: 'word',
+            unitLabelPlural: 'words',
+            confirmText: 'Import & Build',
+            guideItems: [
+                { label: 'Comma or Line List', syntax: 'APPLE, BANANA\nCHERRY', color: 'green', desc: 'Paste one word per line or comma-separated.' },
+                { label: 'Word Pairs / Lists', syntax: '1. PLANET - Earth orbits\n- GRAVITY', color: 'blue', desc: 'Bullets, numbers, and descriptions after | or - are stripped automatically.' },
+                { label: 'Comments', syntax: '# Unit 4 Science', color: 'orange', desc: 'Lines starting with # are ignored.' }
+            ],
+            placeholder: '# Science Vocabulary\nGRAVITY\nECLIPSE, ORBIT\n1. GALAXY - Spiral star system\n2. COMET',
+            template: '# Vocabulary Word Search\nPLANET\nGALAXY\nORBIT\nECLIPSE\nGRAVITY\nCOMET',
+            sample: 'GRAVITY, ECLIPSE, ORBIT, GALAXY, MOLECULE, COMET, NEBULA, ENERGY, MAGNET, PRISM',
+            options: [
+                { id: 'append', label: 'Append to current vocabulary box', defaultChecked: false }
+            ],
+            parse(rawText) {
+                const lines = String(rawText || '').replace(/\r\n/g, '\n').split('\n');
+                const words = [];
+                const seen = new Set();
+                const warnings = [];
+
+                for (const line of lines) {
+                    const trimmed = line.trim();
+                    if (!trimmed || trimmed.startsWith('#')) continue;
+                    const parts = trimmed.split(',');
+                    for (let part of parts) {
+                        part = part.trim()
+                            .replace(/^[-*•]\s+/, '')
+                            .replace(/^\d+[\).\]]\s+/, '');
+                        const head = part.split(/\s*(?:\||::|\s+[-–—:]\s+)\s*/)[0].trim();
+                        const clean = head.toUpperCase().replace(/[^A-Z]/g, '');
+                        if (!clean) continue;
+                        if (clean.length < 2) {
+                            warnings.push(`Skipped "${head}" (too short for grid).`);
+                            continue;
+                        }
+                        if (!seen.has(clean)) {
+                            seen.add(clean);
+                            words.push(clean);
+                        }
+                    }
+                }
+
+                return {
+                    items: words,
+                    warnings: warnings.slice(0, 4),
+                    badges: words.map(w => ({ label: w, tone: 'orange' }))
+                };
+            },
+            onImport(result, optionValues) {
+                const imported = result.items || [];
+                if (!imported.length) return false;
+                if (optionValues && optionValues.append && els.input.value.trim()) {
+                    const existing = els.input.value
+                        .split(',')
+                        .map(w => w.trim().toUpperCase().replace(/[^A-Z]/g, ''))
+                        .filter(Boolean);
+                    const merged = Array.from(new Set([...existing, ...imported]));
+                    els.input.value = merged.join(', ');
+                } else {
+                    els.input.value = imported.join(', ');
+                }
+                els.generateBtn.click();
+                showToast(`Imported ${imported.length} words!`, 'success');
+                return true;
+            }
+        });
+
+        document.getElementById('btn-bulk-import')?.addEventListener('click', () => wsBulkModal.open());
+
+        window.KlassKitBulkImport.mountPresets({
+            container: '#cefr-presets-slot',
+            url: 'presets.json',
+            title: 'CEFR Word Sets',
+            collapsible: true,
+            getMeta: (p) => ({ icon: 'hash', label: `${(p.words || []).length} words` }),
+            onSelect: (preset) => {
+                const words = (preset.words || [])
+                    .map(w => String(w).trim().toUpperCase().replace(/[^A-Z]/g, ''))
+                    .filter(Boolean);
+                if (!words.length) return;
+                els.input.value = words.join(', ');
+                currentSavedPuzzleId = null;
+                if (els.savedPuzzleNameInput) els.savedPuzzleNameInput.value = '';
+                if (els.savedPuzzleSelect) els.savedPuzzleSelect.value = '';
+                initGame(parseInt(els.sizeSlider.value, 10) || 10, words);
+                if (window.innerWidth < 768) toggleControlPanel(true);
+                showToast(`Loaded "${preset.title}" (${preset.level})`, 'success');
+            }
+        });
+    }
+
     window.onresize = () => { if (State.grid.length) fitGridToDisplay(); };
 
     if (window.innerWidth < 768) toggleControlPanel(true);

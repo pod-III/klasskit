@@ -10,6 +10,10 @@
     const DRAFT_STORAGE_KEY = 'klasskit_mystery_tiles_draft_v1';
     const SETS_STORAGE_KEY = 'klasskit_mystery_tiles_sets_v1';
     const MAX_UNDO_HISTORY = 15;
+    const BROADCAST_CHANNEL = 'mystery-tiles-sync';
+    const IS_PLAYER_WINDOW = new URLSearchParams(location.search).has('player');
+    const bc = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel(BROADCAST_CHANNEL) : null;
+    let broadcastRafId = null;
 
     const TEAM_PALETTE = [
         { name: 'Pink',   bg: '#ff4785', text: '#ffffff', border: '#be185d' },
@@ -186,6 +190,8 @@
     const els = {
         headerSubtitle: $('header-subtitle'),
         headerGameActions: $('header-game-actions'),
+        btnStudentView: $('btn-student-view'),
+        playerViewBadge: $('player-view-badge'),
         btnUndo: $('btn-undo'),
         btnEndGame: $('btn-end-game'),
         btnSound: $('btn-sound'),
@@ -199,6 +205,7 @@
         btnResumeMatch: $('btn-resume-match'),
         btnDiscardMatch: $('btn-discard-match'),
 
+        viewPlayerWaiting: $('view-player-waiting'),
         viewSetup: $('view-setup'),
         viewGame: $('view-game'),
         viewEnd: $('view-end'),
@@ -1099,15 +1106,20 @@
     function switchView(viewName) {
         state.view = viewName;
         document.body.classList.toggle('in-game-viewport', viewName === 'game');
+        if (els.viewPlayerWaiting) {
+            els.viewPlayerWaiting.classList.toggle('hidden', viewName !== 'waiting');
+        }
         els.viewSetup.classList.toggle('hidden', viewName !== 'setup');
         els.viewGame.classList.toggle('hidden', viewName !== 'game');
         els.viewEnd.classList.toggle('hidden', viewName !== 'end');
 
-        const inGame = viewName === 'game';
+        const inGame = viewName === 'game' && !IS_PLAYER_WINDOW;
         els.headerGameActions.classList.toggle('hidden', !inGame);
         els.headerGameActions.classList.toggle('flex', inGame);
 
-        if (viewName === 'setup') {
+        if (viewName === 'waiting') {
+            els.headerSubtitle.textContent = 'Student Projector View';
+        } else if (viewName === 'setup') {
             els.headerSubtitle.textContent = 'Surprise Tile Classroom Battle';
         } else if (viewName === 'game' && state.game) {
             els.headerSubtitle.textContent = `${state.game.setTitle || 'Active Match'} · ${state.game.pts} pts/Q`;
@@ -1116,6 +1128,7 @@
         } else if (viewName === 'end') {
             els.headerSubtitle.textContent = 'Final Classroom Leaderboard';
         }
+        broadcastState();
     }
 
     /* =========================================================================
@@ -1349,6 +1362,7 @@
         const maxScore = Math.max(...G.teams.map(t => t.score));
         const hasLeader = maxScore > 0;
         const deltas = state.scoreDeltas || {};
+        state.lastBroadcastDeltas = { ...deltas };
 
         const colMap = {
             2: 'grid-cols-2',
@@ -1388,19 +1402,21 @@
                         </div>
 
                         <div class="flex items-center justify-between gap-1">
+                            ${IS_PLAYER_WINDOW ? '' : `
                             <button type="button" data-adj-team="${idx}" data-adj-dir="-1"
                                 class="w-7 h-7 rounded-lg text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-center transition-colors"
                                 aria-label="Subtract ${G.pts} points from ${esc(t.name)}" title="-${G.pts} pts">
                                 <i data-lucide="minus" class="w-3.5 h-3.5 stroke-[2.5]"></i>
-                            </button>
-                            <div class="font-heading font-bold text-2xl md:text-3xl tabular-nums leading-none text-slate-900 dark:text-white">
+                            </button>`}
+                            <div class="font-heading font-bold text-2xl md:text-3xl tabular-nums leading-none text-slate-900 dark:text-white ${IS_PLAYER_WINDOW ? 'mx-auto' : ''}">
                                 ${t.score}
                             </div>
+                            ${IS_PLAYER_WINDOW ? '' : `
                             <button type="button" data-adj-team="${idx}" data-adj-dir="1"
                                 class="w-7 h-7 rounded-lg text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-center transition-colors"
                                 aria-label="Add ${G.pts} points to ${esc(t.name)}" title="+${G.pts} pts">
                                 <i data-lucide="plus" class="w-3.5 h-3.5 stroke-[2.5]"></i>
-                            </button>
+                            </button>`}
                         </div>
 
                         ${t.skip ? `
@@ -1455,6 +1471,15 @@
                 `;
             }
 
+            if (IS_PLAYER_WINDOW) {
+                return `
+                    <div class="tile-btn flex items-center justify-center font-heading font-bold bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 cursor-default"
+                        aria-label="Tile ${i + 1}">
+                        <span class="tile-num">${i + 1}</span>
+                    </div>
+                `;
+            }
+
             return `
                 <button type="button" data-open-tile="${i}"
                     class="tile-btn flex items-center justify-center font-heading font-bold bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 hover:bg-sky-50 dark:hover:bg-slate-700/90"
@@ -1468,6 +1493,7 @@
         refreshIcons(els.tilesGrid);
         updateUndoButton();
         requestAnimationFrame(fitTileGridToViewport);
+        broadcastState();
     }
 
     /* =========================================================================
@@ -1491,6 +1517,7 @@
         if (pct > 50) els.modalTimerFill.classList.add('bg-green');
         else if (pct > 25) els.modalTimerFill.classList.add('bg-orange');
         else els.modalTimerFill.classList.add('bg-pink');
+        broadcastState();
     }
 
     function startModalTimer(seconds) {
@@ -1522,6 +1549,7 @@
     function closeTileModalDOM() {
         els.modalTile.classList.add('hidden');
         els.modalTileCard.classList.remove('animate-trap-shake', 'animate-gift-bounce');
+        broadcastState();
     }
 
     function openTile(idx) {
@@ -1623,7 +1651,12 @@
         els.modalTileIconWrap.innerHTML = `<i data-lucide="${meta.icon}" class="w-6 h-6 stroke-[2.5]"></i>`;
         els.modalTileTitle.textContent = meta.title;
         els.modalTileNum.textContent = `Tile #${m.i + 1}`;
-        els.btnReturnTile.classList.toggle('hidden', m.kind !== 'q');
+        els.btnReturnTile.classList.toggle('hidden', IS_PLAYER_WINDOW || m.kind !== 'q');
+
+        if (IS_PLAYER_WINDOW) {
+            els.btnTimerToggle.classList.add('hidden');
+            els.btnTimerPlus10.classList.add('hidden');
+        }
 
         // Gentle single entrance animation (no startling whole-modal screen shake)
         els.modalTileCard.classList.remove('animate-trap-shake', 'animate-gift-bounce', 'animate-pop-in');
@@ -1633,21 +1666,21 @@
         const curTeam = G.teams[G.cur];
 
         if (m.kind === 'q') {
-            const answerBlock = m.a
+            const answerBlock = m.a || (m.showAnswer && m.a)
                 ? (m.showAnswer
                     ? `<div class="mt-card-sm border-dashed bg-green/10 dark:bg-green/15 px-5 py-3.5 text-center animate-pop-in">
                             <span class="block text-[11px] font-heading font-bold uppercase tracking-widest text-green mb-0.5">Answer</span>
                             <p class="font-heading font-bold text-2xl md:text-3xl">${esc(m.a)}</p>
                        </div>`
-                    : `<div class="text-center">
+                    : (IS_PLAYER_WINDOW ? '' : `<div class="text-center">
                             <button type="button" data-modal-act="show-answer"
                                 class="mt-btn rounded-xl bg-chalk dark:bg-slate-800 px-5 py-2 font-heading font-bold text-sm md:text-base uppercase inline-flex items-center gap-2">
                                 <i data-lucide="eye" class="w-4 h-4 stroke-[2.5]"></i> Show Answer
                             </button>
-                       </div>`)
+                       </div>`))
                 : '';
 
-            const stealBlock = G.allowSteal && G.teams.length > 1
+            const stealBlock = !IS_PLAYER_WINDOW && G.allowSteal && G.teams.length > 1
                 ? (m.showSteal
                     ? `<div class="pt-3 border-t-2 border-slate-100 dark:border-slate-800 space-y-2 animate-slide-down">
                             <p class="text-center text-xs font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400">
@@ -1671,6 +1704,20 @@
                        </div>`)
                 : '';
 
+            const hostControlsBlock = IS_PLAYER_WINDOW ? '' : `
+                    <div class="grid grid-cols-2 gap-3 pt-1">
+                        <button type="button" data-modal-act="right"
+                            class="mt-btn rounded-2xl bg-green text-dark py-3.5 px-4 font-heading font-bold text-xl uppercase flex items-center justify-center gap-2">
+                            <i data-lucide="check" class="w-6 h-6 stroke-[3]"></i> Correct +${G.pts}
+                        </button>
+                        <button type="button" data-modal-act="wrong"
+                            class="mt-btn rounded-2xl bg-pink text-white py-3.5 px-4 font-heading font-bold text-xl uppercase flex items-center justify-center gap-2">
+                            <i data-lucide="x" class="w-6 h-6 stroke-[3]"></i> Wrong
+                        </button>
+                    </div>
+
+                    ${stealBlock}`;
+
             els.modalTileBody.innerHTML = `
                 <div class="space-y-5">
                     <div class="text-center space-y-3">
@@ -1685,18 +1732,7 @@
 
                     ${answerBlock}
 
-                    <div class="grid grid-cols-2 gap-3 pt-1">
-                        <button type="button" data-modal-act="right"
-                            class="mt-btn rounded-2xl bg-green text-dark py-3.5 px-4 font-heading font-bold text-xl uppercase flex items-center justify-center gap-2">
-                            <i data-lucide="check" class="w-6 h-6 stroke-[3]"></i> Correct +${G.pts}
-                        </button>
-                        <button type="button" data-modal-act="wrong"
-                            class="mt-btn rounded-2xl bg-pink text-white py-3.5 px-4 font-heading font-bold text-xl uppercase flex items-center justify-center gap-2">
-                            <i data-lucide="x" class="w-6 h-6 stroke-[3]"></i> Wrong
-                        </button>
-                    </div>
-
-                    ${stealBlock}
+                    ${hostControlsBlock}
                 </div>
             `;
         } else {
@@ -1704,7 +1740,11 @@
             const badgeBg = m.kind === 'trap' ? 'bg-pink text-white' : 'bg-green text-dark';
             const previewText = fx.target ? '' : computeSingleEffectPreview(fx.id, curTeam, G.pts);
 
-            const actionArea = fx.target
+            const actionArea = IS_PLAYER_WINDOW
+                ? `<div class="pt-1 text-xs font-extrabold uppercase tracking-widest text-slate-400 dark:text-slate-500">
+                        ${fx.target ? 'Teacher choosing target team...' : 'Waiting for teacher to apply effect...'}
+                   </div>`
+                : (fx.target
                 ? `<div class="space-y-2.5 pt-1">
                         <p class="text-center text-xs font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                             Choose a team
@@ -1727,7 +1767,7 @@
                 : `<button type="button" data-modal-act="apply"
                         class="mt-btn w-full rounded-2xl bg-orange text-dark py-3.5 font-heading font-bold text-xl uppercase">
                         Apply
-                   </button>`;
+                   </button>`);
 
             els.modalTileBody.innerHTML = `
                 <div class="text-center space-y-4">
@@ -1749,6 +1789,7 @@
 
         els.modalTile.classList.remove('hidden');
         refreshIcons(els.modalTile);
+        broadcastState();
     }
 
     function applyFx(fx, targetIdx) {
@@ -1859,6 +1900,10 @@
                 <div class="font-heading font-bold text-3xl md:text-4xl tabular-nums">${t.score}</div>
             </div>
         `).join('');
+
+        if (els.btnPlayAgain) els.btnPlayAgain.classList.toggle('hidden', IS_PLAYER_WINDOW);
+        if (els.btnBackSetup) els.btnBackSetup.classList.toggle('hidden', IS_PLAYER_WINDOW);
+        broadcastState();
     }
 
     /* =========================================================================
@@ -2028,7 +2073,12 @@ Describe your favorite weekend activity.`;
             const isDark = document.documentElement.classList.toggle('dark');
             localStorage.setItem(THEME_STORAGE_KEY, isDark ? 'dark' : 'light');
             SoundEngine.click();
+            broadcastState();
         });
+
+        if (els.btnStudentView) {
+            els.btnStudentView.addEventListener('click', openStudentView);
+        }
 
         els.btnHelp.addEventListener('click', () => {
             els.modalHelp.classList.remove('hidden');
@@ -2539,9 +2589,219 @@ Describe your favorite weekend activity.`;
     }
 
     /* =========================================================================
+       BROADCASTCHANNEL STUDENT VIEW SYNC
+    ========================================================================= */
+    function buildPlayerPayload() {
+        const G = state.game;
+        const theme = document.documentElement.classList.contains('dark') ? 'dark' : 'light';
+        if (!G || state.view === 'setup') {
+            return { type: 'state-update', view: 'waiting', theme };
+        }
+
+        let safeModal = null;
+        if (G.modal) {
+            if (G.modal.kind === 'q') {
+                safeModal = {
+                    i: G.modal.i,
+                    kind: 'q',
+                    q: G.modal.q,
+                    a: G.modal.showAnswer ? G.modal.a : '',
+                    showAnswer: !!G.modal.showAnswer
+                };
+            } else {
+                safeModal = {
+                    i: G.modal.i,
+                    kind: G.modal.kind,
+                    fx: G.modal.fx ? {
+                        id: G.modal.fx.id,
+                        icon: G.modal.fx.icon,
+                        name: G.modal.fx.name,
+                        target: !!G.modal.fx.target
+                    } : null
+                };
+            }
+        }
+
+        return {
+            type: 'state-update',
+            view: state.view,
+            theme,
+            lastNotice: state.lastNotice || '',
+            scoreDeltas: state.lastBroadcastDeltas || {},
+            timer: {
+                active: Boolean(G.modal && G.modal.kind === 'q' && G.timerSec > 0 && state.timer.total > 0),
+                remaining: state.timer.remaining,
+                total: state.timer.total,
+                paused: state.timer.paused
+            },
+            game: {
+                setTitle: G.setTitle,
+                cur: G.cur,
+                pts: G.pts,
+                revealBadge: G.revealBadge,
+                teams: G.teams,
+                tiles: G.tiles.map(t => ({
+                    used: !!t.used,
+                    outcome: t.used ? t.outcome : null,
+                    outcomeIcon: t.used ? t.outcomeIcon : null
+                })),
+                modal: safeModal
+            }
+        };
+    }
+
+    function broadcastState() {
+        if (!bc || IS_PLAYER_WINDOW) return;
+        if (broadcastRafId) return;
+        broadcastRafId = requestAnimationFrame(() => {
+            broadcastRafId = null;
+            try {
+                bc.postMessage(buildPlayerPayload());
+            } catch (err) {
+                console.warn('[Mystery Tiles] Broadcast error:', err);
+            }
+        });
+    }
+
+    function openStudentView() {
+        if (IS_PLAYER_WINDOW) return;
+        const win = window.open('index.html?player=1', 'klasskit_mystery_tiles_player', 'noopener');
+        if (!win) {
+            showToast('Popup blocked — allow popups for Student View', 'bg-pink text-white');
+        }
+    }
+
+    let lastPlayerBoardSig = null;
+    let lastPlayerModalSig = null;
+
+    function applyPlayerState(payload) {
+        if (!payload || payload.type !== 'state-update') return;
+        if (payload.theme) {
+            document.documentElement.classList.toggle('dark', payload.theme === 'dark');
+        }
+
+        if (payload.view === 'waiting' || !payload.game) {
+            state.game = null;
+            lastPlayerBoardSig = null;
+            lastPlayerModalSig = null;
+            stopModalTimer();
+            closeTileModalDOM();
+            switchView('waiting');
+            refreshIcons(els.viewPlayerWaiting);
+            return;
+        }
+
+        const incoming = payload.game;
+        if (incoming.modal && incoming.modal.fx) {
+            const fxId = incoming.modal.fx.id;
+            const lookup = (incoming.modal.kind === 'trap' ? TRAPS : GIFTS).find(f => f.id === fxId);
+            incoming.modal.fx = {
+                ...incoming.modal.fx,
+                desc: lookup ? lookup.desc : () => ''
+            };
+        }
+
+        state.game = incoming;
+        state.lastNotice = payload.lastNotice || '';
+        state.scoreDeltas = payload.scoreDeltas || {};
+
+        if (payload.view === 'end') {
+            lastPlayerBoardSig = null;
+            lastPlayerModalSig = null;
+            closeTileModalDOM();
+            switchView('end');
+            renderEndScreen();
+            return;
+        }
+
+        const wasGameView = state.view === 'game';
+        if (!wasGameView) {
+            switchView('game');
+        }
+
+        const boardSig = JSON.stringify({
+            cur: incoming.cur,
+            pts: incoming.pts,
+            revealBadge: incoming.revealBadge,
+            lastNotice: state.lastNotice,
+            teams: incoming.teams,
+            tiles: incoming.tiles
+        });
+        if (!wasGameView || boardSig !== lastPlayerBoardSig) {
+            lastPlayerBoardSig = boardSig;
+            renderGameBoard();
+        }
+
+        if (incoming.modal) {
+            const tState = payload.timer || {};
+            if (tState.active) {
+                state.timer.remaining = tState.remaining;
+                state.timer.total = tState.total;
+                state.timer.paused = tState.paused;
+                els.modalTimerBarWrap.classList.remove('hidden');
+                updateTimerUI();
+            } else {
+                els.modalTimerBarWrap.classList.add('hidden');
+            }
+            const modalSig = JSON.stringify({
+                i: incoming.modal.i,
+                kind: incoming.modal.kind,
+                q: incoming.modal.q,
+                a: incoming.modal.a,
+                showAnswer: incoming.modal.showAnswer,
+                fxId: incoming.modal.fx ? incoming.modal.fx.id : null
+            });
+            if (modalSig !== lastPlayerModalSig || els.modalTile.classList.contains('hidden')) {
+                lastPlayerModalSig = modalSig;
+                renderTileModal();
+            }
+        } else {
+            lastPlayerModalSig = null;
+            els.modalTimerBarWrap.classList.add('hidden');
+            closeTileModalDOM();
+        }
+    }
+
+    if (bc) {
+        bc.onmessage = event => {
+            const msg = event && event.data;
+            if (!msg) return;
+            if (!IS_PLAYER_WINDOW && msg.type === 'player-ready') {
+                broadcastState();
+            } else if (IS_PLAYER_WINDOW && msg.type === 'state-update') {
+                applyPlayerState(msg);
+            }
+        };
+    }
+
+    /* =========================================================================
        BOOTSTRAP
     ========================================================================= */
     async function init() {
+        if (IS_PLAYER_WINDOW) {
+            document.body.classList.add('player-view');
+            if (els.playerViewBadge) {
+                els.playerViewBadge.classList.remove('hidden');
+                els.playerViewBadge.classList.add('inline-flex');
+            }
+            if (els.btnSound) els.btnSound.classList.add('hidden');
+            if (els.btnHelp) els.btnHelp.classList.add('hidden');
+            if (els.resumeBanner) els.resumeBanner.classList.add('hidden');
+            if (els.btnTheme) {
+                els.btnTheme.addEventListener('click', () => {
+                    document.documentElement.classList.toggle('dark');
+                });
+            }
+            window.addEventListener('resize', fitTileGridToViewport);
+            if (typeof ResizeObserver === 'function' && els.tilesGridWrap) {
+                new ResizeObserver(fitTileGridToViewport).observe(els.tilesGridWrap);
+            }
+            switchView('waiting');
+            refreshIcons(document);
+            if (bc) bc.postMessage({ type: 'player-ready' });
+            return;
+        }
+
         try {
             if (typeof requireAuth === 'function') {
                 const ok = await requireAuth();

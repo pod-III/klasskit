@@ -326,9 +326,16 @@ const App = {
     ));
 
     // Focus Hub search on '/' when not typing or inside an open workspace modal
-    if (e.key === '/' && !options.fromIframe && !isEditable && !isModalOpen && !e.ctrlKey && !e.metaKey && !e.altKey) {
+    if (e.key === '/' && !e.shiftKey && !options.fromIframe && !isEditable && !isModalOpen && !e.ctrlKey && !e.metaKey && !e.altKey) {
       e.preventDefault();
       document.getElementById('search-input')?.focus();
+      return;
+    }
+
+    // Toggle Keyboard Shortcuts quick reference modal on '?'
+    if ((e.key === '?' || (e.shiftKey && e.key === '/')) && !isEditable && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      e.preventDefault();
+      ShortcutsModal.toggle();
       return;
     }
 
@@ -374,6 +381,11 @@ const App = {
 
     // Priority-ordered Escape dismissal (highest stacking layer first)
     if (e.key === 'Escape') {
+      if (this.isModalVisible('shortcuts-modal')) {
+        ShortcutsModal.close();
+        return;
+      }
+
       if (this.isModalVisible('ann-detail-modal')) {
         Announcements.closeDetail();
         return;
@@ -515,6 +527,7 @@ const App = {
         ));
 
         const isEscape = e.key === 'Escape';
+        const isShortcuts = !isEditable && (e.key === '?' || (e.shiftKey && e.key === '/')) && !e.ctrlKey && !e.metaKey && !e.altKey;
         const isAltHome = e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey && (e.key === 'h' || e.key === 'H');
         const isReload = (e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && (e.key === 'r' || e.key === 'R');
         const isWorkspaceCombo = (
@@ -526,7 +539,7 @@ const App = {
           ))
         );
 
-        if ((isEscape && !isEditable) || isAltHome || (isReload && this.isModalVisible('game-modal')) || isWorkspaceCombo) {
+        if ((isEscape && !isEditable) || isShortcuts || isAltHome || (isReload && this.isModalVisible('game-modal')) || isWorkspaceCombo) {
           this.handleGlobalKeydown(e, { fromIframe: true });
         }
       });
@@ -606,6 +619,8 @@ const App = {
       openFeedback: () => BugReport.open(),
       openBugReport: () => BugReport.open(),
       closeBugReport: () => BugReport.close(),
+      toggleShortcuts: () => ShortcutsModal.toggle(),
+      closeShortcuts: () => ShortcutsModal.close(),
       showLanding: () => LandingPage.showLanding(),
       showLibrary: () => LandingPage.showLibrary(),
       setViewMode: (param) => ViewMode.set(param),
@@ -868,11 +883,50 @@ const MobileUI = {
   }
 };
 
+// --- KEYBOARD SHORTCUTS MODAL ---
+const ShortcutsModal = {
+  isOpen() {
+    const modal = document.getElementById('shortcuts-modal');
+    return !!modal && !modal.classList.contains('hidden');
+  },
+  open() {
+    const modal = document.getElementById('shortcuts-modal');
+    if (!modal || this.isOpen()) return;
+    if (typeof UI !== 'undefined' && UI.rememberFocus) {
+      UI.rememberFocus('shortcuts-modal');
+    }
+    modal.classList.remove('hidden');
+    modal.setAttribute('aria-hidden', 'false');
+    if (typeof lucide !== 'undefined' && lucide.createIcons) {
+      lucide.createIcons({ root: modal });
+    }
+    const closeBtn = modal.querySelector('[data-action="closeShortcuts"][aria-label]');
+    if (closeBtn) closeBtn.focus();
+  },
+  close() {
+    const modal = document.getElementById('shortcuts-modal');
+    if (!modal || !this.isOpen()) return;
+    modal.classList.add('hidden');
+    modal.setAttribute('aria-hidden', 'true');
+    if (typeof UI !== 'undefined' && UI.restoreFocus) {
+      UI.restoreFocus('shortcuts-modal');
+    }
+  },
+  toggle() {
+    if (this.isOpen()) {
+      this.close();
+    } else {
+      this.open();
+    }
+  }
+};
+
 // --- EXPORTS ---
 window.App = App;
 window.AudioEngine = AudioEngine;
 window.GameModal = GameModal;
 window.TabManager = TabManager;
+window.ShortcutsModal = ShortcutsModal;
 window.HistoryManager = HistoryManager;
 window.Timer = Timer;
 window.LandingPage = LandingPage;

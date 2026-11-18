@@ -1,6 +1,6 @@
 # 🍎 KlassKit: The Ultimate Classroom Command Center
 
-![Version](https://img.shields.io/badge/version-1.5.7-blue?style=for-the-badge)
+![Version](https://img.shields.io/badge/version-1.6.0-blue?style=for-the-badge)
 ![Activities](https://img.shields.io/badge/activities-71%20Active-green?style=for-the-badge)
 ![Status](https://img.shields.io/badge/status-Active%20Development-orange?style=for-the-badge)
 ![Aesthetic](https://img.shields.io/badge/aesthetic-Soft%20Brutalism-pink?style=for-the-badge)
@@ -313,4 +313,4 @@ node bump.js 1.5.8
 Built with ❤️ by **Fahrul Ahyan**.
 KlassKit is a passion project dedicated to teachers everywhere. It is, and always will be, **100% Free**.
 
-*Current Version: 1.5.7 — Active Development.*
+*Current Version: 1.6.0 — Active Development.*

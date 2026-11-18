@@ -628,8 +628,136 @@ function addNewPage() {
 }
 
 // --- Bulk Import ---
+let cardBulkImportModal = null;
+
+function applyCardBatchToPages(cardObjects, replaceAll = false) {
+    if (!cardObjects || !cardObjects.length) return;
+    saveState();
+    const cardsPerPage = state.gridCols * state.gridRows;
+
+    if (replaceAll || !state.pages.length) {
+        state.pages = [[]];
+    }
+
+    const lastPageIdx = state.pages.length - 1;
+    const currentPage = state.pages[lastPageIdx];
+
+    let inserted = 0;
+    for (let i = 0; i < cardsPerPage && inserted < cardObjects.length; i++) {
+        if (i >= currentPage.length) {
+            currentPage.push(cardObjects[inserted]);
+            inserted++;
+        } else if (!currentPage[i].text && !currentPage[i].img) {
+            currentPage[i] = cardObjects[inserted];
+            inserted++;
+        }
+    }
+
+    const remaining = cardObjects.slice(inserted);
+    for (let i = 0; i < remaining.length; i += cardsPerPage) {
+        state.pages.push(remaining.slice(i, i + cardsPerPage));
+    }
+
+    renderAllPages();
+    if (typeof applyPreviewZoom === "function") applyPreviewZoom();
+}
+
+function initCardBulkImport() {
+    if (!window.KlassKitBulkImport) return;
+    if (!cardBulkImportModal) {
+        cardBulkImportModal = window.KlassKitBulkImport.create({
+            id: "cm-bulk-import-overlay",
+            title: "Cards Bulk Import",
+            subtitle: "Paste card text or word | label pairs",
+            accentColor: "blue",
+            unitLabel: "card",
+            unitLabelPlural: "cards",
+            confirmText: "Import Cards",
+            guideItems: [
+                { label: "Simple Words / CSV", syntax: "Apple, Banana, Cherry\nDragonfruit", color: "green", desc: "Comma or newline separated terms create one card each." },
+                { label: "Text + Badge Label", syntax: "Jacket | Winter\nUmbrella | Rainy", color: "blue", desc: "Optional label after | adds a corner tag to the card." },
+                { label: "Comments", syntax: "# Unit 5 Clothes", color: "orange", desc: "Lines starting with # are skipped." }
+            ],
+            placeholder: "# Feelings Deck\nHappy | A1\nExcited | A1\nCurious, Brave, Patient",
+            template: "# Flashcard Deck\nHappy | Mood\nTired | Mood\nExcited | Mood\nHungry | Mood",
+            sample: "Happy | Mood\nExcited | Mood\nCurious | Trait\nPatient | Trait\nGenerous | Trait\nCreative | Trait",
+            options: [
+                { id: "autoNumber", label: "Auto-number unlabeled cards (1, 2, 3...)", defaultChecked: false },
+                { id: "replaceAll", label: "Replace existing cards", defaultChecked: false }
+            ],
+            parse(rawText) {
+                const lines = String(rawText || "").replace(/\r\n/g, "\n").split("\n");
+                const items = [];
+                for (const line of lines) {
+                    const trimmed = line.trim();
+                    if (!trimmed || trimmed.startsWith("#")) continue;
+                    if (trimmed.includes("|")) {
+                        const pipeIdx = trimmed.indexOf("|");
+                        const text = trimmed.slice(0, pipeIdx).trim()
+                            .replace(/^[-*•]\s+/, "")
+                            .replace(/^\d+[\).\]]\s+/, "");
+                        const label = trimmed.slice(pipeIdx + 1).trim();
+                        if (text) items.push({ text, label });
+                    } else {
+                        const parts = trimmed.split(",");
+                        for (let part of parts) {
+                            part = part.trim()
+                                .replace(/^[-*•]\s+/, "")
+                                .replace(/^\d+[\).\]]\s+/, "");
+                            if (part) items.push({ text: part, label: "" });
+                        }
+                    }
+                }
+                return {
+                    items,
+                    warnings: [],
+                    badges: items.map(c => ({
+                        label: c.label ? `${c.text} · ${c.label}` : c.text,
+                        tone: "blue"
+                    }))
+                };
+            },
+            onImport(result, optionValues) {
+                const items = result.items || [];
+                if (!items.length) return false;
+                const autoNumber = !!(optionValues && optionValues.autoNumber);
+                const replaceAll = !!(optionValues && optionValues.replaceAll);
+                const cards = items.map((item, idx) => ({
+                    text: item.text,
+                    img: "",
+                    label: item.label || (autoNumber ? String(idx + 1) : "")
+                }));
+                applyCardBatchToPages(cards, replaceAll);
+                showToast(`Imported ${cards.length} items into cards`, "success");
+                return true;
+            }
+        });
+    }
+
+    window.KlassKitBulkImport.mountPresets({
+        container: "#cardCefrPresetsSlot",
+        url: "presets.json",
+        title: "CEFR Card Decks",
+        collapsible: true,
+        getMeta: (p) => ({ icon: "layers", label: `${(p.cards || []).length} cards` }),
+        onSelect: (preset) => {
+            const cards = (preset.cards || []).map(c => ({
+                text: c.text || "",
+                img: "",
+                label: c.label || ""
+            }));
+            if (!cards.length) return;
+            applyCardBatchToPages(cards, true);
+            showToast(`Loaded "${preset.title}" (${preset.level})`, "success");
+        }
+    });
+}
 
 function openBulkTextModal() {
+    if (cardBulkImportModal) {
+        cardBulkImportModal.open();
+        return;
+    }
     document.getElementById("bulkTextModal").classList.remove("hidden");
     document.getElementById("bulkTextModal").classList.add("flex");
     document.getElementById("bulkTextarea").focus();
@@ -1488,6 +1616,7 @@ window.onload = async () => {
     await loadState();
     renderCardSets();
     applyPreviewZoom();
+    initCardBulkImport();
 };
 window.onresize = () => {
     if (currentZoomMode === "fit") applyPreviewZoom();
