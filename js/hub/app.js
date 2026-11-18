@@ -871,6 +871,7 @@ const MobileUI = {
 // --- EXPORTS ---
 window.App = App;
 window.AudioEngine = AudioEngine;
+window.GameModal = GameModal;
 window.TabManager = TabManager;
 window.HistoryManager = HistoryManager;
 window.Timer = Timer;

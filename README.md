@@ -232,7 +232,8 @@ klasskit/
 ├── js/
 │   └── hub/                # Modular Hub scripts (core, ui, views, workspace, timer, app)
 ├── bump.js                 # Version bumper (games.json, README.md, sw.js, package.json)
-├── package.json            # Project metadata and Playwright dev dependencies
+├── package.json            # Project metadata, Tailwind CLI scripts, & Playwright dev dependencies
+├── tailwind.config.js      # Shared Tailwind CSS v3 configuration & Soft Brutalism tokens
 ├── playwright.config.js    # Cross-browser E2E test configuration
 │
 ├── apps/                   # Self-contained activity modules
@@ -244,7 +245,7 @@ klasskit/
 │   └── wip/                # Early-access prototypes & rebuilds (15)
 │
 ├── components/             # Shared UI modules (app-bootstrap, bulk-import-modal, input-modal, media-manager)
-├── css/                    # Global stylesheets (base, components, home, side-panel)
+├── css/                    # Global stylesheets (tailwind.input, tailwind.generated, base, components, home, side-panel)
 ├── admin/                  # Admin dashboard (index.html, script.js, style.css)
 ├── api/                    # Auth & error pages (confirmation, reset-password, 500, unauthorized)
 ├── supabase/sql/           # Database schema, RLS, VTT, and storage trigger SQL files
@@ -283,8 +284,11 @@ cd klasskit
 # Serve locally (no build step required)
 npx serve . -p 3000
 
-# Optional: Install dev dependencies for E2E testing
+# Optional: Install dev dependencies for Tailwind CSS build & E2E testing
 npm install
+
+# Rebuild precompiled Tailwind CSS (used by Hub, Landing, Login, Admin, & API pages)
+npm run css:build
 
 # Run Playwright E2E tests (automatically starts `npx serve . -p 3000`)
 npx playwright test

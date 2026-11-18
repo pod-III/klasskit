@@ -25,6 +25,7 @@ const PRE_CACHE_ASSETS = [
   './components/input-modal.js',
   './components/bulk-import-modal.js',
   './components/media-manager.js',
+  './css/tailwind.generated.css',
   './css/base.css',
   './css/components.css',
   './css/home.css',

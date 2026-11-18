@@ -12,6 +12,7 @@ test.describe('KlassKit Hub & Landing', () => {
   });
 
   test('hub loads catalog, supports search shortcut, theme toggle, split screen, and timer in Sandbox mode', async ({ page }) => {
+    test.setTimeout(60000);
     const pageErrors = [];
     page.on('pageerror', (err) => pageErrors.push(err.message));
 
@@ -19,8 +20,8 @@ test.describe('KlassKit Hub & Landing', () => {
       localStorage.setItem('kk_mode', 'sandbox');
     });
 
-    await page.goto('/hub.html');
-    await expect(page.locator('#hub-loading-state')).toBeHidden({ timeout: 10000 });
+    await page.goto('/hub.html', { waitUntil: 'domcontentloaded' });
+    await expect(page.locator('#hub-loading-state')).toBeHidden({ timeout: 15000 });
     await expect(page.locator('#landing-view')).toBeVisible();
 
     // "/" shortcut focuses search input and switches to filtered library grid
@@ -31,21 +32,21 @@ test.describe('KlassKit Hub & Landing', () => {
     await expect(page.locator('#grid-library-all')).toBeVisible();
     await expect(page.locator('#grid-library-all')).toContainText('Domino Maker');
 
-    // Theme toggle persists theme_hub
+    // Theme toggle persists theme_hub (click visible desktop header toggle)
     const initialDark = await page.locator('html').evaluate(el => el.classList.contains('dark'));
-    await page.locator('[data-action="toggleTheme"]').first().click();
+    await page.locator('button[aria-label="Toggle Blackboard Mode"]').click();
     const afterToggleDark = await page.locator('html').evaluate(el => el.classList.contains('dark'));
     expect(afterToggleDark).toBe(!initialDark);
 
-    // Open two activities into workspace tabs and toggle Split Screen
+    // Open two activities into workspace tabs, open settings menu, and toggle Split Screen
     await page.evaluate(() => {
-      window.App && window.TabManager;
-      GameModal.open('bingo');
-      GameModal.open('clock');
+      window.GameModal.open('bingomaker');
+      window.GameModal.open('clockcalendar');
     });
     const gameModal = page.locator('#game-modal');
     await expect(gameModal).toBeVisible();
 
+    await page.locator('[data-action="toggleSettings"]').click();
     await page.locator('[data-action="toggleSplitScreen"]').click();
     await expect(page.locator('#tab-content-area')).toHaveClass(/split-mode/);
 

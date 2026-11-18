@@ -58,7 +58,8 @@ test.describe('Sampled Activity Smoke Tests (Sandbox Mode)', () => {
         localStorage.setItem('kk_mode', 'sandbox');
       });
 
-      await page.goto(sample.url);
+      const response = await page.goto(sample.url);
+      expect(response?.status()).toBe(200);
       await expect(page.locator('body')).toBeVisible();
       expect(pageErrors).toEqual([]);
     });
