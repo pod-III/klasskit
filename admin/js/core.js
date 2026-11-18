@@ -25,6 +25,12 @@ let healthyTablesCount = 0
 let totalQueriedTables = 18
 
 let scheduleClassTab = 'admin'
+let currentDataTab = 'progress'
+let userRoleFilter = 'all'
+let notesStatusFilter = 'all'
+let tasksStatusFilter = 'all'
+let studioTypeFilter = 'all'
+let lastViewModalCopyText = ''
 let charts = {}
 let chartDaysWindow = 14
 let topToolsMode = 'week' // 'week' | 'all'
@@ -37,7 +43,11 @@ let sortConfig = {
     notes: { col: 'updated_at', dir: 'desc' },
     cloud: { col: 'usage', dir: 'desc' },
     schedule: { col: 'date', dir: 'desc' },
-    classes: { col: 'class_name', dir: 'asc' }
+    classes: { col: 'class_name', dir: 'asc' },
+    classesUnits: { col: 'class_name', dir: 'asc' },
+    tasks: { col: 'created_at', dir: 'desc' },
+    myclass: { col: 'updated_at', dir: 'desc' },
+    studio: { col: 'updated_at', dir: 'desc' }
 }
 let pagination = {
     users: 1,
@@ -45,7 +55,12 @@ let pagination = {
     notes: 1,
     cloud: 1,
     schedule: 1,
-    classes: 1
+    classes: 1,
+    classesUnits: 1,
+    tasks: 1,
+    myclass: 1,
+    studio: 1,
+    lastFilteredCounts: {}
 }
 const PAGE_SIZE = 25
 let settingsTimeout = null
@@ -359,6 +374,8 @@ async function fetchData() {
             storage_usage: Number(quota.storage_usage) || 0,
             storage_limit: Number(quota.storage_limit) || DEFAULT_LIMIT,
             last_active_ts: p.updated_at ? new Date(p.updated_at).getTime() : (p.created_at ? new Date(p.created_at).getTime() : 0),
+            last_tool_used: null,
+            last_tool_ts: 0,
             tools_set: new Set(),
             records_count: 0
         }
@@ -399,22 +416,29 @@ async function fetchData() {
                 storage_usage: Number(quota.storage_usage) || 0,
                 storage_limit: Number(quota.storage_limit) || DEFAULT_LIMIT,
                 last_active_ts: 0,
+                last_tool_used: null,
+                last_tool_ts: 0,
                 tools_set: new Set(),
                 records_count: 0
             }
         }
         const prof = allProfiles[userId]
-        if (tsMs && !isNaN(tsMs) && tsMs > prof.last_active_ts && tsMs <= Date.now() + 86400000) {
-            prof.last_active_ts = tsMs
+        const validTs = (tsMs && !isNaN(tsMs) && tsMs <= Date.now() + 86400000) ? tsMs : 0
+        if (validTs > prof.last_active_ts) {
+            prof.last_active_ts = validTs
         }
         if (canonicalToolId && canonicalToolId !== 'klasskit_hub' && canonicalToolId !== 'hub') {
             prof.tools_set.add(canonicalToolId)
             prof.records_count += countIncrement
+            if (validTs > prof.last_tool_ts || (!prof.last_tool_used && validTs === 0)) {
+                prof.last_tool_ts = Math.max(prof.last_tool_ts || 0, validTs)
+                prof.last_tool_used = canonicalToolId
+            }
         }
     }
 
     allProgress.forEach(r => {
-        const ts = new Date(r.updated_at).getTime()
+        const ts = parseTimestampMs(r.updated_at || r.created_at)
         const isHub = r.tool_key === 'klasskit_hub' || r.tool_key === 'hub'
         const canonical = isHub ? null : resolveCanonicalToolId(r.tool_key)
         const entryCount = isHub ? 0 : extractLogEntries(r).length
@@ -457,10 +481,10 @@ async function fetchData() {
         registerUserActivity(d.user_id, parseTimestampMs(d.last_used || d.created_at), 'dnd-hub', 1)
     })
     allVttMaps.forEach(m => {
-        registerUserActivity(m.user_id, parseTimestampMs(m.updated_at || m.created_at), 'dnd-hub', 1)
+        registerUserActivity(m.user_id || m.owner_id, parseTimestampMs(m.updated_at || m.created_at), 'dnd-hub', 1)
     })
     allVttCampaigns.forEach(c => {
-        registerUserActivity(c.user_id, parseTimestampMs(c.updated_at || c.created_at), 'dnd-hub', 1)
+        registerUserActivity(c.user_id || c.owner_id, parseTimestampMs(c.updated_at || c.created_at), 'dnd-hub', 1)
     })
     allClockLogs.forEach(cl => {
         registerUserActivity(cl.user_id, parseTimestampMs(cl.updated_at || cl.created_at || cl.date), 'clockcalendar', 1)
@@ -534,8 +558,12 @@ function showToast(msg, type = 'success') {
 
 // ── SEARCH DEBOUNCE ──
 function debouncedSearch() {
+    updateSearchClearBtn()
     clearTimeout(searchTimeout)
-    searchTimeout = setTimeout(applyFilters, 300)
+    searchTimeout = setTimeout(() => {
+        if (typeof resetPagination === 'function') resetPagination()
+        applyFilters()
+    }, 300)
 }
 
 // ── STATS ──

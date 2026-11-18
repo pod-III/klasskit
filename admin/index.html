@@ -129,13 +129,17 @@
             <div class="flex flex-wrap items-center gap-1.5 md:gap-3 w-full md:w-auto flex-1">
                 <!-- Search -->
                 <div class="relative flex-1 min-w-[150px]">
-                    <i data-lucide="search" class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500"></i>
-                    <input type="text" id="searchInput" placeholder="Search name or tool..."
-                        class="w-full pl-9 pr-4 py-2 bg-slate-800 border-2 border-slate-700 rounded-xl text-xs md:text-sm text-white placeholder-slate-500 outline-none focus:border-blue transition-colors"
+                    <i data-lucide="search" class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events-none"></i>
+                    <input type="text" id="searchInput" placeholder="Search user, email, ID, title, or tool... (/)"
+                        class="w-full pl-9 pr-9 py-2 bg-slate-800 border-2 border-slate-700 rounded-xl text-xs md:text-sm text-white placeholder-slate-500 outline-none focus:border-blue transition-colors"
                         oninput="debouncedSearch()">
+                    <button type="button" id="searchClearBtn" onclick="clearSearchInput()" title="Clear search"
+                        class="hidden absolute right-2.5 top-1/2 -translate-y-1/2 p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-700/70 transition-colors">
+                        <i data-lucide="x" class="w-3.5 h-3.5"></i>
+                    </button>
                 </div>
                 <!-- Tool filter -->
-                <select id="toolFilter" onchange="applyFilters()"
+                <select id="toolFilter" onchange="onToolFilterChange()"
                     class="flex-1 md:flex-none px-3 py-2 bg-slate-800 border-2 border-slate-700 rounded-xl text-xs md:text-sm text-slate-300 outline-none focus:border-blue transition-colors min-w-[120px]">
                     <option value="">All tools</option>
                 </select>
@@ -513,11 +517,35 @@
             </div>
 
             <!-- USERS VIEW -->
-            <div id="view-users" class="hidden">
+            <div id="view-users" class="hidden animate-pop-in">
                 <div class="neo bg-slate-800 rounded-[20px] overflow-hidden">
-                    <div class="p-5 border-b-[3px] border-slate-700 flex items-center justify-between">
-                        <h2 class="font-heading text-lg text-white">All users</h2>
-                        <div id="userCount" class="chip bg-blue/10 text-blue border-blue/40">0 users</div>
+                    <div class="p-5 border-b-[3px] border-slate-700 flex flex-wrap items-center justify-between gap-3">
+                        <div class="flex items-center gap-3 flex-wrap">
+                            <h2 class="font-heading text-lg text-white">All users</h2>
+                            <div id="userCount" class="chip bg-blue/10 text-blue border-blue/40">0 users</div>
+                        </div>
+                        <div class="flex flex-wrap items-center gap-1.5" role="group" aria-label="Filter users by role or recency">
+                            <button type="button" onclick="setUserRoleFilter('all')" id="userfilter-all"
+                                class="range-pill active flex items-center gap-1.5">
+                                All <span id="userfilter-count-all" class="font-mono opacity-80">0</span>
+                            </button>
+                            <button type="button" onclick="setUserRoleFilter('user')" id="userfilter-user"
+                                class="range-pill flex items-center gap-1.5">
+                                User <span id="userfilter-count-user" class="font-mono opacity-80">0</span>
+                            </button>
+                            <button type="button" onclick="setUserRoleFilter('pro')" id="userfilter-pro"
+                                class="range-pill flex items-center gap-1.5">
+                                Pro <span id="userfilter-count-pro" class="font-mono opacity-80">0</span>
+                            </button>
+                            <button type="button" onclick="setUserRoleFilter('admin')" id="userfilter-admin"
+                                class="range-pill flex items-center gap-1.5">
+                                Admin <span id="userfilter-count-admin" class="font-mono opacity-80">0</span>
+                            </button>
+                            <button type="button" onclick="setUserRoleFilter('active7d')" id="userfilter-active7d"
+                                class="range-pill flex items-center gap-1.5">
+                                Active 7d <span id="userfilter-count-active7d" class="font-mono opacity-80">0</span>
+                            </button>
+                        </div>
                     </div>
                     <div class="overflow-x-auto">
                         <table class="w-full text-sm">
@@ -541,9 +569,16 @@
                                         <div class="flex items-center gap-1">Storage <span
                                                 id="sort-users-storage"></span></div>
                                     </th>
-                                    <th
-                                        class="hidden lg:table-cell text-left px-5 py-3 text-[10px] font-black text-slate-500 uppercase tracking-widest">
-                                        Tools used</th>
+                                    <th onclick="toggleSort('users', 'records')"
+                                        class="hidden lg:table-cell text-left px-5 py-3 text-[10px] font-black text-slate-500 uppercase tracking-widest cursor-pointer hover:text-blue transition-colors">
+                                        <div class="flex items-center gap-1">Tools used <span
+                                                id="sort-users-records"></span></div>
+                                    </th>
+                                    <th onclick="toggleSort('users', 'last_tool')"
+                                        class="hidden md:table-cell text-left px-5 py-3 text-[10px] font-black text-slate-500 uppercase tracking-widest cursor-pointer hover:text-blue transition-colors">
+                                        <div class="flex items-center gap-1">Last tool used <span
+                                                id="sort-users-last_tool"></span></div>
+                                    </th>
                                     <th onclick="toggleSort('users', 'active')"
                                         class="text-left px-5 py-3 text-[10px] font-black text-slate-500 uppercase tracking-widest cursor-pointer hover:text-blue transition-colors">
                                         <div class="flex items-center gap-1">Last active <span
@@ -563,9 +598,9 @@
                         <div class="text-[9px] md:text-[10px] text-slate-500 font-bold uppercase tracking-widest"
                             id="users-page-info">Page 1 of 1</div>
                         <div class="flex gap-2">
-                            <button onclick="changePage('users', -1)"
+                            <button id="users-prev-btn" onclick="changePage('users', -1)"
                                 class="neo-btn px-3 py-1 bg-slate-800 text-slate-300 rounded-lg text-xs">Prev</button>
-                            <button onclick="changePage('users', 1)"
+                            <button id="users-next-btn" onclick="changePage('users', 1)"
                                 class="neo-btn px-3 py-1 bg-slate-800 text-slate-300 rounded-lg text-xs">Next</button>
                         </div>
                     </div>
@@ -573,43 +608,50 @@
             </div>
 
             <!-- DATA DETAILS VIEW -->
-            <div id="view-data-details" class="hidden">
+            <div id="view-data-details" class="hidden animate-pop-in">
                 <!-- Tabs -->
                 <div class="flex flex-wrap gap-2 mb-6">
                     <button onclick="setDataTab('progress')" id="datatab-progress"
                         class="neo-btn px-4 py-2 bg-blue text-white rounded-xl text-sm font-bold">
                         <i data-lucide="bar-chart-2" class="w-4 h-4"></i> Progress
+                        <span id="datatab-count-progress" class="px-1.5 py-0.5 rounded-md bg-slate-950/50 text-[10px] font-mono">0</span>
                     </button>
                     <button onclick="setDataTab('notes')" id="datatab-notes"
                         class="neo-btn px-4 py-2 bg-slate-800 text-slate-300 rounded-xl text-sm">
                         <i data-lucide="book-open" class="w-4 h-4"></i> Notes
+                        <span id="datatab-count-notes" class="px-1.5 py-0.5 rounded-md bg-slate-950/50 text-[10px] font-mono">0</span>
                     </button>
                     <button onclick="setDataTab('schedule')" id="datatab-schedule"
                         class="neo-btn px-4 py-2 bg-slate-800 text-slate-300 rounded-xl text-sm">
                         <i data-lucide="calendar" class="w-4 h-4"></i> Schedules
+                        <span id="datatab-count-schedule" class="px-1.5 py-0.5 rounded-md bg-slate-950/50 text-[10px] font-mono">0</span>
                     </button>
                     <button onclick="setDataTab('classes')" id="datatab-classes"
                         class="neo-btn px-4 py-2 bg-slate-800 text-slate-300 rounded-xl text-sm">
                         <i data-lucide="clipboard-check" class="w-4 h-4"></i> Tracker
+                        <span id="datatab-count-classes" class="px-1.5 py-0.5 rounded-md bg-slate-950/50 text-[10px] font-mono">0</span>
                     </button>
                     <button onclick="setDataTab('tasks')" id="datatab-tasks"
                         class="neo-btn px-4 py-2 bg-slate-800 text-slate-300 rounded-xl text-sm">
                         <i data-lucide="check-square" class="w-4 h-4"></i> Tasks
+                        <span id="datatab-count-tasks" class="px-1.5 py-0.5 rounded-md bg-slate-950/50 text-[10px] font-mono">0</span>
                     </button>
                     <button onclick="setDataTab('myclass')" id="datatab-myclass"
                         class="neo-btn px-4 py-2 bg-slate-800 text-slate-300 rounded-xl text-sm">
                         <i data-lucide="users" class="w-4 h-4"></i> My Class
+                        <span id="datatab-count-myclass" class="px-1.5 py-0.5 rounded-md bg-slate-950/50 text-[10px] font-mono">0</span>
                     </button>
                     <button onclick="setDataTab('studio')" id="datatab-studio"
                         class="neo-btn px-4 py-2 bg-slate-800 text-slate-300 rounded-xl text-sm">
                         <i data-lucide="layers" class="w-4 h-4"></i> Studio & Makers
+                        <span id="datatab-count-studio" class="px-1.5 py-0.5 rounded-md bg-slate-950/50 text-[10px] font-mono">0</span>
                     </button>
                 </div>
 
                 <!-- PROGRESS CONTENT -->
                 <div id="dataview-progress">
                     <div class="neo bg-slate-800 rounded-[20px] overflow-hidden">
-                        <div class="p-5 border-b-[3px] border-slate-700 flex items-center justify-between">
+                        <div class="p-5 border-b-[3px] border-slate-700 flex items-center justify-between flex-wrap gap-3">
                             <h2 class="font-heading text-lg text-white">Progress data</h2>
                             <div id="progressCount" class="chip bg-pink/10 text-pink border-pink/40">0 rows</div>
                         </div>
@@ -631,7 +673,7 @@
                                         </th>
                                         <th
                                             class="hidden md:table-cell text-left px-5 py-3 text-[10px] font-black text-slate-500 uppercase tracking-widest">
-                                            Preview</th>
+                                            Summary</th>
                                         <th onclick="toggleSort('progress', 'updated_at')"
                                             class="text-left px-5 py-3 text-[10px] font-black text-slate-500 uppercase tracking-widest cursor-pointer hover:text-blue transition-colors">
                                             <div class="flex items-center gap-1">Updated <span
@@ -651,9 +693,9 @@
                             <div class="text-[9px] md:text-[10px] text-slate-500 font-bold uppercase tracking-widest"
                                 id="progress-page-info">Page 1 of 1</div>
                             <div class="flex gap-2">
-                                <button onclick="changePage('progress', -1)"
+                                <button id="progress-prev-btn" onclick="changePage('progress', -1)"
                                     class="neo-btn px-3 py-1 bg-slate-800 text-slate-300 rounded-lg text-xs">Prev</button>
-                                <button onclick="changePage('progress', 1)"
+                                <button id="progress-next-btn" onclick="changePage('progress', 1)"
                                     class="neo-btn px-3 py-1 bg-slate-800 text-slate-300 rounded-lg text-xs">Next</button>
                             </div>
                         </div>
@@ -663,9 +705,16 @@
                 <!-- NOTES CONTENT -->
                 <div id="dataview-notes" class="hidden">
                     <div class="neo bg-slate-800 rounded-[20px] overflow-hidden">
-                        <div class="p-5 border-b-[3px] border-slate-700 flex items-center justify-between">
-                            <h2 class="font-heading text-lg text-white">Lesson Notes</h2>
-                            <div id="notesCount" class="chip bg-blue/10 text-blue border-blue/40">0 notes</div>
+                        <div class="p-5 border-b-[3px] border-slate-700 flex items-center justify-between flex-wrap gap-3">
+                            <div class="flex items-center gap-3 flex-wrap">
+                                <h2 class="font-heading text-lg text-white">Lesson Notes</h2>
+                                <div id="notesCount" class="chip bg-blue/10 text-blue border-blue/40">0 notes</div>
+                            </div>
+                            <div class="flex items-center gap-1.5" role="group" aria-label="Filter notes by status">
+                                <button type="button" onclick="setNotesStatusFilter('all')" id="notesfilter-all" class="range-pill active">All</button>
+                                <button type="button" onclick="setNotesStatusFilter('active')" id="notesfilter-active" class="range-pill">Active</button>
+                                <button type="button" onclick="setNotesStatusFilter('trashed')" id="notesfilter-trashed" class="range-pill">Trashed</button>
+                            </div>
                         </div>
                         <div class="overflow-x-auto">
                             <table class="w-full text-sm">
@@ -704,9 +753,9 @@
                             <div class="text-[9px] md:text-[10px] text-slate-500 font-bold uppercase tracking-widest"
                                 id="notes-page-info">Page 1 of 1</div>
                             <div class="flex gap-2">
-                                <button onclick="changePage('notes', -1)"
+                                <button id="notes-prev-btn" onclick="changePage('notes', -1)"
                                     class="neo-btn px-3 py-1 bg-slate-800 text-slate-300 rounded-lg text-xs">Prev</button>
-                                <button onclick="changePage('notes', 1)"
+                                <button id="notes-next-btn" onclick="changePage('notes', 1)"
                                     class="neo-btn px-3 py-1 bg-slate-800 text-slate-300 rounded-lg text-xs">Next</button>
                             </div>
                         </div>
@@ -750,6 +799,9 @@
                                         <th
                                             class="hidden md:table-cell text-left px-5 py-3 text-[10px] font-black text-slate-500 uppercase tracking-widest">
                                             Recurrence</th>
+                                        <th
+                                            class="px-5 py-3 text-right text-[10px] font-black text-slate-500 uppercase tracking-widest">
+                                            Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody id="scheduleTableBody" class="divide-y divide-slate-700/50"></tbody>
@@ -760,9 +812,9 @@
                             <div class="text-[9px] md:text-[10px] text-slate-500 font-bold uppercase tracking-widest"
                                 id="schedule-page-info">Page 1 of 1</div>
                             <div class="flex gap-2">
-                                <button onclick="changePage('schedule', -1)"
+                                <button id="schedule-prev-btn" onclick="changePage('schedule', -1)"
                                     class="neo-btn px-3 py-1 bg-slate-800 text-slate-300 rounded-lg text-xs">Prev</button>
-                                <button onclick="changePage('schedule', 1)"
+                                <button id="schedule-next-btn" onclick="changePage('schedule', 1)"
                                     class="neo-btn px-3 py-1 bg-slate-800 text-slate-300 rounded-lg text-xs">Next</button>
                             </div>
                         </div>
@@ -776,10 +828,12 @@
                         <button onclick="setClassTab('admin')" id="classtab-admin"
                             class="neo-btn px-4 py-2 bg-orange text-white rounded-xl text-sm font-bold">
                             <i data-lucide="layout-list" class="w-4 h-4"></i> Admin Tasks
+                            <span id="classtab-count-admin" class="px-1.5 py-0.5 rounded-md bg-slate-950/50 text-[10px] font-mono">0</span>
                         </button>
                         <button onclick="setClassTab('units')" id="classtab-units"
                             class="neo-btn px-4 py-2 bg-slate-700 text-slate-300 rounded-xl text-sm">
                             <i data-lucide="book" class="w-4 h-4"></i> Unit Planning
+                            <span id="classtab-count-units" class="px-1.5 py-0.5 rounded-md bg-slate-950/50 text-[10px] font-mono">0</span>
                         </button>
                     </div>
 
@@ -827,9 +881,9 @@
                             <div class="text-[9px] md:text-[10px] text-slate-500 font-bold uppercase tracking-widest"
                                 id="classes-page-info">Page 1 of 1</div>
                             <div class="flex gap-2">
-                                <button onclick="changePage('classes', -1)"
+                                <button id="classes-prev-btn" onclick="changePage('classes', -1)"
                                     class="neo-btn px-3 py-1 bg-slate-800 text-slate-300 rounded-lg text-xs">Prev</button>
-                                <button onclick="changePage('classes', 1)"
+                                <button id="classes-next-btn" onclick="changePage('classes', 1)"
                                     class="neo-btn px-3 py-1 bg-slate-800 text-slate-300 rounded-lg text-xs">Next</button>
                             </div>
                         </div>
@@ -847,18 +901,21 @@
                             <table class="w-full text-sm">
                                 <thead>
                                     <tr class="border-b-2 border-slate-700 bg-slate-900">
-                                        <th
-                                            class="text-left px-5 py-3 text-[10px] font-black text-slate-500 uppercase tracking-widest">
-                                            User</th>
-                                        <th
-                                            class="text-left px-5 py-3 text-[10px] font-black text-slate-500 uppercase tracking-widest">
-                                            Class Name</th>
+                                        <th onclick="toggleSort('classesUnits', 'user')"
+                                            class="text-left px-5 py-3 text-[10px] font-black text-slate-500 uppercase tracking-widest cursor-pointer hover:text-blue transition-colors">
+                                            <div class="flex items-center gap-1">User <span id="sort-classesUnits-user"></span></div>
+                                        </th>
+                                        <th onclick="toggleSort('classesUnits', 'class_name')"
+                                            class="text-left px-5 py-3 text-[10px] font-black text-slate-500 uppercase tracking-widest cursor-pointer hover:text-blue transition-colors">
+                                            <div class="flex items-center gap-1">Class Name <span id="sort-classesUnits-class_name"></span></div>
+                                        </th>
                                         <th
                                             class="text-left px-5 py-3 text-[10px] font-black text-slate-500 uppercase tracking-widest">
                                             Units</th>
-                                        <th
-                                            class="hidden sm:table-cell text-left px-5 py-3 text-[10px] font-black text-slate-500 uppercase tracking-widest">
-                                            Created</th>
+                                        <th onclick="toggleSort('classesUnits', 'created_at')"
+                                            class="hidden sm:table-cell text-left px-5 py-3 text-[10px] font-black text-slate-500 uppercase tracking-widest cursor-pointer hover:text-blue transition-colors">
+                                            <div class="flex items-center gap-1">Created <span id="sort-classesUnits-created_at"></span></div>
+                                        </th>
                                         <th
                                             class="px-5 py-3 text-right text-[10px] font-black text-slate-500 uppercase tracking-widest">
                                             Actions</th>
@@ -867,31 +924,53 @@
                                 <tbody id="classUnitsTableBody" class="divide-y divide-slate-700/50"></tbody>
                             </table>
                         </div>
+                        <div
+                            class="p-2 md:p-4 border-t-[3px] border-slate-700 flex items-center justify-between bg-slate-900/50">
+                            <div class="text-[9px] md:text-[10px] text-slate-500 font-bold uppercase tracking-widest"
+                                id="classesUnits-page-info">Page 1 of 1</div>
+                            <div class="flex gap-2">
+                                <button id="classesUnits-prev-btn" onclick="changePage('classesUnits', -1)"
+                                    class="neo-btn px-3 py-1 bg-slate-800 text-slate-300 rounded-lg text-xs">Prev</button>
+                                <button id="classesUnits-next-btn" onclick="changePage('classesUnits', 1)"
+                                    class="neo-btn px-3 py-1 bg-slate-800 text-slate-300 rounded-lg text-xs">Next</button>
+                            </div>
+                        </div>
                     </div>
                 </div>
                 <!-- TASKS CONTENT -->
                 <div id="dataview-tasks" class="hidden">
                     <div class="neo bg-slate-800 rounded-[20px] overflow-hidden">
-                        <div class="p-5 border-b-[3px] border-slate-700 flex items-center justify-between">
-                            <h2 class="font-heading text-lg text-white">User Tasks (myspace_tasks)</h2>
-                            <div id="tasksCount" class="chip bg-blue/10 text-blue border-blue/40">0 tasks</div>
+                        <div class="p-5 border-b-[3px] border-slate-700 flex items-center justify-between flex-wrap gap-3">
+                            <div class="flex items-center gap-3 flex-wrap">
+                                <h2 class="font-heading text-lg text-white">User Tasks (myspace_tasks)</h2>
+                                <div id="tasksCount" class="chip bg-blue/10 text-blue border-blue/40">0 tasks</div>
+                            </div>
+                            <div class="flex items-center gap-1.5" role="group" aria-label="Filter tasks by status">
+                                <button type="button" onclick="setTasksStatusFilter('all')" id="tasksfilter-all" class="range-pill active">All</button>
+                                <button type="button" onclick="setTasksStatusFilter('pending')" id="tasksfilter-pending" class="range-pill">Pending</button>
+                                <button type="button" onclick="setTasksStatusFilter('completed')" id="tasksfilter-completed" class="range-pill">Completed</button>
+                            </div>
                         </div>
                         <div class="overflow-x-auto">
                             <table class="w-full text-sm">
                                 <thead>
                                     <tr class="border-b-2 border-slate-700 bg-slate-900">
-                                        <th
-                                            class="text-left px-5 py-3 text-[10px] font-black text-slate-500 uppercase tracking-widest">
-                                            User</th>
-                                        <th
-                                            class="text-left px-5 py-3 text-[10px] font-black text-slate-500 uppercase tracking-widest">
-                                            Task</th>
-                                        <th
-                                            class="text-left px-5 py-3 text-[10px] font-black text-slate-500 uppercase tracking-widest">
-                                            Category</th>
-                                        <th
-                                            class="text-left px-5 py-3 text-[10px] font-black text-slate-500 uppercase tracking-widest">
-                                            Status</th>
+                                        <th onclick="toggleSort('tasks', 'user')"
+                                            class="text-left px-5 py-3 text-[10px] font-black text-slate-500 uppercase tracking-widest cursor-pointer hover:text-blue transition-colors">
+                                            <div class="flex items-center gap-1">User <span id="sort-tasks-user"></span></div>
+                                        </th>
+                                        <th onclick="toggleSort('tasks', 'text')"
+                                            class="text-left px-5 py-3 text-[10px] font-black text-slate-500 uppercase tracking-widest cursor-pointer hover:text-blue transition-colors">
+                                            <div class="flex items-center gap-1">Task <span id="sort-tasks-text"></span></div>
+                                        </th>
+                                        <th onclick="toggleSort('tasks', 'category')"
+                                            class="text-left px-5 py-3 text-[10px] font-black text-slate-500 uppercase tracking-widest cursor-pointer hover:text-blue transition-colors">
+                                            <div class="flex items-center gap-1">Category <span id="sort-tasks-category"></span></div>
+                                        </th>
+                                        <th onclick="toggleSort('tasks', 'status')"
+                                            class="text-left px-5 py-3 text-[10px] font-black text-slate-500 uppercase tracking-widest cursor-pointer hover:text-blue transition-colors">
+                                            <div class="flex items-center gap-1">Status <span id="sort-tasks-status"></span></div>
+                                        </th>
                                         <th
                                             class="text-right px-5 py-3 text-[10px] font-black text-slate-500 uppercase tracking-widest">
                                             Actions</th>
@@ -900,13 +979,24 @@
                                 <tbody id="tasksTableBody" class="divide-y divide-slate-700/50"></tbody>
                             </table>
                         </div>
+                        <div
+                            class="p-2 md:p-4 border-t-[3px] border-slate-700 flex items-center justify-between bg-slate-900/50">
+                            <div class="text-[9px] md:text-[10px] text-slate-500 font-bold uppercase tracking-widest"
+                                id="tasks-page-info">Page 1 of 1</div>
+                            <div class="flex gap-2">
+                                <button id="tasks-prev-btn" onclick="changePage('tasks', -1)"
+                                    class="neo-btn px-3 py-1 bg-slate-800 text-slate-300 rounded-lg text-xs">Prev</button>
+                                <button id="tasks-next-btn" onclick="changePage('tasks', 1)"
+                                    class="neo-btn px-3 py-1 bg-slate-800 text-slate-300 rounded-lg text-xs">Next</button>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
                 <!-- MY CLASS CONTENT -->
                 <div id="dataview-myclass" class="hidden">
                     <div class="neo bg-slate-800 rounded-[20px] overflow-hidden">
-                        <div class="p-5 border-b-[3px] border-slate-700 flex items-center justify-between">
+                        <div class="p-5 border-b-[3px] border-slate-700 flex items-center justify-between flex-wrap gap-3">
                             <h2 class="font-heading text-lg text-white">Student Management (myspace_my_class)</h2>
                             <div id="myclassCount" class="chip bg-orange/10 text-orange border-orange/40">0 classes
                             </div>
@@ -915,18 +1005,21 @@
                             <table class="w-full text-sm">
                                 <thead>
                                     <tr class="border-b-2 border-slate-700 bg-slate-900">
-                                        <th
-                                            class="text-left px-5 py-3 text-[10px] font-black text-slate-500 uppercase tracking-widest">
-                                            User</th>
-                                        <th
-                                            class="text-left px-5 py-3 text-[10px] font-black text-slate-500 uppercase tracking-widest">
-                                            Class Name</th>
+                                        <th onclick="toggleSort('myclass', 'user')"
+                                            class="text-left px-5 py-3 text-[10px] font-black text-slate-500 uppercase tracking-widest cursor-pointer hover:text-blue transition-colors">
+                                            <div class="flex items-center gap-1">User <span id="sort-myclass-user"></span></div>
+                                        </th>
+                                        <th onclick="toggleSort('myclass', 'class_name')"
+                                            class="text-left px-5 py-3 text-[10px] font-black text-slate-500 uppercase tracking-widest cursor-pointer hover:text-blue transition-colors">
+                                            <div class="flex items-center gap-1">Class Name <span id="sort-myclass-class_name"></span></div>
+                                        </th>
                                         <th
                                             class="text-left px-5 py-3 text-[10px] font-black text-slate-500 uppercase tracking-widest">
                                             Students & Logs</th>
-                                        <th
-                                            class="text-left px-5 py-3 text-[10px] font-black text-slate-500 uppercase tracking-widest">
-                                            Updated</th>
+                                        <th onclick="toggleSort('myclass', 'updated_at')"
+                                            class="text-left px-5 py-3 text-[10px] font-black text-slate-500 uppercase tracking-widest cursor-pointer hover:text-blue transition-colors">
+                                            <div class="flex items-center gap-1">Updated <span id="sort-myclass-updated_at"></span></div>
+                                        </th>
                                         <th
                                             class="text-right px-5 py-3 text-[10px] font-black text-slate-500 uppercase tracking-widest">
                                             Actions</th>
@@ -934,6 +1027,17 @@
                                 </thead>
                                 <tbody id="myclassTableBody" class="divide-y divide-slate-700/50"></tbody>
                             </table>
+                        </div>
+                        <div
+                            class="p-2 md:p-4 border-t-[3px] border-slate-700 flex items-center justify-between bg-slate-900/50">
+                            <div class="text-[9px] md:text-[10px] text-slate-500 font-bold uppercase tracking-widest"
+                                id="myclass-page-info">Page 1 of 1</div>
+                            <div class="flex gap-2">
+                                <button id="myclass-prev-btn" onclick="changePage('myclass', -1)"
+                                    class="neo-btn px-3 py-1 bg-slate-800 text-slate-300 rounded-lg text-xs">Prev</button>
+                                <button id="myclass-next-btn" onclick="changePage('myclass', 1)"
+                                    class="neo-btn px-3 py-1 bg-slate-800 text-slate-300 rounded-lg text-xs">Next</button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -943,24 +1047,59 @@
                     <div class="neo bg-slate-800 rounded-[20px] overflow-hidden">
                         <div class="p-5 border-b-[3px] border-slate-700 flex items-center justify-between flex-wrap gap-3">
                             <div>
-                                <h2 class="font-heading text-lg text-white">Studio, Makers, Workshop & VTT Records</h2>
-                                <p class="text-xs text-slate-400">Dedicated records from spreadsheets, card/worksheet/puzzle makers, lesson parser, D&D & VTT</p>
+                                <div class="flex items-center gap-3 flex-wrap">
+                                    <h2 class="font-heading text-lg text-white">Studio, Makers, Workshop & VTT Records</h2>
+                                    <div id="studioCount" class="chip bg-blue/10 text-blue border-blue/40">0 items</div>
+                                </div>
+                                <p class="text-xs text-slate-400 mt-0.5">Dedicated records from spreadsheets, card/worksheet/puzzle makers, lesson parser, D&D & VTT</p>
                             </div>
-                            <div id="studioCount" class="chip bg-blue/10 text-blue border-blue/40">0 items</div>
+                            <select id="studioTypeFilter" onchange="setStudioTypeFilter(this.value)"
+                                class="px-3 py-1.5 bg-slate-900 border-2 border-slate-700 rounded-xl text-xs text-slate-300 outline-none focus:border-blue transition-colors">
+                                <option value="all">All types</option>
+                                <option value="spreadsheet">Spreadsheet</option>
+                                <option value="card-maker">Card Maker</option>
+                                <option value="puzzle-maker">Puzzle Maker</option>
+                                <option value="worksheet-maker">Worksheet Maker</option>
+                                <option value="lesson-parser">Lesson Parser</option>
+                                <option value="dnd-hub">D&D & VTT</option>
+                            </select>
                         </div>
                         <div class="overflow-x-auto">
                             <table class="w-full text-sm">
                                 <thead>
                                     <tr class="border-b-2 border-slate-700 bg-slate-900">
-                                        <th class="text-left px-5 py-3 text-[10px] font-black text-slate-500 uppercase tracking-widest">User</th>
-                                        <th class="text-left px-5 py-3 text-[10px] font-black text-slate-500 uppercase tracking-widest">Title / Name</th>
-                                        <th class="text-left px-5 py-3 text-[10px] font-black text-slate-500 uppercase tracking-widest">Tool / Table</th>
-                                        <th class="text-left px-5 py-3 text-[10px] font-black text-slate-500 uppercase tracking-widest">Updated</th>
+                                        <th onclick="toggleSort('studio', 'user')"
+                                            class="text-left px-5 py-3 text-[10px] font-black text-slate-500 uppercase tracking-widest cursor-pointer hover:text-blue transition-colors">
+                                            <div class="flex items-center gap-1">User <span id="sort-studio-user"></span></div>
+                                        </th>
+                                        <th onclick="toggleSort('studio', 'type')"
+                                            class="text-left px-5 py-3 text-[10px] font-black text-slate-500 uppercase tracking-widest cursor-pointer hover:text-blue transition-colors">
+                                            <div class="flex items-center gap-1">Type / Tool <span id="sort-studio-type"></span></div>
+                                        </th>
+                                        <th onclick="toggleSort('studio', 'title')"
+                                            class="text-left px-5 py-3 text-[10px] font-black text-slate-500 uppercase tracking-widest cursor-pointer hover:text-blue transition-colors">
+                                            <div class="flex items-center gap-1">Title / Name <span id="sort-studio-title"></span></div>
+                                        </th>
+                                        <th onclick="toggleSort('studio', 'updated_at')"
+                                            class="text-left px-5 py-3 text-[10px] font-black text-slate-500 uppercase tracking-widest cursor-pointer hover:text-blue transition-colors">
+                                            <div class="flex items-center gap-1">Updated <span id="sort-studio-updated_at"></span></div>
+                                        </th>
                                         <th class="text-right px-5 py-3 text-[10px] font-black text-slate-500 uppercase tracking-widest">Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody id="studioTableBody" class="divide-y divide-slate-700/50"></tbody>
                             </table>
+                        </div>
+                        <div
+                            class="p-2 md:p-4 border-t-[3px] border-slate-700 flex items-center justify-between bg-slate-900/50">
+                            <div class="text-[9px] md:text-[10px] text-slate-500 font-bold uppercase tracking-widest"
+                                id="studio-page-info">Page 1 of 1</div>
+                            <div class="flex gap-2">
+                                <button id="studio-prev-btn" onclick="changePage('studio', -1)"
+                                    class="neo-btn px-3 py-1 bg-slate-800 text-slate-300 rounded-lg text-xs">Prev</button>
+                                <button id="studio-next-btn" onclick="changePage('studio', 1)"
+                                    class="neo-btn px-3 py-1 bg-slate-800 text-slate-300 rounded-lg text-xs">Next</button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -1385,15 +1524,21 @@
 
     <!-- View Modal -->
     <div id="viewModalBg" class="view-modal-bg hidden" onclick="if(event.target===this)closeViewModal()">
-        <div class="bg-slate-900 border-[3px] border-slate-600 rounded-[24px] w-full max-w-2xl max-h-[85vh] flex flex-col"
+        <div class="animate-pop-in bg-slate-900 border-[3px] border-slate-600 rounded-[24px] w-full max-w-3xl max-h-[85vh] flex flex-col"
             style="box-shadow:6px 6px 0 #334155">
-            <div class="flex items-center justify-between p-4 md:p-6 border-b-[3px] border-slate-700">
-                <div>
-                    <div id="viewModalTitle" class="font-heading text-xl text-white"></div>
+            <div class="flex items-center justify-between gap-3 p-4 md:p-6 border-b-[3px] border-slate-700">
+                <div class="min-w-0">
+                    <div id="viewModalTitle" class="font-heading text-xl text-white truncate"></div>
                     <div id="viewModalSub" class="text-xs text-slate-400 mt-1 font-mono"></div>
                 </div>
-                <button onclick="closeViewModal()"
-                    class="neo-btn px-3 py-1.5 bg-slate-800 text-slate-300 rounded-xl text-sm">✕ Close</button>
+                <div class="flex items-center gap-2 flex-shrink-0">
+                    <button type="button" id="viewModalCopyBtn" onclick="copyViewModalContent()"
+                        class="hidden neo-btn px-3 py-1.5 bg-slate-800 text-blue rounded-xl text-xs">
+                        <i data-lucide="copy" class="w-3.5 h-3.5"></i> Copy
+                    </button>
+                    <button type="button" onclick="closeViewModal()"
+                        class="neo-btn px-3 py-1.5 bg-slate-800 text-slate-300 rounded-xl text-sm">✕ Close</button>
+                </div>
             </div>
             <div id="viewModalContent"
                 class="p-4 md:p-6 text-xs text-slate-300 overflow-auto scrollbar flex-1 leading-relaxed"></div>

@@ -146,11 +146,13 @@ function renderCloudTable() {
 // ── SORTING HELPERS ──
 function toggleSort(tableView, col) {
     const conf = sortConfig[tableView]
+    if (!conf) return
     if (conf.col === col) {
         conf.dir = conf.dir === 'asc' ? 'desc' : 'asc'
     } else {
         conf.col = col
-        conf.dir = 'asc'
+        const descDefaultCols = new Set(['active', 'storage', 'records', 'updated_at', 'created_at', 'date', 'usage', 'limit', 'percent'])
+        conf.dir = descDefaultCols.has(col) ? 'desc' : 'asc'
     }
 
     pagination[tableView] = 1 // Reset to first page
@@ -265,7 +267,17 @@ async function syncAllStorage() {
 
 // Keyboard shortcuts
 document.addEventListener('keydown', e => {
-    if (e.key === 'Escape') { closeViewModal(); closeDeleteModal() }
+    if (e.key === 'Escape') { closeViewModal(); closeDeleteModal(); return }
+    if (e.key === '/' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        const tag = (e.target && e.target.tagName) ? e.target.tagName.toLowerCase() : ''
+        if (tag === 'input' || tag === 'textarea' || tag === 'select' || e.target?.isContentEditable) return
+        const searchEl = document.getElementById('searchInput')
+        if (searchEl) {
+            e.preventDefault()
+            searchEl.focus()
+            searchEl.select()
+        }
+    }
 })
 
 init()

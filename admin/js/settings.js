@@ -207,6 +207,6 @@ function setView(view) {
     if (view === 'settings') loadSettings()
     if (view === 'announcements') renderAnnouncements()
     if (view === 'cloud') renderCloudTable()
-    if (view === 'data-details') applyFilters()
+    if (view === 'users' || view === 'data-details') applyFilters()
 }
 
