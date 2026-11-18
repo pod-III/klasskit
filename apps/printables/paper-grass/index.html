@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Paper Grass - Tear-Strip Sentence Puzzles | KlassKit</title>
+
+    <!-- Supabase -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.105.4"></script>
+    <script src="/supabase.js"></script>
+
+    <!-- Early Theme Sync -->
+    <script>
+        (function () {
+            try {
+                var saved = localStorage.getItem("theme_paper-grass") || localStorage.getItem("theme_hub") || "light";
+                if (saved === "dark") {
+                    document.documentElement.classList.add("dark");
+                }
+            } catch (e) {}
+        })();
+    </script>
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/x-icon" href="../../../media/icon.ico" />
+    <link rel="icon" type="image/webp" href="../../../media/icon.webp" />
+
+    <!-- Icons, Tailwind & Export -->
+    <script src="https://unpkg.com/lucide@1.16.0"></script>
+    <link rel="stylesheet" href="../../../css/tailwind.generated.css" />
+    <script src="../../../components/bulk-import-modal.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+        href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:wght@500;600;700;800&display=swap"
+        rel="stylesheet"
+    />
+
+    <!-- Global Theme & Paper Grass Styles -->
+    <link rel="stylesheet" href="../../../css/base.css" />
+    <link rel="stylesheet" href="../../../css/components.css" />
+    <link rel="stylesheet" href="style.css" />
+
+    <!-- Dynamic Print Page Orientation -->
+    <style id="printOrientationStyle">
+        @page {
+            size: portrait;
+            margin: 0;
+        }
+    </style>
+</head>
+<body class="opacity-0 flex flex-col md:flex-row min-h-screen text-brand-dark dark:text-white transition-all duration-300">
+    <!-- SIDEBAR CONTROLS (matches Card Maker layout) -->
+    <aside class="sidebar glass-panel no-print flex flex-col p-4 sm:p-5">
+        <!-- Header -->
+        <div class="mb-4 border-b-2 border-slate-100 dark:border-slate-700 pb-4 flex items-center justify-between gap-2">
+            <div>
+                <h1 class="text-3xl font-heading text-brand-dark dark:text-white tracking-tight leading-none">
+                    PAPER<span class="text-brand-green">GRASS</span>
+                </h1>
+                <div class="flex items-center gap-2 mt-2">
+                    <span class="px-2 py-0.5 rounded bg-brand-dark text-white text-[10px] font-bold uppercase tracking-widest">KlassKit</span>
+                    <span class="px-1.5 py-0.5 rounded bg-gradient-to-r from-brand-green to-brand-blue text-white text-[9px] font-black uppercase tracking-wider">NEW</span>
+                </div>
+            </div>
+
+            <div class="flex items-center gap-1.5 shrink-0">
+                <button
+                    type="button"
+                    onclick="openHelpModal()"
+                    title="How to use Paper Grass"
+                    class="bg-white dark:bg-slate-800 text-brand-dark dark:text-white p-2 rounded-full border-2 border-brand-dark dark:border-slate-500 shadow-neo-sm hover:-translate-y-0.5 transition-all focus:outline-none"
+                >
+                    <i data-lucide="help-circle" class="w-4 h-4"></i>
+                </button>
+                <button
+                    type="button"
+                    onclick="toggleTheme()"
+                    title="Toggle dark/light mode"
+                    class="bg-white dark:bg-slate-800 text-brand-dark dark:text-white p-2 rounded-full border-2 border-brand-dark dark:border-slate-500 shadow-neo-sm hover:-translate-y-0.5 transition-all group focus:outline-none"
+                >
+                    <i data-lucide="moon" class="w-4 h-4 dark:hidden group-hover:rotate-12 transition-transform"></i>
+                    <i data-lucide="sun" class="w-4 h-4 hidden dark:block group-hover:rotate-90 transition-transform text-amber-300"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Active Set Indicator -->
+        <div id="active-set-indicator" class="hidden mb-4 animate-pop-in">
+            <div class="bg-brand-blue/10 border-2 border-brand-blue/30 rounded-xl p-3 flex items-center gap-3">
+                <div class="w-8 h-8 rounded-lg bg-brand-blue flex items-center justify-center text-white shrink-0 shadow-neo-sm">
+                    <i data-lucide="layers" class="w-4 h-4"></i>
+                </div>
+                <div class="min-w-0">
+                    <p class="text-[10px] font-bold text-brand-blue uppercase tracking-wider leading-none mb-1">Active Set</p>
+                    <p id="active-set-name" class="text-sm font-bold truncate dark:text-white">Untitled Set</p>
+                </div>
+                <button type="button" onclick="closeActiveSet()" class="ml-auto text-slate-400 hover:text-brand-pink transition-colors" title="Close active set">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Scrollable Controls -->
+        <div class="space-y-6 flex-1 overflow-y-auto pr-2 custom-scrollbar">
+            <!-- Page Actions -->
+            <section>
+                <div class="grid grid-cols-2 gap-2 mb-3">
+                    <button type="button" onclick="addNewPage()" class="btn-chunky bg-brand-blue text-white py-2.5 rounded-xl flex items-center justify-center gap-1.5 text-xs">
+                        <i data-lucide="plus-circle" class="w-4 h-4"></i> Page
+                    </button>
+                    <button type="button" onclick="resetTool()" class="btn-chunky bg-white dark:bg-slate-700 py-2.5 rounded-xl flex items-center justify-center gap-1.5 text-xs dark:text-white">
+                        <i data-lucide="sparkles" class="w-4 h-4"></i> New
+                    </button>
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                    <button type="button" onclick="openBulkModal()" class="btn-chunky bg-white dark:bg-slate-700 py-2 rounded-xl text-xs flex items-center justify-center gap-1.5 dark:text-white">
+                        <i data-lucide="list-plus" class="w-3.5 h-3.5"></i> Bulk Import
+                    </button>
+                    <button type="button" onclick="rerollAllStrips()" class="btn-chunky bg-white dark:bg-slate-700 py-2 rounded-xl text-xs flex items-center justify-center gap-1.5 dark:text-white" title="Remix all strip puzzles">
+                        <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i> Remix All
+                    </button>
+                </div>
+                <div id="grassPresetsSlot" class="mt-3"></div>
+            </section>
+
+            <!-- Sentences Input -->
+            <section class="border-t-2 border-slate-100 dark:border-slate-700 pt-4">
+                <div class="flex items-center justify-between gap-2 mb-2">
+                    <label class="section-label mb-0">
+                        Sentences (1 / Row)
+                    </label>
+                    <span id="sentenceCountPill" class="px-2 py-0.5 rounded-full bg-brand-green/15 text-brand-dark dark:text-brand-green border border-brand-green/40 text-[10px] font-extrabold">
+                        8 strips · 1p
+                    </span>
+                </div>
+                <textarea
+                    id="sentencesInput"
+                    rows="5"
+                    placeholder="One sentence per line...&#10;I wake up at seven o'clock.&#10;She walks to school with her friend."
+                    class="input-chunky text-xs leading-relaxed resize-y custom-scrollbar"
+                ></textarea>
+                <div class="flex items-center justify-between gap-2 mt-2">
+                    <div class="flex items-center gap-2 text-[11px] font-bold">
+                        <button type="button" onclick="loadExampleSentences()" class="text-brand-blue hover:underline uppercase">Sample</button>
+                        <span class="text-slate-300 dark:text-slate-600">|</span>
+                        <button type="button" onclick="clearSentences()" class="text-brand-pink hover:underline uppercase">Clear</button>
+                    </div>
+                    <button type="button" onclick="generateFromSentences(true)" class="btn-chunky bg-brand-orange text-brand-dark px-3 py-1.5 rounded-xl text-[11px] flex items-center gap-1">
+                        <i data-lucide="wand-2" class="w-3.5 h-3.5"></i> Build
+                    </button>
+                </div>
+                <p class="text-[10px] text-slate-400 mt-1.5 leading-snug">
+                    For <strong>Fix Error</strong>, enter <code class="bg-slate-100 dark:bg-slate-700 px-1 rounded">Right | Wrong</code> per line or use the Right &amp; Wrong pair inputs below.
+                </p>
+            </section>
+
+            <!-- Puzzle Style -->
+            <section class="border-t-2 border-slate-100 dark:border-slate-700 pt-4">
+                <label class="section-label">Puzzle Type</label>
+                <div class="grid grid-cols-2 gap-2 mb-2">
+                    <button id="mode-scramble" type="button" onclick="setPuzzleMode('scramble')" class="btn-chunky py-2 px-2 rounded-xl text-[11px] bg-white dark:bg-slate-700 text-slate-800 dark:text-white flex items-center justify-center gap-1.5">
+                        <i data-lucide="shuffle" class="w-3.5 h-3.5"></i> Scramble
+                    </button>
+                    <button id="mode-caesar" type="button" onclick="setPuzzleMode('caesar')" class="btn-chunky py-2 px-2 rounded-xl text-[11px] bg-white dark:bg-slate-700 text-slate-800 dark:text-white flex items-center justify-center gap-1.5">
+                        <i data-lucide="key-round" class="w-3.5 h-3.5"></i> Caesar
+                    </button>
+                    <button id="mode-fix" type="button" onclick="setPuzzleMode('fix')" class="btn-chunky py-2 px-2 rounded-xl text-[11px] bg-white dark:bg-slate-700 text-slate-800 dark:text-white flex items-center justify-center gap-1.5">
+                        <i data-lucide="wrench" class="w-3.5 h-3.5"></i> Fix Error
+                    </button>
+                    <button id="mode-vowels" type="button" onclick="setPuzzleMode('vowels')" class="btn-chunky py-2 px-2 rounded-xl text-[11px] bg-white dark:bg-slate-700 text-slate-800 dark:text-white flex items-center justify-center gap-1.5">
+                        <i data-lucide="type" class="w-3.5 h-3.5"></i> No Vowels
+                    </button>
+                    <button id="mode-anagram" type="button" onclick="setPuzzleMode('anagram')" class="btn-chunky py-2 px-2 rounded-xl text-[11px] bg-white dark:bg-slate-700 text-slate-800 dark:text-white flex items-center justify-center gap-1.5">
+                        <i data-lucide="sparkles" class="w-3.5 h-3.5"></i> Jumble
+                    </button>
+                    <button id="mode-nospaces" type="button" onclick="setPuzzleMode('nospaces')" class="btn-chunky py-2 px-2 rounded-xl text-[11px] bg-white dark:bg-slate-700 text-slate-800 dark:text-white flex items-center justify-center gap-1.5">
+                        <i data-lucide="minus" class="w-3.5 h-3.5"></i> Word Glue
+                    </button>
+                </div>
+                <button id="mode-mixed" type="button" onclick="setPuzzleMode('mixed')" class="btn-chunky w-full py-2 px-2 rounded-xl text-[11px] bg-white dark:bg-slate-700 text-slate-800 dark:text-white flex items-center justify-center gap-1.5">
+                    <i data-lucide="dice-5" class="w-3.5 h-3.5"></i> Mixed Variety
+                </button>
+
+                <div id="caesarOptionsBox" class="hidden mt-3 pt-3 border-t-2 border-slate-100 dark:border-slate-700">
+                    <span class="text-xs font-bold text-brand-dark dark:text-white block mb-1.5">Caesar Cipher Shift</span>
+                    <select id="caesarShiftSelect" class="input-chunky py-2 text-xs">
+                        <option value="0">Random Shift (+1 to +5)</option>
+                        <option value="1">Fixed +1 (A → B)</option>
+                        <option value="2">Fixed +2 (A → C)</option>
+                        <option value="3" selected>Fixed +3 (A → D)</option>
+                        <option value="4">Fixed +4 (A → E)</option>
+                        <option value="5">Fixed +5 (A → F)</option>
+                    </select>
+                </div>
+
+                <div id="fixOptionsBox" class="hidden mt-3 pt-3 border-t-2 border-slate-100 dark:border-slate-700 space-y-2.5">
+                    <div class="flex items-center justify-between gap-2">
+                        <span class="text-xs font-bold text-brand-dark dark:text-white">Fix Error Pairs (Right &amp; Wrong)</span>
+                        <button type="button" onclick="addFixPair()" class="px-2 py-1 rounded-lg bg-brand-orange/20 hover:bg-brand-orange text-brand-dark dark:text-white dark:hover:text-brand-dark border border-brand-orange text-[10px] font-extrabold uppercase transition-colors">
+                            + Add Pair
+                        </button>
+                    </div>
+                    <p class="text-[10px] text-slate-400 leading-snug">
+                        Enter both sentences: <strong>Right</strong> goes to Answer Key, <strong>Wrong</strong> prints on the student strip.
+                    </p>
+                    <div id="fixPairsList" class="space-y-2 max-h-64 overflow-y-auto pr-1 custom-scrollbar"></div>
+                </div>
+            </section>
+
+            <!-- Page Layout -->
+            <section class="border-t-2 border-slate-100 dark:border-slate-700 pt-4">
+                <label class="section-label">Page Layout</label>
+                <div class="grid grid-cols-2 gap-3 mb-3">
+                    <div>
+                        <span class="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Preset Strips</span>
+                        <select id="rowsSelect" onchange="syncFromRowsPreset()" class="input-chunky py-2 text-xs">
+                            <option value="">Custom...</option>
+                            <option value="6">6 Strips</option>
+                            <option value="8" selected>8 Strips</option>
+                            <option value="10">10 Strips</option>
+                            <option value="12">12 Strips</option>
+                        </select>
+                    </div>
+                    <div>
+                        <span class="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Rows / Page</span>
+                        <input id="inputRows" type="number" min="2" max="16" value="8" onchange="handleCustomRows()" class="input-chunky py-2 px-3 text-sm" />
+                    </div>
+                </div>
+
+                <div>
+                    <span class="text-xs font-bold text-brand-dark dark:text-white block mb-2">Orientation</span>
+                    <div class="flex gap-2">
+                        <button id="btnPortrait" type="button" onclick="setOrientation('portrait')" class="btn-chunky flex-1 bg-white dark:bg-slate-700 py-2 rounded-xl text-xs dark:text-white">
+                            Portrait
+                        </button>
+                        <button id="btnLandscape" type="button" onclick="setOrientation('landscape')" class="btn-chunky flex-1 bg-white dark:bg-slate-700 py-2 rounded-xl text-xs dark:text-white">
+                            Landscape
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Grass Spine -->
+            <section class="border-t-2 border-slate-100 dark:border-slate-700 pt-4 space-y-3">
+                <label class="section-label mb-0">Uncut Grass Spine</label>
+                <div class="flex gap-2">
+                    <button id="spineLeft" type="button" onclick="setSpineSide('left')" class="btn-chunky flex-1 bg-white dark:bg-slate-700 py-2 rounded-xl text-xs dark:text-white">
+                        Left Spine
+                    </button>
+                    <button id="spineRight" type="button" onclick="setSpineSide('right')" class="btn-chunky flex-1 bg-white dark:bg-slate-700 py-2 rounded-xl text-xs dark:text-white">
+                        Right Spine
+                    </button>
+                </div>
+
+                <div>
+                    <span class="text-xs font-bold text-brand-dark dark:text-white block mb-1.5">Spine Width</span>
+                    <div class="grid grid-cols-3 gap-1.5">
+                        <button id="spineW-16" type="button" onclick="setSpineWidth(16)" class="btn-chunky bg-white dark:bg-slate-700 py-1.5 rounded-lg text-[11px] dark:text-white">
+                            16mm
+                        </button>
+                        <button id="spineW-22" type="button" onclick="setSpineWidth(22)" class="btn-chunky bg-white dark:bg-slate-700 py-1.5 rounded-lg text-[11px] dark:text-white">
+                            22mm
+                        </button>
+                        <button id="spineW-30" type="button" onclick="setSpineWidth(30)" class="btn-chunky bg-white dark:bg-slate-700 py-1.5 rounded-lg text-[11px] dark:text-white">
+                            30mm
+                        </button>
+                    </div>
+                </div>
+
+                <div>
+                    <span class="text-xs font-bold text-brand-dark dark:text-white block mb-1.5">Spine Label</span>
+                    <input
+                        id="spineTitleInput"
+                        type="text"
+                        value="PAPER GRASS"
+                        maxlength="32"
+                        placeholder="PAPER GRASS"
+                        oninput="updateSpineTitle(this.value)"
+                        class="input-chunky py-2 text-xs"
+                    />
+                </div>
+            </section>
+
+            <!-- Typography & Options -->
+            <section class="border-t-2 border-slate-100 dark:border-slate-700 pt-4 space-y-3">
+                <label class="section-label mb-0">Strip Design</label>
+                <div>
+                    <span class="text-xs font-bold text-brand-dark dark:text-white block mb-2">Puzzle Font Size</span>
+                    <div class="flex justify-between gap-1">
+                        <button id="font-1" type="button" onclick="setFontSize(1)" class="btn-chunky flex-1 bg-white dark:bg-slate-700 py-1.5 rounded-lg text-[10px] dark:text-white">S</button>
+                        <button id="font-1.35" type="button" onclick="setFontSize(1.35)" class="btn-chunky flex-1 bg-white dark:bg-slate-700 py-1.5 rounded-lg text-[10px] dark:text-white">M</button>
+                        <button id="font-1.65" type="button" onclick="setFontSize(1.65)" class="btn-chunky flex-1 bg-white dark:bg-slate-700 py-1.5 rounded-lg text-[10px] dark:text-white">L</button>
+                        <button id="font-2" type="button" onclick="setFontSize(2)" class="btn-chunky flex-1 bg-white dark:bg-slate-700 py-1.5 rounded-lg text-[10px] dark:text-white">XL</button>
+                    </div>
+                </div>
+
+                <div class="space-y-2">
+                    <div id="toggleBadges" onclick="toggleOption('showBadges')" class="toggle-container active">
+                        <span>Puzzle Type Badges</span>
+                        <div class="toggle-switch"></div>
+                    </div>
+                    <div id="toggleNumbers" onclick="toggleOption('showNumbers')" class="toggle-container active">
+                        <span>Strip Numbers (#1, #2…)</span>
+                        <div class="toggle-switch"></div>
+                    </div>
+                    <div id="toggleAnswerLine" onclick="toggleOption('showAnswerLine')" class="toggle-container">
+                        <span>Student Writing Line</span>
+                        <div class="toggle-switch"></div>
+                    </div>
+                    <div id="toggleAnswerKey" onclick="toggleOption('showAnswerKey')" class="toggle-container active">
+                        <span>Teacher Answer Key</span>
+                        <div class="toggle-switch"></div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Saved Sets Library -->
+            <section class="border-t-2 border-slate-100 dark:border-slate-700 pt-4">
+                <div class="flex items-center justify-between mb-2">
+                    <label class="section-label mb-0">Library</label>
+                    <select id="sets-sort" onchange="changeSetsSort()" class="bg-transparent text-[10px] font-bold text-slate-400 outline-none cursor-pointer hover:text-brand-blue transition-colors uppercase tracking-widest">
+                        <option value="recent">Recent</option>
+                        <option value="alpha">Alpha</option>
+                        <option value="popular">Popular</option>
+                    </select>
+                </div>
+                <div class="flex gap-2 mb-3">
+                    <input id="set-name-input" type="text" placeholder="Set name..." class="input-chunky flex-1 py-2 px-3 text-sm" />
+                    <button id="save-btn" type="button" onclick="saveCurrentSet()" class="btn-chunky bg-brand-pink text-white py-2 px-3 rounded-xl text-xs flex items-center gap-1 shrink-0">
+                        <i data-lucide="save" class="w-3 h-3"></i> SAVE
+                    </button>
+                </div>
+                <div id="sets-list" class="space-y-1.5 max-h-48 overflow-y-auto custom-scrollbar">
+                    <p class="text-slate-400 text-[10px] italic">No saved sets yet.</p>
+                </div>
+            </section>
+        </div>
+
+        <!-- Sticky Export Footer -->
+        <div class="mt-4 pt-4 border-t-2 border-brand-dark dark:border-slate-700">
+            <div class="grid grid-cols-2 gap-2">
+                <button type="button" onclick="window.print()" class="btn-chunky bg-brand-green py-3 rounded-xl text-sm flex items-center justify-center gap-1.5 text-brand-dark">
+                    <i data-lucide="printer" class="w-4 h-4"></i> PRINT
+                </button>
+                <button type="button" onclick="exportToPNG()" class="btn-chunky bg-brand-orange py-3 rounded-xl text-sm flex items-center justify-center gap-1.5 text-brand-dark">
+                    <i data-lucide="image" class="w-4 h-4"></i> SAVE PNG
+                </button>
+            </div>
+        </div>
+    </aside>
+
+    <!-- FLOATING ZOOM BAR -->
+    <div id="zoom-bar" class="no-print fixed bottom-4 right-4 z-[60] flex items-center gap-1 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border-[3px] border-brand-dark dark:border-slate-500 rounded-2xl p-1 shadow-neo dark:shadow-[4px_4px_0px_0px_#000000]">
+        <button id="zoom-0.5" type="button" onclick="setPreviewZoom(0.5)" class="px-2.5 py-1 rounded-xl text-[11px] font-heading font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">50%</button>
+        <button id="zoom-0.75" type="button" onclick="setPreviewZoom(0.75)" class="px-2.5 py-1 rounded-xl text-[11px] font-heading font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">75%</button>
+        <button id="zoom-1" type="button" onclick="setPreviewZoom(1)" class="px-2.5 py-1 rounded-xl text-[11px] font-heading font-bold bg-brand-blue text-white transition-colors">100%</button>
+        <button id="zoom-fit" type="button" onclick="setPreviewZoom('fit')" class="px-2.5 py-1 rounded-xl text-[11px] font-heading font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors" title="Fit page to screen">FIT</button>
+    </div>
+
+    <!-- MAIN WORKSPACE -->
+    <main id="pagesContainer" class="preview-area transition-all duration-500 flex-1"></main>
+
+    <!-- Toast Notification Container -->
+    <div id="toast-container" class="no-print fixed bottom-8 left-1/2 -translate-x-1/2 z-[400] flex flex-col gap-3 pointer-events-none"></div>
+
+    <!-- Custom Confirm Modal -->
+    <div id="confirmModal" class="no-print hidden fixed inset-0 bg-brand-dark/60 backdrop-blur-md z-[500] items-center justify-center p-4">
+        <div class="bg-white dark:bg-slate-800 w-full max-w-sm rounded-[2rem] border-4 border-brand-dark dark:border-slate-500 shadow-neo animate-pop-in overflow-hidden">
+            <div class="p-6 text-center">
+                <div class="w-16 h-16 rounded-2xl bg-brand-pink/10 flex items-center justify-center border-[3px] border-brand-dark dark:border-slate-500 mx-auto mb-4">
+                    <i data-lucide="alert-triangle" class="w-8 h-8 text-brand-pink"></i>
+                </div>
+                <h3 id="confirmTitle" class="text-xl font-heading font-bold text-brand-dark dark:text-white mb-2 uppercase">Confirm Action</h3>
+                <p id="confirmMessage" class="text-sm text-slate-500 dark:text-slate-400 mb-6"></p>
+                <div class="flex gap-3">
+                    <button id="confirmBtnYes" type="button" class="flex-1 btn-chunky bg-brand-pink text-white py-3 rounded-2xl font-bold text-xs">
+                        Confirm
+                    </button>
+                    <button id="confirmBtnNo" type="button" class="flex-1 btn-chunky bg-white dark:bg-slate-700 dark:text-white py-3 rounded-2xl font-bold text-xs">
+                        Cancel
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- How-To Modal -->
+    <div id="helpModal" class="no-print hidden fixed inset-0 z-[500] items-center justify-center bg-brand-dark/60 backdrop-blur-md p-4" onclick="if (event.target === this) closeHelpModal()">
+        <div class="animate-pop-in bg-white dark:bg-slate-800 border-4 border-brand-dark dark:border-slate-500 rounded-[2rem] shadow-neo max-w-md w-full p-6 flex flex-col gap-4">
+            <div class="flex items-center justify-between border-b-2 border-slate-100 dark:border-slate-700 pb-3">
+                <div class="flex items-center gap-2.5">
+                    <div class="w-9 h-9 rounded-xl bg-brand-green border-2 border-brand-dark flex items-center justify-center shadow-neo-sm">
+                        <i data-lucide="scissors" class="w-5 h-5 text-brand-dark"></i>
+                    </div>
+                    <h3 class="font-heading text-xl text-brand-dark dark:text-white uppercase">How Paper Grass Works</h3>
+                </div>
+                <button type="button" onclick="closeHelpModal()" class="p-1.5 rounded-xl border-2 border-slate-300 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors" aria-label="Close help">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
+            </div>
+            <ol class="space-y-3 text-sm font-semibold text-slate-700 dark:text-slate-200 leading-relaxed list-decimal list-inside">
+                <li>Type or paste target sentences (one per line), or pick a CEFR starter pack.</li>
+                <li>Choose a puzzle style (Word Scramble, Caesar Cipher, Fix Error, No Vowels, Jumble, Word Glue, or Mixed).</li>
+                <li>Print and cut along the dashed row lines, stopping at the green spine so the strips hang like blades of grass.</li>
+                <li>Tape the uncut spine to a wall or board. Students grab a strip, rip it off, and solve the sentence puzzle!</li>
+            </ol>
+            <div class="flex justify-end pt-1">
+                <button type="button" onclick="closeHelpModal()" class="btn-chunky px-5 py-2 rounded-xl text-xs uppercase bg-brand-blue text-white">
+                    Got It!
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
