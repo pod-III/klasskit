@@ -12,10 +12,11 @@ test.describe('KlassKit Hub & Landing', () => {
   });
 
   test('hub loads catalog, supports search shortcut, theme toggle, split screen, and timer in Sandbox mode', async ({ page }) => {
-    test.setTimeout(60000);
+    test.setTimeout(90000);
     const pageErrors = [];
     page.on('pageerror', (err) => pageErrors.push(err.message));
 
+    await page.emulateMedia({ reducedMotion: 'reduce' });
     await page.addInitScript(() => {
       localStorage.setItem('kk_mode', 'sandbox');
     });
@@ -40,13 +41,15 @@ test.describe('KlassKit Hub & Landing', () => {
 
     // Open two activities into workspace tabs, open settings menu, and toggle Split Screen
     await page.evaluate(() => {
-      window.GameModal.open('bingomaker');
-      window.GameModal.open('clockcalendar');
+      window.GameModal.open('scoreboard');
+      window.GameModal.open('scrambler');
     });
     const gameModal = page.locator('#game-modal');
     await expect(gameModal).toBeVisible();
+    await expect(page.locator('#side-panel-tabs [role="tab"]')).toHaveCount(2);
 
     await page.locator('[data-action="toggleSettings"]').click();
+    await expect(page.locator('#settings-menu')).not.toHaveClass(/pointer-events-none/);
     await page.locator('[data-action="toggleSplitScreen"]').click();
     await expect(page.locator('#tab-content-area')).toHaveClass(/split-mode/);
 

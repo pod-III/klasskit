@@ -246,7 +246,7 @@ klasskit/
 │
 ├── components/             # Shared UI modules (app-bootstrap, bulk-import-modal, input-modal, media-manager)
 ├── css/                    # Global stylesheets (tailwind.input, tailwind.generated, base, components, home, side-panel)
-├── admin/                  # Admin dashboard (index.html, script.js, style.css)
+├── admin/                  # Admin dashboard (index.html, style.css, js/*.js)
 ├── api/                    # Auth & error pages (confirmation, reset-password, 500, unauthorized)
 ├── supabase/sql/           # Database schema, RLS, VTT, and storage trigger SQL files
 ├── media/                  # App icons, WebP previews, and PWA assets

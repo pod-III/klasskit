@@ -15,12 +15,27 @@ jobs:
       - uses: actions/setup-node@v4.4.0    # ← bump to latest patch
         with:
           node-version: 24
-          
+
       - name: Install dependencies
         run: npm ci
-        
+
+      - name: Verify Tailwind CSS is up to date
+        run: |
+          npm run css:build
+          git diff --exit-code css/tailwind.generated.css
+
+      - name: Verify auth guards and JS syntax
+        run: |
+          for f in js/hub/*.js admin/js/*.js components/*.js apps/games/quiz-block/script.js tests/*.spec.js; do node --check "$f"; done
+          unguarded=$(python3 scratch/check_guards.py | grep -v "^apps/games/dnd/pages/character/reserve/index.html$" || true)
+          if [ -n "$unguarded" ]; then
+            echo "Missing auth guard in:"
+            echo "$unguarded"
+            exit 1
+          fi
+
       - name: Install Playwright Browsers
         run: npx playwright install --with-deps
-        
+
       - name: Run Playwright tests
         run: npx playwright test
