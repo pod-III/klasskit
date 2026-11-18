@@ -58,13 +58,22 @@
         /* ---------- Theme tokens (light = chalk paper, dark = OLED slate) ---------- */
         :root {
             --row-height: 60px;
+            --color-pink: #ff4785;
+            --color-orange: #ff7e33;
+            --color-green: #00d063;
+            --color-blue: #1ea7fd;
+            --color-dark: #1e293b;
+            --color-chalk: #f8fafc;
             --line: #1e293b;
             --ink: #1e293b;
             --surface: #ffffff;
             --muted: #64748b;
             --shadow: #1e293b;
-            --dot: rgba(30, 41, 59, 0.11);
             --track: #f1f5f9;
+            --border-primary: #1e293b;
+            --shadow-hard-sm: 2px 2px 0px 0px var(--border-primary);
+            --shadow-hard-md: 4px 4px 0px 0px var(--border-primary);
+            --shadow-hard-lg: 8px 8px 0px 0px var(--border-primary);
         }
 
         .dark {
@@ -73,31 +82,106 @@
             --surface: #1e293b;
             --muted: #94a3b8;
             --shadow: #000000;
-            --dot: rgba(148, 163, 184, 0.14);
             --track: #0f172a;
+            --border-primary: #64748b;
+            --shadow-hard-sm: 2px 2px 0px 0px #000000;
+            --shadow-hard-md: 4px 4px 0px 0px #000000;
+            --shadow-hard-lg: 8px 8px 0px 0px #000000;
         }
 
         body {
-            overflow: hidden;
+            font-family: "Nunito", sans-serif;
+            background-color: var(--color-chalk);
+            color: var(--color-dark);
             -webkit-tap-highlight-color: transparent;
         }
 
-        @media (max-width: 768px) {
-            body { padding-bottom: 0 !important; }
+        .dark body {
+            background-color: #020617;
+            color: white;
         }
 
         @media screen {
             .hidden { display: none !important; }
         }
 
-        /* The "desk" behind the paper; dots scroll with the content */
-        .desk {
-            background-image: radial-gradient(var(--dot) 2px, transparent 2px);
-            background-size: 24px 24px;
-            background-attachment: local;
+        button:focus-visible,
+        input:focus-visible,
+        textarea:focus-visible,
+        select:focus-visible {
+            outline: 3px solid #1ea7fd;
+            outline-offset: 2px;
         }
 
-        /* Glass surfaces (floating toolbar, modals) */
+        .custom-scrollbar::-webkit-scrollbar { width: 8px; height: 8px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: rgba(30, 41, 59, 0.05); border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+        /* Card Maker Sidebar & Preview Area */
+        .sidebar {
+            width: 100%;
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border-bottom: 4px solid var(--border-primary);
+            z-index: 50;
+        }
+
+        @media (min-width: 768px) {
+            .sidebar {
+                width: 340px;
+                border-bottom: none;
+                border-right: 4px solid var(--border-primary);
+                height: 100vh;
+                position: sticky;
+                top: 0;
+                overflow-y: auto;
+            }
+        }
+
+        @media (min-width: 1440px) {
+            .sidebar { width: 380px; }
+        }
+
+        .dark .sidebar {
+            background: rgba(30, 41, 59, 0.85);
+        }
+
+        .preview-area {
+            background-color: #f8fafc;
+            background-image:
+                linear-gradient(rgba(30, 41, 59, 0.05) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(30, 41, 59, 0.05) 1px, transparent 1px);
+            background-size: 20px 20px;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 40px 28px 80px;
+            overflow-y: auto;
+            gap: 44px;
+            min-width: 0;
+        }
+
+        .dark .preview-area {
+            background-color: #020617;
+            background-image:
+                linear-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+        }
+
+        .section-label {
+            font-size: 11px;
+            font-weight: 700;
+            color: #94a3b8;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            margin-bottom: 0.5rem;
+            display: block;
+            font-family: "Fredoka", sans-serif;
+        }
+
         .glass {
             backdrop-filter: blur(16px);
             -webkit-backdrop-filter: blur(16px);
@@ -105,80 +189,60 @@
 
         .glass-edge { border: 1px solid rgba(255, 255, 255, 0.3); }
 
-        /* ---------- Chunky physical buttons ---------- */
+        /* Chunky buttons */
         .btn-chunky {
             font-family: 'Fredoka', sans-serif;
             font-weight: 700;
             letter-spacing: 0.05em;
             text-transform: uppercase;
             user-select: none;
-            border: 3px solid var(--line);
-            box-shadow: 0 4px 0 var(--shadow);
-            transition: transform 0.12s ease, box-shadow 0.12s ease, background-color 0.15s ease, color 0.15s ease;
+            border: 3px solid var(--border-primary);
+            box-shadow: var(--shadow-hard-md);
+            transition: transform 0.1s ease, box-shadow 0.1s ease, background-color 0.15s ease, color 0.15s ease;
         }
 
         .btn-chunky:hover:not(:disabled) {
             transform: translateY(-2px);
-            box-shadow: 0 6px 0 var(--shadow);
+            box-shadow: 6px 6px 0px 0px var(--border-primary);
+        }
+
+        .dark .btn-chunky:hover:not(:disabled) {
+            box-shadow: 6px 6px 0px 0px #000000;
         }
 
         .btn-chunky:active:not(:disabled) {
-            transform: translateY(4px);
-            box-shadow: 0 0 0 var(--shadow);
+            transform: translate(4px, 4px);
+            box-shadow: none !important;
         }
 
         .btn-chunky:disabled {
             opacity: 0.5;
             cursor: not-allowed;
-            box-shadow: 0 2px 0 var(--shadow);
         }
 
-        .btn-chunky:focus-visible,
-        .chunky-range:focus-visible,
-        .ctl-btn:focus-visible,
-        .tpl-btn:focus-visible,
-        button:focus-visible,
-        select:focus-visible {
-            outline: 3px solid var(--color-blue, #1ea7fd);
-            outline-offset: 2px;
-        }
-
-        /* ---------- Step badges & labels ---------- */
-        .step-badge {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            width: 1.35rem;
-            height: 1.35rem;
-            border-radius: 0.45rem;
-            font-family: 'Fredoka', sans-serif;
-            font-size: 0.72rem;
+        .input-chunky {
+            width: 100%;
+            border: 3px solid var(--border-primary);
+            border-radius: 0.75rem;
+            padding: 0.55rem 0.85rem;
             font-weight: 700;
-            background: var(--color-blue, #1ea7fd);
-            color: #fff;
-            border: 2px solid var(--line);
-            box-shadow: 1px 1px 0 var(--shadow);
-            flex-shrink: 0;
+            background: white;
+            color: #1e293b;
+            outline: none;
+            box-shadow: var(--shadow-hard-sm);
+            transition: box-shadow 0.15s ease;
         }
 
-        .field-label {
-            font-family: 'Fredoka', sans-serif;
-            font-size: 0.75rem;
-            font-weight: 700;
-            letter-spacing: 0.06em;
-            text-transform: uppercase;
-            color: var(--ink);
+        .dark .input-chunky {
+            background: #1e293b;
+            color: white;
         }
 
-        .sub-label {
-            font-size: 11px;
-            font-weight: 800;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            color: #94a3b8;
+        .input-chunky:focus {
+            box-shadow: 0 0 0 4px rgba(30, 167, 253, 0.3);
         }
 
-        /* ---------- Segmented radio buttons ---------- */
+        /* Segmented radio buttons styled like Card Maker chunky buttons */
         .seg { position: relative; display: block; }
         .seg input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
 
@@ -196,71 +260,79 @@
             user-select: none;
             color: var(--ink);
             background: var(--surface);
-            border: 2.5px solid var(--line);
+            border: 3px solid var(--border-primary);
             border-radius: 0.75rem;
-            box-shadow: 0 3px 0 var(--shadow);
-            transition: transform 0.12s ease, box-shadow 0.12s ease, background-color 0.15s ease;
+            box-shadow: var(--shadow-hard-md);
+            transition: transform 0.1s ease, box-shadow 0.1s ease, background-color 0.15s ease;
         }
 
-        .seg:hover input:not(:checked) + span { transform: translateY(-2px); box-shadow: 0 5px 0 var(--shadow); }
-        .seg:active input + span { transform: translateY(2px); box-shadow: 0 0 0 var(--shadow); }
+        .seg:hover input:not(:checked) + span { transform: translateY(-2px); box-shadow: 6px 6px 0 var(--shadow); }
+        .seg:active input + span { transform: translate(4px, 4px); box-shadow: none; }
         .seg input:checked + span {
-            background: var(--color-green, #00d063);
-            color: #1e293b;
-            transform: translateY(1px);
-            box-shadow: 0 2px 0 var(--shadow);
+            background: #1e293b;
+            color: #ffffff;
+            transform: translate(4px, 4px);
+            box-shadow: none;
+        }
+        .dark .seg input:checked + span {
+            background: #475569;
         }
         .seg input:focus-visible + span { outline: 3px solid var(--color-blue, #1ea7fd); outline-offset: 2px; }
 
-        /* ---------- Chunky toggle switch ---------- */
+        /* Toggle Switch (matches Card Maker) */
         .toggle-row {
             display: flex;
-            align-items: flex-start;
+            align-items: center;
+            justify-content: space-between;
             gap: 0.65rem;
-            padding: 0.55rem 0.65rem;
-            border-radius: 0.9rem;
-            border: 2px solid transparent;
+            background: #f8fafc;
+            padding: 0.65rem 0.85rem;
+            border: 2px solid #1e293b;
+            border-radius: 12px;
             cursor: pointer;
-            transition: background-color 0.15s ease, border-color 0.15s ease;
+            transition: all 0.2s;
         }
 
-        .toggle-row:hover { background: rgba(30, 167, 253, 0.08); border-color: rgba(30, 167, 253, 0.35); }
+        .dark .toggle-row {
+            background: #0f172a;
+            border-color: #64748b;
+        }
+
+        .toggle-row:hover { background: #f1f5f9; }
+        .dark .toggle-row:hover { background: #1e293b; }
 
         .switch {
             -webkit-appearance: none;
             appearance: none;
             position: relative;
             flex-shrink: 0;
-            width: 40px;
-            height: 22px;
-            margin-top: 1px;
-            border: 2.5px solid var(--line);
-            border-radius: 9999px;
-            background: var(--track);
-            box-shadow: 0 2px 0 var(--shadow);
+            width: 44px;
+            height: 24px;
+            border: 2px solid #1e293b;
+            border-radius: 12px;
+            background: #cbd5e1;
             cursor: pointer;
-            transition: background-color 0.15s ease;
+            transition: background-color 0.2s ease;
         }
 
         .switch::after {
             content: '';
             position: absolute;
-            top: 1px;
-            left: 1px;
-            width: 15px;
-            height: 15px;
+            top: 2px;
+            left: 2px;
+            width: 16px;
+            height: 16px;
             box-sizing: border-box;
-            border-radius: 9999px;
+            border-radius: 50%;
             background: #fff;
             border: 2px solid #1e293b;
-            transition: transform 0.18s cubic-bezier(0.2, 0.8, 0.2, 1);
+            transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
         }
 
-        .switch:checked { background: var(--color-green, #00d063); }
-        .switch:checked::after { transform: translateX(18px); }
-        .switch:focus-visible { outline: 3px solid var(--color-blue, #1ea7fd); outline-offset: 2px; }
+        .switch:checked { background: #00e676; }
+        .switch:checked::after { transform: translateX(20px); }
 
-        /* ---------- Chunky range slider ---------- */
+        /* Chunky range slider */
         .chunky-range {
             -webkit-appearance: none;
             appearance: none;
@@ -310,48 +382,50 @@
             box-shadow: 0 2px 0 var(--shadow);
         }
 
-        /* ---------- Template buttons ---------- */
+        /* Template buttons */
         .tpl-btn {
             display: flex;
             align-items: center;
             gap: 0.4rem;
             padding: 0.5rem 0.6rem;
-            border-radius: 0.8rem;
-            font-size: 0.72rem;
+            border-radius: 0.75rem;
+            font-size: 0.7rem;
             font-weight: 800;
             text-align: left;
-            border: 2px solid var(--line);
+            border: 2px solid var(--border-primary);
             background: var(--surface);
             color: var(--ink);
-            box-shadow: 0 2px 0 var(--shadow);
-            transition: transform 0.12s ease, box-shadow 0.12s ease, background-color 0.15s ease;
+            box-shadow: var(--shadow-hard-sm);
+            transition: transform 0.12s ease, box-shadow 0.12s ease;
         }
 
-        .tpl-btn:hover { transform: translateY(-2px) scale(1.02); box-shadow: 0 4px 0 var(--shadow); }
-        .tpl-btn:active { transform: translateY(2px); box-shadow: 0 0 0 var(--shadow); }
+        .tpl-btn:hover { transform: translateY(-2px); box-shadow: var(--shadow-hard-md); }
+        .tpl-btn:active { transform: translate(2px, 2px); box-shadow: none; }
 
-        /* ---------- The paper (always white, like the printout; only the desk changes with the theme) ---------- */
+        /* Page wrapper & A4 paper (matches Card Maker) */
+        .page-wrapper {
+            position: relative;
+            transition: transform 0.2s ease;
+        }
+
         .paper {
             box-sizing: border-box;
-            width: 100%;
-            max-width: calc(210mm + 8px);
+            width: 210mm;
             min-height: 297mm;
             margin: 0 auto;
-            padding: clamp(16px, 4vw, 15mm);
+            padding: 15mm;
             background: #fff;
             color: #1e293b;
             border: 4px solid #1e293b;
-            border-radius: 1.25rem;
-            box-shadow: 8px 8px 0 0 var(--shadow);
-            transition: max-width 0.25s ease, min-height 0.25s ease;
+            box-shadow: 12px 12px 0px rgba(30, 41, 59, 0.15);
+            transition: width 0.25s ease, min-height 0.25s ease;
         }
 
         .paper.landscape-paper {
-            max-width: calc(297mm + 8px);
+            width: 297mm;
             min-height: 210mm;
         }
 
-        /* Editing affordances: screen only, so they can never reach the printout */
         @media screen {
             [contenteditable] {
                 outline: none;
@@ -377,7 +451,7 @@
 
         [contenteditable] { white-space: pre-wrap; }
 
-        /* ---------- Table ---------- */
+        /* Table */
         table {
             width: 100%;
             margin-top: 20px;
@@ -408,7 +482,6 @@
 
         tr { break-inside: avoid; }
 
-        /* Auto-number column */
         th.num-col, td.num-col {
             width: 46px;
             padding: 12px 4px;
@@ -419,7 +492,6 @@
 
         td.num-col { color: #64748b; background: #f8fafc; font-size: 1rem; }
 
-        /* Example row */
         tr.example-row td {
             background: #fff7ed;
             color: #475569;
@@ -449,7 +521,6 @@
             pointer-events: none;
         }
 
-        /* Target-language box */
         .lang-box {
             margin-top: 4px;
             padding: 12px 14px;
@@ -474,7 +545,6 @@
         .lang-tag.ask { background: #1ea7fd; color: #fff; }
         .lang-tag.answer { background: #00d063; color: #1e293b; }
 
-        /* Report-back writing */
         .report-box {
             margin-top: 24px;
             padding-top: 14px;
@@ -487,7 +557,6 @@
             border-bottom: 2px solid #94a3b8;
         }
 
-        /* Column / row control cells sit outside the grid and never print */
         .control-cell {
             padding: 4px 2px !important;
             border: none !important;
@@ -520,18 +589,7 @@
         .ctl-btn:active:not(:disabled) { transform: translateY(2px); box-shadow: 0 0 0 0 #1e293b; }
         .ctl-btn:disabled { opacity: 0.3; cursor: not-allowed; box-shadow: none; }
 
-        /* Sidebar collapse transition */
-        #sidebar {
-            transition: width 0.25s cubic-bezier(0.2, 0.8, 0.2, 1), min-width 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
-        }
-        #sidebar.sidebar-collapsed {
-            width: 0 !important;
-            min-width: 0 !important;
-            border-right-width: 0 !important;
-            overflow: hidden !important;
-        }
-
-        /* ---------- PRINT (always light, strict A4 dimensions whatever the on-screen theme) ---------- */
+        /* ---------- PRINT ---------- */
         @page { size: A4 portrait; margin: 0; }
 
         @media print {
@@ -554,28 +612,22 @@
             }
 
             body::before, body::after { display: none !important; }
-
             .no-print, .control-cell { display: none !important; }
 
-            .app-shell {
-                display: block !important;
-                width: 100% !important;
-                height: auto !important;
-                max-width: none !important;
-                overflow: visible !important;
-                border: none !important;
-                border-radius: 0 !important;
-                box-shadow: none !important;
-                background: #fff !important;
-            }
-
-            .desk {
+            .preview-area {
                 display: block !important;
                 width: 100% !important;
                 overflow: visible !important;
                 padding: 0 !important;
                 margin: 0 !important;
                 background: #fff !important;
+                gap: 0 !important;
+            }
+
+            .page-wrapper {
+                margin: 0 !important;
+                transform: none !important;
+                zoom: 1 !important;
             }
 
             .paper {
@@ -619,238 +671,196 @@
     <style id="page-style"></style>
 </head>
 
-<body class="h-dvh w-screen flex items-center justify-center p-2 md:p-5 text-dark dark:text-white font-body">
+<body class="flex flex-col md:flex-row min-h-screen text-brand-dark dark:text-white font-body transition-colors duration-300">
 
-    <!-- MAIN CONSOLE -->
-    <div class="app-shell relative w-full max-w-[1550px] h-full flex flex-col md:flex-row overflow-hidden bg-white dark:bg-slate-900 border-4 border-dark dark:border-slate-500 rounded-[2rem] shadow-hard-lg">
+    <!-- SIDEBAR CONTROLS (matches Card Maker) -->
+    <aside id="sidebar" class="sidebar glass-panel no-print flex flex-col p-4 sm:p-5">
 
-        <!-- SIDEBAR -->
-        <aside id="sidebar" class="no-print w-full md:w-[370px] lg:w-[400px] h-[46%] md:h-full shrink-0 flex flex-col bg-white dark:bg-slate-900 border-b-4 md:border-b-0 md:border-r-4 border-dark dark:border-slate-500">
-
-            <!-- Header -->
-            <div class="p-4 lg:p-5 flex justify-between items-center gap-3 bg-orange/10 dark:bg-slate-800/80 border-b-4 border-dark dark:border-slate-500">
-                <div class="flex items-center gap-3 min-w-0">
-                    <div class="w-11 h-11 rounded-2xl bg-orange border-3 border-dark flex items-center justify-center shadow-hard-sm shrink-0 -rotate-2">
-                        <i data-lucide="mic" stroke-width="2.75" class="w-6 h-6 text-dark"></i>
-                    </div>
-                    <div class="min-w-0">
-                        <h1 class="font-heading text-2xl uppercase leading-none tracking-tight truncate">Interview Maker</h1>
-                        <p class="mt-1 text-[11px] font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-widest">Survey &amp; Mingle Handouts</p>
-                    </div>
-                </div>
-                <div class="flex items-center gap-2 shrink-0">
-                    <button id="help-btn" type="button" title="How to Use Interview Maker" aria-label="How to use"
-                        class="btn-chunky w-10 h-10 rounded-xl flex items-center justify-center bg-orange/20 text-dark dark:text-white">
-                        <i data-lucide="help-circle" stroke-width="2.5" class="w-5 h-5 text-orange"></i>
-                    </button>
-                    <button id="theme-btn" type="button" aria-pressed="false" aria-label="Toggle dark mode" title="Toggle Dark Mode"
-                        class="btn-chunky w-10 h-10 rounded-xl flex items-center justify-center bg-white dark:bg-slate-800 text-dark dark:text-white">
-                        <i data-lucide="moon" stroke-width="2.5" class="w-5 h-5 dark:hidden"></i>
-                        <i data-lucide="sun" stroke-width="2.5" class="w-5 h-5 hidden dark:block text-orange"></i>
-                    </button>
+        <!-- Header -->
+        <div class="mb-4 border-b-2 border-slate-100 dark:border-slate-700 pb-4 flex items-center justify-between gap-2">
+            <div>
+                <h1 class="text-2xl sm:text-3xl font-heading text-brand-dark dark:text-white tracking-tight leading-none">
+                    INTERVIEW<span class="text-brand-blue">MAKER</span>
+                </h1>
+                <div class="flex items-center gap-2 mt-2">
+                    <span class="px-2 py-0.5 rounded bg-brand-dark text-white text-[10px] font-bold uppercase tracking-widest">KlassKit</span>
+                    <span class="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Edition</span>
                 </div>
             </div>
+            <div class="flex items-center gap-1.5 shrink-0">
+                <button id="help-btn" type="button" title="How to Use Interview Maker" aria-label="How to use"
+                    class="bg-white dark:bg-slate-800 text-brand-orange p-2 rounded-full border-2 border-brand-dark dark:border-slate-500 shadow-neo-sm hover:-translate-y-1 transition-all">
+                    <i data-lucide="help-circle" class="w-4 h-4"></i>
+                </button>
+                <button id="theme-btn" type="button" aria-pressed="false" aria-label="Toggle dark mode" title="Toggle Dark Mode"
+                    class="bg-white dark:bg-slate-800 text-brand-dark dark:text-white p-2 rounded-full border-2 border-brand-dark dark:border-slate-500 shadow-neo-sm hover:-translate-y-1 transition-all group">
+                    <i data-lucide="moon" class="w-4 h-4 dark:hidden group-hover:rotate-12 transition-transform"></i>
+                    <i data-lucide="sun" class="w-4 h-4 hidden dark:block group-hover:rotate-90 transition-transform"></i>
+                </button>
+            </div>
+        </div>
 
-            <!-- Scrollable settings -->
-            <div class="flex-1 p-4 lg:p-5 overflow-y-auto custom-scrollbar flex flex-col gap-4">
+        <!-- Active Set Indicator -->
+        <div id="active-set-banner" class="hidden mb-6 animate-pop-in">
+            <div class="bg-brand-blue/10 border-2 border-brand-blue/30 rounded-xl p-3 flex items-center gap-3">
+                <div class="w-8 h-8 rounded-lg bg-brand-blue flex items-center justify-center text-white shrink-0 shadow-neo-sm">
+                    <i data-lucide="layers" class="w-4 h-4"></i>
+                </div>
+                <div class="min-w-0">
+                    <p class="text-[10px] font-bold text-brand-blue uppercase tracking-wider leading-none mb-1">Active Handout</p>
+                    <p id="active-set-name" class="text-sm font-bold truncate dark:text-white"></p>
+                </div>
+                <button id="close-set-btn" type="button" title="Detach from saved handout" aria-label="Detach from saved handout"
+                    class="ml-auto text-slate-400 hover:text-brand-pink transition-colors">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
+            </div>
+        </div>
 
-                <!-- Active Set Indicator -->
-                <div id="active-set-banner" class="hidden animate-pop-in p-3 rounded-2xl bg-blue/10 dark:bg-blue/20 border-2 border-blue flex items-center justify-between gap-2">
-                    <div class="flex items-center gap-2 min-w-0">
-                        <div class="w-8 h-8 rounded-xl bg-blue text-white flex items-center justify-center shrink-0 border-2 border-dark">
-                            <i data-lucide="bookmark-check" class="w-4 h-4"></i>
-                        </div>
-                        <div class="min-w-0">
-                            <p class="text-[10px] font-extrabold uppercase tracking-wider text-blue leading-none">Active Handout (Auto-Saving)</p>
-                            <p id="active-set-name" class="text-xs font-extrabold truncate mt-0.5"></p>
-                        </div>
-                    </div>
-                    <button id="close-set-btn" type="button" title="Detach from saved handout" aria-label="Detach from saved handout" class="p-1.5 rounded-lg hover:bg-blue/20 text-slate-500 dark:text-slate-300 transition-colors">
-                        <i data-lucide="x" class="w-4 h-4"></i>
+        <!-- Scrollable Controls -->
+        <div class="space-y-6 flex-1 overflow-y-auto pr-2 custom-scrollbar">
+
+            <!-- Table & Row Mechanics -->
+            <section>
+                <div class="flex items-center justify-between mb-2">
+                    <label class="section-label mb-0">Table &amp; Rows</label>
+                    <span id="table-counter" aria-live="polite" class="text-[10px] font-bold text-brand-blue"></span>
+                </div>
+                <div class="grid grid-cols-2 gap-2 mb-3">
+                    <button id="add-col-btn" type="button"
+                        class="btn-chunky col-span-2 bg-brand-blue text-white py-2.5 rounded-xl text-xs flex items-center justify-center gap-1.5">
+                        <i data-lucide="columns-2" class="w-4 h-4"></i> Add Column
+                    </button>
+                    <button id="add-row-btn" type="button"
+                        class="btn-chunky bg-white dark:bg-slate-700 py-2 rounded-xl text-xs flex items-center justify-center gap-1 dark:text-white">
+                        <i data-lucide="plus" class="w-3.5 h-3.5"></i> +1 Row
+                    </button>
+                    <button id="add-5-rows-btn" type="button"
+                        class="btn-chunky bg-white dark:bg-slate-700 py-2 rounded-xl text-xs flex items-center justify-center gap-1 dark:text-white">
+                        <i data-lucide="rows-3" class="w-3.5 h-3.5"></i> +5 Rows
+                    </button>
+                    <button id="remove-row-btn" type="button"
+                        class="btn-chunky col-span-2 bg-white dark:bg-slate-700 py-2 rounded-xl text-xs flex items-center justify-center gap-1 dark:text-white">
+                        <i data-lucide="minus" class="w-3.5 h-3.5 text-brand-pink"></i> Remove Last Row
                     </button>
                 </div>
+                <p id="col-hint" class="hidden text-[11px] font-bold text-brand-pink mb-2">8 columns is the maximum that fits on A4.</p>
 
-                <!-- Quick tip -->
-                <p class="px-3 py-2 rounded-xl text-[11px] font-bold leading-snug bg-blue/10 dark:bg-blue/15 border-2 border-dashed border-blue/50 text-slate-600 dark:text-slate-300 flex gap-2">
-                    <i data-lucide="mouse-pointer-click" class="w-4 h-4 shrink-0 text-blue"></i>
-                    <span>Click any text on the A4 sheet (title, headers, cells) to type directly. Everything auto-saves.</span>
-                </p>
-
-                <!-- STEP 1: TABLE & ROW MECHANICS -->
-                <section class="p-3.5 rounded-2xl bg-slate-50/80 dark:bg-slate-800/50 border-3 border-dark dark:border-slate-600 space-y-3">
-                    <div class="flex justify-between items-center gap-2">
-                        <h2 class="field-label flex items-center gap-2">
-                            <span class="step-badge">1</span> Table &amp; Row Mechanics
-                        </h2>
-                        <span id="table-counter" aria-live="polite" class="shrink-0 text-[11px] font-extrabold px-2.5 py-0.5 rounded-full bg-white dark:bg-slate-800 border-2 border-dark dark:border-slate-500 -rotate-1"></span>
-                    </div>
-                    <p class="text-[11px] font-semibold text-slate-500 dark:text-slate-400 leading-snug">Use the <b>← ✕ →</b> buttons above each column on the sheet to move or delete it. Each row is one classmate.</p>
-
-                    <div class="grid grid-cols-2 gap-2">
-                        <button id="add-col-btn" type="button"
-                            class="btn-chunky col-span-2 py-2.5 rounded-xl text-xs flex items-center justify-center gap-1.5 bg-orange text-dark">
-                            <i data-lucide="columns-2" stroke-width="2.5" class="w-4 h-4"></i> Add Column
-                        </button>
-                        <button id="add-row-btn" type="button"
-                            class="btn-chunky py-2.5 rounded-xl text-xs flex items-center justify-center gap-1.5 bg-green text-dark">
-                            <i data-lucide="plus" stroke-width="2.75" class="w-4 h-4"></i> +1 Row
-                        </button>
-                        <button id="add-5-rows-btn" type="button"
-                            class="btn-chunky py-2.5 rounded-xl text-xs flex items-center justify-center gap-1.5 bg-green text-dark">
-                            <i data-lucide="rows-3" stroke-width="2.5" class="w-4 h-4"></i> +5 Rows
-                        </button>
-                        <button id="remove-row-btn" type="button"
-                            class="btn-chunky col-span-2 py-2 rounded-xl text-xs flex items-center justify-center gap-1.5 bg-white dark:bg-slate-800 text-dark dark:text-white">
-                            <i data-lucide="minus" stroke-width="2.75" class="w-4 h-4 text-pink"></i> Remove Last Row
-                        </button>
-                    </div>
-                    <p id="col-hint" class="hidden text-[11px] font-extrabold text-pink">8 columns is the maximum that fits on A4.</p>
-
-                    <div class="space-y-1 pt-1">
-                        <label class="toggle-row">
-                            <input type="checkbox" id="toggle-example" class="switch">
-                            <span class="min-w-0">
-                                <span class="block text-xs font-extrabold">Row 1 as Example Row</span>
-                                <span class="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 leading-snug">Tinted with an EXAMPLE badge, so students see a model answer. Not numbered.</span>
-                            </span>
-                        </label>
-                        <label class="toggle-row">
-                            <input type="checkbox" id="toggle-number" class="switch">
-                            <span class="min-w-0">
-                                <span class="block text-xs font-extrabold">Auto-number Rows</span>
-                                <span class="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 leading-snug">Adds a narrow #1, #2… column on the left.</span>
-                            </span>
-                        </label>
-                    </div>
-
-                    <div class="space-y-1 pt-2 border-t-2 border-dashed border-slate-200 dark:border-slate-700">
-                        <div class="flex justify-between items-end">
-                            <label for="spacing-slider" class="sub-label flex items-center gap-1.5">
-                                <i data-lucide="move-vertical" class="w-3.5 h-3.5 text-blue"></i> Handwriting Space
-                            </label>
-                            <output id="spacing-display" for="spacing-slider" class="font-heading text-base font-bold text-blue uppercase">Medium</output>
-                        </div>
-                        <input type="range" id="spacing-slider" class="chunky-range" min="40" max="150" step="10" value="60">
-                    </div>
-                </section>
-
-                <!-- STEP 2: SCAFFOLDING & SECTIONS -->
-                <section class="p-3.5 rounded-2xl bg-slate-50/80 dark:bg-slate-800/50 border-3 border-dark dark:border-slate-600 space-y-2">
-                    <h2 class="field-label flex items-center gap-2">
-                        <span class="step-badge">2</span> Scaffolding &amp; Sections
-                    </h2>
-                    <p class="text-[11px] font-semibold text-slate-500 dark:text-slate-400 leading-snug">Optional extras that support weaker speakers and give fast finishers something to write.</p>
-
+                <div class="space-y-2 mb-4">
                     <label class="toggle-row">
-                        <input type="checkbox" id="toggle-prompts" class="switch">
-                        <span class="min-w-0">
-                            <span class="block text-xs font-extrabold">Target Language Box</span>
-                            <span class="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 leading-snug">An editable <b>Ask / Answer</b> banner above the table with the question and answer pattern.</span>
-                        </span>
+                        <span class="text-xs font-bold text-brand-dark dark:text-white">Row 1 as Example</span>
+                        <input type="checkbox" id="toggle-example" class="switch">
                     </label>
-
                     <label class="toggle-row">
-                        <input type="checkbox" id="toggle-report" class="switch">
-                        <span class="min-w-0">
-                            <span class="block text-xs font-extrabold">Report-Back Writing</span>
-                            <span class="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 leading-snug">A writing prompt with ruled lines at the bottom of the sheet.</span>
-                        </span>
+                        <span class="text-xs font-bold text-brand-dark dark:text-white">Auto-number Rows</span>
+                        <input type="checkbox" id="toggle-number" class="switch">
                     </label>
+                </div>
 
-                    <div id="report-lines-wrap" class="hidden animate-slide-down space-y-1 px-2 pb-1">
-                        <div class="flex justify-between items-end">
-                            <label for="report-lines-slider" class="sub-label">Ruled Lines</label>
-                            <output id="report-lines-display" for="report-lines-slider" class="font-heading text-base font-bold text-blue uppercase">4 lines</output>
-                        </div>
-                        <input type="range" id="report-lines-slider" class="chunky-range" min="2" max="8" step="1" value="4">
+                <div>
+                    <div class="flex justify-between items-center mb-1">
+                        <span class="text-xs font-bold text-brand-dark dark:text-white">Handwriting Space</span>
+                        <output id="spacing-display" for="spacing-slider" class="text-[11px] font-bold text-brand-blue uppercase">Medium</output>
                     </div>
-                </section>
+                    <input type="range" id="spacing-slider" class="chunky-range" min="40" max="150" step="10" value="60">
+                </div>
+            </section>
 
-                <!-- STEP 3: STARTER TEMPLATES -->
-                <section class="p-3.5 rounded-2xl bg-slate-50/80 dark:bg-slate-800/50 border-3 border-dark dark:border-slate-600 space-y-2.5">
-                    <h2 class="field-label flex items-center gap-2">
-                        <span class="step-badge">3</span> Starter Templates
-                    </h2>
-                    <p class="text-[11px] font-semibold text-slate-500 dark:text-slate-400 leading-snug">Ready-made activities. Loading one <b>replaces</b> the current sheet (you'll be asked first).</p>
-                    <div class="grid grid-cols-2 gap-2">
-                        <button type="button" data-template="fsw" class="tpl-btn"><i data-lucide="search" class="w-3.5 h-3.5 shrink-0 text-pink"></i><span class="truncate">Find Someone Who</span></button>
-                        <button type="button" data-template="survey" class="tpl-btn"><i data-lucide="clipboard-list" class="w-3.5 h-3.5 shrink-0 text-blue"></i><span class="truncate">Class Survey</span></button>
-                        <button type="button" data-template="getknow" class="tpl-btn"><i data-lucide="smile" class="w-3.5 h-3.5 shrink-0 text-green"></i><span class="truncate">Get to Know You</span></button>
-                        <button type="button" data-template="pastweekend" class="tpl-btn"><i data-lucide="history" class="w-3.5 h-3.5 shrink-0 text-orange"></i><span class="truncate">Past Weekend</span></button>
-                        <button type="button" data-template="weekend" class="tpl-btn"><i data-lucide="calendar-days" class="w-3.5 h-3.5 shrink-0 text-blue"></i><span class="truncate">Weekend Plans</span></button>
-                        <button type="button" data-template="landmark" class="tpl-btn"><i data-lucide="landmark" class="w-3.5 h-3.5 shrink-0 text-pink"></i><span class="truncate">Landmark Interview</span></button>
-                        <button type="button" data-template="book" class="tpl-btn"><i data-lucide="book-open" class="w-3.5 h-3.5 shrink-0 text-orange"></i><span class="truncate">Book Review</span></button>
-                        <button type="button" id="new-blank-btn" class="tpl-btn"><i data-lucide="file-plus" class="w-3.5 h-3.5 shrink-0 text-slate-500"></i><span class="truncate">Blank Sheet</span></button>
+            <!-- Scaffolding & Sections -->
+            <section class="border-t-2 border-slate-100 dark:border-slate-700 pt-4 space-y-2">
+                <label class="section-label">Scaffolding</label>
+                <label class="toggle-row">
+                    <span class="text-xs font-bold text-brand-dark dark:text-white">Target Language Box</span>
+                    <input type="checkbox" id="toggle-prompts" class="switch">
+                </label>
+                <label class="toggle-row">
+                    <span class="text-xs font-bold text-brand-dark dark:text-white">Report-Back Writing</span>
+                    <input type="checkbox" id="toggle-report" class="switch">
+                </label>
+                <div id="report-lines-wrap" class="hidden animate-slide-down pt-2">
+                    <div class="flex justify-between items-center mb-1">
+                        <span class="text-xs font-bold text-brand-dark dark:text-white">Ruled Lines</span>
+                        <output id="report-lines-display" for="report-lines-slider" class="text-[11px] font-bold text-brand-blue uppercase">4 lines</output>
                     </div>
-                </section>
+                    <input type="range" id="report-lines-slider" class="chunky-range" min="2" max="8" step="1" value="4">
+                </div>
+            </section>
 
-                <!-- STEP 4: PAGE & PRINT -->
-                <section class="p-3.5 rounded-2xl bg-slate-50/80 dark:bg-slate-800/50 border-3 border-dark dark:border-slate-600 space-y-2.5">
-                    <h2 class="field-label flex items-center gap-2">
-                        <span class="step-badge">4</span> Page &amp; Print
-                    </h2>
-                    <p class="text-[11px] font-semibold text-slate-500 dark:text-slate-400 leading-snug">Use Landscape for 6+ columns. Editing buttons and hints are hidden on the printout.</p>
-                    <fieldset>
-                        <legend class="sub-label mb-1.5">Page Orientation</legend>
-                        <div class="grid grid-cols-2 gap-2">
-                            <label class="seg"><input type="radio" name="page-orient" value="portrait" checked><span><i data-lucide="rectangle-vertical" stroke-width="2.5" class="w-4 h-4"></i> Portrait</span></label>
-                            <label class="seg"><input type="radio" name="page-orient" value="landscape"><span><i data-lucide="rectangle-horizontal" stroke-width="2.5" class="w-4 h-4"></i> Landscape</span></label>
-                        </div>
-                    </fieldset>
-                </section>
+            <!-- Starter Templates -->
+            <section class="border-t-2 border-slate-100 dark:border-slate-700 pt-4">
+                <label class="section-label">Starter Templates</label>
+                <div class="grid grid-cols-2 gap-2">
+                    <button type="button" data-template="fsw" class="tpl-btn"><i data-lucide="search" class="w-3.5 h-3.5 shrink-0 text-pink"></i><span class="truncate">Find Someone Who</span></button>
+                    <button type="button" data-template="survey" class="tpl-btn"><i data-lucide="clipboard-list" class="w-3.5 h-3.5 shrink-0 text-blue"></i><span class="truncate">Class Survey</span></button>
+                    <button type="button" data-template="getknow" class="tpl-btn"><i data-lucide="smile" class="w-3.5 h-3.5 shrink-0 text-green"></i><span class="truncate">Get to Know You</span></button>
+                    <button type="button" data-template="pastweekend" class="tpl-btn"><i data-lucide="history" class="w-3.5 h-3.5 shrink-0 text-orange"></i><span class="truncate">Past Weekend</span></button>
+                    <button type="button" data-template="weekend" class="tpl-btn"><i data-lucide="calendar-days" class="w-3.5 h-3.5 shrink-0 text-blue"></i><span class="truncate">Weekend Plans</span></button>
+                    <button type="button" data-template="landmark" class="tpl-btn"><i data-lucide="landmark" class="w-3.5 h-3.5 shrink-0 text-pink"></i><span class="truncate">Landmark Interview</span></button>
+                    <button type="button" data-template="book" class="tpl-btn"><i data-lucide="book-open" class="w-3.5 h-3.5 shrink-0 text-orange"></i><span class="truncate">Book Review</span></button>
+                    <button type="button" id="new-blank-btn" class="tpl-btn"><i data-lucide="file-plus" class="w-3.5 h-3.5 shrink-0 text-slate-500"></i><span class="truncate">Blank Sheet</span></button>
+                </div>
+            </section>
 
-                <!-- Saved Handouts Library -->
-                <section class="pt-3 border-t-3 border-dashed border-slate-200 dark:border-slate-700 space-y-2.5">
-                    <div class="flex items-center justify-between">
-                        <span class="field-label flex items-center gap-1.5">
-                            <i data-lucide="folder-heart" class="w-4 h-4 text-orange"></i> Saved Handouts
-                        </span>
-                        <select id="library-sort" aria-label="Sort saved handouts"
-                            class="text-[11px] font-extrabold bg-slate-100 dark:bg-slate-800 border-2 border-slate-300 dark:border-slate-600 rounded-lg px-2 py-0.5 text-dark dark:text-white">
-                            <option value="recent">Recent</option>
-                            <option value="alpha">A–Z</option>
-                            <option value="popular">Popular</option>
-                        </select>
-                    </div>
+            <!-- Page Setup -->
+            <section class="border-t-2 border-slate-100 dark:border-slate-700 pt-4">
+                <label class="section-label">Page Orientation</label>
+                <div class="flex gap-2">
+                    <label class="seg flex-1"><input type="radio" name="page-orient" value="portrait" checked><span>Portrait</span></label>
+                    <label class="seg flex-1"><input type="radio" name="page-orient" value="landscape"><span>Landscape</span></label>
+                </div>
+            </section>
+
+            <!-- Library -->
+            <section class="border-t-2 border-slate-100 dark:border-slate-700 pt-4">
+                <div class="flex items-center justify-between mb-2">
+                    <label class="section-label mb-0">Library</label>
+                    <select id="library-sort" aria-label="Sort saved handouts"
+                        class="bg-transparent text-[10px] font-bold text-slate-400 outline-none cursor-pointer hover:text-brand-blue transition-colors uppercase tracking-widest">
+                        <option value="recent">Recent</option>
+                        <option value="alpha">Alpha</option>
+                        <option value="popular">Popular</option>
+                    </select>
+                </div>
+                <div class="grid grid-cols-2 gap-2 mb-3">
                     <button id="save-set-btn" type="button"
-                        class="btn-chunky w-full py-2 rounded-xl text-xs flex items-center justify-center gap-1.5 bg-blue text-white">
-                        <i data-lucide="save" class="w-3.5 h-3.5"></i> Save Current Sheet As…
+                        class="btn-chunky bg-brand-pink text-white py-2 px-3 rounded-xl text-xs flex items-center justify-center gap-1">
+                        <i data-lucide="save" class="w-3 h-3"></i> SAVE AS
                     </button>
-                    <div id="library-list" class="space-y-1.5 max-h-40 overflow-y-auto custom-scrollbar pr-1"></div>
-                </section>
-
-                <!-- Reset -->
-                <div class="mt-auto pt-3 border-t-3 border-dashed border-slate-200 dark:border-slate-700">
                     <button id="reset-btn" type="button"
-                        class="btn-chunky w-full py-2.5 rounded-xl text-xs flex items-center justify-center gap-1.5 bg-slate-200 dark:bg-slate-800 text-dark dark:text-white">
-                        <i data-lucide="rotate-ccw" stroke-width="2.5" class="w-4 h-4"></i> Reset to Example
+                        class="btn-chunky bg-white dark:bg-slate-700 py-2 px-3 rounded-xl text-xs flex items-center justify-center gap-1 dark:text-white">
+                        <i data-lucide="rotate-ccw" class="w-3 h-3"></i> RESET
                     </button>
                 </div>
-            </div>
+                <div id="library-list" class="space-y-1.5 max-h-48 overflow-y-auto custom-scrollbar"></div>
+            </section>
+        </div>
 
-            <!-- Print action -->
-            <div class="p-4 border-t-4 border-dark dark:border-slate-500 bg-slate-100 dark:bg-slate-800/90">
-                <button id="print-btn" type="button"
-                    class="btn-chunky w-full py-3 rounded-xl text-base flex items-center justify-center gap-2 bg-white dark:bg-slate-900 text-dark dark:text-white">
-                    <i data-lucide="printer" stroke-width="2.75" class="w-5 h-5 text-blue"></i> Print Handout
-                </button>
-            </div>
-        </aside>
+        <!-- Sticky Footer -->
+        <div class="mt-4 space-y-2 pt-4 border-t-2 border-brand-dark dark:border-slate-700">
+            <button id="print-btn" type="button"
+                class="btn-chunky w-full bg-brand-green py-3 rounded-xl text-sm flex items-center justify-center gap-2 text-brand-dark">
+                <i data-lucide="printer" class="w-4 h-4"></i> PRINT HANDOUT
+            </button>
+        </div>
+    </aside>
 
-        <!-- PREVIEW -->
-        <main class="desk flex-1 min-h-0 h-[54%] md:h-full overflow-y-auto custom-scrollbar p-4 md:p-8 bg-slate-200/80 dark:bg-slate-950">
+    <!-- FLOATING ZOOM BAR (matches Card Maker) -->
+    <div id="zoom-bar" class="no-print fixed bottom-4 right-4 z-[60] flex items-center gap-1 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border-[3px] border-brand-dark dark:border-slate-500 rounded-2xl p-1 shadow-neo dark:shadow-[4px_4px_0px_0px_#000000]">
+        <button onclick="setPreviewZoom(0.5)" id="zoom-0.5" class="px-2.5 py-1 rounded-xl text-[11px] font-heading font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">50%</button>
+        <button onclick="setPreviewZoom(0.75)" id="zoom-0.75" class="px-2.5 py-1 rounded-xl text-[11px] font-heading font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">75%</button>
+        <button onclick="setPreviewZoom(1)" id="zoom-1" class="px-2.5 py-1 rounded-xl text-[11px] font-heading font-bold bg-brand-blue text-white transition-colors">100%</button>
+        <button onclick="setPreviewZoom('fit')" id="zoom-fit" class="px-2.5 py-1 rounded-xl text-[11px] font-heading font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors" title="Fit page to screen">FIT</button>
+    </div>
 
-            <!-- Floating glass toolbar -->
-            <div id="preview-toolbar" class="no-print sticky top-0 z-20 max-w-[calc(210mm+8px)] mx-auto mb-4 px-2.5 py-2 flex flex-wrap items-center justify-between gap-2 rounded-2xl glass glass-edge bg-white/70 dark:bg-slate-800/70 shadow-hard-sm">
-                <button id="toggle-sidebar-btn" type="button" title="Toggle Controls Sidebar"
-                    class="btn-chunky hidden md:inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs bg-white/90 dark:bg-slate-800/90 text-dark dark:text-white">
-                    <i data-lucide="panel-left-close" id="sidebar-toggle-icon" class="w-4 h-4"></i>
-                    <span>Controls</span>
-                </button>
-                <span id="toolbar-counter" class="px-3 py-1 rounded-full text-xs font-extrabold bg-blue/15 text-dark dark:text-white border-2 border-dark dark:border-slate-500 -rotate-1"></span>
-                <span class="ml-auto px-3 py-1 rounded-full text-xs font-extrabold bg-orange/20 text-dark dark:text-white border-2 border-dark dark:border-slate-500 rotate-2 inline-flex items-center gap-1">
-                    <i data-lucide="pen-line" class="w-3.5 h-3.5"></i> Live Editable A4 Sheet
-                </span>
+    <!-- MAIN WORKSPACE (matches Card Maker .preview-area) -->
+    <main id="previewArea" class="preview-area flex-1 transition-all duration-500">
+        <div class="page-wrapper mt-6">
+            <!-- Page Header Controls (matches Card Maker) -->
+            <div class="absolute -top-9 left-0 w-full flex justify-between items-end no-print pb-2 gap-2">
+                <div class="font-heading font-bold text-slate-400 text-sm uppercase tracking-widest flex items-center gap-2">
+                    <span>Live Editable A4 Sheet</span>
+                </div>
+                <span id="toolbar-counter" class="px-3 py-1 rounded-lg bg-white dark:bg-slate-800 border-2 border-brand-dark dark:border-slate-500 text-[11px] font-heading font-bold text-brand-dark dark:text-white shadow-neo-sm"></span>
             </div>
 
             <!-- The editable paper -->
@@ -914,8 +924,8 @@
                     <div id="report-lines" class="mt-1"></div>
                 </section>
             </div>
-        </main>
-    </div>
+        </div>
+    </main>
 
     <!-- HOW TO USE / HELP MODAL -->
     <div id="helpModal" class="no-print hidden fixed inset-0 bg-dark/60 glass z-[500] items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="help-title">
@@ -1469,6 +1479,7 @@
                 document.documentElement.dataset.orient = state.orient;
                 el.pageStyle.textContent = `@page { size: A4 ${state.orient}; margin: 0; }`;
                 el.paper.classList.toggle('landscape-paper', state.orient === 'landscape');
+                if (typeof applyPreviewZoom === 'function') applyPreviewZoom();
                 if (!skipSave) persistState();
             }
 
@@ -1955,12 +1966,51 @@
                 }
             });
 
+            // ----- Preview Zoom (matches Card Maker) -----
+            let currentZoomMode = localStorage.getItem('interviewmaker_zoom') || 'fit';
+
+            function applyPreviewZoom() {
+                const container = $('previewArea');
+                if (!container) return;
+                let zoomVal = 1;
+                if (currentZoomMode === 'fit') {
+                    const availW = Math.max(320, container.clientWidth - 72);
+                    const pagePx = state && state.orient === 'landscape' ? 1122 : 794;
+                    zoomVal = Math.min(1, Math.max(0.35, +(availW / pagePx).toFixed(2)));
+                } else {
+                    zoomVal = parseFloat(currentZoomMode) || 1;
+                }
+                document.querySelectorAll('.page-wrapper').forEach((w) => {
+                    w.style.zoom = String(zoomVal);
+                });
+                ['0.5', '0.75', '1', 'fit'].forEach((k) => {
+                    const btn = $(`zoom-${k}`);
+                    if (!btn) return;
+                    const active = currentZoomMode === k;
+                    btn.classList.toggle('bg-brand-blue', active);
+                    btn.classList.toggle('text-white', active);
+                    btn.classList.toggle('text-slate-600', !active);
+                    btn.classList.toggle('dark:text-slate-300', !active);
+                });
+            }
+
+            window.setPreviewZoom = function (mode) {
+                currentZoomMode = String(mode);
+                localStorage.setItem('interviewmaker_zoom', currentZoomMode);
+                applyPreviewZoom();
+            };
+
+            window.addEventListener('resize', () => {
+                if (currentZoomMode === 'fit') applyPreviewZoom();
+            });
+
             // ----- Startup -----
             (async function init() {
                 if (typeof requireAuth === 'function') await requireAuth();
                 await loadPersistedState();
                 el.theme.setAttribute('aria-pressed', String(document.documentElement.classList.contains('dark')));
                 renderLibrary();
+                applyPreviewZoom();
                 icons();
             })();
         })();
