@@ -2,548 +2,678 @@
 <html lang="en" class="scroll-smooth">
 
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>KlassKit</title>
-    <meta name="description" content="Simple classroom games and tools — ready in seconds.">
-    <meta property="og:title" content="KlassKit">
-    <meta property="og:description" content="Simple classroom games and tools — ready in seconds.">
-    <meta property="og:image" content="./media/spinwheel_preview.webp">
-    <link rel="icon" type="image/x-icon" href="./media/icon.ico" />
-    <link rel="icon" type="image/webp" href="./media/icon.webp" />
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>KlassKit</title>
+  <meta name="description" content="Simple classroom games and tools — ready in seconds.">
+  <meta property="og:title" content="KlassKit">
+  <meta property="og:description" content="Simple classroom games and tools — ready in seconds.">
+  <meta property="og:image" content="./media/spinwheel_preview.webp">
+  <link rel="icon" type="image/x-icon" href="./media/icon.ico" />
+  <link rel="icon" type="image/webp" href="./media/icon.webp" />
 
-    <link rel="apple-touch-icon" href="./media/icon-180.png" />
-    <link rel="manifest" href="manifest.json">
-    <meta name="theme-color" content="#1ea7fd">
+  <link rel="apple-touch-icon" href="./media/icon-180.png" />
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#1ea7fd">
 
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link
-        href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Nunito:wght@400;600;800&display=swap"
-        rel="stylesheet">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:wght@400;600;700;800&display=swap"
+    rel="stylesheet">
 
-    <script src="https://unpkg.com/lucide@1.8.0" defer></script>
-    <link rel="stylesheet" href="css/tailwind.generated.css">
-    <link rel="stylesheet" href="css/base.css">
+  <script src="https://unpkg.com/lucide@1.16.0" defer></script>
+  <link rel="stylesheet" href="css/tailwind.generated.css">
+  <link rel="stylesheet" href="css/base.css">
 
-    <style>
-        .btn-chunky {
-            transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-            border: 4px solid var(--border-primary, #111827);
-            box-shadow: 0 4px 0px var(--border-primary, #111827);
-        }
+  <script>
+    (function () {
+      const urlParams = new URLSearchParams(window.location.search);
+      if (localStorage.getItem('kk_mode') && !urlParams.has('home')) {
+        window.location.replace('hub.html');
+        return;
+      }
+      const rawSaved = localStorage.getItem('theme_hub');
+      let saved = rawSaved;
+      try { saved = rawSaved ? JSON.parse(rawSaved) : null; } catch (e) {}
+      if (saved === 'dark' || (saved !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+        document.documentElement.classList.add('dark');
+      }
+    })();
+  </script>
 
-        .btn-chunky:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 6px 0px var(--border-primary, #111827);
-        }
+  <style>
+    /* Glassmorphism Soft Brutalist Card */
+    :where(.glass-card) {
+      background: rgba(255, 255, 255, 0.85);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 3px solid #1e293b;
+      box-shadow: 6px 6px 0px #1e293b, inset 0 1px 0 rgba(255, 255, 255, 0.7);
+    }
 
-        .btn-chunky:active {
-            transform: translateY(4px);
-            box-shadow: 0 0px 0px var(--border-primary, #111827);
-        }
+    html:where(.dark) :where(.glass-card) {
+      background: rgba(15, 23, 42, 0.85);
+      border-color: #475569;
+      box-shadow: 6px 6px 0px #000000, inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    }
 
-        .dark .btn-chunky {
-            border-color: #334155;
-            box-shadow: 0 4px 0px #1e293b;
-        }
+    /* Chunky Buttons (element prefix beats Preflight while yielding to Tailwind utilities) */
+    button:where(.btn-chunky),
+    a:where(.btn-chunky) {
+      position: relative;
+      border: 3px solid #1e293b;
+      box-shadow: 0 5px 0 #1e293b;
+      cursor: pointer;
+      user-select: none;
+      transform: translateY(0);
+      transition: transform 0.15s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.15s cubic-bezier(0.2, 0.8, 0.2, 1), background-color 0.15s ease;
+    }
 
-        .dark .btn-chunky:hover {
-            box-shadow: 0 6px 0px #1e293b;
-        }
+    html:where(.dark) button:where(.btn-chunky),
+    html:where(.dark) a:where(.btn-chunky) {
+      border-color: #475569;
+      box-shadow: 0 5px 0 #000000;
+    }
 
-        .dark .btn-chunky:active {
-            box-shadow: 0 0px 0px #000000;
-        }
+    .btn-chunky:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 7px 0 #1e293b;
+    }
 
-        .floating-shape {
-            position: absolute;
-            z-index: -1;
-            opacity: 0.15;
-            pointer-events: none;
-            animation: float 20s infinite linear;
-        }
+    html:where(.dark) .btn-chunky:hover {
+      box-shadow: 0 7px 0 #000000;
+    }
 
-        @keyframes float {
-            0% {
-                transform: translate(0, 0) rotate(0deg);
-            }
+    .btn-chunky:active {
+      transform: translateY(4px);
+      box-shadow: 0 0 0 #1e293b;
+    }
 
-            50% {
-                transform: translate(20px, -20px) rotate(180deg);
-            }
+    html:where(.dark) .btn-chunky:active {
+      box-shadow: 0 0 0 #000000;
+    }
 
-            100% {
-                transform: translate(0, 0) rotate(360deg);
-            }
-        }
+    .btn-chunky:focus-visible,
+    .carousel-card:focus-visible,
+    .link-focus:focus-visible {
+      outline: 3px solid var(--color-blue, #1ea7fd);
+      outline-offset: 3px;
+    }
 
-        .card-choice {
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        }
+    .link-focus:focus-visible {
+      border-radius: 0.5rem;
+    }
 
-        .card-choice:hover {
-            transform: scale(1.02) translateY(-4px);
-        }
+    /* Seamless Infinite Carousel */
+    .carousel-container {
+      width: 100%;
+      overflow: hidden;
+      position: relative;
+      padding-block: 0.75rem;
+      mask-image: linear-gradient(to right, transparent, black 4%, black 96%, transparent);
+      -webkit-mask-image: linear-gradient(to right, transparent, black 4%, black 96%, transparent);
+    }
 
-        /* Carousel Styles */
-        .carousel-container {
-            width: 100%;
-            overflow: hidden;
-            position: relative;
-            mask-image: linear-gradient(to right, transparent, black 10%, black 90%, transparent);
-            -webkit-mask-image: linear-gradient(to right, transparent, black 10%, black 90%, transparent);
-        }
+    .carousel-track {
+      display: flex;
+      width: max-content;
+      animation: landing-scroll 48s linear infinite;
+      will-change: transform;
+    }
 
-        .carousel-track {
-            display: flex;
-            width: max-content;
-            animation: scroll 40s linear infinite;
-        }
+    .carousel-track:hover,
+    .carousel-track:focus-within {
+      animation-play-state: paused;
+    }
 
-        .carousel-track:hover {
-            animation-play-state: paused;
-        }
+    .carousel-group {
+      display: flex;
+      flex-shrink: 0;
+      gap: 1.25rem;
+      padding-right: 1.25rem;
+    }
 
-        @keyframes scroll {
-            0% {
-                transform: translateX(0);
-            }
+    @media (min-width: 768px) {
+      .carousel-group {
+        gap: 1.5rem;
+        padding-right: 1.5rem;
+      }
+    }
 
-            100% {
-                transform: translateX(-50%);
-            }
-        }
-    </style>
+    @keyframes landing-scroll {
+      0% {
+        transform: translateX(0);
+      }
+      100% {
+        transform: translateX(-50%);
+      }
+    }
 
+    /* Entrance Animation */
+    @keyframes pop-in {
+      0% {
+        opacity: 0;
+        transform: scale(0.96) translateY(8px);
+      }
+      100% {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+      }
+    }
+
+    .animate-pop-in {
+      animation: pop-in 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .carousel-track {
+        animation: none;
+      }
+
+      .carousel-container {
+        overflow-x: auto;
+        mask-image: none;
+        -webkit-mask-image: none;
+      }
+    }
+  </style>
 </head>
 
-<body
-    class="min-h-screen flex flex-col items-center justify-center p-4 md:p-6 bg-[#f8fafc] dark:bg-[#020617] relative overflow-x-hidden">
+<body class="min-h-screen flex flex-col p-0 pb-6 bg-[#f8fafc] dark:bg-[#020617] selection:bg-pink selection:text-white overflow-x-hidden">
 
-    <div class="floating-shape top-10 left-10 text-pink opacity-5"><i data-lucide="sparkles"
-            class="w-24 h-24 md:w-32 md:h-32"></i></div>
-    <div class="floating-shape bottom-10 right-10 text-slate-500 opacity-5"><i data-lucide="graduation-cap"
-            class="w-32 h-32 md:w-48 md:h-48" style="animation-delay: -5s"></i></div>
-    <div class="floating-shape top-1/2 left-1/4 text-green opacity-5"><i data-lucide="atom"
-            class="w-20 h-20 md:w-24 md:h-24" style="animation-delay: -10s"></i></div>
+  <!-- FULL-WIDTH STICKY GLASS HEADER -->
+  <nav aria-label="Primary Navigation"
+    class="w-full sticky top-0 z-20 border-b-[3px] border-dark dark:border-slate-700 bg-white/85 dark:bg-slate-900/85 backdrop-blur-md">
+    <div class="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-14 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div
+          class="w-9 h-9 bg-white dark:bg-slate-800 rounded-xl border-[3px] border-dark dark:border-slate-500 flex items-center justify-center shadow-hard-sm dark:shadow-hard-sm-dark shrink-0">
+          <img src="./media/icon.webp" class="w-5 h-5 object-contain" alt="KlassKit Logo">
+        </div>
+        <span class="font-heading font-bold text-xl sm:text-2xl text-dark dark:text-white uppercase tracking-tight leading-none">
+          KlassKit
+        </span>
+        <span
+          class="hidden sm:inline-flex -rotate-2 px-2.5 py-0.5 rounded-full bg-pink/10 dark:bg-pink/15 text-pink-700 dark:text-pink-300 border-2 border-pink/30 text-[10px] font-extrabold uppercase tracking-wider">
+          70+ Tools
+        </span>
+      </div>
 
-    <main class="w-full max-w-6xl mx-auto flex flex-col items-center justify-center z-10">
-        <!-- HERO -->
-        <header class="text-center mb-6 animate-pop-in">
-            <!-- Logo + Title -->
-            <div class="flex items-center justify-center gap-3 mb-2">
-                <div
-                    class="w-10 h-10 bg-white dark:bg-slate-800 rounded-xl border-4 border-dark dark:border-slate-500 flex items-center justify-center shadow-hard">
-                    <img src="./media/icon.webp" class="w-7 h-7 object-contain" alt="KlassKit Logo">
+      <div class="flex items-center gap-2.5">
+        <a href="./login.html"
+          class="btn-chunky px-3.5 py-1.5 sm:px-4 rounded-xl bg-white/90 dark:bg-slate-800/90 text-dark dark:text-white font-heading font-bold text-xs sm:text-sm uppercase tracking-wider inline-flex items-center gap-1.5">
+          <i data-lucide="log-in" class="w-4 h-4 text-blue" aria-hidden="true"></i>
+          <span>Sign In</span>
+        </a>
+        <button id="theme-toggle" type="button" onclick="toggleTheme()" aria-label="Toggle dark mode" aria-pressed="false" title="Toggle dark mode"
+          class="btn-chunky w-9 h-9 rounded-xl bg-white/90 dark:bg-slate-800/90 text-dark dark:text-yellow-400 flex items-center justify-center">
+          <i data-lucide="moon" class="w-4 h-4 dark:hidden" aria-hidden="true"></i>
+          <i data-lucide="sun" class="w-4 h-4 hidden dark:block" aria-hidden="true"></i>
+        </button>
+      </div>
+    </div>
+  </nav>
+
+  <main class="w-full flex-1 flex flex-col">
+    <!-- COMPACT HERO -->
+    <header class="w-full max-w-5xl mx-auto px-4 sm:px-6 pt-6 sm:pt-8 text-center animate-pop-in">
+      <h1 class="font-heading font-bold text-3xl sm:text-4xl md:text-5xl text-dark dark:text-white uppercase tracking-tight leading-tight">
+        Classroom Tools, <span class="text-blue">Ready in Seconds</span>
+      </h1>
+
+      <p class="text-sm sm:text-base font-bold text-slate-600 dark:text-slate-300 max-w-2xl mx-auto mt-2">
+        70+ interactive classroom games, management tools, and printables — free, ad-free, and projector ready.
+      </p>
+
+      <div class="flex flex-wrap justify-center gap-2 mt-3.5">
+        <span
+          class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-pink/10 dark:bg-pink/15 text-pink-700 dark:text-pink-300 border-2 border-pink/30 text-[11px] font-extrabold uppercase tracking-wider">
+          <i data-lucide="gamepad-2" class="w-3 h-3" aria-hidden="true"></i> Interactive Games
+        </span>
+        <span
+          class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-green/10 dark:bg-green/15 text-green-700 dark:text-green-300 border-2 border-green/30 text-[11px] font-extrabold uppercase tracking-wider">
+          <i data-lucide="wrench" class="w-3 h-3" aria-hidden="true"></i> Class Tools
+        </span>
+        <span
+          class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-orange/10 dark:bg-orange/15 text-orange-700 dark:text-orange-300 border-2 border-orange/30 text-[11px] font-extrabold uppercase tracking-wider">
+          <i data-lucide="printer" class="w-3 h-3" aria-hidden="true"></i> Printables
+        </span>
+        <span
+          class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-blue/10 dark:bg-blue/15 text-blue-700 dark:text-blue-300 border-2 border-blue/30 text-[11px] font-extrabold uppercase tracking-wider">
+          <i data-lucide="check-square" class="w-3 h-3" aria-hidden="true"></i> Assessment & Sync
+        </span>
+      </div>
+    </header>
+
+    <!-- COMPACT HORIZONTAL LAUNCH ACTIONS -->
+    <section class="w-full max-w-3xl mx-auto px-4 sm:px-6 mt-5 animate-pop-in" style="animation-delay: 0.06s">
+      <div class="grid sm:grid-cols-2 gap-3.5">
+        <button type="button" onclick="choosePath('sandbox')"
+          class="btn-chunky group w-full px-5 py-3.5 rounded-2xl bg-green text-white text-left flex items-center justify-between gap-3.5">
+          <div class="flex items-center gap-3.5 min-w-0">
+            <div class="w-10 h-10 rounded-xl bg-white/20 border-2 border-white/35 flex items-center justify-center shrink-0">
+              <i data-lucide="play" class="w-5 h-5 text-white" aria-hidden="true"></i>
+            </div>
+            <div class="min-w-0">
+              <span class="block font-heading font-bold text-lg sm:text-xl uppercase tracking-wide leading-tight">
+                Launch Class Tools
+              </span>
+              <span class="block text-xs font-bold text-white/90 mt-0.5">
+                Free • Instant • No Login
+              </span>
+            </div>
+          </div>
+          <span class="w-8 h-8 rounded-full bg-white/20 border-2 border-white/35 flex items-center justify-center shrink-0 group-hover:translate-x-1 transition-transform">
+            <i data-lucide="arrow-right" class="w-4 h-4" aria-hidden="true"></i>
+          </span>
+        </button>
+
+        <button type="button" onclick="choosePath('cloud')"
+          class="btn-chunky group w-full px-5 py-3.5 rounded-2xl bg-blue text-white text-left flex items-center justify-between gap-3.5">
+          <div class="flex items-center gap-3.5 min-w-0">
+            <div class="w-10 h-10 rounded-xl bg-white/20 border-2 border-white/35 flex items-center justify-center shrink-0">
+              <i data-lucide="cloud" class="w-5 h-5 text-white" aria-hidden="true"></i>
+            </div>
+            <div class="min-w-0">
+              <span class="block font-heading font-bold text-lg sm:text-xl uppercase tracking-wide leading-tight">
+                Save & Sync
+              </span>
+              <span class="block text-xs font-bold text-white/90 mt-0.5">
+                Free Account • Sync Across Devices
+              </span>
+            </div>
+          </div>
+          <span class="w-8 h-8 rounded-full bg-white/20 border-2 border-white/35 flex items-center justify-center shrink-0 group-hover:translate-x-1 transition-transform">
+            <i data-lucide="arrow-right" class="w-4 h-4" aria-hidden="true"></i>
+          </span>
+        </button>
+      </div>
+
+      <div class="mt-3.5 flex flex-wrap justify-center gap-x-5 gap-y-1.5 text-[11px] font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+        <div class="flex items-center gap-1.5">
+          <i data-lucide="shield-check" class="w-3.5 h-3.5 text-green" aria-hidden="true"></i>
+          <span>Private & Ad-Free</span>
+        </div>
+        <div class="flex items-center gap-1.5">
+          <i data-lucide="zap" class="w-3.5 h-3.5 text-orange" aria-hidden="true"></i>
+          <span>Projector Optimized</span>
+        </div>
+        <div class="flex items-center gap-1.5">
+          <i data-lucide="monitor" class="w-3.5 h-3.5 text-blue" aria-hidden="true"></i>
+          <span>Works Offline (PWA)</span>
+        </div>
+        <div class="flex items-center gap-1.5">
+          <i data-lucide="keyboard" class="w-3.5 h-3.5 text-pink" aria-hidden="true"></i>
+          <span>Chromebook Friendly</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- FULL-BLEED ABOVE-THE-FOLD TOOLKIT CAROUSEL -->
+    <section class="w-full mt-6 sm:mt-7 mb-10 animate-pop-in" style="animation-delay: 0.12s">
+      <div class="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mb-2 flex flex-col sm:flex-row items-center justify-between gap-1.5">
+        <div class="flex flex-wrap items-center justify-center sm:justify-start gap-2 text-xs font-extrabold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">
+          <span>Explore the Toolkit</span>
+          <span class="hidden sm:inline text-slate-400 dark:text-slate-600">•</span>
+          <span class="normal-case tracking-normal font-bold text-slate-600 dark:text-slate-300">Click any preview to try</span>
+        </div>
+        <a href="./hub.html" onclick="goToHub(); return false;"
+          class="link-focus group inline-flex items-center gap-1.5 text-sm font-extrabold text-blue hover:underline">
+          <span>View full tool registry</span>
+          <i data-lucide="arrow-right" class="w-4 h-4 group-hover:translate-x-1 transition-transform" aria-hidden="true"></i>
+        </a>
+      </div>
+
+      <div class="carousel-container">
+        <div class="carousel-track">
+          <div class="carousel-group">
+            <button type="button" onclick="tryTool('findball')"
+              class="carousel-card group relative shrink-0 w-64 sm:w-72 md:w-[320px] bg-white dark:bg-slate-800 border-[3px] border-dark dark:border-slate-500 rounded-2xl shadow-hard dark:shadow-hard-dark overflow-hidden text-left transition-transform duration-200 hover:-translate-y-1.5 cursor-pointer">
+              <div class="aspect-video w-full overflow-hidden bg-slate-100 dark:bg-slate-900 relative">
+                <img src="./media/magic_cups_preview.webp" alt="Magic Cups classroom game preview" decoding="async"
+                  class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300">
+                <div class="absolute inset-0 bg-dark/0 group-hover:bg-dark/20 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
+                  <span class="bg-white text-dark px-3 py-1 rounded-full border-2 border-dark shadow-hard-sm text-xs font-extrabold uppercase tracking-wider">Launch Magic Cups</span>
                 </div>
-                <h1
-                    class="font-heading font-black text-4xl md:text-5xl text-dark dark:text-white uppercase tracking-tight">
-                    KlassKit
-                </h1>
-            </div>
-
-            <!-- Subtitle -->
-            <p class="text-base md:text-lg font-bold text-slate-500 dark:text-slate-400 max-w-xl mx-auto px-4 mb-4">
-                A curated collection of 50+ interactive games and tools — ready in seconds.
-            </p>
-
-            <!-- Categories -->
-            <div class="flex flex-wrap justify-center gap-2 mb-2 px-4">
-                <span
-                    class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-pink/10 text-pink border border-pink/20 text-[10px] font-black uppercase tracking-widest">
-                    <i data-lucide="gamepad-2" class="w-3 h-3"></i> Interactive Games
-                </span>
-                <span
-                    class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-green/10 text-green border border-green/20 text-[10px] font-black uppercase tracking-widest">
-                    <i data-lucide="layout" class="w-3 h-3"></i> Management
-                </span>
-                <span
-                    class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue/10 text-blue border border-blue/20 text-[10px] font-black uppercase tracking-widest">
-                    <i data-lucide="check-square" class="w-3 h-3"></i> Assessment
-                </span>
-            </div>
-        </header>
-
-        <!-- PRIMARY ACTIONS (No Scroll) -->
-        <section class="w-full max-w-4xl mx-auto mb-10 px-4 animate-pop-in" style="animation-delay: 0.1s">
-            <div class="grid md:grid-cols-2 gap-4">
-                <!-- Sandbox Button -->
-                <button onclick="choosePath('sandbox')"
-                    class="btn-chunky group relative overflow-hidden py-6 bg-green text-white rounded-2xl">
-                    <!-- Free Badge -->
-                    <div
-                        class="absolute top-3 right-3 px-2 py-0.5 rounded-lg bg-white/20 border border-white/30 text-[8px] font-black uppercase tracking-widest pointer-events-none group-hover:bg-white/30 transition-colors">
-                        Free
-                    </div>
-                    <div class="relative z-10 flex flex-col items-center">
-                        <span class="font-heading text-2xl md:text-3xl uppercase tracking-wider mb-1">Launch
-                            Class Tools</span>
-                        <span class="text-xs font-bold opacity-80">No Ads • Free Forever • No Login</span>
-                    </div>
-                    <div
-                        class="absolute inset-0 bg-white/10 translate-y-full group-hover:translate-y-0 transition-transform">
-                    </div>
-                </button>
-
-                <!-- Cloud Button -->
-                <button onclick="choosePath('cloud')"
-                    class="btn-chunky group relative overflow-hidden py-6 bg-blue text-white rounded-2xl">
-                    <!-- Free Badge -->
-                    <div
-                        class="absolute top-3 right-3 px-2 py-0.5 rounded-lg bg-white/20 border border-white/30 text-[8px] font-black uppercase tracking-widest pointer-events-none group-hover:bg-white/30 transition-colors">
-                        Free
-                    </div>
-                    <div class="relative z-10 flex flex-col items-center">
-                        <span class="font-heading text-2xl md:text-3xl uppercase tracking-wider mb-1">Save & Sync</span>
-                        <span class="text-xs font-bold opacity-80">No Ads • Free Forever • Cloud storage</span>
-                    </div>
-                    <div
-                        class="absolute inset-0 bg-white/10 translate-y-full group-hover:translate-y-0 transition-transform">
-                    </div>
-                </button>
-            </div>
-
-            <div class="mt-6 flex flex-col items-center gap-4">
-                <div class="flex justify-center gap-6">
-                    <div
-                        class="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-slate-400">
-                        <i data-lucide="shield-check" class="w-3 h-3"></i> Private & Secure
-                    </div>
-                    <div
-                        class="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-slate-400">
-                        <i data-lucide="zap" class="w-3 h-3 text-orange fill-current"></i> Projector Optimized
-                    </div>
+              </div>
+              <div class="px-3.5 py-2.5 border-t-[3px] border-dark dark:border-slate-600 flex items-center justify-between gap-2 bg-white dark:bg-slate-800">
+                <div>
+                  <span class="block font-heading font-bold text-sm sm:text-base text-dark dark:text-white leading-tight">Magic Cups</span>
+                  <span class="text-[11px] font-extrabold uppercase tracking-wider text-pink-700 dark:text-pink-300">Game</span>
                 </div>
+                <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-700 text-xs font-extrabold text-dark dark:text-white">
+                  Try <i data-lucide="arrow-right" class="w-3.5 h-3.5" aria-hidden="true"></i>
+                </span>
+              </div>
+            </button>
 
-            </div>
-        </section>
-
-        <!-- AUTOMATIC CAROUSEL -->
-        <section class="w-full mb-12 animate-pop-in" style="animation-delay: 0.2s">
-            <p class="text-center text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] mb-6">
-                Explore the Toolkit
-            </p>
-
-            <div class="carousel-container">
-                <div class="carousel-track gap-6 md:gap-12 px-6">
-                    <!-- Set 1 -->
-                    <div class="carousel-item group relative w-64 md:w-[450px] aspect-video bg-white dark:bg-slate-800 border-4 border-dark dark:border-slate-500 rounded-2xl shadow-hard overflow-hidden cursor-pointer"
-                        onclick="tryTool('findball')">
-                        <img src="./media/magic_cups_preview.webp"
-                            class="w-full h-full object-cover group-hover:scale-110 transition-transform">
-                        <div
-                            class="absolute inset-0 bg-dark/0 group-hover:bg-dark/20 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
-                            <span
-                                class="bg-white text-dark px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest">Try
-                                Magic Cups</span>
-                        </div>
-                    </div>
-                    <div class="carousel-item group relative w-64 md:w-[450px] aspect-video bg-white dark:bg-slate-800 border-4 border-dark dark:border-slate-500 rounded-2xl shadow-hard overflow-hidden cursor-pointer"
-                        onclick="tryTool('wordsearch')">
-                        <img src="./media/word_search_preview.webp"
-                            class="w-full h-full object-cover group-hover:scale-110 transition-transform">
-                        <div
-                            class="absolute inset-0 bg-dark/0 group-hover:bg-dark/20 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
-                            <span
-                                class="bg-white text-dark px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest">Try
-                                Word Search</span>
-                        </div>
-                    </div>
-                    <div class="carousel-item group relative w-64 md:w-[450px] aspect-video bg-white dark:bg-slate-800 border-4 border-dark dark:border-slate-500 rounded-2xl shadow-hard overflow-hidden cursor-pointer"
-                        onclick="tryTool('hangman')">
-                        <img src="./media/hangman_preview.webp"
-                            class="w-full h-full object-cover group-hover:scale-110 transition-transform">
-                        <div
-                            class="absolute inset-0 bg-dark/0 group-hover:bg-dark/20 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
-                            <span
-                                class="bg-white text-dark px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest">Try
-                                Hangman</span>
-                        </div>
-                    </div>
-                    <div class="carousel-item group relative w-64 md:w-[450px] aspect-video bg-white dark:bg-slate-800 border-4 border-dark dark:border-slate-500 rounded-2xl shadow-hard overflow-hidden cursor-pointer"
-                        onclick="tryTool('teampicker')">
-                        <img src="./media/teampicker_preview.webp"
-                            class="w-full h-full object-cover group-hover:scale-110 transition-transform">
-                        <div
-                            class="absolute inset-0 bg-dark/0 group-hover:bg-dark/20 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
-                            <span
-                                class="bg-white text-dark px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest">Try
-                                Team Picker</span>
-                        </div>
-                    </div>
-                    <div class="carousel-item group relative w-64 md:w-[450px] aspect-video bg-white dark:bg-slate-800 border-4 border-dark dark:border-slate-500 rounded-2xl shadow-hard overflow-hidden cursor-pointer"
-                        onclick="tryTool('whiteboard')">
-                        <img src="./media/whiteboard_preview.webp"
-                            class="w-full h-full object-cover group-hover:scale-110 transition-transform">
-                        <div
-                            class="absolute inset-0 bg-dark/0 group-hover:bg-dark/20 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
-                            <span
-                                class="bg-white text-dark px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest">Try
-                                Whiteboard</span>
-                        </div>
-                    </div>
-                    <div class="carousel-item group relative w-64 md:w-[450px] aspect-video bg-white dark:bg-slate-800 border-4 border-dark dark:border-slate-500 rounded-2xl shadow-hard overflow-hidden cursor-pointer"
-                        onclick="tryTool('speedyslides')">
-                        <img src="./media/presentation_preview.webp"
-                            class="w-full h-full object-cover group-hover:scale-110 transition-transform">
-                        <div
-                            class="absolute inset-0 bg-dark/0 group-hover:bg-dark/20 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
-                            <span
-                                class="bg-white text-dark px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest">Try
-                                Slides</span>
-                        </div>
-                    </div>
-                    <div class="carousel-item group relative w-64 md:w-[450px] aspect-video bg-white dark:bg-slate-800 border-4 border-dark dark:border-slate-500 rounded-2xl shadow-hard overflow-hidden cursor-pointer"
-                        onclick="tryTool('quizblock')">
-                        <img src="./media/quiz_preview.webp"
-                            class="w-full h-full object-cover group-hover:scale-110 transition-transform">
-                        <div
-                            class="absolute inset-0 bg-dark/0 group-hover:bg-dark/20 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
-                            <span
-                                class="bg-white text-dark px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest">Try
-                                Quiz</span>
-                        </div>
-                    </div>
-                    <div class="carousel-item group relative w-64 md:w-[450px] aspect-video bg-white dark:bg-slate-800 border-4 border-dark dark:border-slate-500 rounded-2xl shadow-hard overflow-hidden cursor-pointer"
-                        onclick="tryTool('spinwheel')">
-                        <img src="./media/spinwheel_preview.webp"
-                            class="w-full h-full object-cover group-hover:scale-110 transition-transform">
-                        <div
-                            class="absolute inset-0 bg-dark/0 group-hover:bg-dark/20 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
-                            <span
-                                class="bg-white text-dark px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest">Try
-                                Spin Wheel</span>
-                        </div>
-                    </div>
-                    <div class="carousel-item group relative w-64 md:w-[450px] aspect-video bg-white dark:bg-slate-800 border-4 border-dark dark:border-slate-500 rounded-2xl shadow-hard overflow-hidden cursor-pointer"
-                        onclick="tryTool('connect-four')">
-                        <img src="./media/connect_four_preview.webp"
-                            class="w-full h-full object-cover group-hover:scale-110 transition-transform">
-                        <div
-                            class="absolute inset-0 bg-dark/0 group-hover:bg-dark/20 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
-                            <span
-                                class="bg-white text-dark px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest">Try
-                                Connect Four</span>
-                        </div>
-                    </div>
-                    <div class="carousel-item group relative w-64 md:w-[450px] aspect-video bg-white dark:bg-slate-800 border-4 border-dark dark:border-slate-500 rounded-2xl shadow-hard overflow-hidden cursor-pointer"
-                        onclick="tryTool('cardmatch')">
-                        <img src="./media/card_match_preview.webp"
-                            class="w-full h-full object-cover group-hover:scale-110 transition-transform">
-                        <div
-                            class="absolute inset-0 bg-dark/0 group-hover:bg-dark/20 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
-                            <span
-                                class="bg-white text-dark px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest">Try
-                                Card Match</span>
-                        </div>
-                    </div>
-                    <div class="carousel-item group relative w-64 md:w-[450px] aspect-video bg-white dark:bg-slate-800 border-4 border-dark dark:border-slate-500 rounded-2xl shadow-hard overflow-hidden cursor-pointer"
-                        onclick="tryTool('classtally')">
-                        <img src="./media/classtally_preview.webp"
-                            class="w-full h-full object-cover group-hover:scale-110 transition-transform">
-                        <div
-                            class="absolute inset-0 bg-dark/0 group-hover:bg-dark/20 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
-                            <span
-                                class="bg-white text-dark px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest">Try
-                                Class Tally</span>
-                        </div>
-                    </div>
-                    <!-- Duplicate for seamless loop -->
-                    <div class="carousel-item group relative w-64 md:w-[450px] aspect-video bg-white dark:bg-slate-800 border-4 border-dark dark:border-slate-500 rounded-2xl shadow-hard overflow-hidden cursor-pointer"
-                        onclick="tryTool('findball')">
-                        <img src="./media/magic_cups_preview.webp"
-                            class="w-full h-full object-cover group-hover:scale-110 transition-transform">
-                        <div
-                            class="absolute inset-0 bg-dark/0 group-hover:bg-dark/20 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
-                            <span
-                                class="bg-white text-dark px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest">Try
-                                Magic Cups</span>
-                        </div>
-                    </div>
-                    <div class="carousel-item group relative w-64 md:w-[450px] aspect-video bg-white dark:bg-slate-800 border-4 border-dark dark:border-slate-500 rounded-2xl shadow-hard overflow-hidden cursor-pointer"
-                        onclick="tryTool('wordsearch')">
-                        <img src="./media/word_search_preview.webp"
-                            class="w-full h-full object-cover group-hover:scale-110 transition-transform">
-                        <div
-                            class="absolute inset-0 bg-dark/0 group-hover:bg-dark/20 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
-                            <span
-                                class="bg-white text-dark px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest">Try
-                                Word Search</span>
-                        </div>
-                    </div>
-                    <div class="carousel-item group relative w-64 md:w-[450px] aspect-video bg-white dark:bg-slate-800 border-4 border-dark dark:border-slate-500 rounded-2xl shadow-hard overflow-hidden cursor-pointer"
-                        onclick="tryTool('hangman')">
-                        <img src="./media/hangman_preview.webp"
-                            class="w-full h-full object-cover group-hover:scale-110 transition-transform">
-                        <div
-                            class="absolute inset-0 bg-dark/0 group-hover:bg-dark/20 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
-                            <span
-                                class="bg-white text-dark px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest">Try
-                                Hangman</span>
-                        </div>
-                    </div>
-                    <div class="carousel-item group relative w-64 md:w-[450px] aspect-video bg-white dark:bg-slate-800 border-4 border-dark dark:border-slate-500 rounded-2xl shadow-hard overflow-hidden cursor-pointer"
-                        onclick="tryTool('teampicker')">
-                        <img src="./media/teampicker_preview.webp"
-                            class="w-full h-full object-cover group-hover:scale-110 transition-transform">
-                        <div
-                            class="absolute inset-0 bg-dark/0 group-hover:bg-dark/20 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
-                            <span
-                                class="bg-white text-dark px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest">Try
-                                Team Picker</span>
-                        </div>
-                    </div>
-                    <div class="carousel-item group relative w-64 md:w-[450px] aspect-video bg-white dark:bg-slate-800 border-4 border-dark dark:border-slate-500 rounded-2xl shadow-hard overflow-hidden cursor-pointer"
-                        onclick="tryTool('whiteboard')">
-                        <img src="./media/whiteboard_preview.webp"
-                            class="w-full h-full object-cover group-hover:scale-110 transition-transform">
-                        <div
-                            class="absolute inset-0 bg-dark/0 group-hover:bg-dark/20 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
-                            <span
-                                class="bg-white text-dark px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest">Try
-                                Whiteboard</span>
-                        </div>
-                    </div>
-                    <div class="carousel-item group relative w-64 md:w-[450px] aspect-video bg-white dark:bg-slate-800 border-4 border-dark dark:border-slate-500 rounded-2xl shadow-hard overflow-hidden cursor-pointer"
-                        onclick="tryTool('speedyslides')">
-                        <img src="./media/presentation_preview.webp"
-                            class="w-full h-full object-cover group-hover:scale-110 transition-transform">
-                        <div
-                            class="absolute inset-0 bg-dark/0 group-hover:bg-dark/20 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
-                            <span
-                                class="bg-white text-dark px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest">Try
-                                Slides</span>
-                        </div>
-                    </div>
-                    <div class="carousel-item group relative w-64 md:w-[450px] aspect-video bg-white dark:bg-slate-800 border-4 border-dark dark:border-slate-500 rounded-2xl shadow-hard overflow-hidden cursor-pointer"
-                        onclick="tryTool('quizblock')">
-                        <img src="./media/quiz_preview.webp"
-                            class="w-full h-full object-cover group-hover:scale-110 transition-transform">
-                        <div
-                            class="absolute inset-0 bg-dark/0 group-hover:bg-dark/20 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
-                            <span
-                                class="bg-white text-dark px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest">Try
-                                Quiz</span>
-                        </div>
-                    </div>
-                    <div class="carousel-item group relative w-64 md:w-[450px] aspect-video bg-white dark:bg-slate-800 border-4 border-dark dark:border-slate-500 rounded-2xl shadow-hard overflow-hidden cursor-pointer"
-                        onclick="tryTool('spinwheel')">
-                        <img src="./media/spinwheel_preview.webp"
-                            class="w-full h-full object-cover group-hover:scale-110 transition-transform">
-                        <div
-                            class="absolute inset-0 bg-dark/0 group-hover:bg-dark/20 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
-                            <span
-                                class="bg-white text-dark px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest">Try
-                                Spin Wheel</span>
-                        </div>
-                    </div>
-                    <div class="carousel-item group relative w-64 md:w-[450px] aspect-video bg-white dark:bg-slate-800 border-4 border-dark dark:border-slate-500 rounded-2xl shadow-hard overflow-hidden cursor-pointer"
-                        onclick="tryTool('connect-four')">
-                        <img src="./media/connect_four_preview.webp"
-                            class="w-full h-full object-cover group-hover:scale-110 transition-transform">
-                        <div
-                            class="absolute inset-0 bg-dark/0 group-hover:bg-dark/20 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
-                            <span
-                                class="bg-white text-dark px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest">Try
-                                Connect Four</span>
-                        </div>
-                    </div>
-                    <div class="carousel-item group relative w-64 md:w-[450px] aspect-video bg-white dark:bg-slate-800 border-4 border-dark dark:border-slate-500 rounded-2xl shadow-hard overflow-hidden cursor-pointer"
-                        onclick="tryTool('cardmatch')">
-                        <img src="./media/card_match_preview.webp"
-                            class="w-full h-full object-cover group-hover:scale-110 transition-transform">
-                        <div
-                            class="absolute inset-0 bg-dark/0 group-hover:bg-dark/20 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
-                            <span
-                                class="bg-white text-dark px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest">Try
-                                Card Match</span>
-                        </div>
-                    </div>
-                    <div class="carousel-item group relative w-64 md:w-[450px] aspect-video bg-white dark:bg-slate-800 border-4 border-dark dark:border-slate-500 rounded-2xl shadow-hard overflow-hidden cursor-pointer"
-                        onclick="tryTool('classtally')">
-                        <img src="./media/classtally_preview.webp"
-                            class="w-full h-full object-cover group-hover:scale-110 transition-transform">
-                        <div
-                            class="absolute inset-0 bg-dark/0 group-hover:bg-dark/20 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
-                            <span
-                                class="bg-white text-dark px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest">Try
-                                Class Tally</span>
-                        </div>
-                    </div>
+            <button type="button" onclick="tryTool('wordsearch')"
+              class="carousel-card group relative shrink-0 w-64 sm:w-72 md:w-[320px] bg-white dark:bg-slate-800 border-[3px] border-dark dark:border-slate-500 rounded-2xl shadow-hard dark:shadow-hard-dark overflow-hidden text-left transition-transform duration-200 hover:-translate-y-1.5 cursor-pointer">
+              <div class="aspect-video w-full overflow-hidden bg-slate-100 dark:bg-slate-900 relative">
+                <img src="./media/word_search_preview.webp" alt="Word Search generator preview" decoding="async"
+                  class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300">
+                <div class="absolute inset-0 bg-dark/0 group-hover:bg-dark/20 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
+                  <span class="bg-white text-dark px-3 py-1 rounded-full border-2 border-dark shadow-hard-sm text-xs font-extrabold uppercase tracking-wider">Launch Word Search</span>
                 </div>
-            </div>
-            <div class="mt-8 text-center">
-                <a href="#" onclick="goToHub(); return false;"
-                    class="inline-flex items-center gap-2 font-bold text-blue hover:text-blue/80 transition-colors group">
-                    View the full tool registry
-                    <i data-lucide="arrow-right" class="w-4 h-4 group-hover:translate-x-1 transition-transform"></i>
-                </a>
-            </div>
-        </section>
+              </div>
+              <div class="px-3.5 py-2.5 border-t-[3px] border-dark dark:border-slate-600 flex items-center justify-between gap-2 bg-white dark:bg-slate-800">
+                <div>
+                  <span class="block font-heading font-bold text-sm sm:text-base text-dark dark:text-white leading-tight">Word Search</span>
+                  <span class="text-[11px] font-extrabold uppercase tracking-wider text-orange-700 dark:text-orange-300">Printable</span>
+                </div>
+                <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-700 text-xs font-extrabold text-dark dark:text-white">
+                  Try <i data-lucide="arrow-right" class="w-3.5 h-3.5" aria-hidden="true"></i>
+                </span>
+              </div>
+            </button>
 
-        <!-- FOOTER -->
-        <footer class="text-center text-slate-400 dark:text-slate-500 font-bold text-sm py-8">
-            <div class="flex justify-center gap-6 mb-4">
-                <a href="#" class="hover:text-blue transition-colors">Request a Tool</a>
-                <a href="#" class="hover:text-blue transition-colors">Feedback</a>
-                <a href="#" class="hover:text-blue transition-colors">Contact</a>
-            </div>
-            <p>Built for teachers • Made by Fahrul Ahyan</p>
-        </footer>
-    </main>
+            <button type="button" onclick="tryTool('hangman')"
+              class="carousel-card group relative shrink-0 w-64 sm:w-72 md:w-[320px] bg-white dark:bg-slate-800 border-[3px] border-dark dark:border-slate-500 rounded-2xl shadow-hard dark:shadow-hard-dark overflow-hidden text-left transition-transform duration-200 hover:-translate-y-1.5 cursor-pointer">
+              <div class="aspect-video w-full overflow-hidden bg-slate-100 dark:bg-slate-900 relative">
+                <img src="./media/hangman_preview.webp" alt="Hangman classroom game preview" decoding="async"
+                  class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300">
+                <div class="absolute inset-0 bg-dark/0 group-hover:bg-dark/20 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
+                  <span class="bg-white text-dark px-3 py-1 rounded-full border-2 border-dark shadow-hard-sm text-xs font-extrabold uppercase tracking-wider">Launch Hangman</span>
+                </div>
+              </div>
+              <div class="px-3.5 py-2.5 border-t-[3px] border-dark dark:border-slate-600 flex items-center justify-between gap-2 bg-white dark:bg-slate-800">
+                <div>
+                  <span class="block font-heading font-bold text-sm sm:text-base text-dark dark:text-white leading-tight">Hangman</span>
+                  <span class="text-[11px] font-extrabold uppercase tracking-wider text-pink-700 dark:text-pink-300">Game</span>
+                </div>
+                <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-700 text-xs font-extrabold text-dark dark:text-white">
+                  Try <i data-lucide="arrow-right" class="w-3.5 h-3.5" aria-hidden="true"></i>
+                </span>
+              </div>
+            </button>
 
-    <script>
-        // Auto-redirect returning users (unless explicitly returning to home)
-        const urlParams = new URLSearchParams(window.location.search);
-        if (localStorage.getItem('kk_mode') && !urlParams.has('home')) {
-            window.location.href = 'hub.html';
-        }
+            <button type="button" onclick="tryTool('teampicker')"
+              class="carousel-card group relative shrink-0 w-64 sm:w-72 md:w-[320px] bg-white dark:bg-slate-800 border-[3px] border-dark dark:border-slate-500 rounded-2xl shadow-hard dark:shadow-hard-dark overflow-hidden text-left transition-transform duration-200 hover:-translate-y-1.5 cursor-pointer">
+              <div class="aspect-video w-full overflow-hidden bg-slate-100 dark:bg-slate-900 relative">
+                <img src="./media/teampicker_preview.webp" alt="Team Picker classroom tool preview" loading="lazy" decoding="async"
+                  class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300">
+                <div class="absolute inset-0 bg-dark/0 group-hover:bg-dark/20 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
+                  <span class="bg-white text-dark px-3 py-1 rounded-full border-2 border-dark shadow-hard-sm text-xs font-extrabold uppercase tracking-wider">Launch Team Picker</span>
+                </div>
+              </div>
+              <div class="px-3.5 py-2.5 border-t-[3px] border-dark dark:border-slate-600 flex items-center justify-between gap-2 bg-white dark:bg-slate-800">
+                <div>
+                  <span class="block font-heading font-bold text-sm sm:text-base text-dark dark:text-white leading-tight">Team Picker</span>
+                  <span class="text-[11px] font-extrabold uppercase tracking-wider text-blue-700 dark:text-blue-300">Tool</span>
+                </div>
+                <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-700 text-xs font-extrabold text-dark dark:text-white">
+                  Try <i data-lucide="arrow-right" class="w-3.5 h-3.5" aria-hidden="true"></i>
+                </span>
+              </div>
+            </button>
 
-        function choosePath(mode, gameId = null) {
-            localStorage.setItem('kk_mode', mode);
-            if (gameId) {
-                window.location.href = 'hub.html#' + gameId;
-            } else {
-                window.location.href = 'hub.html';
-            }
-        }
+            <button type="button" onclick="tryTool('whiteboard')"
+              class="carousel-card group relative shrink-0 w-64 sm:w-72 md:w-[320px] bg-white dark:bg-slate-800 border-[3px] border-dark dark:border-slate-500 rounded-2xl shadow-hard dark:shadow-hard-dark overflow-hidden text-left transition-transform duration-200 hover:-translate-y-1.5 cursor-pointer">
+              <div class="aspect-video w-full overflow-hidden bg-slate-100 dark:bg-slate-900 relative">
+                <img src="./media/whiteboard_preview.webp" alt="Whiteboard classroom tool preview" loading="lazy" decoding="async"
+                  class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300">
+                <div class="absolute inset-0 bg-dark/0 group-hover:bg-dark/20 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
+                  <span class="bg-white text-dark px-3 py-1 rounded-full border-2 border-dark shadow-hard-sm text-xs font-extrabold uppercase tracking-wider">Launch Whiteboard</span>
+                </div>
+              </div>
+              <div class="px-3.5 py-2.5 border-t-[3px] border-dark dark:border-slate-600 flex items-center justify-between gap-2 bg-white dark:bg-slate-800">
+                <div>
+                  <span class="block font-heading font-bold text-sm sm:text-base text-dark dark:text-white leading-tight">Whiteboard</span>
+                  <span class="text-[11px] font-extrabold uppercase tracking-wider text-blue-700 dark:text-blue-300">Tool</span>
+                </div>
+                <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-700 text-xs font-extrabold text-dark dark:text-white">
+                  Try <i data-lucide="arrow-right" class="w-3.5 h-3.5" aria-hidden="true"></i>
+                </span>
+              </div>
+            </button>
 
-        function tryTool(gameId) {
-            const saved = localStorage.getItem('kk_mode');
-            const mode = saved || 'sandbox'; // default to sandbox for new users
-            choosePath(mode, gameId);
-        }
+            <button type="button" onclick="tryTool('speedyslides')"
+              class="carousel-card group relative shrink-0 w-64 sm:w-72 md:w-[320px] bg-white dark:bg-slate-800 border-[3px] border-dark dark:border-slate-500 rounded-2xl shadow-hard dark:shadow-hard-dark overflow-hidden text-left transition-transform duration-200 hover:-translate-y-1.5 cursor-pointer">
+              <div class="aspect-video w-full overflow-hidden bg-slate-100 dark:bg-slate-900 relative">
+                <img src="./media/presentation_preview.webp" alt="Speedy Slides presentation tool preview" loading="lazy" decoding="async"
+                  class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300">
+                <div class="absolute inset-0 bg-dark/0 group-hover:bg-dark/20 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
+                  <span class="bg-white text-dark px-3 py-1 rounded-full border-2 border-dark shadow-hard-sm text-xs font-extrabold uppercase tracking-wider">Launch Speedy Slides</span>
+                </div>
+              </div>
+              <div class="px-3.5 py-2.5 border-t-[3px] border-dark dark:border-slate-600 flex items-center justify-between gap-2 bg-white dark:bg-slate-800">
+                <div>
+                  <span class="block font-heading font-bold text-sm sm:text-base text-dark dark:text-white leading-tight">Speedy Slides</span>
+                  <span class="text-[11px] font-extrabold uppercase tracking-wider text-blue-700 dark:text-blue-300">Tool</span>
+                </div>
+                <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-700 text-xs font-extrabold text-dark dark:text-white">
+                  Try <i data-lucide="arrow-right" class="w-3.5 h-3.5" aria-hidden="true"></i>
+                </span>
+              </div>
+            </button>
 
-        function goToHub() {
-            if (!localStorage.getItem('kk_mode')) {
-                localStorage.setItem('kk_mode', 'sandbox');
-            }
-            window.location.href = 'hub.html';
-        }
+            <button type="button" onclick="tryTool('quizblock')"
+              class="carousel-card group relative shrink-0 w-64 sm:w-72 md:w-[320px] bg-white dark:bg-slate-800 border-[3px] border-dark dark:border-slate-500 rounded-2xl shadow-hard dark:shadow-hard-dark overflow-hidden text-left transition-transform duration-200 hover:-translate-y-1.5 cursor-pointer">
+              <div class="aspect-video w-full overflow-hidden bg-slate-100 dark:bg-slate-900 relative">
+                <img src="./media/quiz_preview.webp" alt="Quiz Block classroom game preview" loading="lazy" decoding="async"
+                  class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300">
+                <div class="absolute inset-0 bg-dark/0 group-hover:bg-dark/20 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
+                  <span class="bg-white text-dark px-3 py-1 rounded-full border-2 border-dark shadow-hard-sm text-xs font-extrabold uppercase tracking-wider">Launch Quiz Block</span>
+                </div>
+              </div>
+              <div class="px-3.5 py-2.5 border-t-[3px] border-dark dark:border-slate-600 flex items-center justify-between gap-2 bg-white dark:bg-slate-800">
+                <div>
+                  <span class="block font-heading font-bold text-sm sm:text-base text-dark dark:text-white leading-tight">Quiz Block</span>
+                  <span class="text-[11px] font-extrabold uppercase tracking-wider text-pink-700 dark:text-pink-300">Game</span>
+                </div>
+                <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-700 text-xs font-extrabold text-dark dark:text-white">
+                  Try <i data-lucide="arrow-right" class="w-3.5 h-3.5" aria-hidden="true"></i>
+                </span>
+              </div>
+            </button>
 
-        // Initialize Icons
-        window.addEventListener('DOMContentLoaded', () => {
-            if (window.lucide) {
-                window.lucide.createIcons();
-            }
+            <button type="button" onclick="tryTool('spinwheel')"
+              class="carousel-card group relative shrink-0 w-64 sm:w-72 md:w-[320px] bg-white dark:bg-slate-800 border-[3px] border-dark dark:border-slate-500 rounded-2xl shadow-hard dark:shadow-hard-dark overflow-hidden text-left transition-transform duration-200 hover:-translate-y-1.5 cursor-pointer">
+              <div class="aspect-video w-full overflow-hidden bg-slate-100 dark:bg-slate-900 relative">
+                <img src="./media/spinwheel_preview.webp" alt="Spin Wheel classroom tool preview" loading="lazy" decoding="async"
+                  class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300">
+                <div class="absolute inset-0 bg-dark/0 group-hover:bg-dark/20 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
+                  <span class="bg-white text-dark px-3 py-1 rounded-full border-2 border-dark shadow-hard-sm text-xs font-extrabold uppercase tracking-wider">Launch Spin Wheel</span>
+                </div>
+              </div>
+              <div class="px-3.5 py-2.5 border-t-[3px] border-dark dark:border-slate-600 flex items-center justify-between gap-2 bg-white dark:bg-slate-800">
+                <div>
+                  <span class="block font-heading font-bold text-sm sm:text-base text-dark dark:text-white leading-tight">Spin Wheel</span>
+                  <span class="text-[11px] font-extrabold uppercase tracking-wider text-blue-700 dark:text-blue-300">Tool</span>
+                </div>
+                <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-700 text-xs font-extrabold text-dark dark:text-white">
+                  Try <i data-lucide="arrow-right" class="w-3.5 h-3.5" aria-hidden="true"></i>
+                </span>
+              </div>
+            </button>
 
-            // Theme sync with system/localStorage
-            const saved = localStorage.getItem('theme_hub');
-            if (saved === 'dark' || (!saved && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-                document.documentElement.classList.add('dark');
-            }
+            <button type="button" onclick="tryTool('connect-four')"
+              class="carousel-card group relative shrink-0 w-64 sm:w-72 md:w-[320px] bg-white dark:bg-slate-800 border-[3px] border-dark dark:border-slate-500 rounded-2xl shadow-hard dark:shadow-hard-dark overflow-hidden text-left transition-transform duration-200 hover:-translate-y-1.5 cursor-pointer">
+              <div class="aspect-video w-full overflow-hidden bg-slate-100 dark:bg-slate-900 relative">
+                <img src="./media/connect_four_preview.webp" alt="Connect Four classroom game preview" loading="lazy" decoding="async"
+                  class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300">
+                <div class="absolute inset-0 bg-dark/0 group-hover:bg-dark/20 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
+                  <span class="bg-white text-dark px-3 py-1 rounded-full border-2 border-dark shadow-hard-sm text-xs font-extrabold uppercase tracking-wider">Launch Connect Four</span>
+                </div>
+              </div>
+              <div class="px-3.5 py-2.5 border-t-[3px] border-dark dark:border-slate-600 flex items-center justify-between gap-2 bg-white dark:bg-slate-800">
+                <div>
+                  <span class="block font-heading font-bold text-sm sm:text-base text-dark dark:text-white leading-tight">Connect Four</span>
+                  <span class="text-[11px] font-extrabold uppercase tracking-wider text-pink-700 dark:text-pink-300">Game</span>
+                </div>
+                <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-700 text-xs font-extrabold text-dark dark:text-white">
+                  Try <i data-lucide="arrow-right" class="w-3.5 h-3.5" aria-hidden="true"></i>
+                </span>
+              </div>
+            </button>
+
+            <button type="button" onclick="tryTool('cardmatch')"
+              class="carousel-card group relative shrink-0 w-64 sm:w-72 md:w-[320px] bg-white dark:bg-slate-800 border-[3px] border-dark dark:border-slate-500 rounded-2xl shadow-hard dark:shadow-hard-dark overflow-hidden text-left transition-transform duration-200 hover:-translate-y-1.5 cursor-pointer">
+              <div class="aspect-video w-full overflow-hidden bg-slate-100 dark:bg-slate-900 relative">
+                <img src="./media/card_match_preview.webp" alt="Card Match classroom game preview" loading="lazy" decoding="async"
+                  class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300">
+                <div class="absolute inset-0 bg-dark/0 group-hover:bg-dark/20 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
+                  <span class="bg-white text-dark px-3 py-1 rounded-full border-2 border-dark shadow-hard-sm text-xs font-extrabold uppercase tracking-wider">Launch Card Match</span>
+                </div>
+              </div>
+              <div class="px-3.5 py-2.5 border-t-[3px] border-dark dark:border-slate-600 flex items-center justify-between gap-2 bg-white dark:bg-slate-800">
+                <div>
+                  <span class="block font-heading font-bold text-sm sm:text-base text-dark dark:text-white leading-tight">Card Match</span>
+                  <span class="text-[11px] font-extrabold uppercase tracking-wider text-pink-700 dark:text-pink-300">Game</span>
+                </div>
+                <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-700 text-xs font-extrabold text-dark dark:text-white">
+                  Try <i data-lucide="arrow-right" class="w-3.5 h-3.5" aria-hidden="true"></i>
+                </span>
+              </div>
+            </button>
+
+            <button type="button" onclick="tryTool('classtally')"
+              class="carousel-card group relative shrink-0 w-64 sm:w-72 md:w-[320px] bg-white dark:bg-slate-800 border-[3px] border-dark dark:border-slate-500 rounded-2xl shadow-hard dark:shadow-hard-dark overflow-hidden text-left transition-transform duration-200 hover:-translate-y-1.5 cursor-pointer">
+              <div class="aspect-video w-full overflow-hidden bg-slate-100 dark:bg-slate-900 relative">
+                <img src="./media/classtally_preview.webp" alt="Class Tally classroom tool preview" loading="lazy" decoding="async"
+                  class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300">
+                <div class="absolute inset-0 bg-dark/0 group-hover:bg-dark/20 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
+                  <span class="bg-white text-dark px-3 py-1 rounded-full border-2 border-dark shadow-hard-sm text-xs font-extrabold uppercase tracking-wider">Launch Class Tally</span>
+                </div>
+              </div>
+              <div class="px-3.5 py-2.5 border-t-[3px] border-dark dark:border-slate-600 flex items-center justify-between gap-2 bg-white dark:bg-slate-800">
+                <div>
+                  <span class="block font-heading font-bold text-sm sm:text-base text-dark dark:text-white leading-tight">Class Tally</span>
+                  <span class="text-[11px] font-extrabold uppercase tracking-wider text-blue-700 dark:text-blue-300">Tool</span>
+                </div>
+                <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-700 text-xs font-extrabold text-dark dark:text-white">
+                  Try <i data-lucide="arrow-right" class="w-3.5 h-3.5" aria-hidden="true"></i>
+                </span>
+              </div>
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- CLASSROOM FEATURE HIGHLIGHTS -->
+    <section class="w-full max-w-5xl mx-auto px-4 sm:px-6 mb-10 animate-pop-in" style="animation-delay: 0.18s">
+      <div class="grid sm:grid-cols-3 gap-4">
+        <div class="glass-card rounded-2xl p-5 text-left hover:-translate-y-1 transition-transform duration-200">
+          <div class="w-10 h-10 rounded-xl bg-pink text-white border-2 border-dark dark:border-slate-500 shadow-hard-sm dark:shadow-hard-sm-dark flex items-center justify-center mb-3">
+            <i data-lucide="layers" class="w-5 h-5" aria-hidden="true"></i>
+          </div>
+          <h2 class="font-heading font-bold text-lg text-dark dark:text-white uppercase tracking-tight mb-1">
+            Split-Screen & Multi-Tab
+          </h2>
+          <p class="text-sm font-semibold text-slate-600 dark:text-slate-300 leading-snug">
+            Run a timer, team picker, and live game side by side inside one workspace.
+          </p>
+        </div>
+
+        <div class="glass-card rounded-2xl p-5 text-left hover:-translate-y-1 transition-transform duration-200">
+          <div class="w-10 h-10 rounded-xl bg-orange text-white border-2 border-dark dark:border-slate-500 shadow-hard-sm dark:shadow-hard-sm-dark flex items-center justify-center mb-3">
+            <i data-lucide="printer" class="w-5 h-5" aria-hidden="true"></i>
+          </div>
+          <h2 class="font-heading font-bold text-lg text-dark dark:text-white uppercase tracking-tight mb-1">
+            Instant Printables
+          </h2>
+          <p class="text-sm font-semibold text-slate-600 dark:text-slate-300 leading-snug">
+            Generate word searches, crosswords, bingo sets, and dominoes ready to print.
+          </p>
+        </div>
+
+        <div class="glass-card rounded-2xl p-5 text-left hover:-translate-y-1 transition-transform duration-200">
+          <div class="w-10 h-10 rounded-xl bg-blue text-white border-2 border-dark dark:border-slate-500 shadow-hard-sm dark:shadow-hard-sm-dark flex items-center justify-center mb-3">
+            <i data-lucide="sparkles" class="w-5 h-5" aria-hidden="true"></i>
+          </div>
+          <h2 class="font-heading font-bold text-lg text-dark dark:text-white uppercase tracking-tight mb-1">
+            Projector & Dark Mode
+          </h2>
+          <p class="text-sm font-semibold text-slate-600 dark:text-slate-300 leading-snug">
+            High-contrast Soft Brutalism built for bright whiteboards and OLED screens.
+          </p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- FOOTER -->
+  <footer class="w-full max-w-5xl mx-auto px-4 sm:px-6 pt-6 pb-2 border-t-2 border-slate-200/80 dark:border-slate-800 text-center text-slate-500 dark:text-slate-400 font-bold text-sm">
+    <div class="flex flex-wrap justify-center gap-x-6 gap-y-2 mb-3">
+      <a href="https://forms.gle/VRqg4f3KFHoJXFUu9" target="_blank" rel="noopener noreferrer"
+        class="link-focus hover:text-blue transition-colors">Request a Tool</a>
+      <a href="https://forms.gle/VRqg4f3KFHoJXFUu9" target="_blank" rel="noopener noreferrer"
+        class="link-focus hover:text-blue transition-colors">Feedback</a>
+      <a href="https://github.com/pod-III" target="_blank" rel="noopener noreferrer"
+        class="link-focus hover:text-blue transition-colors">GitHub</a>
+      <a href="https://pod-iii.github.io/profile-web/" target="_blank" rel="noopener noreferrer"
+        class="link-focus hover:text-blue transition-colors">Portfolio</a>
+      <a href="./login.html" class="link-focus hover:text-blue transition-colors">Sign In</a>
+    </div>
+    <p>Built for teachers • Made by Fahrul Ahyan</p>
+  </footer>
+
+  <script>
+    function choosePath(mode, gameId = null) {
+      localStorage.setItem('kk_mode', mode);
+      if (gameId) {
+        window.location.href = 'hub.html#' + gameId;
+      } else {
+        window.location.href = 'hub.html';
+      }
+    }
+
+    function tryTool(gameId) {
+      const saved = localStorage.getItem('kk_mode');
+      const mode = saved || 'sandbox';
+      choosePath(mode, gameId);
+    }
+
+    function goToHub() {
+      if (!localStorage.getItem('kk_mode')) {
+        localStorage.setItem('kk_mode', 'sandbox');
+      }
+      window.location.href = 'hub.html';
+    }
+
+    function syncThemeToggleState() {
+      const btn = document.getElementById('theme-toggle');
+      if (btn) {
+        btn.setAttribute('aria-pressed', String(document.documentElement.classList.contains('dark')));
+      }
+    }
+
+    function toggleTheme() {
+      const isDark = document.documentElement.classList.toggle('dark');
+      localStorage.setItem('theme_hub', JSON.stringify(isDark ? 'dark' : 'light'));
+      syncThemeToggleState();
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      if (window.lucide && typeof window.lucide.createIcons === 'function') {
+        window.lucide.createIcons();
+      }
+      syncThemeToggleState();
+
+      const track = document.querySelector('.carousel-track');
+      const group = track?.querySelector('.carousel-group');
+      const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      if (track && group && !reduceMotion) {
+        const clone = group.cloneNode(true);
+        clone.setAttribute('aria-hidden', 'true');
+        clone.querySelectorAll('button, a').forEach((el) => {
+          el.tabIndex = -1;
         });
+        track.appendChild(clone);
+      }
+    });
 
-        // Register Service Worker
-        if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                navigator.serviceWorker.register('./sw.js')
-                    .then(reg => console.log('SW Registered!', reg))
-                    .catch(err => console.log('SW Reg error:', err));
-            });
-        }
-    </script>
+    // Register Service Worker
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js')
+          .then(reg => console.log('SW Registered!', reg))
+          .catch(err => console.log('SW Reg error:', err));
+      });
+    }
+  </script>
 </body>
 
 </html>
