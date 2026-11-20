@@ -91,8 +91,8 @@ if (bc && IS_PLAYER_WINDOW) {
     };
 }
 
-function initTheme(){const saved=localStorage.getItem('theme_hub');if(saved==='dark'||(!saved&&window.matchMedia('(prefers-color-scheme: dark)').matches))document.documentElement.classList.add('dark');updateThemeUI();}
-function toggleTheme(){const isDark=document.documentElement.classList.toggle('dark');localStorage.setItem('theme_hub',isDark?'dark':'light');updateThemeUI();}
+function initTheme(){const rawSaved=localStorage.getItem('theme_hub');let saved=rawSaved;try{saved=rawSaved?JSON.parse(rawSaved):null;}catch(_){}if(saved==='dark'||(saved!=='light'&&window.matchMedia('(prefers-color-scheme: dark)').matches))document.documentElement.classList.add('dark');updateThemeUI();}
+function toggleTheme(){const isDark=document.documentElement.classList.toggle('dark');localStorage.setItem('theme_hub',JSON.stringify(isDark?'dark':'light'));updateThemeUI();}
 function updateThemeUI(){const isDark=document.documentElement.classList.contains('dark');const icon=document.getElementById('theme-icon');if(icon){icon.outerHTML=`<i data-lucide="${isDark?'sun':'moon'}" id="theme-icon" class="w-3.5 h-3.5"></i>`;lucide.createIcons();}}
 
 function toggleMode(target){isSetupMode=target==='setup'?true:(target==='play'?false:!isSetupMode);const setup=document.getElementById('setup-mode'),play=document.getElementById('play-mode'),toggleBtn=document.getElementById('setup-toggle'),icon=toggleBtn?.querySelector('[data-lucide], svg');if(isSetupMode){setup.classList.remove('hidden');setup.classList.add('grid');play.classList.add('hidden');toggleBtn.querySelector('span').textContent='PLAY';if(icon)icon.outerHTML='<i data-lucide="play" class="w-3.5 h-3.5"></i>';renderCollections();renderEditor();}else{setup.classList.add('hidden');setup.classList.remove('grid');play.classList.remove('hidden');toggleBtn.querySelector('span').textContent='SETUP';if(icon)icon.outerHTML='<i data-lucide="settings" class="w-3.5 h-3.5"></i>';resetGameState();}lucide.createIcons();}

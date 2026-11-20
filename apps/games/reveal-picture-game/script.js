@@ -778,7 +778,7 @@ const AutoReveal = {
         btn.innerHTML = `<i data-lucide="pause" class="w-4 h-4 md:w-5 md:h-5 fill-current"></i> <span class="hidden md:inline">PAUSE</span>`;
         btn.classList.replace('bg-blue', 'bg-white');
         btn.classList.replace('text-white', 'text-blue');
-        btn.classList.add('border-blue');
+        btn.classList.add('dark:bg-slate-800', 'border-blue');
         lucide.createIcons();
 
         this.intervalId = setInterval(() => {
@@ -802,7 +802,7 @@ const AutoReveal = {
         btn.innerHTML = `<i data-lucide="play" class="w-4 h-4 md:w-5 md:h-5 fill-current"></i> <span class="hidden md:inline">AUTO</span>`;
         btn.classList.replace('bg-white', 'bg-blue');
         btn.classList.replace('text-blue', 'text-white');
-        btn.classList.remove('border-blue');
+        btn.classList.remove('dark:bg-slate-800', 'border-blue');
         lucide.createIcons();
     }
 };
@@ -1288,7 +1288,7 @@ const ZoomGame = {
         const btn = document.getElementById('auto-zoom-btn');
         if (btn) {
             btn.innerHTML = `<i data-lucide="play" class="w-4 h-4 md:w-5 md:h-5 fill-current"></i><span class="hidden md:inline">AUTO ZOOM</span>`;
-            btn.classList.remove('bg-white', 'text-blue', 'border-blue');
+            btn.classList.remove('bg-white', 'dark:bg-slate-800', 'text-blue', 'border-blue');
             btn.classList.add('bg-blue', 'text-white');
         }
     },
@@ -1362,7 +1362,7 @@ const ZoomGame = {
             const btn = document.getElementById('auto-zoom-btn');
             if (btn) {
                 btn.innerHTML = `<i data-lucide="play" class="w-4 h-4 md:w-5 md:h-5 fill-current"></i><span class="hidden md:inline">AUTO ZOOM</span>`;
-                btn.classList.remove('bg-white', 'text-blue', 'border-blue');
+                btn.classList.remove('bg-white', 'dark:bg-slate-800', 'text-blue', 'border-blue');
                 btn.classList.add('bg-blue', 'text-white');
                 lucide.createIcons();
             }
@@ -1372,7 +1372,7 @@ const ZoomGame = {
             if (btn) {
                 btn.innerHTML = `<i data-lucide="pause" class="w-4 h-4 md:w-5 md:h-5 fill-current"></i><span class="hidden md:inline">PAUSE</span>`;
                 btn.classList.remove('bg-blue', 'text-white');
-                btn.classList.add('bg-white', 'text-blue', 'border-blue');
+                btn.classList.add('bg-white', 'dark:bg-slate-800', 'text-blue', 'border-blue');
                 lucide.createIcons();
             }
         }
@@ -1429,7 +1429,7 @@ const BlurGame = {
         const btn = document.getElementById('auto-blur-btn');
         if (btn) {
             btn.innerHTML = `<i data-lucide="play" class="w-4 h-4 md:w-5 md:h-5 fill-current"></i><span class="hidden md:inline">AUTO REVEAL</span>`;
-            btn.classList.remove('bg-white', 'text-blue', 'border-blue');
+            btn.classList.remove('bg-white', 'dark:bg-slate-800', 'text-blue', 'border-blue');
             btn.classList.add('bg-blue', 'text-white');
         }
     },
@@ -1506,7 +1506,7 @@ const BlurGame = {
             const btn = document.getElementById('auto-blur-btn');
             if (btn) {
                 btn.innerHTML = `<i data-lucide="play" class="w-4 h-4 md:w-5 md:h-5 fill-current"></i><span class="hidden md:inline">AUTO REVEAL</span>`;
-                btn.classList.remove('bg-white', 'text-blue', 'border-blue');
+                btn.classList.remove('bg-white', 'dark:bg-slate-800', 'text-blue', 'border-blue');
                 btn.classList.add('bg-blue', 'text-white');
                 lucide.createIcons();
             }
@@ -1516,7 +1516,7 @@ const BlurGame = {
             if (btn) {
                 btn.innerHTML = `<i data-lucide="pause" class="w-4 h-4 md:w-5 md:h-5 fill-current"></i><span class="hidden md:inline">PAUSE</span>`;
                 btn.classList.remove('bg-blue', 'text-white');
-                btn.classList.add('bg-white', 'text-blue', 'border-blue');
+                btn.classList.add('bg-white', 'dark:bg-slate-800', 'text-blue', 'border-blue');
                 lucide.createIcons();
             }
         }

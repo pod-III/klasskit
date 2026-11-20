@@ -46,8 +46,10 @@
         let broadcastRafId = null;
 
         function initTheme() {
-            const saved = localStorage.getItem('theme_hub');
-            if (saved === 'dark' || (!saved && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+            const rawSaved = localStorage.getItem('theme_hub');
+            let saved = rawSaved;
+            try { saved = rawSaved ? JSON.parse(rawSaved) : null; } catch (_) {}
+            if (saved === 'dark' || (saved !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
                 document.documentElement.classList.add('dark');
             }
             updateThemeUI();
@@ -55,7 +57,7 @@
 
         function toggleTheme() {
             const isDark = document.documentElement.classList.toggle('dark');
-            localStorage.setItem('theme_hub', isDark ? 'dark' : 'light');
+            localStorage.setItem('theme_hub', JSON.stringify(isDark ? 'dark' : 'light'));
             updateThemeUI();
             broadcastQuizState();
         }
