@@ -68,28 +68,67 @@ const GameGrid = {
     `;
   },
 
+  escapeHtml(str) {
+    return String(str ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  },
+
+  highlightMatch(text, query) {
+    const raw = String(text ?? '');
+    const trimmed = String(query ?? '').trim();
+    if (!trimmed) return this.escapeHtml(raw);
+
+    const pattern = trimmed.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    if (!pattern) return this.escapeHtml(raw);
+
+    const regex = new RegExp(pattern, 'gi');
+    let result = '';
+    let lastIndex = 0;
+    let match;
+
+    while ((match = regex.exec(raw)) !== null) {
+      if (match[0].length === 0) {
+        regex.lastIndex++;
+        continue;
+      }
+      if (match.index > lastIndex) {
+        result += this.escapeHtml(raw.slice(lastIndex, match.index));
+      }
+      result += `<mark class="bg-yellow-200 text-slate-800 rounded px-1">${this.escapeHtml(match[0])}</mark>`;
+      lastIndex = match.index + match[0].length;
+    }
+
+    if (lastIndex < raw.length) {
+      result += this.escapeHtml(raw.slice(lastIndex));
+    }
+    return result;
+  },
+
   createCard(game) {
     const baseColor = game.color.replace('text-', '').split('-')[0];
     const bgClass = `bg-${baseColor}/10`;
     const btnClass = game.color.replace('text-', 'bg-');
     const difficultyBadge = game.difficulty
-      ? `<span class="text-[8px] font-bold px-2 py-0.5 rounded bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400 uppercase">${game.difficulty}</span>`
+      ? `<span class="text-[8px] font-bold px-2 py-0.5 rounded bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400 uppercase">${this.escapeHtml(game.difficulty)}</span>`
       : '';
 
     const isPinned = PinnedGames.isPinned(game.id);
     const pinIcon = isPinned ? 'pin-off' : 'pin';
     const pinTitle = isPinned ? 'Unpin from top' : 'Pin to top';
 
-    let displayTitle = game.title;
-    let displayDesc = game.description;
+    const safeTitle = this.escapeHtml(game.title);
+    const safeDesc = this.escapeHtml(game.description || '');
+    const searchLower = State.filters.searchTerm.trim();
+    const displayTitle = searchLower ? this.highlightMatch(game.title, searchLower) : safeTitle;
+    const displayDesc = searchLower ? this.highlightMatch(game.description || '', searchLower) : safeDesc;
 
-    if (State.filters.searchTerm) {
-      const escapedTerm = State.filters.searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      const regex = new RegExp(`(${escapedTerm})`, 'gi');
-      displayTitle = displayTitle.replace(regex, '<mark class="bg-yellow-200 text-slate-800 rounded px-1">$1</mark>');
-      displayDesc = displayDesc.replace(regex, '<mark class="bg-yellow-200 text-slate-800 rounded px-1">$1</mark>');
-    }
-    
+    const tiltHash = Array.from(String(game.id || '')).reduce((acc, ch) => acc + ch.charCodeAt(0), 0);
+    const tiltClass = tiltHash % 2 === 0 ? 'rotate-2' : '-rotate-2';
+
     const proBadge = game.pro
       ? `<span class="pro-badge px-1.5 py-0.5 bg-gradient-to-r from-orange to-pink text-[9px] font-black text-white rounded shadow-sm">PRO</span>`
       : '';
@@ -105,11 +144,11 @@ const GameGrid = {
     return `
       <article class="hub-card group cursor-pointer dark:bg-slate-800 dark:border-slate-500" 
         data-action="openGame" data-param="${game.id}" role="button" tabindex="0"
-        aria-label="Launch ${game.title}: ${game.description}">
-        <div class="${bgClass} p-6 border-b-4 border-dark dark:border-slate-500 h-40 flex items-center justify-center relative overflow-hidden group-hover:${bgClass.replace('/10', '/20')} transition-colors">
-          <button data-action="togglePin" data-param="${game.id}" 
-            class="pin-btn absolute top-3 right-3 z-30 w-8 h-8 rounded-lg bg-white/20 backdrop-blur-md border border-white/30 flex items-center justify-center text-dark opacity-0 group-hover:opacity-100 transition-all hover:bg-white/40 hover:scale-110"
-            title="${pinTitle}" aria-label="${isPinned ? `Unpin ${game.title}` : `Pin ${game.title}`}" aria-pressed="${isPinned}">
+        aria-label="Launch ${safeTitle}: ${safeDesc}">
+        <div class="${bgClass} hub-card-visual p-6 border-b-4 border-dark dark:border-slate-500 h-40 flex items-center justify-center relative overflow-hidden transition-colors">
+          <button data-action="togglePin" data-param="${game.id}" type="button"
+            class="pin-btn ${isPinned ? 'is-pinned bg-pink text-white border-dark dark:border-slate-300 opacity-100' : 'bg-white/75 dark:bg-slate-900/60 text-dark dark:text-white border-dark/20 dark:border-white/20'} backdrop-blur-md border-2 absolute top-3 right-3 z-30 w-8 h-8 rounded-lg flex items-center justify-center transition-all hover:scale-110"
+            title="${pinTitle}" aria-label="${isPinned ? `Unpin ${safeTitle}` : `Pin ${safeTitle}`}" aria-pressed="${isPinned}">
             <i data-lucide="${pinIcon}" class="w-4 h-4" aria-hidden="true"></i>
           </button>
           <div class="absolute inset-0 opacity-10" style="background-image:radial-gradient(#000 2px,transparent 2px);background-size:12px 12px"></div>
@@ -125,7 +164,7 @@ const GameGrid = {
               ${badgesHtml}
             </div>
             <div class="flex flex-col gap-1 items-end">
-              <span class="sticker ${btnClass} text-white text-[10px] font-bold px-2 py-1 rounded-md transform ${Math.random() > 0.5 ? 'rotate-2' : '-rotate-2'}">${game.category.toUpperCase()}</span>
+              <span class="sticker ${btnClass} text-white text-[10px] font-bold px-2 py-1 rounded-md transform ${tiltClass}">${this.escapeHtml(game.category).toUpperCase()}</span>
               ${difficultyBadge}
             </div>
           </div>
@@ -151,7 +190,8 @@ const GameGrid = {
   },
 
   shouldDisableTilt() {
-    return window.matchMedia('(prefers-reduced-motion: reduce)').matches ||
+    return Boolean(window.HubSettings?.get('reduceMotion')) ||
+           window.matchMedia('(prefers-reduced-motion: reduce)').matches ||
            window.matchMedia('(hover: none)').matches ||
            window.matchMedia('(pointer: coarse)').matches;
   },
@@ -216,6 +256,7 @@ const ViewMode = {
     Storage.set(CONFIG.storageKeys.viewMode, mode);
     this.apply();
     this.updateToggleUI();
+    window.SettingsModal?.syncControls?.();
     AudioEngine.click();
   },
 
@@ -244,6 +285,16 @@ const ViewManager = {
   renderedViews: new Set(['landing', 'myspace']),
 
   init(activity = null) {
+    const defaultHome = window.HubSettings?.get('defaultHome') || 'auto';
+    if (defaultHome && defaultHome !== 'auto') {
+      if ((defaultHome === 'myspace' || defaultHome === 'library-myspace') && !State.isPro()) {
+        this.show('landing', true);
+      } else {
+        this.show(defaultHome, true);
+      }
+      return;
+    }
+
     const saved = Storage.get(CONFIG.storageKeys.homeView);
     if (saved) {
       if ((saved === 'myspace' || saved === 'library-myspace') && !State.isPro()) {
@@ -395,20 +446,22 @@ const ViewManager = {
       'under-construction': 'Under Construction'
     };
     const icon = icons[category] || "layout-grid";
+    const categoryPills = {
+      all: 'All Activities',
+      tool: 'Teaching Tools',
+      printable: 'Printables',
+      game: 'Classroom Games',
+      workshop: 'Workshop Tools',
+      'under-construction': 'WIP Lab'
+    };
+    const categoryPill = categoryPills[category] || 'Library';
     const headingClass = category === 'all' ? 'greeting-display ' : '';
 
     container.innerHTML = `
       <!-- Dashboard Title Widget -->
-      <div class="hero-banner rounded-[2rem] p-6 md:p-8 mb-6 border-[3px] border-dark dark:border-slate-600 shadow-hard dark:shadow-neon relative overflow-hidden flex flex-col justify-center min-h-[160px] mt-4">
+      <div class="hero-banner rounded-[2rem] p-6 md:p-8 mb-6 border-[3px] border-dark dark:border-slate-600 shadow-hard dark:shadow-neon relative overflow-hidden flex flex-col justify-center min-h-[150px] mt-4">
         <div class="hero-gradient-bg"></div>
         <div class="hero-dot-overlay"></div>
-        
-        <!-- Floating geometric shapes -->
-        <div class="hero-shape hero-shape--circle" style="top: 10%; right: 15%;"></div>
-        <div class="hero-shape hero-shape--ring" style="bottom: 15%; right: 30%;"></div>
-        <div class="hero-shape hero-shape--square" style="top: 20%; right: 40%;"></div>
-        <div class="hero-shape hero-shape--dot" style="top: 60%; right: 10%;"></div>
-        <div class="hero-shape hero-shape--dot" style="top: 30%; right: 55%;"></div>
 
         <div class="absolute right-4 bottom-[-10%] md:right-12 md:bottom-[-15%] opacity-10 dark:opacity-[0.08] pointer-events-none">
           <i data-lucide="${icon}" class="w-40 h-40 md:w-56 md:h-56 text-slate-800 dark:text-white transform -rotate-12 scale-110"></i>
@@ -417,7 +470,7 @@ const ViewManager = {
           <div class="flex flex-col items-start">
             <div class="hero-meta-tags mb-3 flex gap-3 flex-wrap">
               <span class="hero-pill clock-pill"><i data-lucide="calendar" class="w-3.5 h-3.5"></i> <span class="date-text">...</span></span>
-              <span class="hero-pill">Hello!</span>
+              <span class="hero-pill">${categoryPill}</span>
             </div>
             <h2 class="${headingClass}text-3xl md:text-5xl font-heading font-black mb-1 leading-tight tracking-tight text-slate-900 dark:text-white">
               ${title}
@@ -426,7 +479,7 @@ const ViewManager = {
           </div>
           <div class="flex flex-col items-start lg:items-end gap-3 mt-4 lg:mt-0">
              <div class="hero-actions flex flex-wrap gap-3">
-                <button data-action="surpriseMe" class="btn-chunky bg-pink text-white border-3 border-dark px-5 py-2.5 rounded-xl flex items-center gap-2 shadow-hard hover:translate-y-[-2px] active:translate-y-[2px] transition-all">
+                <button data-action="surpriseMe" data-param="${category}" class="btn-chunky bg-pink text-white border-3 border-dark px-5 py-2.5 rounded-xl flex items-center gap-2 shadow-hard hover:translate-y-[-2px] active:translate-y-[2px] transition-all">
                   <i data-lucide="shuffle" class="w-4 h-4"></i>
                   <span class="font-heading font-bold text-xs uppercase tracking-tight">Surprise Me</span>
                 </button>
@@ -486,13 +539,46 @@ const ViewManager = {
       </section>
       ` : ''}
 
-      <!-- Grid Header -->
-      <div class="flex items-center justify-between mb-6">
-        <h3 class="text-2xl font-heading font-black text-dark dark:text-white uppercase tracking-tight">${gridHeadings[category] || category + 's'}</h3>
-        <div class="view-toggle-group">
-          <button data-action="setViewMode" data-param="cards" aria-label="Card View" aria-pressed="${ViewMode.current === 'cards'}" title="Card View" class="view-toggle-btn ${ViewMode.current === 'cards' ? 'active' : ''}"><i data-lucide="layout-grid" class="w-4 h-4" aria-hidden="true"></i></button>
-          <button data-action="setViewMode" data-param="icons" aria-label="Icon View" aria-pressed="${ViewMode.current === 'icons'}" title="Icon View" class="view-toggle-btn ${ViewMode.current === 'icons' ? 'active' : ''}"><i data-lucide="grip" class="w-4 h-4" aria-hidden="true"></i></button>
-          <button data-action="setViewMode" data-param="list" aria-label="List View" aria-pressed="${ViewMode.current === 'list'}" title="List View" class="view-toggle-btn ${ViewMode.current === 'list' ? 'active' : ''}"><i data-lucide="list" class="w-4 h-4" aria-hidden="true"></i></button>
+      <!-- Grid Header & Smart Toolbar -->
+      <div class="library-toolbar flex flex-col xl:flex-row xl:items-center justify-between gap-4 mb-6">
+        <div class="flex items-center gap-3">
+          <h3 class="text-2xl font-heading font-black text-dark dark:text-white uppercase tracking-tight">${gridHeadings[category] || category + 's'}</h3>
+          <span id="grid-count-${viewId}" class="section-header-badge">0</span>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-2.5">
+          <div class="library-filter-pills" role="group" aria-label="Quick filter">
+            <button type="button" data-action="setLibraryQuickFilter" data-param="all" aria-pressed="${State.filters.quickFilter === 'all'}"
+              class="library-filter-pill ${State.filters.quickFilter === 'all' ? 'active' : ''}">All</button>
+            <button type="button" data-action="setLibraryQuickFilter" data-param="pinned" aria-pressed="${State.filters.quickFilter === 'pinned'}"
+              class="library-filter-pill ${State.filters.quickFilter === 'pinned' ? 'active' : ''}">
+              <i data-lucide="pin" class="w-3.5 h-3.5" aria-hidden="true"></i> Pinned
+            </button>
+            <button type="button" data-action="setLibraryQuickFilter" data-param="new" aria-pressed="${State.filters.quickFilter === 'new'}"
+              class="library-filter-pill ${State.filters.quickFilter === 'new' ? 'active' : ''}">
+              <i data-lucide="sparkles" class="w-3.5 h-3.5" aria-hidden="true"></i> New
+            </button>
+          </div>
+
+          <select data-library-difficulty aria-label="Filter by difficulty" class="library-select">
+            <option value="all" ${State.filters.difficulty === 'all' ? 'selected' : ''}>All Levels</option>
+            <option value="easy" ${State.filters.difficulty === 'easy' ? 'selected' : ''}>Easy</option>
+            <option value="medium" ${State.filters.difficulty === 'medium' ? 'selected' : ''}>Medium</option>
+            <option value="hard" ${State.filters.difficulty === 'hard' ? 'selected' : ''}>Hard</option>
+          </select>
+
+          <select data-library-sort aria-label="Sort activities" class="library-select">
+            <option value="az" ${State.filters.sort === 'az' ? 'selected' : ''}>Sort: A–Z</option>
+            <option value="za" ${State.filters.sort === 'za' ? 'selected' : ''}>Sort: Z–A</option>
+            <option value="recent" ${State.filters.sort === 'recent' ? 'selected' : ''}>Recently Used</option>
+            <option value="pinned" ${State.filters.sort === 'pinned' ? 'selected' : ''}>Pinned First</option>
+          </select>
+
+          <div class="view-toggle-group">
+            <button data-action="setViewMode" data-param="cards" aria-label="Card View" aria-pressed="${ViewMode.current === 'cards'}" title="Card View" class="view-toggle-btn ${ViewMode.current === 'cards' ? 'active' : ''}"><i data-lucide="layout-grid" class="w-4 h-4" aria-hidden="true"></i></button>
+            <button data-action="setViewMode" data-param="icons" aria-label="Icon View" aria-pressed="${ViewMode.current === 'icons'}" title="Icon View" class="view-toggle-btn ${ViewMode.current === 'icons' ? 'active' : ''}"><i data-lucide="grip" class="w-4 h-4" aria-hidden="true"></i></button>
+            <button data-action="setViewMode" data-param="list" aria-label="List View" aria-pressed="${ViewMode.current === 'list'}" title="List View" class="view-toggle-btn ${ViewMode.current === 'list' ? 'active' : ''}"><i data-lucide="list" class="w-4 h-4" aria-hidden="true"></i></button>
+          </div>
         </div>
       </div>
 
@@ -512,6 +598,7 @@ const ViewManager = {
       if (typeof PinnedGames !== 'undefined') PinnedGames.render();
       if (typeof RecentGames !== 'undefined') RecentGames.render();
     }
+    Utils.refreshIcons(container);
   },
 
   updateClock(container) {
@@ -525,38 +612,80 @@ const ViewManager = {
     const grid = document.getElementById(`grid-${viewId}`);
     if (!grid) return;
 
-    const searchTerm = State.filters.searchTerm.trim();
-    const escapeHtml = (str) => String(str)
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#39;');
+    const searchTerm = State.filters.searchTerm.trim().toLowerCase();
+    const quickFilter = State.filters.quickFilter || 'all';
+    const difficultyFilter = State.filters.difficulty || 'all';
+    const sortMode = State.filters.sort || 'az';
+    const escapeHtml = GameGrid.escapeHtml;
 
-    let games = State.games;
-    
-    if (category !== 'all') {
-      games = games.filter(g => g.category === category);
-    } else {
-      games = games.filter(g => ['tool', 'printable', 'game', 'workshop'].includes(g.category));
-    }
-    
-    if (searchTerm) {
-      games = games.filter(g => 
-        g.title.toLowerCase().includes(searchTerm) || 
-        g.description.toLowerCase().includes(searchTerm) ||
-        (searchTerm === 'new' && g.new) ||
-        g.tags?.some(t => t.toLowerCase().includes(searchTerm))
-      );
-    }
-
-    // Privilege & Visibility Filters
-    games = games.filter(g => {
+    let games = State.games.filter(g => {
       if (g.active === false) return false;
       if (g.pro && !State.isPro()) return false;
       if (g.adminOnly && !State.isAdmin()) return false;
       return true;
     });
+
+    if (category !== 'all') {
+      games = games.filter(g => g.category === category);
+    } else {
+      games = games.filter(g => ['tool', 'printable', 'game', 'workshop'].includes(g.category));
+    }
+
+    const totalCategoryCount = games.length;
+
+    if (quickFilter === 'pinned') {
+      games = games.filter(g => PinnedGames.isPinned(g.id));
+    } else if (quickFilter === 'new') {
+      games = games.filter(g => Boolean(g.new));
+    }
+
+    if (difficultyFilter !== 'all') {
+      games = games.filter(g => g.difficulty === difficultyFilter);
+    }
+
+    if (searchTerm) {
+      games = games.filter(g =>
+        g.title.toLowerCase().includes(searchTerm) ||
+        (g.description || '').toLowerCase().includes(searchTerm) ||
+        (searchTerm === 'new' && g.new) ||
+        g.tags?.some(t => t.toLowerCase().includes(searchTerm))
+      );
+    }
+
+    // Apply sort (search relevance first when searching)
+    const recentOrder = (typeof RecentGames !== 'undefined' && RecentGames.get) ? RecentGames.get() : [];
+    const getRecentTimestamp = (gameId) => {
+      const histTime = typeof HistoryManager !== 'undefined' && HistoryManager.historyMap?.get(gameId);
+      if (histTime) return new Date(histTime).getTime();
+      const idx = recentOrder.indexOf(gameId);
+      return idx !== -1 ? (1000000 - idx) : 0;
+    };
+
+    games = games.slice().sort((a, b) => {
+      if (searchTerm) {
+        const scoreDiff = State._searchScore(b, searchTerm) - State._searchScore(a, searchTerm);
+        if (scoreDiff !== 0) return scoreDiff;
+      }
+      if (sortMode === 'za') {
+        return b.title.localeCompare(a.title);
+      }
+      if (sortMode === 'recent') {
+        const diff = getRecentTimestamp(b.id) - getRecentTimestamp(a.id);
+        if (diff !== 0) return diff;
+      }
+      if (sortMode === 'pinned') {
+        const aPin = PinnedGames.isPinned(a.id) ? 1 : 0;
+        const bPin = PinnedGames.isPinned(b.id) ? 1 : 0;
+        if (bPin !== aPin) return bPin - aPin;
+      }
+      return a.title.localeCompare(b.title);
+    });
+
+    const hasActiveFilter = Boolean(searchTerm || quickFilter !== 'all' || difficultyFilter !== 'all');
+    const countBadge = document.getElementById(`grid-count-${viewId}`);
+    if (countBadge) {
+      countBadge.textContent = hasActiveFilter ? `${games.length} / ${totalCategoryCount}` : String(games.length);
+    }
 
     const bannerEl = document.getElementById(`search-banner-${viewId}`);
     if (bannerEl) {
@@ -603,19 +732,40 @@ const ViewManager = {
         const searchAllCta = category !== 'all'
           ? `<button data-action="filterGames" data-param="all" class="btn-chunky bg-blue text-white px-5 py-2.5 rounded-xl text-sm font-heading font-bold uppercase tracking-wider flex items-center gap-2"><i data-lucide="grid-2x2" class="w-4 h-4"></i> Search All Activities</button>`
           : '';
+        const resetFiltersCta = (quickFilter !== 'all' || difficultyFilter !== 'all')
+          ? `<button data-action="resetLibraryFilters" class="btn-chunky bg-orange text-white px-5 py-2.5 rounded-xl text-sm font-heading font-bold uppercase tracking-wider flex items-center gap-2"><i data-lucide="rotate-ccw" class="w-4 h-4"></i> Reset Filters</button>`
+          : '';
         grid.innerHTML = `
           <div class="empty-state py-16 flex flex-col items-center text-center animate-pop-in">
             <div class="w-16 h-16 rounded-2xl bg-slate-100 dark:bg-slate-800 border-[3px] border-dark dark:border-slate-600 flex items-center justify-center mb-4 shadow-hard-sm">
               <i data-lucide="search-x" class="w-8 h-8 text-slate-400"></i>
             </div>
             <p class="font-heading font-bold text-2xl uppercase text-dark dark:text-white mb-1">No matches for "${safeTerm}"</p>
-            <p class="text-sm font-bold text-slate-500 dark:text-slate-400 mb-6">Try another keyword or clear your search filter.</p>
+            <p class="text-sm font-bold text-slate-500 dark:text-slate-400 mb-6">Try another keyword or clear your active filters.</p>
             <div class="flex flex-wrap justify-center gap-3">
               ${searchAllCta}
+              ${resetFiltersCta}
               <button data-action="clearSearch" class="btn-chunky bg-white dark:bg-slate-800 text-dark dark:text-white px-5 py-2.5 rounded-xl text-sm font-heading font-bold uppercase tracking-wider flex items-center gap-2">
                 <i data-lucide="x" class="w-4 h-4"></i> Clear Search
               </button>
             </div>
+          </div>
+        `;
+      } else if (hasActiveFilter) {
+        const emptyTitle = quickFilter === 'pinned' ? 'No pinned activities here yet' : 'No matching activities';
+        const emptySub = quickFilter === 'pinned'
+          ? 'Pin your favorite tools with the pin icon on any card.'
+          : 'Try switching difficulty or resetting your quick filters.';
+        grid.innerHTML = `
+          <div class="empty-state py-16 flex flex-col items-center text-center animate-pop-in">
+            <div class="w-16 h-16 rounded-2xl bg-slate-100 dark:bg-slate-800 border-[3px] border-dark dark:border-slate-600 flex items-center justify-center mb-4 shadow-hard-sm">
+              <i data-lucide="${quickFilter === 'pinned' ? 'pin' : 'filter'}" class="w-8 h-8 text-slate-400"></i>
+            </div>
+            <p class="font-heading font-bold text-2xl uppercase text-dark dark:text-white mb-1">${emptyTitle}</p>
+            <p class="text-sm font-bold text-slate-500 dark:text-slate-400 mb-6">${emptySub}</p>
+            <button data-action="resetLibraryFilters" class="btn-chunky bg-blue text-white px-5 py-2.5 rounded-xl text-sm font-heading font-bold uppercase tracking-wider flex items-center gap-2">
+              <i data-lucide="rotate-ccw" class="w-4 h-4"></i> Reset Filters
+            </button>
           </div>
         `;
       } else {
@@ -627,12 +777,12 @@ const ViewManager = {
         `;
       }
     } else {
-      if (category === 'all') {
+      if (category === 'all' && sortMode !== 'recent' && sortMode !== 'pinned') {
         const tools = games.filter(g => g.category === 'tool');
         const printables = games.filter(g => g.category === 'printable');
         const gamesList = games.filter(g => g.category === 'game');
         const workshop = games.filter(g => g.category === 'workshop');
-        
+
         let html = '';
         if (printables.length > 0) html += GameGrid.renderCategorySection('printables', 'printer', 'var(--color-orange)', 'Printables', printables);
         if (tools.length > 0) html += GameGrid.renderCategorySection('tools', 'wrench', 'var(--color-blue)', 'Teaching Tools', tools);
@@ -643,7 +793,7 @@ const ViewManager = {
         grid.innerHTML = `<div class="category-grid">${games.map(game => GameGrid.createCard(game)).join('')}</div>`;
       }
     }
-    
+
     Utils.refreshIcons(grid);
     GameGrid.initCardEffects(grid);
   },
@@ -710,6 +860,60 @@ const Filters = {
   }, CONFIG.debounceDelay),
   updateUI: () => ViewManager.updateNavUI()
 };
+
+const LibraryFilters = {
+  setQuickFilter(mode) {
+    if (!['all', 'pinned', 'new'].includes(mode)) return;
+    State.filters.quickFilter = mode;
+    this.syncToolbarUI();
+    ViewManager.renderAllGrids();
+    AudioEngine.click();
+  },
+
+  setDifficulty(level) {
+    if (!['all', 'easy', 'medium', 'hard'].includes(level)) return;
+    State.filters.difficulty = level;
+    this.syncToolbarUI();
+    ViewManager.renderAllGrids();
+    AudioEngine.click();
+  },
+
+  setSort(sort) {
+    if (!['az', 'za', 'recent', 'pinned'].includes(sort)) return;
+    State.filters.sort = sort;
+    if (CONFIG.storageKeys.librarySort) {
+      Storage.set(CONFIG.storageKeys.librarySort, sort);
+      window.SettingsModal?.syncControls?.();
+    }
+    this.syncToolbarUI();
+    ViewManager.renderAllGrids();
+    AudioEngine.click();
+  },
+
+  reset() {
+    State.filters.quickFilter = 'all';
+    State.filters.difficulty = 'all';
+    State.filters.sort = window.HubSettings?.get('librarySort') || 'az';
+    this.syncToolbarUI();
+    ViewManager.renderAllGrids();
+    AudioEngine.click();
+  },
+
+  syncToolbarUI() {
+    document.querySelectorAll('[data-action="setLibraryQuickFilter"]').forEach(btn => {
+      const active = btn.dataset.param === State.filters.quickFilter;
+      btn.classList.toggle('active', active);
+      btn.setAttribute('aria-pressed', String(active));
+    });
+    document.querySelectorAll('[data-library-difficulty]').forEach(sel => {
+      sel.value = State.filters.difficulty;
+    });
+    document.querySelectorAll('[data-library-sort]').forEach(sel => {
+      sel.value = State.filters.sort;
+    });
+  }
+};
+window.LibraryFilters = LibraryFilters;
 
 // --- MY SPACE ---
 const MySpace = {

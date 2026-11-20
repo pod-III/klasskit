@@ -93,6 +93,8 @@
         // Escape to cancel
         escapeKeyListener = (e) => {
             if (e.key === 'Escape' && !modal.classList.contains('hidden')) {
+                e.preventDefault();
+                e.stopImmediatePropagation();
                 hideInputModal();
                 if (currentOnCancel) currentOnCancel();
             }

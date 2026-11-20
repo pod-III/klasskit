@@ -607,6 +607,8 @@
 
 /* Hide the large visual area in list view */
 .games-grid.view-list .category-grid .hub-card > div:first-child {
+    position: static;
+    overflow: visible;
     width: 64px;
     min-width: 64px;
     height: auto;
@@ -622,9 +624,8 @@
     border-right-color: #475569;
 }
 
-/* Hide decorations in list view */
-.games-grid.view-list .category-grid .hub-card > div:first-child > .absolute,
-.games-grid.view-list .category-grid .hub-card > div:first-child > button {
+/* Hide decorations in list view (keep pin button visible) */
+.games-grid.view-list .category-grid .hub-card > div:first-child > .absolute:not(.pin-btn) {
     display: none;
 }
 
@@ -646,7 +647,7 @@
 /* Compact body in list view */
 .games-grid.view-list .category-grid .hub-card > div:last-child {
     flex: 1;
-    padding: 0.75rem 1rem;
+    padding: 0.75rem 3.25rem 0.75rem 1rem;
     display: flex;
     flex-direction: row;
     align-items: center;
@@ -704,15 +705,29 @@
 
 /* Pin button in list view */
 .games-grid.view-list .category-grid .hub-card .pin-btn {
-    position: static;
+    display: flex;
+    position: absolute;
+    top: 50%;
+    right: 0.75rem;
+    transform: translateY(-50%);
     opacity: 0;
     width: 32px;
     height: 32px;
     flex-shrink: 0;
 }
 
-.games-grid.view-list .category-grid .hub-card:hover .pin-btn {
+.games-grid.view-list .category-grid .hub-card:hover .pin-btn,
+.games-grid.view-list .category-grid .hub-card:focus-within .pin-btn,
+.games-grid.view-list .category-grid .hub-card .pin-btn.is-pinned,
+.games-grid.view-list .category-grid .hub-card .pin-btn:focus-visible {
     opacity: 1;
+    transform: translateY(-50%);
+}
+
+@media (hover: none), (max-width: 767px) {
+    .games-grid.view-list .category-grid .hub-card .pin-btn {
+        opacity: 0.92;
+    }
 }
 
 /* Disable 3D tilt in list view */
@@ -1110,19 +1125,293 @@
     }
 }
 
+.pin-btn.is-pinned,
 .pin-btn[title*="Unpin"] {
     opacity: 1;
     transform: translateY(0);
 }
 
-.dark .pin-btn {
+.hub-card:hover .hub-card-visual {
+    filter: saturate(1.12) brightness(0.98);
+}
+
+.dark .hub-card:hover .hub-card-visual {
+    filter: saturate(1.15) brightness(1.08);
+}
+
+/* ============================================
+   9b. LIBRARY TOOLBAR & HUB SETTINGS CONTROLS
+   ============================================ */
+
+.library-filter-pills {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    padding: 3px;
+    background: var(--bg-tertiary);
+    border: 2px solid var(--border-primary);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+}
+
+.dark .library-filter-pills {
+    background: #1e293b;
+    border-color: #475569;
+}
+
+.library-filter-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.35rem 0.7rem;
+    border-radius: var(--radius-md);
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    font-family: 'Fredoka', sans-serif;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.dark .library-filter-pill {
+    color: #94a3b8;
+}
+
+.library-filter-pill:hover:not(.active) {
+    color: var(--text-primary);
+    background: rgba(0, 0, 0, 0.05);
+}
+
+.dark .library-filter-pill:hover:not(.active) {
+    color: white;
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.library-filter-pill.active {
+    background: var(--color-blue);
+    color: white;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+}
+
+.library-filter-pill:focus-visible,
+.library-select:focus-visible,
+.settings-nav-btn:focus-visible,
+.settings-switch:focus-visible,
+.settings-seg-btn:focus-visible {
+    outline: 3px solid var(--color-blue);
+    outline-offset: 2px;
+}
+
+.library-select {
+    height: 38px;
+    padding: 0 0.75rem;
+    border-radius: var(--radius-lg);
+    border: 2px solid var(--border-primary);
+    background: var(--surface-card);
+    color: var(--text-primary);
+    font-family: 'Nunito', sans-serif;
+    font-size: 0.78rem;
+    font-weight: 800;
+    cursor: pointer;
+    box-shadow: var(--shadow-sm);
+    transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.dark .library-select {
+    background: #1e293b;
+    border-color: #475569;
+    color: #f8fafc;
+}
+
+.library-select:hover {
+    border-color: var(--color-blue);
+}
+
+.settings-nav-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.65rem 0.85rem;
+    border-radius: var(--radius-lg);
+    border: 2px solid transparent;
+    background: transparent;
+    color: var(--text-secondary);
+    font-family: 'Fredoka', sans-serif;
+    font-size: 0.85rem;
+    font-weight: 700;
+    text-align: left;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.dark .settings-nav-btn {
+    color: #94a3b8;
+}
+
+.settings-nav-btn:hover:not(.active) {
+    background: rgba(0, 0, 0, 0.04);
+    color: var(--text-primary);
+}
+
+.dark .settings-nav-btn:hover:not(.active) {
+    background: rgba(255, 255, 255, 0.06);
+    color: white;
+}
+
+.settings-nav-btn.active {
+    background: var(--surface-card);
+    color: var(--color-blue);
+    border-color: var(--border-primary);
+    box-shadow: 2px 2px 0 var(--shadow-color);
+}
+
+.dark .settings-nav-btn.active {
+    background: #0f172a;
+    border-color: #475569;
+    color: #38bdf8;
+    box-shadow: 2px 2px 0 #000000;
+}
+
+.settings-control-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.9rem 1rem;
+    border-radius: var(--radius-xl);
+    border: 2px solid var(--border-secondary);
+    background: var(--bg-primary);
+}
+
+.dark .settings-control-card {
+    background: rgba(15, 23, 42, 0.7);
+    border-color: #334155;
+}
+
+.settings-control-card.is-stacked {
+    flex-direction: column;
+    align-items: flex-start;
+}
+
+.settings-select {
+    min-width: 170px;
+    max-width: 100%;
+}
+
+.settings-switch {
+    position: relative;
+    width: 50px;
+    height: 28px;
+    border-radius: 999px;
+    border: 2px solid var(--border-primary);
+    background: #cbd5e1;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+
+.dark .settings-switch {
+    background: #334155;
+    border-color: #64748b;
+}
+
+.settings-switch.is-on {
+    background: var(--color-green);
+    border-color: var(--border-primary);
+}
+
+.settings-switch-thumb {
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: white;
+    border: 2px solid var(--border-primary);
+    transition: transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.settings-switch.is-on .settings-switch-thumb {
+    transform: translateX(22px);
+}
+
+.settings-segmented {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    width: 100%;
+}
+
+.settings-seg-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    flex: 1 1 auto;
+    min-width: 60px;
+    padding: 0.45rem 0.75rem;
+    border-radius: var(--radius-md);
+    border: 2px solid var(--border-secondary);
+    background: var(--surface-card);
+    color: var(--text-secondary);
+    font-family: 'Fredoka', sans-serif;
+    font-size: 0.78rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.dark .settings-seg-btn {
+    background: #1e293b;
+    border-color: #475569;
+    color: #cbd5e1;
+}
+
+.settings-seg-btn.active {
+    background: var(--color-blue);
+    color: white;
+    border-color: var(--border-primary);
+    box-shadow: 2px 2px 0 var(--shadow-color);
+}
+
+body.hub-reduce-motion .hub-card,
+body.hub-reduce-motion .hub-card:hover,
+body.hub-reduce-motion .pinned-card,
+body.hub-reduce-motion .pinned-card:hover {
+    transform: none !important;
+    transition: none !important;
+}
+
+body.hub-reduce-motion .hub-card::before {
+    display: none !important;
+}
+
+.dark .pin-btn:not(.is-pinned) {
     background: rgba(255, 255, 255, 0.1);
     border-color: rgba(255, 255, 255, 0.2);
     color: white;
 }
 
-.dark .pin-btn:hover {
+.dark .pin-btn:not(.is-pinned):hover {
     background: rgba(255, 255, 255, 0.2);
+}
+
+.dark .pin-btn.is-pinned {
+    background: var(--color-pink);
+    border-color: #cbd5e1;
+    color: white;
+}
+
+.dark .pin-btn.is-pinned:hover {
+    filter: brightness(1.08);
 }
 
 /* --- Pinned Card Outline Fix --- */

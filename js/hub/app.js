@@ -261,6 +261,7 @@ const App = {
       // Store top-level metadata for footer
       if (data.version) State.metadata = { ...(State.metadata || {}), version: data.version, lastUpdated: data.lastUpdated };
 
+      if (typeof HubSettings !== 'undefined') HubSettings.applyAll({ render: false });
       ViewMode.init();
       GameGrid.render();
       PinnedGames.render();
@@ -381,8 +382,24 @@ const App = {
 
     // Priority-ordered Escape dismissal (highest stacking layer first)
     if (e.key === 'Escape') {
+      if (e.defaultPrevented) return;
+
+      if (this.isModalVisible('input-popup')) {
+        InputPopup.cancel();
+        return;
+      }
+
       if (this.isModalVisible('shortcuts-modal')) {
         ShortcutsModal.close();
+        return;
+      }
+
+      if (this.isModalVisible('universalInputModal')) {
+        return;
+      }
+
+      if (this.isModalVisible('hub-settings-modal')) {
+        SettingsModal.close();
         return;
       }
 
@@ -418,11 +435,6 @@ const App = {
         } else {
           document.querySelector('#media-manager-modal [data-action="closeMediaManager"]')?.click();
         }
-        return;
-      }
-
-      if (this.isModalVisible('input-popup')) {
-        InputPopup.cancel();
         return;
       }
 
@@ -614,13 +626,18 @@ const App = {
       clearRecent: () => RecentGames.clear(),
       clearSearch: () => Search.clear(),
       togglePin: (param) => { PinnedGames.toggle(param); Hero.updateStats(); },
-      surpriseMe: () => Hero.surpriseMe(),
+      surpriseMe: (param) => Hero.surpriseMe(param),
       continueGame: (param) => GameModal.open(param),
       openFeedback: () => BugReport.open(),
       openBugReport: () => BugReport.open(),
       closeBugReport: () => BugReport.close(),
       toggleShortcuts: () => ShortcutsModal.toggle(),
       closeShortcuts: () => ShortcutsModal.close(),
+      openHubSettings: (param) => SettingsModal.open(param || null),
+      closeHubSettings: () => SettingsModal.close(),
+      createTabGroup: () => TabManager.promptNewGroup(),
+      setLibraryQuickFilter: (param) => LibraryFilters.setQuickFilter(param),
+      resetLibraryFilters: () => LibraryFilters.reset(),
       showLanding: () => LandingPage.showLanding(),
       showLibrary: () => LandingPage.showLibrary(),
       setViewMode: (param) => ViewMode.set(param),
@@ -681,6 +698,18 @@ const App = {
         } else {
           action(target.dataset.param);
         }
+      }
+    });
+
+    document.addEventListener('change', (e) => {
+      const diffSelect = e.target.closest('[data-library-difficulty]');
+      if (diffSelect) {
+        LibraryFilters.setDifficulty(diffSelect.value);
+        return;
+      }
+      const sortSelect = e.target.closest('[data-library-sort]');
+      if (sortSelect) {
+        LibraryFilters.setSort(sortSelect.value);
       }
     });
 
@@ -921,12 +950,293 @@ const ShortcutsModal = {
   }
 };
 
+// --- HUB SETTINGS MODAL ---
+const SettingsModal = {
+  activeSection: 'appearance',
+
+  isOpen() {
+    const modal = document.getElementById('hub-settings-modal');
+    return !!modal && !modal.classList.contains('hidden');
+  },
+
+  open(sectionId = null) {
+    const modal = document.getElementById('hub-settings-modal');
+    if (!modal || typeof HubSettings === 'undefined') return;
+    if (typeof MobileUI !== 'undefined') MobileUI.closeSidebar();
+    const settingsMenu = document.getElementById('settings-menu');
+    if (settingsMenu && !settingsMenu.classList.contains('opacity-0')) {
+      UI?.toggleSettings?.();
+    }
+
+    if (sectionId && HubSettings.sections.some(s => s.id === sectionId)) {
+      this.activeSection = sectionId;
+    } else if (!HubSettings.sections.some(s => s.id === this.activeSection)) {
+      this.activeSection = HubSettings.sections[0]?.id || 'appearance';
+    }
+
+    if (!this.isOpen()) {
+      UI?.rememberFocus?.('hub-settings-modal');
+    }
+
+    modal.classList.remove('hidden');
+    modal.setAttribute('aria-hidden', 'false');
+    this.renderNav();
+    this.renderControls();
+    AudioEngine?.click?.();
+
+    requestAnimationFrame(() => {
+      modal.querySelector('[data-action="closeHubSettings"][aria-label]')?.focus();
+    });
+  },
+
+  close() {
+    const modal = document.getElementById('hub-settings-modal');
+    if (!modal || !this.isOpen()) return;
+    modal.classList.add('hidden');
+    modal.setAttribute('aria-hidden', 'true');
+    AudioEngine?.click?.();
+    UI?.restoreFocus?.('hub-settings-modal');
+  },
+
+  toggle() {
+    if (this.isOpen()) this.close();
+    else this.open();
+  },
+
+  setSection(sectionId) {
+    if (!HubSettings.sections.some(s => s.id === sectionId)) return;
+    this.activeSection = sectionId;
+    this.renderNav();
+    this.renderControls();
+    AudioEngine?.click?.();
+  },
+
+  renderNav() {
+    const nav = document.getElementById('hub-settings-nav');
+    if (!nav || typeof HubSettings === 'undefined') return;
+    nav.innerHTML = '';
+
+    HubSettings.sections.forEach(section => {
+      const isActive = section.id === this.activeSection;
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = `settings-nav-btn${isActive ? ' active' : ''}`;
+      if (isActive) btn.setAttribute('aria-current', 'page');
+
+      const icon = document.createElement('i');
+      icon.setAttribute('data-lucide', section.icon || 'sliders-horizontal');
+      icon.className = 'w-4 h-4 shrink-0';
+      icon.setAttribute('aria-hidden', 'true');
+
+      const label = document.createElement('span');
+      label.textContent = section.label;
+
+      btn.appendChild(icon);
+      btn.appendChild(label);
+      btn.addEventListener('click', () => this.setSection(section.id));
+      nav.appendChild(btn);
+    });
+
+    Utils.refreshIcons(nav);
+  },
+
+  renderControls() {
+    const container = document.getElementById('hub-settings-content');
+    if (!container || typeof HubSettings === 'undefined') return;
+    container.innerHTML = '';
+
+    const section = HubSettings.sections.find(s => s.id === this.activeSection) || HubSettings.sections[0];
+    if (!section) return;
+
+    const header = document.createElement('div');
+    header.className = 'pb-3 border-b-2 border-slate-200 dark:border-slate-700';
+    const h4 = document.createElement('h4');
+    h4.className = 'font-heading font-black text-lg text-dark dark:text-white uppercase tracking-tight';
+    h4.textContent = section.label;
+    header.appendChild(h4);
+
+    if (section.description) {
+      const desc = document.createElement('p');
+      desc.className = 'text-xs font-bold text-slate-500 dark:text-slate-400 mt-0.5';
+      desc.textContent = section.description;
+      header.appendChild(desc);
+    }
+    container.appendChild(header);
+
+    const toneClasses = {
+      blue: 'bg-blue text-white',
+      orange: 'bg-orange text-white',
+      pink: 'bg-pink text-white',
+      green: 'bg-green text-white',
+      slate: 'bg-slate-200 dark:bg-slate-700 text-dark dark:text-white'
+    };
+
+    section.controls.forEach(control => {
+      const card = document.createElement('div');
+      card.className = 'settings-control-card';
+
+      const meta = document.createElement('div');
+      meta.className = 'flex-1 min-w-0';
+
+      const labelEl = document.createElement('div');
+      labelEl.className = 'font-heading font-bold text-sm text-dark dark:text-white leading-tight';
+      labelEl.textContent = control.label;
+      meta.appendChild(labelEl);
+
+      if (control.description) {
+        const descEl = document.createElement('p');
+        descEl.className = 'text-xs font-semibold text-slate-500 dark:text-slate-400 mt-1 leading-snug';
+        descEl.textContent = control.description;
+        meta.appendChild(descEl);
+      }
+
+      card.appendChild(meta);
+
+      if (control.type === 'toggle') {
+        const checked = Boolean(control.get?.());
+        const sw = document.createElement('button');
+        sw.type = 'button';
+        sw.setAttribute('role', 'switch');
+        sw.setAttribute('aria-checked', String(checked));
+        sw.setAttribute('aria-label', control.label);
+        sw.dataset.controlId = control.id;
+        sw.className = `settings-switch${checked ? ' is-on' : ''}`;
+        sw.innerHTML = '<span class="settings-switch-thumb"></span>';
+        sw.addEventListener('click', () => {
+          const next = !Boolean(control.get?.());
+          control.set?.(next);
+          AudioEngine?.click?.();
+          this.syncControls();
+        });
+        card.appendChild(sw);
+      } else if (control.type === 'segmented') {
+        card.classList.add('is-stacked');
+        const group = document.createElement('div');
+        group.className = 'settings-segmented';
+        group.setAttribute('role', 'group');
+        group.setAttribute('aria-label', control.label);
+
+        const currentVal = String(control.get?.() ?? '');
+        (control.options || []).forEach(opt => {
+          const isSelected = String(opt.value) === currentVal;
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.dataset.controlId = control.id;
+          btn.dataset.value = opt.value;
+          btn.setAttribute('aria-pressed', String(isSelected));
+          btn.className = `settings-seg-btn${isSelected ? ' active' : ''}`;
+
+          if (opt.icon) {
+            const ic = document.createElement('i');
+            ic.setAttribute('data-lucide', opt.icon);
+            ic.className = 'w-3.5 h-3.5';
+            ic.setAttribute('aria-hidden', 'true');
+            btn.appendChild(ic);
+          }
+          const span = document.createElement('span');
+          span.textContent = opt.label;
+          btn.appendChild(span);
+
+          btn.addEventListener('click', () => {
+            control.set?.(opt.value);
+            AudioEngine?.click?.();
+            this.syncControls();
+          });
+          group.appendChild(btn);
+        });
+        card.appendChild(group);
+      } else if (control.type === 'select') {
+        const select = document.createElement('select');
+        select.className = 'library-select settings-select';
+        select.setAttribute('aria-label', control.label);
+        select.dataset.controlId = control.id;
+
+        const currentVal = String(control.get?.() ?? '');
+        (control.options || []).forEach(opt => {
+          const optionEl = document.createElement('option');
+          optionEl.value = opt.value;
+          optionEl.textContent = opt.label;
+          if (String(opt.value) === currentVal) optionEl.selected = true;
+          select.appendChild(optionEl);
+        });
+
+        select.addEventListener('change', () => {
+          control.set?.(select.value);
+          AudioEngine?.click?.();
+          this.syncControls();
+        });
+        card.appendChild(select);
+      } else if (control.type === 'action') {
+        const actionBtn = document.createElement('button');
+        actionBtn.type = 'button';
+        const toneCls = toneClasses[control.tone] || toneClasses.blue;
+        actionBtn.className = `btn-chunky ${toneCls} px-4 py-2 rounded-xl text-xs font-heading font-bold uppercase tracking-wider shrink-0 inline-flex items-center gap-1.5`;
+
+        if (control.icon) {
+          const ic = document.createElement('i');
+          ic.setAttribute('data-lucide', control.icon);
+          ic.className = 'w-3.5 h-3.5';
+          ic.setAttribute('aria-hidden', 'true');
+          actionBtn.appendChild(ic);
+        }
+        const span = document.createElement('span');
+        span.textContent = control.buttonLabel || 'Run';
+        actionBtn.appendChild(span);
+
+        actionBtn.addEventListener('click', () => {
+          control.onClick?.();
+        });
+        card.appendChild(actionBtn);
+      }
+
+      container.appendChild(card);
+    });
+
+    Utils.refreshIcons(container);
+  },
+
+  syncControls() {
+    if (!this.isOpen() || typeof HubSettings === 'undefined') return;
+    const content = document.getElementById('hub-settings-content');
+    if (!content) return;
+
+    const section = HubSettings.sections.find(s => s.id === this.activeSection);
+    if (!section) return;
+
+    section.controls.forEach(control => {
+      const safeId = typeof CSS !== 'undefined' && CSS.escape
+        ? CSS.escape(String(control.id))
+        : String(control.id).replace(/"/g, '\\"');
+      if (control.type === 'toggle') {
+        const checked = Boolean(control.get?.());
+        const sw = content.querySelector(`.settings-switch[data-control-id="${safeId}"]`);
+        if (sw) {
+          sw.classList.toggle('is-on', checked);
+          sw.setAttribute('aria-checked', String(checked));
+        }
+      } else if (control.type === 'segmented') {
+        const currentVal = String(control.get?.() ?? '');
+        content.querySelectorAll(`.settings-seg-btn[data-control-id="${safeId}"]`).forEach(btn => {
+          const active = btn.dataset.value === currentVal;
+          btn.classList.toggle('active', active);
+          btn.setAttribute('aria-pressed', String(active));
+        });
+      } else if (control.type === 'select') {
+        const sel = content.querySelector(`select[data-control-id="${safeId}"]`);
+        if (sel) sel.value = String(control.get?.() ?? '');
+      }
+    });
+  }
+};
+
 // --- EXPORTS ---
 window.App = App;
 window.AudioEngine = AudioEngine;
 window.GameModal = GameModal;
 window.TabManager = TabManager;
 window.ShortcutsModal = ShortcutsModal;
+window.SettingsModal = SettingsModal;
+window.HubSettings = HubSettings;
 window.HistoryManager = HistoryManager;
 window.Timer = Timer;
 window.LandingPage = LandingPage;

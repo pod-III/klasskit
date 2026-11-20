@@ -27,7 +27,12 @@ const CONFIG = {
     recentCollapsed: "klasskit_recentCollapsed",
     timerVisible: "klasskit_timerVisible",
     timerPosition: "klasskit_timerPosition",
-    timerDuration: "klasskit_timerDuration"
+    timerDuration: "klasskit_timerDuration",
+    librarySort: "klasskit_librarySort",
+    reduceMotion: "klasskit_reduceMotion",
+    defaultHome: "klasskit_defaultHome",
+    showRecent: "klasskit_showRecent",
+    autoExpandGroup: "klasskit_autoExpandGroup"
   }
 };
 
@@ -55,16 +60,24 @@ const Utils = {
   },
 
   _iconRefreshPending: false,
+  _pendingContainers: new Set(),
   refreshIcons(container) {
+    this._pendingContainers.add(container || document);
     if (this._iconRefreshPending) return;
     this._iconRefreshPending = true;
     requestAnimationFrame(() => {
       this._iconRefreshPending = false;
-      if (container && window.lucide?.createIcons) {
-        // Scoped refresh — only process icons within the given container
-        window.lucide.createIcons({ nodes: container.querySelectorAll('[data-lucide]') });
+      const containers = Array.from(this._pendingContainers);
+      this._pendingContainers.clear();
+      if (!window.lucide?.createIcons) return;
+      if (containers.includes(document)) {
+        window.lucide.createIcons();
       } else {
-        window.lucide?.createIcons?.();
+        containers.forEach(c => {
+          if (c && typeof c.querySelectorAll === 'function') {
+            window.lucide.createIcons({ nodes: c.querySelectorAll('[data-lucide]') });
+          }
+        });
       }
     });
   }
@@ -77,7 +90,7 @@ const State = {
   activeGame: null,
   metadata: null,
   userProfile: null,
-  filters: { category: 'all', searchTerm: '', difficulty: 'all', tags: [] },
+  filters: { category: 'all', searchTerm: '', difficulty: 'all', quickFilter: 'all', sort: 'az', tags: [] },
 
   isPro() {
     return this.userProfile?.role === 'pro' || this.userProfile?.role === 'admin';
@@ -285,19 +298,25 @@ const AudioEngine = {
 
   toggle() {
     if (!this.ctx) this.init();
-    if (this.ctx.state === 'suspended') this.ctx.resume();
+    if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume();
     this.muted = !this.muted;
     Storage.set(CONFIG.storageKeys.sound, this.muted);
     this.updateUI();
+    window.SettingsModal?.syncControls?.();
   },
 
   updateUI() {
     const config = this.muted
       ? { icon: 'volume-x', color: 'rgb(248 113 113)' }
       : { icon: 'volume-2', color: 'rgb(74 222 128)' };
-    document.querySelectorAll('#sound-btn-icon, .sound-btn-icon').forEach(icon => {
-      icon.setAttribute('data-lucide', config.icon);
-      icon.style.color = config.color;
+    document.querySelectorAll('#sound-btn-icon, .sound-btn-icon').forEach(node => {
+      const fresh = document.createElement('i');
+      if (node.id) fresh.id = node.id;
+      fresh.setAttribute('data-lucide', config.icon);
+      fresh.setAttribute('class', node.getAttribute('class') || '');
+      fresh.setAttribute('aria-hidden', 'true');
+      fresh.style.color = config.color;
+      node.replaceWith(fresh);
     });
     Utils.refreshIcons();
   }
@@ -315,8 +334,361 @@ const Theme = {
     const isDark = document.documentElement.classList.toggle('dark');
     Storage.set(CONFIG.storageKeys.theme, isDark ? 'dark' : 'light');
     AudioEngine.click();
+    window.SettingsModal?.syncControls?.();
   }
 };
+
+// --- HUB SETTINGS (EXTENSIBLE REGISTRY) ---
+const HubSettings = {
+  defaults: {
+    reduceMotion: false,
+    defaultHome: 'auto',
+    librarySort: 'az',
+    showRecent: true,
+    autoExpandGroup: true
+  },
+
+  get(key) {
+    const fallback = Object.prototype.hasOwnProperty.call(this.defaults, key) ? this.defaults[key] : null;
+    const storageKey = CONFIG.storageKeys[key];
+    if (!storageKey) return fallback;
+    const val = Storage.get(storageKey, fallback);
+    return val === null || val === undefined ? fallback : val;
+  },
+
+  set(key, value) {
+    const storageKey = CONFIG.storageKeys[key];
+    if (!storageKey) return false;
+    const saved = Storage.set(storageKey, value);
+    this.applySetting(key);
+    return saved;
+  },
+
+  applySetting(key) {
+    if (key === 'reduceMotion') {
+      if (document.body) {
+        document.body.classList.toggle('hub-reduce-motion', Boolean(this.get('reduceMotion')));
+      }
+    } else if (key === 'librarySort') {
+      const savedSort = this.get('librarySort');
+      if (savedSort && State?.filters) {
+        State.filters.sort = savedSort;
+      }
+      if (typeof LibraryFilters !== 'undefined' && LibraryFilters.syncToolbarUI) {
+        LibraryFilters.syncToolbarUI();
+      }
+      if (typeof ViewManager !== 'undefined' && ViewManager.renderAllGrids) {
+        ViewManager.renderAllGrids();
+      }
+    } else if (key === 'showRecent') {
+      if (typeof RecentGames !== 'undefined' && RecentGames.render) {
+        RecentGames.render();
+      }
+    }
+    window.SettingsModal?.syncControls?.();
+  },
+
+  applyAll({ render = true } = {}) {
+    if (document.body) {
+      document.body.classList.toggle('hub-reduce-motion', Boolean(this.get('reduceMotion')));
+    }
+    const savedSort = this.get('librarySort');
+    if (savedSort && State?.filters) {
+      State.filters.sort = savedSort;
+    }
+    if (render) {
+      if (typeof RecentGames !== 'undefined' && RecentGames.render) {
+        RecentGames.render();
+      }
+      if (typeof ViewManager !== 'undefined' && ViewManager.renderAllGrids) {
+        ViewManager.renderAllGrids();
+      }
+    }
+    if (typeof LibraryFilters !== 'undefined' && LibraryFilters.syncToolbarUI) {
+      LibraryFilters.syncToolbarUI();
+    }
+    window.SettingsModal?.syncControls?.();
+  },
+
+  resetAll() {
+    Object.keys(this.defaults).forEach(key => {
+      const storageKey = CONFIG.storageKeys[key];
+      if (storageKey) Storage.set(storageKey, this.defaults[key]);
+    });
+    if (State?.filters) {
+      State.filters.quickFilter = 'all';
+      State.filters.difficulty = 'all';
+      State.filters.sort = this.defaults.librarySort;
+    }
+    if (typeof ViewMode !== 'undefined' && ViewMode.set) {
+      ViewMode.set('icons');
+    }
+    Storage.set(CONFIG.storageKeys.timerDuration, 300);
+    if (typeof Timer !== 'undefined' && !Timer.running && Timer.setDuration) {
+      Timer.setDuration(300);
+    }
+    this.applyAll();
+    if (typeof UI !== 'undefined' && UI.showToast) {
+      UI.showToast('Hub settings reset to defaults', 'success');
+    }
+  },
+
+  sections: [
+    {
+      id: 'appearance',
+      label: 'Appearance',
+      icon: 'sun',
+      color: 'blue',
+      description: 'Customize theme, grid density, and motion preferences.',
+      controls: [
+        {
+          id: 'dark-mode',
+          type: 'toggle',
+          label: 'Blackboard Dark Mode',
+          description: 'High-contrast OLED slate theme designed for projectors and low-light rooms.',
+          get: () => document.documentElement.classList.contains('dark'),
+          set: (val) => {
+            document.documentElement.classList.toggle('dark', Boolean(val));
+            Storage.set(CONFIG.storageKeys.theme, val ? 'dark' : 'light');
+          }
+        },
+        {
+          id: 'view-mode',
+          type: 'segmented',
+          label: 'Default Library Layout',
+          description: 'Choose how activities are displayed across library pages.',
+          options: [
+            { value: 'cards', label: 'Cards', icon: 'layout-grid' },
+            { value: 'icons', label: 'Icons', icon: 'grip' },
+            { value: 'list', label: 'List', icon: 'list' }
+          ],
+          get: () => (typeof ViewMode !== 'undefined' ? ViewMode.current : 'icons'),
+          set: (val) => {
+            if (typeof ViewMode !== 'undefined' && ViewMode.set) ViewMode.set(val);
+          }
+        },
+        {
+          id: 'reduce-motion',
+          type: 'toggle',
+          label: 'Reduce Card Tilt & Motion',
+          description: 'Disable 3D card tilt and entrance motion effects in the library.',
+          get: () => Boolean(HubSettings.get('reduceMotion')),
+          set: (val) => HubSettings.set('reduceMotion', Boolean(val))
+        }
+      ]
+    },
+    {
+      id: 'library',
+      label: 'Library & Tabs',
+      icon: 'layout-grid',
+      color: 'green',
+      description: 'Control startup view, default sorting, and workspace tab group behavior.',
+      controls: [
+        {
+          id: 'default-home',
+          type: 'select',
+          label: 'Default Startup View',
+          description: 'Choose which Hub page opens first when launching KlassKit.',
+          options: [
+            { value: 'auto', label: 'Smart Auto (Remember Last)' },
+            { value: 'landing', label: 'Hub Home' },
+            { value: 'library-all', label: 'All Activities' },
+            { value: 'library-game', label: 'Classroom Games' },
+            { value: 'library-tool', label: 'Teaching Tools' },
+            { value: 'library-printable', label: 'Printables' }
+          ],
+          get: () => HubSettings.get('defaultHome'),
+          set: (val) => HubSettings.set('defaultHome', val)
+        },
+        {
+          id: 'library-sort',
+          type: 'select',
+          label: 'Default Library Sort',
+          description: 'Default ordering applied to activity grids.',
+          options: [
+            { value: 'az', label: 'Name (A–Z)' },
+            { value: 'za', label: 'Name (Z–A)' },
+            { value: 'recent', label: 'Recently Used' },
+            { value: 'pinned', label: 'Pinned First' }
+          ],
+          get: () => HubSettings.get('librarySort'),
+          set: (val) => HubSettings.set('librarySort', val)
+        },
+        {
+          id: 'show-recent',
+          type: 'toggle',
+          label: 'Show Recently Used Bar',
+          description: 'Display quick resume pills above your pinned activities.',
+          get: () => HubSettings.get('showRecent') !== false,
+          set: (val) => HubSettings.set('showRecent', Boolean(val))
+        },
+        {
+          id: 'auto-expand-group',
+          type: 'toggle',
+          label: 'Auto-Expand Collapsed Tab Groups',
+          description: 'Automatically expand a collapsed tab group when dropping a tab into it.',
+          get: () => HubSettings.get('autoExpandGroup') !== false,
+          set: (val) => HubSettings.set('autoExpandGroup', Boolean(val))
+        }
+      ]
+    },
+    {
+      id: 'audio',
+      label: 'Audio & Timer',
+      icon: 'volume-2',
+      color: 'orange',
+      description: 'Manage Hub sound effects and default universal countdown timer.',
+      controls: [
+        {
+          id: 'ui-sound',
+          type: 'toggle',
+          label: 'Hub UI Sound Effects',
+          description: 'Play subtle tactile audio feedback when clicking Hub controls.',
+          get: () => !AudioEngine.muted,
+          set: (val) => {
+            const shouldMute = !val;
+            if (AudioEngine.muted !== shouldMute) AudioEngine.toggle();
+          }
+        },
+        {
+          id: 'timer-duration',
+          type: 'segmented',
+          label: 'Default Timer Preset',
+          description: 'Initial duration when opening the floating workspace timer.',
+          options: [
+            { value: '60', label: '1m' },
+            { value: '120', label: '2m' },
+            { value: '180', label: '3m' },
+            { value: '300', label: '5m' },
+            { value: '600', label: '10m' }
+          ],
+          get: () => String(Storage.get(CONFIG.storageKeys.timerDuration, 300) || 300),
+          set: (val) => {
+            const secs = parseInt(val, 10) || 300;
+            Storage.set(CONFIG.storageKeys.timerDuration, secs);
+            if (typeof Timer !== 'undefined' && !Timer.running && Timer.setDuration) {
+              Timer.setDuration(secs);
+            }
+          }
+        }
+      ]
+    },
+    {
+      id: 'data',
+      label: 'Data & Controls',
+      icon: 'database',
+      color: 'pink',
+      description: 'Manage media storage, workspace tab groups, and Hub preferences.',
+      controls: [
+        {
+          id: 'manage-media',
+          type: 'action',
+          label: 'Media & Cloud Storage',
+          description: 'Inspect or clean up uploaded images and local assets.',
+          buttonLabel: 'Manage',
+          icon: 'folder-kanban',
+          tone: 'blue',
+          onClick: () => {
+            window.SettingsModal?.close?.();
+            if (typeof MediaManager !== 'undefined' && MediaManager.open) MediaManager.open();
+          }
+        },
+        {
+          id: 'clear-recent',
+          type: 'action',
+          label: 'Clear Recent Activities',
+          description: 'Remove quick-resume chips from the Recently Used bar.',
+          buttonLabel: 'Clear',
+          icon: 'clock',
+          tone: 'orange',
+          onClick: () => {
+            if (typeof RecentGames !== 'undefined' && RecentGames.clear) RecentGames.clear();
+            if (typeof UI !== 'undefined' && UI.showToast) UI.showToast('Recent activities cleared', 'success');
+          }
+        },
+        {
+          id: 'ungroup-tabs',
+          type: 'action',
+          label: 'Ungroup All Workspace Tabs',
+          description: 'Keep all open activity tabs running while removing tab groups.',
+          buttonLabel: 'Ungroup',
+          icon: 'folder-minus',
+          tone: 'slate',
+          onClick: () => {
+            if (typeof TabManager !== 'undefined' && TabManager.ungroupAllTabs) TabManager.ungroupAllTabs();
+          }
+        },
+        {
+          id: 'reset-settings',
+          type: 'action',
+          label: 'Reset Hub Settings',
+          description: 'Restore layout, sort, timer preset, and workspace preferences to defaults.',
+          buttonLabel: 'Reset',
+          icon: 'rotate-ccw',
+          tone: 'pink',
+          onClick: async () => {
+            const ok = typeof showConfirmModal === 'function'
+              ? await showConfirmModal('Reset all Hub settings to their defaults?', {
+                  title: 'Reset Settings?',
+                  confirmText: 'Reset',
+                  cancelText: 'Keep',
+                  icon: 'rotate-ccw',
+                  iconColor: 'red'
+                })
+              : true;
+            if (ok) HubSettings.resetAll();
+          }
+        }
+      ]
+    }
+  ],
+
+  registerSection(sectionDef) {
+    if (!sectionDef || !sectionDef.id) return;
+    const existing = this.sections.find(s => s.id === sectionDef.id);
+    if (existing) {
+      Object.assign(existing, {
+        ...sectionDef,
+        controls: Array.isArray(sectionDef.controls) ? sectionDef.controls : existing.controls
+      });
+    } else {
+      this.sections.push({
+        icon: 'sliders-horizontal',
+        color: 'blue',
+        description: '',
+        controls: [],
+        ...sectionDef
+      });
+    }
+    window.SettingsModal?.renderNav?.();
+    window.SettingsModal?.renderControls?.();
+  },
+
+  registerControl(sectionId, controlDef) {
+    if (!sectionId || !controlDef || !controlDef.id) return;
+    let section = this.sections.find(s => s.id === sectionId);
+    if (!section) {
+      section = {
+        id: sectionId,
+        label: sectionId.charAt(0).toUpperCase() + sectionId.slice(1),
+        icon: 'sliders-horizontal',
+        color: 'blue',
+        description: '',
+        controls: []
+      };
+      this.sections.push(section);
+      window.SettingsModal?.renderNav?.();
+    }
+    const existingIdx = section.controls.findIndex(c => c.id === controlDef.id);
+    if (existingIdx >= 0) {
+      section.controls[existingIdx] = controlDef;
+    } else {
+      section.controls.push(controlDef);
+    }
+    window.SettingsModal?.renderControls?.();
+  }
+};
+window.HubSettings = HubSettings;
 
 // --- UI ---
 const FloatingTooltip = {

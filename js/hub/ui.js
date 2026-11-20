@@ -5,10 +5,10 @@ const UI = {
     const hour = new Date().getHours();
     let greeting = "";
 
-    if (hour < 12) greeting = "Good Morning, Teacher! ☕";
-    else if (hour < 15) greeting = "Good Afternoon! ☀️";
-    else if (hour < 18) greeting = "Almost the weekend? 🍎";
-    else greeting = "Good Evening! 🌙";
+    if (hour < 12) greeting = "Good Morning, Teacher!";
+    else if (hour < 15) greeting = "Good Afternoon!";
+    else if (hour < 18) greeting = "Almost the weekend?";
+    else greeting = "Good Evening!";
 
     document.querySelectorAll(".greeting-display").forEach(el => {
       el.textContent = greeting;
@@ -401,12 +401,14 @@ const Hero = {
     });
   },
 
-  surpriseMe() {
+  surpriseMe(category = null) {
     AudioEngine.click();
+    const scoped = ['tool', 'printable', 'game', 'workshop'].includes(category);
     const active = State.games.filter(g => {
       if (g.active === false) return false;
       if (g.pro && !State.isPro()) return false;
       if (g.adminOnly && !State.isAdmin()) return false;
+      if (scoped && g.category !== category) return false;
       return true;
     });
     if (active.length === 0) return;
@@ -768,6 +770,7 @@ const RecentGames = {
     const toggleBtn = document.getElementById("recent-toggle-btn");
     if (!container || !section) return;
 
+    const showRecent = window.HubSettings ? window.HubSettings.get('showRecent') !== false : true;
     const collapsed = this.isCollapsed();
 
     // Filter visible recent games based on privileges
@@ -779,19 +782,16 @@ const RecentGames = {
         return true;
       });
 
-    section.classList.toggle('hidden', visibleGames.length === 0);
+    section.classList.toggle('hidden', !showRecent || visibleGames.length === 0);
 
     if (toggleBtn) {
       toggleBtn.setAttribute('aria-expanded', String(!collapsed));
       toggleBtn.setAttribute('aria-controls', 'recent-list');
-      const icon = toggleBtn.querySelector('i');
-      if (icon) {
-        icon.setAttribute('data-lucide', collapsed ? 'chevron-down' : 'chevron-up');
-        Utils.refreshIcons(toggleBtn);
-      }
+      toggleBtn.innerHTML = `<i data-lucide="${collapsed ? 'chevron-down' : 'chevron-up'}" class="w-4 h-4" aria-hidden="true"></i>`;
+      Utils.refreshIcons(toggleBtn);
     }
 
-    if (visibleGames.length === 0) return;
+    if (!showRecent || visibleGames.length === 0) return;
 
     container.classList.toggle('hidden', collapsed);
     if (collapsed) return;
