@@ -294,10 +294,8 @@
             },
 
             toggleDarkMode() {
-                document.documentElement.classList.toggle('dark');
-                if (document.documentElement.classList.contains('dark')) {
-                } else {
-                }
+                const isDark = document.documentElement.classList.toggle('dark');
+                localStorage.setItem('theme_speedy-slides', isDark ? 'dark' : 'light');
             },
 
             parseInput() {
@@ -562,6 +560,8 @@
             stopPresentation() {
                 const overlay = document.getElementById('presentation-mode');
                 overlay.style.display = 'none';
+                this.imageFullscreen = false;
+                this.updateImageFullscreenUI();
 
                 try {
                     if (document.exitFullscreen && document.fullscreenElement) {
@@ -638,19 +638,22 @@
 
             updateImageFullscreenUI() {
                 const btn = document.getElementById('img-fullscreen-btn');
-                const icon = document.getElementById('img-fullscreen-icon');
                 const img = document.getElementById('display-image');
                 if (!btn || !img) return;
 
+                const framedClasses = ['max-w-full', 'max-h-[78vh]', 'max-h-[80vh]', 'object-contain', 'rounded-2xl', 'shadow-[6px_6px_0px_0px_#0f172a]', 'shadow-hard-white', 'border-4', 'border-chalk', 'relative'];
+                const restoredFramedClasses = ['max-w-full', 'max-h-[78vh]', 'object-contain', 'rounded-2xl', 'shadow-[6px_6px_0px_0px_#0f172a]', 'border-4', 'border-chalk'];
+                const fsClasses = ['fixed', 'inset-0', 'w-screen', 'h-screen', 'object-cover', 'z-10'];
+
                 if (this.imageFullscreen) {
-                    img.classList.remove('max-w-full', 'max-h-[80vh]', 'object-contain', 'rounded-2xl', 'shadow-hard-white', 'border-4', 'border-chalk', 'relative');
-                    img.classList.add('fixed', 'inset-0', 'w-screen', 'h-screen', 'object-cover', 'z-10');
-                    if (icon) icon.setAttribute('data-lucide', 'minimize');
+                    img.classList.remove(...framedClasses);
+                    img.classList.add(...fsClasses);
                 } else {
-                    img.classList.remove('fixed', 'inset-0', 'w-screen', 'h-screen', 'object-cover', 'z-10');
-                    img.classList.add('max-w-full', 'max-h-[80vh]', 'object-contain', 'rounded-2xl', 'shadow-hard-white', 'border-4', 'border-chalk', 'relative');
-                    if (icon) icon.setAttribute('data-lucide', 'maximize');
+                    img.classList.remove(...fsClasses);
+                    img.classList.add(...restoredFramedClasses);
                 }
+
+                btn.innerHTML = `<i data-lucide="${this.imageFullscreen ? 'minimize' : 'maximize'}" class="w-6 h-6" id="img-fullscreen-icon"></i>`;
                 lucide.createIcons();
             },
 

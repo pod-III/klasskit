@@ -1,4 +1,6 @@
 /** @type {import('tailwindcss').Config} */
+const defaultColors = require('tailwindcss/colors');
+
 module.exports = {
   darkMode: 'class',
   content: [
@@ -23,12 +25,12 @@ module.exports = {
         '4xl': '1920px',
       },
       colors: {
-        pink: '#ff4785',
-        orange: '#ff7e33',
-        green: '#00d063',
-        blue: '#1ea7fd',
-        purple: '#7C4DFF',
-        yellow: '#FACC15',
+        pink: { ...defaultColors.pink, DEFAULT: '#ff4785' },
+        orange: { ...defaultColors.orange, DEFAULT: '#ff7e33' },
+        green: { ...defaultColors.green, DEFAULT: '#00d063' },
+        blue: { ...defaultColors.blue, DEFAULT: '#1ea7fd' },
+        purple: { ...defaultColors.purple, DEFAULT: '#7C4DFF' },
+        yellow: { ...defaultColors.yellow, DEFAULT: '#FACC15' },
         dark: '#1e293b',
         chalk: '#f8fafc',
         oled: '#020617',

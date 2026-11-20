@@ -2789,7 +2789,8 @@ Describe your favorite weekend activity.`;
             if (els.resumeBanner) els.resumeBanner.classList.add('hidden');
             if (els.btnTheme) {
                 els.btnTheme.addEventListener('click', () => {
-                    document.documentElement.classList.toggle('dark');
+                    const isDark = document.documentElement.classList.toggle('dark');
+                    localStorage.setItem(THEME_STORAGE_KEY, isDark ? 'dark' : 'light');
                 });
             }
             window.addEventListener('resize', fitTileGridToViewport);

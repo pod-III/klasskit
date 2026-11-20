@@ -64,7 +64,7 @@
             const isDark = document.documentElement.classList.contains('dark');
             const icon = document.getElementById('theme-icon');
             if (icon) {
-                icon.setAttribute('data-lucide', isDark ? 'sun' : 'moon');
+                icon.outerHTML = `<i data-lucide="${isDark ? 'sun' : 'moon'}" id="theme-icon" class="w-3.5 h-3.5"></i>`;
                 lucide.createIcons();
             }
         }
@@ -75,14 +75,14 @@
             const play = document.getElementById('play-mode');
             const toggleBtn = document.getElementById('setup-toggle');
             const header = document.getElementById('main-header');
-            const icon = toggleBtn.querySelector('[data-lucide]');
+            const icon = toggleBtn?.querySelector('[data-lucide], svg');
 
             if (isSetupMode) {
                 setup.classList.remove('hidden');
                 setup.classList.add('grid');
                 play.classList.add('hidden');
                 toggleBtn.querySelector('span').textContent = 'PLAY';
-                if (icon) icon.setAttribute('data-lucide', 'play');
+                if (icon) icon.outerHTML = '<i data-lucide="play" class="w-3.5 h-3.5"></i>';
                 header.classList.add('setup-header');
                 renderCollections();
                 renderEditor();
@@ -91,7 +91,7 @@
                 setup.classList.remove('grid');
                 play.classList.remove('hidden');
                 toggleBtn.querySelector('span').textContent = 'SETUP';
-                if (icon) icon.setAttribute('data-lucide', 'settings');
+                if (icon) icon.outerHTML = '<i data-lucide="settings" class="w-3.5 h-3.5"></i>';
                 header.classList.remove('setup-header');
                 resetQuizState();
             }
@@ -355,7 +355,7 @@
                     </div>
                     ${editorBodyHTML(q, idx)}
                     <div class="px-5 pb-4">
-                        <div class="flex items-center gap-2 mb-1.5 cursor-pointer select-none" onclick="this.nextElementSibling.classList.toggle('hidden'); this.querySelector('[data-lucide]').setAttribute('data-lucide', this.nextElementSibling.classList.contains('hidden') ? 'chevron-right' : 'chevron-down'); lucide.createIcons();">
+                        <div class="flex items-center gap-2 mb-1.5 cursor-pointer select-none" onclick="this.nextElementSibling.classList.toggle('hidden'); const ic = this.querySelector('[data-lucide], svg'); if (ic) { ic.outerHTML = '<i data-lucide=&quot;' + (this.nextElementSibling.classList.contains('hidden') ? 'chevron-right' : 'chevron-down') + '&quot; class=&quot;w-3.5 h-3.5 text-blue&quot;></i>'; lucide.createIcons(); }">
                             <i data-lucide="${q.e ? 'chevron-down' : 'chevron-right'}" class="w-3.5 h-3.5 text-blue"></i>
                             <span class="text-[10px] font-black text-blue uppercase tracking-[0.2em]">Explanation (optional)</span>
                         </div>

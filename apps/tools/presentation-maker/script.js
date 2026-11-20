@@ -136,11 +136,8 @@
             },
 
             toggleTheme() {
-                if (document.documentElement.classList.contains('dark')) {
-                    document.documentElement.classList.remove('dark');
-                } else {
-                    document.documentElement.classList.add('dark');
-                }
+                const isDark = document.documentElement.classList.toggle('dark');
+                localStorage.setItem('theme_presentation-maker', isDark ? 'dark' : 'light');
             },
 
             // --- LIBRARY LOGIC ---
