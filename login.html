@@ -5,11 +5,11 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Sign In — KlassKit</title>
-    <link rel="icon" type="image/x-icon" href="./media/icon.ico" />
-    <link rel="icon" type="image/webp" href="./media/icon.webp" />
-    <link rel="apple-touch-icon" href="./media/icon-180.png" />
-    <link rel="manifest" href="manifest.json">
-    <meta name="theme-color" content="#2979FF">
+  <link rel="icon" type="image/x-icon" href="./media/icon.ico" />
+  <link rel="icon" type="image/webp" href="./media/icon.webp" />
+  <link rel="apple-touch-icon" href="./media/icon-180.png" />
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#1ea7fd">
 
   <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.105.4"></script>
   <script defer src="/supabase.js"></script>
@@ -17,148 +17,330 @@
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@700&family=Nunito:wght@400;600;700;800&display=swap"
+  <link
+    href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:wght@400;600;700;800&display=swap"
     rel="stylesheet">
 
   <link rel="stylesheet" href="css/tailwind.generated.css">
   <link rel="stylesheet" href="css/base.css">
+
+  <script>
+    (function () {
+      const rawSaved = localStorage.getItem('theme_hub');
+      let saved = rawSaved;
+      try { saved = rawSaved ? JSON.parse(rawSaved) : null; } catch (e) {}
+      if (saved === 'dark' || (saved !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+        document.documentElement.classList.add('dark');
+      }
+    })();
+  </script>
+
   <style>
-    /* Glassmorphism Card */
-    .glass-card {
-        background: rgba(255, 255, 255, 0.8);
-        backdrop-filter: blur(16px);
-        -webkit-backdrop-filter: blur(16px);
-        border: 4px solid var(--border-primary, #1e293b);
-        box-shadow: 8px 8px 0px var(--border-primary, #1e293b);
+    /* Ambient Background Orbs & Classroom Accents */
+    .ambient-bg {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      overflow: hidden;
+      z-index: 0;
     }
 
-    .dark .glass-card {
-        background: rgba(15, 23, 42, 0.8);
-        border-color: #334155;
-        box-shadow: 8px 8px 0px #000000;
+    .ambient-orb {
+      position: absolute;
+      border-radius: 9999px;
+      filter: blur(80px);
+      opacity: 0.22;
     }
 
-    /* Chunky Buttons */
-    .btn-chunky {
-        position: relative;
-        background: white;
-        border: 4px solid var(--border-primary, #1e293b);
-        box-shadow: 4px 4px 0px var(--border-primary, #1e293b);
-        transition: all 0.15s cubic-bezier(0.2, 0.8, 0.2, 1);
-        cursor: pointer;
+    .dark .ambient-orb {
+      opacity: 0.16;
     }
 
-    .btn-chunky:hover {
-        transform: translate(-2px, -2px);
-        box-shadow: 6px 6px 0px var(--border-primary, #1e293b);
+    .ambient-orb-blue {
+      width: 24rem;
+      height: 24rem;
+      top: -6rem;
+      left: -6rem;
+      background: var(--color-blue, #1ea7fd);
     }
 
-    .btn-chunky:active {
-        transform: translate(4px, 4px);
-        box-shadow: 0px 0px 0px var(--border-primary, #1e293b);
+    .ambient-orb-warm {
+      width: 24rem;
+      height: 24rem;
+      bottom: -6rem;
+      right: -6rem;
+      background: radial-gradient(circle, var(--color-pink, #ff4785) 0%, var(--color-orange, #ff7e33) 100%);
     }
 
-    .dark .btn-chunky {
-        border-color: #334155;
-        box-shadow: 4px 4px 0px #000000;
+    .floating-shape {
+      position: absolute;
+      opacity: 0.07;
+      animation: login-float 16s ease-in-out infinite;
     }
 
-    .dark .btn-chunky:hover {
-        box-shadow: 6px 6px 0px #000000;
+    .dark .floating-shape {
+      opacity: 0.06;
     }
 
-    .dark .btn-chunky:active {
-        box-shadow: 0px 0px 0px #000000;
+    @keyframes login-float {
+      0%, 100% {
+        transform: translateY(0) rotate(0deg);
+      }
+      50% {
+        transform: translateY(-14px) rotate(8deg);
+      }
     }
 
-    /* Auth Inputs */
-    .auth-input {
-        background: white;
-        border: 4px solid var(--border-primary, #1e293b);
-        border-radius: 1rem;
-        padding: 0.75rem 1rem;
-        font-weight: 700;
-        transition: all 0.2s;
-        outline: none;
-        width: 100%;
+    /* Glassmorphism Soft Brutalist Card */
+    :where(.glass-card) {
+      background: rgba(255, 255, 255, 0.85);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 3px solid #1e293b;
+      box-shadow: 8px 8px 0px #1e293b, inset 0 1px 0 rgba(255, 255, 255, 0.7);
     }
 
-    .dark .auth-input {
-        background: #0f172a;
-        color: white;
-        border-color: #334155;
+    :where(.dark .glass-card) {
+      background: rgba(15, 23, 42, 0.85);
+      border-color: #475569;
+      box-shadow: 8px 8px 0px #000000, inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    }
+
+    @media (max-width: 474px) {
+      :where(.glass-card) {
+        box-shadow: 6px 6px 0px #1e293b, inset 0 1px 0 rgba(255, 255, 255, 0.7);
+      }
+
+      :where(.dark .glass-card) {
+        box-shadow: 6px 6px 0px #000000, inset 0 1px 0 rgba(255, 255, 255, 0.08);
+      }
+    }
+
+    /* Chunky Buttons (background left to Tailwind utilities; element prefix beats Preflight) */
+    button:where(.btn-chunky) {
+      position: relative;
+      border: 3px solid #1e293b;
+      box-shadow: 0 4px 0 #1e293b;
+      transition: transform 0.15s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.15s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.15s ease;
+      cursor: pointer;
+      user-select: none;
+      transform: translateY(0);
+    }
+
+    html:where(.dark) button:where(.btn-chunky) {
+      border-color: #475569;
+      box-shadow: 0 4px 0 #000000;
+    }
+
+    .btn-chunky:hover:not(:disabled) {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 0 #1e293b;
+    }
+
+    .dark .btn-chunky:hover:not(:disabled) {
+      box-shadow: 0 6px 0 #000000;
+    }
+
+    .btn-chunky:active:not(:disabled) {
+      transform: translateY(4px);
+      box-shadow: 0 0 0 #1e293b;
+    }
+
+    .dark .btn-chunky:active:not(:disabled) {
+      box-shadow: 0 0 0 #000000;
+    }
+
+    .btn-chunky:disabled {
+      opacity: 0.65;
+      cursor: not-allowed;
+    }
+
+    .btn-chunky:focus-visible {
+      outline: 3px solid var(--color-blue, #1ea7fd);
+      outline-offset: 2px;
+    }
+
+    /* Auth Inputs (0,0,1/0,0,2 beats Preflight while yielding to Tailwind 0,1,0 pl-12/pr-12) */
+    input:where(.auth-input) {
+      background: #ffffff;
+      color: #1e293b;
+      border: 3px solid #1e293b;
+      border-radius: 9999px;
+      padding: 0.9rem 1.25rem;
+      font-weight: 700;
+      font-size: 1rem;
+      line-height: 1.5;
+      width: 100%;
+      outline: none;
+      transition: border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease, background-color 0.18s ease;
+    }
+
+    html:where(.dark) input:where(.auth-input) {
+      background: rgba(2, 6, 23, 0.85);
+      color: #f8fafc;
+      border-color: #475569;
+    }
+
+    .auth-input::placeholder {
+      color: #94a3b8;
+      font-weight: 600;
+    }
+
+    .dark .auth-input::placeholder {
+      color: #64748b;
+    }
+
+    /* Scoped Panel Focus Accents */
+    #content-signin {
+      --focus-accent: var(--color-blue, #1ea7fd);
+      --focus-shadow: rgba(30, 167, 253, 0.25);
+    }
+
+    #content-signup {
+      --focus-accent: var(--color-green, #00d063);
+      --focus-shadow: rgba(0, 208, 99, 0.25);
+    }
+
+    #content-forgot {
+      --focus-accent: var(--color-orange, #ff7e33);
+      --focus-shadow: rgba(255, 126, 51, 0.25);
     }
 
     .auth-input:focus {
-        border-color: #2979FF; /* Blue */
-        transform: translateY(-1px);
-        box-shadow: 0 4px 0 rgba(41, 121, 255, 0.2);
+      border-color: var(--focus-accent, var(--color-blue, #1ea7fd));
+      transform: translateY(-1px);
+      box-shadow: 0 4px 0 var(--focus-shadow, rgba(30, 167, 253, 0.25));
     }
 
-    /* Custom Tabs */
-    .tab-btn {
+    .input-wrap:focus-within .input-icon {
+      color: var(--focus-accent, var(--color-blue, #1ea7fd));
+    }
+
+    /* Password Match Feedback */
+    .auth-input.input-match,
+    .dark .auth-input.input-match {
+      border-color: var(--color-green, #00d063);
+      box-shadow: 0 4px 0 rgba(0, 208, 99, 0.25);
+    }
+
+    .auth-input.input-mismatch,
+    .dark .auth-input.input-mismatch {
+      border-color: var(--color-pink, #ff4785);
+      box-shadow: 0 4px 0 rgba(255, 71, 133, 0.25);
+    }
+
+    /* Browser Autofill Styling */
+    .auth-input:-webkit-autofill,
+    .auth-input:-webkit-autofill:hover {
+      -webkit-text-fill-color: #1e293b;
+      -webkit-box-shadow: 0 0 0 1000px #ffffff inset;
+      caret-color: #1e293b;
+      transition: background-color 5000s ease-in-out 0s;
+    }
+
+    .auth-input:-webkit-autofill:focus {
+      -webkit-text-fill-color: #1e293b;
+      -webkit-box-shadow: 0 0 0 1000px #ffffff inset, 0 4px 0 var(--focus-shadow, rgba(30, 167, 253, 0.25));
+      caret-color: #1e293b;
+    }
+
+    .dark .auth-input:-webkit-autofill,
+    .dark .auth-input:-webkit-autofill:hover {
+      -webkit-text-fill-color: #f8fafc;
+      -webkit-box-shadow: 0 0 0 1000px #020617 inset;
+      caret-color: #f8fafc;
+    }
+
+    .dark .auth-input:-webkit-autofill:focus {
+      -webkit-text-fill-color: #f8fafc;
+      -webkit-box-shadow: 0 0 0 1000px #020617 inset, 0 4px 0 var(--focus-shadow, rgba(30, 167, 253, 0.25));
+      caret-color: #f8fafc;
+    }
+
+    /* Segmented Tabs (display left to Tailwind flex/hidden) */
+    .auth-tabs-track {
+      background: #f1f5f9;
+      border: 3px solid #1e293b;
+      box-shadow: inset 0 2px 4px rgba(15, 23, 42, 0.08);
+    }
+
+    .dark .auth-tabs-track {
+      background: rgba(2, 6, 23, 0.8);
+      border-color: #475569;
+      box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.4);
+    }
+
+    button:where(.tab-btn) {
       flex: 1;
-      padding: 0.75rem;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.45rem;
+      padding: 0.65rem 0.75rem;
+      border-radius: 0.75rem;
       font-family: 'Fredoka', sans-serif;
       font-weight: 700;
+      font-size: 0.9rem;
       text-transform: uppercase;
       letter-spacing: 0.05em;
-      border: 4px solid var(--border-primary, #1e293b);
-      background: white;
-      transition: all 0.2s;
+      border: 2px solid transparent;
+      background: transparent;
+      color: #475569;
       cursor: pointer;
-      position: relative;
+      user-select: none;
+      transition: all 0.18s cubic-bezier(0.2, 0.8, 0.2, 1);
     }
 
-    .dark .tab-btn {
-      background: #1e293b;
+    html:where(.dark) button:where(.tab-btn) {
       color: #94a3b8;
-      border-color: #334155;
-    }
-
-    /* Tab Layout logic - border sharing */
-    .tab-btn:first-child {
-      border-radius: 1rem 0 0 1rem;
-      border-right: none;
-      box-shadow: inset 0 -4px 0px rgba(0,0,0,0.05);
-    }
-
-    .tab-btn:last-child {
-      border-radius: 0 1rem 1rem 0;
-      border-left: 2px solid var(--border-primary, #1e293b); /* divider */
-      box-shadow: inset 0 -4px 0px rgba(0,0,0,0.05);
-    }
-    
-    .dark .tab-btn:last-child {
-        border-left-color: #334155;
-    }
-
-    .tab-btn.active {
-      background: #2979FF; /* Brand Blue */
-      color: white;
-      box-shadow: none;
-      transform: translateY(2px);
-    }
-
-    .dark .tab-btn.active {
-      background: #2979FF;
-      color: white;
     }
 
     .tab-btn:hover:not(.active) {
-        background: #f1f5f9;
-        transform: translateY(-1px);
+      color: #1e293b;
+      background: rgba(255, 255, 255, 0.75);
     }
 
     .dark .tab-btn:hover:not(.active) {
-        background: #0f172a;
+      color: #f8fafc;
+      background: rgba(30, 41, 59, 0.8);
+    }
+
+    #tab-signin.active {
+      background: var(--color-blue, #1ea7fd);
+      color: #ffffff;
+      border-color: #1e293b;
+      box-shadow: 0 3px 0 #1e293b;
+    }
+
+    #tab-signup.active {
+      background: var(--color-green, #00d063);
+      color: #ffffff;
+      border-color: #1e293b;
+      box-shadow: 0 3px 0 #1e293b;
+    }
+
+    .dark #tab-signin.active,
+    .dark #tab-signup.active {
+      border-color: #020617;
+      box-shadow: 0 3px 0 #000000;
+    }
+
+    .tab-btn:focus-visible,
+    .pw-toggle:focus-visible,
+    .link-focus:focus-visible {
+      outline: 3px solid var(--color-blue, #1ea7fd);
+      outline-offset: 2px;
+    }
+
+    .link-focus:focus-visible {
+      border-radius: 0.5rem;
     }
 
     /* Animations */
     @keyframes pop-in {
       0% {
         opacity: 0;
-        transform: scale(0.9) translateY(10px);
+        transform: scale(0.92) translateY(10px);
       }
       100% {
         opacity: 1;
@@ -167,7 +349,7 @@
     }
 
     .animate-pop-in {
-      animation: pop-in 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+      animation: pop-in 0.38s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
     }
 
     .tab-content {
@@ -176,258 +358,391 @@
 
     .tab-content.active {
       display: block;
-      animation: fade-in 0.3s ease forwards;
+      animation: tab-fade-in 0.24s ease-out forwards;
     }
 
-    @keyframes fade-in {
-        from { opacity: 0; transform: translateY(5px); }
-        to { opacity: 1; transform: translateY(0); }
+    @keyframes tab-fade-in {
+      from {
+        opacity: 0;
+        transform: translateY(6px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
     }
 
-    /* Password Match Feedback */
-    .input-match {
-        border-color: #00E676 !important;
-        box-shadow: 0 4px 0 rgba(0, 230, 118, 0.2) !important;
-    }
-    .input-mismatch {
-        border-color: #FF6B95 !important;
-        box-shadow: 0 4px 0 rgba(255, 107, 149, 0.2) !important;
-    }
-
-    /* PW Toggle A11y */
-    .pw-toggle:focus-visible {
-      outline: 3px solid #2979FF;
-      outline-offset: 2px;
-      border-radius: 6px;
+    @media (prefers-reduced-motion: reduce) {
+      .floating-shape {
+        animation: none;
+      }
     }
   </style>
-
 </head>
 
-<body class="min-h-screen flex items-center justify-center p-4 bg-[#f8fafc] dark:bg-[#020617]">
+<body class="min-h-screen flex items-center justify-center px-4 py-8 sm:p-6 bg-[#f8fafc] dark:bg-[#020617] selection:bg-pink selection:text-white relative">
 
-  <div class="glass-card w-full max-w-md p-8 rounded-3xl animate-pop-in">
-    <div class="text-center mb-8">
-      <div
-        class="w-20 h-20 bg-white dark:bg-slate-800 rounded-3xl border-[4px] border-dark dark:border-slate-500 flex items-center justify-center mx-auto mb-4 scale-110 rotate-3 shadow-hard transition-colors">
-        <img src="./media/icon.webp" alt="KlassKit Logo" class="w-12 h-12 object-contain">
+  <div class="ambient-bg" aria-hidden="true">
+    <div class="ambient-orb ambient-orb-blue"></div>
+    <div class="ambient-orb ambient-orb-warm"></div>
+    <div class="floating-shape top-10 left-8 text-blue">
+      <i data-lucide="sparkles" class="w-20 h-20 sm:w-28 sm:h-28"></i>
+    </div>
+    <div class="floating-shape bottom-10 right-8 text-pink" style="animation-delay: -5s;">
+      <i data-lucide="graduation-cap" class="w-24 h-24 sm:w-32 sm:h-32"></i>
+    </div>
+    <div class="floating-shape top-1/2 left-10 hidden md:block text-green" style="animation-delay: -10s;">
+      <i data-lucide="book-open" class="w-16 h-16"></i>
+    </div>
+  </div>
+
+  <main class="glass-card w-full max-w-[440px] p-6 sm:p-8 rounded-[2rem] animate-pop-in relative z-10">
+    <button id="theme-toggle" type="button" onclick="toggleTheme()" aria-label="Toggle dark mode" aria-pressed="false" title="Toggle dark mode"
+      class="btn-chunky absolute top-4 right-4 w-10 h-10 rounded-xl bg-white/90 dark:bg-slate-800/90 text-dark dark:text-yellow-400 flex items-center justify-center">
+      <i data-lucide="moon" class="w-5 h-5 dark:hidden" aria-hidden="true"></i>
+      <i data-lucide="sun" class="w-5 h-5 hidden dark:block" aria-hidden="true"></i>
+    </button>
+
+    <div class="text-center mb-6">
+      <div class="relative inline-block mb-3.5">
+        <span class="absolute -top-1.5 -left-2 w-3.5 h-3.5 rounded-full bg-pink border-2 border-dark dark:border-slate-900" aria-hidden="true"></span>
+        <span class="absolute -bottom-1 -right-2 w-3 h-3 rounded-full bg-orange border-2 border-dark dark:border-slate-900" aria-hidden="true"></span>
+        <div
+          class="w-16 h-16 sm:w-[72px] sm:h-[72px] bg-white dark:bg-slate-800 rounded-2xl border-[3px] border-dark dark:border-slate-500 flex items-center justify-center mx-auto rotate-3 hover:rotate-0 hover:scale-105 shadow-hard dark:shadow-hard-dark transition-transform duration-200">
+          <img src="./media/icon.webp" alt="KlassKit Logo" class="w-11 h-11 sm:w-12 sm:h-12 object-contain">
+        </div>
       </div>
-      <h1 class="font-heading text-4xl font-black text-dark dark:text-white uppercase tracking-tight">KlassKit</h1>
-      <p class="text-slate-500 dark:text-slate-400 font-bold mt-2">Personalize your learning journey</p>
+      <h1 class="font-heading text-3xl sm:text-4xl font-bold text-dark dark:text-white uppercase tracking-tight leading-none">
+        KlassKit
+      </h1>
+      <p id="auth-subtitle" class="text-slate-500 dark:text-slate-400 font-bold text-sm sm:text-base mt-2">
+        Personalize your learning journey
+      </p>
     </div>
 
-    <div id="auth-tabs" class="flex mb-8">
-      <button type="button" id="tab-signin" class="tab-btn active focus-visible:ring-2 ring-blue ring-offset-2"
-        onclick="switchTab('signin')">Sign In</button>
-      <button type="button" id="tab-signup" class="tab-btn focus-visible:ring-2 ring-blue ring-offset-2"
-        onclick="switchTab('signup')">Sign Up</button>
+    <div id="auth-tabs" role="tablist" aria-label="Authentication mode" class="auth-tabs-track flex gap-1.5 p-1.5 rounded-2xl mb-6">
+      <button type="button" id="tab-signin" role="tab" aria-selected="true" aria-controls="content-signin"
+        class="tab-btn active" onclick="switchTab('signin')">
+        <i data-lucide="log-in" class="w-4 h-4" aria-hidden="true"></i>
+        <span>Sign In</span>
+      </button>
+      <button type="button" id="tab-signup" role="tab" aria-selected="false" aria-controls="content-signup"
+        class="tab-btn" onclick="switchTab('signup')">
+        <i data-lucide="user-plus" class="w-4 h-4" aria-hidden="true"></i>
+        <span>Sign Up</span>
+      </button>
     </div>
 
-    <div id="content-signin" class="tab-content active">
-      <form class="space-y-5" onsubmit="return false;">
+    <div id="content-signin" role="tabpanel" aria-labelledby="tab-signin" class="tab-content active">
+      <form class="space-y-4" novalidate onsubmit="event.preventDefault(); handleSignIn();">
         <div class="space-y-1.5">
-          <label class="block text-sm font-extrabold text-dark dark:text-slate-300 ml-1 uppercase tracking-wider">Email
-            Address</label>
-          <div class="relative">
-            <i data-lucide="mail" class="absolute left-3.5 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400"></i>
-            <input type="email" id="signin-email" class="auth-input pl-11" placeholder="teacher@school.edu" required>
+          <label for="signin-email" class="block text-xs font-extrabold text-dark dark:text-slate-300 ml-1 uppercase tracking-wider">
+            Email Address
+          </label>
+          <div class="relative input-wrap">
+            <i data-lucide="mail" class="input-icon pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 transition-colors" aria-hidden="true"></i>
+            <input type="email" id="signin-email" autocomplete="email" class="auth-input pl-12" placeholder="teacher@school.edu" required>
           </div>
         </div>
+
         <div class="space-y-1.5">
-          <label
-            class="block text-sm font-extrabold text-dark dark:text-slate-300 ml-1 uppercase tracking-wider">Password</label>
-          <div class="relative">
-            <i data-lucide="lock" class="absolute left-3.5 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400"></i>
-            <input type="password" id="signin-password" class="auth-input pl-11 pr-11" placeholder="••••••••" required>
+          <label for="signin-password" class="block text-xs font-extrabold text-dark dark:text-slate-300 ml-1 uppercase tracking-wider">
+            Password
+          </label>
+          <div class="relative input-wrap">
+            <i data-lucide="lock" class="input-icon pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 transition-colors" aria-hidden="true"></i>
+            <input type="password" id="signin-password" autocomplete="current-password" class="auth-input pl-12 pr-12" placeholder="••••••••" required>
             <button type="button" onclick="togglePasswordVisibility('signin-password', this)"
-              class="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-blue transition-colors pw-toggle">
-              <i data-lucide="eye-off" class="w-5 h-5"></i>
+              aria-label="Show password" aria-pressed="false"
+              class="pw-toggle absolute right-3 top-1/2 -translate-y-1/2 w-9 h-9 flex items-center justify-center rounded-full text-slate-400 hover:text-blue dark:hover:text-blue transition-colors">
+              <i data-lucide="eye-off" class="w-5 h-5" aria-hidden="true"></i>
             </button>
           </div>
-          <div class="text-right px-1 pt-1">
+          <div class="text-right px-1 pt-0.5">
             <button type="button" onclick="switchTab('forgot')"
-              class="text-xs font-black text-blue hover:underline uppercase tracking-tighter">
+              class="link-focus text-xs font-extrabold text-blue hover:underline uppercase tracking-wide">
               Forgot Password?
             </button>
           </div>
         </div>
-        <div id="signin-message" class="hidden p-3 rounded-xl border-4 border-dark text-sm font-bold text-center"></div>
-        <button type="button" onclick="handleSignIn()" data-icon="arrow-right"
-          class="btn-chunky w-full py-3.5 rounded-2xl bg-blue text-white font-heading text-lg uppercase tracking-wide flex items-center justify-center gap-2">
-          <span>Let's Go!</span> <i data-lucide="arrow-right" class="w-5 h-5"></i>
+
+        <div id="signin-message" role="alert" aria-live="polite" class="hidden"></div>
+
+        <button type="submit" data-icon="arrow-right"
+          class="btn-chunky w-full py-3.5 rounded-2xl bg-blue text-white font-heading font-bold text-lg uppercase tracking-wider flex items-center justify-center gap-2">
+          <span class="btn-label">Let's Go!</span>
+          <span class="btn-icon inline-flex items-center justify-center">
+            <i data-lucide="arrow-right" class="w-5 h-5" aria-hidden="true"></i>
+          </span>
         </button>
       </form>
     </div>
 
-    <div id="content-signup" class="tab-content">
-      <form class="space-y-5" onsubmit="return false;">
+    <div id="content-signup" role="tabpanel" aria-labelledby="tab-signup" class="tab-content">
+      <form class="space-y-4" novalidate onsubmit="event.preventDefault(); handleSignUp();">
         <div class="space-y-1.5">
-          <label
-            class="block text-sm font-extrabold text-dark dark:text-slate-300 ml-1 uppercase tracking-wider">Display
-            Name</label>
-          <div class="relative">
-            <i data-lucide="user" class="absolute left-3.5 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400"></i>
-            <input type="text" id="signup-displayname" class="auth-input pl-11" placeholder="Professor Awesome"
-              required>
-          </div>
-        </div>
-        <div class="space-y-1.5">
-          <label class="block text-sm font-extrabold text-dark dark:text-slate-300 ml-1 uppercase tracking-wider">Email
-            Address</label>
-          <div class="relative">
-            <i data-lucide="mail" class="absolute left-3.5 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400"></i>
-            <input type="email" id="signup-email" class="auth-input pl-11" placeholder="teacher@school.edu" required>
+          <label for="signup-displayname" class="block text-xs font-extrabold text-dark dark:text-slate-300 ml-1 uppercase tracking-wider">
+            Display Name
+          </label>
+          <div class="relative input-wrap">
+            <i data-lucide="user" class="input-icon pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 transition-colors" aria-hidden="true"></i>
+            <input type="text" id="signup-displayname" autocomplete="name" class="auth-input pl-12" placeholder="Professor Awesome" required>
           </div>
         </div>
 
-        <div class="grid grid-cols-2 gap-3">
-          <div class="space-y-1.5">
-            <label
-              class="block text-sm font-extrabold text-dark dark:text-slate-300 ml-1 uppercase tracking-wider">Password</label>
-            <div class="relative">
-              <i data-lucide="lock" class="absolute left-3.5 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400"></i>
-              <input type="password" id="signup-password" class="auth-input pl-11 pr-11" placeholder="••••••••" required
-                minlength="6" oninput="checkPasswordMatch()">
-              <button type="button" onclick="togglePasswordVisibility('signup-password', this)"
-                class="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-green transition-colors pw-toggle">
-                <i data-lucide="eye-off" class="w-5 h-5"></i>
-              </button>
-            </div>
-          </div>
-          <div class="space-y-1.5">
-            <label
-              class="block text-sm font-extrabold text-dark dark:text-slate-300 ml-1 uppercase tracking-wider">Confirm</label>
-            <div class="relative">
-              <i data-lucide="shield-check"
-                class="absolute left-3.5 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400"></i>
-              <input type="password" id="signup-confirm" class="auth-input pl-11 pr-11" placeholder="••••••••" required
-                minlength="6" oninput="checkPasswordMatch()">
-              <button type="button" onclick="togglePasswordVisibility('signup-confirm', this)"
-                class="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-green transition-colors pw-toggle">
-                <i data-lucide="eye-off" class="w-5 h-5"></i>
-              </button>
-            </div>
-            <p id="password-match-msg" class="text-[10px] font-black uppercase tracking-tighter ml-1 hidden"></p>
+        <div class="space-y-1.5">
+          <label for="signup-email" class="block text-xs font-extrabold text-dark dark:text-slate-300 ml-1 uppercase tracking-wider">
+            Email Address
+          </label>
+          <div class="relative input-wrap">
+            <i data-lucide="mail" class="input-icon pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 transition-colors" aria-hidden="true"></i>
+            <input type="email" id="signup-email" autocomplete="email" class="auth-input pl-12" placeholder="teacher@school.edu" required>
           </div>
         </div>
 
-        <div id="signup-message" class="hidden p-3 rounded-xl border-4 border-dark text-sm font-bold text-center"></div>
-        <button type="button" onclick="handleSignUp()" data-icon="user-plus"
-          class="btn-chunky w-full py-3.5 rounded-2xl bg-green text-white font-heading text-lg uppercase tracking-wide flex items-center justify-center gap-2">
-          <span>Create Account</span> <i data-lucide="user-plus" class="w-5 h-5"></i>
+        <div class="space-y-2">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-3">
+            <div class="space-y-1.5">
+              <label for="signup-password" class="block text-xs font-extrabold text-dark dark:text-slate-300 ml-1 uppercase tracking-wider">
+                Password
+              </label>
+              <div class="relative input-wrap">
+                <i data-lucide="lock" class="input-icon pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 transition-colors" aria-hidden="true"></i>
+                <input type="password" id="signup-password" autocomplete="new-password" class="auth-input pl-12 pr-12" placeholder="••••••••" required
+                  minlength="6" oninput="checkPasswordMatch()">
+                <button type="button" onclick="togglePasswordVisibility('signup-password', this)"
+                  aria-label="Show password" aria-pressed="false"
+                  class="pw-toggle absolute right-3 top-1/2 -translate-y-1/2 w-9 h-9 flex items-center justify-center rounded-full text-slate-400 hover:text-green dark:hover:text-green transition-colors">
+                  <i data-lucide="eye-off" class="w-5 h-5" aria-hidden="true"></i>
+                </button>
+              </div>
+            </div>
+
+            <div class="space-y-1.5">
+              <label for="signup-confirm" class="block text-xs font-extrabold text-dark dark:text-slate-300 ml-1 uppercase tracking-wider">
+                Confirm
+              </label>
+              <div class="relative input-wrap">
+                <i data-lucide="shield-check" class="input-icon pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 transition-colors" aria-hidden="true"></i>
+                <input type="password" id="signup-confirm" autocomplete="new-password" class="auth-input pl-12 pr-12" placeholder="••••••••" required
+                  minlength="6" oninput="checkPasswordMatch()">
+                <button type="button" onclick="togglePasswordVisibility('signup-confirm', this)"
+                  aria-label="Show password" aria-pressed="false"
+                  class="pw-toggle absolute right-3 top-1/2 -translate-y-1/2 w-9 h-9 flex items-center justify-center rounded-full text-slate-400 hover:text-green dark:hover:text-green transition-colors">
+                  <i data-lucide="eye-off" class="w-5 h-5" aria-hidden="true"></i>
+                </button>
+              </div>
+            </div>
+          </div>
+          <p id="password-match-msg" class="hidden items-center gap-1.5 text-xs font-extrabold ml-1"></p>
+        </div>
+
+        <div id="signup-message" role="alert" aria-live="polite" class="hidden"></div>
+
+        <button type="submit" data-icon="user-plus"
+          class="btn-chunky w-full py-3.5 rounded-2xl bg-green text-white font-heading font-bold text-lg uppercase tracking-wider flex items-center justify-center gap-2">
+          <span class="btn-label">Create Account</span>
+          <span class="btn-icon inline-flex items-center justify-center">
+            <i data-lucide="user-plus" class="w-5 h-5" aria-hidden="true"></i>
+          </span>
         </button>
       </form>
     </div>
 
-    <div id="content-forgot" class="tab-content">
-      <div class="mb-4">
+    <div id="content-forgot" role="tabpanel" class="tab-content">
+      <div class="flex items-center justify-between mb-3">
         <button type="button" onclick="switchTab('signin')"
-          class="inline-flex items-center text-xs font-black text-slate-400 hover:text-dark dark:hover:text-white uppercase tracking-tighter transition-colors">
-          <i data-lucide="arrow-left" class="w-3 h-3 mr-1"></i> Back to Sign In
+          class="link-focus inline-flex items-center gap-1.5 text-xs font-extrabold text-slate-500 dark:text-slate-400 hover:text-dark dark:hover:text-white uppercase tracking-wide transition-colors">
+          <i data-lucide="arrow-left" class="w-3.5 h-3.5" aria-hidden="true"></i>
+          <span>Back to Sign In</span>
         </button>
       </div>
-      <form class="space-y-5" onsubmit="return false;">
+      <div class="mb-4">
+        <h2 class="font-heading text-xl font-bold text-dark dark:text-white uppercase tracking-tight">Reset Password</h2>
+        <p class="text-xs sm:text-sm font-semibold text-slate-500 dark:text-slate-400 mt-1">
+          Enter your email address and we'll send a password reset link.
+        </p>
+      </div>
+      <form class="space-y-4" novalidate onsubmit="event.preventDefault(); handleForgotPassword();">
         <div class="space-y-1.5">
-          <label class="block text-sm font-extrabold text-dark dark:text-slate-300 ml-1 uppercase tracking-wider">Reset
-            Email</label>
-          <div class="relative">
-            <i data-lucide="mail" class="absolute left-3.5 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400"></i>
-            <input type="email" id="forgot-email" class="auth-input pl-11" placeholder="teacher@school.edu" required>
+          <label for="forgot-email" class="block text-xs font-extrabold text-dark dark:text-slate-300 ml-1 uppercase tracking-wider">
+            Reset Email
+          </label>
+          <div class="relative input-wrap">
+            <i data-lucide="mail" class="input-icon pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 transition-colors" aria-hidden="true"></i>
+            <input type="email" id="forgot-email" autocomplete="email" class="auth-input pl-12" placeholder="teacher@school.edu" required>
           </div>
         </div>
-        <div id="forgot-message" class="hidden p-3 rounded-xl border-4 border-dark text-sm font-bold text-center"></div>
-        <button type="button" onclick="handleForgotPassword()" data-icon="send"
-          class="btn-chunky w-full py-3.5 rounded-2xl bg-orange text-white font-heading text-lg uppercase tracking-wide flex items-center justify-center gap-2">
-          <span>Send Reset Link</span> <i data-lucide="send" class="w-5 h-5"></i>
+
+        <div id="forgot-message" role="alert" aria-live="polite" class="hidden"></div>
+
+        <button type="submit" data-icon="send"
+          class="btn-chunky w-full py-3.5 rounded-2xl bg-orange text-white font-heading font-bold text-lg uppercase tracking-wider flex items-center justify-center gap-2">
+          <span class="btn-label">Send Reset Link</span>
+          <span class="btn-icon inline-flex items-center justify-center">
+            <i data-lucide="send" class="w-5 h-5" aria-hidden="true"></i>
+          </span>
         </button>
       </form>
     </div>
 
-    <div class="mt-8 text-center">
+    <div class="mt-7 pt-5 border-t-2 border-slate-200/80 dark:border-slate-700/80 text-center">
       <a href="./index.html?home=1"
-        class="group inline-flex items-center gap-2 text-sm font-extrabold text-slate-400 hover:text-blue transition-all">
-        <i data-lucide="chevron-left" class="w-4 h-4 transition-transform group-hover:-translate-x-1"></i>
+        class="link-focus group inline-flex items-center gap-2 text-sm font-extrabold text-slate-500 dark:text-slate-400 hover:text-blue dark:hover:text-blue transition-colors">
+        <i data-lucide="chevron-left" class="w-4 h-4 transition-transform group-hover:-translate-x-1" aria-hidden="true"></i>
         <span>Back to Home</span>
       </a>
     </div>
-  </div>
+  </main>
 
   <script>
-    // Initialize Lucide icons
-    lucide.createIcons();
+    function refreshIcons() {
+      if (window.lucide && typeof window.lucide.createIcons === 'function') {
+        window.lucide.createIcons();
+      }
+    }
+
+    function syncThemeToggleState() {
+      const btn = document.getElementById('theme-toggle');
+      if (btn) {
+        btn.setAttribute('aria-pressed', String(document.documentElement.classList.contains('dark')));
+      }
+    }
+
+    function toggleTheme() {
+      const isDark = document.documentElement.classList.toggle('dark');
+      localStorage.setItem('theme_hub', JSON.stringify(isDark ? 'dark' : 'light'));
+      syncThemeToggleState();
+    }
 
     function togglePasswordVisibility(inputId, btn) {
       const input = document.getElementById(inputId);
+      if (!input || !btn) return;
       const isVisible = input.type === 'text';
-      
+
       input.type = isVisible ? 'password' : 'text';
       const newIcon = isVisible ? 'eye-off' : 'eye';
-      
-      btn.innerHTML = `<i data-lucide="${newIcon}" class="w-5 h-5"></i>`;
-      lucide.createIcons();
+      btn.setAttribute('aria-label', isVisible ? 'Show password' : 'Hide password');
+      btn.setAttribute('aria-pressed', String(!isVisible));
+      btn.innerHTML = `<i data-lucide="${newIcon}" class="w-5 h-5" aria-hidden="true"></i>`;
+      refreshIcons();
     }
 
     function checkPasswordMatch() {
       const pass = document.getElementById('signup-password');
       const confirm = document.getElementById('signup-confirm');
       const msg = document.getElementById('password-match-msg');
-      
+      if (!pass || !confirm || !msg) return;
+
       if (!confirm.value) {
         confirm.classList.remove('input-match', 'input-mismatch');
-        msg.classList.add('hidden');
+        if (pass.value.length > 0 && pass.value.length < 6) {
+          msg.className = 'flex items-center gap-1.5 text-xs font-extrabold ml-1 text-slate-600 dark:text-slate-300';
+          if (msg.dataset.state !== 'hint') {
+            msg.dataset.state = 'hint';
+            msg.innerHTML = '<i data-lucide="alert-circle" class="w-3.5 h-3.5 shrink-0" aria-hidden="true"></i><span>Use at least 6 characters</span>';
+            refreshIcons();
+          }
+        } else {
+          msg.dataset.state = 'empty';
+          msg.className = 'hidden items-center gap-1.5 text-xs font-extrabold ml-1';
+          msg.textContent = '';
+        }
         return;
       }
-      
-      msg.classList.remove('hidden');
+
       if (pass.value === confirm.value) {
         confirm.classList.add('input-match');
         confirm.classList.remove('input-mismatch');
-        msg.textContent = 'Passwords match!';
-        msg.className = 'text-[10px] font-black uppercase tracking-tighter ml-1 text-green';
+        msg.className = 'flex items-center gap-1.5 text-xs font-extrabold ml-1 text-green-700 dark:text-green-300';
+        if (msg.dataset.state !== 'match') {
+          msg.dataset.state = 'match';
+          msg.innerHTML = '<i data-lucide="check-circle" class="w-3.5 h-3.5 shrink-0" aria-hidden="true"></i><span>Passwords match!</span>';
+          refreshIcons();
+        }
       } else {
         confirm.classList.add('input-mismatch');
         confirm.classList.remove('input-match');
-        msg.textContent = 'Passwords do not match';
-        msg.className = 'text-[10px] font-black uppercase tracking-tighter ml-1 text-pink';
+        msg.className = 'flex items-center gap-1.5 text-xs font-extrabold ml-1 text-pink-700 dark:text-pink-300';
+        if (msg.dataset.state !== 'mismatch') {
+          msg.dataset.state = 'mismatch';
+          msg.innerHTML = '<i data-lucide="alert-circle" class="w-3.5 h-3.5 shrink-0" aria-hidden="true"></i><span>Passwords do not match</span>';
+          refreshIcons();
+        }
       }
     }
 
-    // Theme sync with system/localStorage
-    window.addEventListener('DOMContentLoaded', () => {
-        const saved = localStorage.getItem('theme_hub');
-        if (saved === 'dark' || (!saved && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-            document.documentElement.classList.add('dark');
-        }
-    });
+    function hideMessage(elementId) {
+      const el = document.getElementById(elementId);
+      if (!el) return;
+      el.className = 'hidden';
+      el.textContent = '';
+    }
 
     function switchTab(tab) {
-      document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
-      document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+      if (tab !== 'signin' && tab !== 'signup' && tab !== 'forgot') return;
+
+      document.querySelectorAll('.tab-btn').forEach((btn) => {
+        btn.classList.remove('active');
+        btn.setAttribute('aria-selected', 'false');
+      });
+      document.querySelectorAll('.tab-content').forEach((content) => content.classList.remove('active'));
 
       const tabGroup = document.getElementById('auth-tabs');
+      const subtitle = document.getElementById('auth-subtitle');
+      const subtitles = {
+        signin: 'Personalize your learning journey',
+        signup: 'Create your free KlassKit account',
+        forgot: 'Recover access to your classroom'
+      };
+
       if (tab === 'forgot') {
-        tabGroup.classList.add('hidden'); // Hide the top tabs for forgot password mode
+        tabGroup.classList.add('hidden');
       } else {
         tabGroup.classList.remove('hidden');
-        document.getElementById('tab-' + tab).classList.add('active');
+        const activeTab = document.getElementById('tab-' + tab);
+        if (activeTab) {
+          activeTab.classList.add('active');
+          activeTab.setAttribute('aria-selected', 'true');
+        }
       }
 
-      document.getElementById('content-' + tab).classList.add('active');
+      if (subtitle && subtitles[tab]) {
+        subtitle.textContent = subtitles[tab];
+      }
+
+      hideMessage('signin-message');
+      hideMessage('signup-message');
+      hideMessage('forgot-message');
+
+      const panel = document.getElementById('content-' + tab);
+      if (panel) panel.classList.add('active');
     }
 
     function showMessage(elementId, text, isError) {
       const el = document.getElementById(elementId);
-      el.textContent = text;
-      el.classList.remove('hidden');
+      if (!el) return;
 
-      if (isError) {
-        el.className = 'p-3 rounded-xl border-[4px] border-dark bg-pink/10 text-pink text-sm font-bold text-center dark:border-slate-500';
-      } else {
-        el.className = 'p-3 rounded-xl border-[4px] border-dark bg-green/10 text-green text-sm font-bold text-center dark:border-slate-500';
-      }
+      el.className = isError
+        ? 'p-3.5 rounded-xl border-[3px] border-pink bg-pink/10 dark:bg-pink/15 text-pink-700 dark:text-pink-300 text-sm font-bold flex items-center justify-center gap-2 animate-shake'
+        : 'p-3.5 rounded-xl border-[3px] border-green bg-green/10 dark:bg-green/15 text-green-700 dark:text-green-300 text-sm font-bold flex items-center justify-center gap-2 animate-pop-in';
+
+      el.innerHTML = '';
+      const icon = document.createElement('i');
+      icon.setAttribute('data-lucide', isError ? 'alert-circle' : 'check-circle');
+      icon.className = 'w-4 h-4 shrink-0';
+      icon.setAttribute('aria-hidden', 'true');
+
+      const msgSpan = document.createElement('span');
+      msgSpan.textContent = text;
+
+      el.appendChild(icon);
+      el.appendChild(msgSpan);
+      refreshIcons();
     }
 
-    function humanizeError(msg) {
+    function humanizeError(err) {
+      const msg = typeof err === 'string' ? err : (err?.message || 'Something went wrong. Please try again.');
       const map = {
         'Invalid login credentials':
           'Wrong email or password. Try again!',
@@ -438,20 +753,23 @@
         'Password should be at least 6 characters':
           'Password must be at least 6 characters.',
       };
-      return map[msg] ?? msg; // fallback to raw if unmapped
+      return map[msg] ?? msg;
     }
 
     function setLoading(btn, loading, originalText) {
+      if (!btn) return;
       btn.disabled = loading;
-      const span = btn.querySelector('span');
-      const icon = btn.querySelector('[data-lucide]');
-      
-      if (span) span.textContent = loading ? 'Working...' : originalText;
-      if (icon) {
-        icon.setAttribute('data-lucide', loading ? 'loader-2' : btn.dataset.icon);
-        icon.className = loading ? 'w-5 h-5 animate-spin' : 'w-5 h-5';
+      btn.setAttribute('aria-busy', String(loading));
+
+      const label = btn.querySelector('.btn-label');
+      const iconWrap = btn.querySelector('.btn-icon');
+
+      if (label) label.textContent = loading ? 'Working...' : originalText;
+      if (iconWrap) {
+        const iconName = loading ? 'loader-2' : btn.dataset.icon;
+        iconWrap.innerHTML = `<i data-lucide="${iconName}" class="w-5 h-5${loading ? ' animate-spin' : ''}" aria-hidden="true"></i>`;
       }
-      lucide.createIcons();
+      refreshIcons();
     }
 
     async function handleSignIn() {
@@ -459,21 +777,37 @@
       const pass = document.getElementById('signin-password').value;
       const btn = document.querySelector('#content-signin .btn-chunky');
 
+      if (!btn || btn.disabled) return;
+      hideMessage('signin-message');
       if (!email || !pass) return showMessage('signin-message', 'Fill in all fields!', true);
 
       setLoading(btn, true, "Let's Go!");
-      const { data, error } = await signIn(email, pass);
+      try {
+        if (typeof signIn !== 'function') {
+          throw new Error('Authentication service unavailable. Please refresh and try again.');
+        }
+        const { error } = await signIn(email, pass);
 
-      if (error) {
+        if (error) {
+          setLoading(btn, false, "Let's Go!");
+          return showMessage('signin-message', humanizeError(error), true);
+        }
+
+        try {
+          if (typeof migrateLocalToCloud === 'function') {
+            await migrateLocalToCloud();
+          }
+        } catch (migrationError) {
+          console.warn('[Auth] Cloud migration skipped:', migrationError);
+        }
+
+        const dest = localStorage.getItem('after_login') || '/hub.html';
+        localStorage.removeItem('after_login');
+        window.location.href = dest;
+      } catch (err) {
         setLoading(btn, false, "Let's Go!");
-        return showMessage('signin-message', humanizeError(error.message), true);
+        showMessage('signin-message', humanizeError(err), true);
       }
-
-      // Successful login
-      await migrateLocalToCloud();
-      const dest = localStorage.getItem('after_login') || '/hub.html';
-      localStorage.removeItem('after_login');
-      window.location.href = dest;
     }
 
     async function handleSignUp() {
@@ -483,6 +817,8 @@
       const displayName = document.getElementById('signup-displayname').value.trim();
       const btn = document.querySelector('#content-signup .btn-chunky');
 
+      if (!btn || btn.disabled) return;
+      hideMessage('signup-message');
       if (!email || !pass || !displayName) return showMessage('signup-message', 'All fields required!', true);
       if (pass !== confirm) return showMessage('signup-message', 'Passwords do not match!', true);
       if (pass.length < 6) return showMessage('signup-message', 'Password too short!', true);
@@ -490,47 +826,62 @@
       localStorage.setItem('klasskit_pending_display_name', displayName);
 
       setLoading(btn, true, 'Create Account');
-      const { data, error } = await signUp(email, pass, displayName);
-      setLoading(btn, false, 'Create Account');
+      try {
+        if (typeof signUp !== 'function') {
+          throw new Error('Authentication service unavailable. Please refresh and try again.');
+        }
+        const { error } = await signUp(email, pass, displayName);
+        setLoading(btn, false, 'Create Account');
 
-      if (error) return showMessage('signup-message', humanizeError(error.message), true);
+        if (error) return showMessage('signup-message', humanizeError(error), true);
 
-      showMessage('signup-message', '✅ Check your email for a link!', false);
+        showMessage('signup-message', 'Check your email for a link!', false);
+      } catch (err) {
+        setLoading(btn, false, 'Create Account');
+        showMessage('signup-message', humanizeError(err), true);
+      }
     }
 
     async function handleForgotPassword() {
       const email = document.getElementById('forgot-email').value.trim();
       const btn = document.querySelector('#content-forgot .btn-chunky');
 
+      if (!btn || btn.disabled) return;
+      hideMessage('forgot-message');
       if (!email) return showMessage('forgot-message', 'Please enter your email!', true);
 
       setLoading(btn, true, 'Send Reset Link');
-      const { data, error } = await sendPasswordReset(email); // Make sure this function is in your supabase.js
-      setLoading(btn, false, 'Send Reset Link');
+      try {
+        if (typeof sendPasswordReset !== 'function') {
+          throw new Error('Authentication service unavailable. Please refresh and try again.');
+        }
+        const { error } = await sendPasswordReset(email);
+        setLoading(btn, false, 'Send Reset Link');
 
-      if (error) return showMessage('forgot-message', humanizeError(error.message), true);
+        if (error) return showMessage('forgot-message', humanizeError(error), true);
 
-      showMessage('forgot-message', '✅ Check your inbox for a reset link!', false);
+        showMessage('forgot-message', 'Check your inbox for a reset link!', false);
+      } catch (err) {
+        setLoading(btn, false, 'Send Reset Link');
+        showMessage('forgot-message', humanizeError(err), true);
+      }
     }
 
-    // Enter key support
-    document.querySelectorAll('input').forEach(input => {
-      input.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') {
-          if (input.closest('#content-signin')) handleSignIn();
-          else if (input.closest('#content-signup')) handleSignUp();
-          else if (input.closest('#content-forgot')) handleForgotPassword();
-        }
-      });
-    });
+    refreshIcons();
+    syncThemeToggleState();
+
+    const initialTab = new URLSearchParams(window.location.search).get('tab');
+    if (initialTab === 'signup' || initialTab === 'forgot') {
+      switchTab(initialTab);
+    }
 
     // Register Service Worker
     if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-            navigator.serviceWorker.register('./sw.js')
-                .then(reg => console.log('SW Registered!', reg))
-                .catch(err => console.log('SW Reg error:', err));
-        });
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js')
+          .then(reg => console.log('SW Registered!', reg))
+          .catch(err => console.log('SW Reg error:', err));
+      });
     }
   </script>
 </body>
