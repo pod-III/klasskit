@@ -2,181 +2,311 @@
 <html lang="en">
 
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Account Confirmed | KlassKit</title>
-    <link rel="icon" type="image/x-icon" href="../media/icon.ico" />
-    <link rel="icon" type="image/webp" href="../media/icon.webp" />
-    <link rel="apple-touch-icon" href="../media/icon-180.png" />
-    <link rel="manifest" href="../manifest.json">
-    <meta name="theme-color" content="#1ea7fd">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Account Confirmed | KlassKit</title>
+  <link rel="icon" type="image/x-icon" href="../media/icon.ico" />
+  <link rel="icon" type="image/webp" href="../media/icon.webp" />
+  <link rel="apple-touch-icon" href="../media/icon-180.png" />
+  <link rel="manifest" href="../manifest.json">
+  <meta name="theme-color" content="#1ea7fd">
 
-    <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.105.4"></script>
-    <script defer src="../supabase.js"></script>
-    <script src="https://unpkg.com/lucide@1.16.0"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.105.4"></script>
+  <script defer src="../supabase.js"></script>
+  <script src="https://unpkg.com/lucide@1.16.0"></script>
 
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@700&family=Nunito:wght@400;600;700;800&display=swap"
-        rel="stylesheet">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:wght@400;600;700;800&display=swap"
+    rel="stylesheet">
 
-    <link rel="stylesheet" href="../css/tailwind.generated.css">
-    <link rel="stylesheet" href="../css/base.css">
-    <style>
-        /* Glassmorphism Card */
-        .glass-card {
-            background: rgba(255, 255, 255, 0.8);
-            backdrop-filter: blur(16px);
-            -webkit-backdrop-filter: blur(16px);
-            border: 4px solid var(--border-primary, #111827);
-            box-shadow: 8px 8px 0px var(--border-primary, #111827);
-        }
+  <link rel="stylesheet" href="../css/tailwind.generated.css">
+  <link rel="stylesheet" href="../css/base.css">
+  <link rel="stylesheet" href="../css/api.css">
 
-        .dark .glass-card {
-            background: rgba(15, 23, 42, 0.8);
-            border-color: #334155;
-            box-shadow: 8px 8px 0px #000000;
-        }
-
-        /* Chunky Buttons */
-        .btn-chunky {
-            position: relative;
-            background: white;
-            border: 4px solid var(--border-primary, #111827);
-            box-shadow: 0 4px 0px var(--border-primary, #111827);
-            transition: all 0.15s cubic-bezier(0.2, 0.8, 0.2, 1);
-            cursor: pointer;
-        }
-
-        .btn-chunky:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 6px 0px var(--border-primary, #111827);
-        }
-
-        .btn-chunky:active {
-            transform: translateY(4px);
-            box-shadow: 0 0px 0px var(--border-primary, #111827);
-        }
-
-        .dark .btn-chunky {
-            border-color: #334155;
-            box-shadow: 0 4px 0px #000000;
-        }
-
-        .dark .btn-chunky:hover {
-            box-shadow: 0 6px 0px #000000;
-        }
-
-        .dark .btn-chunky:active {
-            box-shadow: 0 0px 0px #000000;
-        }
-
-        /* Animations */
-        @keyframes pop-in {
-            0% {
-                opacity: 0;
-                transform: scale(0.9) translateY(10px);
-            }
-
-            100% {
-                opacity: 1;
-                transform: scale(1) translateY(0);
-            }
-        }
-
-        .animate-pop-in {
-            animation: pop-in 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
-        }
-
-        @keyframes float {
-            0% { transform: translateY(0px) rotate(-3deg); }
-            50% { transform: translateY(-10px) rotate(3deg); }
-            100% { transform: translateY(0px) rotate(-3deg); }
-        }
-
-        .animate-float {
-            animation: float 4s ease-in-out infinite;
-        }
-    </style>
+  <script>
+    (function () {
+      const rawSaved = localStorage.getItem('theme_hub');
+      let saved = rawSaved;
+      try { saved = rawSaved ? JSON.parse(rawSaved) : null; } catch (e) {}
+      if (saved === 'dark' || (saved !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+        document.documentElement.classList.add('dark');
+      }
+    })();
+  </script>
 </head>
 
-<body class="min-h-screen flex items-center justify-center p-4 bg-[#f8fafc] dark:bg-[#020617]">
+<body class="min-h-screen flex items-center justify-center px-4 py-8 sm:p-6 bg-[#f8fafc] dark:bg-[#020617] selection:bg-green selection:text-white relative">
 
-    <div class="glass-card w-full max-w-md p-10 rounded-3xl animate-pop-in text-center">
-        <div class="relative mb-10">
-            <!-- Decorative dots/confetti -->
-            <div class="absolute -top-4 -left-4 w-6 h-6 bg-pink rounded-full animate-bounce"></div>
-            <div class="absolute -top-8 right-10 w-4 h-4 bg-orange rounded-full animate-pulse"></div>
-            <div class="absolute bottom-0 -right-4 w-8 h-8 bg-blue rounded-full animate-bounce" style="animation-delay: 0.5s"></div>
-            
-            <div class="w-24 h-24 bg-green rounded-3xl border-4 border-dark dark:border-slate-500 flex items-center justify-center mx-auto animate-float shadow-hard">
-                <i data-lucide="party-popper" class="w-12 h-12 text-white"></i>
-            </div>
-        </div>
-
-        <h1 class="font-heading text-4xl font-black text-dark dark:text-white uppercase tracking-tight leading-tight">
-            Account <br><span class="text-green">Confirmed!</span>
-        </h1>
-        
-        <p id="welcome-msg" class="text-slate-500 dark:text-slate-400 font-bold mt-4 text-lg">
-            Welcome to the KlassKit crew. Your account is officially active and ready for action!
-        </p>
-
-        <div class="mt-10 space-y-4">
-            <a href="../hub.html" class="btn-chunky w-full py-4 rounded-2xl bg-green text-white font-heading text-xl uppercase tracking-wide flex items-center justify-center gap-3">
-                <span>Go to Dashboard</span> <i data-lucide="layout-dashboard" class="w-6 h-6"></i>
-            </a>
-            
-            <a href="../index.html?home=1" class="inline-flex items-center text-sm font-black text-slate-400 hover:text-dark dark:hover:text-white uppercase tracking-tighter transition-colors py-2">
-                <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i> Back to Home
-            </a>
-        </div>
+  <main class="glass-card w-full max-w-[460px] p-6 sm:p-8 rounded-[2rem] animate-pop-in relative z-10 text-center">
+    <div class="flex items-center justify-between gap-3 mb-6">
+      <a href="../index.html?home=1" class="link-focus inline-flex items-center gap-2.5 text-left group">
+        <img src="../media/icon.webp" alt="KlassKit"
+          class="w-9 h-9 rounded-xl border-2 border-dark dark:border-slate-500 object-contain bg-white dark:bg-slate-800 p-0.5 shadow-hard-sm">
+        <span class="font-heading font-bold text-lg uppercase tracking-tight text-dark dark:text-white group-hover:text-blue transition-colors">
+          KlassKit
+        </span>
+      </a>
+      <button id="theme-toggle" type="button" onclick="toggleTheme()" aria-label="Toggle dark mode" aria-pressed="false" title="Toggle dark mode"
+        class="btn-chunky w-10 h-10 rounded-xl bg-white/90 dark:bg-slate-800/90 text-dark dark:text-yellow-400 flex items-center justify-center shrink-0">
+        <i data-lucide="moon" class="w-5 h-5 dark:hidden" aria-hidden="true"></i>
+        <i data-lucide="sun" class="w-5 h-5 hidden dark:block" aria-hidden="true"></i>
+      </button>
     </div>
 
-    <script>
-        // Initialize Lucide icons
-        lucide.createIcons();
+    <div class="relative inline-block mb-4">
+      <span class="absolute -top-1.5 -left-2 w-3.5 h-3.5 rounded-full bg-pink border-2 border-dark dark:border-slate-900" aria-hidden="true"></span>
+      <span class="absolute -bottom-1 -right-2 w-3 h-3 rounded-full bg-blue border-2 border-dark dark:border-slate-900" aria-hidden="true"></span>
+      <div id="confirm-icon-box"
+        class="w-20 h-20 bg-green rounded-2xl border-[3px] border-dark dark:border-slate-500 flex items-center justify-center mx-auto -rotate-3 hover:rotate-0 transition-transform shadow-hard dark:shadow-hard-dark">
+        <i data-lucide="party-popper" class="w-10 h-10 text-white" aria-hidden="true"></i>
+      </div>
+    </div>
 
-        // Theme sync with system/localStorage
-        window.addEventListener('DOMContentLoaded', () => {
-            const saved = localStorage.getItem('theme_hub');
-            if (saved === 'dark' || (!saved && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-                document.documentElement.classList.add('dark');
-            }
+    <div class="mb-3">
+      <span id="confirm-pill" class="api-status-pill bg-green/15 border-green text-green-700 dark:text-green-300">
+        Email Verified
+      </span>
+    </div>
 
-            // Greeting personalization
-            const pendingName = localStorage.getItem('klasskit_pending_display_name');
-            if (pendingName) {
-                document.getElementById('welcome-msg').innerHTML = `Hey <strong>${pendingName}</strong>, welcome to the crew! Your account is officially active and ready for action.`;
-                localStorage.removeItem('klasskit_pending_display_name');
-            }
-        });
+    <h1 id="confirm-title" class="font-heading text-3xl sm:text-4xl font-bold text-dark dark:text-white uppercase tracking-tight leading-tight">
+      Account Confirmed!
+    </h1>
 
-        // Optional: Handle hash fragments if redirecting from Supabase with a token
-        window.addEventListener('load', async () => {
-            const hash = new URLSearchParams(window.location.hash.substring(1));
-            const accessToken = hash.get('access_token');
-            const refreshToken = hash.get('refresh_token');
+    <p id="welcome-msg" class="text-slate-500 dark:text-slate-400 font-bold text-sm sm:text-base mt-2.5 leading-relaxed">
+      Welcome to the KlassKit crew. Your account is officially active and ready for class!
+    </p>
 
-            if (accessToken && window.db) {
-                // If there's a token, set the session automatically
-                await db.auth.setSession({
-                    access_token: accessToken,
-                    refresh_token: refreshToken
-                });
-                console.log("Session established from hash.");
-            }
-        });
+    <div id="session-status" role="status" aria-live="polite" class="hidden mt-4"></div>
 
-        // Register Service Worker
-        if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                navigator.serviceWorker.register('../sw.js')
-                    .then(reg => console.log('SW Registered!', reg))
-                    .catch(err => console.log('SW Reg error:', err));
-            });
+    <div class="mt-6 space-y-3">
+      <a id="primary-cta" href="../hub.html"
+        class="btn-chunky w-full py-3.5 rounded-2xl bg-green text-white font-heading font-bold text-lg uppercase tracking-wider flex items-center justify-center gap-2">
+        <span>Go to Dashboard</span>
+        <i data-lucide="layout-dashboard" class="w-5 h-5" aria-hidden="true"></i>
+      </a>
+
+      <a id="secondary-cta" href="../login.html"
+        class="btn-chunky w-full py-3 rounded-2xl bg-white dark:bg-slate-800 text-dark dark:text-white font-heading font-bold text-sm uppercase tracking-wider flex items-center justify-center gap-2">
+        <i data-lucide="log-in" class="w-4 h-4 text-blue" aria-hidden="true"></i>
+        <span>Sign In</span>
+      </a>
+    </div>
+
+    <div class="mt-7 pt-5 border-t-2 border-slate-200/80 dark:border-slate-700/80 text-center">
+      <a href="../index.html?home=1"
+        class="link-focus group inline-flex items-center gap-2 text-sm font-extrabold text-slate-500 dark:text-slate-400 hover:text-blue dark:hover:text-blue transition-colors">
+        <i data-lucide="arrow-left" class="w-4 h-4 transition-transform group-hover:-translate-x-1" aria-hidden="true"></i>
+        <span>Back to Home</span>
+      </a>
+    </div>
+  </main>
+
+  <script>
+    let personalized = false;
+
+    function refreshIcons() {
+      if (window.lucide && typeof window.lucide.createIcons === 'function') {
+        window.lucide.createIcons();
+      }
+    }
+
+    function syncThemeToggleState() {
+      const btn = document.getElementById('theme-toggle');
+      if (btn) {
+        btn.setAttribute('aria-pressed', String(document.documentElement.classList.contains('dark')));
+      }
+    }
+
+    function toggleTheme() {
+      const isDark = document.documentElement.classList.toggle('dark');
+      localStorage.setItem('theme_hub', JSON.stringify(isDark ? 'dark' : 'light'));
+      syncThemeToggleState();
+    }
+
+    function setPersonalWelcome(name) {
+      const cleanName = String(name || '').trim();
+      const welcomeEl = document.getElementById('welcome-msg');
+      if (!welcomeEl || !cleanName) return;
+
+      personalized = true;
+      welcomeEl.textContent = '';
+      welcomeEl.appendChild(document.createTextNode('Hey '));
+
+      const strong = document.createElement('strong');
+      strong.className = 'text-dark dark:text-white';
+      strong.textContent = cleanName;
+      welcomeEl.appendChild(strong);
+
+      welcomeEl.appendChild(document.createTextNode(', welcome to the KlassKit crew! Your account is officially active and ready for class.'));
+    }
+
+    function setSessionStatus(type, text) {
+      const el = document.getElementById('session-status');
+      if (!el) return;
+
+      const styles = {
+        success: 'mt-4 p-3 rounded-xl border-[3px] border-green bg-green/10 dark:bg-green/15 text-green-700 dark:text-green-300 text-xs sm:text-sm font-bold flex items-center justify-center gap-2',
+        info: 'mt-4 p-3 rounded-xl border-2 border-blue/40 bg-blue/10 dark:bg-blue/15 text-blue-700 dark:text-blue-300 text-xs sm:text-sm font-bold flex items-center justify-center gap-2',
+        error: 'mt-4 p-3 rounded-xl border-[3px] border-pink bg-pink/10 dark:bg-pink/15 text-pink-700 dark:text-pink-300 text-xs sm:text-sm font-bold flex items-center justify-center gap-2 animate-shake'
+      };
+      const icons = {
+        success: 'check-circle',
+        info: 'info',
+        error: 'alert-circle'
+      };
+
+      el.className = styles[type] || styles.info;
+      el.textContent = '';
+
+      const icon = document.createElement('i');
+      icon.setAttribute('data-lucide', icons[type] || 'info');
+      icon.className = 'w-4 h-4 shrink-0';
+      icon.setAttribute('aria-hidden', 'true');
+
+      const span = document.createElement('span');
+      span.textContent = text;
+
+      el.appendChild(icon);
+      el.appendChild(span);
+      refreshIcons();
+    }
+
+    function scrubAuthUrl() {
+      if (window.location.hash || window.location.search) {
+        window.history.replaceState({}, document.title, window.location.pathname);
+      }
+    }
+
+    function showErrorState(reason) {
+      const iconBox = document.getElementById('confirm-icon-box');
+      const pill = document.getElementById('confirm-pill');
+      const title = document.getElementById('confirm-title');
+      const welcome = document.getElementById('welcome-msg');
+      const status = document.getElementById('session-status');
+      const primaryCta = document.getElementById('primary-cta');
+      const secondaryCta = document.getElementById('secondary-cta');
+
+      if (iconBox) {
+        iconBox.className = 'w-20 h-20 bg-pink rounded-2xl border-[3px] border-dark dark:border-slate-500 flex items-center justify-center mx-auto -rotate-3 hover:rotate-0 transition-transform shadow-hard dark:shadow-hard-dark';
+        iconBox.innerHTML = '<i data-lucide="alert-triangle" class="w-10 h-10 text-white" aria-hidden="true"></i>';
+      }
+
+      if (pill) {
+        pill.className = 'api-status-pill bg-pink/15 border-pink text-pink-700 dark:text-pink-300';
+        pill.textContent = 'Verification Failed';
+      }
+
+      if (title) title.textContent = 'Link Expired';
+      if (welcome) welcome.textContent = reason;
+      if (status) {
+        status.className = 'hidden';
+        status.textContent = '';
+      }
+
+      if (primaryCta) {
+        primaryCta.href = '../login.html';
+        primaryCta.className = 'btn-chunky w-full py-3.5 rounded-2xl bg-blue text-white font-heading font-bold text-lg uppercase tracking-wider flex items-center justify-center gap-2';
+        primaryCta.innerHTML = '<span>Go to Sign In</span><i data-lucide="log-in" class="w-5 h-5" aria-hidden="true"></i>';
+      }
+
+      if (secondaryCta) {
+        secondaryCta.classList.remove('hidden');
+        secondaryCta.href = '../login.html?tab=signup';
+        secondaryCta.innerHTML = '<i data-lucide="user-plus" class="w-4 h-4 text-green" aria-hidden="true"></i><span>Sign Up Again</span>';
+      }
+
+      refreshIcons();
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      const pendingName = localStorage.getItem('klasskit_pending_display_name');
+      if (pendingName) {
+        setPersonalWelcome(pendingName);
+        localStorage.removeItem('klasskit_pending_display_name');
+      }
+    });
+
+    window.addEventListener('load', async () => {
+      const searchParams = new URLSearchParams(window.location.search);
+      const hashParams = new URLSearchParams(window.location.hash.substring(1));
+
+      const err = hashParams.get('error') || searchParams.get('error');
+      const errDesc = hashParams.get('error_description') || searchParams.get('error_description');
+      const errCode = hashParams.get('error_code') || searchParams.get('error_code');
+
+      if (err || errDesc || errCode) {
+        showErrorState(errDesc || 'This verification link is invalid or has expired. Please sign in or request a new link.');
+        scrubAuthUrl();
+        return;
+      }
+
+      const accessToken = hashParams.get('access_token') || searchParams.get('access_token');
+      const refreshToken = hashParams.get('refresh_token') || searchParams.get('refresh_token');
+      const code = searchParams.get('code');
+
+      try {
+        if (typeof db === 'undefined') {
+          setSessionStatus('info', 'Sign in with your verified email to open the Hub.');
+          scrubAuthUrl();
+          return;
         }
-    </script>
+
+        const { data: { session: existing } } = await db.auth.getSession();
+        let activeSession = existing || null;
+
+        if (!activeSession && accessToken && refreshToken) {
+          const { data, error } = await db.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken
+          });
+          if (error) {
+            showErrorState(error.message || 'Invalid or expired verification link. Please sign in again.');
+            scrubAuthUrl();
+            return;
+          }
+          activeSession = data?.session || null;
+        } else if (!activeSession && code && typeof db.auth.exchangeCodeForSession === 'function') {
+          const { data, error } = await db.auth.exchangeCodeForSession(code);
+          if (error) {
+            showErrorState(error.message || 'Invalid or expired verification code. Please sign in again.');
+            scrubAuthUrl();
+            return;
+          }
+          activeSession = data?.session || null;
+        }
+
+        if (activeSession) {
+          setSessionStatus('success', "You're signed in and ready to go!");
+          if (!personalized && activeSession.user?.user_metadata?.display_name) {
+            setPersonalWelcome(activeSession.user.user_metadata.display_name);
+          }
+          const secondaryCta = document.getElementById('secondary-cta');
+          if (secondaryCta) secondaryCta.classList.add('hidden');
+        } else {
+          setSessionStatus('info', 'Sign in with your verified email to open the Hub.');
+        }
+
+        scrubAuthUrl();
+      } catch (errObj) {
+        console.warn('[Confirmation] Session check error:', errObj);
+        showErrorState('Could not complete verification automatically. Try signing in.');
+        scrubAuthUrl();
+      }
+    });
+
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('../sw.js')
+          .then(reg => console.log('SW Registered!', reg))
+          .catch(err => console.log('SW Reg error:', err));
+      });
+    }
+
+    refreshIcons();
+    syncThemeToggleState();
+  </script>
 </body>
 
 </html>
