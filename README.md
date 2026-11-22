@@ -1,11 +1,11 @@
 # 🍎 KlassKit: The Ultimate Classroom Command Center
 
-![Version](https://img.shields.io/badge/version-1.7.0-blue?style=for-the-badge)
-![Activities](https://img.shields.io/badge/activities-78%20Active-green?style=for-the-badge)
+![Version](https://img.shields.io/badge/version-1.7.1-blue?style=for-the-badge)
+![Activities](https://img.shields.io/badge/activities-76%20Active-green?style=for-the-badge)
 ![Status](https://img.shields.io/badge/status-Active%20Development-orange?style=for-the-badge)
 ![Aesthetic](https://img.shields.io/badge/aesthetic-Soft%20Brutalism-pink?style=for-the-badge)
 
-KlassKit is a curated, **no-build ecosystem of 78 active interactive tools, printables, and classroom games** (plus 15 modules in active development) built for ELT and modern classrooms. Tailored for students aged 3–18, it turns any browser into a fast, zero-installation teaching dashboard optimized for classroom projectors and 1366×768 Chromebooks.
+KlassKit is a curated, **no-build ecosystem of 76 active interactive tools, printables, and classroom games** (plus 17 modules in active development) built for ELT and modern classrooms. Tailored for students aged 3–18, it turns any browser into a fast, zero-installation teaching dashboard optimized for classroom projectors and 1366×768 Chromebooks.
 
 > **Explore the Hub:** [klasskit.fun](https://klasskit.fun)
 
@@ -79,7 +79,7 @@ Educational software should be as joyful as it is reliable. KlassKit follows a c
 
 ## 🧩 The KlassKit Library
 
-The catalog in `games.json` organizes **78 active modules** into five core zones, plus **15 Work in Progress** modules:
+The catalog in `games.json` organizes **76 active modules** into five core zones, plus **17 Work in Progress** modules:
 
 ### 🖨️ Printables (18)
 *Ready-to-print A4 worksheets, handouts, flashcards, and classroom puzzles.*
@@ -167,15 +167,13 @@ The catalog in `games.json` organizes **78 active modules** into five core zones
 | **Word Rush** | The Final Countdown Race |
 | **Word Sort** | Strategic Categorization Battle |
 
-### 🛠️ Classroom Workshop (5)
-*Utilities for prepping texts, visuals, and student feedback.*
+### 🛠️ Classroom Workshop (3)
+*Utilities for prepping texts, visuals, and lesson materials.*
 
 | Tool | Description |
 |:--- |:--- |
 | **Text Workshop** | Pro Text Processing Suite |
 | **Image Workshop** | Advanced Image Utility Lab |
-| **PU Helper** | Progress Update Comment Engine |
-| **Report Helper** | Full Report Comment Architect |
 | **Lesson Extractor** | Smart Lesson Content Parser |
 
 ### 🏡 My Space (5 — Pro / Admin)
@@ -189,7 +187,7 @@ The catalog in `games.json` organizes **78 active modules** into five core zones
 | **My Class** | Advanced Classroom Manager |
 | **My Admin** | Strategic Admin & Planning Hub |
 
-### 🚧 Work in Progress (15)
+### 🚧 Work in Progress (17)
 *Early-access prototypes and tools currently being refined or rebuilt.*
 
 | App | Description |
@@ -205,10 +203,12 @@ The catalog in `games.json` organizes **78 active modules** into five core zones
 | **Observation Form** | Classroom Observation Form |
 | **Poster Display** | High-Impact Visual Gallery |
 | **Random Card Shuffle** | Random Card Shuffler |
+| **Report Helper** | Full Report Comment Architect |
 | **Sentence Hangman** | Sentence Hangman Game |
 | **Skill Tracker** | Student Skill Tracker |
 | **Teacher Library** | Teacher's Resource Library |
 | **Tense Diver** | Grammar Tense Exploration |
+| **Update Helper** | Progress Update Comment Studio & Student Tracker |
 
 ---
 
@@ -232,7 +232,7 @@ klasskit/
 ├── hub.html                # Main activity hub & workspace shell
 ├── login.html              # Authentication gateway (OAuth, Email, Sandbox)
 ├── 404.html                # Custom fallback page
-├── games.json              # Central catalog registry (93 entries, 78 active)
+├── games.json              # Central catalog registry (93 entries, 76 active)
 ├── manifest.json           # PWA manifest
 ├── sw.js                   # Service Worker for offline caching
 ├── supabase.js             # Supabase client, auth helpers, and role guards
@@ -247,9 +247,9 @@ klasskit/
 │   ├── printables/         # A4 printable generators & word puzzle makers (18)
 │   ├── tools/              # Live teaching tools & classroom utilities (17)
 │   ├── games/              # Interactive classroom games (33)
-│   ├── workshop/           # Text, image, lesson parser, & report utilities (5)
+│   ├── workshop/           # Text, image, & lesson parser utilities (3)
 │   ├── my-space/           # Teacher productivity suite (5, Pro/Admin)
-│   └── wip/                # Early-access prototypes & rebuilds (15)
+│   └── wip/                # Early-access prototypes & rebuilds (17)
 │
 ├── components/             # Shared UI modules (app-bootstrap, bulk-import-modal, input-modal, media-manager)
 ├── css/                    # Global stylesheets (tailwind.input, tailwind.generated, base, components, home, side-panel)
@@ -305,7 +305,7 @@ npx playwright test
 Use the built-in version bumper to keep version numbers synchronized across `games.json`, `README.md`, `sw.js`, and `package.json`:
 
 ```bash
-node bump.js 1.7.0
+node bump.js 1.7.1
 ```
 
 ### Contributing a New Activity
@@ -320,4 +320,4 @@ node bump.js 1.7.0
 Built with ❤️ by **Fahrul Ahyan**.
 KlassKit is a passion project dedicated to teachers everywhere. It is, and always will be, **100% Free**.
 
-*Current Version: 1.7.0 — Active Development.*
+*Current Version: 1.7.1 — Active Development.*
