@@ -95,6 +95,9 @@ self.addEventListener('fetch', (event) => {
   // We don't want to cache database responses here as they are handled by the app's sync logic.
   if (url.hostname.includes('supabase.co')) return;
 
+  // Network-Only for Cloudflare Web Analytics (beacon script + RUM reports)
+  if (url.hostname.includes('cloudflareinsights.com')) return;
+
   // 3. Strategy: Stale-While-Revalidate for all other assets
   // This gives the fastest load time while keeping assets fresh in the background.
   event.respondWith(

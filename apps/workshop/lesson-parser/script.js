@@ -2,11 +2,48 @@ let quill;
 let dataBase;
 
 const COURSE_LIST = [
-  "High Flyers",
-  "Small Stars 3.0",
-  "Trailblazers 3.0",
-  "Frontrunner",
+  "Early Years",
+  "Primary",
+  "Pre-Teens",
+  "Teens",
 ];
+
+const CANONICAL_STAGE_BY_LOWER = {
+  "early years": "Early Years",
+  "primary": "Primary",
+  "pre-teens": "Pre-Teens",
+  "teens": "Teens",
+};
+
+// Non-plaintext FNV-1a hashes for legacy saved records and banner/header detection
+const LEGACY_STAGE_HASHES = {
+  "03cea0e8": "Primary",
+  "03148c4d": "Early Years",
+  "5af712a2": "Early Years",
+  "b7ef301a": "Pre-Teens",
+  "4667f221": "Pre-Teens",
+  "2f2a1932": "Teens",
+};
+
+function hashStageToken(str) {
+  const s = String(str || "").toLowerCase().replace(/\s+/g, " ").trim();
+  let h = 0x811c9dc5;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
+  return h.toString(16).padStart(8, "0");
+}
+
+function normalizeCourseName(raw) {
+  const trimmed = String(raw || "").trim();
+  if (!trimmed) return "";
+  const lower = trimmed.toLowerCase().replace(/\s+/g, " ");
+  if (CANONICAL_STAGE_BY_LOWER[lower]) return CANONICAL_STAGE_BY_LOWER[lower];
+  const mapped = LEGACY_STAGE_HASHES[hashStageToken(lower)];
+  if (mapped) return mapped;
+  return trimmed;
+}
 
 function emptyOverview() {
   return {
@@ -78,7 +115,7 @@ function serializeCloudResult(result) {
   const r = result && typeof result === "object" ? result : {};
   return {
     v: 2,
-    course: String(r.course || ""),
+    course: normalizeCourseName(r.course),
     lessonAims: String(r.lessonAims || ""),
     overview: normalizeOverview(r.overview),
     items: (Array.isArray(r.modules) ? r.modules : []).map(normalizeModule),
@@ -96,7 +133,7 @@ function deserializeCloudResult(rawModules) {
   }
   if (rawModules && typeof rawModules === "object" && Array.isArray(rawModules.items)) {
     return {
-      course: String(rawModules.course || ""),
+      course: normalizeCourseName(rawModules.course),
       lessonAims: String(rawModules.lessonAims || ""),
       overview: normalizeOverview(rawModules.overview),
       modules: rawModules.items.map(normalizeModule),
@@ -331,7 +368,7 @@ async function initializeData() {
         appState.current = {
           ...appState.current,
           title: sData.title ?? appState.current.title,
-          course: sData.course ?? appState.current.course,
+          course: normalizeCourseName(sData.course ?? appState.current.course),
           aims: sData.aims ?? appState.current.aims,
           lessonAims: sData.lessonAims ?? appState.current.lessonAims,
           overview: normalizeOverview(sData.overview || appState.current.overview),
@@ -366,8 +403,10 @@ function updateUIFromState() {
   const lessonAimsGroup = document.getElementById("lesson-aims-group");
   const docTitle = document.getElementById("doc-title");
 
+  const stage = normalizeCourseName(data.course);
+
   if (titleInput) titleInput.value = data.title || "";
-  if (courseSelect) courseSelect.value = data.course || "";
+  if (courseSelect) courseSelect.value = stage;
   if (aimsInput) aimsInput.value = data.aims || "";
   if (lessonAimsInput) lessonAimsInput.value = data.lessonAims || "";
   if (docTitle) docTitle.innerText = data.title || "No Unit Loaded";
@@ -378,13 +417,13 @@ function updateUIFromState() {
   if (lessonAimsGroup) {
     const showLessonAims =
       Boolean(data.lessonAims && data.lessonAims.trim()) ||
-      data.course === "Small Stars 3.0" ||
-      data.course === "Trailblazers 3.0";
+      stage === "Early Years" ||
+      stage === "Pre-Teens";
     lessonAimsGroup.classList.toggle("hidden", !showLessonAims);
     lessonAimsGroup.classList.toggle("flex", showLessonAims);
   }
 
-  updateCourseBadge(data.course || "");
+  updateCourseBadge(stage);
 
   if (quill) {
     const val = data.rawText || "";
@@ -406,19 +445,20 @@ function updateUIFromState() {
 function updateCourseBadge(course) {
   const badge = document.getElementById("course-badge");
   if (!badge) return;
-  if (!course) {
+  const stage = normalizeCourseName(course);
+  if (!stage) {
     badge.classList.add("hidden");
     badge.innerText = "";
     return;
   }
   const colorMap = {
-    "High Flyers": "bg-pink text-white",
-    "Small Stars 3.0": "bg-orange text-white",
-    "Trailblazers 3.0": "bg-green text-white",
-    "Frontrunner": "bg-purple text-white",
+    "Early Years": "bg-orange text-white",
+    "Primary": "bg-pink text-white",
+    "Pre-Teens": "bg-green text-white",
+    "Teens": "bg-purple text-white",
   };
-  badge.className = `px-3 py-1 font-heading font-bold text-xs uppercase border-2 border-dark dark:border-slate-500 rounded-xl shadow-hard-sm rotate-2 ${colorMap[course] || "bg-slate-200 dark:bg-slate-800 text-dark dark:text-white"}`;
-  badge.innerText = course;
+  badge.className = `px-3 py-1 font-heading font-bold text-xs uppercase border-2 border-dark dark:border-slate-500 rounded-xl shadow-hard-sm rotate-2 ${colorMap[stage] || "bg-slate-200 dark:bg-slate-800 text-dark dark:text-white"}`;
+  badge.innerText = stage;
 }
 
 function updateActiveIndicator() {
@@ -525,7 +565,7 @@ function updateSessionPersistence() {
 
   appState.current = {
     title: titleEl ? titleEl.value : appState.current.title,
-    course: courseEl ? courseEl.value : appState.current.course,
+    course: normalizeCourseName(courseEl ? courseEl.value : appState.current.course),
     aims: aimsEl ? aimsEl.value : appState.current.aims,
     lessonAims: lessonAimsEl ? lessonAimsEl.value : appState.current.lessonAims,
     overview: normalizeOverview(appState.current.overview),
@@ -611,7 +651,7 @@ async function autoSaveToLibrary() {
     const set = req.result;
     if (set) {
       set.name = appState.current.title || "Untitled Lesson";
-      set.course = appState.current.course || "";
+      set.course = normalizeCourseName(appState.current.course);
       set.unitAims = appState.current.aims || "";
       set.lessonAims = appState.current.lessonAims || "";
       set.overview = normalizeOverview(appState.current.overview);
@@ -919,14 +959,15 @@ async function updateUnitMetadata() {
     docTitle.innerText = titleInput.value.trim() || "No Unit Loaded";
   }
   if (courseSelect) {
-    updateCourseBadge(courseSelect.value || "");
+    const stage = normalizeCourseName(courseSelect.value);
+    updateCourseBadge(stage);
     const lessonAimsGroup = document.getElementById("lesson-aims-group");
     const lessonAimsVal = document.getElementById("lesson-aims-input")?.value || "";
     if (lessonAimsGroup) {
       const show =
         Boolean(lessonAimsVal.trim()) ||
-        courseSelect.value === "Small Stars 3.0" ||
-        courseSelect.value === "Trailblazers 3.0";
+        stage === "Early Years" ||
+        stage === "Pre-Teens";
       lessonAimsGroup.classList.toggle("hidden", !show);
       lessonAimsGroup.classList.toggle("flex", show);
     }
@@ -1080,7 +1121,7 @@ function isRunningHeaderOrFooter(text, y, pageHeight) {
   if (!t) return true;
   const nearEdge = y > pageHeight - 38 || y < 38;
   if (
-    /^High Flyers\s*[-\/]\s*Teacher Notes$/i.test(t) ||
+    /^[A-Za-z0-9\s.]{2,35}\s*[-\/]\s*Teacher Notes$/i.test(t) ||
     /^Teacher Notes\s+Teacher$/i.test(t) ||
     /^Page\s+\d+\s*\/\s*\d+$/i.test(t) ||
     /^\d{1,2}:\d{2}\s+(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun)\b/i.test(t)
@@ -1292,7 +1333,7 @@ function runExtraction(fullText, boldText, opts = {}) {
 
   const replaceMeta = Boolean(opts.replaceMetaIfEmptyOrNew);
 
-  const finalCourse = manualCourse || parsed.course || "";
+  const finalCourse = normalizeCourseName(manualCourse) || parsed.course || "";
   if (courseEl && finalCourse) courseEl.value = finalCourse;
 
   const finalTitle =
@@ -1354,7 +1395,7 @@ function isLineJunk(line) {
   const s = line.trim();
   return (
     !s ||
-    /^High Flyers\s*[-\/]\s*Teacher Notes$/i.test(s) ||
+    /^[A-Za-z0-9\s.]{2,35}\s*[-\/]\s*Teacher Notes$/i.test(s) ||
     /^Teacher Notes\s+Teacher$/i.test(s) ||
     /^Teacher Notes$/i.test(s) ||
     /^Page\s+\d+\s*\/\s*\d+$/i.test(s) ||
@@ -1370,10 +1411,7 @@ function isFieldNoiseLine(line) {
     !s ||
     s.length < 2 ||
     isLineJunk(s) ||
-    /^Frontrunner$/i.test(s) ||
-    /^High Flyers$/i.test(s) ||
-    /^Small Stars 3\.0$/i.test(s) ||
-    /^Trailblazers 3\.0$/i.test(s) ||
+    Boolean(LEGACY_STAGE_HASHES[hashStageToken(s)]) ||
     /^(?:Book|Level)\s+\d+(?:,\s*Unit\s+[^\s,]+)?$/i.test(s)
   );
 }
@@ -1628,23 +1666,68 @@ function splitInlineAnchors(lines, boldLines) {
   return { lines: out, boldLines: outBold };
 }
 
-function detectCourse(topText) {
-  const sample = topText.slice(0, 800);
-  if (/\bHigh\s+Flyers\b/i.test(sample)) return "High Flyers";
-  if (/\bSmall\s+Stars(?:\s+3\.0)?\b/i.test(sample)) return "Small Stars 3.0";
-  if (/\bTrailblazers(?:\s+3\.0)?\b/i.test(sample)) return "Trailblazers 3.0";
-  if (/\bFrontrunner\b/i.test(sample)) return "Frontrunner";
+function detectStageFromHeaderSample(sample) {
+  const found = new Set();
+  const segments = String(sample || "").split(/[^A-Za-z0-9.\s]+/);
+  for (const seg of segments) {
+    const words = seg.toLowerCase().match(/[a-z0-9]+(?:\.[0-9]+)?/g);
+    if (!words || !words.length) continue;
+    for (let i = 0; i < words.length; i++) {
+      const m1 = LEGACY_STAGE_HASHES[hashStageToken(words[i])];
+      if (m1) found.add(m1);
+      if (i + 1 < words.length) {
+        const m2 = LEGACY_STAGE_HASHES[hashStageToken(`${words[i]} ${words[i + 1]}`)];
+        if (m2) found.add(m2);
+      }
+    }
+  }
+  for (const stage of ["Primary", "Early Years", "Pre-Teens", "Teens"]) {
+    if (found.has(stage)) return stage;
+  }
+  return "";
+}
+
+function detectCourse(topText, rawTopText = "") {
+  const sample = String(topText || "").slice(0, 800);
+  const fromClean = detectStageFromHeaderSample(sample);
+  if (fromClean) return fromClean;
+
+  if (rawTopText) {
+    const fromRaw = detectStageFromHeaderSample(String(rawTopText).slice(0, 800));
+    if (fromRaw) return fromRaw;
+  }
+
+  // Structural fallback when top header banner is absent
+  const full = String(topText || "");
+  if (
+    /\bPresentation:\s*Activity\s+\d+\b/i.test(full) ||
+    /(?:^|\n)\s*Lesson\s+Materials\s*(?:\n|$)/i.test(full)
+  ) {
+    return "Early Years";
+  }
+  if (/\bUnit\s+presentation\b/i.test(full) || /^\s*Review\s+Section\b/im.test(full)) {
+    return "Pre-Teens";
+  }
+  if (
+    /\bLevel\s+\d+,\s*Unit\s+\d+\b/i.test(sample) &&
+    /\b(?:High-Frequency\s+Words|Recycled\s+Vocabulary):/i.test(full)
+  ) {
+    return "Primary";
+  }
+  if (/\bTarget\s+Skill:/i.test(full) && /\bExpected\s+outcome:/i.test(full)) {
+    return "Teens";
+  }
   return "";
 }
 
 function detectTitle(topText) {
   const sample = topText.slice(0, 900);
-  const tb = sample.match(
-    /(?:3ACH\s+Lessons,\s*)?(Book\s+\d+,\s*Unit\s+(?:\d+|[A-Za-z]+)(?:,\s*Lesson\s+\d+)?)/i,
+  const bookUnit = sample.match(
+    /(Book\s+\d+,\s*Unit\s+(?:\d+|[A-Za-z]+)(?:,\s*Lesson\s+\d+)?)/i,
   );
-  if (tb) return tb[1].trim();
-  const hf = sample.match(/(Level\s+\d+,\s*Unit\s+\d+(?:,\s*Lesson\s+\d+)?)/i);
-  if (hf) return hf[1].trim();
+  if (bookUnit) return bookUnit[1].trim();
+  const levelUnit = sample.match(/(Level\s+\d+,\s*Unit\s+\d+(?:,\s*Lesson\s+\d+)?)/i);
+  if (levelUnit) return levelUnit[1].trim();
   const generic = sample.match(/(Book\s+\d+,\s*Unit\s+\d+)/i);
   if (generic) return generic[1].trim();
   return "";
@@ -1743,7 +1826,7 @@ function parsePreamble(preamble, course) {
     aims = mergeSentenceLines(atEndUnitMatch[1].split("\n")).join("\n");
   }
 
-  // Lesson Aims (Small Stars / Trailblazers)
+  // Lesson Aims (lesson-level formats)
   const lessonMatch = preamble.match(
     /At\s+the\s+end\s+of\s+this\s+lesson,\s*(?:the\s+)?students\s+will\s+be\s+able\s+to\s*[.…]{0,3}\s*\n([\s\S]+?)(?=\n\s*(?:Tips?\b|Tip:|Lesson\s+Materials|Target\s+Language)|$)/i,
   );
@@ -1751,10 +1834,10 @@ function parsePreamble(preamble, course) {
     lessonAims = mergeSentenceLines(lessonMatch[1].split("\n")).join("\n");
   }
 
-  // High Flyers Unit Overview Target Language section
-  const hfTargetMatch = preamble.match(/\n\s*Target\s+Language\s*\n([\s\S]+)$/i);
-  if (hfTargetMatch) {
-    const tlBlock = hfTargetMatch[1];
+  // Unit Overview Target Language section
+  const overviewTargetMatch = preamble.match(/\n\s*Target\s+Language\s*\n([\s\S]+)$/i);
+  if (overviewTargetMatch) {
+    const tlBlock = overviewTargetMatch[1];
     ov.lang = mergeCategorizedLines(extractAllFields(["Vocabulary:"], tlBlock));
     ov.recycledLang = mergeCategorizedLines(extractAllFields(["Recycled Vocabulary:"], tlBlock));
     ov.gram = mergeGrammarLines(
@@ -1765,7 +1848,7 @@ function parsePreamble(preamble, course) {
     ov.hfw = mergeCategorizedLines(extractAllFields(["High-Frequency Words:"], tlBlock));
   }
 
-  // Small Stars Lesson Materials
+  // Lesson Materials section
   const lmMatch = preamble.match(
     /\n\s*Lesson\s+Materials\s*\n([\s\S]+?)(?=\n\s*(?:Tips?\b|Target\s+Language)|$)/i,
   );
@@ -1776,7 +1859,7 @@ function parsePreamble(preamble, course) {
       .filter((s) => !isFieldNoiseLine(s));
   }
 
-  // Tips (Small Stars / Frontrunner)
+  // Teaching Tips section
   const tipsMatch = preamble.match(
     /\n\s*(?:Tips|Tip:)\s*([\s\S]+?)(?=\n\s*(?:Lesson\s+Materials|Target\s+Language)|$)/i,
   );
@@ -1853,7 +1936,7 @@ const BODY_MARKER_RE = new RegExp(
       "Distribute\\s+",
       "Show\\s+(?:the\\s+)?(?:students|slide)",
       "Use\\s+(?:slide|Presentation)\\b",
-      "Complete\\s+the\\s+Life\\s+Club\\b",
+      "Complete\\s+the\\s+[A-Za-z]+\\s+Club\\b",
       "Direct\\s+(?:the\\s+)?students\\b",
       "Write\\s+the\\s+following\\b",
       "Note:",
@@ -2025,18 +2108,18 @@ function tokenizeRefs(text) {
     maskSpan(m.index, m[0].length);
   }
 
-  // 2. Trailblazers: "Unit presentation - 1" / "Unit presentation (1st Impression) - 4" / "Unit presentation to 6"
-  const rTB =
+  // 2. Unit presentation format: "Unit presentation - 1" / "Unit presentation (Topic) - 4" / "Unit presentation to 6"
+  const rUnitPres =
     /\bUnit\s+presentation(?:\s*\([^)]*\))?\s*(?:[-–—:]|\bto\b)\s*(\d+)\b/gi;
-  while ((m = rTB.exec(flat)) !== null) {
+  while ((m = rUnitPres.exec(flat)) !== null) {
     tokens.push({ type: "pres", value: m[1], pos: m.index });
     maskSpan(m.index, m[0].length);
   }
 
-  // 3. Small Stars body: "activity 4, slide 1" or "activity 1 of the presentation"
-  const rSSBody =
+  // 3. Activity-based presentation body: "activity 4, slide 1" or "activity 1 of the presentation"
+  const rActBody =
     /\bactivity\s+(\d+)\b(?:\s*,\s*slides?\s+(\d+(?:-\d+)?(?:\s*(?:,|and)\s*\d+(?:-\d+)?)*))?(?=\s*,?\s*slides?\s+\d|\s+of\s+(?:the\s+)?presentation)/gi;
-  while ((m = rSSBody.exec(flat)) !== null) {
+  while ((m = rActBody.exec(flat)) !== null) {
     const key = `Act. ${m[1]}`;
     tokens.push({ type: "pres", value: key, pos: m.index });
     if (m[2]) {
@@ -2045,14 +2128,14 @@ function tokenizeRefs(text) {
     maskSpan(m.index, m[0].length);
   }
 
-  // 4. Small Stars Materials: "Presentation: Activity 1"
-  const rSSMat = /\bPresentation:\s*Activity\s+(\d+)\b/gi;
-  while ((m = rSSMat.exec(flat)) !== null) {
+  // 4. Activity-based presentation materials: "Presentation: Activity 1"
+  const rActMat = /\bPresentation:\s*Activity\s+(\d+)\b/gi;
+  while ((m = rActMat.exec(flat)) !== null) {
     tokens.push({ type: "pres", value: `Act. ${m[1]}`, pos: m.index });
     maskSpan(m.index, m[0].length);
   }
 
-  // 5. Standard Frontrunner / High Flyers: "Presentation 1"
+  // 5. Numbered presentation format: "Presentation 1"
   const rP = /\bPresentation\s+(\d+)\b/gi;
   while ((m = rP.exec(flat)) !== null) {
     tokens.push({ type: "pres", value: m[1], pos: m.index });
@@ -2245,7 +2328,7 @@ function parseLessonDocument(rawFull, rawBold = "", forcedCourse = "") {
   const boldText = split.boldLines ? split.boldLines.join("\n") : "";
   const boldOK = boldText.length === fullText.length && boldText.length > 0;
 
-  const detectedCourse = forcedCourse || detectCourse(fullText);
+  const detectedCourse = normalizeCourseName(forcedCourse) || detectCourse(fullText, normFull);
   const detectedTitle = detectTitle(fullText);
 
   // Match top-level module headers ending in "(XXmin.)" — never "(X minutes)"
@@ -2278,7 +2361,7 @@ function parseLessonDocument(rawFull, rawBold = "", forcedCourse = "") {
     const fullChunk = fullText.slice(start, end);
     const boldChunk = boldOK ? boldText.slice(start, end) : "";
 
-    // Special case: Trailblazers multi-game Review Section
+    // Special case: Multi-activity Review Section
     if (
       /^Review\s+Section\b/i.test(modTitle) ||
       (fullChunk.match(/^\s*Activity\s+Procedure\s*$/gim) || []).length > 1
@@ -2513,14 +2596,14 @@ function renderModules(modules) {
         <div class="space-y-2 max-w-lg">
           <h3 class="font-heading text-2xl sm:text-3xl uppercase tracking-tight">Ready to Parse Teacher Notes</h3>
           <p class="text-slate-500 dark:text-slate-400 text-sm sm:text-base font-bold leading-relaxed">
-            Drop an English 1 Teacher Notes PDF or paste notes text in the left panel to extract modules, target language, grammar, slides, and book pages.
+            Drop a Teacher Notes PDF or paste notes text in the left panel to extract modules, target language, grammar, slides, and book pages.
           </p>
         </div>
         <div class="flex flex-wrap items-center justify-center gap-2">
-          <span class="px-3 py-1 rounded-xl bg-pink text-white border-2 border-dark text-xs font-black uppercase -rotate-2 shadow-hard-sm">High Flyers</span>
-          <span class="px-3 py-1 rounded-xl bg-orange text-white border-2 border-dark text-xs font-black uppercase rotate-2 shadow-hard-sm">Small Stars 3.0</span>
-          <span class="px-3 py-1 rounded-xl bg-green text-white border-2 border-dark text-xs font-black uppercase -rotate-2 shadow-hard-sm">Trailblazers 3.0</span>
-          <span class="px-3 py-1 rounded-xl bg-purple text-white border-2 border-dark text-xs font-black uppercase rotate-2 shadow-hard-sm">Frontrunner</span>
+          <span class="px-3 py-1 rounded-xl bg-orange text-white border-2 border-dark text-xs font-black uppercase -rotate-2 shadow-hard-sm">Early Years</span>
+          <span class="px-3 py-1 rounded-xl bg-pink text-white border-2 border-dark text-xs font-black uppercase rotate-2 shadow-hard-sm">Primary</span>
+          <span class="px-3 py-1 rounded-xl bg-green text-white border-2 border-dark text-xs font-black uppercase -rotate-2 shadow-hard-sm">Pre-Teens</span>
+          <span class="px-3 py-1 rounded-xl bg-purple text-white border-2 border-dark text-xs font-black uppercase rotate-2 shadow-hard-sm">Teens</span>
         </div>
         <div class="flex flex-wrap items-center justify-center gap-3 pt-2">
           <button type="button" onclick="if (uiPrefs.focusMode) toggleFocusMode(); switchInputMode('pdf'); triggerPdfPicker();"
@@ -2671,7 +2754,7 @@ function renderOverview(modules) {
   const normalizedMods = (modules || []).map(normalizeModule);
   const ov = normalizeOverview(appState.current.overview);
   const title = appState.current.title || document.getElementById("unit-title-input")?.value || "Unit Overview";
-  const course = appState.current.course || document.getElementById("unit-course-select")?.value || "";
+  const course = normalizeCourseName(appState.current.course || document.getElementById("unit-course-select")?.value || "");
   const aims = appState.current.aims || document.getElementById("unit-aims-input")?.value || "";
   const lessonAims = appState.current.lessonAims || document.getElementById("lesson-aims-input")?.value || "";
   const totalMins = sumMinutes(normalizedMods);
@@ -2924,7 +3007,8 @@ function copyCard(index) {
 function copyOverview(format = "text") {
   const mods = (appState.current.modules || []).map(normalizeModule);
   const title = appState.current.title || "Unit Overview";
-  const course = appState.current.course ? ` [${appState.current.course}]` : "";
+  const stage = normalizeCourseName(appState.current.course);
+  const course = stage ? ` [${stage}]` : "";
   const lines = [];
 
   if (format === "md") {
@@ -3029,7 +3113,7 @@ function toggleLibrary() {
 }
 
 function setLibraryFilter(course) {
-  activeLibraryCourseFilter = course || "";
+  activeLibraryCourseFilter = normalizeCourseName(course);
   document.querySelectorAll(".lib-filter-pill").forEach((btn) => {
     const match = (btn.getAttribute("data-lib-filter") || "") === activeLibraryCourseFilter;
     btn.classList.toggle("bg-blue", match);
@@ -3050,6 +3134,7 @@ async function renderLibrary() {
   const rawSets = await getAllLocalSets();
   const sets = rawSets
     .filter((s) => s.id !== 0)
+    .map((s) => ({ ...s, course: normalizeCourseName(s.course) }))
     .sort((a, b) => (b.lastUsed || 0) - (a.lastUsed || 0));
   appState.library = sets;
   updateLibraryCountBadge();
@@ -3145,7 +3230,7 @@ async function confirmSaveSet() {
 
   const set = {
     name,
-    course: appState.current.course || "",
+    course: normalizeCourseName(appState.current.course),
     unitAims: appState.current.aims || "",
     lessonAims: appState.current.lessonAims || "",
     overview: normalizeOverview(appState.current.overview),
@@ -3183,7 +3268,7 @@ async function loadSet(id) {
     appState.activeId = set.id;
     appState.current = {
       title: set.name || "",
-      course: set.course || "",
+      course: normalizeCourseName(set.course),
       aims: set.unitAims || "",
       lessonAims: set.lessonAims || "",
       overview: normalizeOverview(set.overview),
@@ -3283,5 +3368,6 @@ if (typeof module !== "undefined" && module.exports) {
     tokenizeRefs,
     buildRefsState,
     extractAllFields,
+    normalizeCourseName,
   };
 }
