@@ -1,0 +1,2194 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Maze Handout Maker — KlassKit</title>
+    <link rel="icon" type="image/x-icon" href="../../../media/icon.ico" />
+    <link rel="icon" type="image/webp" href="../../../media/icon.webp" />
+
+    <!-- Apply saved theme before first paint (syncs with KlassKit Hub) -->
+    <script>
+        (function () {
+            function readTheme(key) {
+                try {
+                    var raw = localStorage.getItem(key);
+                    if (raw == null) return null;
+                    try { return JSON.parse(raw); } catch (e) { return raw; }
+                } catch (e) { return null; }
+            }
+            function syncTheme(changedKey) {
+                var isDark;
+                if (changedKey === 'theme_hub') {
+                    var hubVal = readTheme('theme_hub');
+                    isDark = hubVal ? hubVal === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
+                } else {
+                    var toolTheme = readTheme('theme_maze-maker') || readTheme('klasskit-theme');
+                    var hubTheme = readTheme('theme_hub');
+                    isDark = toolTheme
+                        ? toolTheme === 'dark'
+                        : hubTheme
+                            ? hubTheme === 'dark'
+                            : window.matchMedia('(prefers-color-scheme: dark)').matches;
+                }
+                document.documentElement.classList.toggle('dark', isDark);
+                var btn = document.getElementById('theme-btn');
+                if (btn) btn.setAttribute('aria-pressed', String(isDark));
+            }
+            syncTheme();
+            window.addEventListener('storage', function (e) {
+                if (e.key === 'theme_hub' || e.key === 'theme_maze-maker' || e.key === 'klasskit-theme') {
+                    syncTheme(e.key);
+                }
+            });
+        })();
+    </script>
+
+    <!-- Supabase Auth & Cloud Persistence -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.105.4"></script>
+    <script src="/supabase.js"></script>
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=JetBrains+Mono:wght@600;700&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet" />
+
+    <!-- Icons & Sound -->
+    <script src="https://unpkg.com/lucide@1.16.0"></script>
+    <script src="https://cdn.jsdelivr.net/npm/tone@14.8.49/build/Tone.js"></script>
+
+    <!-- Shared KlassKit Styles -->
+    <link rel="stylesheet" href="../../../css/tailwind.generated.css" />
+    <link rel="stylesheet" href="../../../css/base.css" />
+    <link rel="stylesheet" href="../../../css/components.css" />
+
+    <style>
+        :root {
+            --color-pink: #ff4785;
+            --color-orange: #ff7e33;
+            --color-green: #00d063;
+            --color-blue: #1ea7fd;
+            --line: #1e293b;
+            --ink: #1e293b;
+            --surface: #ffffff;
+            --muted: #64748b;
+            --shadow: #1e293b;
+            --dots: #cbd5e1;
+            --tile-bg: #ffffff;
+            --tile-ink: #1e293b;
+            --maze-wall: #1e293b;
+        }
+
+        .dark {
+            --line: #64748b;
+            --ink: #f8fafc;
+            --surface: #0f172a;
+            --muted: #94a3b8;
+            --shadow: #000000;
+            --dots: #334155;
+            --tile-bg: #1e293b;
+            --tile-ink: #f8fafc;
+            --maze-wall: #e2e8f0;
+        }
+
+        body {
+            font-family: 'Nunito', sans-serif;
+            overflow: hidden;
+            -webkit-tap-highlight-color: transparent;
+            user-select: none;
+        }
+
+        @media (max-width: 767px) {
+            body { padding-bottom: 0 !important; }
+        }
+
+        .game-console {
+            border: 6px solid #1e293b;
+            border-radius: 2rem;
+            box-shadow: 14px 14px 0px rgba(30, 41, 59, 0.15);
+        }
+
+        .dark .game-console {
+            border-color: #64748b;
+            box-shadow: 14px 14px 0px rgba(0, 0, 0, 0.45);
+        }
+
+        .canvas-dots {
+            background-image: radial-gradient(var(--dots) 1.8px, transparent 1.8px);
+            background-size: 24px 24px;
+        }
+
+        :where(.btn-chunky) {
+            transition: all 0.1s cubic-bezier(0.4, 0, 0.2, 1);
+            transform: translateY(0);
+            border: 3px solid var(--line);
+            box-shadow: 0 4px 0 var(--shadow);
+        }
+
+        .btn-chunky {
+            font-family: 'Fredoka', sans-serif;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+
+        .btn-chunky:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 0 var(--shadow);
+            filter: brightness(1.04);
+        }
+
+        .btn-chunky:active:not(:disabled) {
+            transform: translateY(4px);
+            box-shadow: 0 0 0 var(--shadow) !important;
+        }
+
+        .btn-chunky:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .btn-chunky:focus-visible,
+        input:focus-visible,
+        select:focus-visible,
+        textarea:focus-visible {
+            outline: 3px solid var(--color-blue);
+            outline-offset: 2px;
+        }
+
+        /* Segmented radio cards */
+        .seg { position: relative; display: block; }
+        .seg input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
+        .seg span {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.35rem;
+            padding: 0.5rem 0.4rem;
+            font-family: 'Nunito', sans-serif;
+            font-size: 10.5px;
+            font-weight: 800;
+            letter-spacing: 0.03em;
+            text-transform: uppercase;
+            color: #64748b;
+            background: var(--surface);
+            border: 2px solid var(--line);
+            border-radius: 0.75rem;
+            box-shadow: 2px 2px 0 var(--shadow);
+            transition: all 0.15s ease;
+        }
+        .dark .seg span { color: #94a3b8; }
+        .seg span.seg-col { flex-direction: column; gap: 0.25rem; padding: 0.6rem 0.3rem; }
+        .seg:hover input:not(:checked) + span { transform: translateY(-1px); color: var(--ink); }
+        .seg input:checked + span {
+            background: #1ea7fd;
+            color: #ffffff;
+            border-color: var(--line);
+            transform: translateY(2px);
+            box-shadow: 1px 1px 0 var(--shadow);
+        }
+
+        /* Target / Checkpoint pills */
+        .word-tag {
+            cursor: pointer;
+            padding: 5px 12px;
+            border-radius: 999px;
+            border: 2px solid #1e293b;
+            font-size: 0.8rem;
+            font-weight: 800;
+            transition: all 0.2s ease;
+            background: #ffffff;
+            color: #334155;
+            box-shadow: 2px 2px 0px #1e293b;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+        .dark .word-tag {
+            background: #1e293b;
+            color: #e2e8f0;
+            border-color: #64748b;
+            box-shadow: 2px 2px 0px #000000;
+        }
+        .word-tag:hover { transform: translateY(-2px); border-color: #1ea7fd; }
+        .word-tag.spotlight {
+            background: #ff7e33 !important;
+            color: #1e293b !important;
+            border-color: #1e293b !important;
+            transform: scale(1.05);
+        }
+        .word-tag.found {
+            background: #00d063 !important;
+            color: #1e293b !important;
+            text-decoration: line-through;
+            opacity: 0.72;
+            box-shadow: none;
+            transform: scale(0.96);
+        }
+
+        .custom-scrollbar::-webkit-scrollbar { height: 6px; width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        .dark .custom-scrollbar::-webkit-scrollbar-thumb { background: #475569; }
+        .custom-scrollbar { scrollbar-color: #cbd5e1 transparent; scrollbar-width: thin; }
+
+        textarea {
+            user-select: text;
+            background-image: radial-gradient(var(--dots) 1.3px, transparent 1.3px);
+            background-size: 12px 12px;
+        }
+
+        /* Panel collapse */
+        @media (max-width: 767px) {
+            .hidden-panel-mobile { display: none !important; }
+        }
+        @media (min-width: 768px) {
+            .hidden-panel-desktop { margin-left: -20rem; border-right-width: 0 !important; }
+        }
+        @media (min-width: 1024px) {
+            .hidden-panel-desktop { margin-left: -24rem; }
+        }
+
+        #saved-sets-controls {
+            max-height: 0;
+            overflow: hidden;
+            transition: all 0.25s ease-out;
+            opacity: 0;
+        }
+        #saved-sets-controls.active {
+            max-height: 240px;
+            opacity: 1;
+            margin-top: 8px;
+        }
+        #saved-sets-toggle-icon.active { transform: rotate(180deg); }
+
+        /* SVG Maze Canvas */
+        #svg-wrapper {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: transform 0.18s ease;
+            transform-origin: center center;
+        }
+        #svg-wrapper svg {
+            width: 100%;
+            height: 100%;
+            max-width: 100%;
+            max-height: 100%;
+            filter: drop-shadow(5px 5px 0 var(--shadow));
+        }
+
+        /* Interactive SVG styles */
+        .maze-tile-bg {
+            fill: var(--tile-bg);
+            stroke: var(--line);
+            transition: fill 0.14s ease, stroke 0.14s ease;
+        }
+        .maze-tile-group { cursor: pointer; }
+        .maze-tile-group:hover .maze-tile-bg { fill: #e0f2fe; }
+        .dark .maze-tile-group:hover .maze-tile-bg { fill: #334155; }
+        .maze-tile-text {
+            fill: var(--tile-ink);
+            font-family: 'Fredoka', sans-serif;
+            font-weight: 700;
+            pointer-events: none;
+        }
+
+        .maze-tile-group.user-picked .maze-tile-bg {
+            fill: #00d063 !important;
+            stroke: #1e293b !important;
+        }
+        .maze-tile-group.user-picked .maze-tile-text { fill: #1e293b !important; }
+
+        .maze-tile-group.user-wrong .maze-tile-bg {
+            fill: #ffd6e4 !important;
+            stroke: #ff4785 !important;
+        }
+        .maze-tile-group.user-wrong .maze-tile-text { fill: #9f1239 !important; }
+
+        .maze-tile-group.word-spotlight .maze-tile-bg {
+            fill: #ff7e33 !important;
+            stroke: #1e293b !important;
+        }
+        .maze-tile-group.word-spotlight .maze-tile-text { fill: #1e293b !important; }
+
+        .solution-layer { opacity: 0; pointer-events: none; transition: opacity 0.2s ease; }
+        .show-answers .solution-layer { opacity: 1; }
+        .show-answers .maze-tile-group[data-path="1"] .maze-tile-bg {
+            fill: #ffe4ef;
+            stroke: #ff4785;
+        }
+        .show-answers .maze-tile-group[data-path="1"] .maze-tile-text {
+            fill: #be123c;
+        }
+
+        .wall-cell-hit { fill: transparent; cursor: pointer; transition: fill 0.12s ease; }
+        .wall-cell-hit:hover { fill: rgba(30, 167, 253, 0.14); }
+        .wall-cell-hit.user-picked { fill: rgba(0, 208, 99, 0.32); }
+        .wall-cell-hit.word-spotlight { fill: rgba(255, 126, 51, 0.35); }
+        .maze-wall-stroke { stroke: var(--maze-wall); stroke-linecap: round; stroke-linejoin: round; fill: none; }
+        .maze-board-bg { fill: var(--tile-bg); stroke: var(--line); }
+
+        @keyframes popIn {
+            0% { opacity: 0; transform: scale(0.94); }
+            100% { opacity: 1; transform: scale(1); }
+        }
+        .animate-pop-in { animation: popIn 0.18s ease-out; }
+
+        /* ---------- PRINT (strict A4) ---------- */
+        @page { size: A4 portrait; margin: 0; }
+
+        #print-area,
+        .dark #print-area {
+            --line: #1e293b;
+            --tile-bg: #ffffff;
+            --tile-ink: #1e293b;
+            --maze-wall: #1e293b;
+            --muted: #64748b;
+            color: #1e293b;
+            background: #ffffff;
+        }
+
+        @media print {
+            html, body {
+                display: block !important;
+                width: 210mm !important;
+                height: 297mm !important;
+                padding: 0 !important;
+                margin: 0 !important;
+                overflow: hidden !important;
+                background: #ffffff !important;
+                background-image: none !important;
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+            }
+            html[data-orient="landscape"],
+            html[data-orient="landscape"] body {
+                width: 297mm !important;
+                height: 210mm !important;
+            }
+            body > :not(#print-area) { display: none !important; }
+
+            #print-area {
+                display: flex !important;
+                flex-direction: column !important;
+                width: 210mm !important;
+                height: 297mm !important;
+                padding: 12mm 14mm !important;
+                margin: 0 auto !important;
+                box-sizing: border-box !important;
+                overflow: hidden !important;
+                background: #ffffff !important;
+                page-break-after: avoid !important;
+                break-after: avoid !important;
+            }
+            html[data-orient="landscape"] #print-area {
+                width: 297mm !important;
+                height: 210mm !important;
+                padding: 10mm 14mm !important;
+            }
+            .print-header {
+                flex-shrink: 0;
+                display: flex;
+                justify-content: space-between;
+                align-items: flex-end;
+                border-bottom: 4px solid #1e293b;
+                padding-bottom: 8px;
+                margin-bottom: 10px;
+            }
+            .print-title h1 {
+                font-family: 'Fredoka', sans-serif;
+                font-size: 2.2rem;
+                text-transform: uppercase;
+                line-height: 1;
+                margin: 0;
+            }
+            .print-title p {
+                font-family: 'Nunito', sans-serif;
+                font-size: 0.9rem;
+                font-weight: 800;
+                color: #475569;
+                margin: 5px 0 0;
+            }
+            .print-meta {
+                display: flex;
+                flex-direction: column;
+                gap: 8px;
+                min-width: 220px;
+                font-family: 'Nunito', sans-serif;
+                font-size: 0.95rem;
+                font-weight: 700;
+            }
+            .meta-line { display: flex; justify-content: space-between; align-items: flex-end; }
+            .meta-line span:last-child { flex-grow: 1; margin-left: 10px; border-bottom: 2px solid #1e293b; }
+
+            #print-svg-container {
+                flex: 1 1 0% !important;
+                min-height: 0 !important;
+                width: 100% !important;
+                display: flex !important;
+                justify-content: center !important;
+                align-items: center !important;
+                overflow: hidden !important;
+            }
+            #print-svg-container svg {
+                width: 100% !important;
+                height: 100% !important;
+                max-width: 100% !important;
+                max-height: 100% !important;
+                display: block !important;
+                filter: none !important;
+            }
+            #print-footer {
+                flex-shrink: 0;
+                margin-top: 4mm;
+                padding-top: 3.5mm;
+                border-top: 2px dashed #cbd5e1;
+            }
+            .print-answer-grid {
+                display: grid;
+                grid-template-columns: repeat(auto-fill, minmax(42mm, 1fr));
+                gap: 3mm 5mm;
+            }
+            .print-slot {
+                display: flex;
+                align-items: flex-end;
+                gap: 6px;
+                font-family: 'Fredoka', sans-serif;
+                font-size: 11pt;
+                font-weight: 700;
+            }
+            .print-slot-line {
+                flex: 1;
+                border-bottom: 2px solid #1e293b;
+                min-height: 16px;
+                padding-left: 4px;
+                color: #ff4785;
+            }
+            .print-rule-banner {
+                text-align: center;
+                font-family: 'Fredoka', sans-serif;
+                font-size: 11.5pt;
+                padding: 6px 10px;
+                border: 2.5px dashed #1e293b;
+                border-radius: 8px;
+                background: #f8fafc;
+            }
+        }
+    </style>
+    <style id="page-style"></style>
+</head>
+
+<body class="opacity-0 transition-opacity duration-200 h-screen w-screen flex flex-col items-center justify-center p-2 md:p-5 overflow-hidden text-dark dark:text-white">
+
+    <!-- Toast Container -->
+    <div id="toast-container" class="print:hidden fixed bottom-6 left-1/2 -translate-x-1/2 z-[600] flex flex-col gap-2 pointer-events-none"></div>
+
+    <!-- MAIN CONSOLE -->
+    <div class="game-console print:hidden w-full h-full relative flex flex-col md:flex-row overflow-hidden bg-white dark:bg-slate-900">
+
+        <!-- SIDEBAR: SETUP (Left) -->
+        <aside id="sidebar"
+            class="w-full md:w-80 lg:w-96 bg-white dark:bg-slate-900 border-b-4 md:border-b-0 md:border-r-4 border-dark dark:border-slate-500 flex flex-col z-50 transition-all duration-300 h-[48%] md:h-full relative shrink-0">
+
+            <!-- Header -->
+            <div class="p-4 border-b-4 border-dark dark:border-slate-500 bg-blue/10 dark:bg-slate-800/80 flex justify-between items-center gap-2 shrink-0">
+                <div>
+                    <h1 class="text-2xl font-heading font-bold text-dark dark:text-white tracking-wide leading-none">
+                        MAZE<span class="text-blue">MAKER</span>
+                    </h1>
+                    <p class="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-widest mt-1">KlassKit Handout Studio</p>
+                </div>
+                <div class="flex items-center gap-1.5">
+                    <button id="sound-btn" type="button" title="Toggle Sound Effects" aria-pressed="true"
+                        class="p-2 bg-white dark:bg-slate-800 text-dark dark:text-white border-2 border-dark dark:border-slate-500 rounded-lg shadow-hard-sm hover:-translate-y-0.5 active:translate-y-0.5 active:shadow-none transition-all">
+                        <span id="sound-icon-on" class="inline-flex"><i data-lucide="volume-2" class="w-4 h-4"></i></span>
+                        <span id="sound-icon-off" class="hidden inline-flex"><i data-lucide="volume-x" class="w-4 h-4 text-slate-400"></i></span>
+                    </button>
+                    <button id="help-btn" type="button" title="How to Use &amp; Classroom Ideas"
+                        class="p-2 bg-orange/20 text-orange border-2 border-dark dark:border-slate-500 rounded-lg shadow-hard-sm hover:-translate-y-0.5 active:translate-y-0.5 active:shadow-none transition-all">
+                        <i data-lucide="help-circle" class="w-4 h-4"></i>
+                    </button>
+                    <button id="theme-btn" type="button" aria-pressed="false" aria-label="Toggle dark mode" title="Toggle Dark Mode"
+                        class="p-2 bg-white dark:bg-slate-800 text-dark dark:text-white border-2 border-dark dark:border-slate-500 rounded-lg shadow-hard-sm hover:-translate-y-0.5 active:translate-y-0.5 active:shadow-none transition-all">
+                        <i data-lucide="moon" class="w-4 h-4 dark:hidden"></i>
+                        <i data-lucide="sun" class="w-4 h-4 hidden dark:block text-orange"></i>
+                    </button>
+                    <button id="mobile-close-panel" type="button"
+                        class="md:hidden p-2 bg-pink/20 text-pink border-2 border-dark dark:border-slate-500 rounded-lg shadow-hard-sm active:translate-y-1 active:shadow-none transition-all">
+                        <i data-lucide="x" class="w-4 h-4"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Scrollable Controls -->
+            <div class="flex-1 p-4 overflow-y-auto custom-scrollbar space-y-5 bg-white dark:bg-slate-900">
+
+                <!-- Active Set Banner -->
+                <div id="active-set-banner" class="hidden animate-pop-in p-2.5 rounded-xl bg-blue/10 dark:bg-blue/20 border-2 border-blue flex items-center justify-between gap-2">
+                    <div class="flex items-center gap-2 min-w-0">
+                        <div class="w-7 h-7 rounded-lg bg-blue text-white flex items-center justify-center shrink-0 border-2 border-dark">
+                            <i data-lucide="bookmark-check" class="w-3.5 h-3.5"></i>
+                        </div>
+                        <div class="min-w-0">
+                            <p class="text-[9px] font-bold uppercase tracking-wider text-blue leading-none">Active Set</p>
+                            <p id="active-set-name" class="text-xs font-extrabold truncate mt-0.5"></p>
+                        </div>
+                    </div>
+                    <button id="close-set-btn" type="button" title="Detach from saved set" class="p-1 rounded-lg hover:bg-blue/20 text-slate-500 dark:text-slate-300">
+                        <i data-lucide="x" class="w-3.5 h-3.5"></i>
+                    </button>
+                </div>
+
+                <!-- Maze Mode -->
+                <div class="space-y-2">
+                    <label class="text-[11px] font-bold text-slate-400 uppercase tracking-widest block">Maze Mode</label>
+                    <div class="grid grid-cols-2 gap-2">
+                        <label class="seg" title="Step only on matching target words to cross the grid">
+                            <input type="radio" name="maze-mode" value="word-path" checked />
+                            <span class="seg-col">
+                                <i data-lucide="grid-3x3" class="w-4 h-4"></i>
+                                Word Path
+                            </span>
+                        </label>
+                        <label class="seg" title="Classic walled labyrinth with checkpoints on the true path">
+                            <input type="radio" name="maze-mode" value="wall-maze" />
+                            <span class="seg-col">
+                                <i data-lucide="route" class="w-4 h-4"></i>
+                                Wall Maze
+                            </span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Grid Size Slider -->
+                <div class="space-y-2 pt-3 border-t-2 border-dashed border-slate-200 dark:border-slate-700">
+                    <div class="flex justify-between items-end">
+                        <label for="size-slider" class="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Grid Size</label>
+                        <output id="size-display" for="size-slider" class="font-heading font-bold text-base text-blue">6 × 6</output>
+                    </div>
+                    <input type="range" id="size-slider" min="5" max="8" step="1" value="6"
+                        class="w-full h-3 bg-slate-100 dark:bg-slate-800 rounded-full appearance-none cursor-pointer accent-blue border-2 border-dark dark:border-slate-500" />
+                    <div class="flex justify-between text-[10px] font-bold text-slate-400">
+                        <span id="size-min-label">EASY (5×5)</span>
+                        <span id="size-max-label">CHALLENGE (8×8)</span>
+                    </div>
+                </div>
+
+                <!-- Styling & Clues -->
+                <div class="space-y-2.5 pt-3 border-t-2 border-dashed border-slate-200 dark:border-slate-700">
+                    <label class="text-[11px] font-bold text-slate-400 uppercase tracking-widest block">Handout Options</label>
+                    <div class="grid grid-cols-2 gap-2">
+                        <div class="grid grid-cols-2 gap-1.5">
+                            <label class="seg"><input type="radio" name="letter-case" value="upper" checked /><span>ABC</span></label>
+                            <label class="seg"><input type="radio" name="letter-case" value="title" /><span style="text-transform:none">Abc</span></label>
+                        </div>
+                        <select id="footer-mode"
+                            class="w-full p-2 bg-slate-50 dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-lg text-dark dark:text-white font-bold text-xs focus:outline-none focus:border-blue cursor-pointer">
+                            <option value="slots">Write-In Slots</option>
+                            <option value="rule">Rule Banner Only</option>
+                            <option value="none">No Footer</option>
+                        </select>
+                    </div>
+                    <label class="flex items-center gap-2 cursor-pointer text-xs font-bold text-slate-500 dark:text-slate-300">
+                        <input type="checkbox" id="shuffle-targets" checked class="w-4 h-4 shrink-0 accent-blue cursor-pointer" />
+                        <span id="shuffle-label">Shuffle target words along path</span>
+                    </label>
+                </div>
+
+                <!-- Worksheet Header -->
+                <div class="space-y-2 pt-3 border-t-2 border-dashed border-slate-200 dark:border-slate-700">
+                    <label class="text-[11px] font-bold text-slate-400 uppercase tracking-widest block">Worksheet Header</label>
+                    <input id="custom-title" type="text" value="Irregular Verb Maze" placeholder="Worksheet Title"
+                        class="w-full p-2 bg-slate-50 dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-lg text-dark dark:text-white font-bold text-xs focus:outline-none focus:border-blue" />
+                    <input id="custom-subtitle" type="text" value="Move UP, DOWN, LEFT, or RIGHT from START to FINISH by stepping only on irregular past verbs!" placeholder="Student instructions..."
+                        class="w-full p-2 bg-slate-50 dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-lg text-dark dark:text-white font-semibold text-xs focus:outline-none focus:border-blue" />
+                </div>
+
+                <!-- Quick ELT Presets -->
+                <div class="pt-3 border-t-2 border-dashed border-slate-200 dark:border-slate-700">
+                    <label class="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2 block">Quick ELT Presets</label>
+                    <div class="flex gap-1.5 flex-wrap">
+                        <button type="button" data-preset="irregular"
+                            class="px-2.5 py-1.5 bg-white dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-full text-[11px] font-bold shadow-hard-sm hover:-translate-y-0.5 active:translate-y-0.5 active:shadow-none transition-all">⚡ Irregular Past</button>
+                        <button type="button" data-preset="phonics"
+                            class="px-2.5 py-1.5 bg-white dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-full text-[11px] font-bold shadow-hard-sm hover:-translate-y-0.5 active:translate-y-0.5 active:shadow-none transition-all">🔊 Long /iː/</button>
+                        <button type="button" data-preset="fruits"
+                            class="px-2.5 py-1.5 bg-white dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-full text-[11px] font-bold shadow-hard-sm hover:-translate-y-0.5 active:translate-y-0.5 active:shadow-none transition-all">🍎 Fruits</button>
+                        <button type="button" data-preset="secret"
+                            class="px-2.5 py-1.5 bg-white dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-full text-[11px] font-bold shadow-hard-sm hover:-translate-y-0.5 active:translate-y-0.5 active:shadow-none transition-all">🧩 Secret Path</button>
+                    </div>
+                </div>
+
+                <!-- Target & Decoy Inputs -->
+                <div class="space-y-3 pt-3 border-t-2 border-dashed border-slate-200 dark:border-slate-700">
+                    <div class="space-y-1.5">
+                        <div class="flex items-center justify-between gap-2">
+                            <label for="target-input" id="target-label" class="text-[11px] font-bold text-green uppercase tracking-widest">Path Words (Correct)</label>
+                            <div class="flex items-center gap-1.5">
+                                <span id="target-count-badge" class="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-green/15 text-dark dark:text-white border-2 border-dark dark:border-slate-500">0</span>
+                                <button type="button" id="bulk-import-btn" class="px-2 py-0.5 bg-orange text-dark border-2 border-dark rounded-full text-[10px] font-heading font-bold uppercase shadow-hard-sm hover:-translate-y-0.5 active:translate-y-0.5 active:shadow-none transition-all flex items-center gap-1">
+                                    <i data-lucide="file-up" class="w-3 h-3"></i> Bulk
+                                </button>
+                            </div>
+                        </div>
+                        <textarea id="target-input" spellcheck="false"
+                            class="w-full h-24 p-3 bg-slate-50 dark:bg-slate-800 text-dark dark:text-white font-mono text-xs border-2 border-dark dark:border-slate-500 rounded-xl focus:border-blue outline-none resize-none"
+                            placeholder="WENT, SAW, ATE, TOOK, GAVE, MADE...">WENT, SAW, ATE, TOOK, GAVE, MADE, CAME, FOUND, WROTE, SPOKE, BOUGHT, DRANK</textarea>
+                    </div>
+
+                    <div class="space-y-1.5">
+                        <div class="flex items-center justify-between gap-2">
+                            <label for="decoy-input" id="decoy-label" class="text-[11px] font-bold text-pink uppercase tracking-widest">Decoy Words (Traps)</label>
+                            <span id="decoy-count-badge" class="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-pink/15 text-dark dark:text-white border-2 border-dark dark:border-slate-500">0</span>
+                        </div>
+                        <textarea id="decoy-input" spellcheck="false"
+                            class="w-full h-24 p-3 bg-slate-50 dark:bg-slate-800 text-dark dark:text-white font-mono text-xs border-2 border-dark dark:border-slate-500 rounded-xl focus:border-pink outline-none resize-none"
+                            placeholder="PLAYED, WALKED, JUMPED, COOKED...">PLAYED, WALKED, JUMPED, COOKED, WATCHED, LIKED, WORKED, HELPED, OPENED, CLOSED, CALLED, ASKED, CLEANED, TALKED, VISITED, PAINTED</textarea>
+                    </div>
+                </div>
+
+                <!-- Inline Status -->
+                <p id="status" role="status" aria-live="polite"
+                    class="hidden px-3 py-2 rounded-xl text-xs font-extrabold bg-pink/20 text-dark dark:text-white border-2 border-pink shadow-hard-sm animate-pop-in"></p>
+
+                <!-- Build Button -->
+                <button id="generate-btn" type="button"
+                    class="w-full btn-chunky bg-green text-dark py-3 rounded-xl text-lg tracking-wide flex items-center justify-center gap-2">
+                    <i data-lucide="sparkles" class="w-5 h-5"></i> BUILD MAZE
+                </button>
+            </div>
+
+            <!-- Footer Actions -->
+            <div class="p-3 border-t-4 border-dark dark:border-slate-500 bg-slate-100 dark:bg-slate-800 space-y-2 shrink-0">
+                <div class="grid grid-cols-2 gap-2">
+                    <label class="seg"><input type="radio" name="page-orient" value="portrait" checked /><span><i data-lucide="rectangle-vertical" class="w-3.5 h-3.5"></i> Portrait</span></label>
+                    <label class="seg"><input type="radio" name="page-orient" value="landscape" /><span><i data-lucide="rectangle-horizontal" class="w-3.5 h-3.5"></i> Landscape</span></label>
+                </div>
+                <div class="flex gap-2">
+                    <button id="print-btn" type="button"
+                        class="flex-1 btn-chunky bg-blue text-white border-2 border-dark py-2 rounded-lg text-xs flex items-center justify-center gap-1.5" title="Print Student Handout">
+                        <i data-lucide="printer" class="w-4 h-4"></i> HANDOUT
+                    </button>
+                    <button id="print-key-btn" type="button"
+                        class="flex-1 btn-chunky bg-orange text-dark border-2 border-dark py-2 rounded-lg text-xs flex items-center justify-center gap-1.5" title="Print Teacher Answer Key">
+                        <i data-lucide="key-round" class="w-4 h-4"></i> KEY
+                    </button>
+                </div>
+            </div>
+        </aside>
+
+        <!-- MAIN DISPLAY AREA -->
+        <main class="flex-1 relative h-[52%] md:h-full bg-slate-50 dark:bg-slate-950 flex flex-col lg:flex-row overflow-hidden">
+
+            <!-- Subtle Dot Grid -->
+            <div class="canvas-dots absolute inset-0 opacity-60 dark:opacity-50 pointer-events-none"></div>
+
+            <!-- Floating Top-Left Canvas Controls -->
+            <div class="absolute top-4 left-4 z-20 flex gap-2">
+                <button id="toggle-sidebar-btn" type="button"
+                    class="p-2 bg-white/90 dark:bg-slate-800/90 backdrop-blur-md border-2 border-dark dark:border-slate-500 rounded-lg shadow-hard-sm hover:-translate-y-0.5 active:translate-y-0.5 active:shadow-none transition-all text-dark dark:text-slate-200"
+                    title="Toggle Setup Panel">
+                    <i data-lucide="panel-left" class="w-5 h-5"></i>
+                </button>
+                <button id="reroll-btn" type="button"
+                    class="p-2 bg-white/90 dark:bg-slate-800/90 backdrop-blur-md border-2 border-dark dark:border-slate-500 rounded-lg shadow-hard-sm hover:-translate-y-0.5 active:translate-y-0.5 active:shadow-none transition-all text-blue"
+                    title="New Maze Layout (Same Words)">
+                    <i data-lucide="shuffle" class="w-5 h-5"></i>
+                </button>
+                <button id="answer-toggle-btn" type="button" aria-pressed="false"
+                    class="p-2 bg-white/90 dark:bg-slate-800/90 backdrop-blur-md border-2 border-dark dark:border-slate-500 rounded-lg shadow-hard-sm hover:-translate-y-0.5 active:translate-y-0.5 active:shadow-none transition-all text-orange"
+                    title="Reveal Solution Path">
+                    <i data-lucide="eye" class="w-5 h-5"></i>
+                </button>
+                <button id="reset-board-btn" type="button"
+                    class="hidden p-2 bg-white/90 dark:bg-slate-800/90 backdrop-blur-md border-2 border-dark dark:border-slate-500 rounded-lg shadow-hard-sm hover:-translate-y-0.5 active:translate-y-0.5 active:shadow-none transition-all text-pink"
+                    title="Clear tapped path marks">
+                    <i data-lucide="eraser" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            <!-- Maze SVG Canvas -->
+            <div class="flex-1 h-full relative flex items-center justify-center p-4 pt-14 pb-12 overflow-hidden">
+                <!-- Mode / Path Info Pill (top-right of canvas) -->
+                <div class="absolute top-4 right-4 z-20 pointer-events-none hidden sm:flex items-center gap-2 bg-white/90 dark:bg-slate-800/90 backdrop-blur-md border-2 border-dark dark:border-slate-500 rounded-full px-3 py-1 shadow-hard-sm text-[11px] font-extrabold">
+                    <span id="canvas-mode-pill" class="text-blue uppercase">Word Path</span>
+                    <span class="text-slate-300 dark:text-slate-600">•</span>
+                    <span id="canvas-stats-pill" class="text-slate-600 dark:text-slate-300">0 steps</span>
+                </div>
+                <div id="svg-wrapper" class="relative z-10 w-full h-full"></div>
+
+                <!-- Bottom-Right Zoom Controls -->
+                <div class="absolute bottom-4 right-4 z-20 flex gap-2">
+                    <button id="zoom-out" type="button" title="Zoom Out"
+                        class="p-2 bg-white/90 dark:bg-slate-800/90 backdrop-blur-md border-2 border-dark dark:border-slate-500 rounded-lg shadow-hard-sm hover:bg-slate-50 dark:hover:bg-slate-700 active:translate-y-0.5 active:shadow-none transition-all">
+                        <i data-lucide="minus" class="w-4 h-4"></i>
+                    </button>
+                    <button id="zoom-reset" type="button" title="Reset Zoom"
+                        class="px-2.5 py-2 bg-white/90 dark:bg-slate-800/90 backdrop-blur-md border-2 border-dark dark:border-slate-500 rounded-lg shadow-hard-sm text-[11px] font-heading font-bold active:translate-y-0.5 active:shadow-none transition-all">100%</button>
+                    <button id="zoom-in" type="button" title="Zoom In"
+                        class="p-2 bg-white/90 dark:bg-slate-800/90 backdrop-blur-md border-2 border-dark dark:border-slate-500 rounded-lg shadow-hard-sm hover:bg-slate-50 dark:hover:bg-slate-700 active:translate-y-0.5 active:shadow-none transition-all">
+                        <i data-lucide="plus" class="w-4 h-4"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- RIGHT PANEL: PATH CHECKLIST & SAVED SETS -->
+            <div id="play-controls"
+                class="w-full lg:w-72 xl:w-80 h-[40%] lg:h-full bg-white dark:bg-slate-900 border-t-4 lg:border-t-0 lg:border-l-4 border-dark dark:border-slate-500 flex flex-col z-10 shrink-0">
+                <div class="p-3 bg-pink border-b-4 border-dark dark:border-slate-500 text-white font-heading font-bold text-base tracking-wide flex items-center justify-between gap-2 shrink-0">
+                    <div class="flex items-center gap-2">
+                        <i data-lucide="flag" class="w-4 h-4"></i>
+                        <span id="right-panel-title">PATH STEPS</span>
+                    </div>
+                    <div class="flex items-center gap-1 bg-white/20 px-2 py-0.5 rounded-full text-xs font-bold">
+                        <span id="found-count">0</span>/<span id="total-count">0</span>
+                    </div>
+                </div>
+
+                <!-- Status Tip -->
+                <div id="status-bar"
+                    class="p-2 bg-slate-50 dark:bg-slate-800 border-b-2 border-slate-200 dark:border-slate-700 text-[10px] font-bold text-center text-slate-500 dark:text-slate-400 uppercase tracking-wider shrink-0">
+                    Tap Maze Tiles to Solve • Tap Pill to Spotlight
+                </div>
+
+                <!-- Checklist Pills -->
+                <ul id="word-bank"
+                    class="flex-1 overflow-y-auto p-3.5 custom-scrollbar flex flex-wrap gap-2 content-start list-none">
+                </ul>
+
+                <!-- Collapsible Saved Sets Drawer -->
+                <div class="p-3 border-t-2 border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/40 shrink-0">
+                    <button id="saved-sets-toggle-btn" type="button"
+                        class="w-full flex items-center justify-between text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 hover:text-dark dark:hover:text-white">
+                        <span>Saved Maze Sets (<span id="saved-count">0</span>)</span>
+                        <span id="saved-sets-toggle-icon" class="inline-flex transition-transform"><i data-lucide="chevron-up" class="w-3.5 h-3.5"></i></span>
+                    </button>
+                    <div id="saved-sets-controls" class="space-y-2">
+                        <div class="flex items-center gap-1.5">
+                            <select id="library-sort" aria-label="Sort saved sets"
+                                class="flex-1 p-1.5 bg-white dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-lg text-dark dark:text-white font-bold text-[10px] focus:outline-none">
+                                <option value="recent">Recent</option>
+                                <option value="alpha">A–Z</option>
+                                <option value="popular">Popular</option>
+                            </select>
+                            <button id="new-set-btn" type="button" title="Reset Workspace"
+                                class="p-1.5 bg-white dark:bg-slate-800 text-dark dark:text-white border-2 border-dark dark:border-slate-500 rounded-lg hover:brightness-95 font-bold text-[10px] flex items-center gap-1">
+                                <i data-lucide="plus" class="w-3 h-3"></i> NEW
+                            </button>
+                            <button id="save-set-btn" type="button" title="Save Set"
+                                class="p-1.5 bg-blue text-white border-2 border-dark rounded-lg hover:brightness-110 font-bold text-[10px] flex items-center gap-1">
+                                <i data-lucide="save" class="w-3 h-3"></i> SAVE
+                            </button>
+                        </div>
+                        <div id="library-list" class="space-y-1.5 max-h-36 overflow-y-auto custom-scrollbar pr-1"></div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- BULK IMPORT MODAL -->
+    <div id="bulkModal" class="hidden fixed inset-0 bg-dark/60 backdrop-blur-md z-[500] items-center justify-center p-4">
+        <div class="bg-white dark:bg-slate-800 w-full max-w-lg rounded-[2rem] border-4 border-dark dark:border-slate-500 shadow-hard-lg animate-pop-in overflow-hidden">
+            <div class="p-5 border-b-4 border-dark dark:border-slate-500 bg-blue/10 flex items-center justify-between gap-3">
+                <div class="flex items-center gap-3">
+                    <div class="w-11 h-11 rounded-2xl bg-blue flex items-center justify-center border-3 border-dark shadow-hard-sm shrink-0">
+                        <i data-lucide="file-up" class="w-5 h-5 text-white"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-lg font-heading font-bold text-dark dark:text-white uppercase leading-tight">Maze Bulk Import</h3>
+                        <p class="text-xs font-semibold text-slate-500 dark:text-slate-400">Paste title, path words, and decoys in one block</p>
+                    </div>
+                </div>
+                <button id="bulk-close-btn" type="button" class="btn-chunky w-9 h-9 rounded-xl bg-white dark:bg-slate-700 text-dark dark:text-white flex items-center justify-center">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
+            </div>
+            <div class="p-5 space-y-4">
+                <div class="text-[11px] font-semibold bg-slate-50 dark:bg-slate-900 border-2 border-dark dark:border-slate-600 rounded-xl p-3 space-y-1 text-slate-600 dark:text-slate-300">
+                    <p><span class="font-extrabold text-blue">## Title</span> &amp; <span class="font-extrabold text-blue">? Instructions</span> (optional)</p>
+                    <p><span class="font-extrabold text-green">TARGET:</span> word1, word2, word3 (or <code class="px-1 rounded bg-slate-200 dark:bg-slate-700">word | path</code>)</p>
+                    <p><span class="font-extrabold text-pink">DECOY:</span> trap1, trap2, trap3 (or <code class="px-1 rounded bg-slate-200 dark:bg-slate-700">word | trap</code>)</p>
+                </div>
+                <textarea id="bulk-textarea" spellcheck="false"
+                    class="w-full h-40 p-3 bg-slate-50 dark:bg-slate-900 text-dark dark:text-white font-mono text-xs border-2 border-dark dark:border-slate-500 rounded-xl focus:border-blue outline-none resize-none"
+                    placeholder="## Animal Habitats Maze&#10;? Follow only the sea animals to reach the finish!&#10;TARGET: SHARK, WHALE, DOLPHIN, OCTOPUS, CRAB, SEAL, TURTLE, SQUID&#10;DECOY: LION, TIGER, ZEBRA, EAGLE, CAMEL, BEAR, WOLF, MONKEY"></textarea>
+                <div class="flex items-center justify-between gap-2">
+                    <button id="bulk-sample-btn" type="button" class="text-xs font-extrabold text-blue hover:underline">Load Sample</button>
+                    <div class="flex gap-2">
+                        <button id="bulk-cancel-btn" type="button" class="btn-chunky bg-white dark:bg-slate-700 text-dark dark:text-white px-4 py-2 rounded-xl text-xs">Cancel</button>
+                        <button id="bulk-apply-btn" type="button" class="btn-chunky bg-green text-dark px-5 py-2 rounded-xl text-xs">Import &amp; Build</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- HELP MODAL -->
+    <div id="helpModal" class="hidden fixed inset-0 bg-dark/60 backdrop-blur-md z-[500] items-center justify-center p-4">
+        <div class="bg-white dark:bg-slate-800 w-full max-w-lg rounded-[2rem] border-4 border-dark dark:border-slate-500 shadow-hard-lg animate-pop-in overflow-hidden">
+            <div class="p-5 border-b-4 border-dark dark:border-slate-500 bg-orange/15 flex items-center justify-between gap-3">
+                <div class="flex items-center gap-3">
+                    <div class="w-11 h-11 rounded-2xl bg-orange flex items-center justify-center border-3 border-dark shadow-hard-sm shrink-0">
+                        <i data-lucide="lightbulb" class="w-5 h-5 text-dark"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-lg font-heading font-bold text-dark dark:text-white uppercase leading-tight">How to Use Maze Maker</h3>
+                        <p class="text-xs font-semibold text-slate-500 dark:text-slate-400">Two Classroom Modes + Strict A4 Print</p>
+                    </div>
+                </div>
+                <button id="help-close-btn" type="button" class="btn-chunky w-9 h-9 rounded-xl bg-white dark:bg-slate-700 text-dark dark:text-white flex items-center justify-center">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
+            </div>
+            <div class="p-5 space-y-3 text-xs font-semibold text-slate-600 dark:text-slate-300 max-h-[68vh] overflow-y-auto custom-scrollbar">
+                <div class="p-3 rounded-xl bg-slate-50 dark:bg-slate-900 border-2 border-dark dark:border-slate-600">
+                    <h4 class="font-heading font-bold text-sm uppercase text-dark dark:text-white mb-1">1. Word Path Maze (Grid Sorting)</h4>
+                    <p class="leading-relaxed">Builds a single guaranteed non-touching path from <b>START</b> to <b>FINISH</b> filled with your <b>Path Words</b>, surrounded by <b>Decoy Words</b>. Ideal for irregular verbs, phonics sounds, or category sorting.</p>
+                </div>
+                <div class="p-3 rounded-xl bg-slate-50 dark:bg-slate-900 border-2 border-dark dark:border-slate-600">
+                    <h4 class="font-heading font-bold text-sm uppercase text-dark dark:text-white mb-1">2. Wall Maze + Checkpoints</h4>
+                    <p class="leading-relaxed">Generates a classic walled labyrinth and places your target words or letters along the true solution route while hiding decoys inside dead ends. Students trace the maze and record the checkpoints they collect.</p>
+                </div>
+                <div class="p-3 rounded-xl bg-slate-50 dark:bg-slate-900 border-2 border-dark dark:border-slate-600">
+                    <h4 class="font-heading font-bold text-sm uppercase text-dark dark:text-white mb-1">3. Smartboard &amp; A4 Print</h4>
+                    <p class="leading-relaxed">Tap tiles or maze cells directly on screen to solve together as a class, tap any right-panel pill to spotlight it, or use <b>HANDOUT</b> and <b>KEY</b> to print clean A4 sheets.</p>
+                </div>
+                <div class="flex justify-end pt-1">
+                    <button id="help-got-it-btn" type="button" class="btn-chunky px-6 py-2 rounded-xl text-xs bg-green text-dark">Got It!</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- SAVE SET MODAL -->
+    <div id="saveModal" class="hidden fixed inset-0 bg-dark/60 backdrop-blur-md z-[500] items-center justify-center p-4">
+        <div class="bg-white dark:bg-slate-800 w-full max-w-sm rounded-[2rem] border-4 border-dark dark:border-slate-500 shadow-hard-lg animate-pop-in overflow-hidden">
+            <div class="p-5 border-b-4 border-dark dark:border-slate-500 bg-blue/10 flex items-center gap-3">
+                <div class="w-11 h-11 rounded-2xl bg-blue flex items-center justify-center border-3 border-dark shadow-hard-sm shrink-0">
+                    <i data-lucide="bookmark-plus" class="w-5 h-5 text-white"></i>
+                </div>
+                <div>
+                    <h3 class="text-base font-heading font-bold text-dark dark:text-white uppercase leading-tight">Save Maze Set</h3>
+                    <p class="text-xs font-semibold text-slate-500 dark:text-slate-400">Keep this maze set in your library</p>
+                </div>
+            </div>
+            <div class="p-5 space-y-4">
+                <input id="save-set-input" type="text" placeholder="e.g., Unit 4 Irregular Past Maze"
+                    class="w-full px-3.5 py-2.5 text-sm font-bold bg-slate-50 dark:bg-slate-900 text-dark dark:text-white border-2 border-dark dark:border-slate-500 rounded-xl outline-none focus:border-blue" />
+                <div class="flex gap-2">
+                    <button id="save-modal-cancel" type="button" class="flex-1 btn-chunky bg-white dark:bg-slate-700 text-dark dark:text-white py-2.5 rounded-xl text-xs">Cancel</button>
+                    <button id="save-modal-confirm" type="button" class="flex-1 btn-chunky bg-green text-dark py-2.5 rounded-xl text-xs">Save Set</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- CONFIRM MODAL -->
+    <div id="confirmModal" class="hidden fixed inset-0 bg-dark/60 backdrop-blur-md z-[500] items-center justify-center p-4">
+        <div class="bg-white dark:bg-slate-800 w-full max-w-sm rounded-[2rem] border-4 border-dark dark:border-slate-500 shadow-hard-lg animate-pop-in overflow-hidden">
+            <div class="p-6 text-center">
+                <div class="w-14 h-14 rounded-2xl bg-pink/15 flex items-center justify-center border-3 border-dark shadow-hard-sm mx-auto mb-3">
+                    <i data-lucide="alert-triangle" class="w-7 h-7 text-pink"></i>
+                </div>
+                <h3 id="confirmTitle" class="text-lg font-heading font-bold text-dark dark:text-white uppercase mb-1">Are you sure?</h3>
+                <p id="confirmMessage" class="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-5">This action cannot be undone.</p>
+                <div class="flex gap-2">
+                    <button id="confirmBtnNo" type="button" class="flex-1 btn-chunky bg-white dark:bg-slate-700 text-dark dark:text-white py-2.5 rounded-xl text-xs">Cancel</button>
+                    <button id="confirmBtnYes" type="button" class="flex-1 btn-chunky bg-pink text-white py-2.5 rounded-xl text-xs">Yes, Continue</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- PRINT AREA (strict A4) -->
+    <div id="print-area" class="hidden">
+        <div class="print-header">
+            <div class="print-title">
+                <h1 id="print-heading">Maze Handout</h1>
+                <p id="print-subheading">Follow the correct path from START to FINISH.</p>
+            </div>
+            <div class="print-meta">
+                <div class="meta-line"><span>Name:</span><span></span></div>
+                <div class="meta-line"><span>Date:</span><span></span></div>
+            </div>
+        </div>
+        <div id="print-svg-container"></div>
+        <div id="print-footer"></div>
+    </div>
+
+    <script>
+        (() => {
+            'use strict';
+
+            // ===== PRESETS =====
+            const PRESETS = {
+                irregular: {
+                    mode: 'word-path',
+                    size: 6,
+                    title: 'Irregular Verb Maze',
+                    subtitle: 'Move UP, DOWN, LEFT, or RIGHT from START to FINISH by stepping only on irregular past verbs!',
+                    targets: 'WENT, SAW, ATE, TOOK, GAVE, MADE, CAME, FOUND, WROTE, SPOKE, BOUGHT, DRANK',
+                    decoys: 'PLAYED, WALKED, JUMPED, COOKED, WATCHED, LIKED, WORKED, HELPED, OPENED, CLOSED, CALLED, ASKED, CLEANED, TALKED, VISITED, PAINTED',
+                    shuffle: true
+                },
+                phonics: {
+                    mode: 'word-path',
+                    size: 6,
+                    title: 'Long /iː/ Sound Maze',
+                    subtitle: 'Step only on words with the long /iː/ vowel sound (like SHEEP) to reach the finish!',
+                    targets: 'SHEEP, GREEN, TREE, FEET, SLEEP, BEACH, READ, TEA, SEAT, CLEAN, DREAM, TEAM',
+                    decoys: 'SHIP, SIT, FISH, MILK, BIG, PEN, RED, BED, CAT, HAT, DOG, SUN, CUP, BUS, BOX, PIG',
+                    shuffle: true
+                },
+                fruits: {
+                    mode: 'word-path',
+                    size: 5,
+                    title: 'Fruit Basket Maze',
+                    subtitle: 'Follow only the FRUIT tiles from START to FINISH. Watch out for vegetables!',
+                    targets: 'APPLE, MANGO, GRAPE, PEACH, LEMON, MELON, BERRY, KIWI, PLUM, PEAR',
+                    decoys: 'CARROT, ONION, POTATO, CORN, BROCCOLI, SPINACH, GARLIC, CELERY, PEAS, BEANS, CABBAGE, RADISH',
+                    shuffle: true
+                },
+                secret: {
+                    mode: 'wall-maze',
+                    size: 9,
+                    title: 'Secret Sentence Labyrinth',
+                    subtitle: 'Trace the maze from START to FINISH and write each word you pass on the true path!',
+                    targets: 'ENGLISH, IS, FUN, WHEN, WE, LEARN, TOGETHER',
+                    decoys: 'NEVER, BORING, STOP, SLEEPY, FORGET, WRONG, LOST, MAYBE',
+                    shuffle: false
+                }
+            };
+
+            const DIRS = [[-1, 0], [1, 0], [0, -1], [0, 1]];
+            const randInt = (n) => Math.floor(Math.random() * n);
+
+            function shuffleArray(arr) {
+                const copy = arr.slice();
+                for (let i = copy.length - 1; i > 0; i--) {
+                    const j = randInt(i + 1);
+                    [copy[i], copy[j]] = [copy[j], copy[i]];
+                }
+                return copy;
+            }
+
+            function parseList(raw) {
+                return (raw || '')
+                    .split(/[,;\n]+/)
+                    .map((s) => s.trim())
+                    .filter(Boolean);
+            }
+
+            function formatLabel(word, letterCase) {
+                if (!word) return '';
+                if (letterCase === 'title') {
+                    return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+                }
+                return word.toUpperCase();
+            }
+
+            function escapeXml(str) {
+                return String(str)
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;')
+                    .replace(/"/g, '&quot;');
+            }
+
+            // ===== MODE 1: WORD PATH MAZE (NON-TOUCHING UNIQUE PATH) =====
+            function buildUniqueWordPath(rows, cols) {
+                const targetLen = Math.max(rows + cols - 1, Math.floor(rows * cols * 0.42));
+                let bestPath = null;
+
+                for (let attempt = 0; attempt < 90; attempt++) {
+                    const visited = Array.from({ length: rows }, () => new Uint8Array(cols));
+                    const path = [[0, 0]];
+                    visited[0][0] = 1;
+                    let stepsBudget = 350;
+
+                    function dfs(r, c) {
+                        if (stepsBudget-- <= 0) return false;
+                        if (r === rows - 1 && c === cols - 1) return true;
+
+                        const neighbors = [];
+                        for (const [dr, dc] of DIRS) {
+                            const nr = r + dr, nc = c + dc;
+                            if (nr < 0 || nr >= rows || nc < 0 || nc >= cols || visited[nr][nc]) continue;
+                            // Ensure non-touching path: nr,nc may only touch the current cell (r,c)
+                            let adjVisited = 0;
+                            for (const [ar, ac] of DIRS) {
+                                const rr = nr + ar, cc = nc + ac;
+                                if (rr >= 0 && rr < rows && cc >= 0 && cc < cols && visited[rr][cc]) adjVisited++;
+                            }
+                            if (adjVisited === 1) neighbors.push([nr, nc]);
+                        }
+
+                        const shuffled = shuffleArray(neighbors);
+                        for (const [nr, nc] of shuffled) {
+                            visited[nr][nc] = 1;
+                            path.push([nr, nc]);
+                            if (dfs(nr, nc)) return true;
+                            path.pop();
+                            visited[nr][nc] = 0;
+                        }
+                        return false;
+                    }
+
+                    if (dfs(0, 0)) {
+                        if (!bestPath || path.length > bestPath.length) {
+                            bestPath = path.map((p) => p.slice());
+                        }
+                        if (bestPath.length >= targetLen) break;
+                    }
+                }
+
+                // Guaranteed fallback serpentine with 1-row spacing
+                if (!bestPath) {
+                    bestPath = [];
+                    for (let r = 0; r < rows; r += 2) {
+                        const leftToRight = (r / 2) % 2 === 0;
+                        if (leftToRight) {
+                            for (let c = 0; c < cols; c++) bestPath.push([r, c]);
+                            if (r + 1 < rows) bestPath.push([r + 1, cols - 1]);
+                        } else {
+                            for (let c = cols - 1; c >= 0; c--) bestPath.push([r, c]);
+                            if (r + 1 < rows) bestPath.push([r + 1, 0]);
+                        }
+                    }
+                    const last = bestPath[bestPath.length - 1];
+                    if (last[0] !== rows - 1 || last[1] !== cols - 1) {
+                        for (let c = last[1] + 1; c < cols; c++) bestPath.push([rows - 1, c]);
+                    }
+                }
+                return bestPath;
+            }
+
+            function generateWordPathData(size, targets, decoys, shouldShuffle, letterCase) {
+                const rows = size;
+                const cols = size;
+                const path = buildUniqueWordPath(rows, cols);
+                const pathSet = new Map();
+                path.forEach(([r, c], idx) => pathSet.set(`${r},${c}`, idx));
+
+                const orderedTargets = shouldShuffle ? shuffleArray(targets) : targets.slice();
+                const decoyPool = shuffleArray(decoys.length ? decoys : ['TRAP', 'NOPE', 'WRONG', 'DECOY']);
+
+                const grid = [];
+                const pathWords = [];
+                let decoyIdx = 0;
+
+                for (let r = 0; r < rows; r++) {
+                    const row = [];
+                    for (let c = 0; c < cols; c++) {
+                        const key = `${r},${c}`;
+                        if (pathSet.has(key)) {
+                            const stepIdx = pathSet.get(key);
+                            const rawWord = orderedTargets[stepIdx % orderedTargets.length];
+                            const label = formatLabel(rawWord, letterCase);
+                            row.push({ r, c, isPath: true, stepIdx, label });
+                            pathWords[stepIdx] = { stepIdx, r, c, label };
+                        } else {
+                            const rawDecoy = decoyPool[decoyIdx % decoyPool.length];
+                            decoyIdx++;
+                            row.push({ r, c, isPath: false, stepIdx: -1, label: formatLabel(rawDecoy, letterCase) });
+                        }
+                    }
+                    grid.push(row);
+                }
+
+                return { type: 'word-path', rows, cols, grid, path, checkpoints: pathWords };
+            }
+
+            function renderWordPathSVG(data) {
+                const { rows, cols, grid, path } = data;
+                const padTop = 58;
+                const padBottom = 58;
+                const padSide = 32;
+                const cellW = 132;
+                const cellH = 92;
+                const gap = 12;
+
+                const gridW = cols * cellW + (cols - 1) * gap;
+                const gridH = rows * cellH + (rows - 1) * gap;
+                const vbW = gridW + padSide * 2;
+                const vbH = gridH + padTop + padBottom;
+
+                const centerOf = (r, c) => [
+                    padSide + c * (cellW + gap) + cellW / 2,
+                    padTop + r * (cellH + gap) + cellH / 2
+                ];
+
+                const solPoints = path.map(([r, c]) => centerOf(r, c).join(',')).join(' ');
+
+                let tilesSvg = '';
+                for (let r = 0; r < rows; r++) {
+                    for (let c = 0; c < cols; c++) {
+                        const cell = grid[r][c];
+                        const x = padSide + c * (cellW + gap);
+                        const y = padTop + r * (cellH + gap);
+                        const len = cell.label.length;
+                        const fontSize = len > 11 ? 15 : len > 8 ? 18 : len > 6 ? 21 : 24;
+                        const isStart = r === 0 && c === 0;
+                        const isEnd = r === rows - 1 && c === cols - 1;
+
+                        tilesSvg += `
+                        <g class="maze-tile-group" data-r="${r}" data-c="${c}" data-path="${cell.isPath ? 1 : 0}" data-step="${cell.stepIdx}">
+                            <rect class="maze-tile-bg" x="${x}" y="${y}" width="${cellW}" height="${cellH}" rx="16" stroke-width="4" />
+                            ${isStart ? `<rect x="${x + 8}" y="${y - 12}" width="66" height="22" rx="11" fill="#00d063" stroke="#1e293b" stroke-width="2.5"/><text x="${x + 41}" y="${y + 3}" text-anchor="middle" font-family="Fredoka, sans-serif" font-size="11" font-weight="700" fill="#1e293b">START</text>` : ''}
+                            ${isEnd ? `<rect x="${x + cellW - 76}" y="${y + cellH - 10}" width="68" height="22" rx="11" fill="#ff4785" stroke="#1e293b" stroke-width="2.5"/><text x="${x + cellW - 42}" y="${y + cellH + 5}" text-anchor="middle" font-family="Fredoka, sans-serif" font-size="11" font-weight="700" fill="#ffffff">FINISH</text>` : ''}
+                            <text class="maze-tile-text" x="${x + cellW / 2}" y="${y + cellH / 2 + 2}" text-anchor="middle" dominant-baseline="middle" font-size="${fontSize}">${escapeXml(cell.label)}</text>
+                        </g>`;
+                    }
+                }
+
+                const [sx, sy] = centerOf(0, 0);
+                const [ex, ey] = centerOf(rows - 1, cols - 1);
+
+                return `<svg viewBox="0 0 ${vbW} ${vbH}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Word path maze ${rows} by ${cols}" xmlns="http://www.w3.org/2000/svg">
+                    <rect class="maze-board-bg" x="10" y="10" width="${vbW - 20}" height="${vbH - 20}" rx="28" stroke-width="5" />
+                    ${tilesSvg}
+                    <g class="solution-layer">
+                        <polyline points="${solPoints}" fill="none" stroke="#ff4785" stroke-width="9" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="14 10" opacity="0.88" />
+                        <circle cx="${sx}" cy="${sy}" r="9" fill="#00d063" stroke="#1e293b" stroke-width="3" />
+                        <circle cx="${ex}" cy="${ey}" r="9" fill="#ff4785" stroke="#1e293b" stroke-width="3" />
+                    </g>
+                </svg>`;
+            }
+
+            // ===== MODE 2: WALL MAZE + CHECKPOINTS =====
+            function generateWallMazeData(size, targets, decoys, shouldShuffle, letterCase) {
+                const rows = size;
+                const cols = size;
+                const cells = Array.from({ length: rows }, () =>
+                    Array.from({ length: cols }, () => ({ walls: [true, true, true, true], visited: false }))
+                );
+
+                const stack = [[0, 0]];
+                cells[0][0].visited = true;
+
+                while (stack.length) {
+                    const [r, c] = stack[stack.length - 1];
+                    const unvisited = [];
+                    if (r > 0 && !cells[r - 1][c].visited) unvisited.push([r - 1, c, 0, 2]);
+                    if (c < cols - 1 && !cells[r][c + 1].visited) unvisited.push([r, c + 1, 1, 3]);
+                    if (r < rows - 1 && !cells[r + 1][c].visited) unvisited.push([r + 1, c, 2, 0]);
+                    if (c > 0 && !cells[r][c - 1].visited) unvisited.push([r, c - 1, 3, 1]);
+
+                    if (unvisited.length) {
+                        const [nr, nc, wCurr, wNext] = unvisited[randInt(unvisited.length)];
+                        cells[r][c].walls[wCurr] = false;
+                        cells[nr][nc].walls[wNext] = false;
+                        cells[nr][nc].visited = true;
+                        stack.push([nr, nc]);
+                    } else {
+                        stack.pop();
+                    }
+                }
+
+                cells[0][0].walls[0] = false;
+                cells[rows - 1][cols - 1].walls[2] = false;
+
+                const queue = [[0, 0]];
+                const parent = new Map();
+                parent.set('0,0', null);
+
+                while (queue.length) {
+                    const [r, c] = queue.shift();
+                    if (r === rows - 1 && c === cols - 1) break;
+                    const moves = [
+                        [r - 1, c, 0],
+                        [r, c + 1, 1],
+                        [r + 1, c, 2],
+                        [r, c - 1, 3]
+                    ];
+                    for (const [nr, nc, wallIdx] of moves) {
+                        if (nr < 0 || nr >= rows || nc < 0 || nc >= cols) continue;
+                        if (cells[r][c].walls[wallIdx]) continue;
+                        const k = `${nr},${nc}`;
+                        if (!parent.has(k)) {
+                            parent.set(k, [r, c]);
+                            queue.push([nr, nc]);
+                        }
+                    }
+                }
+
+                const path = [];
+                let cur = [rows - 1, cols - 1];
+                while (cur) {
+                    path.push(cur);
+                    cur = parent.get(`${cur[0]},${cur[1]}`);
+                }
+                path.reverse();
+
+                const pathKeySet = new Set(path.map(([r, c]) => `${r},${c}`));
+                const orderedTargets = shouldShuffle ? shuffleArray(targets) : targets.slice();
+                const usablePath = path.slice(1, Math.max(1, path.length - 1));
+                const numTokens = Math.min(orderedTargets.length, usablePath.length);
+
+                const tokens = new Map();
+                const checkpoints = [];
+
+                for (let i = 0; i < numTokens; i++) {
+                    const idx = numTokens === 1
+                        ? Math.floor(usablePath.length / 2)
+                        : Math.round((i / (numTokens - 1)) * (usablePath.length - 1));
+                    const [r, c] = usablePath[idx];
+                    const label = formatLabel(orderedTargets[i], letterCase);
+                    tokens.set(`${r},${c}`, { label, isPath: true, stepIdx: i });
+                    checkpoints.push({ stepIdx: i, r, c, label });
+                }
+
+                const offPathDeadEnds = [];
+                const offPathOther = [];
+                for (let r = 0; r < rows; r++) {
+                    for (let c = 0; c < cols; c++) {
+                        if (pathKeySet.has(`${r},${c}`)) continue;
+                        const wallCount = cells[r][c].walls.filter(Boolean).length;
+                        if (wallCount >= 3) offPathDeadEnds.push([r, c]);
+                        else offPathOther.push([r, c]);
+                    }
+                }
+                const decoySpots = shuffleArray(offPathDeadEnds).concat(shuffleArray(offPathOther));
+                const decoyPool = shuffleArray(decoys);
+                const maxDecoys = Math.min(decoyPool.length, decoySpots.length, Math.max(4, numTokens));
+                for (let i = 0; i < maxDecoys; i++) {
+                    const [r, c] = decoySpots[i];
+                    tokens.set(`${r},${c}`, { label: formatLabel(decoyPool[i], letterCase), isPath: false, stepIdx: -1 });
+                }
+
+                return { type: 'wall-maze', rows, cols, cells, path, tokens, checkpoints };
+            }
+
+            function renderWallMazeSVG(data) {
+                const { rows, cols, cells, path, tokens } = data;
+                const cellSize = 86;
+                const padTop = 54;
+                const padBottom = 54;
+                const padSide = 38;
+                const mazeW = cols * cellSize;
+                const mazeH = rows * cellSize;
+                const vbW = mazeW + padSide * 2;
+                const vbH = mazeH + padTop + padBottom;
+
+                const cx = (c) => padSide + c * cellSize + cellSize / 2;
+                const cy = (r) => padTop + r * cellSize + cellSize / 2;
+
+                let hitsSvg = '';
+                for (let r = 0; r < rows; r++) {
+                    for (let c = 0; c < cols; c++) {
+                        const tok = tokens.get(`${r},${c}`);
+                        hitsSvg += `<rect class="wall-cell-hit" data-r="${r}" data-c="${c}" data-step="${tok ? tok.stepIdx : -1}" x="${padSide + c * cellSize}" y="${padTop + r * cellSize}" width="${cellSize}" height="${cellSize}" />`;
+                    }
+                }
+
+                let wallPathD = '';
+                for (let r = 0; r < rows; r++) {
+                    for (let c = 0; c < cols; c++) {
+                        const x = padSide + c * cellSize;
+                        const y = padTop + r * cellSize;
+                        const w = cells[r][c].walls;
+                        if (w[0]) wallPathD += `M${x} ${y} L${x + cellSize} ${y} `;
+                        if (w[1]) wallPathD += `M${x + cellSize} ${y} L${x + cellSize} ${y + cellSize} `;
+                        if (w[2]) wallPathD += `M${x} ${y + cellSize} L${x + cellSize} ${y + cellSize} `;
+                        if (w[3]) wallPathD += `M${x} ${y} L${x} ${y + cellSize} `;
+                    }
+                }
+
+                const solPts = path.map(([r, c]) => `${cx(c)},${cy(r)}`).join(' ');
+
+                let tokensSvg = '';
+                tokens.forEach((tok, key) => {
+                    const [r, c] = key.split(',').map(Number);
+                    const x = cx(c);
+                    const y = cy(r);
+                    const len = tok.label.length;
+                    const fontSize = len > 8 ? 11 : len > 5 ? 13 : len > 2 ? 15 : 20;
+                    const pillW = Math.min(cellSize - 10, Math.max(32, len * (fontSize * 0.68) + 14));
+                    tokensSvg += `
+                    <g pointer-events="none">
+                        <rect x="${x - pillW / 2}" y="${y - 14}" width="${pillW}" height="28" rx="9" fill="#fef3c7" stroke="#1e293b" stroke-width="2.5" />
+                        <text x="${x}" y="${y + 1}" text-anchor="middle" dominant-baseline="middle" font-family="Fredoka, sans-serif" font-weight="700" font-size="${fontSize}" fill="#1e293b">${escapeXml(tok.label)}</text>
+                    </g>`;
+                });
+
+                const startX = cx(0);
+                const startY = padTop - 22;
+                const endX = cx(cols - 1);
+                const endY = padTop + mazeH + 22;
+
+                return `<svg viewBox="0 0 ${vbW} ${vbH}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Wall maze ${rows} by ${cols}" xmlns="http://www.w3.org/2000/svg">
+                    <rect class="maze-board-bg" x="10" y="10" width="${vbW - 20}" height="${vbH - 20}" rx="28" stroke-width="5" />
+                    <g>${hitsSvg}</g>
+                    <g class="solution-layer">
+                        <polyline points="${solPts}" fill="none" stroke="#ff4785" stroke-width="11" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="14 10" opacity="0.85" />
+                    </g>
+                    <path class="maze-wall-stroke" d="${wallPathD}" stroke-width="6" />
+                    ${tokensSvg}
+                    <g pointer-events="none">
+                        <rect x="${startX - 38}" y="${startY - 13}" width="76" height="26" rx="13" fill="#00d063" stroke="#1e293b" stroke-width="3" />
+                        <text x="${startX}" y="${startY + 1}" text-anchor="middle" dominant-baseline="middle" font-family="Fredoka, sans-serif" font-size="13" font-weight="700" fill="#1e293b">START ↓</text>
+                        <rect x="${endX - 40}" y="${endY - 13}" width="80" height="26" rx="13" fill="#ff4785" stroke="#1e293b" stroke-width="3" />
+                        <text x="${endX}" y="${endY + 1}" text-anchor="middle" dominant-baseline="middle" font-family="Fredoka, sans-serif" font-size="13" font-weight="700" fill="#ffffff">★ FINISH</text>
+                    </g>
+                </svg>`;
+            }
+
+            // ===== APP STATE & DOM =====
+            const WS_STORAGE_KEY = 'klasskit_maze_maker_v1';
+            const SETS_STORAGE_KEY = 'klasskit_maze_maker_sets_v1';
+            const CLOUD_TOOL_KEY = 'maze-maker';
+            const THEME_KEY = 'theme_maze-maker';
+
+            const $ = (id) => document.getElementById(id);
+            const el = {
+                sidebar: $('sidebar'),
+                toggleSidebar: $('toggle-sidebar-btn'),
+                mobileClose: $('mobile-close-panel'),
+                soundBtn: $('sound-btn'),
+                soundOnIcon: $('sound-icon-on'),
+                soundOffIcon: $('sound-icon-off'),
+                slider: $('size-slider'),
+                sizeDisplay: $('size-display'),
+                sizeMinLabel: $('size-min-label'),
+                sizeMaxLabel: $('size-max-label'),
+                footerMode: $('footer-mode'),
+                shuffleTargets: $('shuffle-targets'),
+                shuffleLabel: $('shuffle-label'),
+                customTitle: $('custom-title'),
+                customSubtitle: $('custom-subtitle'),
+                targetInput: $('target-input'),
+                decoyInput: $('decoy-input'),
+                targetLabel: $('target-label'),
+                decoyLabel: $('decoy-label'),
+                targetBadge: $('target-count-badge'),
+                decoyBadge: $('decoy-count-badge'),
+                status: $('status'),
+                generate: $('generate-btn'),
+                reroll: $('reroll-btn'),
+                printBtn: $('print-btn'),
+                printKeyBtn: $('print-key-btn'),
+                themeBtn: $('theme-btn'),
+                helpBtn: $('help-btn'),
+                bulkBtn: $('bulk-import-btn'),
+                wrapper: $('svg-wrapper'),
+                answerToggle: $('answer-toggle-btn'),
+                resetBoard: $('reset-board-btn'),
+                canvasModePill: $('canvas-mode-pill'),
+                canvasStatsPill: $('canvas-stats-pill'),
+                rightPanelTitle: $('right-panel-title'),
+                foundCount: $('found-count'),
+                totalCount: $('total-count'),
+                bank: $('word-bank'),
+                zoomIn: $('zoom-in'),
+                zoomOut: $('zoom-out'),
+                zoomReset: $('zoom-reset'),
+                printArea: $('print-area'),
+                printHeading: $('print-heading'),
+                printSubheading: $('print-subheading'),
+                printSvg: $('print-svg-container'),
+                printFooter: $('print-footer'),
+                pageStyle: $('page-style'),
+                savedSetsToggleBtn: $('saved-sets-toggle-btn'),
+                librarySort: $('library-sort'),
+                libraryList: $('library-list'),
+                savedCount: $('saved-count'),
+                newSetBtn: $('new-set-btn'),
+                saveSetBtn: $('save-set-btn'),
+                activeSetBanner: $('active-set-banner'),
+                activeSetName: $('active-set-name'),
+                closeSetBtn: $('close-set-btn'),
+            };
+
+            let currentMaze = null;
+            let activeSetId = null;
+            let showAnswers = false;
+            let zoomLevel = 1;
+            let spotlightStep = null;
+            let foundSteps = new Set();
+            let soundOn = true;
+            let cloudSaveTimer = null;
+            let activeConfirmCancel = null;
+
+            const choice = (name, fallback) => document.querySelector(`input[name="${name}"]:checked`)?.value || fallback;
+            const setRadio = (name, val) => {
+                const r = document.querySelector(`input[name="${name}"][value="${val}"]`);
+                if (r) r.checked = true;
+            };
+
+            function hydrateIcons(root) {
+                if (typeof lucide === 'undefined' || typeof lucide.createIcons !== 'function') return;
+                try {
+                    lucide.createIcons(root && root !== document ? { root } : undefined);
+                } catch (e) {
+                    lucide.createIcons();
+                }
+            }
+
+            // ===== SOUND ENGINE =====
+            let synth = null;
+            function applySoundUI() {
+                if (el.soundOnIcon) el.soundOnIcon.classList.toggle('hidden', !soundOn);
+                if (el.soundOffIcon) el.soundOffIcon.classList.toggle('hidden', soundOn);
+                if (el.soundBtn) el.soundBtn.setAttribute('aria-pressed', String(soundOn));
+            }
+
+            function initSoundState() {
+                try {
+                    soundOn = localStorage.getItem('soundMuted') !== 'true';
+                } catch (e) {
+                    soundOn = true;
+                }
+                applySoundUI();
+            }
+
+            function playSound(kind = 'pop') {
+                if (!soundOn || typeof Tone === 'undefined') return;
+                try {
+                    if (Tone.context && Tone.context.state !== 'running') Tone.start();
+                    if (!synth) {
+                        synth = new Tone.PolySynth(Tone.Synth, {
+                            oscillator: { type: 'triangle' },
+                            envelope: { attack: 0.01, decay: 0.1, sustain: 0.02, release: 0.14 }
+                        }).toDestination();
+                        synth.volume.value = -13;
+                    }
+                    const now = Tone.now();
+                    if (kind === 'win') {
+                        ['C5', 'E5', 'G5', 'C6'].forEach((n, i) => synth.triggerAttackRelease(n, '16n', now + i * 0.08));
+                    } else {
+                        synth.triggerAttackRelease('E5', '32n', now);
+                    }
+                } catch (e) {}
+            }
+
+            function showToast(message, type = 'info') {
+                const container = $('toast-container');
+                if (!container) return;
+                const colors = {
+                    success: 'bg-green text-dark',
+                    error: 'bg-pink text-white',
+                    info: 'bg-blue text-white',
+                    warning: 'bg-orange text-dark',
+                };
+                const icons = {
+                    success: 'check-circle',
+                    error: 'alert-circle',
+                    info: 'info',
+                    warning: 'alert-triangle',
+                };
+                const toast = document.createElement('div');
+                toast.className = `${colors[type] || colors.info} px-5 py-3 rounded-2xl border-3 border-dark shadow-hard font-extrabold text-xs uppercase tracking-wider flex items-center gap-2 pointer-events-auto animate-pop-in`;
+                toast.innerHTML = `<i data-lucide="${icons[type] || 'info'}" class="w-4 h-4 shrink-0"></i><span></span>`;
+                toast.querySelector('span').textContent = message;
+                container.appendChild(toast);
+                hydrateIcons(toast);
+                setTimeout(() => {
+                    toast.style.opacity = '0';
+                    toast.style.transform = 'translateY(10px)';
+                    toast.style.transition = 'all 0.25s ease';
+                    setTimeout(() => toast.remove(), 260);
+                }, 2400);
+            }
+
+            function showConfirm(title, message) {
+                return new Promise((resolve) => {
+                    const modal = $('confirmModal');
+                    $('confirmTitle').textContent = title;
+                    $('confirmMessage').textContent = message;
+                    modal.classList.remove('hidden');
+                    modal.classList.add('flex');
+                    hydrateIcons(modal);
+                    const done = (val) => {
+                        modal.classList.add('hidden');
+                        modal.classList.remove('flex');
+                        $('confirmBtnYes').onclick = null;
+                        $('confirmBtnNo').onclick = null;
+                        modal.onclick = null;
+                        activeConfirmCancel = null;
+                        resolve(val);
+                    };
+                    activeConfirmCancel = () => done(false);
+                    $('confirmBtnYes').onclick = () => done(true);
+                    $('confirmBtnNo').onclick = () => done(false);
+                    modal.onclick = (e) => { if (e.target === modal) done(false); };
+                });
+            }
+
+            function syncModeLabels() {
+                const mode = choice('maze-mode', 'word-path');
+                if (mode === 'wall-maze') {
+                    el.slider.min = '6';
+                    el.slider.max = '13';
+                    if (parseInt(el.slider.value, 10) < 6) el.slider.value = '9';
+                    el.sizeMinLabel.textContent = 'EASY (6×6)';
+                    el.sizeMaxLabel.textContent = 'HARD (13×13)';
+                    el.targetLabel.textContent = 'True-Path Checkpoints';
+                    el.decoyLabel.textContent = 'Dead-End Decoys';
+                    el.shuffleLabel.textContent = 'Shuffle checkpoints along path';
+                    el.rightPanelTitle.textContent = 'CHECKPOINTS';
+                    el.canvasModePill.textContent = 'Wall Maze';
+                } else {
+                    el.slider.min = '5';
+                    el.slider.max = '8';
+                    if (parseInt(el.slider.value, 10) > 8) el.slider.value = '6';
+                    el.sizeMinLabel.textContent = 'EASY (5×5)';
+                    el.sizeMaxLabel.textContent = 'CHALLENGE (8×8)';
+                    el.targetLabel.textContent = 'Path Words (Correct)';
+                    el.decoyLabel.textContent = 'Decoy Words (Traps)';
+                    el.shuffleLabel.textContent = 'Shuffle target words along path';
+                    el.rightPanelTitle.textContent = 'PATH STEPS';
+                    el.canvasModePill.textContent = 'Word Path';
+                }
+                const s = el.slider.value;
+                el.sizeDisplay.textContent = `${s} × ${s}`;
+            }
+
+            function updateWordBadges() {
+                el.targetBadge.textContent = String(parseList(el.targetInput.value).length);
+                el.decoyBadge.textContent = String(parseList(el.decoyInput.value).length);
+            }
+
+            function applyPage() {
+                const orient = choice('page-orient', 'portrait');
+                document.documentElement.dataset.orient = orient;
+                el.pageStyle.textContent = `@page { size: A4 ${orient}; margin: 0; }`;
+            }
+
+            function updateProgressUI() {
+                const total = currentMaze ? currentMaze.checkpoints.length : 0;
+                el.foundCount.textContent = String(foundSteps.size);
+                el.totalCount.textContent = String(total);
+                const anyMarked = el.wrapper.querySelectorAll('.user-picked, .user-wrong, .word-spotlight').length > 0;
+                el.resetBoard.classList.toggle('hidden', !anyMarked);
+            }
+
+            function renderChecklist() {
+                if (!currentMaze) return;
+                el.bank.replaceChildren(...currentMaze.checkpoints.map((cp) => {
+                    const li = document.createElement('li');
+                    const btn = document.createElement('button');
+                    btn.type = 'button';
+                    btn.dataset.step = String(cp.stepIdx);
+                    const isFound = foundSteps.has(cp.stepIdx);
+                    const isSpot = spotlightStep === cp.stepIdx;
+                    btn.className = `word-tag${isFound ? ' found' : ''}${isSpot ? ' spotlight' : ''}`;
+                    btn.textContent = `${cp.stepIdx + 1}. ${cp.label}`;
+                    li.appendChild(btn);
+                    return li;
+                }));
+                updateProgressUI();
+            }
+
+            function renderPrintFooter(asKey) {
+                if (!currentMaze) return;
+                const fMode = el.footerMode.value;
+                if (fMode === 'none') {
+                    el.printFooter.innerHTML = '';
+                    el.printFooter.style.display = 'none';
+                    return;
+                }
+                el.printFooter.style.display = 'block';
+                if (fMode === 'rule') {
+                    el.printFooter.innerHTML = `<div class="print-rule-banner">${escapeXml(el.customSubtitle.value.trim() || 'Follow the correct path from START to FINISH.')}</div>`;
+                    return;
+                }
+                const slots = currentMaze.checkpoints.map((cp, i) => `
+                    <div class="print-slot">
+                        <span>${i + 1}.</span>
+                        <span class="print-slot-line">${asKey ? escapeXml(cp.label) : ''}</span>
+                    </div>
+                `).join('');
+                el.printFooter.innerHTML = `<div class="print-answer-grid">${slots}</div>`;
+            }
+
+            function generate(silent = false, { skipPersist = false } = {}) {
+                const targets = parseList(el.targetInput.value);
+                const decoys = parseList(el.decoyInput.value);
+                if (targets.length === 0) {
+                    if (!silent) {
+                        el.status.textContent = 'Add at least one Path Word to build the maze.';
+                        el.status.classList.remove('hidden');
+                    }
+                    return;
+                }
+                el.status.classList.add('hidden');
+
+                const mode = choice('maze-mode', 'word-path');
+                const size = parseInt(el.slider.value, 10) || 6;
+                const letterCase = choice('letter-case', 'upper');
+                const shouldShuffle = el.shuffleTargets.checked;
+
+                currentMaze = mode === 'wall-maze'
+                    ? generateWallMazeData(size, targets, decoys, shouldShuffle, letterCase)
+                    : generateWordPathData(size, targets, decoys, shouldShuffle, letterCase);
+
+                foundSteps.clear();
+                spotlightStep = null;
+
+                const svg = mode === 'wall-maze'
+                    ? renderWallMazeSVG(currentMaze)
+                    : renderWordPathSVG(currentMaze);
+
+                el.wrapper.innerHTML = svg;
+                el.printSvg.innerHTML = svg;
+                el.canvasStatsPill.textContent = `${currentMaze.rows}×${currentMaze.cols} · ${currentMaze.checkpoints.length} ${mode === 'wall-maze' ? 'checkpoints' : 'steps'}`;
+
+                renderChecklist();
+                renderPrintFooter(false);
+                if (!skipPersist) persistState();
+            }
+
+            // ===== STORAGE & CLOUD SYNC =====
+            function getWorkspaceData() {
+                return {
+                    mode: choice('maze-mode', 'word-path'),
+                    size: parseInt(el.slider.value, 10) || 6,
+                    letterCase: choice('letter-case', 'upper'),
+                    footerMode: el.footerMode.value,
+                    shuffleTargets: el.shuffleTargets.checked,
+                    title: el.customTitle.value,
+                    subtitle: el.customSubtitle.value,
+                    targets: el.targetInput.value,
+                    decoys: el.decoyInput.value,
+                    orient: choice('page-orient', 'portrait'),
+                    activeSetId
+                };
+            }
+
+            function applyWorkspaceData(d) {
+                if (!d) return;
+                if (d.mode) setRadio('maze-mode', d.mode);
+                syncModeLabels();
+                if (d.size) el.slider.value = String(d.size);
+                syncModeLabels();
+                if (d.letterCase) setRadio('letter-case', d.letterCase);
+                if (d.footerMode) el.footerMode.value = d.footerMode;
+                if (typeof d.shuffleTargets === 'boolean') el.shuffleTargets.checked = d.shuffleTargets;
+                if (typeof d.title === 'string') el.customTitle.value = d.title;
+                if (typeof d.subtitle === 'string') el.customSubtitle.value = d.subtitle;
+                if (typeof d.targets === 'string') el.targetInput.value = d.targets;
+                if (typeof d.decoys === 'string') el.decoyInput.value = d.decoys;
+                if (d.orient) setRadio('page-orient', d.orient);
+                if (d.activeSetId !== undefined) activeSetId = d.activeSetId;
+                updateWordBadges();
+            }
+
+            function readSets() {
+                try {
+                    const raw = localStorage.getItem(SETS_STORAGE_KEY);
+                    const parsed = raw ? JSON.parse(raw) : [];
+                    return Array.isArray(parsed) ? parsed : [];
+                } catch (e) { return []; }
+            }
+
+            function writeSets(sets) {
+                try { localStorage.setItem(SETS_STORAGE_KEY, JSON.stringify(sets)); } catch (e) {}
+            }
+
+            function persistState() {
+                const ws = getWorkspaceData();
+                try { localStorage.setItem(WS_STORAGE_KEY, JSON.stringify(ws)); } catch (e) {}
+                let sets = readSets();
+                if (activeSetId) {
+                    const idx = sets.findIndex((s) => s.id === activeSetId);
+                    if (idx !== -1) {
+                        sets[idx] = { ...sets[idx], ...ws, lastUsed: Date.now() };
+                        writeSets(sets);
+                        renderLibrary();
+                    }
+                }
+                clearTimeout(cloudSaveTimer);
+                cloudSaveTimer = setTimeout(() => {
+                    if (typeof window.saveProgress === 'function') {
+                        window.saveProgress(CLOUD_TOOL_KEY, { workspace: ws, sets }).catch(() => {});
+                    }
+                }, 700);
+            }
+
+            async function loadPersistedState() {
+                let hasLocalSets = readSets().length > 0;
+                try {
+                    const saved = localStorage.getItem(WS_STORAGE_KEY);
+                    if (saved) applyWorkspaceData(JSON.parse(saved));
+                } catch (e) {}
+
+                if (typeof window.loadProgress === 'function') {
+                    try {
+                        const cloud = await window.loadProgress(CLOUD_TOOL_KEY);
+                        if (cloud) {
+                            if (cloud.workspace) {
+                                applyWorkspaceData(cloud.workspace);
+                                try { localStorage.setItem(WS_STORAGE_KEY, JSON.stringify(cloud.workspace)); } catch (e) {}
+                            }
+                            if (Array.isArray(cloud.sets) && cloud.sets.length > 0 && !hasLocalSets) {
+                                writeSets(cloud.sets);
+                            }
+                        }
+                    } catch (e) {}
+                }
+            }
+
+            function renderLibrary() {
+                const sets = readSets();
+                if (el.savedCount) el.savedCount.textContent = String(sets.length);
+                const sort = el.librarySort.value;
+                if (sort === 'recent') sets.sort((a, b) => (b.lastUsed || 0) - (a.lastUsed || 0));
+                else if (sort === 'alpha') sets.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+                else if (sort === 'popular') sets.sort((a, b) => (b.usageCount || 0) - (a.usageCount || 0));
+
+                const active = sets.find((s) => s.id === activeSetId);
+                if (active) {
+                    el.activeSetBanner.classList.remove('hidden');
+                    el.activeSetName.textContent = active.name;
+                } else {
+                    activeSetId = null;
+                    el.activeSetBanner.classList.add('hidden');
+                }
+
+                if (!sets.length) {
+                    el.libraryList.innerHTML = `<p class="text-[11px] font-semibold text-slate-400 text-center py-2">No saved maze sets yet.</p>`;
+                    return;
+                }
+
+                el.libraryList.innerHTML = sets.map((s) => {
+                    const isActive = s.id === activeSetId;
+                    const modeText = s.mode === 'wall-maze' ? 'Wall Maze' : 'Word Path';
+                    return `
+                        <div class="flex items-center gap-2 p-2 rounded-xl border-2 ${isActive ? 'border-blue bg-blue/10' : 'border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60'} hover:border-blue transition-colors">
+                            <button type="button" data-load-id="${s.id}" class="flex-1 text-left min-w-0">
+                                <p class="text-xs font-extrabold truncate flex items-center gap-1.5">
+                                    <span class="truncate">${escapeXml(s.name)}</span>
+                                    ${isActive ? '<span class="px-1.5 py-0.5 rounded bg-blue text-white text-[9px] uppercase shrink-0">Active</span>' : ''}
+                                </p>
+                                <p class="text-[10px] font-bold text-slate-400">${modeText} · ${s.size || 6}×${s.size || 6}</p>
+                            </button>
+                            <button type="button" data-delete-id="${s.id}" class="p-1.5 rounded-lg text-slate-400 hover:text-pink hover:bg-pink/10 transition-colors" title="Delete set">
+                                <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                            </button>
+                        </div>`;
+                }).join('');
+                hydrateIcons(el.libraryList);
+            }
+
+            // ===== PRINT =====
+            let printingAsKey = false;
+            function preparePrint(asKey) {
+                applyPage();
+                const baseTitle = el.customTitle.value.trim() || 'Maze Handout';
+                const baseSub = el.customSubtitle.value.trim() || 'Follow the correct path from START to FINISH.';
+                el.printArea.classList.toggle('show-answers', asKey);
+                el.printHeading.textContent = asKey ? `${baseTitle} — Teacher Key` : baseTitle;
+                el.printSubheading.textContent = asKey ? 'Dashed pink path shows the complete solution.' : baseSub;
+                renderPrintFooter(asKey);
+            }
+
+            function printHandout(asKey) {
+                printingAsKey = asKey;
+                preparePrint(asKey);
+                window.print();
+                setTimeout(() => {
+                    printingAsKey = false;
+                    preparePrint(false);
+                }, 300);
+            }
+            window.addEventListener('beforeprint', () => preparePrint(printingAsKey));
+            window.addEventListener('afterprint', () => {
+                printingAsKey = false;
+                preparePrint(false);
+            });
+
+            // ===== EVENT LISTENERS =====
+            document.querySelectorAll('input[name="maze-mode"]').forEach((r) => {
+                r.addEventListener('change', () => {
+                    syncModeLabels();
+                    generate(true);
+                    playSound('pop');
+                });
+            });
+
+            el.slider.addEventListener('input', () => {
+                syncModeLabels();
+                persistState();
+            });
+            el.slider.addEventListener('change', () => {
+                generate(true);
+                playSound('pop');
+            });
+
+            document.querySelectorAll('input[name="letter-case"]').forEach((r) => r.addEventListener('change', () => {
+                generate(true);
+                playSound('pop');
+            }));
+            el.footerMode.addEventListener('change', () => { renderPrintFooter(false); persistState(); playSound('pop'); });
+            el.shuffleTargets.addEventListener('change', () => { generate(true); playSound('pop'); });
+            el.customTitle.addEventListener('input', persistState);
+            el.customSubtitle.addEventListener('input', persistState);
+            el.targetInput.addEventListener('input', () => { updateWordBadges(); persistState(); });
+            el.decoyInput.addEventListener('input', () => { updateWordBadges(); persistState(); });
+            document.querySelectorAll('input[name="page-orient"]').forEach((r) => r.addEventListener('change', () => {
+                applyPage();
+                persistState();
+                playSound('pop');
+            }));
+
+            el.generate.addEventListener('click', () => {
+                generate(false);
+                playSound('pop');
+                showToast('New maze built!', 'success');
+            });
+            el.reroll.addEventListener('click', () => {
+                generate(false);
+                playSound('pop');
+                showToast('Shuffled maze layout', 'info');
+            });
+
+            el.printBtn.addEventListener('click', () => printHandout(false));
+            el.printKeyBtn.addEventListener('click', () => printHandout(true));
+
+            // Sound & Theme toggles
+            el.soundBtn.addEventListener('click', () => {
+                soundOn = !soundOn;
+                try { localStorage.setItem('soundMuted', String(!soundOn)); } catch (e) {}
+                applySoundUI();
+                if (soundOn) playSound('pop');
+            });
+
+            el.themeBtn.addEventListener('click', () => {
+                const dark = document.documentElement.classList.toggle('dark');
+                el.themeBtn.setAttribute('aria-pressed', String(dark));
+                try {
+                    localStorage.setItem(THEME_KEY, dark ? 'dark' : 'light');
+                    localStorage.setItem('klasskit-theme', dark ? 'dark' : 'light');
+                } catch (e) {}
+                playSound('pop');
+            });
+
+            // Sidebar collapse
+            const toggleSidebar = (forceHide = false) => {
+                const isHidden = window.innerWidth >= 768
+                    ? el.sidebar.classList.contains('hidden-panel-desktop')
+                    : el.sidebar.classList.contains('hidden-panel-mobile');
+                if (forceHide || !isHidden) {
+                    el.sidebar.classList.add('hidden-panel-mobile', 'hidden-panel-desktop');
+                } else {
+                    el.sidebar.classList.remove('hidden-panel-mobile', 'hidden-panel-desktop');
+                }
+            };
+            el.toggleSidebar.addEventListener('click', () => toggleSidebar(false));
+            el.mobileClose.addEventListener('click', () => toggleSidebar(true));
+
+            // Reveal answers toggle (clears frosted white/dark slate classes when active pink)
+            el.answerToggle.addEventListener('click', () => {
+                showAnswers = !showAnswers;
+                el.wrapper.classList.toggle('show-answers', showAnswers);
+                el.answerToggle.setAttribute('aria-pressed', String(showAnswers));
+                el.answerToggle.classList.toggle('bg-white/90', !showAnswers);
+                el.answerToggle.classList.toggle('dark:bg-slate-800/90', !showAnswers);
+                el.answerToggle.classList.toggle('text-orange', !showAnswers);
+                el.answerToggle.classList.toggle('bg-pink', showAnswers);
+                el.answerToggle.classList.toggle('text-white', showAnswers);
+                playSound('pop');
+            });
+
+            // Interactive Smartboard clicking
+            el.wrapper.addEventListener('click', (e) => {
+                if (!currentMaze) return;
+                if (currentMaze.type === 'word-path') {
+                    const g = e.target.closest('.maze-tile-group');
+                    if (!g) return;
+                    const isPath = g.getAttribute('data-path') === '1';
+                    const step = parseInt(g.getAttribute('data-step'), 10);
+                    if (isPath) {
+                        const picked = g.classList.toggle('user-picked');
+                        if (picked) foundSteps.add(step);
+                        else foundSteps.delete(step);
+                        renderChecklist();
+                        if (foundSteps.size === currentMaze.checkpoints.length) {
+                            playSound('win');
+                            showToast('Path complete! Great job!', 'success');
+                        } else {
+                            playSound('pop');
+                        }
+                    } else {
+                        g.classList.toggle('user-wrong');
+                        updateProgressUI();
+                        playSound('pop');
+                    }
+                } else {
+                    const hit = e.target.closest('.wall-cell-hit');
+                    if (!hit) return;
+                    const picked = hit.classList.toggle('user-picked');
+                    const step = parseInt(hit.getAttribute('data-step'), 10);
+                    if (step >= 0) {
+                        if (picked) foundSteps.add(step);
+                        else foundSteps.delete(step);
+                        renderChecklist();
+                        if (foundSteps.size === currentMaze.checkpoints.length) {
+                            playSound('win');
+                            showToast('All checkpoints collected!', 'success');
+                        } else {
+                            playSound('pop');
+                        }
+                    } else {
+                        updateProgressUI();
+                        playSound('pop');
+                    }
+                }
+            });
+
+            // Spotlight pill click
+            el.bank.addEventListener('click', (e) => {
+                const btn = e.target.closest('button[data-step]');
+                if (!btn) return;
+                const step = parseInt(btn.dataset.step, 10);
+                spotlightStep = spotlightStep === step ? null : step;
+                el.wrapper.querySelectorAll('.maze-tile-group, .wall-cell-hit').forEach((node) => {
+                    const s = parseInt(node.getAttribute('data-step'), 10);
+                    node.classList.toggle('word-spotlight', spotlightStep !== null && s === spotlightStep);
+                });
+                renderChecklist();
+                playSound('pop');
+            });
+
+            el.resetBoard.addEventListener('click', () => {
+                foundSteps.clear();
+                spotlightStep = null;
+                el.wrapper.querySelectorAll('.user-picked, .user-wrong, .word-spotlight').forEach((n) => {
+                    n.classList.remove('user-picked', 'user-wrong', 'word-spotlight');
+                });
+                renderChecklist();
+                playSound('pop');
+            });
+
+            // Zoom
+            function applyZoom() {
+                el.wrapper.style.transform = `scale(${zoomLevel})`;
+                el.zoomReset.textContent = `${Math.round(zoomLevel * 100)}%`;
+            }
+            el.zoomIn.addEventListener('click', () => { zoomLevel = Math.min(1.6, +(zoomLevel + 0.1).toFixed(1)); applyZoom(); });
+            el.zoomOut.addEventListener('click', () => { zoomLevel = Math.max(0.6, +(zoomLevel - 0.1).toFixed(1)); applyZoom(); });
+            el.zoomReset.addEventListener('click', () => { zoomLevel = 1; applyZoom(); });
+
+            // Quick Presets (detach active saved set so presets don't overwrite saved items)
+            document.querySelectorAll('[data-preset]').forEach((btn) => {
+                btn.addEventListener('click', () => {
+                    const p = PRESETS[btn.getAttribute('data-preset')];
+                    if (!p) return;
+                    activeSetId = null;
+                    applyWorkspaceData({
+                        mode: p.mode,
+                        size: p.size,
+                        title: p.title,
+                        subtitle: p.subtitle,
+                        targets: p.targets,
+                        decoys: p.decoys,
+                        shuffleTargets: p.shuffle,
+                        activeSetId: null
+                    });
+                    renderLibrary();
+                    generate(false);
+                    playSound('pop');
+                    showToast(`Loaded "${p.title}"`, 'info');
+                });
+            });
+
+            // Saved Sets Drawer
+            el.savedSetsToggleBtn.addEventListener('click', () => {
+                $('saved-sets-controls').classList.toggle('active');
+                $('saved-sets-toggle-icon').classList.toggle('active');
+            });
+            el.librarySort.addEventListener('change', renderLibrary);
+            el.closeSetBtn.addEventListener('click', () => { activeSetId = null; renderLibrary(); persistState(); });
+
+            el.newSetBtn.addEventListener('click', async () => {
+                const ok = await showConfirm('Reset Workspace?', 'Detach active set and restore the default Irregular Verb Maze?');
+                if (!ok) return;
+                activeSetId = null;
+                const p = PRESETS.irregular;
+                applyWorkspaceData({
+                    mode: p.mode, size: p.size, title: p.title, subtitle: p.subtitle,
+                    targets: p.targets, decoys: p.decoys, shuffleTargets: p.shuffle, activeSetId: null
+                });
+                renderLibrary();
+                generate(false);
+                playSound('pop');
+                showToast('Workspace reset', 'info');
+            });
+
+            // Save Modal (Smart Save: update if same name, else save new)
+            const closeSaveModal = () => { $('saveModal').classList.add('hidden'); $('saveModal').classList.remove('flex'); };
+            el.saveSetBtn.addEventListener('click', () => {
+                const current = readSets().find((s) => s.id === activeSetId);
+                $('save-set-input').value = current ? current.name : el.customTitle.value.trim();
+                $('saveModal').classList.remove('hidden');
+                $('saveModal').classList.add('flex');
+                setTimeout(() => $('save-set-input').focus(), 40);
+            });
+            $('save-modal-cancel').addEventListener('click', closeSaveModal);
+            $('saveModal').addEventListener('click', (e) => { if (e.target === $('saveModal')) closeSaveModal(); });
+            const doSaveSet = () => {
+                const name = $('save-set-input').value.trim();
+                if (!name) { showToast('Enter a set name first', 'warning'); return; }
+                const sets = readSets();
+                const now = Date.now();
+                const existing = activeSetId ? sets.find((s) => s.id === activeSetId) : null;
+                const isUpdating = Boolean(existing && (existing.name || '').toLowerCase() === name.toLowerCase());
+                const id = isUpdating ? existing.id : ('mz_' + now);
+                const ws = getWorkspaceData();
+                if (isUpdating) {
+                    const idx = sets.findIndex((s) => s.id === id);
+                    sets[idx] = { ...sets[idx], ...ws, id, name, activeSetId: id, lastUsed: now };
+                } else {
+                    sets.unshift({ id, name, ...ws, activeSetId: id, createdAt: now, lastUsed: now, usageCount: 1 });
+                }
+                activeSetId = id;
+                writeSets(sets);
+                closeSaveModal();
+                renderLibrary();
+                persistState();
+                playSound('pop');
+                showToast(isUpdating ? `Updated "${name}"` : `Saved "${name}"`, 'success');
+            };
+            $('save-modal-confirm').addEventListener('click', doSaveSet);
+            $('save-set-input').addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') { e.preventDefault(); doSaveSet(); }
+                if (e.key === 'Escape') closeSaveModal();
+            });
+
+            el.libraryList.addEventListener('click', async (e) => {
+                const loadBtn = e.target.closest('[data-load-id]');
+                if (loadBtn) {
+                    const id = loadBtn.getAttribute('data-load-id');
+                    const sets = readSets();
+                    const item = sets.find((s) => s.id === id);
+                    if (!item) return;
+                    activeSetId = id;
+                    item.lastUsed = Date.now();
+                    item.usageCount = (item.usageCount || 0) + 1;
+                    writeSets(sets);
+                    applyWorkspaceData({ ...item, activeSetId: id });
+                    applyPage();
+                    renderLibrary();
+                    generate(false);
+                    playSound('pop');
+                    showToast(`Loaded "${item.name}"`, 'success');
+                    return;
+                }
+                const delBtn = e.target.closest('[data-delete-id]');
+                if (delBtn) {
+                    const id = delBtn.getAttribute('data-delete-id');
+                    const sets = readSets();
+                    const item = sets.find((s) => s.id === id);
+                    if (!item) return;
+                    const ok = await showConfirm('Delete Saved Set?', `Delete "${item.name}"?`);
+                    if (!ok) return;
+                    writeSets(sets.filter((s) => s.id !== id));
+                    if (activeSetId === id) activeSetId = null;
+                    renderLibrary();
+                    persistState();
+                    showToast('Set deleted', 'info');
+                }
+            });
+
+            // Bulk Import Modal
+            const closeBulk = () => { $('bulkModal').classList.add('hidden'); $('bulkModal').classList.remove('flex'); };
+            el.bulkBtn.addEventListener('click', () => {
+                $('bulkModal').classList.remove('hidden');
+                $('bulkModal').classList.add('flex');
+                setTimeout(() => $('bulk-textarea').focus(), 40);
+            });
+            $('bulk-close-btn').addEventListener('click', closeBulk);
+            $('bulk-cancel-btn').addEventListener('click', closeBulk);
+            $('bulkModal').addEventListener('click', (e) => { if (e.target === $('bulkModal')) closeBulk(); });
+            $('bulk-sample-btn').addEventListener('click', () => {
+                $('bulk-textarea').value =
+                    '## Sea Animals Maze\n' +
+                    '? Step only on SEA ANIMALS to cross from START to FINISH!\n' +
+                    'TARGET: SHARK, WHALE, DOLPHIN, OCTOPUS, CRAB, SEAL, TURTLE, SQUID, STARFISH, JELLYFISH\n' +
+                    'DECOY: LION, TIGER, ZEBRA, EAGLE, CAMEL, BEAR, WOLF, MONKEY, HORSE, PANDA, KOALA, FOX';
+            });
+            $('bulk-apply-btn').addEventListener('click', () => {
+                const raw = $('bulk-textarea').value;
+                const lines = raw.replace(/\r\n/g, '\n').split('\n');
+                const targets = [];
+                const decoys = [];
+                let title = '';
+                let subtitle = '';
+
+                for (const line of lines) {
+                    const t = line.trim();
+                    if (!t || t.startsWith('//')) continue;
+                    if (t.startsWith('##')) { title = t.slice(2).trim(); continue; }
+                    if (t.startsWith('?')) { subtitle = t.slice(1).trim(); continue; }
+                    if (t.startsWith('#')) continue;
+                    if (/^target\s*:/i.test(t)) {
+                        targets.push(...parseList(t.replace(/^target\s*:/i, '')));
+                    } else if (/^decoy\s*:/i.test(t)) {
+                        decoys.push(...parseList(t.replace(/^decoy\s*:/i, '')));
+                    } else if (t.includes('|')) {
+                        const [word, kind] = t.split('|').map((s) => s.trim());
+                        if (word) {
+                            if (/trap|decoy|false|wrong/i.test(kind || '')) decoys.push(word);
+                            else targets.push(word);
+                        }
+                    } else {
+                        targets.push(...parseList(t));
+                    }
+                }
+
+                if (!targets.length) {
+                    showToast('No path words found in input', 'warning');
+                    return;
+                }
+                if (title) el.customTitle.value = title;
+                if (subtitle) el.customSubtitle.value = subtitle;
+                el.targetInput.value = targets.join(', ');
+                if (decoys.length) el.decoyInput.value = decoys.join(', ');
+                updateWordBadges();
+                closeBulk();
+                generate(false);
+                playSound('pop');
+                showToast(`Imported ${targets.length} path words`, 'success');
+            });
+
+            // Help Modal
+            const closeHelp = () => { $('helpModal').classList.add('hidden'); $('helpModal').classList.remove('flex'); };
+            el.helpBtn.addEventListener('click', () => {
+                $('helpModal').classList.remove('hidden');
+                $('helpModal').classList.add('flex');
+                hydrateIcons($('helpModal'));
+            });
+            $('help-close-btn').addEventListener('click', closeHelp);
+            $('help-got-it-btn').addEventListener('click', closeHelp);
+            $('helpModal').addEventListener('click', (e) => { if (e.target === $('helpModal')) closeHelp(); });
+
+            // Escape closes open modals including confirmModal
+            window.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') {
+                    closeBulk();
+                    closeHelp();
+                    closeSaveModal();
+                    if (typeof activeConfirmCancel === 'function') activeConfirmCancel();
+                }
+            });
+
+            // ===== INIT =====
+            (async function init() {
+                if (typeof requireAuth === 'function') await requireAuth();
+                document.body.classList.remove('opacity-0');
+                initSoundState();
+                el.themeBtn.setAttribute('aria-pressed', String(document.documentElement.classList.contains('dark')));
+                await loadPersistedState();
+                syncModeLabels();
+                updateWordBadges();
+                applyPage();
+                renderLibrary();
+                generate(true, { skipPersist: true });
+                hydrateIcons(document);
+            })();
+        })();
+    </script>
+</body>
+
+</html>

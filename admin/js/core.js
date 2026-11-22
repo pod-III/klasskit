@@ -215,6 +215,8 @@ const RAW_TOOL_TO_CATALOG_ID = {
     'chutes-ladders': 'chutes-ladders',
     'tracing-maker': 'tracing-maker',
     'dice-maker': 'dice-maker',
+    'maze-maker': 'maze-maker',
+    'labyrinth-quest': 'labyrinth-quest',
 
     // Workshop
     'workshop_analyzer': 'text-workshop',

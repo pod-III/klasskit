@@ -1,0 +1,2223 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Labyrinth Quest Maker — KlassKit</title>
+    <link rel="icon" type="image/x-icon" href="../../../media/icon.ico" />
+    <link rel="icon" type="image/webp" href="../../../media/icon.webp" />
+
+    <!-- Apply saved theme before first paint (syncs with KlassKit Hub) -->
+    <script>
+        (function () {
+            function readTheme(key) {
+                try {
+                    var raw = localStorage.getItem(key);
+                    if (raw == null) return null;
+                    try { return JSON.parse(raw); } catch (e) { return raw; }
+                } catch (e) { return null; }
+            }
+            function syncTheme(changedKey) {
+                var isDark;
+                if (changedKey === 'theme_hub') {
+                    var hubVal = readTheme('theme_hub');
+                    isDark = hubVal ? hubVal === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
+                } else {
+                    var toolTheme = readTheme('theme_labyrinth-quest') || readTheme('theme_labyrinth-maker') || readTheme('klasskit-theme');
+                    var hubTheme = readTheme('theme_hub');
+                    isDark = toolTheme
+                        ? toolTheme === 'dark'
+                        : hubTheme
+                            ? hubTheme === 'dark'
+                            : window.matchMedia('(prefers-color-scheme: dark)').matches;
+                }
+                document.documentElement.classList.toggle('dark', isDark);
+                var btn = document.getElementById('theme-btn');
+                if (btn) btn.setAttribute('aria-pressed', String(isDark));
+            }
+            syncTheme();
+            window.addEventListener('storage', function (e) {
+                if (e.key === 'theme_hub' || e.key === 'theme_labyrinth-quest' || e.key === 'theme_labyrinth-maker' || e.key === 'klasskit-theme') {
+                    syncTheme(e.key);
+                }
+            });
+        })();
+    </script>
+
+    <!-- Supabase Auth & Cloud Persistence -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.105.4"></script>
+    <script src="/supabase.js"></script>
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=JetBrains+Mono:wght@600;700&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet" />
+
+    <!-- Icons & Sound -->
+    <script src="https://unpkg.com/lucide@1.16.0"></script>
+    <script src="https://cdn.jsdelivr.net/npm/tone@14.8.49/build/Tone.js"></script>
+
+    <!-- Shared KlassKit Styles -->
+    <link rel="stylesheet" href="../../../css/tailwind.generated.css" />
+    <link rel="stylesheet" href="../../../css/base.css" />
+    <link rel="stylesheet" href="../../../css/components.css" />
+
+    <style>
+        :root {
+            --color-pink: #ff4785;
+            --color-orange: #ff7e33;
+            --color-green: #00d063;
+            --color-blue: #1ea7fd;
+            --line: #1e293b;
+            --ink: #1e293b;
+            --surface: #ffffff;
+            --muted: #64748b;
+            --shadow: #1e293b;
+            --dots: #cbd5e1;
+            --maze-bg: #ffffff;
+            --maze-wall: #1e293b;
+            --maze-grid-dot: #e2e8f0;
+        }
+
+        .dark {
+            --line: #64748b;
+            --ink: #f8fafc;
+            --surface: #0f172a;
+            --muted: #94a3b8;
+            --shadow: #000000;
+            --dots: #334155;
+            --maze-bg: #0f172a;
+            --maze-wall: #e2e8f0;
+            --maze-grid-dot: #1e293b;
+        }
+
+        body {
+            font-family: 'Nunito', sans-serif;
+            overflow: hidden;
+            -webkit-tap-highlight-color: transparent;
+            user-select: none;
+        }
+
+        @media (max-width: 767px) {
+            body { padding-bottom: 0 !important; }
+        }
+
+        .game-console {
+            border: 6px solid #1e293b;
+            border-radius: 2rem;
+            box-shadow: 14px 14px 0px rgba(30, 41, 59, 0.15);
+        }
+
+        .dark .game-console {
+            border-color: #64748b;
+            box-shadow: 14px 14px 0px rgba(0, 0, 0, 0.45);
+        }
+
+        .canvas-dots {
+            background-image: radial-gradient(var(--dots) 1.8px, transparent 1.8px);
+            background-size: 24px 24px;
+        }
+
+        :where(.btn-chunky) {
+            transition: all 0.1s cubic-bezier(0.4, 0, 0.2, 1);
+            transform: translateY(0);
+            border: 3px solid var(--line);
+            box-shadow: 0 4px 0 var(--shadow);
+        }
+
+        .btn-chunky {
+            font-family: 'Fredoka', sans-serif;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+
+        .btn-chunky:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 0 var(--shadow);
+            filter: brightness(1.04);
+        }
+
+        .btn-chunky:active:not(:disabled) {
+            transform: translateY(4px);
+            box-shadow: 0 0 0 var(--shadow) !important;
+        }
+
+        .btn-chunky:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .btn-chunky:focus-visible,
+        input:focus-visible,
+        select:focus-visible,
+        textarea:focus-visible {
+            outline: 3px solid var(--color-blue);
+            outline-offset: 2px;
+        }
+
+        /* Segmented radio controls */
+        .seg { position: relative; display: block; }
+        .seg input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
+        .seg span {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.35rem;
+            padding: 0.5rem 0.4rem;
+            font-family: 'Nunito', sans-serif;
+            font-size: 10.5px;
+            font-weight: 800;
+            letter-spacing: 0.03em;
+            text-transform: uppercase;
+            color: #64748b;
+            background: var(--surface);
+            border: 2px solid var(--line);
+            border-radius: 0.75rem;
+            box-shadow: 2px 2px 0 var(--shadow);
+            transition: all 0.15s ease;
+        }
+        .dark .seg span { color: #94a3b8; }
+        .seg span.seg-col { flex-direction: column; gap: 0.25rem; padding: 0.55rem 0.3rem; }
+        .seg:hover input:not(:checked) + span { transform: translateY(-1px); color: var(--ink); }
+        .seg input:checked + span {
+            background: #1ea7fd;
+            color: #ffffff;
+            border-color: var(--line);
+            transform: translateY(2px);
+            box-shadow: 1px 1px 0 var(--shadow);
+        }
+
+        /* Quest Prompt Cards in Right Panel */
+        .prompt-card {
+            cursor: pointer;
+            border: 2.5px solid #1e293b;
+            border-radius: 0.9rem;
+            background: #ffffff;
+            box-shadow: 3px 3px 0px #1e293b;
+            transition: all 0.16s ease;
+        }
+        .dark .prompt-card {
+            background: #1e293b;
+            border-color: #64748b;
+            box-shadow: 3px 3px 0px #000000;
+        }
+        .prompt-card:hover {
+            transform: translateY(-2px);
+            border-color: #1ea7fd;
+        }
+        .prompt-card.spotlight {
+            border-color: #ff7e33 !important;
+            background: #fff7ed !important;
+            transform: scale(1.015);
+        }
+        .dark .prompt-card.spotlight {
+            background: #431407 !important;
+        }
+        .prompt-card.collected {
+            background: #ecfdf5 !important;
+            border-color: #00d063 !important;
+            box-shadow: none;
+            opacity: 0.82;
+        }
+        .dark .prompt-card.collected {
+            background: #064e3b !important;
+        }
+
+        .custom-scrollbar::-webkit-scrollbar { height: 6px; width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        .dark .custom-scrollbar::-webkit-scrollbar-thumb { background: #475569; }
+        .custom-scrollbar { scrollbar-color: #cbd5e1 transparent; scrollbar-width: thin; }
+
+        textarea {
+            user-select: text;
+            background-image: radial-gradient(var(--dots) 1.3px, transparent 1.3px);
+            background-size: 12px 12px;
+        }
+
+        @media (max-width: 767px) {
+            .hidden-panel-mobile { display: none !important; }
+        }
+        @media (min-width: 768px) {
+            .hidden-panel-desktop { margin-left: -20rem; border-right-width: 0 !important; }
+        }
+        @media (min-width: 1024px) {
+            .hidden-panel-desktop { margin-left: -24rem; }
+        }
+
+        #saved-sets-controls {
+            max-height: 0;
+            overflow: hidden;
+            transition: all 0.25s ease-out;
+            opacity: 0;
+        }
+        #saved-sets-controls.active {
+            max-height: 240px;
+            opacity: 1;
+            margin-top: 8px;
+        }
+        #saved-sets-toggle-icon.active { transform: rotate(180deg); }
+
+        /* SVG Labyrinth Canvas */
+        #svg-wrapper {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: transform 0.18s ease;
+            transform-origin: center center;
+        }
+        #svg-wrapper svg {
+            width: 100%;
+            height: 100%;
+            max-width: 100%;
+            max-height: 100%;
+            filter: drop-shadow(6px 6px 0 var(--shadow));
+        }
+
+        .maze-board-bg { fill: var(--maze-bg); stroke: var(--line); }
+        .maze-wall-stroke { stroke: var(--maze-wall); stroke-linecap: round; stroke-linejoin: round; fill: none; }
+        .maze-cell-hit { fill: transparent; cursor: pointer; transition: fill 0.12s ease; }
+        .maze-cell-hit:hover { fill: rgba(30, 167, 253, 0.15); }
+        .maze-cell-hit.user-traced { fill: rgba(0, 208, 99, 0.32); }
+
+        .node-group { cursor: pointer; transition: transform 0.15s ease; }
+        .node-group.collected .node-ring { fill: #00d063 !important; stroke: #1e293b !important; }
+        .node-group.collected .node-num { fill: #1e293b !important; }
+        .node-group.spotlight .node-halo { opacity: 1 !important; }
+
+        .solution-layer { opacity: 0; pointer-events: none; transition: opacity 0.2s ease; }
+        .show-answers .solution-layer { opacity: 1; }
+
+        @keyframes popIn {
+            0% { opacity: 0; transform: scale(0.94); }
+            100% { opacity: 1; transform: scale(1); }
+        }
+        .animate-pop-in { animation: popIn 0.18s ease-out; }
+
+        /* ---------- STRICT A4 PRINT ---------- */
+        @page { size: A4 portrait; margin: 0; }
+
+        #print-area,
+        .dark #print-area {
+            --line: #1e293b;
+            --maze-bg: #ffffff;
+            --maze-wall: #1e293b;
+            --maze-grid-dot: #e2e8f0;
+            color: #1e293b;
+            background: #ffffff;
+        }
+
+        @media print {
+            html, body {
+                display: block !important;
+                width: 210mm !important;
+                height: 297mm !important;
+                padding: 0 !important;
+                margin: 0 !important;
+                overflow: hidden !important;
+                background: #ffffff !important;
+                background-image: none !important;
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+            }
+            html[data-orient="landscape"],
+            html[data-orient="landscape"] body {
+                width: 297mm !important;
+                height: 210mm !important;
+            }
+            body > :not(#print-area) { display: none !important; }
+
+            #print-area {
+                display: flex !important;
+                flex-direction: column !important;
+                width: 210mm !important;
+                height: 297mm !important;
+                padding: 11mm 13mm !important;
+                margin: 0 auto !important;
+                box-sizing: border-box !important;
+                overflow: hidden !important;
+                background: #ffffff !important;
+                page-break-after: avoid !important;
+                break-after: avoid !important;
+            }
+            html[data-orient="landscape"] #print-area {
+                width: 297mm !important;
+                height: 210mm !important;
+                padding: 9mm 12mm !important;
+            }
+
+            .print-header {
+                flex-shrink: 0;
+                display: flex;
+                justify-content: space-between;
+                align-items: flex-end;
+                border-bottom: 4px solid #1e293b;
+                padding-bottom: 6px;
+                margin-bottom: 8px;
+                gap: 12px;
+            }
+            .print-title h1 {
+                font-family: 'Fredoka', sans-serif;
+                font-size: 1.95rem;
+                text-transform: uppercase;
+                line-height: 1;
+                margin: 0;
+            }
+            .print-title p {
+                font-family: 'Nunito', sans-serif;
+                font-size: 0.84rem;
+                font-weight: 800;
+                color: #475569;
+                margin: 4px 0 0;
+            }
+            .print-meta {
+                display: flex;
+                flex-direction: column;
+                gap: 5px;
+                min-width: 205px;
+                font-family: 'Nunito', sans-serif;
+                font-size: 0.88rem;
+                font-weight: 800;
+            }
+            .meta-line { display: flex; justify-content: space-between; align-items: flex-end; }
+            .meta-line span:last-child { flex-grow: 1; margin-left: 8px; border-bottom: 2px solid #1e293b; }
+            .print-score-box {
+                border: 2.5px solid #1e293b;
+                border-radius: 8px;
+                padding: 2px 8px;
+                font-family: 'Fredoka', sans-serif;
+                font-size: 0.85rem;
+                text-align: center;
+                background: #f8fafc;
+            }
+
+            /* Body layout: Portrait stacks Maze + 2-col Prompts; Landscape puts Maze left + Prompts right */
+            .print-body {
+                flex: 1 1 0%;
+                min-height: 0;
+                display: flex;
+                flex-direction: column;
+                gap: 6mm;
+                overflow: hidden;
+            }
+            html[data-orient="landscape"] .print-body {
+                flex-direction: row;
+                gap: 7mm;
+            }
+
+            #print-svg-container {
+                flex: 1.25 1 0% !important;
+                min-height: 0 !important;
+                min-width: 0 !important;
+                display: flex !important;
+                justify-content: center !important;
+                align-items: center !important;
+                overflow: hidden !important;
+            }
+            #print-svg-container svg {
+                width: 100% !important;
+                height: 100% !important;
+                max-width: 100% !important;
+                max-height: 100% !important;
+                display: block !important;
+                filter: none !important;
+            }
+
+            #print-prompts-panel {
+                flex: 0.9 1 auto;
+                min-height: 0;
+                min-width: 0;
+                border-top: 2.5px dashed #cbd5e1;
+                padding-top: 3.5mm;
+                overflow: hidden;
+            }
+            html[data-orient="landscape"] #print-prompts-panel {
+                flex: 0.88 1 0%;
+                border-top: none;
+                border-left: 2.5px dashed #cbd5e1;
+                padding-top: 0;
+                padding-left: 5mm;
+            }
+
+            .print-prompts-title {
+                font-family: 'Fredoka', sans-serif;
+                font-size: 0.95rem;
+                text-transform: uppercase;
+                letter-spacing: 0.04em;
+                margin: 0 0 2.5mm 0;
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            }
+
+            .print-prompts-grid {
+                display: grid;
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+                gap: 2.4mm 4mm;
+            }
+            html[data-orient="landscape"] .print-prompts-grid {
+                grid-template-columns: 1fr;
+                gap: 2.2mm;
+            }
+
+            .print-prompt-item {
+                display: flex;
+                align-items: flex-start;
+                gap: 6px;
+                border: 2px solid #1e293b;
+                border-radius: 8px;
+                padding: 4px 7px;
+                background: #ffffff;
+                font-family: 'Nunito', sans-serif;
+                font-size: 8.8pt;
+                line-height: 1.25;
+            }
+            .print-check {
+                width: 13px;
+                height: 13px;
+                border: 2px solid #1e293b;
+                border-radius: 3px;
+                flex-shrink: 0;
+                margin-top: 2px;
+            }
+            .print-badge-num {
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                width: 18px;
+                height: 18px;
+                border-radius: 999px;
+                border: 2px solid #1e293b;
+                font-family: 'Fredoka', sans-serif;
+                font-size: 8.5pt;
+                font-weight: 700;
+                flex-shrink: 0;
+            }
+            .print-pts {
+                font-family: 'Fredoka', sans-serif;
+                font-size: 8pt;
+                font-weight: 700;
+                padding: 0px 5px;
+                border-radius: 999px;
+                border: 1.5px solid #1e293b;
+                white-space: nowrap;
+                margin-left: 4px;
+            }
+            .print-key-ans {
+                display: block;
+                margin-top: 2px;
+                font-weight: 800;
+                color: #ff4785;
+                font-size: 8pt;
+            }
+        }
+    </style>
+    <style id="page-style"></style>
+</head>
+
+<body class="opacity-0 transition-opacity duration-200 h-screen w-screen flex flex-col items-center justify-center p-2 md:p-5 overflow-hidden text-dark dark:text-white">
+
+    <!-- Toast Container -->
+    <div id="toast-container" class="print:hidden fixed bottom-6 left-1/2 -translate-x-1/2 z-[600] flex flex-col gap-2 pointer-events-none"></div>
+
+    <!-- MAIN CONSOLE -->
+    <div class="game-console print:hidden w-full h-full relative flex flex-col md:flex-row overflow-hidden bg-white dark:bg-slate-900">
+
+        <!-- SIDEBAR: SETUP (Left) -->
+        <aside id="sidebar"
+            class="w-full md:w-80 lg:w-96 bg-white dark:bg-slate-900 border-b-4 md:border-b-0 md:border-r-4 border-dark dark:border-slate-500 flex flex-col z-50 transition-all duration-300 h-[48%] md:h-full relative shrink-0">
+
+            <!-- Header -->
+            <div class="p-4 border-b-4 border-dark dark:border-slate-500 bg-blue/10 dark:bg-slate-800/80 flex justify-between items-center gap-2 shrink-0">
+                <div>
+                    <h1 class="text-2xl font-heading font-bold text-dark dark:text-white tracking-wide leading-none">
+                        LABYRINTH<span class="text-blue">QUEST</span>
+                    </h1>
+                    <p class="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-widest mt-1">KlassKit Maze Handout Maker</p>
+                </div>
+                <div class="flex items-center gap-1.5">
+                    <button id="sound-btn" type="button" title="Toggle Sound Effects" aria-pressed="true"
+                        class="p-2 bg-white dark:bg-slate-800 text-dark dark:text-white border-2 border-dark dark:border-slate-500 rounded-lg shadow-hard-sm hover:-translate-y-0.5 active:translate-y-0.5 active:shadow-none transition-all">
+                        <span id="sound-icon-on" class="inline-flex"><i data-lucide="volume-2" class="w-4 h-4"></i></span>
+                        <span id="sound-icon-off" class="hidden inline-flex"><i data-lucide="volume-x" class="w-4 h-4 text-slate-400"></i></span>
+                    </button>
+                    <button id="help-btn" type="button" title="How to Use &amp; Classroom Ideas"
+                        class="p-2 bg-orange/20 text-orange border-2 border-dark dark:border-slate-500 rounded-lg shadow-hard-sm hover:-translate-y-0.5 active:translate-y-0.5 active:shadow-none transition-all">
+                        <i data-lucide="help-circle" class="w-4 h-4"></i>
+                    </button>
+                    <button id="theme-btn" type="button" aria-pressed="false" aria-label="Toggle dark mode" title="Toggle Dark Mode"
+                        class="p-2 bg-white dark:bg-slate-800 text-dark dark:text-white border-2 border-dark dark:border-slate-500 rounded-lg shadow-hard-sm hover:-translate-y-0.5 active:translate-y-0.5 active:shadow-none transition-all">
+                        <i data-lucide="moon" class="w-4 h-4 dark:hidden"></i>
+                        <i data-lucide="sun" class="w-4 h-4 hidden dark:block text-orange"></i>
+                    </button>
+                    <button id="mobile-close-panel" type="button"
+                        class="md:hidden p-2 bg-pink/20 text-pink border-2 border-dark dark:border-slate-500 rounded-lg shadow-hard-sm active:translate-y-1 active:shadow-none transition-all">
+                        <i data-lucide="x" class="w-4 h-4"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Scrollable Controls -->
+            <div class="flex-1 p-4 overflow-y-auto custom-scrollbar space-y-5 bg-white dark:bg-slate-900">
+
+                <!-- Active Set Banner -->
+                <div id="active-set-banner" class="hidden animate-pop-in p-2.5 rounded-xl bg-blue/10 dark:bg-blue/20 border-2 border-blue flex items-center justify-between gap-2">
+                    <div class="flex items-center gap-2 min-w-0">
+                        <div class="w-7 h-7 rounded-lg bg-blue text-white flex items-center justify-center shrink-0 border-2 border-dark">
+                            <i data-lucide="bookmark-check" class="w-3.5 h-3.5"></i>
+                        </div>
+                        <div class="min-w-0">
+                            <p class="text-[9px] font-bold uppercase tracking-wider text-blue leading-none">Active Set</p>
+                            <p id="active-set-name" class="text-xs font-extrabold truncate mt-0.5"></p>
+                        </div>
+                    </div>
+                    <button id="close-set-btn" type="button" title="Detach from saved set" class="p-1 rounded-lg hover:bg-blue/20 text-slate-500 dark:text-slate-300">
+                        <i data-lucide="x" class="w-3.5 h-3.5"></i>
+                    </button>
+                </div>
+
+                <!-- Labyrinth Structure -->
+                <div class="space-y-2">
+                    <label class="text-[11px] font-bold text-slate-400 uppercase tracking-widest block">Labyrinth Style</label>
+                    <div class="grid grid-cols-2 gap-2">
+                        <label class="seg" title="One unique escape route with dead-end treasure rooms">
+                            <input type="radio" name="maze-style" value="classic" checked />
+                            <span class="seg-col">
+                                <i data-lucide="compass" class="w-4 h-4"></i>
+                                Classic Maze
+                            </span>
+                        </label>
+                        <label class="seg" title="Extra loops &amp; shortcuts so students choose their own path">
+                            <input type="radio" name="maze-style" value="braided" />
+                            <span class="seg-col">
+                                <i data-lucide="git-branch" class="w-4 h-4"></i>
+                                Multi-Path
+                            </span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Grid Size Slider -->
+                <div class="space-y-2 pt-3 border-t-2 border-dashed border-slate-200 dark:border-slate-700">
+                    <div class="flex justify-between items-end">
+                        <label for="size-slider" class="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Maze Size</label>
+                        <output id="size-display" for="size-slider" class="font-heading font-bold text-base text-blue">10 × 10</output>
+                    </div>
+                    <input type="range" id="size-slider" min="7" max="15" step="1" value="10"
+                        class="w-full h-3 bg-slate-100 dark:bg-slate-800 rounded-full appearance-none cursor-pointer accent-blue border-2 border-dark dark:border-slate-500" />
+                    <div class="flex justify-between text-[10px] font-bold text-slate-400">
+                        <span>EASY (7×7)</span>
+                        <span>MEDIUM (10×10)</span>
+                        <span>EPIC (15×15)</span>
+                    </div>
+                </div>
+
+                <!-- Point Placement & Exit Bonus -->
+                <div class="space-y-2.5 pt-3 border-t-2 border-dashed border-slate-200 dark:border-slate-700">
+                    <label class="text-[11px] font-bold text-slate-400 uppercase tracking-widest block">Point Placement</label>
+                    <div class="grid grid-cols-2 gap-2">
+                        <label class="seg" title="High-value bonus prompts sit in dead ends; lower points sit along the main path">
+                            <input type="radio" name="placement" value="treasure" checked />
+                            <span>Risk &amp; Reward</span>
+                        </label>
+                        <label class="seg" title="Place every prompt directly along the escape route">
+                            <input type="radio" name="placement" value="route" />
+                            <span>On Escape Path</span>
+                        </label>
+                    </div>
+                    <div class="flex items-center justify-between gap-2 pt-1">
+                        <label for="escape-bonus" class="text-xs font-bold text-slate-600 dark:text-slate-300">Escape Exit Bonus</label>
+                        <select id="escape-bonus"
+                            class="p-1.5 bg-slate-50 dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-lg text-dark dark:text-white font-bold text-xs focus:outline-none focus:border-blue cursor-pointer">
+                            <option value="0">No Bonus</option>
+                            <option value="25">+25 pts</option>
+                            <option value="50" selected>+50 pts</option>
+                            <option value="100">+100 pts</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Worksheet Header -->
+                <div class="space-y-2 pt-3 border-t-2 border-dashed border-slate-200 dark:border-slate-700">
+                    <label class="text-[11px] font-bold text-slate-400 uppercase tracking-widest block">Handout Header</label>
+                    <input id="custom-title" type="text" value="Speaking Labyrinth Quest" placeholder="Worksheet Title"
+                        class="w-full p-2 bg-slate-50 dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-lg text-dark dark:text-white font-bold text-xs focus:outline-none focus:border-blue" />
+                    <input id="custom-subtitle" type="text" value="Find your way from START to EXIT! Visit numbered stars in the maze and complete the matching prompt to earn points." placeholder="Student instructions..."
+                        class="w-full p-2 bg-slate-50 dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-lg text-dark dark:text-white font-semibold text-xs focus:outline-none focus:border-blue" />
+                </div>
+
+                <!-- Quick ELT Presets -->
+                <div class="pt-3 border-t-2 border-dashed border-slate-200 dark:border-slate-700">
+                    <label class="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2 block">Quick ELT Presets</label>
+                    <div class="flex gap-1.5 flex-wrap">
+                        <button type="button" data-preset="speaking"
+                            class="px-2.5 py-1.5 bg-white dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-full text-[11px] font-bold shadow-hard-sm hover:-translate-y-0.5 active:translate-y-0.5 active:shadow-none transition-all">🗣️ Speaking Quest</button>
+                        <button type="button" data-preset="grammar"
+                            class="px-2.5 py-1.5 bg-white dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-full text-[11px] font-bold shadow-hard-sm hover:-translate-y-0.5 active:translate-y-0.5 active:shadow-none transition-all">⚡ Grammar Escape</button>
+                        <button type="button" data-preset="vocab"
+                            class="px-2.5 py-1.5 bg-white dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-full text-[11px] font-bold shadow-hard-sm hover:-translate-y-0.5 active:translate-y-0.5 active:shadow-none transition-all">🔤 Vocab Hunt</button>
+                        <button type="button" data-preset="review"
+                            class="px-2.5 py-1.5 bg-white dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-full text-[11px] font-bold shadow-hard-sm hover:-translate-y-0.5 active:translate-y-0.5 active:shadow-none transition-all">🎲 Mixed Review</button>
+                    </div>
+                </div>
+
+                <!-- Prompts & Points Input -->
+                <div class="space-y-1.5 pt-3 border-t-2 border-dashed border-slate-200 dark:border-slate-700">
+                    <div class="flex items-center justify-between gap-2">
+                        <label for="prompts-input" class="text-[11px] font-bold text-slate-500 dark:text-slate-300 uppercase tracking-widest">Prompts &amp; Points</label>
+                        <div class="flex items-center gap-1.5">
+                            <span id="prompt-count-badge" class="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-blue/15 text-dark dark:text-white border-2 border-dark dark:border-slate-500">0</span>
+                            <button type="button" id="bulk-import-btn" class="px-2 py-0.5 bg-orange text-dark border-2 border-dark rounded-full text-[10px] font-heading font-bold uppercase shadow-hard-sm hover:-translate-y-0.5 active:translate-y-0.5 active:shadow-none transition-all flex items-center gap-1">
+                                <i data-lucide="file-up" class="w-3 h-3"></i> Bulk
+                            </button>
+                        </div>
+                    </div>
+                    <p class="text-[10px] font-bold text-slate-400">One per line: <code class="bg-slate-100 dark:bg-slate-800 px-1 rounded">Prompt | Points | Key (optional)</code></p>
+                    <textarea id="prompts-input" spellcheck="false"
+                        class="w-full h-36 p-3 bg-slate-50 dark:bg-slate-800 text-dark dark:text-white font-mono text-[11px] leading-relaxed border-2 border-dark dark:border-slate-500 rounded-xl focus:border-blue outline-none resize-none">Name 3 foods you ate this week | 10
+Ask a partner: What is your favorite hobby? | 10
+Describe your morning routine in 2 sentences | 20
+Spell "WEDNESDAY" out loud without looking | 20 | W-E-D-N-E-S-D-A-Y
+Give 2 pieces of advice to a tired friend | 30
+Tell a 20-second story about your last weekend | 30
+Use "although" and "because" in one sentence | 50
+Act out a job and let your partner guess it! | 50</textarea>
+                </div>
+
+                <!-- Inline Status -->
+                <p id="status" role="status" aria-live="polite"
+                    class="hidden px-3 py-2 rounded-xl text-xs font-extrabold bg-pink/20 text-dark dark:text-white border-2 border-pink shadow-hard-sm animate-pop-in"></p>
+
+                <!-- Build Button -->
+                <button id="generate-btn" type="button"
+                    class="w-full btn-chunky bg-green text-dark py-3 rounded-xl text-lg tracking-wide flex items-center justify-center gap-2">
+                    <i data-lucide="sparkles" class="w-5 h-5"></i> BUILD LABYRINTH
+                </button>
+            </div>
+
+            <!-- Footer Actions -->
+            <div class="p-3 border-t-4 border-dark dark:border-slate-500 bg-slate-100 dark:bg-slate-800 space-y-2 shrink-0">
+                <div class="grid grid-cols-2 gap-2">
+                    <label class="seg"><input type="radio" name="page-orient" value="portrait" checked /><span><i data-lucide="rectangle-vertical" class="w-3.5 h-3.5"></i> Portrait</span></label>
+                    <label class="seg"><input type="radio" name="page-orient" value="landscape" /><span><i data-lucide="rectangle-horizontal" class="w-3.5 h-3.5"></i> Landscape</span></label>
+                </div>
+                <div class="flex gap-2">
+                    <button id="print-btn" type="button"
+                        class="flex-1 btn-chunky bg-blue text-white border-2 border-dark py-2 rounded-lg text-xs flex items-center justify-center gap-1.5" title="Print Student Handout">
+                        <i data-lucide="printer" class="w-4 h-4"></i> HANDOUT
+                    </button>
+                    <button id="print-key-btn" type="button"
+                        class="flex-1 btn-chunky bg-orange text-dark border-2 border-dark py-2 rounded-lg text-xs flex items-center justify-center gap-1.5" title="Print Teacher Answer Key">
+                        <i data-lucide="key-round" class="w-4 h-4"></i> KEY
+                    </button>
+                </div>
+            </div>
+        </aside>
+
+        <!-- MAIN DISPLAY AREA -->
+        <main class="flex-1 relative h-[52%] md:h-full bg-slate-50 dark:bg-slate-950 flex flex-col lg:flex-row overflow-hidden">
+
+            <!-- Subtle Dot Grid -->
+            <div class="canvas-dots absolute inset-0 opacity-60 dark:opacity-50 pointer-events-none"></div>
+
+            <!-- Labyrinth SVG Canvas Container -->
+            <div class="flex-1 h-full relative flex items-center justify-center p-4 pt-14 pb-12 overflow-hidden">
+
+                <!-- Floating Top-Left Canvas Controls -->
+                <div class="absolute top-4 left-4 z-20 flex gap-2">
+                    <button id="toggle-sidebar-btn" type="button"
+                        class="p-2 bg-white/90 dark:bg-slate-800/90 backdrop-blur-md border-2 border-dark dark:border-slate-500 rounded-lg shadow-hard-sm hover:-translate-y-0.5 active:translate-y-0.5 active:shadow-none transition-all text-dark dark:text-slate-200"
+                        title="Toggle Setup Panel">
+                        <i data-lucide="panel-left" class="w-5 h-5"></i>
+                    </button>
+                    <button id="reroll-btn" type="button"
+                        class="p-2 bg-white/90 dark:bg-slate-800/90 backdrop-blur-md border-2 border-dark dark:border-slate-500 rounded-lg shadow-hard-sm hover:-translate-y-0.5 active:translate-y-0.5 active:shadow-none transition-all text-blue"
+                        title="New Labyrinth Layout (Same Prompts)">
+                        <i data-lucide="shuffle" class="w-5 h-5"></i>
+                    </button>
+                    <button id="answer-toggle-btn" type="button" aria-pressed="false"
+                        class="p-2 bg-white/90 dark:bg-slate-800/90 backdrop-blur-md border-2 border-dark dark:border-slate-500 rounded-lg shadow-hard-sm hover:-translate-y-0.5 active:translate-y-0.5 active:shadow-none transition-all text-orange"
+                        title="Reveal Escape Route &amp; Answers">
+                        <i data-lucide="eye" class="w-5 h-5"></i>
+                    </button>
+                    <button id="reset-board-btn" type="button"
+                        class="hidden p-2 bg-white/90 dark:bg-slate-800/90 backdrop-blur-md border-2 border-dark dark:border-slate-500 rounded-lg shadow-hard-sm hover:-translate-y-0.5 active:translate-y-0.5 active:shadow-none transition-all text-pink"
+                        title="Clear traced path &amp; collected points">
+                        <i data-lucide="eraser" class="w-5 h-5"></i>
+                    </button>
+                </div>
+
+                <!-- Mode / Stats Pill (top-right of canvas) -->
+                <div class="absolute top-4 right-4 z-20 pointer-events-none hidden sm:flex items-center gap-2 bg-white/90 dark:bg-slate-800/90 backdrop-blur-md border-2 border-dark dark:border-slate-500 rounded-full px-3 py-1 shadow-hard-sm text-[11px] font-extrabold">
+                    <span id="canvas-mode-pill" class="text-blue uppercase">Classic Maze</span>
+                    <span class="text-slate-300 dark:text-slate-600">•</span>
+                    <span id="canvas-stats-pill" class="text-slate-600 dark:text-slate-300">10×10 · 8 quests</span>
+                </div>
+
+                <!-- Live SVG Labyrinth -->
+                <div id="svg-wrapper" class="relative z-10 w-full h-full"></div>
+
+                <!-- Bottom-Left Point Legend -->
+                <div class="absolute bottom-4 left-4 z-20 hidden sm:flex items-center gap-2 bg-white/90 dark:bg-slate-800/90 backdrop-blur-md border-2 border-dark dark:border-slate-500 rounded-xl px-2.5 py-1.5 shadow-hard-sm text-[10px] font-extrabold">
+                    <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-blue border border-dark inline-block"></span>10–15</span>
+                    <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-orange border border-dark inline-block"></span>20–35</span>
+                    <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-pink border border-dark inline-block"></span>40+ ★</span>
+                </div>
+
+                <!-- Bottom-Right Zoom Controls -->
+                <div class="absolute bottom-4 right-4 z-20 flex gap-2">
+                    <button id="zoom-out" type="button" title="Zoom Out"
+                        class="p-2 bg-white/90 dark:bg-slate-800/90 backdrop-blur-md border-2 border-dark dark:border-slate-500 rounded-lg shadow-hard-sm hover:bg-slate-50 dark:hover:bg-slate-700 active:translate-y-0.5 active:shadow-none transition-all">
+                        <i data-lucide="minus" class="w-4 h-4"></i>
+                    </button>
+                    <button id="zoom-reset" type="button" title="Reset Zoom"
+                        class="px-2.5 py-2 bg-white/90 dark:bg-slate-800/90 backdrop-blur-md border-2 border-dark dark:border-slate-500 rounded-lg shadow-hard-sm text-[11px] font-heading font-bold active:translate-y-0.5 active:shadow-none transition-all">100%</button>
+                    <button id="zoom-in" type="button" title="Zoom In"
+                        class="p-2 bg-white/90 dark:bg-slate-800/90 backdrop-blur-md border-2 border-dark dark:border-slate-500 rounded-lg shadow-hard-sm hover:bg-slate-50 dark:hover:bg-slate-700 active:translate-y-0.5 active:shadow-none transition-all">
+                        <i data-lucide="plus" class="w-4 h-4"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- RIGHT PANEL: QUEST PROMPTS & LIVE SCORE -->
+            <div id="play-controls"
+                class="w-full lg:w-80 xl:w-96 h-[40%] lg:h-full bg-white dark:bg-slate-900 border-t-4 lg:border-t-0 lg:border-l-4 border-dark dark:border-slate-500 flex flex-col z-10 shrink-0">
+                <div class="p-3 bg-pink border-b-4 border-dark dark:border-slate-500 text-white font-heading font-bold text-base tracking-wide flex items-center justify-between gap-2 shrink-0">
+                    <div class="flex items-center gap-2">
+                        <i data-lucide="trophy" class="w-4 h-4"></i>
+                        <span>QUEST PROMPTS</span>
+                    </div>
+                    <div class="flex items-center gap-1 bg-dark/25 px-2.5 py-0.5 rounded-full text-xs font-extrabold">
+                        <span id="earned-pts">0</span> / <span id="total-pts">0</span> PTS
+                    </div>
+                </div>
+
+                <!-- Status Tip -->
+                <div id="status-bar"
+                    class="p-2 bg-slate-50 dark:bg-slate-800 border-b-2 border-slate-200 dark:border-slate-700 text-[10px] font-bold text-center text-slate-500 dark:text-slate-400 uppercase tracking-wider shrink-0">
+                    Tap Maze Cells to Trace • Tap Star or Card to Score
+                </div>
+
+                <!-- Prompt Cards List -->
+                <div id="prompts-list" class="flex-1 overflow-y-auto p-3 custom-scrollbar space-y-2.5">
+                </div>
+
+                <!-- Escape Bonus Toggle Row (Smartboard) -->
+                <div id="escape-claim-bar" class="px-3 py-2 border-t-2 border-slate-200 dark:border-slate-800 bg-green/10 flex items-center justify-between gap-2 shrink-0">
+                    <div class="text-[11px] font-extrabold text-dark dark:text-white flex items-center gap-1.5">
+                        <i data-lucide="flag" class="w-3.5 h-3.5 text-green"></i>
+                        <span id="escape-bonus-text">Escape Bonus: +50 pts</span>
+                    </div>
+                    <button id="claim-escape-btn" type="button"
+                        class="px-2.5 py-1 rounded-lg border-2 border-dark bg-white dark:bg-slate-800 text-dark dark:text-white text-[10px] font-heading font-bold uppercase shadow-hard-sm hover:-translate-y-0.5 transition-all">
+                        Claim Exit
+                    </button>
+                </div>
+
+                <!-- Collapsible Saved Sets Drawer -->
+                <div class="p-3 border-t-2 border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/40 shrink-0">
+                    <button id="saved-sets-toggle-btn" type="button"
+                        class="w-full flex items-center justify-between text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 hover:text-dark dark:hover:text-white">
+                        <span>Saved Maze Sets (<span id="saved-count">0</span>)</span>
+                        <span id="saved-sets-toggle-icon" class="inline-flex transition-transform"><i data-lucide="chevron-up" class="w-3.5 h-3.5"></i></span>
+                    </button>
+                    <div id="saved-sets-controls" class="space-y-2">
+                        <div class="flex items-center gap-1.5">
+                            <select id="library-sort" aria-label="Sort saved sets"
+                                class="flex-1 p-1.5 bg-white dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-lg text-dark dark:text-white font-bold text-[10px] focus:outline-none">
+                                <option value="recent">Recent</option>
+                                <option value="alpha">A–Z</option>
+                                <option value="popular">Popular</option>
+                            </select>
+                            <button id="new-set-btn" type="button" title="Reset Workspace"
+                                class="p-1.5 bg-white dark:bg-slate-800 text-dark dark:text-white border-2 border-dark dark:border-slate-500 rounded-lg hover:brightness-95 font-bold text-[10px] flex items-center gap-1">
+                                <i data-lucide="plus" class="w-3 h-3"></i> NEW
+                            </button>
+                            <button id="save-set-btn" type="button" title="Save Set"
+                                class="p-1.5 bg-blue text-white border-2 border-dark rounded-lg hover:brightness-110 font-bold text-[10px] flex items-center gap-1">
+                                <i data-lucide="save" class="w-3 h-3"></i> SAVE
+                            </button>
+                        </div>
+                        <div id="library-list" class="space-y-1.5 max-h-36 overflow-y-auto custom-scrollbar pr-1"></div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- BULK IMPORT MODAL -->
+    <div id="bulkModal" class="hidden fixed inset-0 bg-dark/60 backdrop-blur-md z-[500] items-center justify-center p-4">
+        <div class="bg-white dark:bg-slate-800 w-full max-w-lg rounded-[2rem] border-4 border-dark dark:border-slate-500 shadow-hard-lg animate-pop-in overflow-hidden">
+            <div class="p-5 border-b-4 border-dark dark:border-slate-500 bg-blue/10 flex items-center justify-between gap-3">
+                <div class="flex items-center gap-3">
+                    <div class="w-11 h-11 rounded-2xl bg-blue flex items-center justify-center border-3 border-dark shadow-hard-sm shrink-0">
+                        <i data-lucide="file-up" class="w-5 h-5 text-white"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-lg font-heading font-bold text-dark dark:text-white uppercase leading-tight">Bulk Import Prompts</h3>
+                        <p class="text-xs font-semibold text-slate-500 dark:text-slate-400">Paste your labyrinth title and point prompts</p>
+                    </div>
+                </div>
+                <button id="bulk-close-btn" type="button" class="btn-chunky w-9 h-9 rounded-xl bg-white dark:bg-slate-700 text-dark dark:text-white flex items-center justify-center">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
+            </div>
+            <div class="p-5 space-y-4">
+                <div class="text-[11px] font-semibold bg-slate-50 dark:bg-slate-900 border-2 border-dark dark:border-slate-600 rounded-xl p-3 space-y-1 text-slate-600 dark:text-slate-300">
+                    <p><span class="font-extrabold text-blue">## Title</span> &amp; <span class="font-extrabold text-blue">? Instructions</span> (optional)</p>
+                    <p><span class="font-extrabold text-green">Prompt | Points | Teacher Key</span> (points default to 10 if omitted)</p>
+                </div>
+                <textarea id="bulk-textarea" spellcheck="false"
+                    class="w-full h-44 p-3 bg-slate-50 dark:bg-slate-900 text-dark dark:text-white font-mono text-xs border-2 border-dark dark:border-slate-500 rounded-xl focus:border-blue outline-none resize-none"
+                    placeholder="## Past Tense Dungeon&#10;? Escape the maze and collect points!&#10;Change to past: go -&gt; ___ | 10 | went&#10;Fix: She don't like tea. | 20 | She doesn't like tea.&#10;Make a question with 'Did you...' | 50"></textarea>
+                <div class="flex items-center justify-between gap-2">
+                    <button id="bulk-sample-btn" type="button" class="text-xs font-extrabold text-blue hover:underline">Load Sample</button>
+                    <div class="flex gap-2">
+                        <button id="bulk-cancel-btn" type="button" class="btn-chunky bg-white dark:bg-slate-700 text-dark dark:text-white px-4 py-2 rounded-xl text-xs">Cancel</button>
+                        <button id="bulk-apply-btn" type="button" class="btn-chunky bg-green text-dark px-5 py-2 rounded-xl text-xs">Import &amp; Build</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- HELP MODAL -->
+    <div id="helpModal" class="hidden fixed inset-0 bg-dark/60 backdrop-blur-md z-[500] items-center justify-center p-4">
+        <div class="bg-white dark:bg-slate-800 w-full max-w-lg rounded-[2rem] border-4 border-dark dark:border-slate-500 shadow-hard-lg animate-pop-in overflow-hidden">
+            <div class="p-5 border-b-4 border-dark dark:border-slate-500 bg-orange/15 flex items-center justify-between gap-3">
+                <div class="flex items-center gap-3">
+                    <div class="w-11 h-11 rounded-2xl bg-orange flex items-center justify-center border-3 border-dark shadow-hard-sm shrink-0">
+                        <i data-lucide="lightbulb" class="w-5 h-5 text-dark"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-lg font-heading font-bold text-dark dark:text-white uppercase leading-tight">How Labyrinth Quest Works</h3>
+                        <p class="text-xs font-semibold text-slate-500 dark:text-slate-400">Real Maze Escape + Point-Hunting Prompts</p>
+                    </div>
+                </div>
+                <button id="help-close-btn" type="button" class="btn-chunky w-9 h-9 rounded-xl bg-white dark:bg-slate-700 text-dark dark:text-white flex items-center justify-center">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
+            </div>
+            <div class="p-5 space-y-3 text-xs font-semibold text-slate-600 dark:text-slate-300 max-h-[68vh] overflow-y-auto custom-scrollbar">
+                <div class="p-3 rounded-xl bg-slate-50 dark:bg-slate-900 border-2 border-dark dark:border-slate-600">
+                    <h4 class="font-heading font-bold text-sm uppercase text-dark dark:text-white mb-1">1. Find Your Way Out &amp; Hunt Points</h4>
+                    <p class="leading-relaxed">Students navigate a real walled labyrinth from <b>START</b> to <b>EXIT</b>. Inside the corridors and dead-end rooms are numbered point stars (<b>1, 2, 3...</b>). Reaching a star lets them complete that matching prompt to collect its points!</p>
+                </div>
+                <div class="p-3 rounded-xl bg-slate-50 dark:bg-slate-900 border-2 border-dark dark:border-slate-600">
+                    <h4 class="font-heading font-bold text-sm uppercase text-dark dark:text-white mb-1">2. Risk &amp; Reward Placement</h4>
+                    <p class="leading-relaxed">In <b>Risk &amp; Reward</b> mode, high-value treasure prompts (+40/+50 pts) are tucked into dead-end chambers, so students decide whether to rush straight to the exit or detour for bonus points.</p>
+                </div>
+                <div class="p-3 rounded-xl bg-slate-50 dark:bg-slate-900 border-2 border-dark dark:border-slate-600">
+                    <h4 class="font-heading font-bold text-sm uppercase text-dark dark:text-white mb-1">3. Print Portrait or Landscape A4</h4>
+                    <p class="leading-relaxed">Use <b>HANDOUT</b> for a clean A4 student sheet (maze + numbered prompt checklist + score box) and <b>KEY</b> to print the dashed escape route and answer key.</p>
+                </div>
+                <div class="flex justify-end pt-1">
+                    <button id="help-got-it-btn" type="button" class="btn-chunky px-6 py-2 rounded-xl text-xs bg-green text-dark">Got It!</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- SAVE SET MODAL -->
+    <div id="saveModal" class="hidden fixed inset-0 bg-dark/60 backdrop-blur-md z-[500] items-center justify-center p-4">
+        <div class="bg-white dark:bg-slate-800 w-full max-w-sm rounded-[2rem] border-4 border-dark dark:border-slate-500 shadow-hard-lg animate-pop-in overflow-hidden">
+            <div class="p-5 border-b-4 border-dark dark:border-slate-500 bg-blue/10 flex items-center gap-3">
+                <div class="w-11 h-11 rounded-2xl bg-blue flex items-center justify-center border-3 border-dark shadow-hard-sm shrink-0">
+                    <i data-lucide="bookmark-plus" class="w-5 h-5 text-white"></i>
+                </div>
+                <div>
+                    <h3 class="text-base font-heading font-bold text-dark dark:text-white uppercase leading-tight">Save Maze Set</h3>
+                    <p class="text-xs font-semibold text-slate-500 dark:text-slate-400">Keep this labyrinth in your library</p>
+                </div>
+            </div>
+            <div class="p-5 space-y-4">
+                <input id="save-set-input" type="text" placeholder="e.g., Unit 5 Speaking Labyrinth"
+                    class="w-full px-3.5 py-2.5 text-sm font-bold bg-slate-50 dark:bg-slate-900 text-dark dark:text-white border-2 border-dark dark:border-slate-500 rounded-xl outline-none focus:border-blue" />
+                <div class="flex gap-2">
+                    <button id="save-modal-cancel" type="button" class="flex-1 btn-chunky bg-white dark:bg-slate-700 text-dark dark:text-white py-2.5 rounded-xl text-xs">Cancel</button>
+                    <button id="save-modal-confirm" type="button" class="flex-1 btn-chunky bg-green text-dark py-2.5 rounded-xl text-xs">Save Set</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- CONFIRM MODAL -->
+    <div id="confirmModal" class="hidden fixed inset-0 bg-dark/60 backdrop-blur-md z-[500] items-center justify-center p-4">
+        <div class="bg-white dark:bg-slate-800 w-full max-w-sm rounded-[2rem] border-4 border-dark dark:border-slate-500 shadow-hard-lg animate-pop-in overflow-hidden">
+            <div class="p-6 text-center">
+                <div class="w-14 h-14 rounded-2xl bg-pink/15 flex items-center justify-center border-3 border-dark shadow-hard-sm mx-auto mb-3">
+                    <i data-lucide="alert-triangle" class="w-7 h-7 text-pink"></i>
+                </div>
+                <h3 id="confirmTitle" class="text-lg font-heading font-bold text-dark dark:text-white uppercase mb-1">Are you sure?</h3>
+                <p id="confirmMessage" class="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-5">This action cannot be undone.</p>
+                <div class="flex gap-2">
+                    <button id="confirmBtnNo" type="button" class="flex-1 btn-chunky bg-white dark:bg-slate-700 text-dark dark:text-white py-2.5 rounded-xl text-xs">Cancel</button>
+                    <button id="confirmBtnYes" type="button" class="flex-1 btn-chunky bg-pink text-white py-2.5 rounded-xl text-xs">Yes, Continue</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- PRINT LAYOUT (STRICT A4) -->
+    <div id="print-area" class="hidden">
+        <div class="print-header">
+            <div class="print-title">
+                <h1 id="print-heading">Speaking Labyrinth Quest</h1>
+                <p id="print-subheading">Find your way from START to EXIT and complete numbered prompts for points!</p>
+            </div>
+            <div class="print-meta">
+                <div class="meta-line"><span>Name:</span><span></span></div>
+                <div class="meta-line"><span>Date:</span><span></span></div>
+                <div class="print-score-box" id="print-score-box">SCORE: ______ / 260 PTS</div>
+            </div>
+        </div>
+        <div class="print-body">
+            <div id="print-svg-container"></div>
+            <div id="print-prompts-panel">
+                <div class="print-prompts-title">
+                    <span>Quest Prompts &amp; Points</span>
+                    <span id="print-exit-bonus-label" style="font-size:0.8rem; color:#475569;">Exit Bonus: +50 pts</span>
+                </div>
+                <div id="print-prompts-grid" class="print-prompts-grid"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        (() => {
+            'use strict';
+
+            // ===== ELT PRESETS =====
+            const PRESETS = {
+                speaking: {
+                    style: 'classic',
+                    placement: 'treasure',
+                    size: 10,
+                    bonus: 50,
+                    title: 'Speaking Labyrinth Quest',
+                    subtitle: 'Find your way from START to EXIT! Visit numbered stars in the maze and complete the matching prompt to earn points.',
+                    prompts: [
+                        'Name 3 foods you ate this week | 10',
+                        'Ask a partner: What is your favorite hobby? | 10',
+                        'Describe your morning routine in 2 sentences | 20',
+                        'Spell "WEDNESDAY" out loud without looking | 20 | W-E-D-N-E-S-D-A-Y',
+                        'Give 2 pieces of advice to a tired friend | 30',
+                        'Tell a 20-second story about your last weekend | 30',
+                        'Use "although" and "because" in one sentence | 50',
+                        'Act out a job and let your partner guess it! | 50'
+                    ].join('\n')
+                },
+                grammar: {
+                    style: 'classic',
+                    placement: 'treasure',
+                    size: 10,
+                    bonus: 50,
+                    title: 'Grammar Escape Labyrinth',
+                    subtitle: 'Escape the maze! Stop at numbered points and fix or complete each sentence to score points.',
+                    prompts: [
+                        'Past tense of "buy" and "teach" | 10 | bought, taught',
+                        'Fix: "She don\'t like spicy food." | 10 | She doesn\'t like spicy food.',
+                        'Fill in: "I have lived here ___ 2021." | 20 | since',
+                        'Change to passive: "The chef cooked dinner." | 20 | Dinner was cooked by the chef.',
+                        'Fix: "He is more taller than his brother." | 20 | He is taller than his brother.',
+                        'Complete: "If it rains tomorrow, we ___." | 30 | will + verb (1st conditional)',
+                        'Make a question for: "They went to Bali." | 30 | Where did they go?',
+                        'Combine with "which": "I bought a book. It was amazing." | 50 | I bought a book which was amazing.'
+                    ].join('\n')
+                },
+                vocab: {
+                    style: 'braided',
+                    placement: 'treasure',
+                    size: 9,
+                    bonus: 25,
+                    title: 'Vocabulary Treasure Hunt',
+                    subtitle: 'Explore the multi-path maze! Collect numbered stars by naming the right English words.',
+                    prompts: [
+                        'Name 3 animals that can swim | 10 | fish, dolphin, turtle...',
+                        'Name 4 things inside a school backpack | 10 | pen, book, ruler, eraser...',
+                        'Give the opposite of: cheap, noisy, empty | 20 | expensive, quiet, full',
+                        'Name 3 jobs where people wear a uniform | 20 | pilot, nurse, firefighter...',
+                        'Name 5 weather words in 10 seconds | 30 | sunny, windy, rainy, cloudy, stormy',
+                        'Give 3 synonyms for "happy" | 30 | glad, cheerful, delighted, joyful',
+                        'Name 4 countries and their nationalities | 50 | Japan/Japanese, etc.'
+                    ].join('\n')
+                },
+                review: {
+                    style: 'braided',
+                    placement: 'route',
+                    size: 11,
+                    bonus: 50,
+                    title: 'Classroom Challenge Maze',
+                    subtitle: 'Every checkpoint sits on the escape path—complete each mini-challenge as you find the exit!',
+                    prompts: [
+                        'Say 3 words that rhyme with "night" | 10 | light, bright, sight...',
+                        'Count backward from 20 to 10 in English | 10',
+                        'Say 2 things you MUST do in class | 15',
+                        'Ask the teacher a polite question using "Could..." | 20',
+                        'Name 3 irregular verbs and their past forms | 25',
+                        'Describe the classroom using 3 prepositions of place | 30',
+                        'Make a funny sentence using: penguin, pizza, umbrella | 40',
+                        'Speak for 30 seconds without saying "um" or "uh"! | 50'
+                    ].join('\n')
+                }
+            };
+
+            const randInt = (n) => Math.floor(Math.random() * n);
+
+            function shuffleArray(arr) {
+                const copy = arr.slice();
+                for (let i = copy.length - 1; i > 0; i--) {
+                    const j = randInt(i + 1);
+                    [copy[i], copy[j]] = [copy[j], copy[i]];
+                }
+                return copy;
+            }
+
+            function escapeXml(str) {
+                return String(str)
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;')
+                    .replace(/"/g, '&quot;');
+            }
+
+            function parsePrompts(raw) {
+                const lines = String(raw || '').replace(/\r\n/g, '\n').split('\n');
+                const out = [];
+                for (const line of lines) {
+                    const t = line.trim();
+                    if (!t || t.startsWith('#') || t.startsWith('//')) continue;
+                    const parts = t.split('|').map((s) => s.trim());
+                    const text = parts[0];
+                    if (!text) continue;
+                    let pts = 10;
+                    let answer = '';
+                    if (parts.length >= 2 && parts[1] !== '') {
+                        const parsed = parseInt(parts[1].replace(/[^\d]/g, ''), 10);
+                        if (!isNaN(parsed) && parsed > 0) {
+                            pts = parsed;
+                            answer = parts.slice(2).join(' | ').trim();
+                        } else {
+                            answer = parts.slice(1).join(' | ').trim();
+                        }
+                    }
+                    out.push({ id: out.length + 1, text, pts, answer });
+                }
+                return out.slice(0, 16);
+            }
+
+            function tierColor(pts) {
+                if (pts >= 40) return { fill: '#ff4785', text: '#ffffff', tagBg: 'bg-pink text-white', printBg: '#ffe4ef' };
+                if (pts >= 20) return { fill: '#ff7e33', text: '#1e293b', tagBg: 'bg-orange text-dark', printBg: '#ffedd5' };
+                return { fill: '#1ea7fd', text: '#ffffff', tagBg: 'bg-blue text-white', printBg: '#e0f2fe' };
+            }
+
+            // ===== LABYRINTH GENERATOR =====
+            function buildLabyrinth(size, style, placement, prompts) {
+                const rows = size;
+                const cols = size;
+                const cells = Array.from({ length: rows }, () =>
+                    Array.from({ length: cols }, () => ({ walls: [true, true, true, true], visited: false }))
+                );
+
+                const stack = [[0, 0]];
+                cells[0][0].visited = true;
+
+                while (stack.length) {
+                    const [r, c] = stack[stack.length - 1];
+                    const neighbors = [];
+                    if (r > 0 && !cells[r - 1][c].visited) neighbors.push([r - 1, c, 0, 2]);
+                    if (c < cols - 1 && !cells[r][c + 1].visited) neighbors.push([r, c + 1, 1, 3]);
+                    if (r < rows - 1 && !cells[r + 1][c].visited) neighbors.push([r + 1, c, 2, 0]);
+                    if (c > 0 && !cells[r][c - 1].visited) neighbors.push([r, c - 1, 3, 1]);
+
+                    if (neighbors.length) {
+                        const [nr, nc, wA, wB] = neighbors[randInt(neighbors.length)];
+                        cells[r][c].walls[wA] = false;
+                        cells[nr][nc].walls[wB] = false;
+                        cells[nr][nc].visited = true;
+                        stack.push([nr, nc]);
+                    } else {
+                        stack.pop();
+                    }
+                }
+
+                if (style === 'braided') {
+                    for (let r = 0; r < rows; r++) {
+                        for (let c = 0; c < cols; c++) {
+                            if ((r === 0 && c === 0) || (r === rows - 1 && c === cols - 1)) continue;
+                            const wallCount = cells[r][c].walls.filter(Boolean).length;
+                            if (wallCount === 3 && Math.random() < 0.35) {
+                                const candidates = [];
+                                if (r > 0 && cells[r][c].walls[0]) candidates.push([r - 1, c, 0, 2]);
+                                if (c < cols - 1 && cells[r][c].walls[1]) candidates.push([r, c + 1, 1, 3]);
+                                if (r < rows - 1 && cells[r][c].walls[2]) candidates.push([r + 1, c, 2, 0]);
+                                if (c > 0 && cells[r][c].walls[3]) candidates.push([r, c - 1, 3, 1]);
+                                if (candidates.length) {
+                                    const [nr, nc, wA, wB] = candidates[randInt(candidates.length)];
+                                    cells[r][c].walls[wA] = false;
+                                    cells[nr][nc].walls[wB] = false;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                cells[0][0].walls[0] = false;
+                cells[rows - 1][cols - 1].walls[2] = false;
+
+                const queue = [[0, 0]];
+                const parent = new Map();
+                parent.set('0,0', null);
+
+                while (queue.length) {
+                    const [r, c] = queue.shift();
+                    if (r === rows - 1 && c === cols - 1) break;
+                    const moves = [
+                        [r - 1, c, 0],
+                        [r, c + 1, 1],
+                        [r + 1, c, 2],
+                        [r, c - 1, 3]
+                    ];
+                    for (const [nr, nc, wIdx] of moves) {
+                        if (nr < 0 || nr >= rows || nc < 0 || nc >= cols) continue;
+                        if (cells[r][c].walls[wIdx]) continue;
+                        const k = `${nr},${nc}`;
+                        if (!parent.has(k)) {
+                            parent.set(k, [r, c]);
+                            queue.push([nr, nc]);
+                        }
+                    }
+                }
+
+                const solutionPath = [];
+                let cur = [rows - 1, cols - 1];
+                while (cur) {
+                    solutionPath.push(cur);
+                    cur = parent.get(`${cur[0]},${cur[1]}`);
+                }
+                solutionPath.reverse();
+
+                const pathSet = new Set(solutionPath.map(([r, c]) => `${r},${c}`));
+                const startKey = '0,0';
+                const endKey = `${rows - 1},${cols - 1}`;
+
+                const deadEnds = [];
+                const offPath = [];
+                const onPath = solutionPath.slice(1, Math.max(1, solutionPath.length - 1));
+
+                for (let r = 0; r < rows; r++) {
+                    for (let c = 0; c < cols; c++) {
+                        const k = `${r},${c}`;
+                        if (k === startKey || k === endKey || pathSet.has(k)) continue;
+                        const wc = cells[r][c].walls.filter(Boolean).length;
+                        if (wc >= 3) deadEnds.push([r, c]);
+                        else offPath.push([r, c]);
+                    }
+                }
+
+                const usedKeys = new Set([startKey, endKey]);
+                const nodes = [];
+
+                const pickSpacedFrom = (pool, count) => {
+                    const chosen = [];
+                    if (!pool.length || count <= 0) return chosen;
+                    for (let i = 0; i < count && chosen.length < pool.length; i++) {
+                        const idx = count === 1
+                            ? Math.floor(pool.length / 2)
+                            : Math.round((i / (count - 1)) * (pool.length - 1));
+                        const cell = pool[idx];
+                        const k = `${cell[0]},${cell[1]}`;
+                        if (!usedKeys.has(k)) {
+                            usedKeys.add(k);
+                            chosen.push(cell);
+                        }
+                    }
+                    return chosen;
+                };
+
+                const takeNextAvailable = (pools) => {
+                    for (const pool of pools) {
+                        for (const cell of pool) {
+                            const k = `${cell[0]},${cell[1]}`;
+                            if (!usedKeys.has(k)) {
+                                usedKeys.add(k);
+                                return cell;
+                            }
+                        }
+                    }
+                    return null;
+                };
+
+                const shDeadEnds = shuffleArray(deadEnds);
+                const shOffPath = shuffleArray(offPath);
+                const shOnPath = shuffleArray(onPath);
+
+                if (placement === 'route') {
+                    const spots = pickSpacedFrom(onPath, prompts.length);
+                    prompts.forEach((p, i) => {
+                        const cell = spots[i] || takeNextAvailable([shOnPath, shOffPath, shDeadEnds]);
+                        if (cell) nodes.push({ ...p, r: cell[0], c: cell[1], zone: pathSet.has(`${cell[0]},${cell[1]}`) ? 'route' : 'side' });
+                    });
+                } else {
+                    const sortedByPts = prompts.map((p, idx) => ({ ...p, origIdx: idx })).sort((a, b) => b.pts - a.pts);
+                    const placedByOrig = new Array(prompts.length);
+
+                    sortedByPts.forEach((p) => {
+                        let cell = null;
+                        if (p.pts >= 30) {
+                            cell = takeNextAvailable([shDeadEnds, shOffPath, shOnPath]);
+                        } else if (p.pts >= 20) {
+                            cell = takeNextAvailable([shOffPath, shDeadEnds, shOnPath]);
+                        } else {
+                            cell = takeNextAvailable([shOnPath, shOffPath, shDeadEnds]);
+                        }
+                        if (cell) {
+                            const isDead = deadEnds.some(([dr, dc]) => dr === cell[0] && dc === cell[1]);
+                            placedByOrig[p.origIdx] = {
+                                id: p.id,
+                                text: p.text,
+                                pts: p.pts,
+                                answer: p.answer,
+                                r: cell[0],
+                                c: cell[1],
+                                zone: isDead ? 'treasure' : (pathSet.has(`${cell[0]},${cell[1]}`) ? 'route' : 'side')
+                            };
+                        }
+                    });
+                    placedByOrig.forEach((n) => { if (n) nodes.push(n); });
+                }
+
+                return { rows, cols, style, placement, cells, solutionPath, nodes };
+            }
+
+            // ===== SVG RENDERER =====
+            function renderLabyrinthSVG(data) {
+                const { rows, cols, cells, solutionPath, nodes } = data;
+                const cellSize = 72;
+                const padTop = 50;
+                const padBottom = 50;
+                const padSide = 36;
+                const mazeW = cols * cellSize;
+                const mazeH = rows * cellSize;
+                const vbW = mazeW + padSide * 2;
+                const vbH = mazeH + padTop + padBottom;
+
+                const cx = (c) => padSide + c * cellSize + cellSize / 2;
+                const cy = (r) => padTop + r * cellSize + cellSize / 2;
+
+                let floorSvg = '';
+                for (let r = 0; r < rows; r++) {
+                    for (let c = 0; c < cols; c++) {
+                        const x = padSide + c * cellSize;
+                        const y = padTop + r * cellSize;
+                        floorSvg += `<rect class="maze-cell-hit" data-r="${r}" data-c="${c}" x="${x}" y="${y}" width="${cellSize}" height="${cellSize}" />`;
+                        floorSvg += `<circle cx="${x + cellSize / 2}" cy="${y + cellSize / 2}" r="2.2" fill="var(--maze-grid-dot)" pointer-events="none" />`;
+                    }
+                }
+
+                let wallPathD = '';
+                for (let r = 0; r < rows; r++) {
+                    for (let c = 0; c < cols; c++) {
+                        const x = padSide + c * cellSize;
+                        const y = padTop + r * cellSize;
+                        const w = cells[r][c].walls;
+                        if (w[0]) wallPathD += `M${x} ${y} L${x + cellSize} ${y} `;
+                        if (w[1]) wallPathD += `M${x + cellSize} ${y} L${x + cellSize} ${y + cellSize} `;
+                        if (w[2]) wallPathD += `M${x} ${y + cellSize} L${x + cellSize} ${y + cellSize} `;
+                        if (w[3]) wallPathD += `M${x} ${y} L${x} ${y + cellSize} `;
+                    }
+                }
+
+                const solPts = solutionPath.map(([r, c]) => `${cx(c)},${cy(r)}`).join(' ');
+
+                let nodesSvg = '';
+                const radius = rows >= 13 ? 19 : 22;
+                const numFont = rows >= 13 ? 13 : 15;
+                const ptsFont = rows >= 13 ? 9 : 10;
+
+                nodes.forEach((n) => {
+                    const x = cx(n.c);
+                    const y = cy(n.r);
+                    const tc = tierColor(n.pts);
+                    nodesSvg += `
+                    <g class="node-group" data-node-id="${n.id}">
+                        <circle class="node-halo" cx="${x}" cy="${y}" r="${radius + 7}" fill="none" stroke="#ff7e33" stroke-width="4" stroke-dasharray="6 4" opacity="0" />
+                        <circle class="node-ring" cx="${x}" cy="${y - 2}" r="${radius}" fill="${tc.fill}" stroke="#1e293b" stroke-width="3.5" />
+                        <text class="node-num" x="${x}" y="${y - 1}" text-anchor="middle" dominant-baseline="middle" font-family="Fredoka, sans-serif" font-weight="700" font-size="${numFont}" fill="${tc.text}">${n.id}</text>
+                        <rect x="${x - 19}" y="${y + radius - 10}" width="38" height="15" rx="7.5" fill="#ffffff" stroke="#1e293b" stroke-width="2" />
+                        <text x="${x}" y="${y + radius - 2}" text-anchor="middle" dominant-baseline="middle" font-family="Fredoka, sans-serif" font-weight="700" font-size="${ptsFont}" fill="#1e293b">+${n.pts}</text>
+                    </g>`;
+                });
+
+                const startX = cx(0);
+                const startY = padTop - 22;
+                const endX = cx(cols - 1);
+                const endY = padTop + mazeH + 22;
+
+                return `<svg viewBox="0 0 ${vbW} ${vbH}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Labyrinth maze ${rows} by ${cols} with ${nodes.length} point quests" xmlns="http://www.w3.org/2000/svg">
+                    <rect class="maze-board-bg" x="10" y="10" width="${vbW - 20}" height="${vbH - 20}" rx="26" stroke-width="5" />
+                    <g>${floorSvg}</g>
+                    <g class="solution-layer">
+                        <polyline points="${solPts}" fill="none" stroke="#ff4785" stroke-width="10" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="14 10" opacity="0.82" />
+                    </g>
+                    <path class="maze-wall-stroke" d="${wallPathD}" stroke-width="${rows >= 13 ? 4.5 : 5.5}" />
+                    <g>${nodesSvg}</g>
+                    <g pointer-events="none">
+                        <rect x="${startX - 40}" y="${startY - 13}" width="80" height="26" rx="13" fill="#00d063" stroke="#1e293b" stroke-width="3" />
+                        <text x="${startX}" y="${startY + 1}" text-anchor="middle" dominant-baseline="middle" font-family="Fredoka, sans-serif" font-size="13" font-weight="700" fill="#1e293b">START ↓</text>
+                        <rect x="${endX - 42}" y="${endY - 13}" width="84" height="26" rx="13" fill="#ff4785" stroke="#1e293b" stroke-width="3" />
+                        <text x="${endX}" y="${endY + 1}" text-anchor="middle" dominant-baseline="middle" font-family="Fredoka, sans-serif" font-size="13" font-weight="700" fill="#ffffff">★ EXIT</text>
+                    </g>
+                </svg>`;
+            }
+
+            // ===== STATE & DOM =====
+            const WS_STORAGE_KEY = 'klasskit_labyrinth_quest_v1';
+            const SETS_STORAGE_KEY = 'klasskit_labyrinth_quest_sets_v1';
+            const CLOUD_TOOL_KEY = 'labyrinth-quest';
+            const THEME_KEY = 'theme_labyrinth-quest';
+
+            const $ = (id) => document.getElementById(id);
+            const el = {
+                sidebar: $('sidebar'),
+                toggleSidebar: $('toggle-sidebar-btn'),
+                mobileClose: $('mobile-close-panel'),
+                soundBtn: $('sound-btn'),
+                soundOnIcon: $('sound-icon-on'),
+                soundOffIcon: $('sound-icon-off'),
+                slider: $('size-slider'),
+                sizeDisplay: $('size-display'),
+                escapeBonus: $('escape-bonus'),
+                customTitle: $('custom-title'),
+                customSubtitle: $('custom-subtitle'),
+                promptsInput: $('prompts-input'),
+                promptCountBadge: $('prompt-count-badge'),
+                status: $('status'),
+                generate: $('generate-btn'),
+                reroll: $('reroll-btn'),
+                printBtn: $('print-btn'),
+                printKeyBtn: $('print-key-btn'),
+                themeBtn: $('theme-btn'),
+                helpBtn: $('help-btn'),
+                bulkBtn: $('bulk-import-btn'),
+                wrapper: $('svg-wrapper'),
+                answerToggle: $('answer-toggle-btn'),
+                resetBoard: $('reset-board-btn'),
+                canvasModePill: $('canvas-mode-pill'),
+                canvasStatsPill: $('canvas-stats-pill'),
+                promptsList: $('prompts-list'),
+                earnedPts: $('earned-pts'),
+                totalPts: $('total-pts'),
+                escapeClaimBar: $('escape-claim-bar'),
+                escapeBonusText: $('escape-bonus-text'),
+                claimEscapeBtn: $('claim-escape-btn'),
+                zoomIn: $('zoom-in'),
+                zoomOut: $('zoom-out'),
+                zoomReset: $('zoom-reset'),
+                printArea: $('print-area'),
+                printHeading: $('print-heading'),
+                printSubheading: $('print-subheading'),
+                printScoreBox: $('print-score-box'),
+                printExitBonusLabel: $('print-exit-bonus-label'),
+                printSvg: $('print-svg-container'),
+                printPromptsGrid: $('print-prompts-grid'),
+                pageStyle: $('page-style'),
+                savedSetsToggleBtn: $('saved-sets-toggle-btn'),
+                librarySort: $('library-sort'),
+                libraryList: $('library-list'),
+                savedCount: $('saved-count'),
+                newSetBtn: $('new-set-btn'),
+                saveSetBtn: $('save-set-btn'),
+                activeSetBanner: $('active-set-banner'),
+                activeSetName: $('active-set-name'),
+                closeSetBtn: $('close-set-btn'),
+            };
+
+            let currentMaze = null;
+            let activeSetId = null;
+            let showAnswers = false;
+            let zoomLevel = 1;
+            let spotlightId = null;
+            let collectedIds = new Set();
+            let escapeClaimed = false;
+            let soundOn = true;
+            let cloudSaveTimer = null;
+            let activeConfirmCancel = null;
+
+            const choice = (name, fallback) => document.querySelector(`input[name="${name}"]:checked`)?.value || fallback;
+            const setRadio = (name, val) => {
+                const r = document.querySelector(`input[name="${name}"][value="${val}"]`);
+                if (r) r.checked = true;
+            };
+
+            function hydrateIcons(root) {
+                if (typeof lucide === 'undefined' || typeof lucide.createIcons !== 'function') return;
+                try {
+                    lucide.createIcons(root && root !== document ? { root } : undefined);
+                } catch (e) {
+                    lucide.createIcons();
+                }
+            }
+
+            // ===== SOUND ENGINE =====
+            let synth = null;
+            function applySoundUI() {
+                if (el.soundOnIcon) el.soundOnIcon.classList.toggle('hidden', !soundOn);
+                if (el.soundOffIcon) el.soundOffIcon.classList.toggle('hidden', soundOn);
+                if (el.soundBtn) el.soundBtn.setAttribute('aria-pressed', String(soundOn));
+            }
+
+            function initSoundState() {
+                try {
+                    soundOn = localStorage.getItem('soundMuted') !== 'true';
+                } catch (e) {
+                    soundOn = true;
+                }
+                applySoundUI();
+            }
+
+            function playSound(kind = 'pop') {
+                if (!soundOn || typeof Tone === 'undefined') return;
+                try {
+                    if (Tone.context && Tone.context.state !== 'running') Tone.start();
+                    if (!synth) {
+                        synth = new Tone.PolySynth(Tone.Synth, {
+                            oscillator: { type: 'triangle' },
+                            envelope: { attack: 0.01, decay: 0.1, sustain: 0.02, release: 0.14 }
+                        }).toDestination();
+                        synth.volume.value = -13;
+                    }
+                    const now = Tone.now();
+                    if (kind === 'win') {
+                        ['C5', 'E5', 'G5', 'C6'].forEach((n, i) => synth.triggerAttackRelease(n, '16n', now + i * 0.08));
+                    } else {
+                        synth.triggerAttackRelease('E5', '32n', now);
+                    }
+                } catch (e) {}
+            }
+
+            function showToast(message, type = 'info') {
+                const container = $('toast-container');
+                if (!container) return;
+                const colors = {
+                    success: 'bg-green text-dark',
+                    error: 'bg-pink text-white',
+                    info: 'bg-blue text-white',
+                    warning: 'bg-orange text-dark',
+                };
+                const icons = {
+                    success: 'check-circle',
+                    error: 'alert-circle',
+                    info: 'info',
+                    warning: 'alert-triangle',
+                };
+                const toast = document.createElement('div');
+                toast.className = `${colors[type] || colors.info} px-5 py-3 rounded-2xl border-3 border-dark shadow-hard font-extrabold text-xs uppercase tracking-wider flex items-center gap-2 pointer-events-auto animate-pop-in`;
+                toast.innerHTML = `<i data-lucide="${icons[type] || 'info'}" class="w-4 h-4 shrink-0"></i><span></span>`;
+                toast.querySelector('span').textContent = message;
+                container.appendChild(toast);
+                hydrateIcons(toast);
+                setTimeout(() => {
+                    toast.style.opacity = '0';
+                    toast.style.transform = 'translateY(10px)';
+                    toast.style.transition = 'all 0.25s ease';
+                    setTimeout(() => toast.remove(), 260);
+                }, 2300);
+            }
+
+            function showConfirm(title, message) {
+                return new Promise((resolve) => {
+                    const modal = $('confirmModal');
+                    $('confirmTitle').textContent = title;
+                    $('confirmMessage').textContent = message;
+                    modal.classList.remove('hidden');
+                    modal.classList.add('flex');
+                    hydrateIcons(modal);
+                    const done = (val) => {
+                        modal.classList.add('hidden');
+                        modal.classList.remove('flex');
+                        $('confirmBtnYes').onclick = null;
+                        $('confirmBtnNo').onclick = null;
+                        modal.onclick = null;
+                        activeConfirmCancel = null;
+                        resolve(val);
+                    };
+                    activeConfirmCancel = () => done(false);
+                    $('confirmBtnYes').onclick = () => done(true);
+                    $('confirmBtnNo').onclick = () => done(false);
+                    modal.onclick = (e) => { if (e.target === modal) done(false); };
+                });
+            }
+
+            function getExitBonus() {
+                return parseInt(el.escapeBonus.value, 10) || 0;
+            }
+
+            function updatePromptBadge() {
+                el.promptCountBadge.textContent = String(parsePrompts(el.promptsInput.value).length);
+            }
+
+            function applyPage() {
+                const orient = choice('page-orient', 'portrait');
+                document.documentElement.dataset.orient = orient;
+                el.pageStyle.textContent = `@page { size: A4 ${orient}; margin: 0; }`;
+            }
+
+            function syncScoreAndBoard() {
+                if (!currentMaze) return;
+                const bonus = getExitBonus();
+                const maxNodesPts = currentMaze.nodes.reduce((sum, n) => sum + n.pts, 0);
+                const maxTotal = maxNodesPts + bonus;
+
+                let earned = 0;
+                currentMaze.nodes.forEach((n) => {
+                    if (collectedIds.has(n.id)) earned += n.pts;
+                });
+                if (escapeClaimed) earned += bonus;
+
+                el.earnedPts.textContent = String(earned);
+                el.totalPts.textContent = String(maxTotal);
+
+                el.escapeClaimBar.classList.toggle('hidden', bonus <= 0);
+                el.escapeBonusText.textContent = `Escape Bonus: +${bonus} pts`;
+                el.claimEscapeBtn.textContent = escapeClaimed ? 'Escaped ✓' : 'Claim Exit';
+                el.claimEscapeBtn.classList.toggle('bg-white', !escapeClaimed);
+                el.claimEscapeBtn.classList.toggle('dark:bg-slate-800', !escapeClaimed);
+                el.claimEscapeBtn.classList.toggle('dark:text-white', !escapeClaimed);
+                el.claimEscapeBtn.classList.toggle('bg-green', escapeClaimed);
+                el.claimEscapeBtn.classList.add('text-dark');
+
+                el.wrapper.querySelectorAll('.node-group').forEach((g) => {
+                    const id = parseInt(g.getAttribute('data-node-id'), 10);
+                    g.classList.toggle('collected', collectedIds.has(id));
+                    g.classList.toggle('spotlight', spotlightId === id);
+                });
+
+                const anyMarked = collectedIds.size > 0 || escapeClaimed || el.wrapper.querySelectorAll('.user-traced').length > 0;
+                el.resetBoard.classList.toggle('hidden', !anyMarked);
+            }
+
+            function renderPromptCards() {
+                if (!currentMaze) return;
+                el.promptsList.innerHTML = currentMaze.nodes.map((n) => {
+                    const tc = tierColor(n.pts);
+                    const isDone = collectedIds.has(n.id);
+                    const isSpot = spotlightId === n.id;
+                    const zoneTag = n.zone === 'treasure' ? 'Dead-End Bonus' : (n.zone === 'route' ? 'On Path' : 'Side Branch');
+                    return `
+                    <div class="prompt-card p-2.5 ${isDone ? 'collected' : ''} ${isSpot ? 'spotlight' : ''}" data-card-id="${n.id}">
+                        <div class="flex items-start gap-2.5">
+                            <div class="w-7 h-7 rounded-full border-2 border-dark flex items-center justify-center font-heading font-bold text-xs shrink-0 ${tc.tagBg}">
+                                ${n.id}
+                            </div>
+                            <div class="flex-1 min-w-0">
+                                <div class="flex items-center justify-between gap-1 mb-0.5">
+                                    <span class="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">${zoneTag}</span>
+                                    <span class="px-2 py-0.5 rounded-full border-2 border-dark text-[10px] font-heading font-bold ${isDone ? 'bg-green text-dark' : 'bg-slate-100 dark:bg-slate-800 text-dark dark:text-white'}">+${n.pts} pts</span>
+                                </div>
+                                <p class="text-xs font-bold text-dark dark:text-white leading-snug ${isDone ? 'line-through opacity-75' : ''}">${escapeXml(n.text)}</p>
+                                ${showAnswers && n.answer ? `<p class="text-[11px] font-extrabold text-pink mt-1">Key: ${escapeXml(n.answer)}</p>` : ''}
+                            </div>
+                        </div>
+                        <div class="mt-2 pt-1.5 border-t border-slate-200 dark:border-slate-700 flex items-center justify-between">
+                            <button type="button" data-spot-id="${n.id}" class="text-[10px] font-extrabold text-blue hover:underline uppercase">
+                                ${isSpot ? 'Clear Spotlight' : 'Find in Maze'}
+                            </button>
+                            <button type="button" data-collect-id="${n.id}" class="px-2 py-0.5 rounded-md border-2 border-dark text-[10px] font-heading font-bold uppercase ${isDone ? 'bg-green text-dark' : 'bg-white dark:bg-slate-800 text-dark dark:text-white'}">
+                                ${isDone ? 'Collected ✓' : 'Collect +' + n.pts}
+                            </button>
+                        </div>
+                    </div>`;
+                }).join('');
+                syncScoreAndBoard();
+            }
+
+            function renderPrintPrompts(asKey) {
+                if (!currentMaze) return;
+                const bonus = getExitBonus();
+                const maxPts = currentMaze.nodes.reduce((sum, n) => sum + n.pts, 0) + bonus;
+                el.printScoreBox.textContent = `SCORE: ______ / ${maxPts} PTS`;
+                el.printExitBonusLabel.textContent = bonus > 0 ? `Exit Bonus: +${bonus} pts` : `${currentMaze.nodes.length} Point Prompts`;
+
+                el.printPromptsGrid.innerHTML = currentMaze.nodes.map((n) => {
+                    const tc = tierColor(n.pts);
+                    return `
+                    <div class="print-prompt-item">
+                        <span class="print-check"></span>
+                        <span class="print-badge-num" style="background:${tc.printBg};">${n.id}</span>
+                        <div style="flex:1; min-width:0;">
+                            <span>${escapeXml(n.text)}</span>
+                            <span class="print-pts" style="background:${tc.printBg};">+${n.pts}</span>
+                            ${asKey && n.answer ? `<span class="print-key-ans">Key: ${escapeXml(n.answer)}</span>` : ''}
+                        </div>
+                    </div>`;
+                }).join('');
+            }
+
+            function generate(silent = false, { skipPersist = false } = {}) {
+                const prompts = parsePrompts(el.promptsInput.value);
+                if (!prompts.length) {
+                    if (!silent) {
+                        el.status.textContent = 'Add at least one prompt line to place in the labyrinth.';
+                        el.status.classList.remove('hidden');
+                    }
+                    return;
+                }
+                el.status.classList.add('hidden');
+
+                const size = parseInt(el.slider.value, 10) || 10;
+                const style = choice('maze-style', 'classic');
+                const placement = choice('placement', 'treasure');
+
+                currentMaze = buildLabyrinth(size, style, placement, prompts);
+                collectedIds.clear();
+                spotlightId = null;
+                escapeClaimed = false;
+
+                const svg = renderLabyrinthSVG(currentMaze);
+                el.wrapper.innerHTML = svg;
+                el.printSvg.innerHTML = svg;
+
+                el.canvasModePill.textContent = style === 'braided' ? 'Multi-Path' : 'Classic Maze';
+                el.canvasStatsPill.textContent = `${size}×${size} · ${currentMaze.nodes.length} quests`;
+
+                renderPromptCards();
+                renderPrintPrompts(false);
+                if (!skipPersist) persistState();
+            }
+
+            // ===== STORAGE & CLOUD SYNC =====
+            function getWorkspaceData() {
+                return {
+                    style: choice('maze-style', 'classic'),
+                    placement: choice('placement', 'treasure'),
+                    size: parseInt(el.slider.value, 10) || 10,
+                    bonus: getExitBonus(),
+                    title: el.customTitle.value,
+                    subtitle: el.customSubtitle.value,
+                    prompts: el.promptsInput.value,
+                    orient: choice('page-orient', 'portrait'),
+                    activeSetId
+                };
+            }
+
+            function applyWorkspaceData(d) {
+                if (!d) return;
+                if (d.style) setRadio('maze-style', d.style);
+                if (d.placement) setRadio('placement', d.placement);
+                if (d.size) {
+                    el.slider.value = String(d.size);
+                    el.sizeDisplay.textContent = `${d.size} × ${d.size}`;
+                }
+                if (d.bonus !== undefined) el.escapeBonus.value = String(d.bonus);
+                if (typeof d.title === 'string') el.customTitle.value = d.title;
+                if (typeof d.subtitle === 'string') el.customSubtitle.value = d.subtitle;
+                if (typeof d.prompts === 'string') el.promptsInput.value = d.prompts;
+                if (d.orient) setRadio('page-orient', d.orient);
+                if (d.activeSetId !== undefined) activeSetId = d.activeSetId;
+                updatePromptBadge();
+            }
+
+            function readSets() {
+                try {
+                    const raw = localStorage.getItem(SETS_STORAGE_KEY);
+                    const parsed = raw ? JSON.parse(raw) : [];
+                    return Array.isArray(parsed) ? parsed : [];
+                } catch (e) { return []; }
+            }
+
+            function writeSets(sets) {
+                try { localStorage.setItem(SETS_STORAGE_KEY, JSON.stringify(sets)); } catch (e) {}
+            }
+
+            function persistState() {
+                const ws = getWorkspaceData();
+                try { localStorage.setItem(WS_STORAGE_KEY, JSON.stringify(ws)); } catch (e) {}
+                let sets = readSets();
+                if (activeSetId) {
+                    const idx = sets.findIndex((s) => s.id === activeSetId);
+                    if (idx !== -1) {
+                        sets[idx] = { ...sets[idx], ...ws, lastUsed: Date.now() };
+                        writeSets(sets);
+                        renderLibrary();
+                    }
+                }
+                clearTimeout(cloudSaveTimer);
+                cloudSaveTimer = setTimeout(() => {
+                    if (typeof window.saveProgress === 'function') {
+                        window.saveProgress(CLOUD_TOOL_KEY, { workspace: ws, sets }).catch(() => {});
+                    }
+                }, 700);
+            }
+
+            async function loadPersistedState() {
+                let hasLocalSets = readSets().length > 0;
+                try {
+                    const saved = localStorage.getItem(WS_STORAGE_KEY);
+                    if (saved) applyWorkspaceData(JSON.parse(saved));
+                } catch (e) {}
+
+                if (typeof window.loadProgress === 'function') {
+                    try {
+                        const cloud = await window.loadProgress(CLOUD_TOOL_KEY);
+                        if (cloud) {
+                            if (cloud.workspace) {
+                                applyWorkspaceData(cloud.workspace);
+                                try { localStorage.setItem(WS_STORAGE_KEY, JSON.stringify(cloud.workspace)); } catch (e) {}
+                            }
+                            if (Array.isArray(cloud.sets) && cloud.sets.length > 0 && !hasLocalSets) {
+                                writeSets(cloud.sets);
+                            }
+                        }
+                    } catch (e) {}
+                }
+            }
+
+            function renderLibrary() {
+                const sets = readSets();
+                if (el.savedCount) el.savedCount.textContent = String(sets.length);
+                const sort = el.librarySort.value;
+                if (sort === 'recent') sets.sort((a, b) => (b.lastUsed || 0) - (a.lastUsed || 0));
+                else if (sort === 'alpha') sets.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+                else if (sort === 'popular') sets.sort((a, b) => (b.usageCount || 0) - (a.usageCount || 0));
+
+                const active = sets.find((s) => s.id === activeSetId);
+                if (active) {
+                    el.activeSetBanner.classList.remove('hidden');
+                    el.activeSetName.textContent = active.name;
+                } else {
+                    activeSetId = null;
+                    el.activeSetBanner.classList.add('hidden');
+                }
+
+                if (!sets.length) {
+                    el.libraryList.innerHTML = `<p class="text-[11px] font-semibold text-slate-400 text-center py-2">No saved maze sets yet.</p>`;
+                    return;
+                }
+
+                el.libraryList.innerHTML = sets.map((s) => {
+                    const isActive = s.id === activeSetId;
+                    const count = parsePrompts(s.prompts || '').length;
+                    return `
+                        <div class="flex items-center gap-2 p-2 rounded-xl border-2 ${isActive ? 'border-blue bg-blue/10' : 'border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60'} hover:border-blue transition-colors">
+                            <button type="button" data-load-id="${s.id}" class="flex-1 text-left min-w-0">
+                                <p class="text-xs font-extrabold truncate flex items-center gap-1.5">
+                                    <span class="truncate">${escapeXml(s.name)}</span>
+                                    ${isActive ? '<span class="px-1.5 py-0.5 rounded bg-blue text-white text-[9px] uppercase shrink-0">Active</span>' : ''}
+                                </p>
+                                <p class="text-[10px] font-bold text-slate-400">${s.size || 10}×${s.size || 10} · ${count} prompts</p>
+                            </button>
+                            <button type="button" data-delete-id="${s.id}" class="p-1.5 rounded-lg text-slate-400 hover:text-pink hover:bg-pink/10 transition-colors" title="Delete set">
+                                <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                            </button>
+                        </div>`;
+                }).join('');
+                hydrateIcons(el.libraryList);
+            }
+
+            // ===== PRINT =====
+            let printingAsKey = false;
+            function preparePrint(asKey) {
+                applyPage();
+                const baseTitle = el.customTitle.value.trim() || 'Labyrinth Quest';
+                const baseSub = el.customSubtitle.value.trim() || 'Find your way from START to EXIT and complete numbered prompts for points!';
+                el.printArea.classList.toggle('show-answers', asKey);
+                el.printHeading.textContent = asKey ? `${baseTitle} — Teacher Key` : baseTitle;
+                el.printSubheading.textContent = asKey ? 'Dashed pink line shows the shortest escape route from START to EXIT.' : baseSub;
+                renderPrintPrompts(asKey);
+            }
+
+            function printHandout(asKey) {
+                printingAsKey = asKey;
+                preparePrint(asKey);
+                window.print();
+                setTimeout(() => {
+                    printingAsKey = false;
+                    preparePrint(false);
+                }, 300);
+            }
+            window.addEventListener('beforeprint', () => preparePrint(printingAsKey));
+            window.addEventListener('afterprint', () => {
+                printingAsKey = false;
+                preparePrint(false);
+            });
+
+            // ===== EVENTS =====
+            document.querySelectorAll('input[name="maze-style"], input[name="placement"]').forEach((r) => {
+                r.addEventListener('change', () => {
+                    generate(true);
+                    playSound('pop');
+                });
+            });
+
+            el.slider.addEventListener('input', () => {
+                el.sizeDisplay.textContent = `${el.slider.value} × ${el.slider.value}`;
+                persistState();
+            });
+            el.slider.addEventListener('change', () => {
+                generate(true);
+                playSound('pop');
+            });
+
+            el.escapeBonus.addEventListener('change', () => {
+                syncScoreAndBoard();
+                renderPrintPrompts(false);
+                persistState();
+                playSound('pop');
+            });
+            el.customTitle.addEventListener('input', persistState);
+            el.customSubtitle.addEventListener('input', persistState);
+            el.promptsInput.addEventListener('input', () => { updatePromptBadge(); persistState(); });
+            document.querySelectorAll('input[name="page-orient"]').forEach((r) => r.addEventListener('change', () => {
+                applyPage();
+                persistState();
+                playSound('pop');
+            }));
+
+            el.generate.addEventListener('click', () => {
+                generate(false);
+                playSound('pop');
+                showToast('New labyrinth built!', 'success');
+            });
+            el.reroll.addEventListener('click', () => {
+                generate(false);
+                playSound('pop');
+                showToast('Shuffled maze corridors', 'info');
+            });
+
+            el.printBtn.addEventListener('click', () => printHandout(false));
+            el.printKeyBtn.addEventListener('click', () => printHandout(true));
+
+            // Sound & Theme toggles
+            el.soundBtn.addEventListener('click', () => {
+                soundOn = !soundOn;
+                try { localStorage.setItem('soundMuted', String(!soundOn)); } catch (e) {}
+                applySoundUI();
+                if (soundOn) playSound('pop');
+            });
+
+            el.themeBtn.addEventListener('click', () => {
+                const dark = document.documentElement.classList.toggle('dark');
+                el.themeBtn.setAttribute('aria-pressed', String(dark));
+                try {
+                    localStorage.setItem(THEME_KEY, dark ? 'dark' : 'light');
+                    localStorage.setItem('klasskit-theme', dark ? 'dark' : 'light');
+                } catch (e) {}
+                playSound('pop');
+            });
+
+            // Sidebar collapse
+            const toggleSidebar = (forceHide = false) => {
+                const isHidden = window.innerWidth >= 768
+                    ? el.sidebar.classList.contains('hidden-panel-desktop')
+                    : el.sidebar.classList.contains('hidden-panel-mobile');
+                if (forceHide || !isHidden) {
+                    el.sidebar.classList.add('hidden-panel-mobile', 'hidden-panel-desktop');
+                } else {
+                    el.sidebar.classList.remove('hidden-panel-mobile', 'hidden-panel-desktop');
+                }
+            };
+            el.toggleSidebar.addEventListener('click', () => toggleSidebar(false));
+            el.mobileClose.addEventListener('click', () => toggleSidebar(true));
+
+            // Reveal solution route + keys (clears frosted classes when active pink)
+            el.answerToggle.addEventListener('click', () => {
+                showAnswers = !showAnswers;
+                el.wrapper.classList.toggle('show-answers', showAnswers);
+                el.answerToggle.setAttribute('aria-pressed', String(showAnswers));
+                el.answerToggle.classList.toggle('bg-white/90', !showAnswers);
+                el.answerToggle.classList.toggle('dark:bg-slate-800/90', !showAnswers);
+                el.answerToggle.classList.toggle('text-orange', !showAnswers);
+                el.answerToggle.classList.toggle('bg-pink', showAnswers);
+                el.answerToggle.classList.toggle('text-white', showAnswers);
+                renderPromptCards();
+                playSound('pop');
+            });
+
+            // Interactive Smartboard clicking inside SVG
+            el.wrapper.addEventListener('click', (e) => {
+                const nodeG = e.target.closest('.node-group');
+                if (nodeG) {
+                    const id = parseInt(nodeG.getAttribute('data-node-id'), 10);
+                    if (collectedIds.has(id)) {
+                        collectedIds.delete(id);
+                        playSound('pop');
+                    } else {
+                        collectedIds.add(id);
+                        const node = currentMaze?.nodes.find((n) => n.id === id);
+                        if (node) showToast(`#${node.id} collected! +${node.pts} pts`, 'success');
+                        if (currentMaze && collectedIds.size === currentMaze.nodes.length) playSound('win');
+                        else playSound('pop');
+                    }
+                    spotlightId = id;
+                    renderPromptCards();
+                    const card = el.promptsList.querySelector(`[data-card-id="${id}"]`);
+                    if (card) card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                    return;
+                }
+                const hit = e.target.closest('.maze-cell-hit');
+                if (hit) {
+                    hit.classList.toggle('user-traced');
+                    syncScoreAndBoard();
+                    playSound('pop');
+                }
+            });
+
+            // Right panel prompt card interactions
+            el.promptsList.addEventListener('click', (e) => {
+                const collectBtn = e.target.closest('[data-collect-id]');
+                if (collectBtn) {
+                    e.stopPropagation();
+                    const id = parseInt(collectBtn.getAttribute('data-collect-id'), 10);
+                    if (collectedIds.has(id)) {
+                        collectedIds.delete(id);
+                        playSound('pop');
+                    } else {
+                        collectedIds.add(id);
+                        if (currentMaze && collectedIds.size === currentMaze.nodes.length) playSound('win');
+                        else playSound('pop');
+                    }
+                    renderPromptCards();
+                    return;
+                }
+                const spotBtn = e.target.closest('[data-spot-id]');
+                const card = e.target.closest('[data-card-id]');
+                const targetId = spotBtn
+                    ? parseInt(spotBtn.getAttribute('data-spot-id'), 10)
+                    : (card ? parseInt(card.getAttribute('data-card-id'), 10) : null);
+                if (targetId !== null) {
+                    spotlightId = spotlightId === targetId ? null : targetId;
+                    renderPromptCards();
+                    playSound('pop');
+                }
+            });
+
+            el.claimEscapeBtn.addEventListener('click', () => {
+                escapeClaimed = !escapeClaimed;
+                syncScoreAndBoard();
+                if (escapeClaimed) {
+                    playSound('win');
+                    showToast(`Escaped the labyrinth! +${getExitBonus()} pts`, 'success');
+                } else {
+                    playSound('pop');
+                }
+            });
+
+            el.resetBoard.addEventListener('click', () => {
+                collectedIds.clear();
+                spotlightId = null;
+                escapeClaimed = false;
+                el.wrapper.querySelectorAll('.user-traced').forEach((n) => n.classList.remove('user-traced'));
+                renderPromptCards();
+                playSound('pop');
+            });
+
+            // Zoom
+            function applyZoom() {
+                el.wrapper.style.transform = `scale(${zoomLevel})`;
+                el.zoomReset.textContent = `${Math.round(zoomLevel * 100)}%`;
+            }
+            el.zoomIn.addEventListener('click', () => { zoomLevel = Math.min(1.6, +(zoomLevel + 0.1).toFixed(1)); applyZoom(); });
+            el.zoomOut.addEventListener('click', () => { zoomLevel = Math.max(0.6, +(zoomLevel - 0.1).toFixed(1)); applyZoom(); });
+            el.zoomReset.addEventListener('click', () => { zoomLevel = 1; applyZoom(); });
+
+            // Quick Presets (detach active saved set)
+            document.querySelectorAll('[data-preset]').forEach((btn) => {
+                btn.addEventListener('click', () => {
+                    const p = PRESETS[btn.getAttribute('data-preset')];
+                    if (!p) return;
+                    activeSetId = null;
+                    applyWorkspaceData({ ...p, activeSetId: null });
+                    renderLibrary();
+                    generate(false);
+                    playSound('pop');
+                    showToast(`Loaded "${p.title}"`, 'info');
+                });
+            });
+
+            // Saved Sets Drawer
+            el.savedSetsToggleBtn.addEventListener('click', () => {
+                $('saved-sets-controls').classList.toggle('active');
+                $('saved-sets-toggle-icon').classList.toggle('active');
+            });
+            el.librarySort.addEventListener('change', renderLibrary);
+            el.closeSetBtn.addEventListener('click', () => { activeSetId = null; renderLibrary(); persistState(); });
+
+            el.newSetBtn.addEventListener('click', async () => {
+                const ok = await showConfirm('Reset Workspace?', 'Detach active set and restore the default Speaking Labyrinth?');
+                if (!ok) return;
+                activeSetId = null;
+                applyWorkspaceData({ ...PRESETS.speaking, activeSetId: null });
+                renderLibrary();
+                generate(false);
+                playSound('pop');
+                showToast('Workspace reset', 'info');
+            });
+
+            // Save Modal (Smart Save: update if same name, else save new)
+            const closeSaveModal = () => { $('saveModal').classList.add('hidden'); $('saveModal').classList.remove('flex'); };
+            el.saveSetBtn.addEventListener('click', () => {
+                const current = readSets().find((s) => s.id === activeSetId);
+                $('save-set-input').value = current ? current.name : el.customTitle.value.trim();
+                $('saveModal').classList.remove('hidden');
+                $('saveModal').classList.add('flex');
+                setTimeout(() => $('save-set-input').focus(), 40);
+            });
+            $('save-modal-cancel').addEventListener('click', closeSaveModal);
+            $('saveModal').addEventListener('click', (e) => { if (e.target === $('saveModal')) closeSaveModal(); });
+            const doSaveSet = () => {
+                const name = $('save-set-input').value.trim();
+                if (!name) { showToast('Enter a set name first', 'warning'); return; }
+                const sets = readSets();
+                const now = Date.now();
+                const existing = activeSetId ? sets.find((s) => s.id === activeSetId) : null;
+                const isUpdating = Boolean(existing && (existing.name || '').toLowerCase() === name.toLowerCase());
+                const id = isUpdating ? existing.id : ('lq_' + now);
+                const ws = getWorkspaceData();
+                if (isUpdating) {
+                    const idx = sets.findIndex((s) => s.id === id);
+                    sets[idx] = { ...sets[idx], ...ws, id, name, activeSetId: id, lastUsed: now };
+                } else {
+                    sets.unshift({ id, name, ...ws, activeSetId: id, createdAt: now, lastUsed: now, usageCount: 1 });
+                }
+                activeSetId = id;
+                writeSets(sets);
+                closeSaveModal();
+                renderLibrary();
+                persistState();
+                playSound('pop');
+                showToast(isUpdating ? `Updated "${name}"` : `Saved "${name}"`, 'success');
+            };
+            $('save-modal-confirm').addEventListener('click', doSaveSet);
+            $('save-set-input').addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') { e.preventDefault(); doSaveSet(); }
+                if (e.key === 'Escape') closeSaveModal();
+            });
+
+            el.libraryList.addEventListener('click', async (e) => {
+                const loadBtn = e.target.closest('[data-load-id]');
+                if (loadBtn) {
+                    const id = loadBtn.getAttribute('data-load-id');
+                    const sets = readSets();
+                    const item = sets.find((s) => s.id === id);
+                    if (!item) return;
+                    activeSetId = id;
+                    item.lastUsed = Date.now();
+                    item.usageCount = (item.usageCount || 0) + 1;
+                    writeSets(sets);
+                    applyWorkspaceData({ ...item, activeSetId: id });
+                    applyPage();
+                    renderLibrary();
+                    generate(false);
+                    playSound('pop');
+                    showToast(`Loaded "${item.name}"`, 'success');
+                    return;
+                }
+                const delBtn = e.target.closest('[data-delete-id]');
+                if (delBtn) {
+                    const id = delBtn.getAttribute('data-delete-id');
+                    const sets = readSets();
+                    const item = sets.find((s) => s.id === id);
+                    if (!item) return;
+                    const ok = await showConfirm('Delete Saved Set?', `Delete "${item.name}"?`);
+                    if (!ok) return;
+                    writeSets(sets.filter((s) => s.id !== id));
+                    if (activeSetId === id) activeSetId = null;
+                    renderLibrary();
+                    persistState();
+                    showToast('Set deleted', 'info');
+                }
+            });
+
+            // Bulk Import Modal
+            const closeBulk = () => { $('bulkModal').classList.add('hidden'); $('bulkModal').classList.remove('flex'); };
+            el.bulkBtn.addEventListener('click', () => {
+                $('bulkModal').classList.remove('hidden');
+                $('bulkModal').classList.add('flex');
+                setTimeout(() => $('bulk-textarea').focus(), 40);
+            });
+            $('bulk-close-btn').addEventListener('click', closeBulk);
+            $('bulk-cancel-btn').addEventListener('click', closeBulk);
+            $('bulkModal').addEventListener('click', (e) => { if (e.target === $('bulkModal')) closeBulk(); });
+            $('bulk-sample-btn').addEventListener('click', () => {
+                $('bulk-textarea').value =
+                    '## Past Tense Dungeon\n' +
+                    '? Escape the labyrinth and earn points at every star!\n' +
+                    'Change to past: go, see, eat | 10 | went, saw, ate\n' +
+                    'Fix: "Did you went to school?" | 20 | Did you go to school?\n' +
+                    'Ask a partner about their last holiday | 20\n' +
+                    'Say 3 things you didn\'t do yesterday | 30\n' +
+                    'Tell a 3-sentence past story using "suddenly" | 50';
+            });
+            $('bulk-apply-btn').addEventListener('click', () => {
+                const raw = $('bulk-textarea').value;
+                const lines = raw.replace(/\r\n/g, '\n').split('\n');
+                let title = '';
+                let subtitle = '';
+                const kept = [];
+
+                for (const line of lines) {
+                    const t = line.trim();
+                    if (!t || t.startsWith('//')) continue;
+                    if (t.startsWith('##')) { title = t.slice(2).trim(); continue; }
+                    if (t.startsWith('?')) { subtitle = t.slice(1).trim(); continue; }
+                    if (t.startsWith('#')) continue;
+                    kept.push(t);
+                }
+
+                if (!kept.length) {
+                    showToast('No prompt lines found', 'warning');
+                    return;
+                }
+                if (title) el.customTitle.value = title;
+                if (subtitle) el.customSubtitle.value = subtitle;
+                el.promptsInput.value = kept.join('\n');
+                updatePromptBadge();
+                closeBulk();
+                generate(false);
+                playSound('pop');
+                showToast(`Imported ${kept.length} quest prompts`, 'success');
+            });
+
+            // Help Modal
+            const closeHelp = () => { $('helpModal').classList.add('hidden'); $('helpModal').classList.remove('flex'); };
+            el.helpBtn.addEventListener('click', () => {
+                $('helpModal').classList.remove('hidden');
+                $('helpModal').classList.add('flex');
+                hydrateIcons($('helpModal'));
+            });
+            $('help-close-btn').addEventListener('click', closeHelp);
+            $('help-got-it-btn').addEventListener('click', closeHelp);
+            $('helpModal').addEventListener('click', (e) => { if (e.target === $('helpModal')) closeHelp(); });
+
+            // Escape closes open modals including confirmModal
+            window.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') {
+                    closeBulk();
+                    closeHelp();
+                    closeSaveModal();
+                    if (typeof activeConfirmCancel === 'function') activeConfirmCancel();
+                }
+            });
+
+            // ===== INIT =====
+            (async function init() {
+                if (typeof requireAuth === 'function') await requireAuth();
+                document.body.classList.remove('opacity-0');
+                initSoundState();
+                el.themeBtn.setAttribute('aria-pressed', String(document.documentElement.classList.contains('dark')));
+                await loadPersistedState();
+                el.sizeDisplay.textContent = `${el.slider.value} × ${el.slider.value}`;
+                updatePromptBadge();
+                applyPage();
+                renderLibrary();
+                generate(true, { skipPersist: true });
+                hydrateIcons(document);
+            })();
+        })();
+    </script>
+</body>
+
+</html>
