@@ -2786,7 +2786,7 @@ const CommentsManager = {
 
   async loadComments() {
     try {
-      const resp = await fetch('../../workshop/pu-helper/comments.json');
+      const resp = await fetch('../../wip/pu-helper/comments.json');
       if (!resp.ok) throw new Error('Network response was not ok');
       this.hopefulPhrases = await resp.json();
     } catch (e) {
