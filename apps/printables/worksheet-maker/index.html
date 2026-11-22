@@ -65,6 +65,7 @@
 <body class="text-slate-900 dark:text-white font-body min-h-screen transition-colors">
 
   <div id="app"></div>
+  <input type="file" id="ws-hidden-image-input" accept="image/*" class="hidden">
 
   <script>
     // --- State & Config ---
@@ -94,10 +95,12 @@
       }
     };
 
-    // ── IndexedDB for Worksheet Sets ──────────────────────────────────────────
+    // ── IndexedDB for Worksheet Sets & Images ──────────────────────────────────
     const DB_NAME = 'klasskit_worksheet_db';
-    const DB_VERSION = 1;
+    const DB_VERSION = 2;
     const STORE_SETS = 'worksheet_sets';
+    const STORE_IMAGES = 'worksheet_images';
+    const wsImageCache = new Map();
     let dbInstance = null;
 
     function initDB() {
@@ -109,6 +112,9 @@
           if (!db.objectStoreNames.contains(STORE_SETS)) {
             db.createObjectStore(STORE_SETS, { keyPath: 'id' });
           }
+          if (!db.objectStoreNames.contains(STORE_IMAGES)) {
+            db.createObjectStore(STORE_IMAGES);
+          }
         };
         request.onsuccess = (e) => {
           dbInstance = e.target.result;
@@ -117,6 +123,154 @@
         request.onerror = (e) => reject(e.target.error);
       });
     }
+
+    async function saveWsImageToDB(id, dataUrl) {
+      if (!id || !dataUrl) return;
+      wsImageCache.set(id, dataUrl);
+      try {
+        const localDb = await initDB();
+        await new Promise((resolve, reject) => {
+          const tx = localDb.transaction(STORE_IMAGES, 'readwrite');
+          const req = tx.objectStore(STORE_IMAGES).put(dataUrl, id);
+          req.onsuccess = () => resolve();
+          req.onerror = (e) => reject(e.target.error);
+        });
+      } catch (err) {
+        console.warn('[WorksheetImageDB] save failed:', err);
+      }
+    }
+
+    async function loadWsImageFromDB(id) {
+      if (!id) return null;
+      if (wsImageCache.has(id)) return wsImageCache.get(id);
+      try {
+        const localDb = await initDB();
+        const val = await new Promise((resolve, reject) => {
+          const tx = localDb.transaction(STORE_IMAGES, 'readonly');
+          const req = tx.objectStore(STORE_IMAGES).get(id);
+          req.onsuccess = () => resolve(req.result || null);
+          req.onerror = (e) => reject(e.target.error);
+        });
+        if (val) wsImageCache.set(id, val);
+        return val;
+      } catch (err) {
+        console.warn('[WorksheetImageDB] load failed:', err);
+        return null;
+      }
+    }
+
+    async function deleteWsImageFromDB(id) {
+      if (!id) return;
+      wsImageCache.delete(id);
+      try {
+        const localDb = await initDB();
+        await new Promise((resolve) => {
+          const tx = localDb.transaction(STORE_IMAGES, 'readwrite');
+          tx.objectStore(STORE_IMAGES).delete(id);
+          tx.oncomplete = () => resolve();
+          tx.onerror = () => resolve();
+        });
+      } catch (err) {}
+    }
+
+    function getWsImageSrc(imageId) {
+      if (!imageId) return '';
+      if (wsImageCache.has(imageId)) return wsImageCache.get(imageId);
+      if (/^(https?:|data:)/i.test(imageId)) return imageId;
+      return '';
+    }
+
+    function compressWsImageFile(file, maxDim = 900) {
+      return new Promise((resolve, reject) => {
+        if (!file || !file.type.startsWith('image/')) {
+          reject(new Error('Invalid image file'));
+          return;
+        }
+        const reader = new FileReader();
+        reader.onerror = () => reject(new Error('Failed to read image'));
+        reader.onload = (ev) => {
+          const img = new Image();
+          img.onerror = () => reject(new Error('Failed to decode image'));
+          img.onload = () => {
+            let w = img.naturalWidth || img.width || maxDim;
+            let h = img.naturalHeight || img.height || maxDim;
+            if (w > maxDim || h > maxDim) {
+              const ratio = Math.min(maxDim / w, maxDim / h);
+              w = Math.max(1, Math.round(w * ratio));
+              h = Math.max(1, Math.round(h * ratio));
+            }
+            const canvas = document.createElement('canvas');
+            canvas.width = w;
+            canvas.height = h;
+            canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+            let out = '';
+            try {
+              out = canvas.toDataURL('image/webp', 0.88);
+              if (!out.startsWith('data:image/webp')) out = canvas.toDataURL('image/png');
+            } catch (e) {
+              out = canvas.toDataURL('image/png');
+            }
+            resolve(out);
+          };
+          img.src = ev.target.result;
+        };
+        reader.readAsDataURL(file);
+      });
+    }
+
+    async function hydrateWorksheetImages() {
+      const ids = new Set();
+      const qs = (state.worksheet && state.worksheet.questions) || [];
+      qs.forEach((q) => {
+        if (q && q.imageId && !/^(https?:|data:)/i.test(q.imageId) && !wsImageCache.has(q.imageId)) {
+          ids.add(q.imageId);
+        }
+        if (Array.isArray(q && q.options)) {
+          q.options.forEach((o) => {
+            if (o && o.imageId && !/^(https?:|data:)/i.test(o.imageId) && !wsImageCache.has(o.imageId)) {
+              ids.add(o.imageId);
+            }
+          });
+        }
+        if (Array.isArray(q && q.pairs)) {
+          q.pairs.forEach((p) => {
+            if (p && p.leftImageId && !/^(https?:|data:)/i.test(p.leftImageId) && !wsImageCache.has(p.leftImageId)) {
+              ids.add(p.leftImageId);
+            }
+            if (p && p.rightImageId && !/^(https?:|data:)/i.test(p.rightImageId) && !wsImageCache.has(p.rightImageId)) {
+              ids.add(p.rightImageId);
+            }
+          });
+        }
+      });
+      if (ids.size === 0) return false;
+      await Promise.all(Array.from(ids).map((id) => loadWsImageFromDB(id)));
+      return true;
+    }
+
+    let pendingWsImageHandler = null;
+    function pickWorksheetImage(onImageSaved) {
+      pendingWsImageHandler = onImageSaved;
+      const inp = document.getElementById('ws-hidden-image-input');
+      if (inp) inp.click();
+    }
+
+    document.getElementById('ws-hidden-image-input')?.addEventListener('change', async (e) => {
+      const file = e.target.files && e.target.files[0];
+      e.target.value = '';
+      const handler = pendingWsImageHandler;
+      pendingWsImageHandler = null;
+      if (!file || !handler) return;
+      try {
+        const dataUrl = await compressWsImageFile(file, 900);
+        const imgId = 'wsimg_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+        await saveWsImageToDB(imgId, dataUrl);
+        handler(imgId);
+      } catch (err) {
+        console.warn('[WorksheetImage] Upload failed:', err);
+        alert('Could not process that image file.');
+      }
+    });
 
     // ── Cloud Set Management (Following card-maker/puzzle-maker patterns) ──────
     let activeSetId = null;
@@ -339,6 +493,7 @@
         }
       }
 
+      await hydrateWorksheetImages();
       renderLibrary();
     }
 
@@ -453,6 +608,9 @@
       updateActiveIndicator();
       render();
       saveState();
+      hydrateWorksheetImages().then((loadedAny) => {
+        if (loadedAny) render();
+      });
     }
 
     function updateActiveIndicator() {
@@ -540,13 +698,13 @@
     }
 
     const createDefaultQuestion = (type) => {
-      const base = { id: generateId(), type, text: '', points: 1 };
+      const base = { id: generateId(), type, text: '', points: 1, imageId: '', imageSize: 'md' };
       switch (type) {
-        case 'mcq': return { ...base, options: [{ id: generateId(), text: '', isCorrect: true }, { id: generateId(), text: '', isCorrect: false }] };
+        case 'mcq': return { ...base, options: [{ id: generateId(), text: '', isCorrect: true, imageId: '' }, { id: generateId(), text: '', isCorrect: false, imageId: '' }] };
         case 'fib': return { ...base, text: 'The capital of Japan is ___ .', answer: 'Tokyo' };
         case 'sa': return { ...base, answer: '' };
         case 'tf': return { ...base, isTrue: true };
-        case 'matching': return { ...base, pairs: [{ id: generateId(), left: '', right: '' }, { id: generateId(), left: '', right: '' }] };
+        case 'matching': return { ...base, pairs: [{ id: generateId(), left: '', right: '', leftImageId: '', rightImageId: '' }, { id: generateId(), left: '', right: '', leftImageId: '', rightImageId: '' }] };
         case 'essay': return { ...base, lines: 5, answer: '' };
         default: return base;
       }
@@ -592,19 +750,65 @@
       `;
     }
 
+    function getQuestionImageEditorHTML(q) {
+      const src = getWsImageSrc(q.imageId);
+      if (!src) {
+        return `
+          <div class="flex items-center">
+            <button type="button" data-action="upload-q-image" data-qid="${q.id}" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border-2 border-dashed border-slate-300 dark:border-slate-600 text-xs font-bold text-slate-500 dark:text-slate-300 hover:border-blue hover:text-blue transition-colors">
+              <i data-lucide="image-plus" class="w-4 h-4"></i> Add Image / Diagram
+            </button>
+          </div>
+        `;
+      }
+      const curSize = q.imageSize || 'md';
+      return `
+        <div class="flex flex-wrap items-center gap-3 p-3 rounded-xl border-2 border-dark/15 dark:border-slate-600 bg-slate-50 dark:bg-slate-900">
+          <img src="${esc(src)}" alt="" class="h-24 max-w-[220px] object-contain rounded-xl border-2 border-dark bg-white p-1" />
+          <div class="flex flex-col gap-2">
+            <div class="flex items-center gap-1">
+              <span class="text-[10px] font-black uppercase tracking-wider text-slate-400 mr-1 font-heading">Size:</span>
+              ${['sm', 'md', 'lg'].map(sz => `
+                <button type="button" data-action="set-q-img-size" data-qid="${q.id}" data-size="${sz}" class="px-2 py-0.5 rounded-md border-2 text-[10px] font-heading font-bold uppercase ${curSize === sz ? 'bg-blue text-white border-dark' : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-300 dark:border-slate-600'}">${sz === 'sm' ? 'S' : sz === 'md' ? 'M' : 'L'}</button>
+              `).join('')}
+            </div>
+            <div class="flex items-center gap-2">
+              <button type="button" data-action="upload-q-image" data-qid="${q.id}" class="px-2.5 py-1 rounded-lg bg-white dark:bg-slate-800 border-2 border-dark dark:border-slate-500 text-xs font-bold flex items-center gap-1 hover:border-blue transition-colors">
+                <i data-lucide="refresh-cw" class="w-3 h-3"></i> Replace
+              </button>
+              <button type="button" data-action="remove-q-image" data-qid="${q.id}" class="px-2.5 py-1 rounded-lg bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 border-2 border-red-200 dark:border-red-500/30 text-xs font-bold flex items-center gap-1 hover:bg-red-100 transition-colors">
+                <i data-lucide="trash-2" class="w-3 h-3"></i> Remove
+              </button>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
     function getMCQEditor(q) {
       return `
         <div class="space-y-4">
           ${getEditorTextarea('Question Text', q.text, 'What is the powerhouse of the cell?', 'update-q-text', `data-qid="${q.id}"`)}
+          ${getQuestionImageEditorHTML(q)}
           <div class="space-y-3">
             <label class="text-xs font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest font-heading">Options (Check the correct one)</label>
-            ${q.options.map((opt, idx) => `
-              <div class="flex items-center gap-3">
-                <input type="radio" name="mcq-${q.id}" ${opt.isCorrect ? 'checked' : ''} data-action="set-mcq-correct" data-qid="${q.id}" data-optid="${opt.id}" class="w-5 h-5 text-blue dark:bg-slate-900 border-2 border-dark focus:ring-0">
-                <input type="text" class="flex-1 bg-slate-50 dark:bg-slate-900 border-2 border-dark dark:border-slate-600 rounded-xl px-3 py-2 text-sm font-semibold text-dark dark:text-white focus:border-blue outline-none" value="${esc(opt.text)}" data-action="update-mcq-text" data-qid="${q.id}" data-optid="${opt.id}" placeholder="Option ${idx + 1}">
-                <button data-action="delete-mcq-opt" data-qid="${q.id}" data-optid="${opt.id}" class="text-slate-400 hover:text-red-500 dark:hover:text-red-400 p-1.5 transition-colors"><i data-lucide="trash-2" class="w-[18px] h-[18px]"></i></button>
-              </div>
-            `).join('')}
+            ${q.options.map((opt, idx) => {
+              const optImg = getWsImageSrc(opt.imageId);
+              return `
+                <div class="flex items-center gap-2.5">
+                  <input type="radio" name="mcq-${q.id}" ${opt.isCorrect ? 'checked' : ''} data-action="set-mcq-correct" data-qid="${q.id}" data-optid="${opt.id}" class="w-5 h-5 text-blue dark:bg-slate-900 border-2 border-dark focus:ring-0 shrink-0">
+                  ${optImg ? `
+                    <div class="relative shrink-0">
+                      <img src="${esc(optImg)}" alt="" class="h-10 w-10 object-contain rounded-lg border-2 border-dark bg-white p-0.5" />
+                      <button type="button" data-action="remove-opt-image" data-qid="${q.id}" data-optid="${opt.id}" title="Remove option image" class="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-red-500 text-white text-[9px] font-black flex items-center justify-center border border-dark">×</button>
+                    </div>
+                  ` : ''}
+                  <input type="text" class="flex-1 min-w-0 bg-slate-50 dark:bg-slate-900 border-2 border-dark dark:border-slate-600 rounded-xl px-3 py-2 text-sm font-semibold text-dark dark:text-white focus:border-blue outline-none" value="${esc(opt.text)}" data-action="update-mcq-text" data-qid="${q.id}" data-optid="${opt.id}" placeholder="Option ${idx + 1}">
+                  <button type="button" data-action="upload-opt-image" data-qid="${q.id}" data-optid="${opt.id}" title="Attach image to option" class="p-2 rounded-xl border-2 border-slate-300 dark:border-slate-600 text-slate-500 hover:border-blue hover:text-blue transition-colors shrink-0"><i data-lucide="image-plus" class="w-4 h-4"></i></button>
+                  <button type="button" data-action="delete-mcq-opt" data-qid="${q.id}" data-optid="${opt.id}" class="text-slate-400 hover:text-red-500 dark:hover:text-red-400 p-1.5 transition-colors shrink-0"><i data-lucide="trash-2" class="w-[18px] h-[18px]"></i></button>
+                </div>
+              `;
+            }).join('')}
             <button data-action="add-mcq-opt" data-qid="${q.id}" class="text-xs text-blue hover:text-blue/80 font-heading font-black uppercase tracking-wider flex items-center gap-1.5 mt-2">
               <i data-lucide="plus" class="w-4 h-4"></i> Add Option
             </button>
@@ -620,6 +824,7 @@
             <strong>Tip:</strong> Use three underscores (<code>___</code>) in your question text where you want the blank to appear.
           </div>
           ${getEditorTextarea('Question Text', q.text, '', 'update-q-text', `data-qid="${q.id}"`)}
+          ${getQuestionImageEditorHTML(q)}
           ${getEditorInput('Correct Answer (For Key)', q.answer, 'e.g. Mitochondria', 'update-q-ans', `data-qid="${q.id}"`)}
         </div>
       `;
@@ -629,6 +834,7 @@
       return `
         <div class="space-y-4">
           ${getEditorTextarea('Question Text', q.text, '', 'update-q-text', `data-qid="${q.id}"`)}
+          ${getQuestionImageEditorHTML(q)}
           ${getEditorTextarea('Correct Answer / Expected Points (For Key)', q.answer, '', 'update-q-ans', `data-qid="${q.id}"`, 2)}
         </div>
       `;
@@ -638,6 +844,7 @@
       return `
         <div class="space-y-4">
           ${getEditorTextarea('Question Text', q.text, '', 'update-q-text', `data-qid="${q.id}"`)}
+          ${getQuestionImageEditorHTML(q)}
           <div>
             <label class="text-xs font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest font-heading block mb-2.5">Correct Answer</label>
             <div class="flex gap-6">
@@ -659,19 +866,42 @@
       return `
         <div class="space-y-4">
           ${getEditorTextarea('Instructions / Context', q.text, 'Match the items...', 'update-q-text', `data-qid="${q.id}"`)}
+          ${getQuestionImageEditorHTML(q)}
           <div class="space-y-3">
             <label class="text-xs font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest font-heading flex justify-between">
               <span>Left Side (Prompts)</span>
               <span>Right Side (Matches)</span>
             </label>
-            ${q.pairs.map((pair, idx) => `
-              <div class="flex items-center gap-3">
-                <input class="flex-1 bg-slate-50 dark:bg-slate-900 border-2 border-dark dark:border-slate-600 rounded-xl px-3 py-2 text-sm font-semibold text-dark dark:text-white focus:border-blue outline-none" value="${esc(pair.left)}" data-action="update-match-left" data-qid="${q.id}" data-pairid="${pair.id}" placeholder="e.g. France" />
-                <span class="text-slate-400 font-bold">→</span>
-                <input class="flex-1 bg-slate-50 dark:bg-slate-900 border-2 border-dark dark:border-slate-600 rounded-xl px-3 py-2 text-sm font-semibold text-dark dark:text-white focus:border-blue outline-none" value="${esc(pair.right)}" data-action="update-match-right" data-qid="${q.id}" data-pairid="${pair.id}" placeholder="e.g. Paris" />
-                <button data-action="delete-match-pair" data-qid="${q.id}" data-pairid="${pair.id}" class="text-slate-400 hover:text-red-500 dark:hover:text-red-400 p-1.5 transition-colors"><i data-lucide="trash-2" class="w-[18px] h-[18px]"></i></button>
-              </div>
-            `).join('')}
+            ${q.pairs.map((pair, idx) => {
+              const leftImg = getWsImageSrc(pair.leftImageId);
+              const rightImg = getWsImageSrc(pair.rightImageId);
+              return `
+                <div class="flex flex-wrap sm:flex-nowrap items-center gap-2">
+                  <div class="flex items-center gap-1.5 flex-1 min-w-0">
+                    ${leftImg ? `
+                      <div class="relative shrink-0">
+                        <img src="${esc(leftImg)}" alt="" class="h-9 w-9 object-contain rounded-lg border-2 border-dark bg-white p-0.5" />
+                        <button type="button" data-action="remove-match-image" data-side="left" data-qid="${q.id}" data-pairid="${pair.id}" title="Remove left image" class="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-red-500 text-white text-[9px] font-black flex items-center justify-center border border-dark">×</button>
+                      </div>
+                    ` : ''}
+                    <input class="flex-1 min-w-0 bg-slate-50 dark:bg-slate-900 border-2 border-dark dark:border-slate-600 rounded-xl px-3 py-2 text-sm font-semibold text-dark dark:text-white focus:border-blue outline-none" value="${esc(pair.left)}" data-action="update-match-left" data-qid="${q.id}" data-pairid="${pair.id}" placeholder="e.g. France" />
+                    <button type="button" data-action="upload-match-image" data-side="left" data-qid="${q.id}" data-pairid="${pair.id}" title="Upload left image" class="p-2 rounded-xl border-2 border-slate-300 dark:border-slate-600 text-slate-500 hover:border-blue hover:text-blue transition-colors shrink-0"><i data-lucide="image-plus" class="w-3.5 h-3.5"></i></button>
+                  </div>
+                  <span class="text-slate-400 font-bold shrink-0">→</span>
+                  <div class="flex items-center gap-1.5 flex-1 min-w-0">
+                    ${rightImg ? `
+                      <div class="relative shrink-0">
+                        <img src="${esc(rightImg)}" alt="" class="h-9 w-9 object-contain rounded-lg border-2 border-dark bg-white p-0.5" />
+                        <button type="button" data-action="remove-match-image" data-side="right" data-qid="${q.id}" data-pairid="${pair.id}" title="Remove right image" class="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-red-500 text-white text-[9px] font-black flex items-center justify-center border border-dark">×</button>
+                      </div>
+                    ` : ''}
+                    <input class="flex-1 min-w-0 bg-slate-50 dark:bg-slate-900 border-2 border-dark dark:border-slate-600 rounded-xl px-3 py-2 text-sm font-semibold text-dark dark:text-white focus:border-blue outline-none" value="${esc(pair.right)}" data-action="update-match-right" data-qid="${q.id}" data-pairid="${pair.id}" placeholder="e.g. Paris" />
+                    <button type="button" data-action="upload-match-image" data-side="right" data-qid="${q.id}" data-pairid="${pair.id}" title="Upload right image" class="p-2 rounded-xl border-2 border-slate-300 dark:border-slate-600 text-slate-500 hover:border-blue hover:text-blue transition-colors shrink-0"><i data-lucide="image-plus" class="w-3.5 h-3.5"></i></button>
+                  </div>
+                  <button type="button" data-action="delete-match-pair" data-qid="${q.id}" data-pairid="${pair.id}" class="text-slate-400 hover:text-red-500 dark:hover:text-red-400 p-1.5 transition-colors shrink-0"><i data-lucide="trash-2" class="w-[18px] h-[18px]"></i></button>
+                </div>
+              `;
+            }).join('')}
             <button data-action="add-match-pair" data-qid="${q.id}" class="text-xs text-blue hover:text-blue/80 font-heading font-black uppercase tracking-wider flex items-center gap-1.5 mt-2">
               <i data-lucide="plus" class="w-4 h-4"></i> Add Pair
             </button>
@@ -684,6 +914,7 @@
       return `
         <div class="space-y-4">
           ${getEditorTextarea('Question Text', q.text, '', 'update-q-text', `data-qid="${q.id}"`)}
+          ${getQuestionImageEditorHTML(q)}
           <div class="flex gap-4">
             ${getEditorInput('Blank Lines to Provide', q.lines, '', 'update-q-lines', `data-qid="${q.id}"`, 'number', 'w-32')}
           </div>
@@ -697,9 +928,18 @@
       return `<div class="text-base font-medium mb-3 whitespace-pre-wrap">${esc(text)}</div>`;
     }
 
+    function getQuestionImagePreviewHTML(q) {
+      const src = getWsImageSrc(q && q.imageId);
+      if (!src) return '';
+      const clsMap = { sm: 'max-h-28', md: 'max-h-44', lg: 'max-h-64' };
+      const sizeCls = clsMap[q.imageSize] || clsMap.md;
+      return `<div class="my-2.5"><img src="${esc(src)}" alt="" class="${sizeCls} max-w-full object-contain rounded-lg border border-slate-200 bg-white p-1" /></div>`;
+    }
+
     const fmtPreviewScore = (pts) => `(${pts} pt${pts !== 1 ? 's' : ''})`;
 
     function getMCQPreview(q, index) {
+      const hasOptImg = Array.isArray(q.options) && q.options.some(o => Boolean(getWsImageSrc(o.imageId)));
       return `
         <div class="print-block mb-8">
           <div class="flex gap-2">
@@ -709,16 +949,21 @@
                 ${getQuestionText(q.text)}
                 <span class="text-sm font-semibold text-gray-500 shrink-0 print:text-black">${fmtPreviewScore(q.points)}</span>
               </div>
-              <div class="flex flex-col gap-2 pl-2">
+              ${getQuestionImagePreviewHTML(q)}
+              <div class="${hasOptImg ? 'grid grid-cols-1 sm:grid-cols-2 gap-3 pl-2 mt-2' : 'flex flex-col gap-2 pl-2'}">
                 ${q.options.map((opt, idx) => {
                   const letter = String.fromCharCode(65 + idx);
                   const isCorrect = state.showAnswers && opt.isCorrect;
                   const circleCls = isCorrect ? 'border-blue-600 text-blue-600 bg-blue-50' : 'border-slate-400 text-slate-600';
                   const textCls = isCorrect ? 'text-blue-800 font-semibold' : 'text-slate-800';
+                  const optImg = getWsImageSrc(opt.imageId);
                   return `
                     <div class="flex items-start gap-3">
                       <span class="flex-shrink-0 w-6 h-6 rounded-full border flex items-center justify-center text-sm font-medium ${circleCls}">${letter}</span>
-                      <span class="pt-0.5 ${textCls}">${esc(opt.text) || '...'}</span>
+                      <div class="flex flex-col gap-1.5 pt-0.5">
+                        ${optImg ? `<img src="${esc(optImg)}" alt="" class="max-h-28 max-w-[180px] object-contain rounded border border-slate-200 bg-white p-1" />` : ''}
+                        ${(opt.text || !optImg) ? `<span class="${textCls}">${esc(opt.text) || '...'}</span>` : ''}
+                      </div>
                     </div>
                   `;
                 }).join('')}
@@ -752,6 +997,7 @@
                 <div class="text-base font-medium leading-relaxed">${displayHtml}</div>
                 <span class="text-sm font-semibold text-gray-500 shrink-0 print:text-black">${fmtPreviewScore(q.points)}</span>
               </div>
+              ${getQuestionImagePreviewHTML(q)}
               ${extraLine}
             </div>
           </div>
@@ -777,6 +1023,7 @@
                 ${getQuestionText(q.text)}
                 <span class="text-sm font-semibold text-gray-500 shrink-0 print:text-black">${fmtPreviewScore(q.points)}</span>
               </div>
+              ${getQuestionImagePreviewHTML(q)}
               ${answerArea}
             </div>
           </div>
@@ -797,6 +1044,7 @@
                 ${getQuestionText(q.text)}
                 <span class="text-sm font-semibold text-gray-500 shrink-0 print:text-black">${fmtPreviewScore(q.points)}</span>
               </div>
+              ${getQuestionImagePreviewHTML(q)}
               <div class="flex gap-6 mt-3 font-semibold text-slate-700">
                 <span class="px-3 py-1 rounded-full border-2 ${trueCls}">True</span>
                 <span class="px-3 py-1 rounded-full border-2 ${falseCls}">False</span>
@@ -822,14 +1070,20 @@
                 ${getQuestionText(q.text || 'Match the following items:')}
                 <span class="text-sm font-semibold text-gray-500 shrink-0 print:text-black">${fmtPreviewScore(q.points)}</span>
               </div>
+              ${getQuestionImagePreviewHTML(q)}
               <div class="flex gap-8 w-full mt-4">
                 <div class="flex-1 flex flex-col gap-4 border-r border-slate-200 pr-4">
                   ${q.pairs.map((pair, idx) => {
                     const correctRight = rightItemsWithLabels.find(r => r.id === pair.id);
+                    const leftImg = getWsImageSrc(pair.leftImageId);
                     return `
-                      <div class="flex items-center justify-between">
-                        <span>${idx + 1}. ${esc(pair.left)}</span>
-                        <span class="w-10 border-b border-slate-800 text-center inline-block ml-4 h-6 relative top-1">
+                      <div class="flex items-center justify-between gap-2">
+                        <div class="flex items-center gap-2">
+                          <span>${idx + 1}.</span>
+                          ${leftImg ? `<img src="${esc(leftImg)}" alt="" class="max-h-20 max-w-[140px] object-contain rounded border border-slate-200 bg-white p-1" />` : ''}
+                          ${pair.left ? `<span>${esc(pair.left)}</span>` : ''}
+                        </div>
+                        <span class="w-10 border-b border-slate-800 text-center inline-block ml-4 h-6 relative top-1 shrink-0">
                           ${state.showAnswers ? `<span class="text-blue-600 font-bold leading-none">${correctRight?.label || ''}</span>` : ''}
                         </span>
                       </div>
@@ -837,12 +1091,16 @@
                   }).join('')}
                 </div>
                 <div class="flex-1 flex flex-col gap-4">
-                  ${rightItemsWithLabels.map(item => `
-                    <div class="flex gap-2">
-                      <span class="font-semibold">${item.label}.</span>
-                      <span>${esc(item.right)}</span>
-                    </div>
-                  `).join('')}
+                  ${rightItemsWithLabels.map(item => {
+                    const rightImg = getWsImageSrc(item.rightImageId);
+                    return `
+                      <div class="flex items-center gap-2">
+                        <span class="font-semibold">${item.label}.</span>
+                        ${rightImg ? `<img src="${esc(rightImg)}" alt="" class="max-h-20 max-w-[140px] object-contain rounded border border-slate-200 bg-white p-1" />` : ''}
+                        ${item.right ? `<span>${esc(item.right)}</span>` : ''}
+                      </div>
+                    `;
+                  }).join('')}
                 </div>
               </div>
             </div>
@@ -869,6 +1127,7 @@
                 ${getQuestionText(q.text)}
                 <span class="text-sm font-semibold text-gray-500 shrink-0 print:text-black">${fmtPreviewScore(q.points)}</span>
               </div>
+              ${getQuestionImagePreviewHTML(q)}
               ${answerArea}
             </div>
           </div>
@@ -1144,12 +1403,14 @@
           id: generateId(),
           type,
           text: String((raw && raw.text) || ''),
-          points: typeof (raw && raw.points) === 'number' && !isNaN(raw.points) ? Math.max(0, raw.points) : 1
+          points: typeof (raw && raw.points) === 'number' && !isNaN(raw.points) ? Math.max(0, raw.points) : 1,
+          imageId: String((raw && raw.imageId) || ''),
+          imageSize: ['sm', 'md', 'lg'].includes(raw && raw.imageSize) ? raw.imageSize : 'md'
         };
         if (type === 'mcq') {
           const opts = Array.isArray(raw.options) && raw.options.length > 0
-            ? raw.options.map((o, idx) => ({ id: generateId(), text: String((o && o.text) || ''), isCorrect: Boolean(o && o.isCorrect) || (!raw.options.some(x => x && x.isCorrect) && idx === 0) }))
-            : [{ id: generateId(), text: 'Option A', isCorrect: true }, { id: generateId(), text: 'Option B', isCorrect: false }];
+            ? raw.options.map((o, idx) => ({ id: generateId(), text: String((o && o.text) || ''), isCorrect: Boolean(o && o.isCorrect) || (!raw.options.some(x => x && x.isCorrect) && idx === 0), imageId: String((o && o.imageId) || '') }))
+            : [{ id: generateId(), text: 'Option A', isCorrect: true, imageId: '' }, { id: generateId(), text: 'Option B', isCorrect: false, imageId: '' }];
           return { ...base, options: opts };
         }
         if (type === 'fib' || type === 'sa') {
@@ -1160,8 +1421,8 @@
         }
         if (type === 'matching') {
           const pairs = Array.isArray(raw.pairs) && raw.pairs.length > 0
-            ? raw.pairs.map(p => ({ id: generateId(), left: String((p && p.left) || ''), right: String((p && p.right) || '') }))
-            : [{ id: generateId(), left: '', right: '' }, { id: generateId(), left: '', right: '' }];
+            ? raw.pairs.map(p => ({ id: generateId(), left: String((p && p.left) || ''), right: String((p && p.right) || ''), leftImageId: String((p && p.leftImageId) || ''), rightImageId: String((p && p.rightImageId) || '') }))
+            : [{ id: generateId(), left: '', right: '', leftImageId: '', rightImageId: '' }, { id: generateId(), left: '', right: '', leftImageId: '', rightImageId: '' }];
           return { ...base, pairs };
         }
         if (type === 'essay') {
@@ -1772,7 +2033,7 @@
         case 'add-mcq-opt': {
           const qMcq = state.worksheet.questions.find(q => q.id === qid);
           if (qMcq) {
-            qMcq.options.push({ id: generateId(), text: '', isCorrect: false });
+            qMcq.options.push({ id: generateId(), text: '', isCorrect: false, imageId: '' });
             saveState();
             render();
           }
@@ -1790,7 +2051,7 @@
         case 'add-match-pair': {
           const qMatch = state.worksheet.questions.find(q => q.id === qid);
           if (qMatch) {
-            qMatch.pairs.push({ id: generateId(), left: '', right: '' });
+            qMatch.pairs.push({ id: generateId(), left: '', right: '', leftImageId: '', rightImageId: '' });
             saveState();
             render();
           }
@@ -1800,6 +2061,82 @@
           const qDelPair = state.worksheet.questions.find(q => q.id === qid);
           if (qDelPair) {
             qDelPair.pairs = qDelPair.pairs.filter(p => p.id !== btn.dataset.pairid);
+            saveState();
+            render();
+          }
+          break;
+        }
+        case 'upload-q-image': {
+          const qTarget = state.worksheet.questions.find(q => q.id === qid);
+          if (qTarget) {
+            pickWorksheetImage((imgId) => {
+              qTarget.imageId = imgId;
+              qTarget.imageSize = qTarget.imageSize || 'md';
+              saveState();
+              render();
+            });
+          }
+          break;
+        }
+        case 'remove-q-image': {
+          const qTarget = state.worksheet.questions.find(q => q.id === qid);
+          if (qTarget) {
+            qTarget.imageId = '';
+            saveState();
+            render();
+          }
+          break;
+        }
+        case 'set-q-img-size': {
+          const qTarget = state.worksheet.questions.find(q => q.id === qid);
+          if (qTarget && ['sm', 'md', 'lg'].includes(btn.dataset.size)) {
+            qTarget.imageSize = btn.dataset.size;
+            saveState();
+            render();
+          }
+          break;
+        }
+        case 'upload-opt-image': {
+          const qMcq = state.worksheet.questions.find(q => q.id === qid);
+          const opt = qMcq && qMcq.options.find(o => o.id === btn.dataset.optid);
+          if (opt) {
+            pickWorksheetImage((imgId) => {
+              opt.imageId = imgId;
+              saveState();
+              render();
+            });
+          }
+          break;
+        }
+        case 'remove-opt-image': {
+          const qMcq = state.worksheet.questions.find(q => q.id === qid);
+          const opt = qMcq && qMcq.options.find(o => o.id === btn.dataset.optid);
+          if (opt) {
+            opt.imageId = '';
+            saveState();
+            render();
+          }
+          break;
+        }
+        case 'upload-match-image': {
+          const qMatch = state.worksheet.questions.find(q => q.id === qid);
+          const pair = qMatch && qMatch.pairs.find(p => p.id === btn.dataset.pairid);
+          const side = btn.dataset.side === 'right' ? 'rightImageId' : 'leftImageId';
+          if (pair) {
+            pickWorksheetImage((imgId) => {
+              pair[side] = imgId;
+              saveState();
+              render();
+            });
+          }
+          break;
+        }
+        case 'remove-match-image': {
+          const qMatch = state.worksheet.questions.find(q => q.id === qid);
+          const pair = qMatch && qMatch.pairs.find(p => p.id === btn.dataset.pairid);
+          const side = btn.dataset.side === 'right' ? 'rightImageId' : 'leftImageId';
+          if (pair) {
+            pair[side] = '';
             saveState();
             render();
           }
@@ -1850,6 +2187,7 @@
         await requireAuth();
       }
       await Promise.all([loadState(), fetchStarterPresets()]);
+      await hydrateWorksheetImages();
       if (!state.worksheet || !Array.isArray(state.worksheet.questions)) {
         state.worksheet = {
           title: (state.worksheet && state.worksheet.title) || 'Untitled Worksheet',

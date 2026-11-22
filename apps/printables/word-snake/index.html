@@ -48,6 +48,7 @@
 
     <!-- Libraries -->
     <script src="https://unpkg.com/lucide@1.16.0"></script>
+    <script src="../../../components/bulk-import-modal.js"></script>
 
     <!-- Shared KlassKit Styles -->
     <link rel="stylesheet" href="../../../css/tailwind.generated.css" />
@@ -670,6 +671,9 @@
                         <label for="word-input" class="text-xs font-bold text-slate-400 uppercase tracking-widest">Vocabulary (Comma Separated)</label>
                         <div class="flex items-center gap-2">
                             <span id="capacity" class="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 border-2 border-dark dark:border-slate-500" aria-live="polite"></span>
+                            <button type="button" id="bulk-import-btn" class="px-2.5 py-0.5 bg-orange text-dark border-2 border-dark dark:border-slate-500 rounded-full text-[10px] font-heading font-bold uppercase tracking-wider shadow-hard-sm hover:-translate-y-0.5 active:translate-y-0.5 active:shadow-none transition-all flex items-center gap-1">
+                                <i data-lucide="file-up" class="w-3 h-3"></i> Bulk Import
+                            </button>
                             <button type="button" id="clear-words-btn" class="text-[11px] font-extrabold text-pink hover:underline">Clear</button>
                         </div>
                     </div>
@@ -1968,6 +1972,87 @@
                     showToast('Set deleted', 'info');
                 }
             });
+
+            // ----- Bulk Import -----
+            const wsnakeBulkModal = window.KlassKitBulkImport ? window.KlassKitBulkImport.create({
+                id: 'wsnake-bulk-import-overlay',
+                title: 'Word Snake Bulk Import',
+                subtitle: 'Paste a word list, comma-separated words, or WORD : Clue pairs',
+                accentColor: 'green',
+                unitLabel: 'word',
+                unitLabelPlural: 'words',
+                confirmText: 'Build Snake',
+                guideItems: [
+                    { label: 'Title & Guide', syntax: '## Unit 3 Animals\n? Circle hidden words!', color: 'blue', desc: 'Optional worksheet title (##) and instructions (?).' },
+                    { label: 'Word List', syntax: 'APPLE, BANANA\nOR: TIGER | Wild cat', color: 'green', desc: 'Lines, commas, or WORD | clue pairs (text before |/: is kept).' },
+                    { label: 'Comments', syntax: '# Week 4 Vocab', color: 'orange', desc: 'Lines starting with # or // are ignored.' }
+                ],
+                placeholder: '## Safari Animals\n? Circle the hidden words along the snake.\nELEPHANT\nGIRAFFE | Tall spotted animal\nPENGUIN, KANGAROO, DOLPHIN',
+                template: '## Classroom Vocabulary\n? Circle the hidden words along the snake from head to tail.\nPENCIL\nBACKPACK\nNOTEBOOK\nSCISSORS\nERASER\nRULER\nMARKER',
+                sample: '## Fruit Market\n? Circle all 7 fruits hidden in the snake!\nAPPLE\nBANANA\nCHERRY\nDRAGONFRUIT\nMANGO\nORANGE\nGRAPES',
+                options: [
+                    { id: 'append', label: 'Append to current words (instead of replacing)', defaultChecked: false }
+                ],
+                parse(rawText) {
+                    const rawLines = String(rawText || '').replace(/\r\n/g, '\n').split('\n');
+                    let title = '';
+                    let subtitle = '';
+                    const seen = new Set();
+                    const items = [];
+                    const warnings = [];
+                    let skippedShort = 0;
+
+                    for (const line of rawLines) {
+                        const t = line.trim();
+                        if (!t) continue;
+                        if (t.startsWith('##')) { title = t.slice(2).trim(); continue; }
+                        if (t.startsWith('?')) { subtitle = t.slice(1).trim(); continue; }
+                        if (t.startsWith('#') || t.startsWith('//')) continue;
+
+                        const segments = t.split(/[,;]+/);
+                        for (const seg of segments) {
+                            const head = seg.split(/[|:]/)[0].trim();
+                            const clean = head.toUpperCase().replace(/[^A-Z]/g, '');
+                            if (!clean) continue;
+                            if (clean.length < 2) { skippedShort++; continue; }
+                            if (!seen.has(clean)) {
+                                seen.add(clean);
+                                items.push(clean);
+                            }
+                        }
+                    }
+
+                    if (skippedShort > 0) warnings.push(`Skipped ${skippedShort} single-letter token(s) shorter than 2 letters.`);
+                    return {
+                        items,
+                        title,
+                        subtitle,
+                        warnings,
+                        badges: items.map((w, i) => ({ tag: `#${i + 1}`, label: w, tone: 'green' }))
+                    };
+                },
+                onImport(result, opts) {
+                    const incoming = result.items || [];
+                    if (!incoming.length) return false;
+                    if (result.title) el.customTitle.value = result.title;
+                    if (result.subtitle) el.customSubtitle.value = result.subtitle;
+
+                    if (opts && opts.append && el.input.value.trim()) {
+                        const existing = parseWords(el.input.value);
+                        const merged = [...new Set([...existing, ...incoming])];
+                        el.input.value = merged.join(', ');
+                    } else {
+                        el.input.value = incoming.join(', ');
+                    }
+                    updateCapacity();
+                    generate(false);
+                    persistState();
+                    showToast(`Imported ${incoming.length} words into Word Snake`, 'success');
+                    return true;
+                }
+            }) : null;
+
+            $('bulk-import-btn')?.addEventListener('click', () => wsnakeBulkModal?.open());
 
             // ----- Startup -----
             (async function init() {

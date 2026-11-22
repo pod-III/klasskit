@@ -48,6 +48,7 @@
 
     <!-- Libraries -->
     <script src="https://unpkg.com/lucide@1.16.0"></script>
+    <script src="../../../components/bulk-import-modal.js"></script>
 
     <!-- Shared KlassKit Styles -->
     <link rel="stylesheet" href="../../../css/tailwind.generated.css" />
@@ -789,6 +790,9 @@
             <!-- Starter Templates -->
             <section class="border-t-2 border-slate-100 dark:border-slate-700 pt-4">
                 <label class="section-label">Starter Templates</label>
+                <button id="bulk-import-btn" type="button" class="btn-chunky w-full bg-brand-orange text-brand-dark py-2.5 rounded-xl text-xs flex items-center justify-center gap-1.5 mb-3">
+                    <i data-lucide="file-up" class="w-4 h-4"></i> Bulk Import Questions / Table
+                </button>
                 <div class="grid grid-cols-2 gap-2">
                     <button type="button" data-template="fsw" class="tpl-btn"><i data-lucide="search" class="w-3.5 h-3.5 shrink-0 text-pink"></i><span class="truncate">Find Someone Who</span></button>
                     <button type="button" data-template="survey" class="tpl-btn"><i data-lucide="clipboard-list" class="w-3.5 h-3.5 shrink-0 text-blue"></i><span class="truncate">Class Survey</span></button>
@@ -1965,6 +1969,144 @@
                     showToast('Handout deleted', 'info');
                 }
             });
+
+            // ----- Bulk Import -----
+            const interviewBulkModal = window.KlassKitBulkImport ? window.KlassKitBulkImport.create({
+                id: 'interview-bulk-import-overlay',
+                title: 'Bulk Import Interview Sheet',
+                subtitle: 'Paste a pipe-delimited table or plain interview questions (one per line)',
+                accentColor: 'blue',
+                unitLabel: 'item',
+                unitLabelPlural: 'items',
+                confirmText: 'Build Handout',
+                guideItems: [
+                    { label: 'Header & Prompts', syntax: '## Survey Title\n? Student instructions\nAsk: Question?\nAnswer: My answer is...', color: 'blue', desc: 'Optional sheet title (##), instructions (?), and Ask:/Answer: scaffolding.' },
+                    { label: 'Pipe Table', syntax: 'Name | Food | Hobby\nMia | Tacos | Painting', color: 'green', desc: 'First pipe line sets column headers; additional pipe lines pre-fill rows.' },
+                    { label: 'Question List', syntax: 'has a pet.\ncan play the piano.', color: 'orange', desc: 'One prompt per line fills rows or columns depending on the toggle below.' }
+                ],
+                placeholder: '## Weekend Survey\n? Interview 5 classmates about their weekend.\nAsk: What did you do on Saturday?\nAnswer: On Saturday, I...\n\nName | Saturday Activity | Favorite Food | Notes\nLeo (e.g.) | Visited grandma | Pizza | Fun!',
+                template: '## Find Someone Who...\n? Talk to your classmates and write their name when the sentence is true!\nAsk: Do you...?\nAnswer: Yes, I do! / No, I don\'t.\n\nName | Prompt | Extra Details\nMaya (e.g.) | ...plays a musical instrument | Guitar (4 years)\n | ...has visited another country | \n | ...woke up before 7:00 AM | \n | ...loves spicy food | \n | ...has a pet at home | ',
+                sample: '## Getting to Know You\n? Interview your classmates and fill in each column!\nAsk: What is your favorite...?\nAnswer: My favorite ... is ...\n\nClassmate | Favorite Season | Dream Job | Weekend Hobby\nSam (e.g.) | Autumn | Architect | Sketching\n | | | \n | | | \n | | | \n | | | ',
+                options: [
+                    { id: 'asColumns', label: 'Place plain questions as Column Headers (instead of Find-Someone-Who rows)', defaultChecked: false },
+                    { id: 'appendRows', label: 'Append rows to current table', defaultChecked: false }
+                ],
+                parse(rawText) {
+                    const lines = String(rawText || '').replace(/\r\n/g, '\n').split('\n');
+                    let title = '';
+                    let instruction = '';
+                    let promptAsk = '';
+                    let promptAnswer = '';
+                    const dataLines = [];
+                    const warnings = [];
+
+                    for (const line of lines) {
+                        const t = line.trim();
+                        if (!t) continue;
+                        if (t.startsWith('##')) { title = t.slice(2).trim(); continue; }
+                        if (t.startsWith('?')) { instruction = t.slice(1).trim(); continue; }
+                        if (/^ask\s*:/i.test(t)) { promptAsk = t.replace(/^ask\s*:/i, '').trim(); continue; }
+                        if (/^answer\s*:/i.test(t)) { promptAnswer = t.replace(/^answer\s*:/i, '').trim(); continue; }
+                        if (t.startsWith('#') || t.startsWith('//')) continue;
+                        dataLines.push(t);
+                    }
+
+                    const isPipeTable = dataLines.some((l) => l.includes('|'));
+                    let items = [];
+                    let headers = null;
+                    let rows = [];
+
+                    if (isPipeTable) {
+                        const parsedPipe = dataLines.map((l) => l.split('|').map((c) => c.trim()));
+                        headers = parsedPipe[0].slice(0, MAX_COLS).filter((h, i, a) => h || i < a.length);
+                        if (parsedPipe[0].length > MAX_COLS) warnings.push(`First row trimmed to ${MAX_COLS} columns (A4 max).`);
+                        const bodyRows = parsedPipe.slice(1, 1 + MAX_ROWS);
+                        if (parsedPipe.length - 1 > MAX_ROWS) warnings.push(`Rows trimmed to ${MAX_ROWS} maximum.`);
+                        rows = bodyRows.map((r) => headers.map((_, ci) => r[ci] || ''));
+                        if (rows.length === 0) rows = [headers.map(() => ''), headers.map(() => ''), headers.map(() => ''), headers.map(() => ''), headers.map(() => '')];
+                        items = rows;
+                        return {
+                            items,
+                            mode: 'table',
+                            headers,
+                            rows,
+                            title,
+                            instruction,
+                            promptAsk,
+                            promptAnswer,
+                            warnings,
+                            badges: [
+                                { tag: 'COLS', label: headers.join(' | '), tone: 'blue' },
+                                ...rows.slice(0, 8).map((r, i) => ({ tag: `R${i + 1}`, label: r.join(' · ') || '(blank row)', tone: 'slate' }))
+                            ]
+                        };
+                    }
+
+                    const plain = dataLines.slice(0, MAX_ROWS);
+                    if (dataLines.length > MAX_ROWS) warnings.push(`List trimmed to ${MAX_ROWS} items.`);
+                    return {
+                        items: plain,
+                        mode: 'list',
+                        title,
+                        instruction,
+                        promptAsk,
+                        promptAnswer,
+                        warnings,
+                        badges: plain.map((q, i) => ({ tag: `#${i + 1}`, label: q, tone: 'green' }))
+                    };
+                },
+                onImport(result, opts) {
+                    if (!result || !Array.isArray(result.items) || !result.items.length) return false;
+                    const append = Boolean(opts && opts.appendRows);
+                    const asColumns = Boolean(opts && opts.asColumns);
+                    const nextData = serializeHandout();
+
+                    if (result.title) nextData.title = result.title;
+                    if (result.instruction) nextData.instruction = result.instruction;
+                    if (result.promptAsk || result.promptAnswer) {
+                        nextData.showPrompts = true;
+                        if (result.promptAsk) nextData.promptAsk = result.promptAsk;
+                        if (result.promptAnswer) nextData.promptAnswer = result.promptAnswer;
+                    }
+
+                    if (result.mode === 'table') {
+                        if (append) {
+                            const mergedCols = nextData.headers.length >= result.headers.length ? nextData.headers : result.headers;
+                            nextData.headers = mergedCols.slice(0, MAX_COLS);
+                            const padded = result.rows.map((r) => nextData.headers.map((_, i) => r[i] || ''));
+                            nextData.rows = [...nextData.rows.map((r) => nextData.headers.map((_, i) => r[i] || '')), ...padded].slice(0, MAX_ROWS);
+                        } else {
+                            nextData.headers = result.headers;
+                            nextData.rows = result.rows;
+                        }
+                    } else if (asColumns) {
+                        const rawCols = result.items;
+                        const cols = /^name|student/i.test(rawCols[0] || '') ? rawCols.slice(0, MAX_COLS) : ['Student Name', ...rawCols].slice(0, MAX_COLS);
+                        nextData.headers = cols;
+                        if (!append) {
+                            nextData.rows = Array.from({ length: 5 }, () => cols.map(() => ''));
+                        } else {
+                            nextData.rows = nextData.rows.map((r) => cols.map((_, i) => r[i] || ''));
+                        }
+                    } else {
+                        const headers = append ? nextData.headers : ['Name', 'Find someone who / Prompt', 'Details'];
+                        const promptIdx = headers.length > 1 ? 1 : 0;
+                        const newRows = result.items.map((q) => headers.map((_, ci) => (ci === promptIdx ? q : '')));
+                        nextData.headers = headers;
+                        nextData.rows = append
+                            ? [...nextData.rows.map((r) => headers.map((_, i) => r[i] || '')), ...newRows].slice(0, MAX_ROWS)
+                            : newRows.slice(0, MAX_ROWS);
+                    }
+
+                    activeSetId = null;
+                    loadHandout(nextData, false);
+                    renderLibrary();
+                    showToast(`Imported ${result.items.length} item(s) into Interview Maker`, 'success');
+                    return true;
+                }
+            }) : null;
+
+            $('bulk-import-btn')?.addEventListener('click', () => interviewBulkModal?.open());
 
             // ----- Preview Zoom (matches Card Maker) -----
             let currentZoomMode = localStorage.getItem('interviewmaker_zoom') || 'fit';

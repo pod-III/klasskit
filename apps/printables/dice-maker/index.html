@@ -57,6 +57,7 @@
     <!-- Libraries -->
     <script src="https://unpkg.com/lucide@1.16.0"></script>
     <script src="https://cdn.jsdelivr.net/npm/tone@14.8.49/build/Tone.js"></script>
+    <script src="../../../components/bulk-import-modal.js"></script>
 
     <!-- Shared KlassKit Styles -->
     <link rel="stylesheet" href="../../../css/tailwind.generated.css" />
@@ -418,11 +419,21 @@
 
                 <!-- 6 FACES CUSTOMIZER -->
                 <div class="space-y-2.5 pt-4 border-t-2 border-dashed border-slate-300 dark:border-slate-700">
-                    <div class="flex items-center justify-between">
+                    <div class="flex items-center justify-between gap-2 flex-wrap">
                         <label class="text-xs font-bold text-slate-400 uppercase tracking-widest">Customize 6 Faces <span id="editing-die-label" class="text-pink"></span></label>
-                        <button id="clear-faces-btn" type="button" class="text-[11px] font-extrabold text-pink hover:underline">Clear</button>
+                        <div class="flex items-center gap-1.5">
+                            <button id="bulk-images-btn" type="button" class="px-2.5 py-0.5 bg-blue text-white border-2 border-dark dark:border-slate-500 rounded-full text-[10px] font-heading font-bold uppercase tracking-wider shadow-hard-sm hover:-translate-y-0.5 active:translate-y-0.5 active:shadow-none transition-all flex items-center gap-1" title="Upload 1–6 images for active die (or 7–12 for Die A + B)">
+                                <i data-lucide="images" class="w-3 h-3"></i> Images
+                            </button>
+                            <button id="bulk-import-btn" type="button" class="px-2.5 py-0.5 bg-orange text-dark border-2 border-dark dark:border-slate-500 rounded-full text-[10px] font-heading font-bold uppercase tracking-wider shadow-hard-sm hover:-translate-y-0.5 active:translate-y-0.5 active:shadow-none transition-all flex items-center gap-1">
+                                <i data-lucide="file-up" class="w-3 h-3"></i> Bulk Import
+                            </button>
+                            <button id="clear-faces-btn" type="button" class="text-[11px] font-extrabold text-pink hover:underline">Clear</button>
+                        </div>
                     </div>
-                    <p class="text-[10px] font-bold text-slate-400">Add an optional emoji/icon, text label, and color for each face.</p>
+                    <p class="text-[10px] font-bold text-slate-400">Add an emoji, custom uploaded image (or drop on row), text label, and color.</p>
+                    <input type="file" id="single-face-image-input" accept="image/*" class="hidden">
+                    <input type="file" id="bulk-dice-images-input" accept="image/*" multiple class="hidden">
                     <div id="faces-editor-list" class="space-y-2"></div>
                 </div>
 
@@ -804,6 +815,146 @@
         const THEME_KEY = 'theme_dice-maker';
 
         // ============================
+        // INDEXEDDB IMAGE STORE & COMPRESSION
+        // ============================
+        const DICE_IMG_DB = 'klasskit_dice_maker_db';
+        const DICE_IMG_VER = 1;
+        const DICE_IMG_STORE = 'dice_images';
+        const imageCache = new Map();
+        let diceImgDbPromise = null;
+
+        function openDiceImageDB() {
+            if (diceImgDbPromise) return diceImgDbPromise;
+            diceImgDbPromise = new Promise((resolve, reject) => {
+                const req = indexedDB.open(DICE_IMG_DB, DICE_IMG_VER);
+                req.onupgradeneeded = (e) => {
+                    const idb = e.target.result;
+                    if (!idb.objectStoreNames.contains(DICE_IMG_STORE)) {
+                        idb.createObjectStore(DICE_IMG_STORE);
+                    }
+                };
+                req.onsuccess = (e) => resolve(e.target.result);
+                req.onerror = (e) => reject(e.target.error);
+            });
+            return diceImgDbPromise;
+        }
+
+        async function saveDiceImageToDB(id, dataUrl) {
+            if (!id || !dataUrl) return;
+            imageCache.set(id, dataUrl);
+            try {
+                const idb = await openDiceImageDB();
+                await new Promise((resolve, reject) => {
+                    const tx = idb.transaction(DICE_IMG_STORE, 'readwrite');
+                    const req = tx.objectStore(DICE_IMG_STORE).put(dataUrl, id);
+                    req.onsuccess = () => resolve();
+                    req.onerror = (e) => reject(e.target.error);
+                });
+            } catch (err) {
+                console.warn('[DiceImageDB] save failed:', err);
+            }
+        }
+
+        async function loadDiceImageFromDB(id) {
+            if (!id) return null;
+            if (imageCache.has(id)) return imageCache.get(id);
+            try {
+                const idb = await openDiceImageDB();
+                const val = await new Promise((resolve, reject) => {
+                    const tx = idb.transaction(DICE_IMG_STORE, 'readonly');
+                    const req = tx.objectStore(DICE_IMG_STORE).get(id);
+                    req.onsuccess = () => resolve(req.result || null);
+                    req.onerror = (e) => reject(e.target.error);
+                });
+                if (val) imageCache.set(id, val);
+                return val;
+            } catch (err) {
+                console.warn('[DiceImageDB] load failed:', err);
+                return null;
+            }
+        }
+
+        async function deleteDiceImageFromDB(id) {
+            if (!id) return;
+            imageCache.delete(id);
+            try {
+                const idb = await openDiceImageDB();
+                await new Promise((resolve) => {
+                    const tx = idb.transaction(DICE_IMG_STORE, 'readwrite');
+                    tx.objectStore(DICE_IMG_STORE).delete(id);
+                    tx.oncomplete = () => resolve();
+                    tx.onerror = () => resolve();
+                });
+            } catch (err) {}
+        }
+
+        function getFaceImageSrc(face) {
+            const id = face && face.imageId;
+            if (!id) return '';
+            if (imageCache.has(id)) return imageCache.get(id);
+            if (/^(https?:|data:)/i.test(id)) return id;
+            return '';
+        }
+
+        function compressDiceImageFile(file, maxDim = 512) {
+            return new Promise((resolve, reject) => {
+                if (!file || !file.type.startsWith('image/')) {
+                    reject(new Error('Invalid image file'));
+                    return;
+                }
+                const reader = new FileReader();
+                reader.onerror = () => reject(new Error('Failed to read image'));
+                reader.onload = (ev) => {
+                    const img = new Image();
+                    img.onerror = () => reject(new Error('Failed to decode image'));
+                    img.onload = () => {
+                        let w = img.naturalWidth || img.width || maxDim;
+                        let h = img.naturalHeight || img.height || maxDim;
+                        if (w > maxDim || h > maxDim) {
+                            const ratio = Math.min(maxDim / w, maxDim / h);
+                            w = Math.max(1, Math.round(w * ratio));
+                            h = Math.max(1, Math.round(h * ratio));
+                        }
+                        const canvas = document.createElement('canvas');
+                        canvas.width = w;
+                        canvas.height = h;
+                        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+                        let out = '';
+                        try {
+                            out = canvas.toDataURL('image/webp', 0.86);
+                            if (!out.startsWith('data:image/webp')) out = canvas.toDataURL('image/png');
+                        } catch (e) {
+                            out = canvas.toDataURL('image/png');
+                        }
+                        resolve(out);
+                    };
+                    img.src = ev.target.result;
+                };
+                reader.readAsDataURL(file);
+            });
+        }
+
+        async function hydrateAllDiceImages() {
+            const ids = new Set();
+            const collect = (faces) => {
+                if (!Array.isArray(faces)) return;
+                faces.forEach((f) => {
+                    if (f && f.imageId && !/^(https?:|data:)/i.test(f.imageId) && !imageCache.has(f.imageId)) {
+                        ids.add(f.imageId);
+                    }
+                });
+            };
+            collect(state.facesA);
+            collect(state.facesB);
+            (state.savedSets || []).forEach((s) => {
+                collect(s.facesA);
+                collect(s.facesB);
+            });
+            if (ids.size === 0) return;
+            await Promise.all(Array.from(ids).map((id) => loadDiceImageFromDB(id)));
+        }
+
+        // ============================
         // APP STATE
         // ============================
         const state = {
@@ -1015,17 +1166,29 @@
             const emojiSize = Math.max(18, s * 0.34);
 
             layoutMap.forEach(({ idx, col, row }) => {
-                const f = faces[idx] || { emoji: '', text: '', color: '#ffffff' };
+                const f = faces[idx] || { emoji: '', text: '', color: '#ffffff', imageId: '' };
                 const fx = ox + col * s;
                 const fy = oy + row * s;
                 const cx = fx + s / 2;
                 const cy = fy + s / 2;
 
                 let content = '';
-                const hasEmoji = Boolean(f.emoji && f.emoji.trim());
+                const imgSrc = getFaceImageSrc(f);
+                const hasImg = Boolean(imgSrc);
+                const hasEmoji = !hasImg && Boolean(f.emoji && f.emoji.trim());
                 const hasText = Boolean(f.text && f.text.trim());
 
-                if (hasEmoji && hasText) {
+                if (hasImg && hasText) {
+                    const lines = wrapFaceText(f.text.trim(), 10);
+                    const lineH = baseFontSize * 1.12;
+                    const textStartY = cy + s * 0.25 - ((lines.length - 1) * lineH) / 2;
+                    content += `<image href="${escapeXml(imgSrc)}" x="${(fx + s * 0.16).toFixed(1)}" y="${(fy + s * 0.08).toFixed(1)}" width="${(s * 0.68).toFixed(1)}" height="${(s * 0.52).toFixed(1)}" preserveAspectRatio="xMidYMid meet"/>`;
+                    content += lines.map((ln, i) =>
+                        `<text x="${cx.toFixed(1)}" y="${(textStartY + i * lineH).toFixed(1)}" text-anchor="middle" dominant-baseline="central" font-family="Fredoka, sans-serif" font-weight="700" font-size="${(baseFontSize * 0.92).toFixed(1)}" fill="#1e293b">${escapeXml(ln)}</text>`
+                    ).join('');
+                } else if (hasImg) {
+                    content += `<image href="${escapeXml(imgSrc)}" x="${(fx + s * 0.11).toFixed(1)}" y="${(fy + s * 0.11).toFixed(1)}" width="${(s * 0.78).toFixed(1)}" height="${(s * 0.78).toFixed(1)}" preserveAspectRatio="xMidYMid meet"/>`;
+                } else if (hasEmoji && hasText) {
                     const lines = wrapFaceText(f.text.trim(), 10);
                     const lineH = baseFontSize * 1.15;
                     const textStartY = cy + s * 0.21 - ((lines.length - 1) * lineH) / 2;
@@ -1186,8 +1349,8 @@
                 showCornerNums: state.showCornerNums,
                 title: document.getElementById('custom-title').value,
                 subtitle: document.getElementById('custom-subtitle').value,
-                facesA: state.facesA.map(f => ({ ...f })),
-                facesB: state.facesB.map(f => ({ ...f })),
+                facesA: state.facesA.map(f => ({ emoji: f.emoji || '', text: f.text || '', color: f.color || '#ffffff', imageId: f.imageId || '' })),
+                facesB: state.facesB.map(f => ({ emoji: f.emoji || '', text: f.text || '', color: f.color || '#ffffff', imageId: f.imageId || '' })),
                 activeSetId: state.activeSetId
             };
         }
@@ -1219,10 +1382,10 @@
             if (typeof data.title === 'string') document.getElementById('custom-title').value = data.title;
             if (typeof data.subtitle === 'string') document.getElementById('custom-subtitle').value = data.subtitle;
             if (Array.isArray(data.facesA) && data.facesA.length === 6) {
-                state.facesA = data.facesA.map(f => ({ emoji: f.emoji || '', text: f.text || '', color: f.color || '#ffffff' }));
+                state.facesA = data.facesA.map(f => ({ emoji: f.emoji || '', text: f.text || '', color: f.color || '#ffffff', imageId: f.imageId || '' }));
             }
             if (Array.isArray(data.facesB) && data.facesB.length === 6) {
-                state.facesB = data.facesB.map(f => ({ emoji: f.emoji || '', text: f.text || '', color: f.color || '#ffffff' }));
+                state.facesB = data.facesB.map(f => ({ emoji: f.emoji || '', text: f.text || '', color: f.color || '#ffffff', imageId: f.imageId || '' }));
             }
             if (data.activeSetId !== undefined) state.activeSetId = data.activeSetId;
         }
@@ -1335,20 +1498,53 @@
         // ============================
         // RENDERERS (SIDEBAR, A4, 3D CUBE)
         // ============================
+        let pendingSingleFaceIdx = 0;
+
+        async function assignImageFileToFace(targetArray, idx, file) {
+            try {
+                const dataUrl = await compressDiceImageFile(file, 512);
+                const imgId = 'diceimg_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+                await saveDiceImageToDB(imgId, dataUrl);
+                if (targetArray[idx]) {
+                    targetArray[idx].imageId = imgId;
+                }
+                return true;
+            } catch (err) {
+                console.warn('Could not load face image:', err);
+                return false;
+            }
+        }
+
         function renderFacesEditor() {
             const list = document.getElementById('faces-editor-list');
             const faces = getActiveFaces();
             const dieLabel = (state.layout === '2' && state.pairMode === 'ab') ? `(Die ${state.editingDie})` : '';
             document.getElementById('editing-die-label').textContent = dieLabel;
 
-            list.innerHTML = faces.map((f, i) => `
-                <div class="flex items-center gap-1.5 p-1.5 rounded-xl border-2 border-dark dark:border-slate-600 bg-slate-50 dark:bg-slate-800/70">
-                    <span class="w-6 h-6 rounded-lg bg-dark text-white font-heading font-bold text-xs flex items-center justify-center shrink-0">${i + 1}</span>
-                    <input type="text" data-face-emoji="${i}" value="${escapeXml(f.emoji)}" placeholder="😀" maxlength="4" aria-label="Face ${i + 1} emoji" class="w-10 p-1 text-center bg-white dark:bg-slate-900 border-2 border-slate-300 dark:border-slate-600 rounded-lg text-sm focus:outline-none focus:border-blue">
-                    <input type="text" data-face-text="${i}" value="${escapeXml(f.text)}" placeholder="Face ${i + 1} text..." aria-label="Face ${i + 1} text" class="flex-1 min-w-0 p-1.5 bg-white dark:bg-slate-900 border-2 border-slate-300 dark:border-slate-600 rounded-lg text-xs font-bold text-dark dark:text-white focus:outline-none focus:border-blue">
-                    <input type="color" data-face-color="${i}" value="${f.color || '#ffffff'}" aria-label="Face ${i + 1} color" class="w-7 h-7 rounded-lg border-2 border-dark cursor-pointer bg-transparent p-0 shrink-0">
-                </div>
-            `).join('');
+            list.innerHTML = faces.map((f, i) => {
+                const imgSrc = getFaceImageSrc(f);
+                const mediaBtnHtml = imgSrc
+                    ? `<div class="relative shrink-0">
+                           <button type="button" data-face-img-pick="${i}" title="Change face image" class="w-8 h-8 rounded-lg border-2 border-dark bg-white overflow-hidden flex items-center justify-center hover:opacity-90 transition-opacity">
+                               <img src="${escapeXml(imgSrc)}" alt="" class="w-full h-full object-contain" />
+                           </button>
+                           <button type="button" data-face-img-clear="${i}" title="Remove image" aria-label="Remove Face ${i + 1} image" class="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-pink text-white border border-dark flex items-center justify-center text-[9px] font-black shadow-sm hover:scale-110 transition-transform">×</button>
+                       </div>`
+                    : `<button type="button" data-face-img-pick="${i}" title="Upload image for Face ${i + 1}" aria-label="Upload image for Face ${i + 1}" class="w-8 h-8 rounded-lg border-2 border-dashed border-slate-400 dark:border-slate-500 bg-white dark:bg-slate-900 text-slate-500 hover:border-blue hover:text-blue flex items-center justify-center shrink-0 transition-colors">
+                           <i data-lucide="image-plus" class="w-3.5 h-3.5"></i>
+                       </button>`;
+                return `
+                    <div data-face-row="${i}" class="face-editor-row flex items-center gap-1.5 p-1.5 rounded-xl border-2 border-dark dark:border-slate-600 bg-slate-50 dark:bg-slate-800/70 transition-colors">
+                        <span class="w-6 h-6 rounded-lg bg-dark text-white font-heading font-bold text-xs flex items-center justify-center shrink-0">${i + 1}</span>
+                        <input type="text" data-face-emoji="${i}" value="${escapeXml(f.emoji)}" placeholder="😀" maxlength="4" aria-label="Face ${i + 1} emoji" class="w-9 p-1 text-center bg-white dark:bg-slate-900 border-2 border-slate-300 dark:border-slate-600 rounded-lg text-sm focus:outline-none focus:border-blue">
+                        ${mediaBtnHtml}
+                        <input type="text" data-face-text="${i}" value="${escapeXml(f.text)}" placeholder="Face ${i + 1} text..." aria-label="Face ${i + 1} text" class="flex-1 min-w-0 p-1.5 bg-white dark:bg-slate-900 border-2 border-slate-300 dark:border-slate-600 rounded-lg text-xs font-bold text-dark dark:text-white focus:outline-none focus:border-blue">
+                        <input type="color" data-face-color="${i}" value="${f.color || '#ffffff'}" aria-label="Face ${i + 1} color" class="w-7 h-7 rounded-lg border-2 border-dark cursor-pointer bg-transparent p-0 shrink-0">
+                    </div>
+                `;
+            }).join('');
+
+            hydrateIcons(list);
 
             list.querySelectorAll('[data-face-emoji]').forEach(inp => {
                 inp.addEventListener('input', (e) => {
@@ -1369,6 +1565,45 @@
                     const idx = Number(e.target.dataset.faceColor);
                     getActiveFaces()[idx].color = e.target.value;
                     renderAllPreviews();
+                });
+            });
+            list.querySelectorAll('[data-face-img-pick]').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    pendingSingleFaceIdx = Number(btn.dataset.faceImgPick);
+                    const fileInput = document.getElementById('single-face-image-input');
+                    if (fileInput) fileInput.click();
+                });
+            });
+            list.querySelectorAll('[data-face-img-clear]').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const idx = Number(btn.dataset.faceImgClear);
+                    getActiveFaces()[idx].imageId = '';
+                    renderFacesEditor();
+                    renderAllPreviews();
+                    playSound('pop');
+                });
+            });
+            list.querySelectorAll('.face-editor-row').forEach(row => {
+                row.addEventListener('dragover', (e) => {
+                    e.preventDefault();
+                    row.classList.add('border-blue', 'bg-blue/10');
+                });
+                row.addEventListener('dragleave', () => {
+                    row.classList.remove('border-blue', 'bg-blue/10');
+                });
+                row.addEventListener('drop', async (e) => {
+                    e.preventDefault();
+                    row.classList.remove('border-blue', 'bg-blue/10');
+                    const file = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+                    if (!file || !file.type.startsWith('image/')) return;
+                    const idx = Number(row.dataset.faceRow);
+                    const ok = await assignImageFileToFace(getActiveFaces(), idx, file);
+                    if (ok) {
+                        renderFacesEditor();
+                        renderAllPreviews();
+                        playSound('pop');
+                        showToast(`Updated Face #${idx + 1} image`, 'success');
+                    }
                 });
             });
         }
@@ -1394,11 +1629,14 @@
             const faces = getActiveFaces();
             document.querySelectorAll('.cube-face').forEach(el => {
                 const idx = Number(el.dataset.cface);
-                const f = faces[idx] || { emoji: '', text: '', color: '#ffffff' };
+                const f = faces[idx] || { emoji: '', text: '', color: '#ffffff', imageId: '' };
+                const imgSrc = getFaceImageSrc(f);
                 el.style.backgroundColor = f.color || '#ffffff';
                 el.innerHTML = `
-                    ${f.emoji ? `<div class="text-3xl leading-none">${escapeXml(f.emoji)}</div>` : ''}
-                    ${f.text ? `<div class="text-sm font-bold leading-tight mt-1 break-words max-w-full">${escapeXml(f.text)}</div>` : (!f.emoji ? `<div class="text-xs text-slate-400">Face ${idx + 1}</div>` : '')}
+                    ${imgSrc
+                        ? `<img src="${escapeXml(imgSrc)}" alt="" class="${f.text ? 'w-11 h-11' : 'w-16 h-16'} object-contain rounded pointer-events-none" />`
+                        : (f.emoji ? `<div class="text-3xl leading-none">${escapeXml(f.emoji)}</div>` : '')}
+                    ${f.text ? `<div class="text-sm font-bold leading-tight mt-1 break-words max-w-full">${escapeXml(f.text)}</div>` : (!f.emoji && !imgSrc ? `<div class="text-xs text-slate-400">Face ${idx + 1}</div>` : '')}
                 `;
             });
         }
@@ -1480,11 +1718,11 @@
             playSound('roll');
 
             const fA = state.facesA[idxA];
-            const labelA = [fA.emoji, fA.text].filter(Boolean).join(' ') || `Face ${idxA + 1}`;
+            const labelA = [fA.emoji, fA.text].filter(Boolean).join(' ') || (getFaceImageSrc(fA) ? `🖼️ Picture #${idxA + 1}` : `Face ${idxA + 1}`);
 
             if (isAB) {
                 const fB = state.facesB[idxB];
-                const labelB = [fB.emoji, fB.text].filter(Boolean).join(' ') || `Face ${idxB + 1}`;
+                const labelB = [fB.emoji, fB.text].filter(Boolean).join(' ') || (getFaceImageSrc(fB) ? `🖼️ Picture #${idxB + 1}` : `Face ${idxB + 1}`);
                 document.getElementById('roll-result-text').textContent = `${labelA}  +  ${labelB}`;
                 document.getElementById('roll-result-sub').textContent = `Die A (#${idxA + 1}) & Die B (#${idxB + 1})`;
             } else {
@@ -1599,8 +1837,9 @@
             });
         }
 
-        function applySavedSet(item) {
+        async function applySavedSet(item) {
             applyWorkspaceData({ ...item, activeSetId: item.id, editingDie: 'A' });
+            await hydrateAllDiceImages();
             item.updatedAt = Date.now();
             syncABTabsUI();
             renderFacesEditor();
@@ -1660,6 +1899,7 @@
             document.body.classList.remove('opacity-0');
 
             await loadPersistedState();
+            await hydrateAllDiceImages();
             applyPage();
             syncABTabsUI();
             renderFacesEditor();
@@ -1740,11 +1980,73 @@
 
             // Clear faces
             document.getElementById('clear-faces-btn').addEventListener('click', () => {
-                getActiveFaces().forEach(f => { f.emoji = ''; f.text = ''; });
+                getActiveFaces().forEach(f => { f.emoji = ''; f.text = ''; f.imageId = ''; });
                 renderFacesEditor();
                 renderAllPreviews();
                 playSound('pop');
             });
+
+            // Single & Bulk Image Uploads
+            const singleFaceImgInput = document.getElementById('single-face-image-input');
+            const bulkDiceImgInput = document.getElementById('bulk-dice-images-input');
+
+            if (singleFaceImgInput) {
+                singleFaceImgInput.addEventListener('change', async (e) => {
+                    const file = e.target.files && e.target.files[0];
+                    singleFaceImgInput.value = '';
+                    if (!file) return;
+                    const ok = await assignImageFileToFace(getActiveFaces(), pendingSingleFaceIdx, file);
+                    if (ok) {
+                        renderFacesEditor();
+                        renderAllPreviews();
+                        playSound('pop');
+                        showToast(`Updated Face #${pendingSingleFaceIdx + 1} image`, 'success');
+                    } else {
+                        showToast('Could not process image file', 'error');
+                    }
+                });
+            }
+
+            document.getElementById('bulk-images-btn')?.addEventListener('click', () => {
+                bulkDiceImgInput?.click();
+            });
+
+            if (bulkDiceImgInput) {
+                bulkDiceImgInput.addEventListener('change', async (e) => {
+                    const files = Array.from(e.target.files || []).filter(f => f.type.startsWith('image/'));
+                    bulkDiceImgInput.value = '';
+                    if (!files.length) return;
+                    const capped = files.slice(0, 12);
+                    if (files.length > 12) {
+                        showToast('Imported first 12 images (Die A = 1–6, Die B = 7–12)', 'warning');
+                    }
+
+                    if (capped.length > 6) {
+                        state.layout = '2';
+                        state.pairMode = 'ab';
+                        state.editingDie = 'A';
+                        setRadioVal('sheet-layout', '2');
+                        setRadioVal('pair-mode', 'ab');
+                        for (let i = 0; i < Math.min(6, capped.length); i++) {
+                            await assignImageFileToFace(state.facesA, i, capped[i]);
+                        }
+                        for (let i = 6; i < capped.length; i++) {
+                            await assignImageFileToFace(state.facesB, i - 6, capped[i]);
+                        }
+                    } else {
+                        const target = getActiveFaces();
+                        for (let i = 0; i < capped.length; i++) {
+                            await assignImageFileToFace(target, i, capped[i]);
+                        }
+                    }
+
+                    syncABTabsUI();
+                    renderFacesEditor();
+                    renderAllPreviews();
+                    playSound('pop');
+                    showToast(`Uploaded ${capped.length} face image(s)`, 'success');
+                });
+            }
 
             // Palette buttons
             document.querySelectorAll('.palette-btn').forEach(btn => {
@@ -1854,6 +2156,110 @@
                     loadPreset('blank');
                 });
             });
+
+            // Bulk Import
+            const diceBulkModal = window.KlassKitBulkImport ? window.KlassKitBulkImport.create({
+                id: 'dice-bulk-import-overlay',
+                title: 'Printable Dice Bulk Import',
+                subtitle: 'Paste 1–6 faces for one die, or 7–12 faces to auto-build a Die A + Die B pair',
+                accentColor: 'orange',
+                unitLabel: 'face',
+                unitLabelPlural: 'faces',
+                confirmText: 'Apply Faces',
+                guideItems: [
+                    { label: 'Title & Guide', syntax: '## Story Starter Cube\n? Roll & tell a story!', color: 'blue', desc: 'Optional handout title (##) and instructions (?).' },
+                    { label: 'Face Format', syntax: 'Emoji | Label | #Hex\n🚀 | Space\nOR: WHO?', color: 'orange', desc: 'Use Emoji | Label (optional #Hex color), or just plain text.' },
+                    { label: 'Die A + Die B', syntax: 'Lines 1–6 = Die A\nLines 7–12 = Die B', color: 'green', desc: 'Paste 7–12 lines to automatically create a 2-die A+B sheet!' }
+                ],
+                placeholder: '## Sentence Builder Dice (A + B)\n? Roll both cubes and build a complete sentence!\n🙋 | I\n👉 | You\n👦 | He\n👧 | She\n👫 | We\n👥 | They\n⚽ | play\n🍕 | eat\n📚 | read\n🍳 | cook\n🏃 | run\n🎬 | watch',
+                template: '## Question Word Die\n? Roll the cube and ask a classmate a question!\n👤 | WHO?\n❓ | WHAT?\n📍 | WHERE?\n⏰ | WHEN?\n🤔 | WHY?\n🛠️ | HOW?',
+                sample: '## Daily Routine Story Cube\n? Roll the die and make a sentence in Past Simple!\n☀️ | woke up\n🪥 | brushed teeth\n🚌 | took the bus\n📚 | studied English\n⚽ | played soccer\n🌙 | went to bed',
+                parse(rawText) {
+                    const rawLines = String(rawText || '').replace(/\r\n/g, '\n').split('\n');
+                    let title = '';
+                    let subtitle = '';
+                    const items = [];
+                    const warnings = [];
+
+                    for (const line of rawLines) {
+                        const t = line.trim();
+                        if (!t) continue;
+                        if (t.startsWith('##')) { title = t.slice(2).trim(); continue; }
+                        if (t.startsWith('?')) { subtitle = t.slice(1).trim(); continue; }
+                        if (t.startsWith('#') || t.startsWith('//')) continue;
+
+                        const parts = t.split('|').map((p) => p.trim());
+                        let emoji = '';
+                        let text = '';
+                        let color = '';
+                        if (parts.length >= 2) {
+                            emoji = parts[0];
+                            text = parts[1];
+                            if (parts[2] && /^#[0-9a-f]{3,8}$/i.test(parts[2])) color = parts[2];
+                        } else {
+                            text = parts[0];
+                        }
+                        if (emoji || text) items.push({ emoji, text, color });
+                    }
+
+                    if (items.length > 12) {
+                        warnings.push(`Found ${items.length} faces; kept the first 12 (Die A = 1–6, Die B = 7–12).`);
+                    }
+                    const trimmed = items.slice(0, 12);
+                    return {
+                        items: trimmed,
+                        title,
+                        subtitle,
+                        warnings,
+                        badges: trimmed.map((f, i) => ({
+                            tag: trimmed.length > 6 ? (i < 6 ? `A${i + 1}` : `B${i - 5}`) : `F${i + 1}`,
+                            label: [f.emoji, f.text].filter(Boolean).join(' '),
+                            tone: i >= 6 ? 'blue' : 'orange'
+                        }))
+                    };
+                },
+                onImport(result) {
+                    const faces = result.items || [];
+                    if (!faces.length) return false;
+                    if (result.title) document.getElementById('custom-title').value = result.title;
+                    if (result.subtitle) document.getElementById('custom-subtitle').value = result.subtitle;
+
+                    const palette = PALETTES.vibrant || ['#fef08a', '#bae6fd', '#fbcfe8', '#bbf7d0', '#fed7aa', '#ddd6fe'];
+                    const fillSix = (slice, existing) => Array.from({ length: 6 }, (_, i) => {
+                        const incoming = slice[i];
+                        const baseColor = (existing && existing[i] && existing[i].color) || palette[i % palette.length];
+                        return incoming
+                            ? { emoji: incoming.emoji || '', text: incoming.text || '', color: incoming.color || baseColor }
+                            : { emoji: '', text: '', color: baseColor };
+                    });
+
+                    if (faces.length > 6) {
+                        state.layout = '2';
+                        state.pairMode = 'ab';
+                        state.editingDie = 'A';
+                        setRadioVal('sheet-layout', '2');
+                        setRadioVal('pair-mode', 'ab');
+                        state.facesA = fillSix(faces.slice(0, 6), state.facesA);
+                        state.facesB = fillSix(faces.slice(6, 12), state.facesB);
+                    } else {
+                        const updated = fillSix(faces, getActiveFaces());
+                        if (state.layout === '2' && state.pairMode === 'ab' && state.editingDie === 'B') {
+                            state.facesB = updated;
+                        } else {
+                            state.facesA = updated;
+                        }
+                    }
+
+                    syncABTabsUI();
+                    renderFacesEditor();
+                    renderAllPreviews();
+                    playSound('pop');
+                    showToast(`Applied ${faces.length} face(s) to custom die`, 'success');
+                    return true;
+                }
+            }) : null;
+
+            document.getElementById('bulk-import-btn')?.addEventListener('click', () => diceBulkModal?.open());
 
             const saveModal = document.getElementById('saveModal');
             const saveInput = document.getElementById('save-set-input');

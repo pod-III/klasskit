@@ -708,13 +708,71 @@ async function deletePuzzleSetPrompt(id) {
 const dz = document.getElementById('dropZone');
 const fi = document.getElementById('fileIn');
 const addPageBtn = document.getElementById('addPageBtn');
+const bulkImagesBtn = document.getElementById('bulkImagesBtn');
+const bulkImportBtn = document.getElementById('bulkImportBtn');
+
+function showToast(message, type = 'info') {
+  const container = document.getElementById('toast-container');
+  if (!container) return;
+  const toast = document.createElement('div');
+  const colors = {
+    success: 'bg-green text-dark border-dark',
+    error: 'bg-pink text-white border-dark',
+    info: 'bg-blue text-white border-dark',
+    warning: 'bg-orange text-dark border-dark'
+  };
+  toast.className = `${colors[type] || colors.info} px-5 py-3 rounded-2xl border-[3px] shadow-hard font-bold text-xs uppercase tracking-wider flex items-center gap-2 pointer-events-auto animate-pop-in`;
+  toast.textContent = message;
+  container.appendChild(toast);
+  while (container.children.length > 3) container.firstElementChild.remove();
+  setTimeout(() => {
+    toast.style.opacity = '0';
+    toast.style.transform = 'translateY(12px)';
+    toast.style.transition = 'all 0.3s ease';
+    setTimeout(() => toast.remove(), 320);
+  }, 2600);
+}
 
 dz.addEventListener('click', () => fi.click());
 dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('over'); });
 dz.addEventListener('dragleave', () => dz.classList.remove('over'));
-dz.addEventListener('drop', e => { e.preventDefault(); dz.classList.remove('over'); load(e.dataTransfer.files[0]); });
-fi.addEventListener('change', e => load(e.target.files[0]));
+dz.addEventListener('drop', e => {
+  e.preventDefault();
+  dz.classList.remove('over');
+  Array.from(e.dataTransfer.files || []).forEach(f => load(f));
+});
+fi.addEventListener('change', e => {
+  Array.from(e.target.files || []).forEach(f => load(f));
+  fi.value = '';
+});
 addPageBtn.addEventListener('click', () => fi.click());
+if (bulkImagesBtn) bulkImagesBtn.addEventListener('click', () => fi.click());
+
+async function appendLoadedImage(im, name, dataUrlToPersist) {
+  const pageId = 'img_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+  const newPage = {
+    id: pageId,
+    im,
+    name,
+    seed: Math.random() * 9e5,
+    S: { ...S },
+    cloudUrl: null
+  };
+  pages.push(newPage);
+
+  if (dataUrlToPersist) {
+    const result = await saveImageToDB(pageId, dataUrlToPersist, activeSetId);
+    newPage.cloudUrl = result.cloudUrl;
+  }
+  saveState();
+
+  document.getElementById('empty').classList.add('hidden');
+  document.getElementById('canvasWrap').classList.remove('hidden');
+  document.getElementById('canvasWrap').classList.add('flex');
+  document.getElementById('pagesSection').classList.remove('hidden');
+
+  selectPage(pages.length - 1);
+}
 
 function load(f) {
   if (!f || !f.type.startsWith('image/')) return;
@@ -722,33 +780,206 @@ function load(f) {
   r.onload = e => {
     const im = new Image();
     im.onload = async () => {
-      const pageId = 'img_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
-      const newPage = {
-        id: pageId,
-        im: im,
-        name: f.name,
-        seed: Math.random() * 9e5,
-        S: { ...S },
-        cloudUrl: null
-      };
-      pages.push(newPage);
-
-      // Save to DB and optionally cloud
-      const result = await saveImageToDB(pageId, e.target.result, activeSetId);
-      newPage.cloudUrl = result.cloudUrl;
-      saveState();
-
-      document.getElementById('empty').classList.add('hidden');
-      document.getElementById('canvasWrap').classList.remove('hidden');
-      document.getElementById('canvasWrap').classList.add('flex');
-      document.getElementById('pagesSection').classList.remove('hidden');
-
-      selectPage(pages.length - 1);
+      await appendLoadedImage(im, f.name, e.target.result);
     };
     im.src = e.target.result;
   };
   r.readAsDataURL(f);
 }
+
+function addDataUrlPage(urlOrDataUrl, name) {
+  return new Promise((resolve) => {
+    const im = new Image();
+    if (/^https?:/i.test(urlOrDataUrl)) im.crossOrigin = 'anonymous';
+    im.onload = async () => {
+      let dataToSave = urlOrDataUrl;
+      if (!dataToSave.startsWith('data:')) {
+        try {
+          const c = document.createElement('canvas');
+          c.width = im.naturalWidth || im.width || 1200;
+          c.height = im.naturalHeight || im.height || 900;
+          c.getContext('2d').drawImage(im, 0, 0);
+          dataToSave = c.toDataURL('image/png');
+        } catch (err) {
+          dataToSave = null;
+        }
+      }
+      await appendLoadedImage(im, name, dataToSave);
+      resolve(true);
+    };
+    im.onerror = () => resolve(false);
+    im.src = urlOrDataUrl;
+  });
+}
+
+function renderTextCardToDataUrl({ emoji = '', title = '', subtitle = '', idx = 0 }) {
+  const W = 1200;
+  const H = 900;
+  const c = document.createElement('canvas');
+  c.width = W;
+  c.height = H;
+  const ctx = c.getContext('2d');
+  const accents = ['#ff4785', '#ff7e33', '#00d063', '#1ea7fd'];
+  const tints = ['#fff1f2', '#fff7ed', '#f0fdf4', '#f0f9ff'];
+  const accent = accents[idx % accents.length];
+  const tint = tints[idx % tints.length];
+
+  // Crisp paper background + accent border card
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, W, H);
+
+  ctx.fillStyle = tint;
+  ctx.strokeStyle = '#1e293b';
+  ctx.lineWidth = 10;
+  ctx.beginPath();
+  ctx.roundRect(42, 42, W - 84, H - 84, 42);
+  ctx.fill();
+  ctx.stroke();
+
+  // Top accent ribbon
+  ctx.fillStyle = accent;
+  ctx.beginPath();
+  ctx.roundRect(42, 42, W - 84, 54, [42, 42, 0, 0]);
+  ctx.fill();
+  ctx.strokeRect(42, 42, W - 84, 54);
+
+  const centerX = W / 2;
+  let curY = emoji ? 290 : 380;
+
+  if (emoji) {
+    ctx.font = '180px "Apple Color Emoji", "Segoe UI Emoji", sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(emoji, centerX, curY);
+    curY += 170;
+  }
+
+  // Wrap title lines cleanly inside card
+  const maxWidth = W - 200;
+  const words = (title || 'PUZZLE CARD').split(/\s+/).filter(Boolean);
+  const drawWrapped = (textWords, fontSize, fontWeight, color, startY, lineHeight) => {
+    ctx.font = `${fontWeight} ${fontSize}px Fredoka, Nunito, sans-serif`;
+    ctx.fillStyle = color;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    const lines = [];
+    let line = '';
+    for (const w of textWords) {
+      const test = line ? `${line} ${w}` : w;
+      if (ctx.measureText(test).width > maxWidth && line) {
+        lines.push(line);
+        line = w;
+      } else {
+        line = test;
+      }
+    }
+    if (line) lines.push(line);
+    lines.forEach((ln, i) => ctx.fillText(ln, centerX, startY + i * lineHeight));
+    return startY + lines.length * lineHeight;
+  };
+
+  const titleSize = (title || '').length > 26 ? 64 : (title || '').length > 14 ? 84 : 104;
+  curY = drawWrapped(words, titleSize, '700', '#1e293b', curY, titleSize * 1.15);
+
+  if (subtitle) {
+    const subWords = subtitle.split(/\s+/).filter(Boolean);
+    drawWrapped(subWords, 40, '700', '#475569', curY + 34, 52);
+  }
+
+  return c.toDataURL('image/png');
+}
+
+const puzzleBulkModal = window.KlassKitBulkImport ? window.KlassKitBulkImport.create({
+  id: 'puzzle-bulk-import-overlay',
+  title: 'Puzzle Maker Bulk Import',
+  subtitle: 'Generate puzzle pages from Vocabulary Cards or direct Image URLs (1 per line)',
+  accentColor: 'pink',
+  unitLabel: 'puzzle page',
+  unitLabelPlural: 'puzzle pages',
+  confirmText: 'Create Puzzle Pages',
+  guideItems: [
+    { label: 'Emoji Vocab Card', syntax: '🦁 | LION | King of the savanna', color: 'pink', desc: 'Renders a chunky poster card puzzle (Emoji | Title | Optional Clue).' },
+    { label: 'Plain Text Card', syntax: 'The quick brown fox jumps.', color: 'blue', desc: 'Single word, phrase, or sentence turns into a jigsaw page.' },
+    { label: 'Image URL', syntax: 'Space | https://example.com/img.png', color: 'green', desc: 'Paste direct image URLs (with optional title before |).' }
+  ],
+  placeholder: '🦁 | LION | King of the savanna\n🐘 | ELEPHANT | Biggest land animal\n🚀 | BLAST OFF! | Count down 3-2-1',
+  template: '🍎 | APPLE | Crunchy red fruit\n🍌 | BANANA | Yellow monkey snack\n🍇 | GRAPES | Sweet purple bunch\n🍓 | STRAWBERRY | Red berry with seeds',
+  sample: '🌞 | SUNNY | Bright clear sky\n🌧️ | RAINY | Grab your umbrella\n❄️ | SNOWY | Cold winter flakes\n💨 | WINDY | Leaves blowing fast',
+  options: [
+    { id: 'append', label: 'Append to current puzzle pages', defaultChecked: true }
+  ],
+  parse(rawText) {
+    const rawLines = String(rawText || '').replace(/\r\n/g, '\n').split('\n');
+    const items = [];
+    const warnings = [];
+    const isImgUrl = (s) => /^(https?:\/\/|data:image\/)/i.test((s || '').trim());
+
+    for (const line of rawLines) {
+      const t = line.trim();
+      if (!t || t.startsWith('#') || t.startsWith('//')) continue;
+      const parts = t.split('|').map(p => p.trim());
+
+      if (isImgUrl(parts[0])) {
+        items.push({ kind: 'url', url: parts[0], name: `Remote Puzzle ${items.length + 1}` });
+      } else if (parts.length >= 2 && isImgUrl(parts[1])) {
+        items.push({ kind: 'url', url: parts[1], name: parts[0] || `Remote Puzzle ${items.length + 1}` });
+      } else if (parts.length >= 2) {
+        items.push({
+          kind: 'card',
+          emoji: parts[0],
+          title: parts[1] || parts[0],
+          subtitle: parts.slice(2).join(' · ')
+        });
+      } else {
+        items.push({ kind: 'card', emoji: '', title: parts[0], subtitle: '' });
+      }
+    }
+
+    if (items.length > 20) warnings.push(`${items.length} puzzle pages will take a moment to save in IndexedDB.`);
+    return {
+      items,
+      warnings,
+      badges: items.map((it, i) => ({
+        tag: `P${i + 1}`,
+        label: it.kind === 'url' ? it.name : [it.emoji, it.title].filter(Boolean).join(' '),
+        tone: it.kind === 'url' ? 'green' : 'pink'
+      }))
+    };
+  },
+  async onImport(result, opts) {
+    const items = result.items || [];
+    if (!items.length) return false;
+
+    if (!opts || !opts.append) {
+      pages.forEach(p => deleteImageFromDB(p.id));
+      pages = [];
+      activePageIndex = -1;
+      src = null;
+    }
+
+    let okCount = 0;
+    for (let i = 0; i < items.length; i++) {
+      const it = items[i];
+      if (it.kind === 'url') {
+        const ok = await addDataUrlPage(it.url, it.name);
+        if (ok) okCount++;
+      } else {
+        const dataUrl = renderTextCardToDataUrl({ ...it, idx: i });
+        const ok = await addDataUrlPage(dataUrl, `${it.title || 'Card'}.png`);
+        if (ok) okCount++;
+      }
+    }
+
+    if (okCount === 0) {
+      showToast('No valid images or cards could be loaded', 'error');
+      return false;
+    }
+    showToast(`Created ${okCount} puzzle page(s)`, 'success');
+    return true;
+  }
+}) : null;
+
+if (bulkImportBtn) bulkImportBtn.addEventListener('click', () => puzzleBulkModal?.open());
 
 function selectPage(index) {
   if (index < 0 || index >= pages.length) return;

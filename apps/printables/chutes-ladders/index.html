@@ -58,6 +58,7 @@
     <script src="https://unpkg.com/lucide@1.16.0"></script>
     <script src="https://cdn.jsdelivr.net/npm/tone@14.8.49/build/Tone.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
+    <script src="../../../components/bulk-import-modal.js"></script>
 
     <!-- Shared KlassKit Styles -->
     <link rel="stylesheet" href="../../../css/tailwind.generated.css" />
@@ -533,6 +534,9 @@
                         <label for="prompt-input" class="text-xs font-bold text-slate-400 uppercase tracking-widest">Square Prompts</label>
                         <div class="flex items-center gap-2">
                             <span id="prompt-count-pill" class="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 border-2 border-dark dark:border-slate-500">28 prompts</span>
+                            <button type="button" id="bulk-import-btn" class="px-2.5 py-0.5 bg-orange text-dark border-2 border-dark dark:border-slate-500 rounded-full text-[10px] font-heading font-bold uppercase tracking-wider shadow-hard-sm hover:-translate-y-0.5 active:translate-y-0.5 active:shadow-none transition-all flex items-center gap-1">
+                                <i data-lucide="file-up" class="w-3 h-3"></i> Bulk Import
+                            </button>
                             <button type="button" id="clear-prompts-btn" class="text-[11px] font-extrabold text-pink hover:underline">Clear</button>
                         </div>
                     </div>
@@ -2473,6 +2477,78 @@
                     showToast('Started a fresh blank board', 'info');
                 });
             });
+
+            // Bulk Import
+            const chutesBulkModal = window.KlassKitBulkImport ? window.KlassKitBulkImport.create({
+                id: 'chutes-bulk-import-overlay',
+                title: 'Chutes & Ladders Bulk Import',
+                subtitle: 'Paste square prompts (one per line) or Prompt | Answer pairs',
+                accentColor: 'blue',
+                unitLabel: 'prompt',
+                unitLabelPlural: 'prompts',
+                confirmText: 'Build Board',
+                guideItems: [
+                    { label: 'Title & Guide', syntax: '## Past Tense Adventure\n? Say the past verb!', color: 'blue', desc: 'Optional board title (##) and instructions (?).' },
+                    { label: 'Prompt / Key', syntax: 'go | went\nName 3 fruits!', color: 'green', desc: 'One prompt per line; add | answer for Teacher Key.' },
+                    { label: 'Comments', syntax: '# Unit 5 Review', color: 'orange', desc: 'Lines starting with # or // are ignored.' }
+                ],
+                placeholder: '## Irregular Past Race\n? Say the past tense of the verb before moving on!\ngo | went\neat | ate\nsee | saw\ntake | took\nbuy | bought',
+                template: '## Speaking & Grammar Ladder\n? Roll the die, answer the square, and climb the ladders!\ngo | went\nsee | saw\nmake | made\nwrite | wrote\nName 3 animals\nSay one hobby you like',
+                sample: '## Irregular Verbs Challenge\n? Change each verb to Past Simple to stay on the square!\ngo | went\neat | ate\nsee | saw\nbuy | bought\ntake | took\ncome | came\nwrite | wrote\nspeak | spoke\nread | read\ndrink | drank\nsleep | slept\nswim | swam\nrun | ran\nfly | flew',
+                options: [
+                    { id: 'append', label: 'Append to current square prompts', defaultChecked: false },
+                    { id: 'newLinks', label: 'Generate new random Ladders & Chutes', defaultChecked: false }
+                ],
+                parse(rawText) {
+                    const rawLines = String(rawText || '').replace(/\r\n/g, '\n').split('\n');
+                    let title = '';
+                    let subtitle = '';
+                    const items = [];
+
+                    for (const line of rawLines) {
+                        const t = line.trim();
+                        if (!t) continue;
+                        if (t.startsWith('##')) { title = t.slice(2).trim(); continue; }
+                        if (t.startsWith('?')) { subtitle = t.slice(1).trim(); continue; }
+                        if (t.startsWith('#') || t.startsWith('//')) continue;
+                        items.push(t);
+                    }
+
+                    return {
+                        items,
+                        title,
+                        subtitle,
+                        warnings: [],
+                        badges: items.map((line, i) => {
+                            const [q, a] = line.split('|').map((s) => s.trim());
+                            return {
+                                tag: `#${i + 2}`,
+                                label: a ? `${q} → ${a}` : q,
+                                tone: a ? 'blue' : 'slate'
+                            };
+                        })
+                    };
+                },
+                onImport(result, opts) {
+                    const items = result.items || [];
+                    if (!items.length) return false;
+                    if (result.title) document.getElementById('custom-title').value = result.title;
+                    if (result.subtitle) document.getElementById('custom-subtitle').value = result.subtitle;
+                    const inp = document.getElementById('prompt-input');
+                    if (opts && opts.append && inp.value.trim()) {
+                        inp.value = inp.value.trim() + '\n' + items.join('\n');
+                    } else {
+                        inp.value = items.join('\n');
+                    }
+                    updatePromptCountPill();
+                    buildBoard({ keepLinks: !(opts && opts.newLinks) });
+                    playSound('pop');
+                    showToast(`Imported ${items.length} square prompt(s)`, 'success');
+                    return true;
+                }
+            }) : null;
+
+            document.getElementById('bulk-import-btn')?.addEventListener('click', () => chutesBulkModal?.open());
 
             const saveModal = document.getElementById('saveModal');
             const saveInput = document.getElementById('save-set-input');
