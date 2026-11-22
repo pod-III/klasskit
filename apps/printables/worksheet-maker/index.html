@@ -6,7 +6,7 @@
   <title>Worksheet Maker - Universal Worksheet Maker</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@600;700&family=Nunito:wght@400;600;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@600;700&family=Merriweather:wght@400;700;900&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
   <script src="https://unpkg.com/lucide@latest"></script>
   <script src="../../../components/input-modal.js"></script>
   <script src="../../../components/bulk-import-modal.js"></script>
@@ -302,18 +302,51 @@
     );
 
     const QUESTION_TYPES = {
-      MCQ: { id: 'mcq', label: 'Multiple Choice', icon: 'check-square' },
-      FIB: { id: 'fib', label: 'Fill in the Blank', icon: 'type' },
-      SA: { id: 'sa', label: 'Short Answer', icon: 'align-left' },
-      TF: { id: 'tf', label: 'True / False', icon: 'check-circle' },
-      MATCHING: { id: 'matching', label: 'Matching', icon: 'split-square-horizontal' },
-      ESSAY: { id: 'essay', label: 'Essay / Long Answer', icon: 'file-edit' },
+      MCQ: { id: 'mcq', label: 'Multiple Choice', icon: 'check-square', group: 'question' },
+      FIB: { id: 'fib', label: 'Fill in the Blank', icon: 'type', group: 'question' },
+      SA: { id: 'sa', label: 'Short Answer', icon: 'align-left', group: 'question' },
+      TF: { id: 'tf', label: 'True / False', icon: 'check-circle', group: 'question' },
+      MATCHING: { id: 'matching', label: 'Matching', icon: 'split-square-horizontal', group: 'question' },
+      ESSAY: { id: 'essay', label: 'Essay / Writing', icon: 'file-edit', group: 'question' },
+      UNSCRAMBLE: { id: 'unscramble', label: 'Unscramble', icon: 'shuffle', group: 'activity' },
+      SORT: { id: 'sort', label: 'Word Sort Table', icon: 'table-2', group: 'activity' },
+      DRAWING: { id: 'drawing', label: 'Draw & Label', icon: 'pen-tool', group: 'activity' },
+      CHECKLIST: { id: 'checklist', label: 'Checklist / Rubric', icon: 'list-checks', group: 'activity' },
+      PASSAGE: { id: 'passage', label: 'Reading / Info Box', icon: 'book-open', group: 'layout', nonNumbered: true },
+      SECTION: { id: 'section', label: 'Section Header', icon: 'heading', group: 'layout', nonNumbered: true },
+    };
+
+    const WS_LOOK_THEMES = {
+      classic: { id: 'classic', label: 'Classic', desc: 'Clean school handout' },
+      neo: { id: 'neo', label: 'Neo-Brutal', desc: 'Bold comic frames' },
+      modern: { id: 'modern', label: 'Modern', desc: 'Sleek accent stripe' },
+      kids: { id: 'kids', label: 'Playful', desc: 'Rounded & friendly' },
+      notebook: { id: 'notebook', label: 'Notebook', desc: 'Margin & ruled feel' },
+      exam: { id: 'exam', label: 'Formal Exam', desc: 'Compact & serif' }
+    };
+
+    const WS_ACCENTS = {
+      blue: { id: 'blue', label: 'Blue', hex: '#1ea7fd', soft: '#eff6ff', dark: '#0369a1' },
+      pink: { id: 'pink', label: 'Pink', hex: '#ff4785', soft: '#fdf2f8', dark: '#be185d' },
+      green: { id: 'green', label: 'Green', hex: '#00d063', soft: '#f0fdf4', dark: '#047857' },
+      orange: { id: 'orange', label: 'Orange', hex: '#ff7e33', soft: '#fff7ed', dark: '#c2410c' },
+      purple: { id: 'purple', label: 'Purple', hex: '#a855f7', soft: '#faf5ff', dark: '#6b21a8' },
+      mono: { id: 'mono', label: 'Ink B&W', hex: '#1e293b', soft: '#f8fafc', dark: '#0f172a' }
     };
 
     const DEFAULT_WS_SETTINGS = {
+      theme: 'classic',
+      accentColor: 'blue',
+      pageBorder: 'none',
+      fontFamily: 'sans',
+      headerStyle: 'standard',
+      questionColumns: 1,
       showHeaderFields: true,
       showTotalScore: true,
+      showPoints: true,
       showWordBank: false,
+      showFooter: false,
+      footerText: 'Check your work carefully!   ☆   ☆   ☆   ☆   ☆',
       fontSize: 'md'
     };
 
@@ -603,7 +636,29 @@
       long: 'essay',
       'long-answer': 'essay',
       long_answer: 'essay',
-      paragraph: 'essay'
+      paragraph: 'essay',
+      unscramble: 'unscramble',
+      jumble: 'unscramble',
+      scramble: 'unscramble',
+      sort: 'sort',
+      wordsort: 'sort',
+      'word-sort': 'sort',
+      categorize: 'sort',
+      table: 'sort',
+      drawing: 'drawing',
+      draw: 'drawing',
+      diagram: 'drawing',
+      sketch: 'drawing',
+      checklist: 'checklist',
+      rubric: 'checklist',
+      selfcheck: 'checklist',
+      passage: 'passage',
+      reading: 'passage',
+      infobox: 'passage',
+      info: 'passage',
+      section: 'section',
+      header: 'section',
+      divider: 'section'
     };
 
     function sanitizeImageRef(val) {
@@ -627,7 +682,8 @@
       if (!raw || typeof raw !== 'object') return 'sa';
       const rawType = String(raw.type || '').trim().toLowerCase();
       if (LEGACY_TYPE_ALIASES[rawType]) return LEGACY_TYPE_ALIASES[rawType];
-      if (Array.isArray(raw.pairs) || Array.isArray(raw.items) || Array.isArray(raw.matches)) return 'matching';
+      if (Array.isArray(raw.categories)) return 'sort';
+      if (Array.isArray(raw.pairs) || Array.isArray(raw.matches)) return 'matching';
       if (Array.isArray(raw.options) || Array.isArray(raw.choices)) return 'mcq';
       if (typeof raw.isTrue === 'boolean' || typeof raw.isTrue === 'string') return 'tf';
       if (raw.lines !== undefined || raw.lineCount !== undefined || raw.rubric !== undefined) return 'essay';
@@ -639,11 +695,12 @@
     function normalizeQuestion(raw, { forceNewIds = false, usedIds = new Set() } = {}) {
       const src = (raw && typeof raw === 'object') ? raw : {};
       const type = inferQuestionType(src);
+      const isNonScored = type === 'section' || type === 'passage';
       const rawPts = src.points ?? src.score ?? src.marks;
       const parsedPts = Number(rawPts);
       const points = (rawPts !== '' && rawPts !== null && rawPts !== undefined && Number.isFinite(parsedPts))
         ? Math.max(0, parsedPts)
-        : 1;
+        : (isNonScored ? 0 : 1);
 
       const base = {
         id: claimUniqueId(src.id, usedIds, forceNewIds),
@@ -695,12 +752,25 @@
         if (!opts.some(o => o.isCorrect)) {
           opts[0].isCorrect = true;
         }
-        return { ...base, options: opts };
-      }
-
-      if (type === 'fib' || type === 'sa') {
         return {
           ...base,
+          optColumns: ['auto', '1', '2', '4'].includes(String(src.optColumns || '')) ? String(src.optColumns) : 'auto',
+          options: opts
+        };
+      }
+
+      if (type === 'fib') {
+        return {
+          ...base,
+          answer: String(src.answer ?? src.correctAnswer ?? src.expectedAnswer ?? '')
+        };
+      }
+
+      if (type === 'sa') {
+        const rawLines = parseInt(src.lines ?? src.lineCount, 10);
+        return {
+          ...base,
+          lines: Number.isFinite(rawLines) && rawLines >= 1 ? Math.min(10, rawLines) : 2,
           answer: String(src.answer ?? src.correctAnswer ?? src.expectedAnswer ?? '')
         };
       }
@@ -713,7 +783,12 @@
         } else if (typeof rawBool === 'string') {
           isTrue = rawBool.trim().toLowerCase() !== 'false';
         }
-        return { ...base, isTrue };
+        return {
+          ...base,
+          isTrue,
+          tfStyle: ['tf', 'yn', 'ci'].includes(src.tfStyle) ? src.tfStyle : 'tf',
+          requireCorrection: Boolean(src.requireCorrection)
+        };
       }
 
       if (type === 'matching') {
@@ -742,7 +817,11 @@
         while (pairs.length < 2) {
           pairs.push({ id: claimUniqueId(null, usedIds, true), left: '', right: '', leftImageId: '', rightImageId: '' });
         }
-        return { ...base, pairs };
+        return {
+          ...base,
+          matchStyle: ['letters', 'lines'].includes(src.matchStyle) ? src.matchStyle : 'letters',
+          pairs
+        };
       }
 
       if (type === 'essay') {
@@ -750,7 +829,101 @@
         return {
           ...base,
           lines: Number.isFinite(rawLines) && rawLines >= 1 ? rawLines : 5,
+          lineStyle: ['ruled', 'primary', 'box', 'grid'].includes(src.lineStyle) ? src.lineStyle : 'ruled',
           answer: String(src.answer ?? src.rubric ?? src.expectedAnswer ?? '')
+        };
+      }
+
+      if (type === 'section') {
+        return {
+          ...base,
+          points: 0,
+          text: base.text || 'PART A: Core Practice',
+          subtitle: String(src.subtitle ?? '')
+        };
+      }
+
+      if (type === 'passage') {
+        return {
+          ...base,
+          points: 0,
+          title: String(src.title ?? 'Reading Passage'),
+          boxStyle: ['card', 'plain', 'grammar', 'dialogue'].includes(src.boxStyle) ? src.boxStyle : 'card',
+          showLineNumbers: Boolean(src.showLineNumbers)
+        };
+      }
+
+      if (type === 'unscramble') {
+        const rawItems = Array.isArray(src.items) ? src.items : [];
+        const items = rawItems.map((it) => {
+          if (typeof it === 'string') {
+            return { id: claimUniqueId(null, usedIds, true), scrambled: scrambleText(it), answer: it, hint: '' };
+          }
+          const itemObj = (it && typeof it === 'object') ? it : {};
+          const ans = String(itemObj.answer ?? '');
+          const scr = String(itemObj.scrambled ?? '') || (ans ? scrambleText(ans) : '');
+          return {
+            id: claimUniqueId(itemObj.id, usedIds, forceNewIds),
+            scrambled: scr,
+            answer: ans,
+            hint: String(itemObj.hint ?? '')
+          };
+        });
+        if (items.length === 0) {
+          items.push({ id: claimUniqueId(null, usedIds, true), scrambled: 'lpaep', answer: 'apple', hint: 'a fruit' });
+        }
+        return { ...base, items };
+      }
+
+      if (type === 'sort') {
+        const rawCats = Array.isArray(src.categories) ? src.categories : [];
+        const categories = rawCats.map((c, idx) => {
+          const catObj = (c && typeof c === 'object') ? c : {};
+          const itemsStr = Array.isArray(catObj.items) ? catObj.items.join(', ') : String(catObj.items ?? '');
+          return {
+            id: claimUniqueId(catObj.id, usedIds, forceNewIds),
+            title: String(catObj.title ?? `Category ${idx + 1}`),
+            items: itemsStr
+          };
+        });
+        while (categories.length < 2) {
+          categories.push({
+            id: claimUniqueId(null, usedIds, true),
+            title: `Category ${categories.length + 1}`,
+            items: ''
+          });
+        }
+        return { ...base, categories };
+      }
+
+      if (type === 'drawing') {
+        const rawCap = parseInt(src.captionLines, 10);
+        return {
+          ...base,
+          boxHeight: ['sm', 'md', 'lg'].includes(src.boxHeight) ? src.boxHeight : 'md',
+          boxStyle: ['blank', 'dots', 'grid', 'split'].includes(src.boxStyle) ? src.boxStyle : 'blank',
+          captionLines: Number.isFinite(rawCap) ? Math.max(0, Math.min(6, rawCap)) : 0,
+          answer: String(src.answer ?? '')
+        };
+      }
+
+      if (type === 'checklist') {
+        const rawItems = Array.isArray(src.items) ? src.items : [];
+        const items = rawItems.map((it) => {
+          if (typeof it === 'string') {
+            return { id: claimUniqueId(null, usedIds, true), text: it };
+          }
+          const itemObj = (it && typeof it === 'object') ? it : {};
+          return { id: claimUniqueId(itemObj.id, usedIds, forceNewIds), text: String(itemObj.text ?? '') };
+        });
+        if (items.length === 0) {
+          items.push({ id: claimUniqueId(null, usedIds, true), text: 'I wrote my name and date.' });
+        }
+        return {
+          ...base,
+          points: rawPts !== undefined ? points : 0,
+          checkStyle: ['box', 'yn', 'stars', 'faces'].includes(src.checkStyle) ? src.checkStyle : 'box',
+          items
         };
       }
 
@@ -760,9 +933,18 @@
     function normalizeWorksheetSettings(rawSettings) {
       const s = (rawSettings && typeof rawSettings === 'object') ? rawSettings : {};
       return {
+        theme: WS_LOOK_THEMES[s.theme] ? s.theme : DEFAULT_WS_SETTINGS.theme,
+        accentColor: WS_ACCENTS[s.accentColor] ? s.accentColor : DEFAULT_WS_SETTINGS.accentColor,
+        pageBorder: ['none', 'simple', 'double', 'dashed', 'neo'].includes(s.pageBorder) ? s.pageBorder : DEFAULT_WS_SETTINGS.pageBorder,
+        fontFamily: ['sans', 'serif', 'rounded', 'mono'].includes(s.fontFamily) ? s.fontFamily : DEFAULT_WS_SETTINGS.fontFamily,
+        headerStyle: ['standard', 'boxed', 'compact', 'banner'].includes(s.headerStyle) ? s.headerStyle : DEFAULT_WS_SETTINGS.headerStyle,
+        questionColumns: (s.questionColumns === 2 || s.questionColumns === '2') ? 2 : 1,
         showHeaderFields: typeof s.showHeaderFields === 'boolean' ? s.showHeaderFields : DEFAULT_WS_SETTINGS.showHeaderFields,
         showTotalScore: typeof s.showTotalScore === 'boolean' ? s.showTotalScore : DEFAULT_WS_SETTINGS.showTotalScore,
+        showPoints: typeof s.showPoints === 'boolean' ? s.showPoints : DEFAULT_WS_SETTINGS.showPoints,
         showWordBank: typeof s.showWordBank === 'boolean' ? s.showWordBank : DEFAULT_WS_SETTINGS.showWordBank,
+        showFooter: typeof s.showFooter === 'boolean' ? s.showFooter : DEFAULT_WS_SETTINGS.showFooter,
+        footerText: typeof s.footerText === 'string' ? s.footerText : DEFAULT_WS_SETTINGS.footerText,
         fontSize: ['sm', 'md', 'lg'].includes(s.fontSize) ? s.fontSize : DEFAULT_WS_SETTINGS.fontSize
       };
     }
@@ -1434,15 +1616,49 @@
       }
     }
 
+    function scrambleText(input) {
+      const str = String(input || '').trim();
+      if (!str) return '';
+      const words = str.split(/\s+/);
+      if (words.length > 1) {
+        if (new Set(words).size === 1) return words.join(' / ');
+        let shuffled = [...words];
+        for (let attempt = 0; attempt < 8; attempt++) {
+          for (let i = shuffled.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+          }
+          if (shuffled.join(' ') !== words.join(' ')) return shuffled.join(' / ');
+        }
+        return [...words].reverse().join(' / ');
+      }
+      const chars = [...str];
+      if (chars.length <= 1 || new Set(chars).size === 1) return str;
+      for (let attempt = 0; attempt < 8; attempt++) {
+        for (let i = chars.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [chars[i], chars[j]] = [chars[j], chars[i]];
+        }
+        if (chars.join('') !== str) return chars.join('');
+      }
+      return [...str].reverse().join('');
+    }
+
     const createDefaultQuestion = (type) => {
-      const base = { id: generateId(), type, text: '', points: 1, imageId: '', imageSize: 'md' };
+      const base = { id: generateId(), type, text: '', points: (type === 'section' || type === 'passage' || type === 'checklist') ? 0 : 1, imageId: '', imageSize: 'md' };
       switch (type) {
-        case 'mcq': return { ...base, options: [{ id: generateId(), text: '', isCorrect: true, imageId: '' }, { id: generateId(), text: '', isCorrect: false, imageId: '' }] };
+        case 'mcq': return { ...base, optColumns: 'auto', options: [{ id: generateId(), text: '', isCorrect: true, imageId: '' }, { id: generateId(), text: '', isCorrect: false, imageId: '' }] };
         case 'fib': return { ...base, text: 'The capital of Japan is ___ .', answer: 'Tokyo' };
-        case 'sa': return { ...base, answer: '' };
-        case 'tf': return { ...base, isTrue: true };
-        case 'matching': return { ...base, pairs: [{ id: generateId(), left: '', right: '', leftImageId: '', rightImageId: '' }, { id: generateId(), left: '', right: '', leftImageId: '', rightImageId: '' }] };
-        case 'essay': return { ...base, lines: 5, answer: '' };
+        case 'sa': return { ...base, lines: 2, answer: '' };
+        case 'tf': return { ...base, tfStyle: 'tf', requireCorrection: false, isTrue: true };
+        case 'matching': return { ...base, matchStyle: 'letters', pairs: [{ id: generateId(), left: '', right: '', leftImageId: '', rightImageId: '' }, { id: generateId(), left: '', right: '', leftImageId: '', rightImageId: '' }] };
+        case 'essay': return { ...base, lines: 5, lineStyle: 'ruled', answer: '' };
+        case 'section': return { ...base, text: 'PART A: Vocabulary & Grammar', subtitle: 'Read carefully before answering each section.' };
+        case 'passage': return { ...base, title: 'Reading Passage', boxStyle: 'card', showLineNumbers: false, text: 'Write or paste a short reading text, grammar note, or dialogue here.' };
+        case 'unscramble': return { ...base, text: 'Unscramble each word or sentence and write it neatly on the line:', items: [{ id: generateId(), scrambled: 'b / k / o / o', answer: 'book', hint: 'you read it' }, { id: generateId(), scrambled: 'school / go / to / We', answer: 'We go to school', hint: '' }] };
+        case 'sort': return { ...base, text: 'Sort the words in the box into the correct columns below:', categories: [{ id: generateId(), title: 'Nouns', items: 'apple, desk, river' }, { id: generateId(), title: 'Verbs', items: 'run, write, jump' }] };
+        case 'drawing': return { ...base, text: 'Draw and label your diagram in the space below:', boxHeight: 'md', boxStyle: 'blank', captionLines: 2, answer: '' };
+        case 'checklist': return { ...base, text: 'Self-Check before handing in your paper:', checkStyle: 'box', items: [{ id: generateId(), text: 'I wrote my name and date clearly.' }, { id: generateId(), text: 'I checked spelling and punctuation.' }] };
         default: return base;
       }
     };
@@ -1454,6 +1670,8 @@
         if (q.id) used.add(String(q.id));
         if (Array.isArray(q.options)) q.options.forEach(o => { if (o.id) used.add(String(o.id)); });
         if (Array.isArray(q.pairs)) q.pairs.forEach(p => { if (p.id) used.add(String(p.id)); });
+        if (Array.isArray(q.items)) q.items.forEach(it => { if (it.id) used.add(String(it.id)); });
+        if (Array.isArray(q.categories)) q.categories.forEach(c => { if (c.id) used.add(String(c.id)); });
       });
       return used;
     }
@@ -1501,16 +1719,22 @@
         derivedAnswer = cur.isTrue ? 'True' : 'False';
       }
 
+      const wasNonScored = cur.type === 'section' || cur.type === 'passage' || cur.type === 'checklist';
+      const nextNonScored = nextType === 'section' || nextType === 'passage' || nextType === 'checklist';
+
       const nextRaw = {
         id: cur.id,
         type: nextType,
         text: cur.text || '',
-        points: cur.points ?? 1,
+        points: (nextType === 'section' || nextType === 'passage')
+          ? 0
+          : (wasNonScored && !nextNonScored ? 1 : (cur.points ?? 1)),
         imageId: cur.imageId || '',
         imageSize: cur.imageSize || 'md'
       };
 
       if (nextType === 'mcq') {
+        nextRaw.optColumns = cur.optColumns || 'auto';
         if (Array.isArray(cur.options) && cur.options.length > 0) {
           nextRaw.options = cur.options;
         } else {
@@ -1523,12 +1747,16 @@
         nextRaw.text = cur.text || 'Complete the sentence: ___ .';
         nextRaw.answer = derivedAnswer;
       } else if (nextType === 'sa') {
+        nextRaw.lines = cur.lines || 2;
         nextRaw.answer = derivedAnswer;
       } else if (nextType === 'tf') {
+        nextRaw.tfStyle = cur.tfStyle || 'tf';
+        nextRaw.requireCorrection = Boolean(cur.requireCorrection);
         nextRaw.isTrue = typeof cur.isTrue === 'boolean'
           ? cur.isTrue
           : String(derivedAnswer).trim().toLowerCase() !== 'false';
       } else if (nextType === 'matching') {
+        nextRaw.matchStyle = cur.matchStyle || 'letters';
         if (Array.isArray(cur.pairs) && cur.pairs.length > 0) {
           nextRaw.pairs = cur.pairs;
         } else if (Array.isArray(cur.options) && cur.options.length >= 2) {
@@ -1547,12 +1775,72 @@
         }
       } else if (nextType === 'essay') {
         nextRaw.lines = cur.lines || 5;
+        nextRaw.lineStyle = cur.lineStyle || 'ruled';
         nextRaw.answer = derivedAnswer;
+      } else if (nextType === 'section') {
+        nextRaw.text = cur.text || 'PART A: Core Practice';
+        nextRaw.subtitle = cur.subtitle || '';
+      } else if (nextType === 'passage') {
+        nextRaw.title = cur.title || 'Reading Passage';
+        nextRaw.boxStyle = cur.boxStyle || 'card';
+        nextRaw.showLineNumbers = Boolean(cur.showLineNumbers);
+        nextRaw.text = cur.text || 'Write or paste a reading text, grammar note, or dialogue here.';
+      } else if (nextType === 'unscramble') {
+        nextRaw.text = cur.text || 'Unscramble each word or sentence:';
+        if (Array.isArray(cur.items) && cur.items.length > 0) {
+          nextRaw.items = cur.items.map(it => ({
+            id: generateId(),
+            answer: it.answer || it.text || '',
+            scrambled: it.scrambled || scrambleText(it.answer || it.text || ''),
+            hint: it.hint || ''
+          }));
+        } else if (derivedAnswer) {
+          nextRaw.items = [{ id: generateId(), scrambled: scrambleText(derivedAnswer), answer: derivedAnswer, hint: '' }];
+        } else {
+          nextRaw.items = [{ id: generateId(), scrambled: scrambleText('book'), answer: 'book', hint: 'you read it' }];
+        }
+      } else if (nextType === 'sort') {
+        nextRaw.text = cur.text || 'Sort the words into the correct categories:';
+        nextRaw.categories = Array.isArray(cur.categories) && cur.categories.length >= 2
+          ? cur.categories
+          : [
+              { id: generateId(), title: 'Category 1', items: '' },
+              { id: generateId(), title: 'Category 2', items: '' }
+            ];
+      } else if (nextType === 'drawing') {
+        nextRaw.text = cur.text || 'Draw and label in the space below:';
+        nextRaw.boxHeight = cur.boxHeight || 'md';
+        nextRaw.boxStyle = cur.boxStyle || 'blank';
+        nextRaw.captionLines = cur.captionLines ?? 2;
+        nextRaw.answer = derivedAnswer;
+      } else if (nextType === 'checklist') {
+        nextRaw.text = cur.text || 'Self-Check before handing in your paper:';
+        nextRaw.checkStyle = cur.checkStyle || 'box';
+        if (Array.isArray(cur.items) && cur.items.length > 0) {
+          nextRaw.items = cur.items.map(it => ({ id: generateId(), text: it.text || it.answer || '' }));
+        } else {
+          nextRaw.items = [
+            { id: generateId(), text: 'I wrote my name and date clearly.' },
+            { id: generateId(), text: 'I checked spelling and punctuation.' }
+          ];
+        }
       }
 
       const usedIds = collectAllUsedIds();
       usedIds.delete(cur.id);
       state.worksheet.questions[idx] = normalizeQuestion(nextRaw, { forceNewIds: false, usedIds });
+      saveState();
+      render();
+    }
+
+    function autoScrambleQuestion(id) {
+      const q = state.worksheet.questions.find(x => x.id === id);
+      if (!q || q.type !== 'unscramble' || !Array.isArray(q.items)) return;
+      q.items.forEach(it => {
+        if (it.answer && String(it.answer).trim()) {
+          it.scrambled = scrambleText(it.answer);
+        }
+      });
       saveState();
       render();
     }
@@ -1719,11 +2007,34 @@
       `;
     }
 
+    function getModuleOptionSelectHTML(label, qid, field, value, options) {
+      return `
+        <label class="inline-flex items-center gap-1.5 text-[11px] font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-900/90 border-2 border-dark/20 dark:border-slate-600 rounded-xl px-2.5 py-1.5">
+          <span class="font-heading uppercase tracking-wider text-[10px] text-slate-500 dark:text-slate-400">${label}</span>
+          <select data-action="update-q-field" data-qid="${qid}" data-field="${field}" class="bg-transparent font-bold text-dark dark:text-white outline-none cursor-pointer">
+            ${options.map(([val, lbl]) => `<option value="${val}" ${String(value) === String(val) ? 'selected' : ''} class="dark:bg-slate-800">${lbl}</option>`).join('')}
+          </select>
+        </label>
+      `;
+    }
+
+    function getModuleOptionToggleHTML(label, qid, field, checked) {
+      return `
+        <label class="inline-flex items-center gap-2 text-[11px] font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-900/90 border-2 border-dark/20 dark:border-slate-600 rounded-xl px-2.5 py-1.5 cursor-pointer select-none">
+          <input type="checkbox" data-action="update-q-field" data-qid="${qid}" data-field="${field}" ${checked ? 'checked' : ''} class="w-4 h-4 accent-blue cursor-pointer" />
+          <span>${label}</span>
+        </label>
+      `;
+    }
+
     function getMCQEditor(q) {
       return `
         <div class="space-y-4">
           ${getEditorTextarea('Question Text', q.text, 'What is the powerhouse of the cell?', 'update-q-text', `data-qid="${q.id}"`)}
           ${getQuestionImageEditorHTML(q)}
+          <div class="flex flex-wrap items-center gap-2">
+            ${getModuleOptionSelectHTML('Option Layout', q.id, 'optColumns', q.optColumns || 'auto', [['auto', 'Auto'], ['1', '1 Column (Vertical)'], ['2', '2 Columns Grid'], ['4', '4 Columns Inline']])}
+          </div>
           <div class="space-y-3">
             <label class="text-xs font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest font-heading">Options (Check the correct one)</label>
             ${q.options.map((opt, idx) => {
@@ -1769,6 +2080,9 @@
         <div class="space-y-4">
           ${getEditorTextarea('Question Text', q.text, '', 'update-q-text', `data-qid="${q.id}"`)}
           ${getQuestionImageEditorHTML(q)}
+          <div class="flex flex-wrap items-center gap-2">
+            ${getModuleOptionSelectHTML('Answer Lines', q.id, 'lines', q.lines || 2, [[1, '1 line'], [2, '2 lines'], [3, '3 lines'], [4, '4 lines'], [5, '5 lines'], [6, '6 lines']])}
+          </div>
           ${getEditorTextarea('Correct Answer / Expected Points (For Key)', q.answer, '', 'update-q-ans', `data-qid="${q.id}"`, 2)}
         </div>
       `;
@@ -1779,16 +2093,20 @@
         <div class="space-y-4">
           ${getEditorTextarea('Question Text', q.text, '', 'update-q-text', `data-qid="${q.id}"`)}
           ${getQuestionImageEditorHTML(q)}
+          <div class="flex flex-wrap items-center gap-2">
+            ${getModuleOptionSelectHTML('Labels', q.id, 'tfStyle', q.tfStyle || 'tf', [['tf', 'True / False'], ['yn', 'Yes / No'], ['ci', 'Correct / Incorrect']])}
+            ${getModuleOptionToggleHTML('Correction line if False', q.id, 'requireCorrection', Boolean(q.requireCorrection))}
+          </div>
           <div>
             <label class="text-xs font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest font-heading block mb-2.5">Correct Answer</label>
             <div class="flex gap-6">
               <label class="flex items-center gap-2 cursor-pointer text-sm font-bold">
                 <input type="radio" name="tf-${q.id}" ${q.isTrue ? 'checked' : ''} data-action="set-tf" data-val="true" data-qid="${q.id}" class="w-5 h-5 text-blue dark:bg-slate-900 border-2 border-dark focus:ring-0" />
-                <span>True</span>
+                <span>${q.tfStyle === 'yn' ? 'Yes' : (q.tfStyle === 'ci' ? 'Correct' : 'True')}</span>
               </label>
               <label class="flex items-center gap-2 cursor-pointer text-sm font-bold">
                 <input type="radio" name="tf-${q.id}" ${!q.isTrue ? 'checked' : ''} data-action="set-tf" data-val="false" data-qid="${q.id}" class="w-5 h-5 text-blue dark:bg-slate-900 border-2 border-dark focus:ring-0" />
-                <span>False</span>
+                <span>${q.tfStyle === 'yn' ? 'No' : (q.tfStyle === 'ci' ? 'Incorrect' : 'False')}</span>
               </label>
             </div>
           </div>
@@ -1801,12 +2119,15 @@
         <div class="space-y-4">
           ${getEditorTextarea('Instructions / Context', q.text, 'Match the items...', 'update-q-text', `data-qid="${q.id}"`)}
           ${getQuestionImageEditorHTML(q)}
+          <div class="flex flex-wrap items-center gap-2">
+            ${getModuleOptionSelectHTML('Match Style', q.id, 'matchStyle', q.matchStyle || 'letters', [['letters', 'Write Letter Blank ( ___ )'], ['lines', 'Draw Connecting Lines ( •  • )']])}
+          </div>
           <div class="space-y-3">
             <label class="text-xs font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest font-heading flex justify-between">
               <span>Left Side (Prompts)</span>
               <span>Right Side (Matches)</span>
             </label>
-            ${q.pairs.map((pair, idx) => {
+            ${q.pairs.map((pair) => {
               const leftImg = getWsImageSrc(pair.leftImageId);
               const rightImg = getWsImageSrc(pair.rightImageId);
               return `
@@ -1849,10 +2170,129 @@
         <div class="space-y-4">
           ${getEditorTextarea('Question Text', q.text, '', 'update-q-text', `data-qid="${q.id}"`)}
           ${getQuestionImageEditorHTML(q)}
-          <div class="flex gap-4">
-            ${getEditorInput('Blank Lines to Provide', q.lines, '', 'update-q-lines', `data-qid="${q.id}"`, 'number', 'w-32')}
+          <div class="flex flex-wrap items-end gap-3">
+            ${getEditorInput('Blank Lines to Provide', q.lines, '', 'update-q-lines', `data-qid="${q.id}"`, 'number', 'w-40')}
+            ${getModuleOptionSelectHTML('Writing Guide', q.id, 'lineStyle', q.lineStyle || 'ruled', [['ruled', 'Ruled Lines'], ['primary', 'Primary (Dashed Midline)'], ['box', 'Open Box'], ['grid', 'Graph / Math Grid']])}
           </div>
           ${getEditorTextarea('Grading Rubric (For Key)', q.answer, 'Key points the student must mention...', 'update-q-ans', `data-qid="${q.id}"`, 4)}
+        </div>
+      `;
+    }
+
+    function getSectionEditor(q) {
+      return `
+        <div class="space-y-4">
+          ${getEditorInput('Section Heading', q.text, 'e.g. PART A: Vocabulary & Grammar', 'update-q-text', `data-qid="${q.id}"`)}
+          ${getEditorInput('Section Subtitle / Note (Optional)', q.subtitle || '', 'e.g. Answer every question in complete sentences.', 'update-q-field', `data-qid="${q.id}" data-field="subtitle"`)}
+          ${getQuestionImageEditorHTML(q)}
+        </div>
+      `;
+    }
+
+    function getPassageEditor(q) {
+      return `
+        <div class="space-y-4">
+          <div class="flex flex-wrap items-center gap-2">
+            ${getModuleOptionSelectHTML('Box Style', q.id, 'boxStyle', q.boxStyle || 'card', [['card', 'Reading Card'], ['grammar', 'Grammar Rule Box'], ['dialogue', 'Dialogue / Script'], ['plain', 'Minimal Box']])}
+            ${getModuleOptionToggleHTML('Show Line Numbers', q.id, 'showLineNumbers', Boolean(q.showLineNumbers))}
+          </div>
+          ${getEditorInput('Passage / Info Box Title', q.title || '', 'e.g. Reading Passage or Grammar Tip', 'update-q-field', `data-qid="${q.id}" data-field="title"`)}
+          ${getEditorTextarea('Content Text', q.text, 'Write or paste a reading text, story excerpt, dialogue, or grammar explanation...', 'update-q-text', `data-qid="${q.id}"`, 5)}
+          ${getQuestionImageEditorHTML(q)}
+        </div>
+      `;
+    }
+
+    function getUnscrambleEditor(q) {
+      return `
+        <div class="space-y-4">
+          ${getEditorTextarea('Instructions', q.text, 'Unscramble each word or sentence:', 'update-q-text', `data-qid="${q.id}"`, 2)}
+          ${getQuestionImageEditorHTML(q)}
+          <div class="space-y-2.5">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+              <label class="text-xs font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest font-heading">Items to Unscramble</label>
+              <button type="button" data-action="auto-scramble-items" data-qid="${q.id}" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue/10 hover:bg-blue/20 text-blue text-[11px] font-heading font-bold uppercase tracking-wider border border-blue/30 transition-colors">
+                <i data-lucide="shuffle" class="w-3.5 h-3.5"></i> Auto-Scramble from Answers
+              </button>
+            </div>
+            ${(q.items || []).map((it, idx) => `
+              <div class="grid grid-cols-1 sm:grid-cols-12 gap-2 items-center bg-slate-50 dark:bg-slate-900/70 p-2.5 rounded-xl border-2 border-dark/15 dark:border-slate-700">
+                <input type="text" data-action="update-unscramble-field" data-field="scrambled" data-qid="${q.id}" data-itemid="${it.id}" value="${esc(it.scrambled)}" placeholder="Scrambled (e.g. b / k / o / o)" class="sm:col-span-5 bg-white dark:bg-slate-900 border-2 border-dark/25 dark:border-slate-600 rounded-lg px-2.5 py-1.5 text-xs font-bold text-dark dark:text-white outline-none focus:border-blue" />
+                <input type="text" data-action="update-unscramble-field" data-field="answer" data-qid="${q.id}" data-itemid="${it.id}" value="${esc(it.answer)}" placeholder="Answer #${idx + 1}" class="sm:col-span-4 bg-white dark:bg-slate-900 border-2 border-dark/25 dark:border-slate-600 rounded-lg px-2.5 py-1.5 text-xs font-bold text-dark dark:text-white outline-none focus:border-blue" />
+                <div class="sm:col-span-3 flex items-center gap-1.5">
+                  <input type="text" data-action="update-unscramble-field" data-field="hint" data-qid="${q.id}" data-itemid="${it.id}" value="${esc(it.hint || '')}" placeholder="Hint (opt)" class="flex-1 min-w-0 bg-white dark:bg-slate-900 border-2 border-dark/25 dark:border-slate-600 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-dark dark:text-white outline-none focus:border-blue" />
+                  <button type="button" data-action="delete-unscramble-item" data-qid="${q.id}" data-itemid="${it.id}" class="text-slate-400 hover:text-red-500 p-1 shrink-0"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                </div>
+              </div>
+            `).join('')}
+            <button type="button" data-action="add-unscramble-item" data-qid="${q.id}" class="text-xs text-blue hover:text-blue/80 font-heading font-black uppercase tracking-wider flex items-center gap-1.5 mt-1">
+              <i data-lucide="plus" class="w-4 h-4"></i> Add Item
+            </button>
+          </div>
+        </div>
+      `;
+    }
+
+    function getSortEditor(q) {
+      return `
+        <div class="space-y-4">
+          ${getEditorTextarea('Instructions', q.text, 'Sort the words into the correct categories:', 'update-q-text', `data-qid="${q.id}"`, 2)}
+          ${getQuestionImageEditorHTML(q)}
+          <div class="bg-blue/10 dark:bg-blue/5 border-2 border-blue/20 text-blue dark:text-blue-400 p-3 rounded-xl text-xs font-semibold">
+            <strong>Tip:</strong> List category answers separated by commas (e.g. <code>apple, desk, river</code>). They will be shuffled into the Word Pool automatically on the worksheet!
+          </div>
+          <div class="space-y-2.5">
+            <label class="text-xs font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest font-heading">Categories & Answers</label>
+            ${(q.categories || []).map((cat, idx) => `
+              <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 bg-slate-50 dark:bg-slate-900/70 p-2.5 rounded-xl border-2 border-dark/15 dark:border-slate-700">
+                <input type="text" data-action="update-sort-field" data-field="title" data-qid="${q.id}" data-catid="${cat.id}" value="${esc(cat.title)}" placeholder="Category ${idx + 1}" class="sm:w-44 bg-white dark:bg-slate-900 border-2 border-dark/25 dark:border-slate-600 rounded-lg px-2.5 py-1.5 text-xs font-black text-dark dark:text-white outline-none focus:border-blue" />
+                <input type="text" data-action="update-sort-field" data-field="items" data-qid="${q.id}" data-catid="${cat.id}" value="${esc(cat.items)}" placeholder="comma, separated, answers" class="flex-1 min-w-0 bg-white dark:bg-slate-900 border-2 border-dark/25 dark:border-slate-600 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-dark dark:text-white outline-none focus:border-blue" />
+                <button type="button" data-action="delete-sort-cat" data-qid="${q.id}" data-catid="${cat.id}" class="text-slate-400 hover:text-red-500 p-1 self-end sm:self-center shrink-0"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+              </div>
+            `).join('')}
+            <button type="button" data-action="add-sort-cat" data-qid="${q.id}" class="text-xs text-blue hover:text-blue/80 font-heading font-black uppercase tracking-wider flex items-center gap-1.5 mt-1">
+              <i data-lucide="plus" class="w-4 h-4"></i> Add Category Column
+            </button>
+          </div>
+        </div>
+      `;
+    }
+
+    function getDrawingEditor(q) {
+      return `
+        <div class="space-y-4">
+          ${getEditorTextarea('Prompt / Drawing Task', q.text, 'Draw and label your diagram in the box below:', 'update-q-text', `data-qid="${q.id}"`, 2)}
+          ${getQuestionImageEditorHTML(q)}
+          <div class="flex flex-wrap items-center gap-2">
+            ${getModuleOptionSelectHTML('Box Height', q.id, 'boxHeight', q.boxHeight || 'md', [['sm', 'Compact'], ['md', 'Medium'], ['lg', 'Large']])}
+            ${getModuleOptionSelectHTML('Canvas Surface', q.id, 'boxStyle', q.boxStyle || 'blank', [['blank', 'Blank Canvas'], ['dots', 'Dot Grid'], ['grid', 'Square Graph Grid'], ['split', 'Split (Left / Right)']])}
+            ${getModuleOptionSelectHTML('Caption Lines', q.id, 'captionLines', q.captionLines ?? 2, [[0, 'None'], [1, '1 line'], [2, '2 lines'], [3, '3 lines'], [4, '4 lines']])}
+          </div>
+          ${getEditorTextarea('Expected Labels / Teacher Note (For Key)', q.answer || '', 'What should students draw or label?', 'update-q-ans', `data-qid="${q.id}"`, 2)}
+        </div>
+      `;
+    }
+
+    function getChecklistEditor(q) {
+      return `
+        <div class="space-y-4">
+          ${getEditorTextarea('Checklist Prompt / Title', q.text, 'Self-Check before handing in your paper:', 'update-q-text', `data-qid="${q.id}"`, 2)}
+          <div class="flex flex-wrap items-center gap-2">
+            ${getModuleOptionSelectHTML('Marker Style', q.id, 'checkStyle', q.checkStyle || 'box', [['box', 'Checkboxes [  ]'], ['yn', 'Yes / No'], ['stars', '3-Star Rating'], ['faces', 'Smiley Self-Check']])}
+          </div>
+          <div class="space-y-2">
+            <label class="text-xs font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest font-heading">Checklist Criteria</label>
+            ${(q.items || []).map((it, idx) => `
+              <div class="flex items-center gap-2">
+                <span class="text-xs font-black text-slate-400 w-5 text-center">${idx + 1}.</span>
+                <input type="text" data-action="update-checklist-item" data-qid="${q.id}" data-itemid="${it.id}" value="${esc(it.text)}" placeholder="Criterion ${idx + 1}" class="flex-1 min-w-0 bg-slate-50 dark:bg-slate-900 border-2 border-dark dark:border-slate-600 rounded-xl px-3 py-2 text-sm font-semibold text-dark dark:text-white outline-none focus:border-blue" />
+                <button type="button" data-action="delete-checklist-item" data-qid="${q.id}" data-itemid="${it.id}" class="text-slate-400 hover:text-red-500 p-1.5 shrink-0"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+              </div>
+            `).join('')}
+            <button type="button" data-action="add-checklist-item" data-qid="${q.id}" class="text-xs text-blue hover:text-blue/80 font-heading font-black uppercase tracking-wider flex items-center gap-1.5 mt-1">
+              <i data-lucide="plus" class="w-4 h-4"></i> Add Criterion
+            </button>
+          </div>
         </div>
       `;
     }
@@ -1861,16 +2301,98 @@
     function getPreviewScaleMeta() {
       const settings = getWorksheetSettings();
       const map = {
-        sm: { text: 'text-sm', blockGap: 'mb-5', wrapperText: 'text-base' },
-        md: { text: 'text-base', blockGap: 'mb-8', wrapperText: 'text-lg' },
-        lg: { text: 'text-lg', blockGap: 'mb-10', wrapperText: 'text-xl' }
+        sm: { text: 'text-sm', blockGap: 'mb-4', wrapperText: 'text-sm' },
+        md: { text: 'text-base', blockGap: 'mb-7', wrapperText: 'text-base' },
+        lg: { text: 'text-lg', blockGap: 'mb-9', wrapperText: 'text-lg' }
       };
       return map[settings.fontSize] || map.md;
     }
 
+    function getWorksheetLookStyles() {
+      const settings = getWorksheetSettings();
+      const scale = getPreviewScaleMeta();
+      const accent = WS_ACCENTS[settings.accentColor] || WS_ACCENTS.blue;
+      const fontMap = {
+        sans: "'Nunito', system-ui, -apple-system, sans-serif",
+        serif: "'Merriweather', Georgia, Cambria, serif",
+        rounded: "'Fredoka', 'Nunito', sans-serif",
+        mono: "ui-monospace, 'SFMono-Regular', Menlo, monospace"
+      };
+      return {
+        settings,
+        scale,
+        accent,
+        theme: settings.theme || 'classic',
+        isTwoCol: Number(settings.questionColumns) === 2,
+        fontCss: fontMap[settings.fontFamily] || fontMap.sans
+      };
+    }
+
+    function getPreviewNumBadgeHTML(index, look) {
+      const t = look.theme;
+      if (t === 'neo') {
+        return `<span class="inline-flex items-center justify-center min-w-[1.65rem] h-6 px-1.5 rounded-md font-extrabold text-xs text-white shrink-0 border border-slate-900" style="background:${look.accent.hex}">${index}</span>`;
+      }
+      if (t === 'modern') {
+        return `<span class="inline-flex items-center justify-center min-w-[1.65rem] h-6 px-1.5 rounded-md font-bold text-xs shrink-0" style="background:${look.accent.soft}; color:${look.accent.dark}; border:1px solid ${look.accent.hex}55">${index}</span>`;
+      }
+      if (t === 'kids') {
+        return `<span class="inline-flex items-center justify-center w-6 h-6 rounded-full font-extrabold text-xs text-white shrink-0" style="background:${look.accent.hex}">${index}</span>`;
+      }
+      if (t === 'notebook') {
+        return `<span class="font-extrabold underline decoration-2 shrink-0" style="text-decoration-color:${look.accent.hex}; color:${look.accent.dark}">#${index}</span>`;
+      }
+      if (t === 'exam') {
+        return `<span class="font-bold text-slate-900 shrink-0 tabular-nums">Q${index}.</span>`;
+      }
+      return `<span class="font-bold text-slate-900 shrink-0">${index}.</span>`;
+    }
+
+    function getPreviewCardStyle(look) {
+      const t = look.theme;
+      if (t === 'neo') {
+        return 'border: 2px solid #0f172a; border-radius: 12px; padding: 13px 15px; background: #ffffff; box-shadow: 0 3px 0 #0f172a;';
+      }
+      if (t === 'modern') {
+        return `border: 1px solid #cbd5e1; border-left: 4px solid ${look.accent.hex}; border-radius: 10px; padding: 12px 14px; background: #ffffff;`;
+      }
+      if (t === 'kids') {
+        return `border: 2px dashed ${look.accent.hex}88; border-radius: 16px; padding: 13px 15px; background: ${look.accent.soft}55;`;
+      }
+      if (t === 'notebook') {
+        return `border-left: 3px double ${look.accent.hex}; padding: 6px 10px 10px 13px; border-bottom: 1px dashed #cbd5e1;`;
+      }
+      if (t === 'exam') {
+        return 'border-bottom: 1px solid #cbd5e1; padding-bottom: 12px;';
+      }
+      return '';
+    }
+
+    function wrapPreviewQuestionBlock(index, q, promptHtml, bodyHtml) {
+      const look = getWorksheetLookStyles();
+      const gapCls = look.isTwoCol ? '' : look.scale.blockGap;
+      const cardStyle = getPreviewCardStyle(look);
+      const scoreHtml = fmtPreviewScore(q.points);
+      return `
+        <div class="print-block ${gapCls}" style="${cardStyle}">
+          <div class="flex items-start gap-2.5">
+            ${getPreviewNumBadgeHTML(index, look)}
+            <div class="flex-1 min-w-0">
+              <div class="flex justify-between items-baseline gap-3">
+                <div class="flex-1 min-w-0">${promptHtml}</div>
+                ${scoreHtml ? `<span class="text-xs font-semibold text-slate-500 shrink-0 print:text-black">${scoreHtml}</span>` : ''}
+              </div>
+              ${getQuestionImagePreviewHTML(q)}
+              ${bodyHtml}
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
     function getQuestionText(text) {
       const scale = getPreviewScaleMeta();
-      return `<div class="${scale.text} font-medium mb-3 whitespace-pre-wrap">${esc(text)}</div>`;
+      return `<div class="${scale.text} font-medium mb-2.5 whitespace-pre-wrap leading-snug">${esc(text)}</div>`;
     }
 
     function getQuestionImagePreviewHTML(q) {
@@ -1881,11 +2403,18 @@
       return `<div class="my-2.5"><img src="${esc(src)}" alt="" class="${sizeCls} max-w-full object-contain rounded-lg border border-slate-200 bg-white p-1" /></div>`;
     }
 
-    const fmtPreviewScore = (pts) => `(${pts} pt${pts !== 1 ? 's' : ''})`;
+    function fmtPreviewScore(pts) {
+      const settings = getWorksheetSettings();
+      if (!settings.showPoints) return '';
+      const n = Number(pts) || 0;
+      if (n <= 0) return '';
+      if (settings.theme === 'exam') return `[${n} pt${n !== 1 ? 's' : ''}]`;
+      return `(${n} pt${n !== 1 ? 's' : ''})`;
+    }
 
     function getPreviewWordBankHTML() {
-      const settings = getWorksheetSettings();
-      if (!settings.showWordBank) return '';
+      const look = getWorksheetLookStyles();
+      if (!look.settings.showWordBank) return '';
       const rawAnswers = [];
       const seen = new Set();
       (state.worksheet.questions || []).forEach((q) => {
@@ -1901,50 +2430,50 @@
       if (rawAnswers.length === 0) return '';
       rawAnswers.sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
       return `
-        <div class="mb-7 p-3.5 border-2 border-dashed border-gray-500 rounded bg-gray-50">
-          <div class="text-xs font-bold uppercase tracking-wider text-gray-700 mb-2">Word Bank</div>
+        <div class="mb-6 p-3.5 rounded-xl border-2 border-dashed" style="border-color:${look.accent.hex}; background:${look.accent.soft}">
+          <div class="text-xs font-extrabold uppercase tracking-wider mb-2" style="color:${look.accent.dark}">Word Bank</div>
           <div class="flex flex-wrap gap-2">
-            ${rawAnswers.map(w => `<span class="px-2.5 py-1 border border-gray-400 rounded bg-white text-sm font-semibold">${esc(w)}</span>`).join('')}
+            ${rawAnswers.map(w => `<span class="px-2.5 py-0.5 border border-slate-400 rounded-lg bg-white text-sm font-semibold text-slate-900">${esc(w)}</span>`).join('')}
           </div>
         </div>
       `;
     }
 
     function getMCQPreview(q, index) {
-      const scale = getPreviewScaleMeta();
       const hasOptImg = Array.isArray(q.options) && q.options.some(o => Boolean(getWsImageSrc(o.imageId)));
-      return `
-        <div class="print-block ${scale.blockGap}">
-          <div class="flex gap-2">
-            <span class="font-bold">${index}.</span>
-            <div class="flex-1">
-              <div class="flex justify-between items-baseline gap-4">
-                ${getQuestionText(q.text)}
-                <span class="text-sm font-semibold text-gray-500 shrink-0 print:text-black">${fmtPreviewScore(q.points)}</span>
+      const optColMode = String(q.optColumns || 'auto');
+      let layoutCls = 'flex flex-col gap-2 pl-1 mt-1.5';
+      if (optColMode === '1') {
+        layoutCls = 'grid grid-cols-1 gap-2 pl-1 mt-1.5';
+      } else if (optColMode === '2') {
+        layoutCls = 'grid grid-cols-2 gap-2.5 pl-1 mt-1.5';
+      } else if (optColMode === '4') {
+        layoutCls = 'grid grid-cols-2 sm:grid-cols-4 gap-2 pl-1 mt-1.5';
+      } else if (hasOptImg) {
+        layoutCls = 'grid grid-cols-1 sm:grid-cols-2 gap-3 pl-1 mt-1.5';
+      }
+
+      const optsHtml = `
+        <div class="${layoutCls}">
+          ${(q.options || []).map((opt, idx) => {
+            const letter = String.fromCharCode(65 + idx);
+            const isCorrect = state.showAnswers && opt.isCorrect;
+            const circleCls = isCorrect ? 'border-blue-600 text-blue-700 bg-blue-50 font-bold' : 'border-slate-500 text-slate-700';
+            const textCls = isCorrect ? 'text-blue-800 font-bold' : 'text-slate-800';
+            const optImg = getWsImageSrc(opt.imageId);
+            return `
+              <div class="flex items-start gap-2.5 min-w-0">
+                <span class="flex-shrink-0 w-6 h-6 rounded-full border flex items-center justify-center text-xs font-semibold ${circleCls}">${letter}</span>
+                <div class="flex flex-col gap-1 pt-0.5 min-w-0">
+                  ${optImg ? `<img src="${esc(optImg)}" alt="" class="max-h-24 max-w-[160px] object-contain rounded border border-slate-200 bg-white p-0.5" />` : ''}
+                  ${(opt.text || !optImg) ? `<span class="${textCls} break-words">${esc(opt.text) || '...'}</span>` : ''}
+                </div>
               </div>
-              ${getQuestionImagePreviewHTML(q)}
-              <div class="${hasOptImg ? 'grid grid-cols-1 sm:grid-cols-2 gap-3 pl-2 mt-2' : 'flex flex-col gap-2 pl-2'}">
-                ${q.options.map((opt, idx) => {
-                  const letter = String.fromCharCode(65 + idx);
-                  const isCorrect = state.showAnswers && opt.isCorrect;
-                  const circleCls = isCorrect ? 'border-blue-600 text-blue-600 bg-blue-50' : 'border-slate-400 text-slate-600';
-                  const textCls = isCorrect ? 'text-blue-800 font-semibold' : 'text-slate-800';
-                  const optImg = getWsImageSrc(opt.imageId);
-                  return `
-                    <div class="flex items-start gap-3">
-                      <span class="flex-shrink-0 w-6 h-6 rounded-full border flex items-center justify-center text-sm font-medium ${circleCls}">${letter}</span>
-                      <div class="flex flex-col gap-1.5 pt-0.5">
-                        ${optImg ? `<img src="${esc(optImg)}" alt="" class="max-h-28 max-w-[180px] object-contain rounded border border-slate-200 bg-white p-1" />` : ''}
-                        ${(opt.text || !optImg) ? `<span class="${textCls}">${esc(opt.text) || '...'}</span>` : ''}
-                      </div>
-                    </div>
-                  `;
-                }).join('')}
-              </div>
-            </div>
-          </div>
+            `;
+          }).join('')}
         </div>
       `;
+      return wrapPreviewQuestionBlock(index, q, getQuestionText(q.text), optsHtml);
     }
 
     function getFIBPreview(q, index) {
@@ -1953,166 +2482,309 @@
       const hasBlank = /_{3,}|\[blank\]/i.test(rawText);
       let displayHtml = esc(rawText);
       if (state.showAnswers && hasBlank) {
-        displayHtml = displayHtml.replace(/_{3,}|\[blank\]/gi, `<strong class="text-blue-600 font-bold border-b-2 border-blue-600 px-2">${esc(q.answer) || 'Answer'}</strong>`);
+        displayHtml = displayHtml.replace(/_{3,}|\[blank\]/gi, `<strong class="text-blue-700 font-bold border-b-2 border-blue-600 px-1.5">${esc(q.answer) || 'Answer'}</strong>`);
       } else if (hasBlank) {
-        displayHtml = displayHtml.replace(/_{3,}|\[blank\]/gi, `_________________`);
+        displayHtml = displayHtml.replace(/_{3,}|\[blank\]/gi, `<span class="inline-block border-b-2 border-slate-800 min-w-[7rem] mx-1">&nbsp;</span>`);
       }
-      
+
+      const promptHtml = `<div class="${scale.text} font-medium leading-relaxed whitespace-pre-wrap mb-1">${displayHtml}</div>`;
       const extraLine = !hasBlank ? `
-        <div class="mt-4 border-b border-black w-64 h-6">
-          ${state.showAnswers ? `<span class="text-blue-600 font-bold">${esc(q.answer)}</span>` : ''}
+        <div class="mt-3 border-b-2 border-slate-800 w-64 h-6">
+          ${state.showAnswers ? `<span class="text-blue-700 font-bold">${esc(q.answer)}</span>` : ''}
         </div>
       ` : '';
 
-      return `
-        <div class="print-block ${scale.blockGap}">
-          <div class="flex gap-2">
-            <span class="font-bold">${index}.</span>
-            <div class="flex-1">
-              <div class="flex justify-between items-baseline gap-4">
-                <div class="${scale.text} font-medium leading-relaxed whitespace-pre-wrap">${displayHtml}</div>
-                <span class="text-sm font-semibold text-gray-500 shrink-0 print:text-black">${fmtPreviewScore(q.points)}</span>
-              </div>
-              ${getQuestionImagePreviewHTML(q)}
-              ${extraLine}
-            </div>
-          </div>
-        </div>
-      `;
+      return wrapPreviewQuestionBlock(index, q, promptHtml, extraLine);
     }
 
     function getSAPreview(q, index) {
-      const scale = getPreviewScaleMeta();
-      const answerArea = state.showAnswers ? 
-        `<div class="mt-2 text-blue-600 font-medium italic">Answer: ${esc(q.answer) || 'No answer key provided.'}</div>` :
-        `<div class="mt-6 flex flex-col gap-8">
-          <div class="w-full border-b border-slate-400"></div>
-          <div class="w-full border-b border-slate-400"></div>
-          <div class="w-full border-b border-slate-400"></div>
-         </div>`;
+      const lineCount = Math.max(1, Math.min(10, parseInt(q.lines, 10) || 2));
+      const answerArea = state.showAnswers
+        ? `<div class="mt-2 text-blue-700 font-semibold italic">Answer: ${esc(q.answer) || 'No answer key provided.'}</div>`
+        : `<div class="mt-3 flex flex-col gap-5">${`<div class="w-full border-b border-slate-500 h-2"></div>`.repeat(lineCount)}</div>`;
 
-      return `
-        <div class="print-block ${scale.blockGap}">
-          <div class="flex gap-2">
-            <span class="font-bold">${index}.</span>
-            <div class="flex-1 w-full">
-              <div class="flex justify-between items-baseline gap-4">
-                ${getQuestionText(q.text)}
-                <span class="text-sm font-semibold text-gray-500 shrink-0 print:text-black">${fmtPreviewScore(q.points)}</span>
-              </div>
-              ${getQuestionImagePreviewHTML(q)}
-              ${answerArea}
-            </div>
-          </div>
-        </div>
-      `;
+      return wrapPreviewQuestionBlock(index, q, getQuestionText(q.text), answerArea);
     }
 
     function getTFPreview(q, index) {
-      const scale = getPreviewScaleMeta();
-      const trueCls = (state.showAnswers && q.isTrue) ? 'border-blue-600 text-blue-700 bg-blue-50' : 'border-transparent';
-      const falseCls = (state.showAnswers && !q.isTrue) ? 'border-blue-600 text-blue-700 bg-blue-50' : 'border-transparent';
+      const labelsMap = {
+        tf: ['True', 'False'],
+        yn: ['Yes', 'No'],
+        ci: ['Correct', 'Incorrect']
+      };
+      const [posLbl, negLbl] = labelsMap[q.tfStyle] || labelsMap.tf;
+      const trueCls = (state.showAnswers && q.isTrue) ? 'border-blue-600 text-blue-700 bg-blue-50 font-bold' : 'border-slate-300 text-slate-700';
+      const falseCls = (state.showAnswers && !q.isTrue) ? 'border-blue-600 text-blue-700 bg-blue-50 font-bold' : 'border-slate-300 text-slate-700';
 
-      return `
-        <div class="print-block ${scale.blockGap}">
-          <div class="flex gap-2">
-            <span class="font-bold">${index}.</span>
-            <div class="flex-1">
-              <div class="flex justify-between items-baseline gap-4">
-                ${getQuestionText(q.text)}
-                <span class="text-sm font-semibold text-gray-500 shrink-0 print:text-black">${fmtPreviewScore(q.points)}</span>
-              </div>
-              ${getQuestionImagePreviewHTML(q)}
-              <div class="flex gap-6 mt-3 font-semibold text-slate-700">
-                <span class="px-3 py-1 rounded-full border-2 ${trueCls}">True</span>
-                <span class="px-3 py-1 rounded-full border-2 ${falseCls}">False</span>
-              </div>
-            </div>
-          </div>
+      const bodyHtml = `
+        <div class="flex flex-wrap gap-3 mt-2 text-sm font-semibold">
+          <span class="px-3.5 py-0.5 rounded-full border-2 ${trueCls}">${posLbl}</span>
+          <span class="px-3.5 py-0.5 rounded-full border-2 ${falseCls}">${negLbl}</span>
         </div>
+        ${q.requireCorrection ? `
+          <div class="mt-2.5 flex items-end gap-2 text-xs text-slate-600 font-medium">
+            <span class="shrink-0">If ${negLbl}, correction:</span>
+            <div class="flex-1 border-b border-slate-500 h-4"></div>
+          </div>
+        ` : ''}
       `;
+      return wrapPreviewQuestionBlock(index, q, getQuestionText(q.text), bodyHtml);
     }
 
     function getMatchingPreview(q, index) {
-      const scale = getPreviewScaleMeta();
-      // Stable shuffle right items based on ID (safe for missing/non-string legacy IDs)
       const rightItems = [...(q.pairs || [])].sort((a, b) => String(a && a.id || '').localeCompare(String(b && b.id || '')));
       const labels = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
       const rightItemsWithLabels = rightItems.map((item, i) => ({ ...item, label: labels[i % labels.length] }));
+      const isLineMatch = q.matchStyle === 'lines';
 
-      return `
-        <div class="print-block ${scale.blockGap}">
-          <div class="flex gap-2">
-            <span class="font-bold">${index}.</span>
-            <div class="flex-1 w-full">
-              <div class="flex justify-between items-baseline gap-4">
-                ${getQuestionText(q.text || 'Match the following items:')}
-                <span class="text-sm font-semibold text-gray-500 shrink-0 print:text-black">${fmtPreviewScore(q.points)}</span>
-              </div>
-              ${getQuestionImagePreviewHTML(q)}
-              <div class="flex gap-8 w-full mt-4">
-                <div class="flex-1 flex flex-col gap-4 border-r border-slate-200 pr-4">
-                  ${(q.pairs || []).map((pair, idx) => {
-                    const correctRight = rightItemsWithLabels.find(r => r.id === pair.id);
-                    const leftImg = getWsImageSrc(pair.leftImageId);
-                    return `
-                      <div class="flex items-center justify-between gap-2">
-                        <div class="flex items-center gap-2">
-                          <span>${idx + 1}.</span>
-                          ${leftImg ? `<img src="${esc(leftImg)}" alt="" class="max-h-20 max-w-[140px] object-contain rounded border border-slate-200 bg-white p-1" />` : ''}
-                          ${pair.left ? `<span>${esc(pair.left)}</span>` : ''}
-                        </div>
-                        <span class="w-10 border-b border-slate-800 text-center inline-block ml-4 h-6 relative top-1 shrink-0">
-                          ${state.showAnswers ? `<span class="text-blue-600 font-bold leading-none">${correctRight?.label || ''}</span>` : ''}
-                        </span>
-                      </div>
-                    `;
-                  }).join('')}
+      const bodyHtml = `
+        <div class="flex gap-6 sm:gap-10 w-full mt-3">
+          <div class="flex-1 flex flex-col gap-3.5 ${isLineMatch ? 'pr-2' : 'border-r border-slate-200 pr-4'}">
+            ${(q.pairs || []).map((pair, idx) => {
+              const correctRight = rightItemsWithLabels.find(r => r.id === pair.id);
+              const leftImg = getWsImageSrc(pair.leftImageId);
+              return `
+                <div class="flex items-center justify-between gap-2">
+                  <div class="flex items-center gap-2 min-w-0">
+                    <span class="font-semibold">${idx + 1}.</span>
+                    ${leftImg ? `<img src="${esc(leftImg)}" alt="" class="max-h-16 max-w-[120px] object-contain rounded border border-slate-200 bg-white p-0.5" />` : ''}
+                    ${pair.left ? `<span class="break-words">${esc(pair.left)}</span>` : ''}
+                  </div>
+                  ${isLineMatch ? `
+                    <div class="flex items-center gap-1.5 shrink-0">
+                      ${state.showAnswers ? `<span class="text-xs text-blue-700 font-bold">[→ ${correctRight?.label || ''}]</span>` : ''}
+                      <span class="w-3 h-3 rounded-full border-2 border-slate-800 inline-block bg-white"></span>
+                    </div>
+                  ` : `
+                    <span class="w-10 border-b border-slate-800 text-center inline-block ml-3 h-5 shrink-0">
+                      ${state.showAnswers ? `<span class="text-blue-700 font-bold text-sm leading-none">${correctRight?.label || ''}</span>` : ''}
+                    </span>
+                  `}
                 </div>
-                <div class="flex-1 flex flex-col gap-4">
-                  ${rightItemsWithLabels.map(item => {
-                    const rightImg = getWsImageSrc(item.rightImageId);
-                    return `
-                      <div class="flex items-center gap-2">
-                        <span class="font-semibold">${item.label}.</span>
-                        ${rightImg ? `<img src="${esc(rightImg)}" alt="" class="max-h-20 max-w-[140px] object-contain rounded border border-slate-200 bg-white p-1" />` : ''}
-                        ${item.right ? `<span>${esc(item.right)}</span>` : ''}
-                      </div>
-                    `;
-                  }).join('')}
-                </div>
-              </div>
-            </div>
+              `;
+            }).join('')}
           </div>
+          <div class="flex-1 flex flex-col gap-3.5">
+            ${rightItemsWithLabels.map(item => {
+              const rightImg = getWsImageSrc(item.rightImageId);
+              return `
+                <div class="flex items-center gap-2.5 min-w-0">
+                  ${isLineMatch ? `<span class="w-3 h-3 rounded-full border-2 border-slate-800 inline-block bg-white shrink-0"></span>` : ''}
+                  <span class="font-semibold shrink-0">${item.label}.</span>
+                  ${rightImg ? `<img src="${esc(rightImg)}" alt="" class="max-h-16 max-w-[120px] object-contain rounded border border-slate-200 bg-white p-0.5" />` : ''}
+                  ${item.right ? `<span class="break-words">${esc(item.right)}</span>` : ''}
+                </div>
+              `;
+            }).join('')}
+          </div>
+        </div>
+      `;
+      return wrapPreviewQuestionBlock(index, q, getQuestionText(q.text || 'Match the following items:'), bodyHtml);
+    }
+
+    function getEssayPreview(q, index) {
+      const count = Math.max(1, parseInt(q.lines, 10) || 5);
+      const style = q.lineStyle || 'ruled';
+      let surfaceHtml = '';
+
+      if (state.showAnswers) {
+        surfaceHtml = `
+          <div class="mt-3 border border-blue-200 bg-blue-50 text-blue-800 p-3.5 rounded-lg text-sm whitespace-pre-wrap">
+            <strong class="block mb-1 text-blue-900 uppercase text-xs tracking-wider">Teacher Rubric / Expected Elements:</strong>
+            ${esc(q.answer) || 'No rubric provided.'}
+          </div>
+        `;
+      } else if (style === 'primary') {
+        const band = `
+          <div class="w-full relative" style="height:30px; border-top:1px solid #94a3b8; border-bottom:1.5px solid #475569;">
+            <div style="position:absolute; left:0; right:0; top:50%; border-top:1px dashed #cbd5e1;"></div>
+          </div>
+        `;
+        surfaceHtml = `<div class="mt-3 flex flex-col gap-2.5 w-full">${band.repeat(count)}</div>`;
+      } else if (style === 'box') {
+        const h = Math.max(76, count * 26);
+        surfaceHtml = `<div class="mt-3 w-full rounded-lg border-2 border-slate-500 bg-white" style="height:${h}px"></div>`;
+      } else if (style === 'grid') {
+        const h = Math.max(96, count * 26);
+        surfaceHtml = `<div class="mt-3 w-full rounded-lg border-2 border-slate-500" style="height:${h}px; background-color:#ffffff; background-image:linear-gradient(to right,#cbd5e1 1px,transparent 1px),linear-gradient(to bottom,#cbd5e1 1px,transparent 1px); background-size:20px 20px;"></div>`;
+      } else {
+        const lineHtml = `<div class="w-full border-b border-slate-400 h-2"></div>`.repeat(count);
+        surfaceHtml = `<div class="mt-4 flex flex-col gap-5 w-full">${lineHtml}</div>`;
+      }
+
+      return wrapPreviewQuestionBlock(index, q, getQuestionText(q.text), surfaceHtml);
+    }
+
+    function getSectionPreview(q) {
+      const look = getWorksheetLookStyles();
+      const spanCls = look.isTwoCol ? 'col-span-full' : '';
+      let frameStyle = `border-bottom: 2.5px solid ${look.accent.hex}; padding: 8px 4px;`;
+      if (look.theme === 'neo') {
+        frameStyle = `border: 2px solid #0f172a; background: ${look.accent.soft}; border-radius: 10px; padding: 10px 14px; box-shadow: 0 3px 0 #0f172a;`;
+      } else if (look.theme === 'modern') {
+        frameStyle = `border-left: 5px solid ${look.accent.hex}; background: ${look.accent.soft}; border-radius: 0 8px 8px 0; padding: 10px 14px;`;
+      } else if (look.theme === 'kids') {
+        frameStyle = `border: 2px dashed ${look.accent.hex}; background: ${look.accent.soft}; border-radius: 14px; padding: 10px 16px;`;
+      } else if (look.theme === 'exam') {
+        frameStyle = 'border-top: 2px solid #0f172a; border-bottom: 1.5px solid #0f172a; background: #f1f5f9; padding: 8px 12px;';
+      }
+      return `
+        <div class="print-block ${spanCls} mt-2 mb-3" style="${frameStyle}">
+          <div class="font-extrabold text-lg tracking-wide uppercase" style="color:${look.accent.dark}">${esc(q.text || 'SECTION')}</div>
+          ${q.subtitle ? `<div class="text-sm text-slate-600 mt-0.5 font-medium">${esc(q.subtitle)}</div>` : ''}
+          ${getQuestionImagePreviewHTML(q)}
         </div>
       `;
     }
 
-    function getEssayPreview(q, index) {
-      const scale = getPreviewScaleMeta();
-      const lineHtml = `<div class="w-full border-b border-slate-400"></div>`.repeat(Math.max(1, q.lines));
-      const answerArea = state.showAnswers ? `
-        <div class="mt-4 border border-blue-200 bg-blue-50 text-blue-800 p-4 rounded-md text-sm whitespace-pre-wrap">
-          <strong class="block mb-2 text-blue-900 uppercase text-xs tracking-wider">Teacher Rubric / Expected Elements:</strong>
-          ${esc(q.answer) || 'No rubric provided.'}
-        </div>
-      ` : `<div class="mt-8 flex flex-col gap-8 w-full">${lineHtml}</div>`;
+    function getPassagePreview(q) {
+      const look = getWorksheetLookStyles();
+      const spanCls = look.isTwoCol ? 'col-span-full' : '';
+      const style = q.boxStyle || 'card';
+      const lines = String(q.text || '').split(/\r?\n/);
+
+      const bodyLines = q.showLineNumbers
+        ? lines.map((ln, idx) => `<div class="flex gap-3"><span class="text-xs text-slate-400 font-mono w-5 text-right shrink-0 select-none pt-0.5">${idx + 1}</span><span class="flex-1 whitespace-pre-wrap">${esc(ln) || '&nbsp;'}</span></div>`).join('')
+        : `<div class="whitespace-pre-wrap leading-relaxed">${esc(q.text)}</div>`;
+
+      let boxStyleCss = 'border: 1.5px solid #94a3b8; border-radius: 12px; background: #f8fafc; padding: 14px 16px;';
+      if (style === 'grammar') {
+        boxStyleCss = `border: 2px solid ${look.accent.hex}; border-radius: 12px; background: ${look.accent.soft}; padding: 14px 16px;`;
+      } else if (style === 'dialogue') {
+        boxStyleCss = `border-left: 4px solid ${look.accent.hex}; background: #f8fafc; border-radius: 0 10px 10px 0; padding: 12px 16px;`;
+      } else if (style === 'plain') {
+        boxStyleCss = 'border-top: 1.5px solid #94a3b8; border-bottom: 1.5px solid #94a3b8; padding: 12px 6px;';
+      }
 
       return `
-        <div class="print-block ${scale.blockGap}">
-          <div class="flex gap-2">
-            <span class="font-bold">${index}.</span>
-            <div class="flex-1 w-full">
-              <div class="flex justify-between items-baseline gap-4">
-                ${getQuestionText(q.text)}
-                <span class="text-sm font-semibold text-gray-500 shrink-0 print:text-black">${fmtPreviewScore(q.points)}</span>
-              </div>
-              ${getQuestionImagePreviewHTML(q)}
-              ${answerArea}
-            </div>
-          </div>
+        <div class="print-block ${spanCls} ${look.scale.blockGap}" style="${boxStyleCss}">
+          ${q.title ? `<div class="text-xs font-extrabold uppercase tracking-wider mb-2 pb-1.5 border-b border-slate-300/80" style="color:${look.accent.dark}">${esc(q.title)}</div>` : ''}
+          <div class="${look.scale.text} text-slate-800">${bodyLines}</div>
+          ${getQuestionImagePreviewHTML(q)}
         </div>
       `;
+    }
+
+    function getUnscramblePreview(q, index) {
+      const look = getWorksheetLookStyles();
+      const rowsHtml = (q.items || []).map((it, idx) => {
+        const subLbl = String.fromCharCode(97 + (idx % 26));
+        return `
+          <div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 py-1.5">
+            <div class="flex items-center flex-wrap gap-2 min-w-0">
+              <span class="font-bold text-slate-700 text-sm">${subLbl}.</span>
+              <span class="font-mono font-bold text-sm px-2.5 py-0.5 rounded-lg border border-slate-300 bg-slate-50 text-slate-900">${esc(it.scrambled || '...')}</span>
+              ${it.hint ? `<span class="text-xs italic text-slate-500">(${esc(it.hint)})</span>` : ''}
+            </div>
+            <div class="flex-1 min-w-[140px] border-b-2 border-slate-700 h-6 flex items-end pb-0.5">
+              ${state.showAnswers ? `<span class="text-sm font-bold" style="color:${look.accent.dark}">${esc(it.answer)}</span>` : ''}
+            </div>
+          </div>
+        `;
+      }).join('');
+      return wrapPreviewQuestionBlock(index, q, getQuestionText(q.text || 'Unscramble the words:'), `<div class="space-y-1 mt-1">${rowsHtml}</div>`);
+    }
+
+    function getSortPreview(q, index) {
+      const look = getWorksheetLookStyles();
+      const cats = Array.isArray(q.categories) ? q.categories : [];
+      const colCount = Math.min(4, Math.max(2, cats.length));
+      const pool = [];
+      cats.forEach(cat => {
+        String(cat.items || '').split(',').map(s => s.trim()).filter(Boolean).forEach(item => pool.push(item));
+      });
+      pool.sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
+
+      const poolHtml = pool.length > 0 ? `
+        <div class="mb-3 p-2.5 rounded-lg border border-dashed flex flex-wrap gap-1.5 items-center" style="border-color:${look.accent.hex}; background:${look.accent.soft}">
+          <span class="text-[11px] font-extrabold uppercase tracking-wider mr-1" style="color:${look.accent.dark}">Pool:</span>
+          ${pool.map(w => `<span class="px-2 py-0.5 bg-white border border-slate-400 rounded text-xs font-semibold text-slate-900">${esc(w)}</span>`).join('')}
+        </div>
+      ` : '';
+
+      const gridHtml = `
+        ${poolHtml}
+        <div class="grid gap-0 border-2 border-slate-800 rounded-lg overflow-hidden mt-2" style="grid-template-columns: repeat(${colCount}, minmax(0, 1fr));">
+          ${cats.map((cat, idx) => {
+            const catItems = String(cat.items || '').split(',').map(s => s.trim()).filter(Boolean);
+            const rowCount = Math.max(3, catItems.length);
+            return `
+              <div class="${idx < cats.length - 1 ? 'border-r border-slate-800' : ''} flex flex-col">
+                <div class="px-2.5 py-2 text-center font-extrabold text-sm border-b-2 border-slate-800" style="background:${look.accent.soft}; color:${look.accent.dark}">${esc(cat.title || `Category ${idx + 1}`)}</div>
+                <div class="p-2.5 flex-1 flex flex-col justify-between gap-4 bg-white min-h-[110px]">
+                  ${state.showAnswers
+                    ? `<div class="text-sm font-semibold text-blue-700 space-y-1">${catItems.map(w => `<div>• ${esc(w)}</div>`).join('') || '<span class="italic text-slate-400">—</span>'}</div>`
+                    : `<div class="w-full border-b border-slate-300 h-4"></div>`.repeat(rowCount)}
+                </div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      `;
+      return wrapPreviewQuestionBlock(index, q, getQuestionText(q.text || 'Sort the items into the categories:'), gridHtml);
+    }
+
+    function getDrawingPreview(q, index) {
+      const hMap = { sm: 110, md: 185, lg: 265 };
+      const h = hMap[q.boxHeight] || 185;
+      const style = q.boxStyle || 'blank';
+      let canvasBg = 'background:#ffffff;';
+      if (style === 'dots') {
+        canvasBg = 'background-color:#ffffff; background-image:radial-gradient(#94a3b8 1.25px, transparent 1.25px); background-size:16px 16px;';
+      } else if (style === 'grid') {
+        canvasBg = 'background-color:#ffffff; background-image:linear-gradient(to right,#e2e8f0 1px,transparent 1px),linear-gradient(to bottom,#e2e8f0 1px,transparent 1px); background-size:18px 18px;';
+      }
+      const splitInner = style === 'split'
+        ? `<div class="w-full h-full grid grid-cols-2"><div class="border-r-2 border-dashed border-slate-400 h-full"></div><div class="h-full"></div></div>`
+        : '';
+      const capCount = Math.max(0, Math.min(6, parseInt(q.captionLines, 10) || 0));
+      const captionHtml = capCount > 0
+        ? `<div class="mt-3 flex flex-col gap-5">${`<div class="w-full border-b border-slate-500 h-2"></div>`.repeat(capCount)}</div>`
+        : '';
+      const keyNote = (state.showAnswers && q.answer)
+        ? `<div class="mt-2 text-xs font-semibold text-blue-700 bg-blue-50 border border-blue-200 rounded px-2.5 py-1.5">Key / Labels: ${esc(q.answer)}</div>`
+        : '';
+
+      const bodyHtml = `
+        <div class="mt-2 w-full rounded-xl border-2 border-slate-700 overflow-hidden" style="height:${h}px; ${canvasBg}">${splitInner}</div>
+        ${keyNote}
+        ${captionHtml}
+      `;
+      return wrapPreviewQuestionBlock(index, q, getQuestionText(q.text || 'Draw and label below:'), bodyHtml);
+    }
+
+    function getChecklistPreview(q, index) {
+      const style = q.checkStyle || 'box';
+      const renderMarker = () => {
+        if (style === 'yn') {
+          return `<span class="text-xs font-semibold text-slate-600 whitespace-nowrap border border-slate-400 rounded px-2 py-0.5">Yes / No</span>`;
+        }
+        if (style === 'stars') {
+          return `<span class="text-sm tracking-widest text-slate-600 whitespace-nowrap">☆ ☆ ☆</span>`;
+        }
+        if (style === 'faces') {
+          return `
+            <span class="inline-flex items-center gap-1.5 text-slate-600 shrink-0" aria-hidden="true">
+              <span class="w-4 h-4 rounded-full border border-slate-600 inline-flex items-center justify-center text-[9px] font-bold">☺</span>
+              <span class="w-4 h-4 rounded-full border border-slate-600 inline-flex items-center justify-center text-[9px] font-bold">·</span>
+              <span class="w-4 h-4 rounded-full border border-slate-600 inline-flex items-center justify-center text-[9px] font-bold">☹</span>
+            </span>
+          `;
+        }
+        return `<span class="w-4 h-4 rounded border-2 border-slate-700 inline-block shrink-0 bg-white"></span>`;
+      };
+
+      const rowsHtml = `
+        <div class="mt-2 divide-y divide-slate-200 border border-slate-300 rounded-lg bg-white overflow-hidden">
+          ${(q.items || []).map(it => `
+            <div class="flex items-center justify-between gap-3 px-3 py-2 text-sm text-slate-800">
+              <span class="flex-1">${esc(it.text)}</span>
+              ${renderMarker()}
+            </div>
+          `).join('')}
+        </div>
+      `;
+      return wrapPreviewQuestionBlock(index, q, getQuestionText(q.text || 'Checklist:'), rowsHtml);
     }
 
     // --- Zoom & Sidebar UI State ---
@@ -2175,9 +2847,33 @@
         sa: 'text-blue bg-blue/10 border-blue/30',
         tf: 'text-green bg-green/10 border-green/30',
         matching: 'text-indigo-500 bg-indigo-500/10 border-indigo-500/30',
-        essay: 'text-purple-500 bg-purple-500/10 border-purple-500/30'
+        essay: 'text-purple-500 bg-purple-500/10 border-purple-500/30',
+        unscramble: 'text-amber-600 bg-amber-500/10 border-amber-500/30',
+        sort: 'text-teal-600 bg-teal-500/10 border-teal-500/30',
+        drawing: 'text-rose-500 bg-rose-500/10 border-rose-500/30',
+        checklist: 'text-emerald-600 bg-emerald-500/10 border-emerald-500/30',
+        passage: 'text-sky-600 bg-sky-500/10 border-sky-500/30',
+        section: 'text-slate-700 bg-slate-500/15 border-slate-500/30 dark:text-slate-200'
       };
       return map[type] || map.sa;
+    }
+
+    function getModuleButtonsByGroup(groups, layout = 'sidebar') {
+      const items = Object.values(QUESTION_TYPES).filter(t => groups.includes(t.group));
+      if (layout === 'tray') {
+        return items.map(t => `
+          <button type="button" data-action="add-question" data-type="${t.id}" class="btn-chunky bg-white dark:bg-slate-700 hover:bg-slate-50 dark:hover:bg-slate-600 text-dark dark:text-white px-3 py-1.5 rounded-xl text-xs flex items-center gap-1.5">
+            <i data-lucide="${t.icon}" class="w-3.5 h-3.5 text-blue"></i>
+            <span>${t.label}</span>
+          </button>
+        `).join('');
+      }
+      return items.map(t => `
+        <button type="button" data-action="add-question" data-type="${t.id}" class="btn-chunky bg-white dark:bg-slate-700 hover:bg-slate-50 dark:hover:bg-slate-600 text-dark dark:text-white py-2 px-2 rounded-xl text-[10px] flex items-center justify-start gap-1.5 text-left">
+          <i data-lucide="${t.icon}" class="w-3.5 h-3.5 text-blue shrink-0"></i>
+          <span class="truncate">${t.label}</span>
+        </button>
+      `).join('');
     }
 
     function getSidebarHTML() {
@@ -2266,22 +2962,26 @@
               </div>
             </section>
 
-            <!-- Quick Add Question -->
-            <section class="border-t-2 border-slate-100 dark:border-slate-700 pt-4">
-              <label class="section-label">Add Question Block</label>
-              <div class="grid grid-cols-2 gap-1.5">
-                ${Object.values(QUESTION_TYPES).map(t => `
-                  <button type="button" data-action="add-question" data-type="${t.id}" class="btn-chunky bg-white dark:bg-slate-700 hover:bg-slate-50 dark:hover:bg-slate-600 text-dark dark:text-white py-2 px-2 rounded-xl text-[10px] flex items-center justify-start gap-1.5 text-left">
-                    <i data-lucide="${t.icon}" class="w-3.5 h-3.5 text-blue shrink-0"></i>
-                    <span class="truncate">${t.label}</span>
-                  </button>
-                `).join('')}
+            <!-- Quick Add Modules (Questions + Activities & Layout) -->
+            <section class="border-t-2 border-slate-100 dark:border-slate-700 pt-4 space-y-3">
+              <div>
+                <label class="section-label">Questions</label>
+                <div class="grid grid-cols-2 gap-1.5">
+                  ${getModuleButtonsByGroup(['question'], 'sidebar')}
+                </div>
+              </div>
+              <div>
+                <label class="section-label">Activities &amp; Layout</label>
+                <div class="grid grid-cols-2 gap-1.5">
+                  ${getModuleButtonsByGroup(['activity', 'layout'], 'sidebar')}
+                </div>
               </div>
             </section>
 
-            <!-- Worksheet Details & Print Settings -->
-            <section class="border-t-2 border-slate-100 dark:border-slate-700 pt-4 space-y-3">
-              <label class="section-label">Worksheet Header &amp; Print</label>
+            <!-- Worksheet Look & Style Customizer -->
+            <section class="border-t-2 border-slate-100 dark:border-slate-700 pt-4 space-y-3.5">
+              <label class="section-label">Worksheet Look &amp; Style</label>
+
               <div>
                 <span class="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Title</span>
                 <input type="text" data-action="update-ws-title" value="${esc(state.worksheet.title)}" placeholder="Worksheet Title" class="input-chunky py-2 px-3 text-xs">
@@ -2290,14 +2990,90 @@
                 <span class="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Instructions</span>
                 <textarea data-action="update-ws-inst" rows="2" placeholder="Student instructions..." class="input-chunky py-2 px-3 text-xs resize-none">${esc(state.worksheet.instructions)}</textarea>
               </div>
+
+              <!-- Sheet Visual Theme -->
               <div>
-                <span class="text-[10px] font-bold text-slate-400 uppercase mb-1.5 block">Print Text Scale</span>
-                <select data-action="update-ws-setting" data-setting="fontSize" class="input-chunky py-2 px-3 text-xs cursor-pointer">
-                  <option value="sm" ${settings.fontSize === 'sm' ? 'selected' : ''}>Compact (Fits More)</option>
-                  <option value="md" ${settings.fontSize === 'md' ? 'selected' : ''}>Standard A4</option>
-                  <option value="lg" ${settings.fontSize === 'lg' ? 'selected' : ''}>Large (Primary)</option>
-                </select>
+                <span class="text-[10px] font-bold text-slate-400 uppercase mb-1.5 block">Sheet Theme</span>
+                <div class="grid grid-cols-2 gap-1.5">
+                  ${Object.values(WS_LOOK_THEMES).map(t => {
+                    const active = settings.theme === t.id;
+                    return `
+                      <button type="button" data-action="set-ws-look" data-setting="theme" data-val="${t.id}"
+                        class="text-left p-2 rounded-xl border-2 transition-all ${active ? 'border-brand-blue bg-brand-blue/10 dark:bg-brand-blue/20 shadow-hard-sm' : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:border-brand-dark dark:hover:border-slate-500'}">
+                        <div class="text-[11px] font-heading font-bold uppercase ${active ? 'text-brand-blue dark:text-blue-300' : 'text-dark dark:text-white'}">${t.label}</div>
+                        <div class="text-[9px] text-slate-400 truncate">${t.desc}</div>
+                      </button>
+                    `;
+                  }).join('')}
+                </div>
               </div>
+
+              <!-- Accent Palette -->
+              <div>
+                <span class="text-[10px] font-bold text-slate-400 uppercase mb-1.5 block">Accent Color</span>
+                <div class="flex items-center justify-between gap-1.5 bg-slate-50 dark:bg-slate-900/70 p-2 rounded-xl border-2 border-slate-200 dark:border-slate-700">
+                  ${Object.values(WS_ACCENTS).map(a => {
+                    const active = settings.accentColor === a.id;
+                    return `
+                      <button type="button" data-action="set-ws-look" data-setting="accentColor" data-val="${a.id}" title="${a.label}" aria-label="Accent color ${a.label}"
+                        class="w-7 h-7 rounded-full border-2 border-brand-dark dark:border-slate-300 transition-transform ${active ? 'scale-110 ring-2 ring-brand-blue ring-offset-2 dark:ring-offset-slate-900' : 'opacity-80 hover:opacity-100 hover:scale-105'}"
+                        style="background:${a.hex};">
+                      </button>
+                    `;
+                  }).join('')}
+                </div>
+              </div>
+
+              <!-- Typography, Header Banner, Border, Columns -->
+              <div class="grid grid-cols-2 gap-2">
+                <div>
+                  <span class="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Font Style</span>
+                  <select data-action="update-ws-setting" data-setting="fontFamily" class="input-chunky py-1.5 px-2 text-xs cursor-pointer">
+                    <option value="sans" ${settings.fontFamily === 'sans' ? 'selected' : ''}>Nunito Sans</option>
+                    <option value="serif" ${settings.fontFamily === 'serif' ? 'selected' : ''}>Classic Serif</option>
+                    <option value="rounded" ${settings.fontFamily === 'rounded' ? 'selected' : ''}>Playful Rounded</option>
+                    <option value="mono" ${settings.fontFamily === 'mono' ? 'selected' : ''}>Monospace</option>
+                  </select>
+                </div>
+                <div>
+                  <span class="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Text Size</span>
+                  <select data-action="update-ws-setting" data-setting="fontSize" class="input-chunky py-1.5 px-2 text-xs cursor-pointer">
+                    <option value="sm" ${settings.fontSize === 'sm' ? 'selected' : ''}>Compact</option>
+                    <option value="md" ${settings.fontSize === 'md' ? 'selected' : ''}>Standard A4</option>
+                    <option value="lg" ${settings.fontSize === 'lg' ? 'selected' : ''}>Primary Large</option>
+                  </select>
+                </div>
+                <div>
+                  <span class="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Header Look</span>
+                  <select data-action="update-ws-setting" data-setting="headerStyle" class="input-chunky py-1.5 px-2 text-xs cursor-pointer">
+                    <option value="standard" ${settings.headerStyle === 'standard' ? 'selected' : ''}>Standard</option>
+                    <option value="boxed" ${settings.headerStyle === 'boxed' ? 'selected' : ''}>Boxed Frame</option>
+                    <option value="compact" ${settings.headerStyle === 'compact' ? 'selected' : ''}>Compact 1-Line</option>
+                    <option value="banner" ${settings.headerStyle === 'banner' ? 'selected' : ''}>Color Banner</option>
+                  </select>
+                </div>
+                <div>
+                  <span class="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Page Border</span>
+                  <select data-action="update-ws-setting" data-setting="pageBorder" class="input-chunky py-1.5 px-2 text-xs cursor-pointer">
+                    <option value="none" ${settings.pageBorder === 'none' ? 'selected' : ''}>No Frame</option>
+                    <option value="simple" ${settings.pageBorder === 'simple' ? 'selected' : ''}>Solid Frame</option>
+                    <option value="double" ${settings.pageBorder === 'double' ? 'selected' : ''}>Double Rule</option>
+                    <option value="dashed" ${settings.pageBorder === 'dashed' ? 'selected' : ''}>Dashed</option>
+                    <option value="neo" ${settings.pageBorder === 'neo' ? 'selected' : ''}>Neo Block</option>
+                  </select>
+                </div>
+              </div>
+
+              <!-- Question Columns Toggle -->
+              <div>
+                <span class="text-[10px] font-bold text-slate-400 uppercase mb-1.5 block">Question Columns</span>
+                <div class="grid grid-cols-2 gap-1.5">
+                  <button type="button" data-action="set-ws-look" data-setting="questionColumns" data-val="1" class="py-1.5 px-2 rounded-xl border-2 border-brand-dark dark:border-slate-500 text-[10px] font-heading font-bold uppercase ${Number(settings.questionColumns) !== 2 ? 'bg-brand-blue text-white shadow-hard-sm' : 'bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-300'}">1 Column</button>
+                  <button type="button" data-action="set-ws-look" data-setting="questionColumns" data-val="2" class="py-1.5 px-2 rounded-xl border-2 border-brand-dark dark:border-slate-500 text-[10px] font-heading font-bold uppercase ${Number(settings.questionColumns) === 2 ? 'bg-brand-blue text-white shadow-hard-sm' : 'bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-300'}">2 Columns</button>
+                </div>
+              </div>
+
+              <!-- Paper Options -->
               <div class="space-y-1.5 pt-1">
                 <label class="flex items-center gap-2 cursor-pointer text-xs font-bold text-slate-600 dark:text-slate-300">
                   <input type="checkbox" data-action="update-ws-setting" data-setting="showHeaderFields" ${settings.showHeaderFields ? 'checked' : ''} class="w-4 h-4 accent-blue cursor-pointer">
@@ -2307,10 +3083,21 @@
                   <input type="checkbox" data-action="update-ws-setting" data-setting="showTotalScore" ${settings.showTotalScore ? 'checked' : ''} class="w-4 h-4 accent-blue cursor-pointer">
                   <span>Show Total Score badge</span>
                 </label>
+                <label class="flex items-center gap-2 cursor-pointer text-xs font-bold text-slate-600 dark:text-slate-300">
+                  <input type="checkbox" data-action="update-ws-setting" data-setting="showPoints" ${settings.showPoints ? 'checked' : ''} class="w-4 h-4 accent-blue cursor-pointer">
+                  <span>Show per-question points</span>
+                </label>
                 <label class="flex items-center gap-2 cursor-pointer text-xs font-bold text-slate-600 dark:text-slate-300" title="Automatically list all Fill-in-the-Blank answers in a Word Bank at the top of the printout">
                   <input type="checkbox" data-action="update-ws-setting" data-setting="showWordBank" ${settings.showWordBank ? 'checked' : ''} class="w-4 h-4 accent-green cursor-pointer">
                   <span>Auto FIB Word Bank box</span>
                 </label>
+                <label class="flex items-center gap-2 cursor-pointer text-xs font-bold text-slate-600 dark:text-slate-300">
+                  <input type="checkbox" data-action="update-ws-setting" data-setting="showFooter" ${settings.showFooter ? 'checked' : ''} class="w-4 h-4 accent-purple cursor-pointer">
+                  <span>Custom bottom footer text</span>
+                </label>
+                <div class="${settings.showFooter ? 'block pt-1' : 'hidden'}">
+                  <input type="text" data-action="update-ws-setting" data-setting="footerText" value="${esc(settings.footerText)}" placeholder="e.g. Great effort! ★ ★ ★" class="input-chunky py-1.5 px-2.5 text-xs">
+                </div>
               </div>
             </section>
 
@@ -2365,57 +3152,162 @@
       `;
     }
 
-    function getA4SheetInnerHTML() {
-      const settings = getWorksheetSettings();
-      const scale = getPreviewScaleMeta();
-      const totalPts = getTotalPoints();
-      const qHtml = state.worksheet.questions.map((q, i) => {
-        if (q.type === 'mcq') return getMCQPreview(q, i + 1);
-        if (q.type === 'fib') return getFIBPreview(q, i + 1);
-        if (q.type === 'sa') return getSAPreview(q, i + 1);
-        if (q.type === 'tf') return getTFPreview(q, i + 1);
-        if (q.type === 'matching') return getMatchingPreview(q, i + 1);
-        if (q.type === 'essay') return getEssayPreview(q, i + 1);
-        return '';
-      }).join('');
+    function getPageFrameStyle(look) {
+      const borderMode = look.settings.pageBorder || 'none';
+      const fontRule = `font-family:${look.fontCss}; min-height:256mm; display:flex; flex-direction:column;`;
+      if (borderMode === 'simple') return `${fontRule} border:2px solid ${look.accent.hex}; border-radius:10px; padding:14px 16px;`;
+      if (borderMode === 'double') return `${fontRule} border:5px double ${look.accent.hex}; border-radius:8px; padding:14px 16px;`;
+      if (borderMode === 'dashed') return `${fontRule} border:2.5px dashed ${look.accent.hex}; border-radius:16px; padding:14px 16px;`;
+      if (borderMode === 'neo') return `${fontRule} border:3px solid #0f172a; border-radius:14px; padding:16px 18px; box-shadow:5px 5px 0 ${look.accent.hex};`;
+      return fontRule;
+    }
+
+    function getWorksheetHeaderHTML(look, totalPts) {
+      const s = look.settings;
+      const title = esc(state.worksheet.title) || 'Untitled Worksheet';
+      const hStyle = s.headerStyle || 'standard';
+      const scoreBadge = s.showTotalScore
+        ? `<span class="text-xs font-extrabold border px-2.5 py-0.5 rounded shrink-0" style="border-color:${look.accent.hex}; background:${look.accent.soft}; color:${look.accent.dark};">Total: ${totalPts} pts</span>`
+        : '';
+
+      if (hStyle === 'banner') {
+        return `
+          <div class="mb-5">
+            <div class="px-5 py-3.5 rounded-xl flex items-center justify-between gap-4 mb-3.5" style="background:${look.accent.hex}; color:#ffffff;">
+              <h1 class="text-2xl sm:text-3xl font-extrabold tracking-tight flex-1">${title}</h1>
+              ${s.showTotalScore ? `<span class="text-xs font-extrabold px-2.5 py-1 rounded-lg border border-white/60 bg-black/15 text-white shrink-0">Total: ${totalPts} pts</span>` : ''}
+            </div>
+            ${s.showHeaderFields ? `
+              <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm font-medium pb-2 border-b border-slate-300">
+                <div class="flex gap-1.5 sm:col-span-2"><span>Name:</span><div class="flex-1 border-b border-slate-700"></div></div>
+                <div class="flex gap-1.5"><span>Date:</span><div class="flex-1 border-b border-slate-700"></div></div>
+                <div class="flex gap-1.5 items-end"><span>Score:</span><div class="flex-1 border-b border-slate-700 text-right text-xs text-slate-600 print:text-black">${s.showTotalScore ? `/ ${totalPts}` : ''}</div></div>
+              </div>
+            ` : ''}
+          </div>
+        `;
+      }
+
+      if (hStyle === 'boxed') {
+        return `
+          <div class="mb-5 p-4 rounded-xl bg-white" style="border:2px solid ${look.theme === 'neo' ? '#0f172a' : look.accent.hex};">
+            <div class="flex items-baseline justify-between gap-4 ${s.showHeaderFields ? 'mb-3.5 pb-2.5 border-b border-slate-200' : ''}">
+              <h1 class="text-2xl sm:text-3xl font-extrabold flex-1 ${s.showHeaderFields ? 'text-center' : ''}" style="color:#0f172a;">${title}</h1>
+              ${!s.showHeaderFields ? scoreBadge : ''}
+            </div>
+            ${s.showHeaderFields ? `
+              <div class="grid grid-cols-2 gap-x-6 gap-y-3 text-sm font-medium">
+                <div class="flex gap-2"><span>Name:</span><div class="flex-1 border-b border-slate-700"></div></div>
+                <div class="flex gap-2"><span>Date:</span><div class="flex-1 border-b border-slate-700"></div></div>
+                <div class="flex gap-2"><span>Section:</span><div class="flex-1 border-b border-slate-700"></div></div>
+                <div class="flex gap-2 items-end"><span>Score:</span><div class="flex-1 border-b border-slate-700 text-right text-xs text-slate-600 print:text-black">${s.showTotalScore ? `/ ${totalPts}` : ''}</div></div>
+              </div>
+            ` : ''}
+          </div>
+        `;
+      }
+
+      if (hStyle === 'compact') {
+        return `
+          <div class="pb-3 mb-5" style="border-bottom:2px solid ${look.accent.hex};">
+            <div class="flex items-baseline justify-between gap-4 ${s.showHeaderFields ? 'mb-2.5' : ''}">
+              <h1 class="text-2xl font-extrabold flex-1">${title}</h1>
+              ${!s.showHeaderFields ? scoreBadge : ''}
+            </div>
+            ${s.showHeaderFields ? `
+              <div class="grid grid-cols-4 gap-3 text-xs sm:text-sm font-medium">
+                <div class="col-span-2 flex gap-1.5"><span>Name:</span><div class="flex-1 border-b border-slate-700"></div></div>
+                <div class="flex gap-1.5"><span>Date:</span><div class="flex-1 border-b border-slate-700"></div></div>
+                <div class="flex gap-1.5 items-end"><span>Score:</span><div class="flex-1 border-b border-slate-700 text-right text-xs text-slate-600 print:text-black">${s.showTotalScore ? `/ ${totalPts}` : ''}</div></div>
+              </div>
+            ` : ''}
+          </div>
+        `;
+      }
 
       return `
-        <div class="border-b-2 border-black pb-4 mb-6">
-          <div class="flex items-baseline justify-between gap-4 ${settings.showHeaderFields ? 'mb-6' : ''}">
-            <h1 class="text-3xl font-extrabold font-serif flex-1 ${settings.showHeaderFields ? 'text-center' : ''}">${esc(state.worksheet.title) || 'Untitled Worksheet'}</h1>
-            ${settings.showTotalScore && !settings.showHeaderFields ? `<span class="text-sm font-bold border border-black px-2.5 py-0.5 rounded shrink-0">Total: ${totalPts} pts</span>` : ''}
+        <div class="pb-4 mb-5" style="border-bottom:2.5px solid ${look.accent.hex};">
+          <div class="flex items-baseline justify-between gap-4 ${s.showHeaderFields ? 'mb-5' : ''}">
+            <h1 class="text-3xl font-extrabold flex-1 ${s.showHeaderFields ? 'text-center' : ''}">${title}</h1>
+            ${!s.showHeaderFields ? scoreBadge : ''}
           </div>
-          ${settings.showHeaderFields ? `
-            <div class="flex justify-between items-end mb-4 font-medium text-lg">
+          ${s.showHeaderFields ? `
+            <div class="flex justify-between items-end mb-3.5 font-medium text-base sm:text-lg">
               <div class="flex gap-2 w-1/2"><span>Name:</span><div class="flex-1 border-b border-black"></div></div>
               <div class="flex gap-2 w-1/4"><span>Date:</span><div class="flex-1 border-b border-black"></div></div>
             </div>
-            <div class="flex justify-between items-end font-medium text-lg">
+            <div class="flex justify-between items-end font-medium text-base sm:text-lg">
               <div class="flex gap-2 w-1/3"><span>Section:</span><div class="flex-1 border-b border-black"></div></div>
-              <div class="flex gap-2 w-1/3 items-end"><span>Score:</span><div class="flex-1 border-b border-black text-right text-sm text-gray-600 print:text-black">${settings.showTotalScore ? `/ ${totalPts}` : ''}</div></div>
+              <div class="flex gap-2 w-1/3 items-end"><span>Score:</span><div class="flex-1 border-b border-black text-right text-sm text-gray-600 print:text-black">${s.showTotalScore ? `/ ${totalPts}` : ''}</div></div>
             </div>
           ` : ''}
         </div>
+      `;
+    }
 
-        ${state.worksheet.instructions ? `
-          <div class="mb-7 p-4 bg-gray-50 border border-gray-300 italic text-gray-800 rounded">
-            <strong>Instructions:</strong> ${esc(state.worksheet.instructions)}
+    function getA4SheetInnerHTML() {
+      const look = getWorksheetLookStyles();
+      const settings = look.settings;
+      const scale = look.scale;
+      const totalPts = getTotalPoints();
+
+      const previewBuilders = {
+        mcq: getMCQPreview,
+        fib: getFIBPreview,
+        sa: getSAPreview,
+        tf: getTFPreview,
+        matching: getMatchingPreview,
+        essay: getEssayPreview,
+        unscramble: getUnscramblePreview,
+        sort: getSortPreview,
+        drawing: getDrawingPreview,
+        checklist: getChecklistPreview,
+        passage: (q) => getPassagePreview(q),
+        section: (q) => getSectionPreview(q)
+      };
+
+      let qNum = 0;
+      const qHtml = state.worksheet.questions.map((q) => {
+        const typeMeta = Object.values(QUESTION_TYPES).find(t => t.id === q.type);
+        if (!(typeMeta && typeMeta.nonNumbered)) qNum += 1;
+        const fn = previewBuilders[q.type];
+        return fn ? fn(q, qNum) : '';
+      }).join('');
+
+      const listLayoutCls = look.isTwoCol
+        ? 'grid grid-cols-1 sm:grid-cols-2 gap-4 items-start'
+        : '';
+
+      return `
+        <div id="ws-page-frame" style="${getPageFrameStyle(look)}">
+          ${getWorksheetHeaderHTML(look, totalPts)}
+
+          ${state.worksheet.instructions ? `
+            <div class="mb-6 p-3.5 italic text-slate-800 rounded-lg text-sm" style="background:${look.accent.soft}; border-left:4px solid ${look.accent.hex};">
+              <strong>Instructions:</strong> ${esc(state.worksheet.instructions)}
+            </div>
+          ` : ''}
+
+          ${getPreviewWordBankHTML()}
+
+          ${state.showAnswers ? `
+            <div class="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 opacity-5 pointer-events-none z-0 no-print">
+              <h1 class="text-[120px] font-black text-blue/30 -rotate-45 whitespace-nowrap">ANSWER KEY</h1>
+            </div>
+          ` : ''}
+
+          <div class="relative z-10 ${scale.wrapperText} ${listLayoutCls}">
+            ${qHtml}
           </div>
-        ` : ''}
 
-        ${getPreviewWordBankHTML()}
+          ${state.worksheet.questions.length === 0 ? '<div class="text-center py-20 text-gray-400 italic">No modules added yet. Add a question or layout block from the sidebar or Builder view.</div>' : ''}
 
-        ${state.showAnswers ? `
-          <div class="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 opacity-5 pointer-events-none z-0 no-print">
-            <h1 class="text-[120px] font-black text-blue/30 -rotate-45 whitespace-nowrap">ANSWER KEY</h1>
-          </div>
-        ` : ''}
-
-        <div class="relative z-10 ${scale.wrapperText}">
-          ${qHtml}
+          ${settings.showFooter && settings.footerText ? `
+            <div class="mt-auto pt-4 border-t border-slate-300 text-center text-xs font-semibold text-slate-600 tracking-wide">
+              ${esc(settings.footerText)}
+            </div>
+          ` : ''}
         </div>
-
-        ${state.worksheet.questions.length === 0 ? '<div class="text-center py-20 text-gray-400 italic">No questions added yet. Add a question from the sidebar or Builder view.</div>' : ''}
       `;
     }
 
@@ -2438,38 +3330,53 @@
       const isSplit = state.viewMode === 'split';
       const isPreview = state.viewMode === 'preview';
 
+      const editorBuilders = {
+        mcq: getMCQEditor,
+        fib: getFIBEditor,
+        sa: getSAEditor,
+        tf: getTFEditor,
+        matching: getMatchingEditor,
+        essay: getEssayEditor,
+        unscramble: getUnscrambleEditor,
+        sort: getSortEditor,
+        drawing: getDrawingEditor,
+        checklist: getChecklistEditor,
+        passage: getPassageEditor,
+        section: getSectionEditor
+      };
+
+      let builderQNum = 0;
       const qHtml = state.worksheet.questions.map((q, index) => {
         const typeInfo = Object.values(QUESTION_TYPES).find(t => t.id === q.type) || QUESTION_TYPES.SA;
-        let editorHtml = '';
-        if (q.type === 'mcq') editorHtml = getMCQEditor(q);
-        if (q.type === 'fib') editorHtml = getFIBEditor(q);
-        if (q.type === 'sa') editorHtml = getSAEditor(q);
-        if (q.type === 'tf') editorHtml = getTFEditor(q);
-        if (q.type === 'matching') editorHtml = getMatchingEditor(q);
-        if (q.type === 'essay') editorHtml = getEssayEditor(q);
+        const isLayoutBlock = q.type === 'section' || q.type === 'passage';
+        if (!typeInfo.nonNumbered) builderQNum += 1;
+        const badgeLbl = typeInfo.nonNumbered ? (q.type === 'section' ? 'SEC' : 'INFO') : `${builderQNum}`;
+        const editorHtml = (editorBuilders[q.type] || getSAEditor)(q);
 
         return `
           <div class="bg-white dark:bg-slate-800 rounded-2xl border-[3px] border-brand-dark dark:border-slate-600 shadow-neo dark:shadow-[4px_4px_0px_0px_#000000] overflow-hidden group animate-pop-in">
             <div class="bg-slate-50 dark:bg-slate-900/90 px-4 sm:px-5 py-3 flex flex-wrap items-center justify-between gap-2 border-b-[3px] border-brand-dark dark:border-slate-600">
               <div class="flex items-center gap-2 font-bold text-sm font-heading uppercase tracking-wide">
-                <span class="bg-brand-dark text-white dark:bg-slate-700 px-2.5 py-0.5 rounded-lg text-xs">${index + 1}</span>
+                <span class="bg-brand-dark text-white dark:bg-slate-700 px-2.5 py-0.5 rounded-lg text-xs">${badgeLbl}</span>
                 <span class="w-7 h-7 rounded-lg border flex items-center justify-center ${getQuestionCardTone(q.type)}">
                   <i data-lucide="${typeInfo.icon}" class="w-4 h-4"></i>
                 </span>
-                <select data-action="change-q-type" data-qid="${q.id}" aria-label="Question ${index + 1} type" class="bg-white dark:bg-slate-800 border-2 border-brand-dark/30 dark:border-slate-600 rounded-lg px-2 py-1 text-xs font-heading font-bold uppercase text-dark dark:text-white cursor-pointer focus:outline-none focus:border-blue">
+                <select data-action="change-q-type" data-qid="${q.id}" aria-label="Module ${index + 1} type" class="bg-white dark:bg-slate-800 border-2 border-brand-dark/30 dark:border-slate-600 rounded-lg px-2 py-1 text-xs font-heading font-bold uppercase text-dark dark:text-white cursor-pointer focus:outline-none focus:border-blue">
                   ${Object.values(QUESTION_TYPES).map(t => `<option value="${t.id}" ${t.id === q.type ? 'selected' : ''}>${t.label}</option>`).join('')}
                 </select>
               </div>
               <div class="flex items-center gap-1">
-                <div class="flex items-center mr-2 border-2 border-brand-dark dark:border-slate-500 rounded-lg overflow-hidden bg-white dark:bg-slate-800">
-                  <span class="px-2 text-[11px] text-slate-500 dark:text-slate-400 border-r-2 border-brand-dark dark:border-slate-500 bg-slate-50 dark:bg-slate-900 font-black">Pts</span>
-                  <input type="number" min="0" data-action="update-q-pts" data-qid="${q.id}" value="${q.points}" class="w-12 px-2 py-1 text-xs font-bold outline-none bg-transparent text-dark dark:text-white" />
-                </div>
-                <button type="button" data-action="duplicate-question" data-qid="${q.id}" title="Duplicate Question" class="p-1.5 text-slate-500 hover:text-blue dark:text-slate-400 dark:hover:text-blue hover:bg-blue/10 rounded-lg transition-all"><i data-lucide="copy" class="w-4 h-4"></i></button>
+                ${isLayoutBlock ? '' : `
+                  <div class="flex items-center mr-2 border-2 border-brand-dark dark:border-slate-500 rounded-lg overflow-hidden bg-white dark:bg-slate-800">
+                    <span class="px-2 text-[11px] text-slate-500 dark:text-slate-400 border-r-2 border-brand-dark dark:border-slate-500 bg-slate-50 dark:bg-slate-900 font-black">Pts</span>
+                    <input type="number" min="0" data-action="update-q-pts" data-qid="${q.id}" value="${q.points}" class="w-12 px-2 py-1 text-xs font-bold outline-none bg-transparent text-dark dark:text-white" />
+                  </div>
+                `}
+                <button type="button" data-action="duplicate-question" data-qid="${q.id}" title="Duplicate Module" class="p-1.5 text-slate-500 hover:text-blue dark:text-slate-400 dark:hover:text-blue hover:bg-blue/10 rounded-lg transition-all"><i data-lucide="copy" class="w-4 h-4"></i></button>
                 <button type="button" data-action="move-up" data-qid="${q.id}" ${index === 0 ? 'disabled' : ''} title="Move Up" class="p-1.5 text-slate-500 hover:text-dark dark:text-slate-400 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg disabled:opacity-30 transition-all"><i data-lucide="chevron-up" class="w-4 h-4"></i></button>
                 <button type="button" data-action="move-down" data-qid="${q.id}" ${index === state.worksheet.questions.length - 1 ? 'disabled' : ''} title="Move Down" class="p-1.5 text-slate-500 hover:text-dark dark:text-slate-400 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg disabled:opacity-30 transition-all"><i data-lucide="chevron-down" class="w-4 h-4"></i></button>
                 <div class="w-0.5 h-5 bg-slate-300 dark:bg-slate-700 mx-1 rounded-full"></div>
-                <button type="button" data-action="delete-question" data-qid="${q.id}" title="Delete Question" class="p-1.5 text-slate-400 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg transition-all"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                <button type="button" data-action="delete-question" data-qid="${q.id}" title="Delete Module" class="p-1.5 text-slate-400 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg transition-all"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
               </div>
             </div>
             <div class="p-4 sm:p-5">${editorHtml}</div>
@@ -2554,16 +3461,19 @@
               <div class="space-y-5">${qHtml}</div>
               ${emptyStateHtml}
 
-              <!-- Inline Add Question Tray -->
-              <div class="bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm rounded-2xl border-[3px] border-dashed border-brand-dark/50 dark:border-slate-600 p-4">
-                <span class="section-label text-center">Append New Question</span>
-                <div class="flex flex-wrap justify-center gap-2">
-                  ${Object.values(QUESTION_TYPES).map(t => `
-                    <button type="button" data-action="add-question" data-type="${t.id}" class="btn-chunky bg-white dark:bg-slate-700 hover:bg-slate-50 dark:hover:bg-slate-600 text-dark dark:text-white px-3.5 py-2 rounded-xl text-xs flex items-center gap-1.5">
-                      <i data-lucide="${t.icon}" class="w-4 h-4 text-blue"></i>
-                      <span>${t.label}</span>
-                    </button>
-                  `).join('')}
+              <!-- Inline Add Module Tray -->
+              <div class="bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm rounded-2xl border-[3px] border-dashed border-brand-dark/50 dark:border-slate-600 p-4 space-y-3">
+                <div>
+                  <span class="section-label text-center">Add Question Module</span>
+                  <div class="flex flex-wrap justify-center gap-2">
+                    ${getModuleButtonsByGroup(['question'], 'tray')}
+                  </div>
+                </div>
+                <div class="border-t border-slate-200 dark:border-slate-700 pt-2.5">
+                  <span class="section-label text-center">Add Activity or Layout Block</span>
+                  <div class="flex flex-wrap justify-center gap-2">
+                    ${getModuleButtonsByGroup(['activity', 'layout'], 'tray')}
+                  </div>
                 </div>
               </div>
             </div>
@@ -3175,6 +4085,9 @@
           if (other !== el) other.value = el.value;
         });
       }
+      if (action === 'update-ws-setting' && el.dataset.setting === 'footerText') {
+        getWorksheetSettings().footerText = el.value;
+      }
 
       const qid = el.dataset.qid;
       if (qid) {
@@ -3185,17 +4098,36 @@
           if (action === 'update-q-ans') q.answer = el.value;
           if (action === 'update-q-lines') q.lines = Math.max(1, parseInt(el.value, 10) || 1);
 
-          if (action === 'update-mcq-text') {
+          if (action === 'update-q-field') {
+            const field = el.dataset.field;
+            if (field === 'subtitle' || field === 'title') q[field] = el.value;
+          }
+
+          if (action === 'update-mcq-text' && Array.isArray(q.options)) {
             const opt = q.options.find(o => o.id === el.dataset.optid);
             if (opt) opt.text = el.value;
           }
-          if (action === 'update-match-left') {
+          if (action === 'update-match-left' && Array.isArray(q.pairs)) {
             const pair = q.pairs.find(p => p.id === el.dataset.pairid);
             if (pair) pair.left = el.value;
           }
-          if (action === 'update-match-right') {
+          if (action === 'update-match-right' && Array.isArray(q.pairs)) {
             const pair = q.pairs.find(p => p.id === el.dataset.pairid);
             if (pair) pair.right = el.value;
+          }
+          if (action === 'update-unscramble-field' && Array.isArray(q.items)) {
+            const field = el.dataset.field;
+            const item = q.items.find(it => it.id === el.dataset.itemid);
+            if (item && ['scrambled', 'answer', 'hint'].includes(field)) item[field] = el.value;
+          }
+          if (action === 'update-sort-field' && Array.isArray(q.categories)) {
+            const field = el.dataset.field;
+            const cat = q.categories.find(c => c.id === el.dataset.catid);
+            if (cat && (field === 'title' || field === 'items')) cat[field] = el.value;
+          }
+          if (action === 'update-checklist-item' && Array.isArray(q.items)) {
+            const item = q.items.find(it => it.id === el.dataset.itemid);
+            if (item) item.text = el.value;
           }
         }
       }
@@ -3221,8 +4153,52 @@
         const settings = getWorksheetSettings();
         if (key === 'fontSize' && ['sm', 'md', 'lg'].includes(el.value)) {
           settings.fontSize = el.value;
-        } else if (key === 'showHeaderFields' || key === 'showTotalScore' || key === 'showWordBank') {
+        } else if (key === 'fontFamily' && ['sans', 'serif', 'rounded', 'mono'].includes(el.value)) {
+          settings.fontFamily = el.value;
+        } else if (key === 'headerStyle' && ['standard', 'boxed', 'compact', 'banner'].includes(el.value)) {
+          settings.headerStyle = el.value;
+        } else if (key === 'pageBorder' && ['none', 'simple', 'double', 'dashed', 'neo'].includes(el.value)) {
+          settings.pageBorder = el.value;
+        } else if (['showHeaderFields', 'showTotalScore', 'showPoints', 'showWordBank'].includes(key)) {
           settings[key] = Boolean(el.checked);
+        } else if (key === 'showFooter') {
+          settings.showFooter = Boolean(el.checked);
+          saveState();
+          render();
+          return;
+        }
+        refreshLivePreview();
+        saveState();
+        return;
+      }
+      if (action === 'update-q-field' && q) {
+        const field = el.dataset.field;
+        if (field === 'optColumns' && ['auto', '1', '2', '4'].includes(el.value)) {
+          q.optColumns = el.value;
+        } else if (field === 'lines') {
+          q.lines = Math.max(1, Math.min(20, parseInt(el.value, 10) || 2));
+        } else if (field === 'tfStyle' && ['tf', 'yn', 'ci'].includes(el.value)) {
+          q.tfStyle = el.value;
+          saveState();
+          render();
+          return;
+        } else if (field === 'requireCorrection') {
+          q.requireCorrection = Boolean(el.checked);
+        } else if (field === 'matchStyle' && ['letters', 'lines'].includes(el.value)) {
+          q.matchStyle = el.value;
+        } else if (field === 'lineStyle' && ['ruled', 'primary', 'box', 'grid'].includes(el.value)) {
+          q.lineStyle = el.value;
+        } else if (field === 'boxStyle') {
+          if (q.type === 'passage' && ['card', 'plain', 'grammar', 'dialogue'].includes(el.value)) q.boxStyle = el.value;
+          if (q.type === 'drawing' && ['blank', 'dots', 'grid', 'split'].includes(el.value)) q.boxStyle = el.value;
+        } else if (field === 'showLineNumbers') {
+          q.showLineNumbers = Boolean(el.checked);
+        } else if (field === 'boxHeight' && ['sm', 'md', 'lg'].includes(el.value)) {
+          q.boxHeight = el.value;
+        } else if (field === 'captionLines') {
+          q.captionLines = Math.max(0, Math.min(6, parseInt(el.value, 10) || 0));
+        } else if (field === 'checkStyle' && ['box', 'yn', 'stars', 'faces'].includes(el.value)) {
+          q.checkStyle = el.value;
         }
         refreshLivePreview();
         saveState();
@@ -3258,6 +4234,81 @@
       const qid = btn.dataset.qid;
       
       switch (action) {
+        case 'set-ws-look': {
+          const key = btn.dataset.setting;
+          const val = btn.dataset.val;
+          const settings = getWorksheetSettings();
+          if (key === 'theme' && WS_LOOK_THEMES[val]) {
+            settings.theme = val;
+          } else if (key === 'accentColor' && WS_ACCENTS[val]) {
+            settings.accentColor = val;
+          } else if (key === 'questionColumns') {
+            settings.questionColumns = (val === '2') ? 2 : 1;
+          }
+          saveState();
+          render();
+          break;
+        }
+        case 'auto-scramble-items':
+          autoScrambleQuestion(qid);
+          break;
+        case 'add-unscramble-item': {
+          const qUns = state.worksheet.questions.find(q => q.id === qid);
+          if (qUns) {
+            if (!Array.isArray(qUns.items)) qUns.items = [];
+            qUns.items.push({ id: generateId(), scrambled: '', answer: '', hint: '' });
+            saveState();
+            render();
+          }
+          break;
+        }
+        case 'delete-unscramble-item': {
+          const qUns = state.worksheet.questions.find(q => q.id === qid);
+          if (qUns && Array.isArray(qUns.items)) {
+            qUns.items = qUns.items.filter(it => it.id !== btn.dataset.itemid);
+            saveState();
+            render();
+          }
+          break;
+        }
+        case 'add-sort-cat': {
+          const qSort = state.worksheet.questions.find(q => q.id === qid);
+          if (qSort) {
+            if (!Array.isArray(qSort.categories)) qSort.categories = [];
+            qSort.categories.push({ id: generateId(), title: `Category ${qSort.categories.length + 1}`, items: '' });
+            saveState();
+            render();
+          }
+          break;
+        }
+        case 'delete-sort-cat': {
+          const qSort = state.worksheet.questions.find(q => q.id === qid);
+          if (qSort && Array.isArray(qSort.categories)) {
+            qSort.categories = qSort.categories.filter(c => c.id !== btn.dataset.catid);
+            saveState();
+            render();
+          }
+          break;
+        }
+        case 'add-checklist-item': {
+          const qChk = state.worksheet.questions.find(q => q.id === qid);
+          if (qChk) {
+            if (!Array.isArray(qChk.items)) qChk.items = [];
+            qChk.items.push({ id: generateId(), text: '' });
+            saveState();
+            render();
+          }
+          break;
+        }
+        case 'delete-checklist-item': {
+          const qChk = state.worksheet.questions.find(q => q.id === qid);
+          if (qChk && Array.isArray(qChk.items)) {
+            qChk.items = qChk.items.filter(it => it.id !== btn.dataset.itemid);
+            saveState();
+            render();
+          }
+          break;
+        }
         case 'add-question':
           addQuestion(btn.dataset.type);
           break;
