@@ -1,0 +1,65 @@
+name: Supabase Backup to Cloudflare R2
+
+on:
+  schedule:
+    # Daily at 19:00 UTC (02:00 WIB / UTC+7)
+    - cron: '0 19 * * *'
+  workflow_dispatch:
+
+jobs:
+  backup:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4.2.2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4.4.0
+        with:
+          node-version: 24
+
+      - name: Install PostgreSQL 17 client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-common
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
+          sudo apt-get install -y postgresql-client-17
+
+      - name: Dump Supabase Postgres database
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          set -euo pipefail
+          TIMESTAMP=$(date -u +"%Y-%m-%d_%H-%M-%S")
+          mkdir -p /tmp/backup
+          DUMP_FILE="/tmp/backup/klasskit-db-${TIMESTAMP}.dump"
+          pg_dump "$SUPABASE_DB_URL" \
+            --format=custom \
+            --no-owner \
+            --no-acl \
+            --file="$DUMP_FILE"
+          echo "DUMP_FILE=$DUMP_FILE" >> "$GITHUB_ENV"
+          echo "DUMP_NAME=klasskit-db-${TIMESTAMP}.dump" >> "$GITHUB_ENV"
+          ls -lh "$DUMP_FILE"
+
+      - name: Download Supabase Storage bucket
+        env:
+          SUPABASE_URL: https://mkarfktuvtllaxpunwtb.supabase.co
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_STORAGE_BUCKET: klasskit-media
+          BACKUP_STORAGE_DIR: /tmp/backup/storage
+        run: node .github/scripts/sync-supabase-storage.mjs
+
+      - name: Upload backups to Cloudflare R2
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+          R2_ENDPOINT: https://b47493f7f3c8cde4b276621ac8cc7e57.r2.cloudflarestorage.com
+          R2_BUCKET_NAME: klasskit-supabase-backups
+        run: |
+          set -euo pipefail
+          aws s3 cp "$DUMP_FILE" "s3://${R2_BUCKET_NAME}/db/${DUMP_NAME}" --endpoint-url "$R2_ENDPOINT"
+          aws s3 sync /tmp/backup/storage/ "s3://${R2_BUCKET_NAME}/storage/" --endpoint-url "$R2_ENDPOINT"
+          echo "Backup complete: s3://${R2_BUCKET_NAME}/db/${DUMP_NAME}"
