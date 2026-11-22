@@ -1078,10 +1078,22 @@ const SettingsModal = {
       const meta = document.createElement('div');
       meta.className = 'flex-1 min-w-0';
 
+      const labelRow = document.createElement('div');
+      labelRow.className = 'flex items-center gap-2 flex-wrap';
+
       const labelEl = document.createElement('div');
       labelEl.className = 'font-heading font-bold text-sm text-dark dark:text-white leading-tight';
       labelEl.textContent = control.label;
-      meta.appendChild(labelEl);
+      labelRow.appendChild(labelEl);
+
+      if (control.badge) {
+        const badgeEl = document.createElement('span');
+        badgeEl.className = 'px-1.5 py-0.5 rounded-md border border-dark dark:border-slate-500 bg-orange/15 text-orange font-heading font-black text-[10px] uppercase tracking-wider leading-none';
+        badgeEl.textContent = control.badge;
+        labelRow.appendChild(badgeEl);
+      }
+
+      meta.appendChild(labelRow);
 
       if (control.description) {
         const descEl = document.createElement('p');
@@ -1166,6 +1178,50 @@ const SettingsModal = {
           this.syncControls();
         });
         card.appendChild(select);
+      } else if (control.type === 'palette') {
+        card.classList.add('is-stacked');
+        const grid = document.createElement('div');
+        grid.className = 'grid grid-cols-2 sm:grid-cols-3 gap-2 w-full mt-2';
+        grid.setAttribute('role', 'group');
+        grid.setAttribute('aria-label', control.label);
+
+        const currentVal = String(control.get?.() ?? 'classic');
+        (control.options || []).forEach(opt => {
+          const isSelected = String(opt.id) === currentVal;
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.dataset.controlId = control.id;
+          btn.dataset.value = opt.id;
+          btn.setAttribute('aria-pressed', String(isSelected));
+          btn.className = `btn-chunky flex flex-col items-start gap-1.5 p-2.5 rounded-xl border-2 text-left transition-all ${
+            isSelected
+              ? 'border-blue bg-blue/10 dark:bg-blue/20 shadow-hard-sm'
+              : 'border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 hover:border-dark dark:hover:border-slate-400'
+          }`;
+
+          const dots = document.createElement('div');
+          dots.className = 'flex items-center gap-1';
+          (opt.swatches || []).forEach(hex => {
+            const dot = document.createElement('span');
+            dot.className = 'w-3.5 h-3.5 rounded-full border border-slate-800/40 dark:border-white/25 inline-block';
+            dot.style.backgroundColor = hex;
+            dots.appendChild(dot);
+          });
+
+          const name = document.createElement('span');
+          name.className = 'font-heading font-bold text-xs text-dark dark:text-white leading-none';
+          name.textContent = opt.label;
+
+          btn.appendChild(dots);
+          btn.appendChild(name);
+          btn.addEventListener('click', () => {
+            control.set?.(opt.id);
+            AudioEngine?.click?.();
+            this.syncControls();
+          });
+          grid.appendChild(btn);
+        });
+        card.appendChild(grid);
       } else if (control.type === 'action') {
         const actionBtn = document.createElement('button');
         actionBtn.type = 'button';
@@ -1224,6 +1280,17 @@ const SettingsModal = {
       } else if (control.type === 'select') {
         const sel = content.querySelector(`select[data-control-id="${safeId}"]`);
         if (sel) sel.value = String(control.get?.() ?? '');
+      } else if (control.type === 'palette') {
+        const currentVal = String(control.get?.() ?? 'classic');
+        content.querySelectorAll(`button[data-control-id="${safeId}"]`).forEach(btn => {
+          const active = btn.dataset.value === currentVal;
+          btn.setAttribute('aria-pressed', String(active));
+          btn.className = `btn-chunky flex flex-col items-start gap-1.5 p-2.5 rounded-xl border-2 text-left transition-all ${
+            active
+              ? 'border-blue bg-blue/10 dark:bg-blue/20 shadow-hard-sm'
+              : 'border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 hover:border-dark dark:hover:border-slate-400'
+          }`;
+        });
       }
     });
   }

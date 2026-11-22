@@ -15,6 +15,7 @@ const CONFIG = {
   loadTimeout: 5000,
   storageKeys: {
     theme: "theme_hub",
+    colorTheme: "klasskit_colorTheme",
     recent: "recentGameIds",
     sound: "soundMuted",
     favorites: "favoriteGames",
@@ -324,16 +325,66 @@ const AudioEngine = {
 
 // --- THEME ---
 const Theme = {
+  colorThemes: [
+    {
+      id: 'classic',
+      label: 'Classic',
+      swatches: ['#ff4785', '#ff7e33', '#00d063', '#1ea7fd']
+    },
+    {
+      id: 'pastel',
+      label: 'Pastel',
+      swatches: ['#fb7185', '#fbbf24', '#34d399', '#60a5fa']
+    },
+    {
+      id: 'botanical',
+      label: 'Botanical',
+      swatches: ['#e07a5f', '#e09f3e', '#2a9d8f', '#5e60ce']
+    },
+    {
+      id: 'oceanic',
+      label: 'Oceanic',
+      swatches: ['#6366f1', '#f59e0b', '#14b8a6', '#0ea5e9']
+    },
+    {
+      id: 'monochrome',
+      label: 'Ink & Paper',
+      swatches: ['#ff4785', '#475569', '#334155', '#1e293b']
+    }
+  ],
+
   load() {
     const saved = Storage.get(CONFIG.storageKeys.theme);
     const isDark = saved === 'dark' || (saved !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches);
     document.documentElement.classList.toggle('dark', isDark);
+    this.loadColorTheme();
   },
 
   toggle() {
     const isDark = document.documentElement.classList.toggle('dark');
     Storage.set(CONFIG.storageKeys.theme, isDark ? 'dark' : 'light');
     AudioEngine.click();
+    window.SettingsModal?.syncControls?.();
+  },
+
+  getColorTheme() {
+    const saved = Storage.get(CONFIG.storageKeys.colorTheme, 'classic');
+    return this.colorThemes.some(t => t.id === saved) ? saved : 'classic';
+  },
+
+  loadColorTheme() {
+    const themeId = this.getColorTheme();
+    if (themeId === 'classic') {
+      document.documentElement.removeAttribute('data-theme');
+    } else {
+      document.documentElement.setAttribute('data-theme', themeId);
+    }
+  },
+
+  setColorTheme(themeId) {
+    const valid = this.colorThemes.some(t => t.id === themeId) ? themeId : 'classic';
+    Storage.set(CONFIG.storageKeys.colorTheme, valid);
+    this.loadColorTheme();
     window.SettingsModal?.syncControls?.();
   }
 };
@@ -423,6 +474,9 @@ const HubSettings = {
     if (typeof ViewMode !== 'undefined' && ViewMode.set) {
       ViewMode.set('icons');
     }
+    if (typeof Theme !== 'undefined' && Theme.setColorTheme) {
+      Theme.setColorTheme('classic');
+    }
     Storage.set(CONFIG.storageKeys.timerDuration, 300);
     if (typeof Timer !== 'undefined' && !Timer.running && Timer.setDuration) {
       Timer.setDuration(300);
@@ -451,6 +505,16 @@ const HubSettings = {
             document.documentElement.classList.toggle('dark', Boolean(val));
             Storage.set(CONFIG.storageKeys.theme, val ? 'dark' : 'light');
           }
+        },
+        {
+          id: 'color-theme',
+          type: 'palette',
+          label: 'Color Theme',
+          badge: 'Beta',
+          description: 'Switch the accent palette and surface tints across the hub.',
+          options: Theme.colorThemes,
+          get: () => Theme.getColorTheme(),
+          set: (val) => Theme.setColorTheme(val)
         },
         {
           id: 'view-mode',
