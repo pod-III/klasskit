@@ -3059,7 +3059,7 @@ const ReportManager = {
 
   async fetchComments() {
     try {
-      const response = await fetch('../../workshop/report-helper/comments.json');
+      const response = await fetch('../../wip/report-helper/comments.json');
       if (!response.ok) throw new Error('Network error');
       this.commentBank = await response.json();
       this.initEmptyState();
