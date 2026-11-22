@@ -66,42 +66,135 @@
 
     <style>
         :root {
+            --color-pink: #ff4785;
+            --color-orange: #ff7e33;
+            --color-green: #00d063;
+            --color-blue: #1ea7fd;
+            --color-dark: #1e293b;
+            --color-chalk: #f8fafc;
+            --border-primary: #1e293b;
             --shadow-color: #1e293b;
             --line: #1e293b;
             --ink: #1e293b;
             --surface: #ffffff;
             --shadow: #1e293b;
             --dots: #cbd5e1;
+            --shadow-hard-sm: 2px 2px 0px 0px var(--border-primary);
+            --shadow-hard-md: 4px 4px 0px 0px var(--border-primary);
+            --shadow-hard-lg: 8px 8px 0px 0px var(--border-primary);
         }
 
         .dark {
+            --border-primary: #64748b;
             --shadow-color: #000000;
             --line: #64748b;
             --ink: #f8fafc;
-            --surface: #0f172a;
+            --surface: #1e293b;
             --shadow: #000000;
             --dots: #334155;
+            --shadow-hard-sm: 2px 2px 0px 0px #000000;
+            --shadow-hard-md: 4px 4px 0px 0px #000000;
+            --shadow-hard-lg: 8px 8px 0px 0px #000000;
         }
 
         body {
             font-family: 'Nunito', -apple-system, BlinkMacSystemFont, sans-serif;
-            overflow: hidden;
+            background-color: var(--color-chalk);
+            color: var(--color-dark);
             -webkit-tap-highlight-color: transparent;
             user-select: none;
         }
 
-        @media (max-width: 767px) {
-            body { padding-bottom: 0 !important; }
+        .dark body {
+            background-color: #020617;
+            color: #ffffff;
         }
 
-        .game-console {
-            border: 6px solid #1e293b;
-            border-radius: 2rem;
-            box-shadow: rgba(30, 41, 59, 0.15) 14px 14px 0px;
+        @media screen {
+            .hidden { display: none !important; }
         }
-        .dark .game-console {
-            border-color: #64748b;
-            box-shadow: rgba(0, 0, 0, 0.45) 14px 14px 0px;
+
+        /* Sidebar & Preview Area (matches Card Maker) */
+        .sidebar {
+            width: 100%;
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border-bottom: 4px solid var(--border-primary);
+            z-index: 50;
+            flex-shrink: 0;
+            transition: width 0.28s cubic-bezier(0.4, 0, 0.2, 1), padding 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        @media (min-width: 768px) {
+            .sidebar {
+                width: 340px;
+                border-bottom: none;
+                border-right: 4px solid var(--border-primary);
+                height: 100vh;
+                position: sticky;
+                top: 0;
+            }
+            .sidebar.hidden-panel-desktop {
+                width: 0 !important;
+                min-width: 0 !important;
+                padding: 0 !important;
+                border-right-width: 0 !important;
+                overflow: hidden !important;
+                opacity: 0;
+                pointer-events: none;
+            }
+        }
+
+        @media (min-width: 1440px) {
+            .sidebar {
+                width: 380px;
+            }
+        }
+
+        @media (max-width: 767px) {
+            body { padding-bottom: 0 !important; }
+            .hidden-panel-mobile { display: none !important; }
+        }
+
+        .dark .sidebar {
+            background: rgba(30, 41, 59, 0.85);
+        }
+
+        .preview-area {
+            background-color: #f8fafc;
+            background-image:
+                linear-gradient(rgba(30, 41, 59, 0.05) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(30, 41, 59, 0.05) 1px, transparent 1px);
+            background-size: 20px 20px;
+            flex: 1;
+            min-width: 0;
+            min-height: 75vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 18px 24px 24px;
+            overflow: auto;
+            position: relative;
+        }
+
+        .dark .preview-area {
+            background-color: #020617;
+            background-image:
+                linear-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+        }
+
+        .section-label {
+            font-size: 11px;
+            font-weight: 700;
+            color: #94a3b8;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            margin-bottom: 0.5rem;
+            display: block;
+            font-family: "Fredoka", sans-serif;
         }
 
         :where(.btn-chunky) {
@@ -109,11 +202,11 @@
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            border: 3px solid var(--line);
-            box-shadow: 0 4px 0 var(--shadow);
+            border: 3px solid var(--border-primary);
+            box-shadow: var(--shadow-hard-md);
             cursor: pointer;
             user-select: none;
-            transition: all 0.12s cubic-bezier(0.4, 0, 0.2, 1);
+            transition: all 0.1s ease;
             transform: translateY(0px);
         }
 
@@ -125,15 +218,18 @@
         }
         .btn-chunky:hover:not(:disabled) {
             transform: translateY(-2px);
-            box-shadow: 0 6px 0 var(--shadow);
-            filter: brightness(1.04);
+            box-shadow: 6px 6px 0px 0px var(--border-primary);
+        }
+        .dark .btn-chunky:hover:not(:disabled) {
+            box-shadow: 6px 6px 0px 0px #000000;
         }
         .btn-chunky:active:not(:disabled) {
-            transform: translateY(4px);
-            box-shadow: 0 0 0 var(--shadow) !important;
+            transform: translate(4px, 4px);
+            box-shadow: none !important;
         }
         .btn-chunky:disabled { opacity: 0.5; cursor: not-allowed; }
         .btn-chunky:focus-visible,
+        button:focus-visible,
         input:focus-visible,
         select:focus-visible,
         textarea:focus-visible {
@@ -185,11 +281,24 @@
         }
 
         .input-chunky {
-            border: 2px solid var(--line);
+            width: 100%;
+            border: 3px solid var(--border-primary);
             border-radius: 0.75rem;
-            box-shadow: 2px 2px 0 var(--shadow);
+            padding: 0.55rem 0.85rem;
+            font-weight: 700;
+            background-color: #ffffff;
+            color: #1e293b;
+            outline: none;
+            box-shadow: var(--shadow-hard-sm);
+            transition: box-shadow 0.15s ease;
         }
-        .input-chunky:focus { outline: none; border-color: var(--color-blue); }
+        .input-chunky:focus { box-shadow: 0 0 0 4px rgba(30, 167, 253, 0.3); }
+        .dark .input-chunky {
+            background-color: #1e293b;
+            border-color: #64748b;
+            color: #ffffff;
+            box-shadow: 2px 2px 0px 0px #000000;
+        }
 
         textarea {
             user-select: text;
@@ -197,29 +306,16 @@
             background-size: 12px 12px;
         }
 
-        .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar { width: 8px; height: 8px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: rgba(30, 41, 59, 0.05); border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
         .dark .custom-scrollbar::-webkit-scrollbar-thumb { background: #475569; }
         .custom-scrollbar { scrollbar-color: #cbd5e1 transparent; scrollbar-width: thin; }
 
-        @media (max-width: 767px) {
-            .hidden-panel-mobile { display: none !important; }
-        }
-        @media (min-width: 768px) {
-            .hidden-panel-desktop { margin-left: -20rem; border-right-width: 0px !important; }
-        }
-        @media (min-width: 1024px) {
-            .hidden-panel-desktop { margin-left: -24rem; }
-        }
-
-        #saved-sets-controls { max-height: 0; overflow: hidden; transition: 0.3s ease-out; opacity: 0; }
-        #saved-sets-controls.active { max-height: 260px; opacity: 1; margin-top: 8px; }
+        #saved-sets-controls { max-height: 0; overflow: hidden; transition: 0.25s ease-out; opacity: 0; }
+        #saved-sets-controls.active { max-height: 360px; opacity: 1; margin-top: 8px; }
         #saved-sets-toggle-icon.active { transform: rotate(180deg); }
-
-        .canvas-dots {
-            background-image: radial-gradient(var(--dots) 1.8px, transparent 1.8px);
-            background-size: 24px 24px;
-        }
 
         /* A4 Sheet Stage */
         #sheet-stage {
@@ -228,15 +324,18 @@
         }
         .a4-paper {
             background: #ffffff;
+            color: #1e293b;
             border: 4px solid #1e293b;
-            border-radius: 1rem;
-            box-shadow: 8px 8px 0 rgba(30, 41, 59, 0.22);
+            border-radius: 0;
+            box-shadow: 12px 12px 0px rgba(30, 41, 59, 0.15);
             position: relative;
             overflow: hidden;
         }
         .dark .a4-paper {
-            border-color: #94a3b8;
-            box-shadow: 8px 8px 0 rgba(0, 0, 0, 0.55);
+            background: #ffffff;
+            color: #1e293b;
+            border-color: #64748b;
+            box-shadow: 12px 12px 0px #000000;
         }
 
         #draw-canvas {
@@ -273,7 +372,7 @@
                 width: 297mm !important;
                 height: 210mm !important;
             }
-            body > :not(#print-area) { display: none !important; }
+            .no-print, body > :not(#print-area) { display: none !important; }
             #print-area {
                 display: flex !important;
                 align-items: center !important;
@@ -300,76 +399,76 @@
     <style id="page-style"></style>
 </head>
 
-<body class="opacity-0 transition-opacity duration-200 h-screen w-screen flex flex-col items-center justify-center p-2 md:p-5 overflow-hidden text-dark dark:text-white">
+<body class="opacity-0 transition-opacity duration-200 flex flex-col md:flex-row min-h-screen md:h-screen md:overflow-hidden text-brand-dark dark:text-white">
 
     <!-- Toast Container -->
-    <div id="toast-container" class="print:hidden fixed bottom-6 left-1/2 -translate-x-1/2 z-[600] flex flex-col gap-2 pointer-events-none"></div>
+    <div id="toast-container" class="no-print print:hidden fixed bottom-6 left-1/2 -translate-x-1/2 z-[600] flex flex-col gap-2 pointer-events-none"></div>
 
-    <!-- MAIN CONSOLE -->
-    <div class="game-console print:hidden w-full h-full relative flex flex-col md:flex-row overflow-hidden bg-white dark:bg-slate-900">
+    <!-- SIDEBAR CONTROLS (matches Card Maker) -->
+    <aside id="sidebar" class="sidebar glass-panel no-print flex flex-col p-4 sm:p-5">
 
-        <!-- LEFT SIDEBAR: CUSTOMIZER -->
-        <aside id="sidebar" class="w-full md:w-80 lg:w-96 bg-white dark:bg-slate-900 border-b-4 md:border-b-0 md:border-r-4 border-dark dark:border-slate-500 flex flex-col z-40 transition-all duration-300 h-[48%] md:h-full relative shrink-0">
-
-            <!-- Header -->
-            <div class="p-4 border-b-4 border-dark dark:border-slate-500 bg-blue/10 dark:bg-slate-800/80 flex justify-between items-center gap-2 shrink-0">
-                <div>
-                    <h1 class="text-2xl font-heading font-bold text-dark dark:text-white tracking-wide leading-none">
-                        Tracing Maker
-                    </h1>
-                    <p class="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-widest mt-1">KlassKit Handout Studio</p>
-                </div>
-                <div class="flex items-center gap-1.5">
-                    <button id="sound-btn" type="button" title="Toggle Sound Effects" aria-pressed="true" class="p-2 bg-white dark:bg-slate-800 text-dark dark:text-white border-2 border-dark dark:border-slate-500 rounded-lg shadow-hard-sm hover:-translate-y-0.5 active:translate-y-0.5 active:shadow-none transition-all">
-                        <span id="sound-icon-on" class="inline-flex"><i data-lucide="volume-2" class="w-4 h-4"></i></span>
-                        <span id="sound-icon-off" class="hidden inline-flex"><i data-lucide="volume-x" class="w-4 h-4 text-slate-400"></i></span>
-                    </button>
-                    <button id="help-btn" type="button" title="How to Use &amp; Tips" class="p-2 bg-orange/20 text-orange border-2 border-dark dark:border-slate-500 rounded-lg shadow-hard-sm hover:-translate-y-0.5 active:translate-y-0.5 active:shadow-none transition-all">
-                        <i data-lucide="help-circle" class="w-4 h-4"></i>
-                    </button>
-                    <button id="theme-btn" type="button" aria-pressed="false" aria-label="Toggle dark mode" title="Toggle Dark Mode" class="p-2 bg-white dark:bg-slate-800 text-dark dark:text-white border-2 border-dark dark:border-slate-500 rounded-lg shadow-hard-sm hover:-translate-y-0.5 active:translate-y-0.5 active:shadow-none transition-all">
-                        <i data-lucide="moon" class="w-4 h-4 dark:hidden"></i>
-                        <i data-lucide="sun" class="w-4 h-4 hidden dark:block text-orange"></i>
-                    </button>
-                    <button id="mobile-close-panel" type="button" class="md:hidden p-2 bg-pink/20 text-pink border-2 border-dark dark:border-slate-500 rounded-lg shadow-hard-sm active:translate-y-1 active:shadow-none transition-all">
-                        <i data-lucide="x" class="w-4 h-4"></i>
-                    </button>
+        <!-- Header -->
+        <div class="mb-4 border-b-2 border-slate-100 dark:border-slate-700 pb-4 flex items-center justify-between gap-2 shrink-0">
+            <div>
+                <h1 class="text-3xl font-heading text-brand-dark dark:text-white tracking-tight leading-none">
+                    TRACING<span class="text-brand-blue">MAKER</span>
+                </h1>
+                <div class="flex items-center gap-2 mt-2">
+                    <span class="px-2 py-0.5 rounded bg-brand-dark text-white text-[10px] font-bold uppercase tracking-widest">KlassKit</span>
+                    <span class="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Edition</span>
                 </div>
             </div>
+            <div class="flex items-center gap-1.5 shrink-0">
+                <button id="sound-btn" type="button" title="Toggle Sound Effects" aria-pressed="true" class="bg-white dark:bg-slate-800 text-brand-dark dark:text-white p-2 rounded-full border-2 border-brand-dark dark:border-slate-500 shadow-neo-sm hover:-translate-y-0.5 transition-all">
+                    <span id="sound-icon-on" class="inline-flex"><i data-lucide="volume-2" class="w-4 h-4"></i></span>
+                    <span id="sound-icon-off" class="hidden inline-flex"><i data-lucide="volume-x" class="w-4 h-4 text-slate-400"></i></span>
+                </button>
+                <button id="help-btn" type="button" title="How to Use &amp; Tips" class="bg-brand-orange/20 text-brand-orange p-2 rounded-full border-2 border-brand-dark dark:border-slate-500 shadow-neo-sm hover:-translate-y-0.5 transition-all">
+                    <i data-lucide="help-circle" class="w-4 h-4"></i>
+                </button>
+                <button id="theme-btn" type="button" aria-pressed="false" aria-label="Toggle dark mode" title="Toggle Dark Mode" class="bg-white dark:bg-slate-800 text-brand-dark dark:text-white p-2 rounded-full border-2 border-brand-dark dark:border-slate-500 shadow-neo-sm hover:-translate-y-0.5 transition-all group focus:outline-none">
+                    <i data-lucide="moon" class="w-4 h-4 dark:hidden group-hover:rotate-12 transition-transform"></i>
+                    <i data-lucide="sun" class="w-4 h-4 hidden dark:block text-orange group-hover:rotate-90 transition-transform"></i>
+                </button>
+                <button id="mobile-close-panel" type="button" title="Hide Sidebar" class="md:hidden bg-brand-pink/20 text-brand-pink p-2 rounded-full border-2 border-brand-dark dark:border-slate-500 shadow-neo-sm">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
+            </div>
+        </div>
 
-            <!-- Scrollable Controls -->
-            <div class="flex-1 p-4 overflow-y-auto custom-scrollbar space-y-5 bg-white dark:bg-slate-900">
+        <!-- Active Set Banner -->
+        <div id="active-set-banner" class="hidden mb-4 animate-pop-in bg-brand-blue/10 border-2 border-brand-blue/30 rounded-xl p-3 flex items-center gap-3 shrink-0">
+            <div class="w-8 h-8 rounded-lg bg-brand-blue flex items-center justify-center text-white shrink-0 shadow-neo-sm">
+                <i data-lucide="layers" class="w-4 h-4"></i>
+            </div>
+            <div class="min-w-0 flex-1">
+                <p class="text-[10px] font-bold text-brand-blue uppercase tracking-wider leading-none mb-1">Active Sheet</p>
+                <p id="active-set-name" class="text-sm font-bold truncate dark:text-white">Untitled Sheet</p>
+            </div>
+            <button id="close-set-btn" type="button" title="Detach from saved sheet" class="text-slate-400 hover:text-brand-pink transition-colors">
+                <i data-lucide="x" class="w-4 h-4"></i>
+            </button>
+        </div>
 
-                <!-- Active Set Banner -->
-                <div id="active-set-banner" class="hidden animate-pop-in p-2.5 rounded-xl bg-blue/10 dark:bg-blue/20 border-2 border-blue flex items-center justify-between gap-2">
-                    <div class="flex items-center gap-2 min-w-0">
-                        <div class="w-7 h-7 rounded-lg bg-blue text-white flex items-center justify-center shrink-0 border-2 border-dark">
-                            <i data-lucide="bookmark-check" class="w-3.5 h-3.5"></i>
-                        </div>
-                        <div class="min-w-0">
-                            <p class="text-[9px] font-bold uppercase tracking-wider text-blue leading-none">Active Sheet</p>
-                            <p id="active-set-name" class="text-xs font-extrabold truncate mt-0.5"></p>
-                        </div>
-                    </div>
-                    <button id="close-set-btn" type="button" title="Detach from saved sheet" class="p-1 rounded-lg hover:bg-blue/20 text-slate-500 dark:text-slate-300">
-                        <i data-lucide="x" class="w-3.5 h-3.5"></i>
-                    </button>
+        <!-- Scrollable Controls -->
+        <div class="space-y-6 flex-1 overflow-y-auto pr-2 custom-scrollbar">
+
+            <!-- Handout Mode -->
+            <section class="space-y-2.5">
+                <div class="flex items-center justify-between gap-2">
+                    <label class="section-label mb-0">Handout Mode</label>
+                    <span id="sheet-mode-pill" class="px-2 py-0.5 rounded bg-brand-blue/15 text-brand-blue border border-brand-blue/40 text-[10px] font-extrabold uppercase">Rows</span>
+                </div>
+                <div class="grid grid-cols-3 gap-1.5">
+                    <label class="seg" title="Standard lined handwriting rows"><input type="radio" name="trace-mode" value="rows" checked><span>📝 Rows</span></label>
+                    <label class="seg" title="Playful paths, shapes &amp; rainbow tracing"><input type="radio" name="trace-mode" value="fun"><span>🌈 Fun</span></label>
+                    <label class="seg" title="Fun warm-up paths + lined word rows"><input type="radio" name="trace-mode" value="combo"><span>✨ Combo</span></label>
                 </div>
 
-                <!-- Mode Selector -->
-                <div class="space-y-2">
-                    <label class="text-xs font-bold text-slate-400 uppercase tracking-widest block">Handout Mode</label>
-                    <div class="grid grid-cols-3 gap-1.5">
-                        <label class="seg" title="Standard lined handwriting rows"><input type="radio" name="trace-mode" value="rows" checked><span>📝 Rows</span></label>
-                        <label class="seg" title="Playful paths, shapes &amp; rainbow tracing"><input type="radio" name="trace-mode" value="fun"><span>🌈 Fun</span></label>
-                        <label class="seg" title="Fun warm-up paths + lined word rows"><input type="radio" name="trace-mode" value="combo"><span>✨ Combo</span></label>
-                    </div>
-                </div>
-
-                <!-- FUN TRACING OPTIONS (Shown in Fun & Combo modes) -->
-                <div id="fun-options-box" class="hidden space-y-3 pt-4 border-t-2 border-dashed border-slate-300 dark:border-slate-700">
+                <!-- FUN TRACING OPTIONS -->
+                <div id="fun-options-box" class="hidden space-y-3 pt-3 border-t-2 border-slate-100 dark:border-slate-700">
                     <div id="fun-submode-row" class="space-y-2">
-                        <label class="text-xs font-bold text-slate-400 uppercase tracking-widest block">Fun Tracing Style</label>
+                        <span class="text-xs font-bold text-brand-dark dark:text-white block">Fun Tracing Style</span>
                         <div class="grid grid-cols-3 gap-1.5">
                             <label class="seg" title="Guide animals/vehicles along fun paths to goals"><input type="radio" name="fun-submode" value="paths" checked><span>🐝 Paths</span></label>
                             <label class="seg" title="Trace words inside stepping clouds &amp; waves"><input type="radio" name="fun-submode" value="clouds"><span>☁️ Clouds</span></label>
@@ -379,7 +478,7 @@
 
                     <div id="fun-path-pattern-row" class="space-y-1.5">
                         <label for="path-pattern" class="text-[11px] font-bold text-slate-500 dark:text-slate-400 block">Path Pattern</label>
-                        <select id="path-pattern" class="w-full p-2 bg-slate-50 dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-lg text-dark dark:text-white font-bold text-xs focus:outline-none focus:border-blue cursor-pointer">
+                        <select id="path-pattern" class="input-chunky py-2 text-xs cursor-pointer">
                             <option value="mixed">Mixed (Zig-Zag, Waves, Hills, Loops)</option>
                             <option value="zigzag">Sharp Zig-Zag</option>
                             <option value="waves">Smooth Ocean Waves</option>
@@ -389,279 +488,261 @@
                         </select>
                     </div>
                 </div>
+            </section>
 
-                <!-- FONT & ROW CUSTOMIZATION -->
-                <div class="space-y-3 pt-4 border-t-2 border-dashed border-slate-300 dark:border-slate-700">
-                    <div class="flex justify-between items-end">
-                        <label for="font-size-slider" class="text-xs font-bold text-slate-400 uppercase tracking-widest">Font Size</label>
-                        <output id="font-size-val" class="font-heading text-base font-bold text-blue">46 px</output>
+            <!-- Quick Presets & Tracing Content -->
+            <section class="border-t-2 border-slate-100 dark:border-slate-700 pt-4 space-y-3">
+                <label class="section-label">Quick Presets</label>
+                <div class="flex gap-1.5 flex-wrap">
+                    <button type="button" data-preset="cvc" class="preset-btn px-2.5 py-1.5 bg-white dark:bg-slate-800 border-2 border-brand-dark dark:border-slate-500 rounded-xl text-xs font-bold shadow-hard-sm hover:-translate-y-0.5 active:translate-y-0.5 transition-all">✏️ CVC Words</button>
+                    <button type="button" data-preset="abc_upper" class="preset-btn px-2.5 py-1.5 bg-white dark:bg-slate-800 border-2 border-brand-dark dark:border-slate-500 rounded-xl text-xs font-bold shadow-hard-sm hover:-translate-y-0.5 active:translate-y-0.5 transition-all">🔤 A–H</button>
+                    <button type="button" data-preset="abc_lower" class="preset-btn px-2.5 py-1.5 bg-white dark:bg-slate-800 border-2 border-brand-dark dark:border-slate-500 rounded-xl text-xs font-bold shadow-hard-sm hover:-translate-y-0.5 active:translate-y-0.5 transition-all">🔡 a–h</button>
+                    <button type="button" data-preset="numbers" class="preset-btn px-2.5 py-1.5 bg-white dark:bg-slate-800 border-2 border-brand-dark dark:border-slate-500 rounded-xl text-xs font-bold shadow-hard-sm hover:-translate-y-0.5 active:translate-y-0.5 transition-all">🔢 1–10</button>
+                    <button type="button" data-preset="sentences" class="preset-btn px-2.5 py-1.5 bg-white dark:bg-slate-800 border-2 border-brand-dark dark:border-slate-500 rounded-xl text-xs font-bold shadow-hard-sm hover:-translate-y-0.5 active:translate-y-0.5 transition-all">💬 Sentences</button>
+                    <button type="button" data-preset="fun_paths" class="preset-btn px-2.5 py-1.5 bg-white dark:bg-slate-800 border-2 border-brand-dark dark:border-slate-500 rounded-xl text-xs font-bold shadow-hard-sm hover:-translate-y-0.5 active:translate-y-0.5 transition-all">🐝 Fun Paths</button>
+                </div>
+
+                <div class="pt-2 space-y-2">
+                    <div class="flex items-center justify-between gap-2">
+                        <label for="trace-input" class="section-label mb-0">Lines to Trace</label>
+                        <div class="flex items-center gap-2">
+                            <span id="line-count-pill" class="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 border border-brand-dark dark:border-slate-500">6 rows</span>
+                            <button type="button" id="clear-input-btn" class="text-[11px] font-extrabold text-brand-pink hover:underline">Clear</button>
+                        </div>
                     </div>
-                    <input type="range" id="font-size-slider" min="24" max="76" step="2" value="46" class="w-full h-2.5 bg-slate-100 dark:bg-slate-800 rounded-full appearance-none cursor-pointer accent-blue border-2 border-dark dark:border-slate-500">
+                    <textarea id="trace-input" spellcheck="false" class="input-chunky h-28 p-3 font-mono text-xs resize-none custom-scrollbar" placeholder="One word, letter, or sentence per line..."></textarea>
+                    <div class="grid grid-cols-2 gap-2">
+                        <button type="button" id="bulk-import-btn" class="btn-chunky bg-white dark:bg-slate-700 py-2 rounded-xl text-xs flex items-center justify-center gap-1 dark:text-white">
+                            <i data-lucide="file-up" class="w-3.5 h-3.5 text-brand-orange"></i> Bulk Import
+                        </button>
+                        <button id="rebuild-btn" type="button" class="btn-chunky bg-brand-blue text-white py-2 rounded-xl text-xs flex items-center justify-center gap-1">
+                            <i data-lucide="wand-sparkles" class="w-3.5 h-3.5"></i> Update
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Font & Row Guides -->
+            <section class="border-t-2 border-slate-100 dark:border-slate-700 pt-4 space-y-3">
+                <label class="section-label">Font &amp; Row Guides</label>
+
+                <div class="space-y-1">
+                    <div class="flex justify-between items-end">
+                        <label for="font-size-slider" class="text-xs font-bold text-brand-dark dark:text-white">Font Size</label>
+                        <output id="font-size-val" class="font-heading text-sm font-bold text-brand-blue">46 px</output>
+                    </div>
+                    <input type="range" id="font-size-slider" min="24" max="76" step="2" value="46" class="w-full h-2.5 bg-slate-100 dark:bg-slate-800 rounded-full appearance-none cursor-pointer accent-blue border-2 border-brand-dark dark:border-slate-500">
                     <div class="flex justify-between text-[10px] font-bold text-slate-400">
                         <span>SMALL (24)</span>
                         <span>MEDIUM (46)</span>
                         <span>JUMBO (76)</span>
                     </div>
+                </div>
 
-                    <!-- Font Family -->
-                    <div class="space-y-1.5 pt-1">
-                        <label class="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Font Face</label>
-                        <div class="grid grid-cols-3 gap-1.5">
-                            <label class="seg" title="Clean primary print"><input type="radio" name="font-family" value="print" checked><span>Print</span></label>
-                            <label class="seg" title="Rounded bubbly letters"><input type="radio" name="font-family" value="rounded"><span>Bubble</span></label>
-                            <label class="seg" title="Handwritten cursive style"><input type="radio" name="font-family" value="cursive"><span>Cursive</span></label>
+                <div class="space-y-1.5">
+                    <span class="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Font Face</span>
+                    <div class="grid grid-cols-3 gap-1.5">
+                        <label class="seg" title="Clean primary print"><input type="radio" name="font-family" value="print" checked><span>Print</span></label>
+                        <label class="seg" title="Rounded bubbly letters"><input type="radio" name="font-family" value="rounded"><span>Bubble</span></label>
+                        <label class="seg" title="Handwritten cursive style"><input type="radio" name="font-family" value="cursive"><span>Cursive</span></label>
+                    </div>
+                </div>
+
+                <div class="space-y-1.5">
+                    <span class="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Letter Trace Style</span>
+                    <div class="grid grid-cols-2 gap-1.5">
+                        <label class="seg" title="Crisp dashed tracing strokes"><input type="radio" name="trace-style" value="dashed" checked><span>Dashed</span></label>
+                        <label class="seg" title="Fine dotted outlines"><input type="radio" name="trace-style" value="dotted"><span>Dotted</span></label>
+                        <label class="seg" title="Hollow outline for coloring or tracing inside"><input type="radio" name="trace-style" value="hollow"><span>Hollow</span></label>
+                        <label class="seg" title="Starts solid, fades to ghost, ends blank"><input type="radio" name="trace-style" value="scaffold"><span>Scaffold</span></label>
+                    </div>
+                </div>
+
+                <div id="row-controls-box" class="space-y-3 pt-1">
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <label for="guide-style" class="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 block mb-1">Line Guides</label>
+                            <select id="guide-style" class="input-chunky py-2 px-2.5 text-xs cursor-pointer">
+                                <option value="3line">3-Line Primary</option>
+                                <option value="4line">4-Line (Descender)</option>
+                                <option value="single">Single Baseline</option>
+                                <option value="boxes">Letter Boxes</option>
+                                <option value="none">No Lines</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label for="repeat-mode" class="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 block mb-1">Repeats / Row</label>
+                            <select id="repeat-mode" class="input-chunky py-2 px-2.5 text-xs cursor-pointer">
+                                <option value="auto" selected>Auto-Fill Row</option>
+                                <option value="1">1× (Write rest)</option>
+                                <option value="2">2× per row</option>
+                                <option value="3">3× per row</option>
+                                <option value="4">4× per row</option>
+                            </select>
                         </div>
                     </div>
 
-                    <!-- Trace Style -->
-                    <div class="space-y-1.5">
-                        <label class="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Letter Trace Style</label>
-                        <div class="grid grid-cols-2 gap-1.5">
-                            <label class="seg" title="Crisp dashed tracing strokes"><input type="radio" name="trace-style" value="dashed" checked><span>Dashed Trace</span></label>
-                            <label class="seg" title="Fine dotted outlines"><input type="radio" name="trace-style" value="dotted"><span>Dotted Trace</span></label>
-                            <label class="seg" title="Hollow outline for coloring or tracing inside"><input type="radio" name="trace-style" value="hollow"><span>Hollow Bubble</span></label>
-                            <label class="seg" title="Starts solid, fades to ghost, ends blank"><input type="radio" name="trace-style" value="scaffold"><span>Fade Scaffold</span></label>
-                        </div>
-                    </div>
-
-                    <!-- Guide Lines & Repeats -->
-                    <div id="row-controls-box" class="space-y-3 pt-1">
-                        <div class="grid grid-cols-2 gap-2">
-                            <div>
-                                <label for="guide-style" class="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 block mb-1">Line Guides</label>
-                                <select id="guide-style" class="w-full p-2 bg-slate-50 dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-lg text-dark dark:text-white font-bold text-xs focus:outline-none focus:border-blue cursor-pointer">
-                                    <option value="3line">3-Line Primary</option>
-                                    <option value="4line">4-Line (Descender)</option>
-                                    <option value="single">Single Baseline</option>
-                                    <option value="boxes">Letter Boxes</option>
-                                    <option value="none">No Lines</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label for="repeat-mode" class="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 block mb-1">Repeats / Row</label>
-                                <select id="repeat-mode" class="w-full p-2 bg-slate-50 dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-lg text-dark dark:text-white font-bold text-xs focus:outline-none focus:border-blue cursor-pointer">
-                                    <option value="auto" selected>Auto-Fill Row</option>
-                                    <option value="1">1× (Write rest)</option>
-                                    <option value="2">2× per row</option>
-                                    <option value="3">3× per row</option>
-                                    <option value="4">4× per row</option>
-                                </select>
-                            </div>
-                        </div>
-
-                        <div class="grid grid-cols-2 gap-2">
-                            <label class="flex items-center gap-2 cursor-pointer text-xs font-bold text-slate-600 dark:text-slate-300">
-                                <input type="checkbox" id="start-dots" checked class="w-4 h-4 shrink-0 accent-green cursor-pointer">
-                                <span>Green start dots</span>
-                            </label>
-                            <label class="flex items-center gap-2 cursor-pointer text-xs font-bold text-slate-600 dark:text-slate-300">
-                                <input type="checkbox" id="extra-blank-row" class="w-4 h-4 shrink-0 accent-blue cursor-pointer">
-                                <span>+1 Blank row each</span>
-                            </label>
-                        </div>
+                    <div class="grid grid-cols-2 gap-2">
                         <label class="flex items-center gap-2 cursor-pointer text-xs font-bold text-slate-600 dark:text-slate-300">
-                            <input type="checkbox" id="show-stars-footer" checked class="w-4 h-4 shrink-0 accent-orange cursor-pointer">
-                            <span>Reward stars footer ("Color when done!")</span>
+                            <input type="checkbox" id="start-dots" checked class="w-4 h-4 shrink-0 accent-green cursor-pointer">
+                            <span>Start dots</span>
+                        </label>
+                        <label class="flex items-center gap-2 cursor-pointer text-xs font-bold text-slate-600 dark:text-slate-300">
+                            <input type="checkbox" id="extra-blank-row" class="w-4 h-4 shrink-0 accent-blue cursor-pointer">
+                            <span>+1 Blank row</span>
                         </label>
                     </div>
+                    <label class="flex items-center gap-2 cursor-pointer text-xs font-bold text-slate-600 dark:text-slate-300">
+                        <input type="checkbox" id="show-stars-footer" checked class="w-4 h-4 shrink-0 accent-orange cursor-pointer">
+                        <span>Reward stars footer ("Color when done!")</span>
+                    </label>
+                </div>
+            </section>
+
+            <!-- Worksheet Header, Ink Palette & Orientation -->
+            <section class="border-t-2 border-slate-100 dark:border-slate-700 pt-4 space-y-3">
+                <label class="section-label">Header &amp; Ink Palette</label>
+                <div class="space-y-2">
+                    <input id="custom-title" type="text" value="Tracing Practice" placeholder="Worksheet Title" class="input-chunky py-2 px-3 text-xs">
+                    <input id="custom-subtitle" type="text" value="Trace carefully along the dotted lines, then write neatly on your own!" placeholder="Student instructions..." class="input-chunky py-2 px-3 text-xs">
                 </div>
 
-                <!-- Worksheet Header -->
-                <div class="space-y-2 pt-4 border-t-2 border-dashed border-slate-300 dark:border-slate-700">
-                    <label class="text-xs font-bold text-slate-400 uppercase tracking-widest block">Worksheet Header</label>
-                    <input id="custom-title" type="text" value="Tracing Practice" placeholder="Worksheet Title" class="w-full p-2 bg-slate-50 dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-lg text-dark dark:text-white font-bold text-xs focus:outline-none focus:border-blue">
-                    <input id="custom-subtitle" type="text" value="Trace carefully along the dotted lines, then write neatly on your own!" placeholder="Student instructions..." class="w-full p-2 bg-slate-50 dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-lg text-dark dark:text-white font-semibold text-xs focus:outline-none focus:border-blue">
+                <div class="grid grid-cols-3 gap-1.5">
+                    <label class="seg" title="Soft classroom colors"><input type="radio" name="sheet-palette" value="color" checked><span>Color</span></label>
+                    <label class="seg" title="Classic blue-and-red handwriting lines"><input type="radio" name="sheet-palette" value="classic"><span>School</span></label>
+                    <label class="seg" title="Crisp ink-saving black &amp; gray"><input type="radio" name="sheet-palette" value="bw"><span>B&amp;W</span></label>
                 </div>
 
-                <!-- Quick Presets -->
-                <div class="pt-4 border-t-2 border-dashed border-slate-300 dark:border-slate-700">
-                    <label class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2.5 block">Quick Presets</label>
-                    <div class="flex gap-1.5 flex-wrap">
-                        <button type="button" data-preset="cvc" class="preset-btn px-2.5 py-1.5 bg-white dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-full text-xs font-bold shadow-hard-sm hover:-translate-y-0.5 active:translate-y-0.5 active:shadow-none transition-all">✏️ CVC Words</button>
-                        <button type="button" data-preset="abc_upper" class="preset-btn px-2.5 py-1.5 bg-white dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-full text-xs font-bold shadow-hard-sm hover:-translate-y-0.5 active:translate-y-0.5 active:shadow-none transition-all">🔤 A–H</button>
-                        <button type="button" data-preset="abc_lower" class="preset-btn px-2.5 py-1.5 bg-white dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-full text-xs font-bold shadow-hard-sm hover:-translate-y-0.5 active:translate-y-0.5 active:shadow-none transition-all">🔡 a–h</button>
-                        <button type="button" data-preset="numbers" class="preset-btn px-2.5 py-1.5 bg-white dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-full text-xs font-bold shadow-hard-sm hover:-translate-y-0.5 active:translate-y-0.5 active:shadow-none transition-all">🔢 1–10</button>
-                        <button type="button" data-preset="sentences" class="preset-btn px-2.5 py-1.5 bg-white dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-full text-xs font-bold shadow-hard-sm hover:-translate-y-0.5 active:translate-y-0.5 active:shadow-none transition-all">💬 Sentences</button>
-                        <button type="button" data-preset="fun_paths" class="preset-btn px-2.5 py-1.5 bg-white dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-full text-xs font-bold shadow-hard-sm hover:-translate-y-0.5 active:translate-y-0.5 active:shadow-none transition-all">🐝 Fun Paths</button>
+                <div class="space-y-1">
+                    <div class="flex items-center justify-between text-[11px] font-bold">
+                        <span class="text-slate-400 uppercase tracking-wider">Trace Darkness</span>
+                        <output id="darkness-val" class="font-mono text-brand-dark dark:text-white">55%</output>
+                    </div>
+                    <input type="range" id="darkness-slider" min="20" max="90" step="5" value="55" class="w-full h-2.5 bg-slate-100 dark:bg-slate-800 rounded-full appearance-none cursor-pointer accent-blue border-2 border-brand-dark dark:border-slate-500">
+                </div>
+
+                <div>
+                    <span class="text-xs font-bold text-brand-dark dark:text-white block mb-2">Orientation</span>
+                    <div class="grid grid-cols-2 gap-2">
+                        <label class="seg"><input type="radio" name="page-orient" value="portrait" checked><span><i data-lucide="rectangle-vertical" class="w-3.5 h-3.5"></i> Portrait</span></label>
+                        <label class="seg"><input type="radio" name="page-orient" value="landscape"><span><i data-lucide="rectangle-horizontal" class="w-3.5 h-3.5"></i> Landscape</span></label>
                     </div>
                 </div>
 
-                <!-- Tracing Content Input -->
-                <div class="space-y-2 pt-4 border-t-2 border-dashed border-slate-300 dark:border-slate-700">
-                    <div class="flex items-center justify-between gap-2">
-                        <label for="trace-input" class="text-xs font-bold text-slate-400 uppercase tracking-widest">Lines to Trace</label>
-                        <div class="flex items-center gap-2">
-                            <span id="line-count-pill" class="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 border-2 border-dark dark:border-slate-500">6 rows</span>
-                            <button type="button" id="bulk-import-btn" class="px-2.5 py-0.5 bg-orange text-dark border-2 border-dark dark:border-slate-500 rounded-full text-[10px] font-heading font-bold uppercase tracking-wider shadow-hard-sm hover:-translate-y-0.5 active:translate-y-0.5 active:shadow-none transition-all flex items-center gap-1">
-                                <i data-lucide="file-up" class="w-3 h-3"></i> Bulk Import
-                            </button>
-                            <button type="button" id="clear-input-btn" class="text-[11px] font-extrabold text-pink hover:underline">Clear</button>
+                <div class="grid grid-cols-2 gap-2 text-center pt-1">
+                    <div class="p-2 rounded-xl bg-brand-green/10 border-2 border-brand-dark dark:border-slate-600">
+                        <p class="text-[9px] font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400">Page Format</p>
+                        <p id="stat-orient" class="font-heading text-xs font-bold text-brand-dark dark:text-white mt-0.5">A4 Portrait</p>
+                    </div>
+                    <div class="p-2 rounded-xl bg-brand-orange/10 border-2 border-brand-dark dark:border-slate-600">
+                        <p class="text-[9px] font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400">Font Size</p>
+                        <p id="stat-fontsize" class="font-heading text-xs font-bold text-brand-dark dark:text-white mt-0.5">46 px</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Smartboard Tracing Pen (Consolidated from old Right Panel) -->
+            <section class="border-t-2 border-slate-100 dark:border-slate-700 pt-4 space-y-2.5">
+                <div class="flex items-center justify-between">
+                    <label class="section-label mb-0">Smartboard Pen</label>
+                    <span id="pen-status-badge" class="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-500">OFF</span>
+                </div>
+                <div class="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/80 border-2 border-brand-dark dark:border-slate-500 space-y-2.5">
+                    <p class="text-[11px] font-bold text-slate-500 dark:text-slate-300 leading-snug">
+                        Pick a marker color or toggle Smartboard Pen in the preview to trace live.
+                    </p>
+                    <div class="flex items-center justify-between gap-1.5">
+                        <div class="flex gap-1.5" id="pen-colors">
+                            <button type="button" data-pen-color="#ff4785" class="pen-swatch w-7 h-7 rounded-full border-3 border-dark shadow-hard-sm scale-110" style="background:#ff4785" title="Pink Marker"></button>
+                            <button type="button" data-pen-color="#1ea7fd" class="pen-swatch w-7 h-7 rounded-full border-2 border-dark" style="background:#1ea7fd" title="Blue Marker"></button>
+                            <button type="button" data-pen-color="#00d063" class="pen-swatch w-7 h-7 rounded-full border-2 border-dark" style="background:#00d063" title="Green Marker"></button>
+                            <button type="button" data-pen-color="#ff7e33" class="pen-swatch w-7 h-7 rounded-full border-2 border-dark" style="background:#ff7e33" title="Orange Marker"></button>
+                            <button type="button" data-pen-color="rainbow" class="pen-swatch w-7 h-7 rounded-full border-2 border-dark" style="background:conic-gradient(#ff4785,#ff7e33,#facc15,#00d063,#1ea7fd,#a855f7,#ff4785)" title="Rainbow Crayon"></button>
                         </div>
+                        <button id="panel-clear-ink" type="button" class="px-2.5 py-1 bg-white dark:bg-slate-900 border-2 border-brand-dark dark:border-slate-500 rounded-lg text-[10px] font-extrabold hover:bg-brand-pink/10">Clear</button>
                     </div>
-                    <textarea id="trace-input" spellcheck="false" class="w-full h-32 p-3 bg-slate-50 dark:bg-slate-800 text-dark dark:text-white font-mono text-xs border-2 border-dark dark:border-slate-500 rounded-xl focus:border-blue focus:ring-0 outline-none resize-none shadow-inner-hard" placeholder="One word, letter, or sentence per line..."></textarea>
+                    <div class="flex items-center gap-2 pt-1">
+                        <span class="text-[10px] font-extrabold text-slate-400 uppercase">Size</span>
+                        <input type="range" id="pen-size-slider" min="3" max="16" value="7" class="flex-1 h-2 bg-slate-200 dark:bg-slate-700 rounded-full appearance-none cursor-pointer accent-pink">
+                        <span id="pen-size-val" class="text-[11px] font-mono font-bold w-6 text-right">7</span>
+                    </div>
                 </div>
+            </section>
 
-                <!-- Primary Build CTA -->
-                <button id="rebuild-btn" type="button" class="w-full btn-chunky bg-green text-dark py-3 rounded-xl text-lg tracking-wide flex items-center justify-center gap-2">
-                    <i data-lucide="wand-sparkles" class="w-5 h-5"></i> UPDATE SHEET
+            <!-- Library (Saved Sheets, Card Maker Style) -->
+            <section class="border-t-2 border-slate-100 dark:border-slate-700 pt-4">
+                <button id="saved-sets-toggle-btn" type="button" class="w-full flex items-center justify-between text-left group mb-1">
+                    <span class="section-label mb-0 group-hover:text-brand-blue transition-colors">Library (<span id="saved-count">0</span>)</span>
+                    <span id="saved-sets-toggle-icon" class="active inline-flex text-slate-400 transition-transform"><i data-lucide="chevron-down" class="w-4 h-4"></i></span>
+                </button>
+                <div id="saved-sets-controls" class="active space-y-2">
+                    <div class="flex items-center gap-1.5">
+                        <select id="library-sort" aria-label="Sort saved sheets" class="input-chunky flex-1 py-1.5 px-2 text-[11px]">
+                            <option value="recent">Recent</option>
+                            <option value="alpha">A–Z</option>
+                        </select>
+                        <button id="new-set-btn" type="button" title="New Blank Sheet" class="btn-chunky bg-white dark:bg-slate-700 px-2.5 py-1.5 rounded-xl text-[10px] flex items-center gap-1 dark:text-white">
+                            <i data-lucide="sparkles" class="w-3 h-3"></i> NEW
+                        </button>
+                        <button id="save-set-btn" type="button" title="Save Current Sheet" class="btn-chunky bg-brand-pink text-white px-2.5 py-1.5 rounded-xl text-[10px] flex items-center gap-1">
+                            <i data-lucide="save" class="w-3 h-3"></i> SAVE
+                        </button>
+                    </div>
+                    <div id="library-list" class="space-y-1.5 max-h-48 overflow-y-auto custom-scrollbar pr-1"></div>
+                </div>
+            </section>
+        </div>
+
+        <!-- Sticky Footer Print Actions -->
+        <div class="mt-4 pt-4 border-t-2 border-brand-dark dark:border-slate-700 shrink-0">
+            <div class="grid grid-cols-2 gap-2">
+                <button id="print-btn" type="button" class="btn-chunky bg-brand-green text-brand-dark py-3 rounded-xl text-sm flex items-center justify-center gap-1.5" title="Print Crisp A4 Worksheet">
+                    <i data-lucide="printer" class="w-4 h-4"></i> PRINT
+                </button>
+                <button id="download-svg-btn" type="button" class="btn-chunky bg-brand-orange text-brand-dark py-3 rounded-xl text-sm flex items-center justify-center gap-1.5" title="Download Vector SVG">
+                    <i data-lucide="download" class="w-4 h-4"></i> SAVE SVG
                 </button>
             </div>
+        </div>
+    </aside>
 
-            <!-- Footer Print Actions -->
-            <div class="p-3 border-t-4 border-dark dark:border-slate-500 bg-slate-100 dark:bg-slate-800 space-y-2 shrink-0">
-                <div class="grid grid-cols-2 gap-2">
-                    <label class="seg"><input type="radio" name="page-orient" value="portrait" checked><span><i data-lucide="rectangle-vertical" class="w-3.5 h-3.5"></i> Portrait</span></label>
-                    <label class="seg"><input type="radio" name="page-orient" value="landscape"><span><i data-lucide="rectangle-horizontal" class="w-3.5 h-3.5"></i> Landscape</span></label>
-                </div>
-                <div class="flex gap-2">
-                    <button id="print-btn" type="button" class="flex-1 btn-chunky bg-blue text-white py-2 rounded-lg text-xs border-2 border-dark flex items-center justify-center gap-1.5" title="Print Crisp A4 Worksheet">
-                        <i data-lucide="printer" class="w-4 h-4"></i> PRINT A4
-                    </button>
-                    <button id="download-svg-btn" type="button" class="flex-1 btn-chunky bg-white dark:bg-slate-900 text-dark dark:text-white py-2 rounded-lg text-xs border-2 border-dark dark:border-slate-500 flex items-center justify-center gap-1.5" title="Download Vector SVG">
-                        <i data-lucide="download" class="w-4 h-4"></i> SAVE SVG
-                    </button>
-                </div>
-            </div>
-        </aside>
-
-        <!-- MAIN VIEWPORT -->
-        <main class="flex-1 relative h-[52%] md:h-full bg-slate-50 dark:bg-slate-950 flex flex-col lg:flex-row overflow-hidden">
-
-            <!-- Dotted Backdrop -->
-            <div class="canvas-dots absolute inset-0 opacity-60 dark:opacity-50 pointer-events-none"></div>
-
-            <!-- CENTER LIVE A4 PREVIEW -->
-            <div class="flex-1 h-full relative flex items-center justify-center p-3 md:p-6 overflow-hidden">
-
-                <!-- Top-Left Floating Controls -->
-                <div class="absolute top-4 left-4 z-20 flex flex-wrap items-center gap-2">
-                    <button id="toggle-sidebar-btn" type="button" class="p-2 bg-white/90 dark:bg-slate-800/90 backdrop-blur-md border-2 border-dark dark:border-slate-500 rounded-lg shadow-hard-sm hover:-translate-y-0.5 active:translate-y-0.5 active:shadow-none transition-all text-slate-700 dark:text-slate-200" title="Toggle Setup Panel">
-                        <i data-lucide="settings" class="w-5 h-5"></i>
-                    </button>
-                    <button id="draw-toggle-btn" type="button" aria-pressed="false" class="px-2.5 py-2 bg-white/90 dark:bg-slate-800/90 backdrop-blur-md border-2 border-dark dark:border-slate-500 rounded-lg shadow-hard-sm hover:-translate-y-0.5 active:translate-y-0.5 active:shadow-none transition-all text-dark dark:text-white text-xs font-extrabold flex items-center gap-1.5" title="Practice tracing directly on the sheet with mouse or smartboard pen">
-                        <span id="draw-toggle-icon" class="inline-flex text-pink"><i data-lucide="pen-tool" class="w-4 h-4"></i></span>
-                        <span>Smartboard Pen</span>
-                    </button>
-                    <button id="clear-ink-btn" type="button" class="hidden p-2 bg-white/90 dark:bg-slate-800/90 backdrop-blur-md border-2 border-dark dark:border-slate-500 rounded-lg shadow-hard-sm hover:-translate-y-0.5 active:translate-y-0.5 active:shadow-none transition-all text-pink" title="Erase Smartboard Ink">
-                        <i data-lucide="eraser" class="w-5 h-5"></i>
-                    </button>
-                </div>
-
-                <!-- Live A4 Preview Sheet + Pen Canvas -->
-                <div id="sheet-stage" class="relative z-10 flex items-center justify-center max-w-full max-h-full">
-                    <div id="a4-paper" class="a4-paper">
-                        <div id="svg-preview" class="w-full h-full"></div>
-                        <canvas id="draw-canvas" class="pointer-events-none"></canvas>
-                    </div>
-                </div>
-
-                <!-- Bottom-Right Zoom Controls -->
-                <div class="absolute bottom-4 right-4 z-20 flex gap-2">
-                    <button id="zoom-out" type="button" title="Zoom Out" class="p-2 bg-white/90 dark:bg-slate-800/90 backdrop-blur-md border-2 border-dark dark:border-slate-500 rounded-lg shadow-hard-sm hover:bg-slate-50 dark:hover:bg-slate-700 active:translate-y-0.5 active:shadow-none transition-all">
-                        <i data-lucide="minus" class="w-4 h-4"></i>
-                    </button>
-                    <button id="zoom-reset" type="button" title="Reset Zoom" class="px-2.5 py-2 bg-white/90 dark:bg-slate-800/90 backdrop-blur-md border-2 border-dark dark:border-slate-500 rounded-lg shadow-hard-sm text-[11px] font-mono font-bold active:translate-y-0.5 active:shadow-none transition-all">
-                        100%
-                    </button>
-                    <button id="zoom-in" type="button" title="Zoom In" class="p-2 bg-white/90 dark:bg-slate-800/90 backdrop-blur-md border-2 border-dark dark:border-slate-500 rounded-lg shadow-hard-sm hover:bg-slate-50 dark:hover:bg-slate-700 active:translate-y-0.5 active:shadow-none transition-all">
-                        <i data-lucide="plus" class="w-4 h-4"></i>
-                    </button>
-                </div>
-            </div>
-
-            <!-- RIGHT PANEL: SMARTBOARD PEN & SAVED SHEETS -->
-            <div class="w-full lg:w-80 h-[40%] lg:h-full bg-white dark:bg-slate-900 border-t-4 lg:border-t-0 lg:border-l-4 border-dark dark:border-slate-500 flex flex-col z-10 shrink-0">
-
-                <!-- Pink Header -->
-                <div class="p-3 bg-pink border-b-4 border-dark dark:border-slate-500 text-white font-heading font-bold text-lg tracking-wide flex items-center justify-between gap-2 shrink-0">
-                    <div class="flex items-center gap-2">
-                        <i data-lucide="paintbrush" class="w-5 h-5"></i> STUDIO &amp; PEN
-                    </div>
-                    <span id="sheet-mode-pill" class="bg-white/20 px-2.5 py-0.5 rounded-full text-[11px] font-extrabold uppercase">Rows</span>
-                </div>
-
-                <!-- Scrollable Studio Panel -->
-                <div class="flex-1 overflow-y-auto custom-scrollbar p-3.5 space-y-4">
-
-                    <!-- Smartboard Tracing Pen -->
-                    <div class="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/80 border-2 border-dark dark:border-slate-500 space-y-2.5">
-                        <div class="flex items-center justify-between">
-                            <span class="text-[10px] font-extrabold uppercase tracking-widest text-slate-400">Live Smartboard Trace</span>
-                            <span id="pen-status-badge" class="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-500">OFF</span>
-                        </div>
-                        <p class="text-[11px] font-bold text-slate-500 dark:text-slate-300 leading-snug">
-                            Turn on the pen to let students trace directly on the worksheet preview!
-                        </p>
-                        <div class="flex items-center justify-between gap-1.5 pt-0.5">
-                            <div class="flex gap-1.5" id="pen-colors">
-                                <button type="button" data-pen-color="#ff4785" class="pen-swatch w-7 h-7 rounded-full border-3 border-dark shadow-hard-sm scale-110" style="background:#ff4785" title="Pink Marker"></button>
-                                <button type="button" data-pen-color="#1ea7fd" class="pen-swatch w-7 h-7 rounded-full border-2 border-dark" style="background:#1ea7fd" title="Blue Marker"></button>
-                                <button type="button" data-pen-color="#00d063" class="pen-swatch w-7 h-7 rounded-full border-2 border-dark" style="background:#00d063" title="Green Marker"></button>
-                                <button type="button" data-pen-color="#ff7e33" class="pen-swatch w-7 h-7 rounded-full border-2 border-dark" style="background:#ff7e33" title="Orange Marker"></button>
-                                <button type="button" data-pen-color="rainbow" class="pen-swatch w-7 h-7 rounded-full border-2 border-dark" style="background:conic-gradient(#ff4785,#ff7e33,#facc15,#00d063,#1ea7fd,#a855f7,#ff4785)" title="Rainbow Crayon"></button>
-                            </div>
-                            <button id="panel-clear-ink" type="button" class="px-2.5 py-1 bg-white dark:bg-slate-900 border-2 border-dark dark:border-slate-500 rounded-lg text-[10px] font-extrabold hover:bg-pink/10">Clear</button>
-                        </div>
-                        <div class="flex items-center gap-2 pt-1">
-                            <span class="text-[10px] font-extrabold text-slate-400 uppercase">Size</span>
-                            <input type="range" id="pen-size-slider" min="3" max="16" value="7" class="flex-1 h-2 bg-slate-200 dark:bg-slate-700 rounded-full appearance-none cursor-pointer accent-pink">
-                            <span id="pen-size-val" class="text-[11px] font-mono font-bold w-6 text-right">7</span>
-                        </div>
-                    </div>
-
-                    <!-- Color & Print Ink Controls -->
-                    <div class="p-3 rounded-2xl bg-blue/10 dark:bg-slate-800 border-2 border-dark dark:border-slate-500 space-y-2.5">
-                        <span class="text-[10px] font-extrabold uppercase tracking-widest text-blue block">Worksheet Palette</span>
-                        <div class="grid grid-cols-3 gap-1.5">
-                            <label class="seg" title="Soft classroom colors"><input type="radio" name="sheet-palette" value="color" checked><span>Color</span></label>
-                            <label class="seg" title="Classic blue-and-red handwriting lines"><input type="radio" name="sheet-palette" value="classic"><span>School</span></label>
-                            <label class="seg" title="Crisp ink-saving black &amp; gray"><input type="radio" name="sheet-palette" value="bw"><span>B&amp;W</span></label>
-                        </div>
-                        <div class="flex items-center justify-between text-[11px] font-bold pt-1">
-                            <span class="text-slate-500 dark:text-slate-300">Trace Darkness</span>
-                            <output id="darkness-val" class="font-mono text-dark dark:text-white">55%</output>
-                        </div>
-                        <input type="range" id="darkness-slider" min="20" max="90" step="5" value="55" class="w-full h-2 bg-white dark:bg-slate-700 rounded-full appearance-none cursor-pointer accent-blue border border-dark">
-                    </div>
-
-                    <!-- Sheet Summary -->
-                    <div class="grid grid-cols-2 gap-2 text-center">
-                        <div class="p-2 rounded-xl bg-green/10 border-2 border-dark dark:border-slate-600">
-                            <p class="text-[9px] font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400">Page Format</p>
-                            <p id="stat-orient" class="font-heading text-sm font-bold text-dark dark:text-white mt-0.5">A4 Portrait</p>
-                        </div>
-                        <div class="p-2 rounded-xl bg-orange/10 border-2 border-dark dark:border-slate-600">
-                            <p class="text-[9px] font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400">Font Size</p>
-                            <p id="stat-fontsize" class="font-heading text-sm font-bold text-dark dark:text-white mt-0.5">46 px</p>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Saved Sheets Drawer -->
-                <div class="p-3 border-t-2 border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/40 shrink-0">
-                    <button id="saved-sets-toggle-btn" type="button" class="w-full flex items-center justify-between text-[10px] font-extrabold text-slate-400 uppercase tracking-widest mb-1 hover:text-dark dark:hover:text-white">
-                        <span>Saved Sheets (<span id="saved-count">0</span>)</span>
-                        <span id="saved-sets-toggle-icon" class="inline-flex transition-transform"><i data-lucide="chevron-up" class="w-3.5 h-3.5"></i></span>
-                    </button>
-                    <div id="saved-sets-controls" class="space-y-2">
-                        <div class="flex items-center gap-1.5">
-                            <select id="library-sort" aria-label="Sort saved sheets" class="flex-1 p-1.5 bg-white dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-lg text-dark dark:text-white font-bold text-[10px] focus:outline-none">
-                                <option value="recent">Recent</option>
-                                <option value="alpha">A–Z</option>
-                            </select>
-                            <button id="new-set-btn" type="button" title="New Blank Sheet" class="p-1.5 bg-white dark:bg-slate-800 text-dark dark:text-white border-2 border-dark dark:border-slate-500 rounded-lg hover:brightness-95 font-bold text-[10px] flex items-center gap-1">
-                                <i data-lucide="plus" class="w-3 h-3"></i> NEW
-                            </button>
-                            <button id="save-set-btn" type="button" title="Save Current Sheet" class="p-1.5 bg-blue text-white border-2 border-dark rounded-lg hover:brightness-110 font-bold text-[10px] flex items-center gap-1">
-                                <i data-lucide="save" class="w-3 h-3"></i> SAVE
-                            </button>
-                        </div>
-                        <div id="library-list" class="space-y-1.5 max-h-32 overflow-y-auto custom-scrollbar pr-1"></div>
-                    </div>
-                </div>
-            </div>
-        </main>
+    <!-- FLOATING ZOOM BAR (matches Card Maker) -->
+    <div id="zoom-bar" class="no-print fixed bottom-4 right-4 z-[60] flex items-center gap-1 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border-[3px] border-brand-dark dark:border-slate-500 rounded-2xl p-1 shadow-neo dark:shadow-[4px_4px_0px_0px_#000000]">
+        <button id="zoom-out" type="button" title="Zoom Out" class="px-2 py-1.5 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+            <i data-lucide="minus" class="w-4 h-4"></i>
+        </button>
+        <button id="zoom-reset" type="button" title="Reset Zoom" class="px-2.5 py-1 rounded-xl text-[11px] font-heading font-bold bg-brand-blue text-white transition-colors">
+            100%
+        </button>
+        <button id="zoom-in" type="button" title="Zoom In" class="px-2 py-1.5 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+            <i data-lucide="plus" class="w-4 h-4"></i>
+        </button>
     </div>
+
+    <!-- MAIN VIEWPORT (Graph Paper Canvas, matches Card Maker) -->
+    <main id="previewArea" class="preview-area transition-all duration-500 flex-1 no-print">
+        <!-- Top-Left Floating Controls -->
+        <div class="absolute top-4 left-4 z-20 flex flex-wrap items-center gap-2">
+            <button id="toggle-sidebar-btn" type="button" class="p-2 bg-white/90 dark:bg-slate-800/90 backdrop-blur-md border-2 border-brand-dark dark:border-slate-500 rounded-xl shadow-neo-sm hover:-translate-y-0.5 transition-all text-slate-700 dark:text-slate-200" title="Toggle Setup Sidebar">
+                <i data-lucide="panel-left" class="w-4 h-4"></i>
+            </button>
+            <button id="draw-toggle-btn" type="button" aria-pressed="false" class="px-3 py-2 bg-white/90 dark:bg-slate-800/90 backdrop-blur-md border-2 border-brand-dark dark:border-slate-500 rounded-xl shadow-neo-sm hover:-translate-y-0.5 transition-all text-dark dark:text-white text-xs font-extrabold flex items-center gap-1.5" title="Practice tracing directly on the sheet with mouse or smartboard pen">
+                <span id="draw-toggle-icon" class="inline-flex text-pink"><i data-lucide="pen-tool" class="w-4 h-4"></i></span>
+                <span>Smartboard Pen</span>
+            </button>
+            <button id="clear-ink-btn" type="button" class="hidden p-2 bg-white/90 dark:bg-slate-800/90 backdrop-blur-md border-2 border-brand-dark dark:border-slate-500 rounded-xl shadow-neo-sm hover:-translate-y-0.5 transition-all text-pink" title="Erase Smartboard Ink">
+                <i data-lucide="eraser" class="w-4 h-4"></i>
+            </button>
+        </div>
+
+        <!-- Live A4 Preview Sheet + Pen Canvas -->
+        <div id="sheet-stage" class="relative z-10 flex items-center justify-center max-w-full max-h-full">
+            <div id="a4-paper" class="a4-paper">
+                <div id="svg-preview" class="w-full h-full"></div>
+                <canvas id="draw-canvas" class="pointer-events-none"></canvas>
+            </div>
+        </div>
+    </main>
 
     <!-- HELP MODAL -->
     <div id="helpModal" class="hidden fixed inset-0 bg-dark/60 backdrop-blur-md z-[500] flex items-center justify-center p-4">

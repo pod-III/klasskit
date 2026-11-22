@@ -66,40 +66,133 @@
 
     <style>
         :root {
+            --color-pink: #ff4785;
+            --color-orange: #ff7e33;
+            --color-green: #00d063;
+            --color-blue: #1ea7fd;
+            --color-dark: #1e293b;
+            --color-chalk: #f8fafc;
+            --border-primary: #1e293b;
             --shadow-color: #1e293b;
             --line: #1e293b;
             --ink: #1e293b;
             --surface: #ffffff;
             --shadow: #1e293b;
+            --shadow-hard-sm: 2px 2px 0px 0px var(--border-primary);
+            --shadow-hard-md: 4px 4px 0px 0px var(--border-primary);
+            --shadow-hard-lg: 8px 8px 0px 0px var(--border-primary);
         }
 
         .dark {
+            --border-primary: #64748b;
             --shadow-color: #000000;
             --line: #64748b;
             --ink: #f8fafc;
-            --surface: #0f172a;
+            --surface: #1e293b;
             --shadow: #000000;
+            --shadow-hard-sm: 2px 2px 0px 0px #000000;
+            --shadow-hard-md: 4px 4px 0px 0px #000000;
+            --shadow-hard-lg: 8px 8px 0px 0px #000000;
         }
 
         body {
             font-family: 'Nunito', -apple-system, BlinkMacSystemFont, sans-serif;
-            overflow: hidden;
+            background-color: var(--color-chalk);
+            color: var(--color-dark);
             -webkit-tap-highlight-color: transparent;
             user-select: none;
         }
 
-        @media (max-width: 767px) {
-            body { padding-bottom: 0 !important; }
+        .dark body {
+            background-color: #020617;
+            color: #ffffff;
         }
 
-        .game-console {
-            border: 6px solid #1e293b;
-            border-radius: 2rem;
-            box-shadow: rgba(30, 41, 59, 0.15) 14px 14px 0px;
+        @media screen {
+            .hidden { display: none !important; }
         }
-        .dark .game-console {
-            border-color: #64748b;
-            box-shadow: rgba(0, 0, 0, 0.45) 14px 14px 0px;
+
+        /* Sidebar & Preview Area (matches Card Maker) */
+        .sidebar {
+            width: 100%;
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border-bottom: 4px solid var(--border-primary);
+            z-index: 50;
+            flex-shrink: 0;
+            transition: width 0.28s cubic-bezier(0.4, 0, 0.2, 1), padding 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        @media (min-width: 768px) {
+            .sidebar {
+                width: 340px;
+                border-bottom: none;
+                border-right: 4px solid var(--border-primary);
+                height: 100vh;
+                position: sticky;
+                top: 0;
+            }
+            .sidebar.hidden-panel-desktop {
+                width: 0 !important;
+                min-width: 0 !important;
+                padding: 0 !important;
+                border-right-width: 0 !important;
+                overflow: hidden !important;
+                opacity: 0;
+                pointer-events: none;
+            }
+        }
+
+        @media (min-width: 1440px) {
+            .sidebar {
+                width: 380px;
+            }
+        }
+
+        @media (max-width: 767px) {
+            body { padding-bottom: 0 !important; }
+            .hidden-panel-mobile { display: none !important; }
+        }
+
+        .dark .sidebar {
+            background: rgba(30, 41, 59, 0.85);
+        }
+
+        .preview-area {
+            background-color: #f8fafc;
+            background-image:
+                linear-gradient(rgba(30, 41, 59, 0.05) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(30, 41, 59, 0.05) 1px, transparent 1px);
+            background-size: 20px 20px;
+            flex: 1;
+            min-width: 0;
+            min-height: 75vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 18px 24px 24px;
+            overflow: auto;
+            position: relative;
+        }
+
+        .dark .preview-area {
+            background-color: #020617;
+            background-image:
+                linear-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+        }
+
+        .section-label {
+            font-size: 11px;
+            font-weight: 700;
+            color: #94a3b8;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            margin-bottom: 0.5rem;
+            display: block;
+            font-family: "Fredoka", sans-serif;
         }
 
         :where(.btn-chunky) {
@@ -107,11 +200,11 @@
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            border: 3px solid var(--line);
-            box-shadow: 0 4px 0 var(--shadow);
+            border: 3px solid var(--border-primary);
+            box-shadow: var(--shadow-hard-md);
             cursor: pointer;
             user-select: none;
-            transition: all 0.12s cubic-bezier(0.4, 0, 0.2, 1);
+            transition: all 0.1s ease;
             transform: translateY(0px);
         }
 
@@ -123,15 +216,18 @@
         }
         .btn-chunky:hover:not(:disabled) {
             transform: translateY(-2px);
-            box-shadow: 0 6px 0 var(--shadow);
-            filter: brightness(1.04);
+            box-shadow: 6px 6px 0px 0px var(--border-primary);
+        }
+        .dark .btn-chunky:hover:not(:disabled) {
+            box-shadow: 6px 6px 0px 0px #000000;
         }
         .btn-chunky:active:not(:disabled) {
-            transform: translateY(4px);
-            box-shadow: 0 0 0 var(--shadow) !important;
+            transform: translate(4px, 4px);
+            box-shadow: none !important;
         }
         .btn-chunky:disabled { opacity: 0.5; cursor: not-allowed; }
         .btn-chunky:focus-visible,
+        button:focus-visible,
         input:focus-visible,
         select:focus-visible,
         textarea:focus-visible {
@@ -183,35 +279,35 @@
         }
 
         .input-chunky {
-            border: 2px solid var(--line);
+            width: 100%;
+            border: 3px solid var(--border-primary);
             border-radius: 0.75rem;
-            box-shadow: 2px 2px 0 var(--shadow);
+            padding: 0.55rem 0.85rem;
+            font-weight: 700;
+            background-color: #ffffff;
+            color: #1e293b;
+            outline: none;
+            box-shadow: var(--shadow-hard-sm);
+            transition: box-shadow 0.15s ease;
         }
-        .input-chunky:focus { outline: none; border-color: var(--color-blue); }
+        .input-chunky:focus { box-shadow: 0 0 0 4px rgba(30, 167, 253, 0.3); }
+        .dark .input-chunky {
+            background-color: #1e293b;
+            border-color: #64748b;
+            color: #ffffff;
+            box-shadow: 2px 2px 0px 0px #000000;
+        }
 
-        .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar { width: 8px; height: 8px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: rgba(30, 41, 59, 0.05); border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
         .dark .custom-scrollbar::-webkit-scrollbar-thumb { background: #475569; }
         .custom-scrollbar { scrollbar-color: #cbd5e1 transparent; scrollbar-width: thin; }
 
-        @media (max-width: 767px) {
-            .hidden-panel-mobile { display: none !important; }
-        }
-        @media (min-width: 768px) {
-            .hidden-panel-desktop { margin-left: -20rem; border-right-width: 0px !important; }
-        }
-        @media (min-width: 1024px) {
-            .hidden-panel-desktop { margin-left: -24rem; }
-        }
-
-        #saved-sets-controls { max-height: 0; overflow: hidden; transition: 0.3s ease-out; opacity: 0; }
-        #saved-sets-controls.active { max-height: 260px; opacity: 1; margin-top: 8px; }
+        #saved-sets-controls { max-height: 0; overflow: hidden; transition: 0.25s ease-out; opacity: 0; }
+        #saved-sets-controls.active { max-height: 360px; opacity: 1; margin-top: 8px; }
         #saved-sets-toggle-icon.active { transform: rotate(180deg); }
-
-        .canvas-dots {
-            background-image: radial-gradient(var(--dots) 1.8px, transparent 1.8px);
-            background-size: 24px 24px;
-        }
 
         #sheet-stage {
             transform-origin: center center;
@@ -219,15 +315,18 @@
         }
         .a4-paper {
             background: #ffffff;
+            color: #1e293b;
             border: 4px solid #1e293b;
-            border-radius: 1rem;
-            box-shadow: 8px 8px 0 rgba(30, 41, 59, 0.22);
+            border-radius: 0;
+            box-shadow: 12px 12px 0px rgba(30, 41, 59, 0.15);
             position: relative;
             overflow: hidden;
         }
         .dark .a4-paper {
-            border-color: #94a3b8;
-            box-shadow: 8px 8px 0 rgba(0, 0, 0, 0.55);
+            background: #ffffff;
+            color: #1e293b;
+            border-color: #64748b;
+            box-shadow: 12px 12px 0px #000000;
         }
 
         .net-face { cursor: pointer; transition: filter 0.12s ease; }
@@ -235,8 +334,8 @@
 
         /* 3D CUBE PREVIEW */
         .cube-scene {
-            width: 118px;
-            height: 118px;
+            width: 112px;
+            height: 112px;
             perspective: 460px;
             margin: 0 auto;
         }
@@ -250,8 +349,8 @@
         }
         .cube-face {
             position: absolute;
-            width: 118px;
-            height: 118px;
+            width: 112px;
+            height: 112px;
             border: 3px solid #1e293b;
             border-radius: 12px;
             display: flex;
@@ -267,12 +366,12 @@
             box-shadow: inset 0 0 0 2px rgba(255,255,255,0.45);
             overflow: hidden;
         }
-        .cube-face.f1 { transform: rotateY(0deg) translateZ(59px); }
-        .cube-face.f2 { transform: rotateY(90deg) translateZ(59px); }
-        .cube-face.f3 { transform: rotateY(180deg) translateZ(59px); }
-        .cube-face.f4 { transform: rotateY(-90deg) translateZ(59px); }
-        .cube-face.f5 { transform: rotateX(90deg) translateZ(59px); }
-        .cube-face.f6 { transform: rotateX(-90deg) translateZ(59px); }
+        .cube-face.f1 { transform: rotateY(0deg) translateZ(56px); }
+        .cube-face.f2 { transform: rotateY(90deg) translateZ(56px); }
+        .cube-face.f3 { transform: rotateY(180deg) translateZ(56px); }
+        .cube-face.f4 { transform: rotateY(-90deg) translateZ(56px); }
+        .cube-face.f5 { transform: rotateX(90deg) translateZ(56px); }
+        .cube-face.f6 { transform: rotateX(-90deg) translateZ(56px); }
 
         @keyframes pop-in {
             0% { opacity: 0; transform: scale(0.92); }
@@ -299,7 +398,7 @@
                 width: 297mm !important;
                 height: 210mm !important;
             }
-            body > :not(#print-area) { display: none !important; }
+            .no-print, body > :not(#print-area) { display: none !important; }
             #print-area {
                 display: flex !important;
                 align-items: center !important;
@@ -326,295 +425,269 @@
     <style id="page-style"></style>
 </head>
 
-<body class="opacity-0 transition-opacity duration-200 h-screen w-screen flex flex-col items-center justify-center p-2 md:p-5 overflow-hidden text-dark dark:text-white">
+<body class="opacity-0 transition-opacity duration-200 flex flex-col md:flex-row min-h-screen md:h-screen md:overflow-hidden text-brand-dark dark:text-white">
 
     <!-- Toast Container -->
-    <div id="toast-container" class="print:hidden fixed bottom-6 left-1/2 -translate-x-1/2 z-[600] flex flex-col gap-2 pointer-events-none"></div>
+    <div id="toast-container" class="no-print print:hidden fixed bottom-6 left-1/2 -translate-x-1/2 z-[600] flex flex-col gap-2 pointer-events-none"></div>
 
-    <!-- MAIN CONSOLE -->
-    <div class="game-console print:hidden w-full h-full relative flex flex-col md:flex-row overflow-hidden bg-white dark:bg-slate-900">
+    <!-- SIDEBAR CONTROLS (matches Card Maker) -->
+    <aside id="sidebar" class="sidebar glass-panel no-print flex flex-col p-4 sm:p-5">
 
-        <!-- LEFT SIDEBAR: DICE CUSTOMIZER -->
-        <aside id="sidebar" class="w-full md:w-80 lg:w-96 bg-white dark:bg-slate-900 border-b-4 md:border-b-0 md:border-r-4 border-dark dark:border-slate-500 flex flex-col z-40 transition-all duration-300 h-[48%] md:h-full relative shrink-0">
-
-            <!-- Header -->
-            <div class="p-4 border-b-4 border-dark dark:border-slate-500 bg-blue/10 dark:bg-slate-800/80 flex justify-between items-center gap-2 shrink-0">
-                <div>
-                    <h1 class="text-2xl font-heading font-bold text-dark dark:text-white tracking-wide leading-none">
-                        Dice Maker
-                    </h1>
-                    <p class="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-widest mt-1">KlassKit Printable Nets</p>
-                </div>
-                <div class="flex items-center gap-1.5">
-                    <button id="sound-btn" type="button" title="Toggle Sound Effects" aria-pressed="true" class="p-2 bg-white dark:bg-slate-800 text-dark dark:text-white border-2 border-dark dark:border-slate-500 rounded-lg shadow-hard-sm hover:-translate-y-0.5 active:translate-y-0.5 active:shadow-none transition-all">
-                        <span id="sound-icon-on" class="inline-flex"><i data-lucide="volume-2" class="w-4 h-4"></i></span>
-                        <span id="sound-icon-off" class="hidden inline-flex"><i data-lucide="volume-x" class="w-4 h-4 text-slate-400"></i></span>
-                    </button>
-                    <button id="help-btn" type="button" title="How to Cut, Fold &amp; Use" class="p-2 bg-orange/20 text-orange border-2 border-dark dark:border-slate-500 rounded-lg shadow-hard-sm hover:-translate-y-0.5 active:translate-y-0.5 active:shadow-none transition-all">
-                        <i data-lucide="help-circle" class="w-4 h-4"></i>
-                    </button>
-                    <button id="theme-btn" type="button" aria-pressed="false" aria-label="Toggle dark mode" title="Toggle Dark Mode" class="p-2 bg-white dark:bg-slate-800 text-dark dark:text-white border-2 border-dark dark:border-slate-500 rounded-lg shadow-hard-sm hover:-translate-y-0.5 active:translate-y-0.5 active:shadow-none transition-all">
-                        <i data-lucide="moon" class="w-4 h-4 dark:hidden"></i>
-                        <i data-lucide="sun" class="w-4 h-4 hidden dark:block text-orange"></i>
-                    </button>
-                    <button id="mobile-close-panel" type="button" class="md:hidden p-2 bg-pink/20 text-pink border-2 border-dark dark:border-slate-500 rounded-lg shadow-hard-sm active:translate-y-1 active:shadow-none transition-all">
-                        <i data-lucide="x" class="w-4 h-4"></i>
-                    </button>
+        <!-- Header -->
+        <div class="mb-4 border-b-2 border-slate-100 dark:border-slate-700 pb-4 flex items-center justify-between gap-2 shrink-0">
+            <div>
+                <h1 class="text-3xl font-heading text-brand-dark dark:text-white tracking-tight leading-none">
+                    DICE<span class="text-brand-blue">MAKER</span>
+                </h1>
+                <div class="flex items-center gap-2 mt-2">
+                    <span class="px-2 py-0.5 rounded bg-brand-dark text-white text-[10px] font-bold uppercase tracking-widest">KlassKit</span>
+                    <span class="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Edition</span>
                 </div>
             </div>
-
-            <!-- Scrollable Controls -->
-            <div class="flex-1 p-4 overflow-y-auto custom-scrollbar space-y-5 bg-white dark:bg-slate-900">
-
-                <!-- Active Set Banner -->
-                <div id="active-set-banner" class="hidden animate-pop-in p-2.5 rounded-xl bg-blue/10 dark:bg-blue/20 border-2 border-blue flex items-center justify-between gap-2">
-                    <div class="flex items-center gap-2 min-w-0">
-                        <div class="w-7 h-7 rounded-lg bg-blue text-white flex items-center justify-center shrink-0 border-2 border-dark">
-                            <i data-lucide="bookmark-check" class="w-3.5 h-3.5"></i>
-                        </div>
-                        <div class="min-w-0">
-                            <p class="text-[9px] font-bold uppercase tracking-wider text-blue leading-none">Active Die</p>
-                            <p id="active-set-name" class="text-xs font-extrabold truncate mt-0.5"></p>
-                        </div>
-                    </div>
-                    <button id="close-set-btn" type="button" title="Detach from saved die" class="p-1 rounded-lg hover:bg-blue/20 text-slate-500 dark:text-slate-300">
-                        <i data-lucide="x" class="w-3.5 h-3.5"></i>
-                    </button>
-                </div>
-
-                <!-- Sheet Layout & Size -->
-                <div class="space-y-2.5">
-                    <label class="text-xs font-bold text-slate-400 uppercase tracking-widest block">Dice Per A4 Sheet</label>
-                    <div class="grid grid-cols-3 gap-1.5">
-                        <label class="seg" title="1 Jumbo Die (~58mm cube)"><input type="radio" name="sheet-layout" value="1" checked><span>1 Jumbo</span></label>
-                        <label class="seg" title="2 Medium Dice (Same or Pair A+B)"><input type="radio" name="sheet-layout" value="2"><span>2 Medium</span></label>
-                        <label class="seg" title="4 Mini Dice for table groups"><input type="radio" name="sheet-layout" value="4"><span>4 Mini</span></label>
-                    </div>
-
-                    <!-- Pair Mode Toggle (Shown when 2 Medium selected) -->
-                    <div id="pair-mode-box" class="hidden pt-1 space-y-2">
-                        <div class="grid grid-cols-2 gap-1.5">
-                            <label class="seg"><input type="radio" name="pair-mode" value="same" checked><span>Same Die ×2</span></label>
-                            <label class="seg"><input type="radio" name="pair-mode" value="ab"><span>Die A + Die B</span></label>
-                        </div>
-                        <div id="ab-tabs" class="hidden grid grid-cols-2 gap-1.5">
-                            <button type="button" data-edit-die="A" class="ab-tab-btn py-1.5 rounded-lg border-2 border-dark bg-pink text-white text-xs font-heading font-bold shadow-hard-sm">Editing Die A</button>
-                            <button type="button" data-edit-die="B" class="ab-tab-btn py-1.5 rounded-lg border-2 border-dark bg-white dark:bg-slate-800 text-dark dark:text-white text-xs font-heading font-bold">Editing Die B</button>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Quick Presets -->
-                <div class="pt-4 border-t-2 border-dashed border-slate-300 dark:border-slate-700">
-                    <label class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2.5 block">Quick Presets</label>
-                    <div class="flex gap-1.5 flex-wrap">
-                        <button type="button" data-preset="wh" class="preset-btn px-2.5 py-1.5 bg-white dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-full text-xs font-bold shadow-hard-sm hover:-translate-y-0.5 active:translate-y-0.5 transition-all">❓ WH-Questions</button>
-                        <button type="button" data-preset="story" class="preset-btn px-2.5 py-1.5 bg-white dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-full text-xs font-bold shadow-hard-sm hover:-translate-y-0.5 active:translate-y-0.5 transition-all">📖 Story Cubes</button>
-                        <button type="button" data-preset="grammar_pair" class="preset-btn px-2.5 py-1.5 bg-white dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-full text-xs font-bold shadow-hard-sm hover:-translate-y-0.5 active:translate-y-0.5 transition-all">🕰️ A+B Grammar</button>
-                        <button type="button" data-preset="actions" class="preset-btn px-2.5 py-1.5 bg-white dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-full text-xs font-bold shadow-hard-sm hover:-translate-y-0.5 active:translate-y-0.5 transition-all">🏃 Actions</button>
-                        <button type="button" data-preset="classic" class="preset-btn px-2.5 py-1.5 bg-white dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-full text-xs font-bold shadow-hard-sm hover:-translate-y-0.5 active:translate-y-0.5 transition-all">🎲 1–6 Pips</button>
-                        <button type="button" data-preset="blank" class="preset-btn px-2.5 py-1.5 bg-white dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-full text-xs font-bold shadow-hard-sm hover:-translate-y-0.5 active:translate-y-0.5 transition-all">✏️ Blank DIY</button>
-                    </div>
-                </div>
-
-                <!-- 6 FACES CUSTOMIZER -->
-                <div class="space-y-2.5 pt-4 border-t-2 border-dashed border-slate-300 dark:border-slate-700">
-                    <div class="flex items-center justify-between gap-2 flex-wrap">
-                        <label class="text-xs font-bold text-slate-400 uppercase tracking-widest">Customize 6 Faces <span id="editing-die-label" class="text-pink"></span></label>
-                        <div class="flex items-center gap-1.5">
-                            <button id="bulk-images-btn" type="button" class="px-2.5 py-0.5 bg-blue text-white border-2 border-dark dark:border-slate-500 rounded-full text-[10px] font-heading font-bold uppercase tracking-wider shadow-hard-sm hover:-translate-y-0.5 active:translate-y-0.5 active:shadow-none transition-all flex items-center gap-1" title="Upload 1–6 images for active die (or 7–12 for Die A + B)">
-                                <i data-lucide="images" class="w-3 h-3"></i> Images
-                            </button>
-                            <button id="bulk-import-btn" type="button" class="px-2.5 py-0.5 bg-orange text-dark border-2 border-dark dark:border-slate-500 rounded-full text-[10px] font-heading font-bold uppercase tracking-wider shadow-hard-sm hover:-translate-y-0.5 active:translate-y-0.5 active:shadow-none transition-all flex items-center gap-1">
-                                <i data-lucide="file-up" class="w-3 h-3"></i> Bulk Import
-                            </button>
-                            <button id="clear-faces-btn" type="button" class="text-[11px] font-extrabold text-pink hover:underline">Clear</button>
-                        </div>
-                    </div>
-                    <p class="text-[10px] font-bold text-slate-400">Add an emoji, custom uploaded image (or drop on row), text label, and color.</p>
-                    <input type="file" id="single-face-image-input" accept="image/*" class="hidden">
-                    <input type="file" id="bulk-dice-images-input" accept="image/*" multiple class="hidden">
-                    <div id="faces-editor-list" class="space-y-2"></div>
-                </div>
-
-                <!-- Color Palette & Print Options -->
-                <div class="space-y-3 pt-4 border-t-2 border-dashed border-slate-300 dark:border-slate-700">
-                    <label class="text-xs font-bold text-slate-400 uppercase tracking-widest block">Palette &amp; Typography</label>
-                    <div class="grid grid-cols-3 gap-1.5">
-                        <button type="button" data-palette="vibrant" class="palette-btn py-1.5 px-2 bg-white dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-xl text-[10px] font-extrabold shadow-hard-sm hover:-translate-y-0.5">🌈 Vibrant</button>
-                        <button type="button" data-palette="pastel" class="palette-btn py-1.5 px-2 bg-white dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-xl text-[10px] font-extrabold shadow-hard-sm hover:-translate-y-0.5">🍬 Pastel</button>
-                        <button type="button" data-palette="bw" class="palette-btn py-1.5 px-2 bg-white dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-xl text-[10px] font-extrabold shadow-hard-sm hover:-translate-y-0.5">🖨️ B&amp;W Print</button>
-                    </div>
-
-                    <div class="space-y-1">
-                        <div class="flex justify-between items-center text-[11px] font-bold">
-                            <span class="text-slate-400 uppercase tracking-wider">Face Text Size</span>
-                            <output id="text-size-val" class="font-heading text-blue">24 px</output>
-                        </div>
-                        <input type="range" id="text-size-slider" min="14" max="38" step="1" value="24" class="w-full h-2.5 bg-slate-100 dark:bg-slate-800 rounded-full appearance-none cursor-pointer accent-blue border-2 border-dark dark:border-slate-500">
-                    </div>
-
-                    <div class="space-y-1.5 pt-1">
-                        <label class="flex items-center gap-2 cursor-pointer text-xs font-bold text-slate-600 dark:text-slate-300">
-                            <input type="checkbox" id="show-glue-labels" checked class="w-4 h-4 shrink-0 accent-blue cursor-pointer">
-                            <span>Show "GLUE" labels &amp; cut scissors</span>
-                        </label>
-                        <label class="flex items-center gap-2 cursor-pointer text-xs font-bold text-slate-600 dark:text-slate-300">
-                            <input type="checkbox" id="show-corner-nums" class="w-4 h-4 shrink-0 accent-orange cursor-pointer">
-                            <span>Show corner numbers (1–6) on faces</span>
-                        </label>
-                    </div>
-                </div>
-
-                <!-- Sheet Header -->
-                <div class="space-y-2 pt-4 border-t-2 border-dashed border-slate-300 dark:border-slate-700">
-                    <label class="text-xs font-bold text-slate-400 uppercase tracking-widest block">Handout Header</label>
-                    <input id="custom-title" type="text" value="WH-Question Cube" placeholder="Handout Title" class="w-full p-2 bg-slate-50 dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-lg text-dark dark:text-white font-bold text-xs focus:outline-none focus:border-blue">
-                    <input id="custom-subtitle" type="text" value="Cut along the solid outer lines, fold on the dashed lines, and glue the tabs!" placeholder="Student instructions..." class="w-full p-2 bg-slate-50 dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-lg text-dark dark:text-white font-semibold text-xs focus:outline-none focus:border-blue">
-                </div>
+            <div class="flex items-center gap-1.5 shrink-0">
+                <button id="sound-btn" type="button" title="Toggle Sound Effects" aria-pressed="true" class="bg-white dark:bg-slate-800 text-brand-dark dark:text-white p-2 rounded-full border-2 border-brand-dark dark:border-slate-500 shadow-neo-sm hover:-translate-y-0.5 transition-all">
+                    <span id="sound-icon-on" class="inline-flex"><i data-lucide="volume-2" class="w-4 h-4"></i></span>
+                    <span id="sound-icon-off" class="hidden inline-flex"><i data-lucide="volume-x" class="w-4 h-4 text-slate-400"></i></span>
+                </button>
+                <button id="help-btn" type="button" title="How to Cut, Fold &amp; Use" class="bg-brand-orange/20 text-brand-orange p-2 rounded-full border-2 border-brand-dark dark:border-slate-500 shadow-neo-sm hover:-translate-y-0.5 transition-all">
+                    <i data-lucide="help-circle" class="w-4 h-4"></i>
+                </button>
+                <button id="theme-btn" type="button" aria-pressed="false" aria-label="Toggle dark mode" title="Toggle Dark Mode" class="bg-white dark:bg-slate-800 text-brand-dark dark:text-white p-2 rounded-full border-2 border-brand-dark dark:border-slate-500 shadow-neo-sm hover:-translate-y-0.5 transition-all group focus:outline-none">
+                    <i data-lucide="moon" class="w-4 h-4 dark:hidden group-hover:rotate-12 transition-transform"></i>
+                    <i data-lucide="sun" class="w-4 h-4 hidden dark:block text-orange group-hover:rotate-90 transition-transform"></i>
+                </button>
+                <button id="mobile-close-panel" type="button" title="Hide Sidebar" class="md:hidden bg-brand-pink/20 text-brand-pink p-2 rounded-full border-2 border-brand-dark dark:border-slate-500 shadow-neo-sm">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
             </div>
+        </div>
 
-            <!-- Footer Print Actions -->
-            <div class="p-3 border-t-4 border-dark dark:border-slate-500 bg-slate-100 dark:bg-slate-800 space-y-2 shrink-0">
+        <!-- Active Set Banner -->
+        <div id="active-set-banner" class="hidden mb-4 animate-pop-in bg-brand-blue/10 border-2 border-brand-blue/30 rounded-xl p-3 flex items-center gap-3 shrink-0">
+            <div class="w-8 h-8 rounded-lg bg-brand-blue flex items-center justify-center text-white shrink-0 shadow-neo-sm">
+                <i data-lucide="layers" class="w-4 h-4"></i>
+            </div>
+            <div class="min-w-0 flex-1">
+                <p class="text-[10px] font-bold text-brand-blue uppercase tracking-wider leading-none mb-1">Active Die</p>
+                <p id="active-set-name" class="text-sm font-bold truncate dark:text-white">Untitled Die</p>
+            </div>
+            <button id="close-set-btn" type="button" title="Detach from saved die" class="text-slate-400 hover:text-brand-pink transition-colors">
+                <i data-lucide="x" class="w-4 h-4"></i>
+            </button>
+        </div>
+
+        <!-- Scrollable Controls -->
+        <div class="space-y-6 flex-1 overflow-y-auto pr-2 custom-scrollbar">
+
+            <!-- Quick Workspace & Dice Per Page -->
+            <section class="space-y-3">
+                <div class="flex items-center justify-between gap-2">
+                    <label class="section-label mb-0">Dice Per Page</label>
+                    <span id="layout-pill" class="px-2 py-0.5 rounded bg-brand-blue/15 text-brand-blue border border-brand-blue/40 text-[10px] font-extrabold uppercase">1 Jumbo</span>
+                </div>
+                <div class="grid grid-cols-3 gap-1.5">
+                    <label class="seg" title="1 Jumbo Die (~58mm cube)"><input type="radio" name="sheet-layout" value="1" checked><span>1 Jumbo</span></label>
+                    <label class="seg" title="2 Medium Dice (Same or Pair A+B)"><input type="radio" name="sheet-layout" value="2"><span>2 Medium</span></label>
+                    <label class="seg" title="4 Mini Dice for table groups"><input type="radio" name="sheet-layout" value="4"><span>4 Mini</span></label>
+                </div>
+
+                <!-- Pair Mode Toggle (Shown when 2 Medium selected) -->
+                <div id="pair-mode-box" class="hidden pt-1 space-y-2">
+                    <div class="grid grid-cols-2 gap-1.5">
+                        <label class="seg"><input type="radio" name="pair-mode" value="same" checked><span>Same Die ×2</span></label>
+                        <label class="seg"><input type="radio" name="pair-mode" value="ab"><span>Die A + Die B</span></label>
+                    </div>
+                    <div id="ab-tabs" class="hidden grid grid-cols-2 gap-1.5">
+                        <button type="button" data-edit-die="A" class="ab-tab-btn py-1.5 rounded-lg border-2 border-dark bg-pink text-white text-xs font-heading font-bold shadow-hard-sm">Editing Die A</button>
+                        <button type="button" data-edit-die="B" class="ab-tab-btn py-1.5 rounded-lg border-2 border-dark bg-white dark:bg-slate-800 text-dark dark:text-white text-xs font-heading font-bold">Editing Die B</button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Quick Presets -->
+            <section class="border-t-2 border-slate-100 dark:border-slate-700 pt-4">
+                <label class="section-label">Quick Presets</label>
+                <div class="flex gap-1.5 flex-wrap">
+                    <button type="button" data-preset="wh" class="preset-btn px-2.5 py-1.5 bg-white dark:bg-slate-800 border-2 border-brand-dark dark:border-slate-500 rounded-xl text-xs font-bold shadow-hard-sm hover:-translate-y-0.5 active:translate-y-0.5 transition-all">❓ WH-Questions</button>
+                    <button type="button" data-preset="story" class="preset-btn px-2.5 py-1.5 bg-white dark:bg-slate-800 border-2 border-brand-dark dark:border-slate-500 rounded-xl text-xs font-bold shadow-hard-sm hover:-translate-y-0.5 active:translate-y-0.5 transition-all">📖 Story Cubes</button>
+                    <button type="button" data-preset="grammar_pair" class="preset-btn px-2.5 py-1.5 bg-white dark:bg-slate-800 border-2 border-brand-dark dark:border-slate-500 rounded-xl text-xs font-bold shadow-hard-sm hover:-translate-y-0.5 active:translate-y-0.5 transition-all">🕰️ A+B Grammar</button>
+                    <button type="button" data-preset="actions" class="preset-btn px-2.5 py-1.5 bg-white dark:bg-slate-800 border-2 border-brand-dark dark:border-slate-500 rounded-xl text-xs font-bold shadow-hard-sm hover:-translate-y-0.5 active:translate-y-0.5 transition-all">🏃 Actions</button>
+                    <button type="button" data-preset="classic" class="preset-btn px-2.5 py-1.5 bg-white dark:bg-slate-800 border-2 border-brand-dark dark:border-slate-500 rounded-xl text-xs font-bold shadow-hard-sm hover:-translate-y-0.5 active:translate-y-0.5 transition-all">🎲 1–6 Pips</button>
+                    <button type="button" data-preset="blank" class="preset-btn px-2.5 py-1.5 bg-white dark:bg-slate-800 border-2 border-brand-dark dark:border-slate-500 rounded-xl text-xs font-bold shadow-hard-sm hover:-translate-y-0.5 active:translate-y-0.5 transition-all">✏️ Blank DIY</button>
+                </div>
+            </section>
+
+            <!-- 6 Faces Editor -->
+            <section class="border-t-2 border-slate-100 dark:border-slate-700 pt-4 space-y-2.5">
+                <div class="flex items-center justify-between gap-2 flex-wrap">
+                    <label class="section-label mb-0">6 Cube Faces <span id="editing-die-label" class="text-brand-pink"></span></label>
+                    <button id="clear-faces-btn" type="button" class="text-[11px] font-extrabold text-brand-pink hover:underline">Clear</button>
+                </div>
                 <div class="grid grid-cols-2 gap-2">
-                    <label class="seg"><input type="radio" name="page-orient" value="portrait" checked><span><i data-lucide="rectangle-vertical" class="w-3.5 h-3.5"></i> Portrait</span></label>
-                    <label class="seg"><input type="radio" name="page-orient" value="landscape"><span><i data-lucide="rectangle-horizontal" class="w-3.5 h-3.5"></i> Landscape</span></label>
-                </div>
-                <div class="flex gap-2">
-                    <button id="print-btn" type="button" class="flex-1 btn-chunky bg-blue text-white py-2 rounded-lg text-xs border-2 border-dark flex items-center justify-center gap-1.5" title="Print Crisp A4 Cut-Out Sheet">
-                        <i data-lucide="printer" class="w-4 h-4"></i> PRINT A4
+                    <button id="bulk-images-btn" type="button" class="btn-chunky bg-white dark:bg-slate-700 py-2 rounded-xl text-xs flex items-center justify-center gap-1 dark:text-white" title="Upload 1–6 images for active die (or 7–12 for Die A + B)">
+                        <i data-lucide="images" class="w-3.5 h-3.5 text-brand-blue"></i> Bulk Images
                     </button>
-                    <button id="download-svg-btn" type="button" class="flex-1 btn-chunky bg-white dark:bg-slate-900 text-dark dark:text-white py-2 rounded-lg text-xs border-2 border-dark dark:border-slate-500 flex items-center justify-center gap-1.5" title="Download Vector SVG">
-                        <i data-lucide="download" class="w-4 h-4"></i> SAVE SVG
+                    <button id="bulk-import-btn" type="button" class="btn-chunky bg-white dark:bg-slate-700 py-2 rounded-xl text-xs flex items-center justify-center gap-1 dark:text-white">
+                        <i data-lucide="file-up" class="w-3.5 h-3.5 text-brand-orange"></i> Bulk Text
                     </button>
                 </div>
-            </div>
-        </aside>
+                <p class="text-[10px] font-bold text-slate-400">Add an emoji, custom uploaded image (or drop on row), label, and color.</p>
+                <input type="file" id="single-face-image-input" accept="image/*" class="hidden">
+                <input type="file" id="bulk-dice-images-input" accept="image/*" multiple class="hidden">
+                <div id="faces-editor-list" class="space-y-2"></div>
+            </section>
 
-        <!-- MAIN WORKSPACE -->
-        <main class="flex-1 relative h-[52%] md:h-full bg-slate-50 dark:bg-slate-950 flex flex-col lg:flex-row overflow-hidden">
-
-            <!-- Dotted Backdrop -->
-            <div class="canvas-dots absolute inset-0 opacity-60 dark:opacity-50 pointer-events-none"></div>
-
-            <!-- CENTER LIVE A4 NET PREVIEW -->
-            <div class="flex-1 h-full relative flex items-center justify-center p-3 md:p-6 overflow-hidden">
-
-                <!-- Top-Left Floating Toolbar -->
-                <div class="absolute top-4 left-4 z-20 flex items-center gap-2">
-                    <button id="toggle-sidebar-btn" type="button" class="p-2 bg-white/90 dark:bg-slate-800/90 backdrop-blur-md border-2 border-dark dark:border-slate-500 rounded-lg shadow-hard-sm hover:-translate-y-0.5 active:translate-y-0.5 active:shadow-none transition-all text-slate-700 dark:text-slate-200" title="Toggle Setup Panel">
-                        <i data-lucide="settings" class="w-5 h-5"></i>
-                    </button>
-                    <span class="px-2.5 py-1.5 bg-white/90 dark:bg-slate-800/90 backdrop-blur-md border-2 border-dark dark:border-slate-500 rounded-lg shadow-hard-sm text-[11px] font-extrabold text-slate-500 dark:text-slate-300">
-                        ✂️ Solid = Cut &nbsp;|&nbsp; ┄ Dashed = Fold
-                    </span>
+            <!-- Color Palette & Typography -->
+            <section class="border-t-2 border-slate-100 dark:border-slate-700 pt-4 space-y-3">
+                <label class="section-label">Style &amp; Layout</label>
+                <div class="grid grid-cols-3 gap-1.5">
+                    <button type="button" data-palette="vibrant" class="palette-btn py-1.5 px-2 bg-white dark:bg-slate-800 border-2 border-brand-dark dark:border-slate-500 rounded-xl text-[10px] font-extrabold shadow-hard-sm hover:-translate-y-0.5 transition-transform">🌈 Vibrant</button>
+                    <button type="button" data-palette="pastel" class="palette-btn py-1.5 px-2 bg-white dark:bg-slate-800 border-2 border-brand-dark dark:border-slate-500 rounded-xl text-[10px] font-extrabold shadow-hard-sm hover:-translate-y-0.5 transition-transform">🍬 Pastel</button>
+                    <button type="button" data-palette="bw" class="palette-btn py-1.5 px-2 bg-white dark:bg-slate-800 border-2 border-brand-dark dark:border-slate-500 rounded-xl text-[10px] font-extrabold shadow-hard-sm hover:-translate-y-0.5 transition-transform">🖨️ B&amp;W</button>
                 </div>
 
-                <!-- Live A4 Preview Frame -->
-                <div id="sheet-stage" class="relative z-10 flex items-center justify-center max-w-full max-h-full">
-                    <div id="a4-paper" class="a4-paper">
-                        <div id="svg-preview" class="w-full h-full"></div>
+                <div class="space-y-1">
+                    <div class="flex justify-between items-center text-[11px] font-bold">
+                        <span class="text-slate-400 uppercase tracking-wider">Face Text Size</span>
+                        <output id="text-size-val" class="font-heading text-brand-blue">24 px</output>
+                    </div>
+                    <input type="range" id="text-size-slider" min="14" max="38" step="1" value="24" class="w-full h-2.5 bg-slate-100 dark:bg-slate-800 rounded-full appearance-none cursor-pointer accent-blue border-2 border-brand-dark dark:border-slate-500">
+                </div>
+
+                <div class="space-y-1.5 pt-1">
+                    <label class="flex items-center gap-2 cursor-pointer text-xs font-bold text-slate-600 dark:text-slate-300">
+                        <input type="checkbox" id="show-glue-labels" checked class="w-4 h-4 shrink-0 accent-blue cursor-pointer">
+                        <span>Show "GLUE" labels &amp; cut scissors</span>
+                    </label>
+                    <label class="flex items-center gap-2 cursor-pointer text-xs font-bold text-slate-600 dark:text-slate-300">
+                        <input type="checkbox" id="show-corner-nums" class="w-4 h-4 shrink-0 accent-orange cursor-pointer">
+                        <span>Show corner numbers (1–6) on faces</span>
+                    </label>
+                </div>
+
+                <div class="space-y-2 pt-1">
+                    <span class="text-xs font-bold text-brand-dark dark:text-white block">Handout Header</span>
+                    <input id="custom-title" type="text" value="WH-Question Cube" placeholder="Handout Title" class="input-chunky py-2 px-3 text-xs">
+                    <input id="custom-subtitle" type="text" value="Cut along the solid outer lines, fold on the dashed lines, and glue the tabs!" placeholder="Student instructions..." class="input-chunky py-2 px-3 text-xs">
+                </div>
+
+                <div>
+                    <span class="text-xs font-bold text-brand-dark dark:text-white block mb-2">Orientation</span>
+                    <div class="grid grid-cols-2 gap-2">
+                        <label class="seg"><input type="radio" name="page-orient" value="portrait" checked><span><i data-lucide="rectangle-vertical" class="w-3.5 h-3.5"></i> Portrait</span></label>
+                        <label class="seg"><input type="radio" name="page-orient" value="landscape"><span><i data-lucide="rectangle-horizontal" class="w-3.5 h-3.5"></i> Landscape</span></label>
                     </div>
                 </div>
+            </section>
 
-                <!-- Bottom-Right Zoom Controls -->
-                <div class="absolute bottom-4 right-4 z-20 flex gap-2">
-                    <button id="zoom-out" type="button" title="Zoom Out" class="p-2 bg-white/90 dark:bg-slate-800/90 backdrop-blur-md border-2 border-dark dark:border-slate-500 rounded-lg shadow-hard-sm hover:bg-slate-50 dark:hover:bg-slate-700 active:translate-y-0.5 active:shadow-none transition-all">
-                        <i data-lucide="minus" class="w-4 h-4"></i>
-                    </button>
-                    <button id="zoom-reset" type="button" title="Reset Zoom" class="px-2.5 py-2 bg-white/90 dark:bg-slate-800/90 backdrop-blur-md border-2 border-dark dark:border-slate-500 rounded-lg shadow-hard-sm text-[11px] font-mono font-bold active:translate-y-0.5 active:shadow-none transition-all">
-                        100%
-                    </button>
-                    <button id="zoom-in" type="button" title="Zoom In" class="p-2 bg-white/90 dark:bg-slate-800/90 backdrop-blur-md border-2 border-dark dark:border-slate-500 rounded-lg shadow-hard-sm hover:bg-slate-50 dark:hover:bg-slate-700 active:translate-y-0.5 active:shadow-none transition-all">
-                        <i data-lucide="plus" class="w-4 h-4"></i>
-                    </button>
-                </div>
-            </div>
-
-            <!-- RIGHT PANEL: 3D TEST ROLLER & SAVED DICE -->
-            <div class="w-full lg:w-80 h-[40%] lg:h-full bg-white dark:bg-slate-900 border-t-4 lg:border-t-0 lg:border-l-4 border-dark dark:border-slate-500 flex flex-col z-10 shrink-0">
-
-                <!-- Pink Header -->
-                <div class="p-3 bg-pink border-b-4 border-dark dark:border-slate-500 text-white font-heading font-bold text-lg tracking-wide flex items-center justify-between gap-2 shrink-0">
-                    <div class="flex items-center gap-2">
-                        <i data-lucide="box" class="w-5 h-5"></i> 3D TEST ROLL
-                    </div>
-                    <span id="layout-pill" class="bg-white/20 px-2.5 py-0.5 rounded-full text-[11px] font-extrabold uppercase">1 Jumbo</span>
-                </div>
-
-                <!-- Scrollable 3D Preview & Controls -->
-                <div class="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-4">
-
-                    <!-- 3D Interactive Cube Stage -->
-                    <div class="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/80 border-3 border-dark dark:border-slate-500 shadow-hard-sm flex flex-col items-center gap-4">
-                        <div class="py-3 w-full flex items-center justify-center">
-                            <div class="cube-scene">
-                                <div id="cube-3d" class="cube-3d" style="transform: rotateX(-22deg) rotateY(-28deg);">
-                                    <div class="cube-face f1" data-cface="0"></div>
-                                    <div class="cube-face f2" data-cface="1"></div>
-                                    <div class="cube-face f3" data-cface="2"></div>
-                                    <div class="cube-face f4" data-cface="3"></div>
-                                    <div class="cube-face f5" data-cface="4"></div>
-                                    <div class="cube-face f6" data-cface="5"></div>
-                                </div>
+            <!-- Interactive 3D Test Roll (Consolidated from old Right Panel) -->
+            <section class="border-t-2 border-slate-100 dark:border-slate-700 pt-4 space-y-3">
+                <label class="section-label">3D Test Roll</label>
+                <div class="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/80 border-[3px] border-brand-dark dark:border-slate-500 shadow-hard-sm flex flex-col items-center gap-3">
+                    <div class="py-2 w-full flex items-center justify-center">
+                        <div class="cube-scene">
+                            <div id="cube-3d" class="cube-3d" style="transform: rotateX(-22deg) rotateY(-28deg);">
+                                <div class="cube-face f1" data-cface="0"></div>
+                                <div class="cube-face f2" data-cface="1"></div>
+                                <div class="cube-face f3" data-cface="2"></div>
+                                <div class="cube-face f4" data-cface="3"></div>
+                                <div class="cube-face f5" data-cface="4"></div>
+                                <div class="cube-face f6" data-cface="5"></div>
                             </div>
                         </div>
-
-                        <button id="roll-3d-btn" type="button" class="w-full btn-chunky bg-orange text-dark py-2.5 rounded-xl text-sm flex items-center justify-center gap-2">
-                            <i data-lucide="dices" class="w-4 h-4"></i> ROLL 3D DIE
-                        </button>
                     </div>
-
-                    <!-- Last Roll Result Card -->
-                    <div class="p-3.5 rounded-2xl bg-blue/10 dark:bg-slate-800 border-2 border-dark dark:border-slate-500 text-center space-y-1">
-                        <p class="text-[10px] font-extrabold uppercase tracking-widest text-blue">Rolled Result</p>
-                        <p id="roll-result-text" class="font-heading text-xl font-bold text-dark dark:text-white leading-snug">
+                    <button id="roll-3d-btn" type="button" class="w-full btn-chunky bg-brand-orange text-brand-dark py-2 rounded-xl text-xs flex items-center justify-center gap-2">
+                        <i data-lucide="dices" class="w-4 h-4"></i> ROLL 3D DIE
+                    </button>
+                    <div class="w-full p-2.5 rounded-xl bg-brand-blue/10 dark:bg-slate-900/70 border-2 border-brand-dark dark:border-slate-500 text-center">
+                        <p class="text-[9px] font-extrabold uppercase tracking-widest text-brand-blue">Rolled Result</p>
+                        <p id="roll-result-text" class="font-heading text-base font-bold text-brand-dark dark:text-white leading-snug mt-0.5">
                             Click Roll or Spacebar!
                         </p>
-                        <p id="roll-result-sub" class="text-[11px] font-bold text-slate-500 dark:text-slate-400">
-                            Test your custom die live on the smartboard
+                        <p id="roll-result-sub" class="text-[10px] font-bold text-slate-500 dark:text-slate-400">
+                            Test your custom die live
                         </p>
                     </div>
-
-                    <!-- Quick Face Inspection Buttons -->
-                    <div class="space-y-1.5">
-                        <span class="text-[10px] font-extrabold uppercase tracking-widest text-slate-400 block">Inspect Face on 3D Cube</span>
-                        <div class="grid grid-cols-6 gap-1">
-                            <button type="button" data-spin-face="0" class="spin-face-btn py-1.5 rounded-lg border-2 border-dark dark:border-slate-500 bg-white dark:bg-slate-800 font-heading font-bold text-xs hover:bg-blue hover:text-white transition-colors">1</button>
-                            <button type="button" data-spin-face="1" class="spin-face-btn py-1.5 rounded-lg border-2 border-dark dark:border-slate-500 bg-white dark:bg-slate-800 font-heading font-bold text-xs hover:bg-blue hover:text-white transition-colors">2</button>
-                            <button type="button" data-spin-face="2" class="spin-face-btn py-1.5 rounded-lg border-2 border-dark dark:border-slate-500 bg-white dark:bg-slate-800 font-heading font-bold text-xs hover:bg-blue hover:text-white transition-colors">3</button>
-                            <button type="button" data-spin-face="3" class="spin-face-btn py-1.5 rounded-lg border-2 border-dark dark:border-slate-500 bg-white dark:bg-slate-800 font-heading font-bold text-xs hover:bg-blue hover:text-white transition-colors">4</button>
-                            <button type="button" data-spin-face="4" class="spin-face-btn py-1.5 rounded-lg border-2 border-dark dark:border-slate-500 bg-white dark:bg-slate-800 font-heading font-bold text-xs hover:bg-blue hover:text-white transition-colors">5</button>
-                            <button type="button" data-spin-face="5" class="spin-face-btn py-1.5 rounded-lg border-2 border-dark dark:border-slate-500 bg-white dark:bg-slate-800 font-heading font-bold text-xs hover:bg-blue hover:text-white transition-colors">6</button>
-                        </div>
+                    <div class="w-full grid grid-cols-6 gap-1">
+                        <button type="button" data-spin-face="0" class="spin-face-btn py-1 rounded-lg border-2 border-brand-dark dark:border-slate-500 bg-white dark:bg-slate-800 font-heading font-bold text-xs hover:bg-brand-blue hover:text-white transition-colors">1</button>
+                        <button type="button" data-spin-face="1" class="spin-face-btn py-1 rounded-lg border-2 border-brand-dark dark:border-slate-500 bg-white dark:bg-slate-800 font-heading font-bold text-xs hover:bg-brand-blue hover:text-white transition-colors">2</button>
+                        <button type="button" data-spin-face="2" class="spin-face-btn py-1 rounded-lg border-2 border-brand-dark dark:border-slate-500 bg-white dark:bg-slate-800 font-heading font-bold text-xs hover:bg-brand-blue hover:text-white transition-colors">3</button>
+                        <button type="button" data-spin-face="3" class="spin-face-btn py-1 rounded-lg border-2 border-brand-dark dark:border-slate-500 bg-white dark:bg-slate-800 font-heading font-bold text-xs hover:bg-brand-blue hover:text-white transition-colors">4</button>
+                        <button type="button" data-spin-face="4" class="spin-face-btn py-1 rounded-lg border-2 border-brand-dark dark:border-slate-500 bg-white dark:bg-slate-800 font-heading font-bold text-xs hover:bg-brand-blue hover:text-white transition-colors">5</button>
+                        <button type="button" data-spin-face="5" class="spin-face-btn py-1 rounded-lg border-2 border-brand-dark dark:border-slate-500 bg-white dark:bg-slate-800 font-heading font-bold text-xs hover:bg-brand-blue hover:text-white transition-colors">6</button>
                     </div>
                 </div>
+            </section>
 
-                <!-- Saved Dice Drawer -->
-                <div class="p-3 border-t-2 border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/40 shrink-0">
-                    <button id="saved-sets-toggle-btn" type="button" class="w-full flex items-center justify-between text-[10px] font-extrabold text-slate-400 uppercase tracking-widest mb-1 hover:text-dark dark:hover:text-white">
-                        <span>Saved Dice (<span id="saved-count">0</span>)</span>
-                        <span id="saved-sets-toggle-icon" class="inline-flex transition-transform"><i data-lucide="chevron-up" class="w-3.5 h-3.5"></i></span>
-                    </button>
-                    <div id="saved-sets-controls" class="space-y-2">
-                        <div class="flex items-center gap-1.5">
-                            <select id="library-sort" aria-label="Sort saved dice" class="flex-1 p-1.5 bg-white dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-lg text-dark dark:text-white font-bold text-[10px] focus:outline-none">
-                                <option value="recent">Recent</option>
-                                <option value="alpha">A–Z</option>
-                            </select>
-                            <button id="new-set-btn" type="button" title="New Blank Die" class="p-1.5 bg-white dark:bg-slate-800 text-dark dark:text-white border-2 border-dark dark:border-slate-500 rounded-lg hover:brightness-95 font-bold text-[10px] flex items-center gap-1">
-                                <i data-lucide="plus" class="w-3 h-3"></i> NEW
-                            </button>
-                            <button id="save-set-btn" type="button" title="Save Current Die" class="p-1.5 bg-blue text-white border-2 border-dark rounded-lg hover:brightness-110 font-bold text-[10px] flex items-center gap-1">
-                                <i data-lucide="save" class="w-3 h-3"></i> SAVE
-                            </button>
-                        </div>
-                        <div id="library-list" class="space-y-1.5 max-h-32 overflow-y-auto custom-scrollbar pr-1"></div>
+            <!-- Library (Saved Dice Sets, Card Maker Style) -->
+            <section class="border-t-2 border-slate-100 dark:border-slate-700 pt-4">
+                <button id="saved-sets-toggle-btn" type="button" class="w-full flex items-center justify-between text-left group mb-1">
+                    <span class="section-label mb-0 group-hover:text-brand-blue transition-colors">Library (<span id="saved-count">0</span>)</span>
+                    <span id="saved-sets-toggle-icon" class="active inline-flex text-slate-400 transition-transform"><i data-lucide="chevron-down" class="w-4 h-4"></i></span>
+                </button>
+                <div id="saved-sets-controls" class="active space-y-2">
+                    <div class="flex items-center gap-1.5">
+                        <select id="library-sort" aria-label="Sort saved dice" class="input-chunky flex-1 py-1.5 px-2 text-[11px]">
+                            <option value="recent">Recent</option>
+                            <option value="alpha">A–Z</option>
+                        </select>
+                        <button id="new-set-btn" type="button" title="New Blank Die" class="btn-chunky bg-white dark:bg-slate-700 px-2.5 py-1.5 rounded-xl text-[10px] flex items-center gap-1 dark:text-white">
+                            <i data-lucide="sparkles" class="w-3 h-3"></i> NEW
+                        </button>
+                        <button id="save-set-btn" type="button" title="Save Current Die" class="btn-chunky bg-brand-pink text-white px-2.5 py-1.5 rounded-xl text-[10px] flex items-center gap-1">
+                            <i data-lucide="save" class="w-3 h-3"></i> SAVE
+                        </button>
                     </div>
+                    <div id="library-list" class="space-y-1.5 max-h-48 overflow-y-auto custom-scrollbar pr-1"></div>
                 </div>
+            </section>
+        </div>
+
+        <!-- Sticky Footer Print Actions -->
+        <div class="mt-4 pt-4 border-t-2 border-brand-dark dark:border-slate-700 shrink-0">
+            <div class="grid grid-cols-2 gap-2">
+                <button id="print-btn" type="button" class="btn-chunky bg-brand-green text-brand-dark py-3 rounded-xl text-sm flex items-center justify-center gap-1.5" title="Print Crisp A4 Cut-Out Sheet">
+                    <i data-lucide="printer" class="w-4 h-4"></i> PRINT
+                </button>
+                <button id="download-svg-btn" type="button" class="btn-chunky bg-brand-orange text-brand-dark py-3 rounded-xl text-sm flex items-center justify-center gap-1.5" title="Download Vector SVG">
+                    <i data-lucide="download" class="w-4 h-4"></i> SAVE SVG
+                </button>
             </div>
-        </main>
+        </div>
+    </aside>
+
+    <!-- FLOATING ZOOM BAR (matches Card Maker) -->
+    <div id="zoom-bar" class="no-print fixed bottom-4 right-4 z-[60] flex items-center gap-1 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border-[3px] border-brand-dark dark:border-slate-500 rounded-2xl p-1 shadow-neo dark:shadow-[4px_4px_0px_0px_#000000]">
+        <button id="zoom-out" type="button" title="Zoom Out" class="px-2 py-1.5 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+            <i data-lucide="minus" class="w-4 h-4"></i>
+        </button>
+        <button id="zoom-reset" type="button" title="Reset Zoom" class="px-2.5 py-1 rounded-xl text-[11px] font-heading font-bold bg-brand-blue text-white transition-colors">
+            100%
+        </button>
+        <button id="zoom-in" type="button" title="Zoom In" class="px-2 py-1.5 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+            <i data-lucide="plus" class="w-4 h-4"></i>
+        </button>
     </div>
+
+    <!-- MAIN WORKSPACE (Graph Paper Canvas, matches Card Maker) -->
+    <main id="previewArea" class="preview-area transition-all duration-500 flex-1 no-print">
+        <!-- Top-Left Floating Toolbar -->
+        <div class="absolute top-4 left-4 z-20 flex items-center gap-2">
+            <button id="toggle-sidebar-btn" type="button" class="p-2 bg-white/90 dark:bg-slate-800/90 backdrop-blur-md border-2 border-brand-dark dark:border-slate-500 rounded-xl shadow-neo-sm hover:-translate-y-0.5 transition-all text-slate-700 dark:text-slate-200" title="Toggle Setup Sidebar">
+                <i data-lucide="panel-left" class="w-4 h-4"></i>
+            </button>
+            <span class="hidden sm:inline-flex items-center px-3 py-1.5 bg-white/90 dark:bg-slate-800/90 backdrop-blur-md border-2 border-brand-dark dark:border-slate-500 rounded-xl shadow-neo-sm text-[11px] font-extrabold text-slate-500 dark:text-slate-300">
+                ✂️ Solid = Cut &nbsp;|&nbsp; ┄ Dashed = Fold
+            </span>
+        </div>
+
+        <!-- Live A4 Preview Frame -->
+        <div id="sheet-stage" class="relative z-10 flex items-center justify-center max-w-full max-h-full">
+            <div id="a4-paper" class="a4-paper">
+                <div id="svg-preview" class="w-full h-full"></div>
+            </div>
+        </div>
+    </main>
 
     <!-- HELP MODAL -->
     <div id="helpModal" class="hidden fixed inset-0 bg-dark/60 backdrop-blur-md z-[500] flex items-center justify-center p-4">
