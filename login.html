@@ -579,7 +579,7 @@
     </div>
 
     <div class="mt-7 pt-5 border-t-2 border-slate-200/80 dark:border-slate-700/80 text-center">
-      <a href="./index.html?home=1"
+      <a href="./index.html?home=1" onclick="handleBackToHome()"
         class="link-focus group inline-flex items-center gap-2 text-sm font-extrabold text-slate-500 dark:text-slate-400 hover:text-blue dark:hover:text-blue transition-colors">
         <i data-lucide="chevron-left" class="w-4 h-4 transition-transform group-hover:-translate-x-1" aria-hidden="true"></i>
         <span>Back to Home</span>
@@ -778,19 +778,18 @@
         if (typeof signIn !== 'function') {
           throw new Error('Authentication service unavailable. Please refresh and try again.');
         }
-        const { error } = await signIn(email, pass);
+        const { data, error } = await signIn(email, pass);
 
         if (error) {
           setLoading(btn, false, "Let's Go!");
           return showMessage('signin-message', humanizeError(error), true);
         }
 
-        try {
-          if (typeof migrateLocalToCloud === 'function') {
-            await migrateLocalToCloud();
-          }
-        } catch (migrationError) {
-          console.warn('[Auth] Cloud migration skipped:', migrationError);
+        if (typeof prepareCloudSession === 'function') {
+          const signedInUser = data?.user || (await getUser());
+          if (signedInUser) await prepareCloudSession(signedInUser);
+        } else {
+          localStorage.setItem('kk_mode', 'cloud');
         }
 
         const dest = localStorage.getItem('after_login') || '/hub.html';
@@ -799,6 +798,12 @@
       } catch (err) {
         setLoading(btn, false, "Let's Go!");
         showMessage('signin-message', humanizeError(err), true);
+      }
+    }
+
+    function handleBackToHome() {
+      if (localStorage.getItem('kk_mode') === 'cloud' && !localStorage.getItem('kk_current_user_id')) {
+        localStorage.removeItem('kk_mode');
       }
     }
 

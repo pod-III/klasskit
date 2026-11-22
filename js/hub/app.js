@@ -251,11 +251,6 @@ const App = {
         Theme.load();
       }
 
-      // Handle migration if needed
-      if (typeof migrateLocalToCloud === 'function') {
-        migrateLocalToCloud();
-      }
-
       const data = await DataLoader.loadGames();
       State.setGames(data);
       // Store top-level metadata for footer
@@ -270,6 +265,20 @@ const App = {
       Search.setup();
       const activity = await (typeof checkUserActivity === 'function' ? checkUserActivity() : Promise.resolve(null));
       LandingPage.init(activity);
+
+      if (typeof checkAndOfferSandboxImport === 'function') {
+        const imported = await checkAndOfferSandboxImport();
+        if (imported) {
+          Theme.load();
+          if (typeof HubSettings !== 'undefined') HubSettings.applyAll({ render: false });
+          ViewMode.init();
+          PinnedGames.render();
+          RecentGames.render();
+          Hero.updateStats();
+          ViewManager.renderAllGrids();
+          UI.showToast('Sandbox data imported to your Cloud account!', 'success');
+        }
+      }
 
       if (!this._listenersAttached) {
         document.body.addEventListener('click', () => AudioEngine.init(), { once: true });
@@ -739,6 +748,7 @@ function initDisplayNameEditor() {
   if (!editBtn || !modal || !input) return;
 
   function openModal() {
+    if (typeof isSandbox === 'function' && isSandbox()) return;
     UI.rememberFocus('display-name-modal');
     const currentName = usernameEl?.textContent || '';
     input.value = currentName;
@@ -807,20 +817,41 @@ async function initAuthIndicator() {
   const signInLink = document.getElementById('auth-signin-link');
   const loggedInDiv = document.getElementById('auth-logged-in');
   const usernameEl = document.getElementById('auth-username');
+  const signOutBtn = document.getElementById('auth-signout-btn');
+  const editNameBtn = document.getElementById('auth-edit-name-btn');
+  const editPencil = document.getElementById('auth-edit-name-icon') || editNameBtn?.querySelector('[data-lucide="pencil"], svg');
 
   if (!signInLink || !loggedInDiv) return;
 
   const user = await getUser();
   if (user) {
-    signInLink.classList.add('hidden');
-    loggedInDiv.classList.remove('hidden');
-    
     if (user.is_sandbox) {
+      signInLink.classList.remove('hidden');
+      loggedInDiv.classList.remove('hidden');
+      if (signOutBtn) signOutBtn.classList.add('hidden');
+      if (editPencil) editPencil.classList.add('hidden');
+      if (editNameBtn) {
+        editNameBtn.disabled = true;
+        editNameBtn.title = 'Offline Sandbox Mode';
+        editNameBtn.classList.remove('hover:bg-slate-200', 'dark:hover:bg-slate-700');
+        editNameBtn.classList.add('cursor-default');
+      }
       if (usernameEl) {
         usernameEl.innerHTML = '<span class="flex items-center gap-2"><i data-lucide="shield-check" class="w-4 h-4 text-green" aria-hidden="true"></i> Sandbox Mode</span>';
         Utils.refreshIcons(usernameEl);
       }
       return;
+    }
+
+    signInLink.classList.add('hidden');
+    loggedInDiv.classList.remove('hidden');
+    if (signOutBtn) signOutBtn.classList.remove('hidden');
+    if (editPencil) editPencil.classList.remove('hidden');
+    if (editNameBtn) {
+      editNameBtn.disabled = false;
+      editNameBtn.title = 'Edit display name';
+      editNameBtn.classList.add('hover:bg-slate-200', 'dark:hover:bg-slate-700');
+      editNameBtn.classList.remove('cursor-default');
     }
 
     const displayName = user.user_metadata?.display_name || user.email?.split('@')[0] || 'User';

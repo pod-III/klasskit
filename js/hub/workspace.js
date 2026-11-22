@@ -1503,6 +1503,30 @@ const TabManager = {
     AudioEngine.click();
   },
 
+  teardownAllIframes() {
+    this.tabs.forEach(tab => {
+      try {
+        if (tab.iframe) tab.iframe.src = 'about:blank';
+      } catch (_) {}
+      try { tab.panel?.remove(); } catch (_) {}
+      try { tab.iconElement?.remove(); } catch (_) {}
+    });
+
+    const tabArea = document.getElementById('tab-content-area');
+    if (tabArea) {
+      tabArea.querySelectorAll('iframe').forEach(iframe => {
+        try { iframe.src = 'about:blank'; } catch (_) {}
+        try { iframe.remove(); } catch (_) {}
+      });
+    }
+
+    this.tabs = [];
+    this.activeTabId = null;
+    this.rightTabId = null;
+    this.lastActiveTabId = null;
+    this.splitScreenActive = false;
+  },
+
   reloadCurrentTab() {
     const tab = this.tabs.find(t => t.id === this.activeTabId);
     if (!tab?.iframe) return;

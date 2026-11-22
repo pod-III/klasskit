@@ -816,44 +816,8 @@
 
   async function handleFirstCloudLogin(userId) {
     const migrationKey = 'kk_schedule_migrated_to_cloud';
-    if (localStorage.getItem(migrationKey)) {
-      // Already migrated — just load from cloud
-      await loadFromCloud(userId);
-      return;
-    }
-
-    // Check if localStorage has data
-    const hasLocal = !!(
-      localStorage.getItem('schedule_events') ||
-      localStorage.getItem('schedule_class_admin') ||
-      localStorage.getItem('schedule_class_units') ||
-      localStorage.getItem('prog_my-class') ||
-      localStorage.getItem('klasskit_tasks')
-    );
-
-    // Check if cloud has data
-    const [eventsCheck, myClassCheck] = await Promise.all([
-      db.from('myspace_events').select('id').eq('user_id', userId).limit(1),
-      db.from('myspace_my_class').select('id').eq('user_id', userId).limit(1)
-    ]);
-
-    const hasCloud = (eventsCheck.data && eventsCheck.data.length > 0) || 
-                     (myClassCheck.data && myClassCheck.data.length > 0);
-
-    if (hasLocal && !hasCloud) {
-      // First login: push local data to cloud
-      await syncToCloud(userId);
-      localStorage.setItem(migrationKey, 'true');
-      showSyncToast('Your data has been saved to the cloud ☁️');
-    } else if (hasCloud) {
-      // Cloud has data — pull it down
-      await loadFromCloud(userId);
-      localStorage.setItem(migrationKey, 'true');
-    } else {
-      // No data anywhere, just mark as migrated
-      localStorage.setItem(migrationKey, 'true');
-      setSyncBadge('synced');
-    }
+    await loadFromCloud(userId);
+    localStorage.setItem(migrationKey, 'true');
   }
 
   // ── Toast helper (works in both tools) ───────────────────────────

@@ -216,6 +216,12 @@ const Storage = {
   },
 
   _saveTimeout: null,
+  cancelPendingCloudSave() {
+    if (this._saveTimeout) {
+      clearTimeout(this._saveTimeout);
+      this._saveTimeout = null;
+    }
+  },
   triggerCloudSave() {
     if (this._saveTimeout) clearTimeout(this._saveTimeout);
     this._saveTimeout = setTimeout(async () => {
@@ -857,4 +863,6 @@ const FloatingTooltip = {
     this.el.classList.remove('opacity-100');
   }
 };
+
+window.HubStorage = Storage;
 

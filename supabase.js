@@ -12,6 +12,449 @@ const SUPABASE_ANON_KEY = 'sb_publishable_5Fd483qrg6bEFa_T1oNyLg_gymEgi4P';
 const { createClient } = supabase
 const db = createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
 
+/* ── STORAGE ISOLATION & SANDBOX VAULT ── */
+const CLOUD_IDB_PREFIX = 'kk_cloud_';
+const SANDBOX_VAULT_DB = 'KlassKit_SandboxVault';
+const SANDBOX_VAULT_STORE = 'vault';
+const CLOUD_IDB_REGISTRY_KEY = 'kk_cloud_idb_registry';
+const KNOWN_APP_IDB_NAMES = [
+  'PosterStudioDB', 'PresentationDB', 'KlassKit_Resources', 'KlassKitRevealDB',
+  'KlassKitMemoryDB_V3', 'KlassKitMemoryDB_V2', 'KKThisOrThatDB', 'SimonGameKlassKitDB_V2',
+  'FlashcardDB', 'MysteryBoxDB', 'WordSearchDB', 'WordSortDB', 'CrosswordDB', 'HangmanDB',
+  'BingoDB', 'KlassKitBingoDB', 'CardMakerDB', 'LessonExtractorDB_v3',
+  'KlassKit_ImageWorkshop_DB', 'KlassKit_Editor_Images', 'klasskit_puzzle_db',
+  'klasskit_dice_maker_db', 'klasskit_worksheet_db', 'PaperGrassDB',
+  'klasskit-domino-maker', 'KlassKitReportsDB', 'klasskit_mediaplayer_db',
+  'klasskit-whiteboard-optimized', 'TaskAssignerDB', 'KlassKitTracerDB',
+  'ElimGridDB_v3', 'MysteryDeckDB_v3', 'ClassTallyDB', 'LessonNotesDB',
+  'spell_sets_db', 'SecretCodeDB', 'ArcaneVTT_DB', 'UndercoverLibrary', 'WordAnimatorDB'
+];
+
+const _nativeIdbOpen = (typeof window !== 'undefined' && typeof IDBFactory !== 'undefined' && IDBFactory.prototype)
+  ? (window.__kkNativeIdbOpen || IDBFactory.prototype.open)
+  : null;
+const _nativeIdbDelete = (typeof window !== 'undefined' && typeof IDBFactory !== 'undefined' && IDBFactory.prototype)
+  ? (window.__kkNativeIdbDelete || IDBFactory.prototype.deleteDatabase)
+  : null;
+
+function shouldPrefixIdb(name) {
+  if (typeof name !== 'string' || name.length === 0) return false;
+  if (name === SANDBOX_VAULT_DB || name.startsWith(CLOUD_IDB_PREFIX)) return false;
+  try {
+    return localStorage.getItem('kk_mode') !== 'sandbox';
+  } catch (_) {
+    return false;
+  }
+}
+
+function recordCloudIdbName(prefixedName) {
+  try {
+    const raw = localStorage.getItem(CLOUD_IDB_REGISTRY_KEY);
+    const list = raw ? JSON.parse(raw) : [];
+    if (Array.isArray(list) && !list.includes(prefixedName)) {
+      list.push(prefixedName);
+      localStorage.setItem(CLOUD_IDB_REGISTRY_KEY, JSON.stringify(list));
+    }
+  } catch (_) { /* ignore storage quota/serialization issues */ }
+}
+
+if (typeof window !== 'undefined' && _nativeIdbOpen && _nativeIdbDelete && !window.__kkIdbPatched) {
+  window.__kkNativeIdbOpen = _nativeIdbOpen;
+  window.__kkNativeIdbDelete = _nativeIdbDelete;
+  window.__kkIdbPatched = true;
+
+  IDBFactory.prototype.open = function (name, ...args) {
+    let targetName = name;
+    if (shouldPrefixIdb(name)) {
+      targetName = CLOUD_IDB_PREFIX + name;
+      recordCloudIdbName(targetName);
+    }
+    return args.length > 0
+      ? _nativeIdbOpen.call(this, targetName, ...args)
+      : _nativeIdbOpen.call(this, targetName);
+  };
+
+  IDBFactory.prototype.deleteDatabase = function (name, ...args) {
+    const targetName = shouldPrefixIdb(name) ? (CLOUD_IDB_PREFIX + name) : name;
+    return args.length > 0
+      ? _nativeIdbDelete.call(this, targetName, ...args)
+      : _nativeIdbDelete.call(this, targetName);
+  };
+}
+
+const DEVICE_PREF_EXACT_KEYS = new Set([
+  'theme', 'klasskit-theme', 'klasskit_theme', 'klasskit_colorTheme',
+  'klasskit_reduceMotion', 'fcd_theme', 'quiz_block_theme', 'e1_dark',
+  'soundMuted', 'timetools_muted', 'e1_mute', 'mb_audio',
+  'dnd_sb_master_vol', 'dnd_sb_sfx_mute', 'multispin_isMuted'
+]);
+
+const SYSTEM_STORAGE_EXACT_KEYS = new Set([
+  'kk_mode', 'kk_storage_owner', 'kk_current_user_id', 'kk_cloud_idb_registry',
+  'after_login', 'klasskit_pending_display_name', 'migrated_to_cloud',
+  'kk_schedule_migrated_to_cloud', 'kk_quota_warned_at'
+]);
+
+function isDevicePreferenceKey(key) {
+  if (typeof key !== 'string') return false;
+  if (DEVICE_PREF_EXACT_KEYS.has(key)) return true;
+  return key.startsWith('theme_') || key.startsWith('sound_') || key.endsWith('_zoom');
+}
+
+function isSystemStorageKey(key) {
+  if (typeof key !== 'string') return false;
+  return SYSTEM_STORAGE_EXACT_KEYS.has(key) || key.startsWith('sb-');
+}
+
+function isAppDataKey(key) {
+  return !isDevicePreferenceKey(key) && !isSystemStorageKey(key);
+}
+
+function hasSupabaseAuthTokens() {
+  try {
+    return Object.keys(localStorage).some(k => k.startsWith('sb-') && k.includes('auth-token'));
+  } catch (_) {
+    return false;
+  }
+}
+
+function extractAppLocalStorageEntries() {
+  const entries = {};
+  try {
+    for (const key of Object.keys(localStorage)) {
+      if (isAppDataKey(key)) {
+        entries[key] = localStorage.getItem(key);
+      }
+    }
+  } catch (_) { /* ignore */ }
+  return entries;
+}
+
+function clearAppLocalStorageEntries() {
+  try {
+    const keys = Object.keys(localStorage);
+    for (const key of keys) {
+      if (
+        isAppDataKey(key) ||
+        key === 'migrated_to_cloud' ||
+        key === 'kk_schedule_migrated_to_cloud' ||
+        key === 'kk_quota_warned_at' ||
+        key === CLOUD_IDB_REGISTRY_KEY
+      ) {
+        localStorage.removeItem(key);
+      }
+    }
+  } catch (_) { /* ignore */ }
+}
+
+function clearSupabaseAuthTokens() {
+  try {
+    for (const key of Object.keys(localStorage)) {
+      if (key.startsWith('sb-')) {
+        localStorage.removeItem(key);
+      }
+    }
+  } catch (_) { /* ignore */ }
+}
+
+function _openSandboxVault() {
+  return new Promise((resolve, reject) => {
+    if (typeof indexedDB === 'undefined' || !_nativeIdbOpen) {
+      return reject(new Error('IndexedDB unavailable'));
+    }
+    try {
+      const req = _nativeIdbOpen.call(indexedDB, SANDBOX_VAULT_DB, 1);
+      req.onupgradeneeded = (e) => {
+        const vaultDb = e.target.result;
+        if (!vaultDb.objectStoreNames.contains(SANDBOX_VAULT_STORE)) {
+          vaultDb.createObjectStore(SANDBOX_VAULT_STORE);
+        }
+      };
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error || new Error('Vault open failed'));
+    } catch (err) {
+      reject(err);
+    }
+  });
+}
+
+async function saveSandboxVaultSnapshot(entries) {
+  let vaultDb = null;
+  try {
+    vaultDb = await _openSandboxVault();
+    await new Promise((resolve, reject) => {
+      const tx = vaultDb.transaction(SANDBOX_VAULT_STORE, 'readwrite');
+      tx.objectStore(SANDBOX_VAULT_STORE).put({
+        entries: entries || {},
+        savedAt: Date.now()
+      }, 'snapshot');
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error || new Error('Vault write failed'));
+    });
+  } catch (err) {
+    console.warn('[SandboxVault] Failed to save snapshot:', err);
+  } finally {
+    try { if (vaultDb) vaultDb.close(); } catch (_) {}
+  }
+}
+
+async function readSandboxVaultSnapshot() {
+  let vaultDb = null;
+  try {
+    vaultDb = await _openSandboxVault();
+    return await new Promise((resolve, reject) => {
+      const tx = vaultDb.transaction(SANDBOX_VAULT_STORE, 'readonly');
+      const req = tx.objectStore(SANDBOX_VAULT_STORE).get('snapshot');
+      req.onsuccess = () => resolve(req.result || null);
+      req.onerror = () => reject(req.error || new Error('Vault read failed'));
+    });
+  } catch (err) {
+    console.warn('[SandboxVault] Failed to read snapshot:', err);
+    return null;
+  } finally {
+    try { if (vaultDb) vaultDb.close(); } catch (_) {}
+  }
+}
+
+async function restoreSandboxVaultSnapshot() {
+  const snapshot = await readSandboxVaultSnapshot();
+  if (!snapshot || !snapshot.entries || typeof snapshot.entries !== 'object') return;
+  for (const [key, val] of Object.entries(snapshot.entries)) {
+    if (isAppDataKey(key) && val !== null && val !== undefined) {
+      try {
+        localStorage.setItem(key, val);
+      } catch (err) {
+        console.warn('[SandboxVault] Failed to restore key:', key, err);
+      }
+    }
+  }
+}
+
+async function getSandboxImportState() {
+  let vaultDb = null;
+  try {
+    vaultDb = await _openSandboxVault();
+    const state = await new Promise((resolve, reject) => {
+      const tx = vaultDb.transaction(SANDBOX_VAULT_STORE, 'readonly');
+      const req = tx.objectStore(SANDBOX_VAULT_STORE).get('importState');
+      req.onsuccess = () => resolve(req.result || null);
+      req.onerror = () => reject(req.error || new Error('Import state read failed'));
+    });
+    return state && typeof state === 'object' ? state : { handledUsers: {} };
+  } catch (err) {
+    console.warn('[SandboxVault] Failed to read importState:', err);
+    return { handledUsers: {} };
+  } finally {
+    try { if (vaultDb) vaultDb.close(); } catch (_) {}
+  }
+}
+
+async function setSandboxImportState(userId, status) {
+  if (!userId) return;
+  let vaultDb = null;
+  try {
+    const current = await getSandboxImportState();
+    const handledUsers = { ...(current.handledUsers || {}) };
+    handledUsers[userId] = { status, updatedAt: Date.now() };
+    vaultDb = await _openSandboxVault();
+    await new Promise((resolve, reject) => {
+      const tx = vaultDb.transaction(SANDBOX_VAULT_STORE, 'readwrite');
+      tx.objectStore(SANDBOX_VAULT_STORE).put({ handledUsers }, 'importState');
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error || new Error('Import state write failed'));
+    });
+  } catch (err) {
+    console.warn('[SandboxVault] Failed to save importState:', err);
+  } finally {
+    try { if (vaultDb) vaultDb.close(); } catch (_) {}
+  }
+}
+
+async function clearCloudIndexedDBs() {
+  if (typeof indexedDB === 'undefined' || !_nativeIdbDelete) return;
+
+  const targets = new Set(KNOWN_APP_IDB_NAMES.map(name => CLOUD_IDB_PREFIX + name));
+
+  try {
+    const raw = localStorage.getItem(CLOUD_IDB_REGISTRY_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        for (const name of parsed) {
+          if (typeof name === 'string' && name.startsWith(CLOUD_IDB_PREFIX)) {
+            targets.add(name);
+          }
+        }
+      }
+    }
+  } catch (_) { /* ignore malformed registry */ }
+
+  if (typeof indexedDB.databases === 'function') {
+    try {
+      const dbs = await indexedDB.databases();
+      for (const dbInfo of dbs || []) {
+        if (dbInfo && typeof dbInfo.name === 'string' && dbInfo.name.startsWith(CLOUD_IDB_PREFIX)) {
+          targets.add(dbInfo.name);
+        }
+      }
+    } catch (_) { /* ignore browsers without full databases() support */ }
+  }
+
+  await Promise.all(Array.from(targets).map(dbName => new Promise((resolve) => {
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve();
+    };
+    const timer = setTimeout(finish, 1500);
+    try {
+      const req = _nativeIdbDelete.call(indexedDB, dbName);
+      req.onsuccess = finish;
+      req.onerror = finish;
+      req.onblocked = () => {
+        // Wait briefly for closing iframes to release locks; timer bounds the wait.
+      };
+    } catch (_) {
+      finish();
+    }
+  })));
+}
+
+async function teardownOpenAppIframes() {
+  try {
+    if (window.HubStorage && typeof window.HubStorage.cancelPendingCloudSave === 'function') {
+      window.HubStorage.cancelPendingCloudSave();
+    }
+  } catch (_) {}
+
+  try {
+    if (window.TabManager && typeof window.TabManager.teardownAllIframes === 'function') {
+      window.TabManager.teardownAllIframes();
+    }
+  } catch (_) {}
+
+  try {
+    const tabArea = document.getElementById('tab-content-area');
+    if (tabArea) {
+      tabArea.querySelectorAll('iframe').forEach((iframe) => {
+        try { iframe.src = 'about:blank'; } catch (_) {}
+        try { iframe.remove(); } catch (_) {}
+      });
+    }
+  } catch (_) {}
+
+  await new Promise(resolve => setTimeout(resolve, 60));
+}
+
+let _prepareCloudPromise = null;
+let _prepareCloudUserId = null;
+
+async function prepareCloudSession(user) {
+  if (!user || !user.id || user.is_sandbox) return;
+
+  if (_prepareCloudPromise && _prepareCloudUserId === user.id) {
+    return _prepareCloudPromise;
+  }
+
+  _prepareCloudUserId = user.id;
+  _prepareCloudPromise = (async () => {
+    const owner = localStorage.getItem('kk_storage_owner');
+    const legacyUserId = localStorage.getItem('kk_current_user_id');
+
+    if (owner === `cloud:${user.id}`) {
+      localStorage.setItem('kk_mode', 'cloud');
+      localStorage.setItem('kk_current_user_id', user.id);
+      return;
+    }
+
+    const isOwnedBySandbox = owner === 'sandbox' || (!owner && !legacyUserId);
+    const isSameLegacyCloudUser = !owner && legacyUserId === user.id;
+
+    if (isOwnedBySandbox) {
+      const entries = extractAppLocalStorageEntries();
+      if (owner === 'sandbox' || Object.keys(entries).length > 0) {
+        await saveSandboxVaultSnapshot(entries);
+      }
+      clearAppLocalStorageEntries();
+      await clearCloudIndexedDBs();
+    } else if (!isSameLegacyCloudUser) {
+      // Live localStorage belonged to a different cloud account; wipe without touching SandboxVault.
+      clearAppLocalStorageEntries();
+      await clearCloudIndexedDBs();
+    }
+
+    localStorage.setItem('kk_mode', 'cloud');
+    localStorage.setItem('kk_storage_owner', `cloud:${user.id}`);
+    localStorage.setItem('kk_current_user_id', user.id);
+  })();
+
+  try {
+    await _prepareCloudPromise;
+  } finally {
+    _prepareCloudPromise = null;
+    _prepareCloudUserId = null;
+  }
+}
+
+let _teardownCloudPromise = null;
+
+async function teardownCloudSession({ redirectUrl = null, skipAuthSignOut = false } = {}) {
+  if (_teardownCloudPromise) {
+    await _teardownCloudPromise;
+    if (redirectUrl) {
+      localStorage.removeItem('kk_mode');
+      location.href = redirectUrl;
+    }
+    return;
+  }
+
+  _teardownCloudPromise = (async () => {
+    await teardownOpenAppIframes();
+
+    if (!skipAuthSignOut) {
+      try {
+        await db.auth.signOut({ scope: 'local' });
+      } catch (err) {
+        console.warn('[Auth] Local signOut error:', err);
+      }
+      clearSupabaseAuthTokens();
+    }
+
+    clearAppLocalStorageEntries();
+    localStorage.removeItem('kk_current_user_id');
+    localStorage.removeItem('kk_storage_owner');
+    localStorage.removeItem('migrated_to_cloud');
+    localStorage.removeItem('kk_schedule_migrated_to_cloud');
+    localStorage.removeItem(CLOUD_IDB_REGISTRY_KEY);
+
+    await clearCloudIndexedDBs();
+    await restoreSandboxVaultSnapshot();
+    localStorage.setItem('kk_storage_owner', 'sandbox');
+
+    if (redirectUrl) {
+      localStorage.removeItem('kk_mode');
+      location.href = redirectUrl;
+    }
+  })();
+
+  try {
+    await _teardownCloudPromise;
+  } finally {
+    _teardownCloudPromise = null;
+  }
+}
+
+async function exitSandboxMode(redirectUrl = '/index.html') {
+  await saveSandboxVaultSnapshot(extractAppLocalStorageEntries());
+  localStorage.setItem('kk_storage_owner', 'sandbox');
+  localStorage.removeItem('kk_mode');
+  if (redirectUrl) {
+    location.href = redirectUrl;
+  }
+}
+
 /* ── MODE HELPERS ── */
 function isSandbox() {
   return localStorage.getItem('kk_mode') === 'sandbox';
@@ -44,25 +487,42 @@ async function getUserProfile() {
   return profile;
 }
 
+async function ensureSandboxStorageClean() {
+  const owner = localStorage.getItem('kk_storage_owner');
+  if (
+    (owner && owner.startsWith('cloud:')) ||
+    localStorage.getItem('kk_current_user_id') ||
+    hasSupabaseAuthTokens()
+  ) {
+    console.warn('[Auth] Cloud session or cache detected in Sandbox mode. Cleaning up and restoring Sandbox...');
+    await teardownCloudSession({ redirectUrl: null });
+    localStorage.setItem('kk_mode', 'sandbox');
+    localStorage.setItem('kk_storage_owner', 'sandbox');
+  } else if (!owner) {
+    localStorage.setItem('kk_storage_owner', 'sandbox');
+  }
+}
+
 async function requireAuth() {
   if (isSandbox()) {
+    await ensureSandboxStorageClean();
     console.log("[Auth] Sandbox Mode Active. Bypassing Auth.");
     return { id: 'sandbox_user', is_sandbox: true };
   }
   const user = await getUser()
   if (!user) {
+    const owner = localStorage.getItem('kk_storage_owner');
+    if ((owner && owner.startsWith('cloud:')) || localStorage.getItem('kk_current_user_id')) {
+      console.warn('[Auth] Session expired with cached cloud data. Cleaning up cloud cache...');
+      await teardownCloudSession({ redirectUrl: null, skipAuthSignOut: true });
+    }
     const target = (window !== window.top) ? window.top : window
     target.localStorage.setItem('after_login', target.location.href)
     target.location.href = '/login.html'
     return new Promise(() => { })
   }
 
-  const lastUserId = localStorage.getItem('kk_current_user_id')
-  if (lastUserId && lastUserId !== user.id) {
-    console.warn('[Auth] User ID mismatch. Clearing local cache for safety.')
-    clearLocalCache()
-  }
-  localStorage.setItem('kk_current_user_id', user.id)
+  await prepareCloudSession(user)
 
   console.log("auth success");
   return user
@@ -75,9 +535,15 @@ async function requireAdmin() {
   }
   const user = await getUser()
   if (!user) {
+    const owner = localStorage.getItem('kk_storage_owner');
+    if ((owner && owner.startsWith('cloud:')) || localStorage.getItem('kk_current_user_id')) {
+      await teardownCloudSession({ redirectUrl: null, skipAuthSignOut: true });
+    }
     location.href = '/login.html'
     return new Promise(() => { })
   }
+
+  await prepareCloudSession(user)
 
   const { data: profile, error } = await db
     .from('profiles')
@@ -98,13 +564,20 @@ async function requireAdmin() {
 
 async function requirePro() {
   if (isSandbox()) {
+    await ensureSandboxStorageClean();
     return { id: 'sandbox_user', is_sandbox: true };
   }
   const user = await getUser()
   if (!user) {
+    const owner = localStorage.getItem('kk_storage_owner');
+    if ((owner && owner.startsWith('cloud:')) || localStorage.getItem('kk_current_user_id')) {
+      await teardownCloudSession({ redirectUrl: null, skipAuthSignOut: true });
+    }
     location.href = '/login.html'
     return new Promise(() => { })
   }
+
+  await prepareCloudSession(user)
 
   const { data: profile, error } = await db
     .from('profiles')
@@ -138,42 +611,39 @@ async function signIn(email, pass) {
 }
 
 async function signOut() {
-  if (!isSandbox()) {
-    await db.auth.signOut()
+  if (isSandbox()) {
+    await exitSandboxMode('/index.html');
+    return;
   }
-  localStorage.removeItem('kk_mode');
-  clearLocalCache()
-  location.href = '/index.html'
+  await teardownCloudSession({ redirectUrl: '/index.html' });
 }
 
-function switchMode() {
-  localStorage.removeItem('kk_mode');
-  location.href = '/index.html';
+async function switchMode() {
+  if (isSandbox()) {
+    await exitSandboxMode('/index.html');
+    return;
+  }
+  if (typeof showConfirmModal === 'function') {
+    const confirmed = await showConfirmModal(
+      'Switching mode will sign you out and clear cached cloud data from this browser. Your data stays safe in the cloud.',
+      {
+        title: 'Switch Mode?',
+        confirmText: 'Sign Out & Switch',
+        cancelText: 'Cancel',
+        icon: 'log-out',
+        iconColor: 'orange'
+      }
+    );
+    if (!confirmed) return;
+  }
+  await teardownCloudSession({ redirectUrl: '/index.html' });
 }
 
 function clearLocalCache() {
   console.log('[Auth] Clearing local cache...');
-  const keys = Object.keys(localStorage)
-  keys.forEach(key => {
-    if (key.startsWith('prog_') ||
-      key.startsWith('theme_') ||
-      key.startsWith('klasskit_') ||
-      key.startsWith('schedule_') ||
-      key === 'recentGameIds' ||
-      key === 'favoriteGames' ||
-      key === 'openTabs' ||
-      key === 'pinnedGameIds' ||
-      key === 'soundMuted' ||
-      key === 'migrated_to_cloud' ||
-      key === 'kk_schedule_migrated_to_cloud' ||
-      key === 'kk_current_user_id') {
-      localStorage.removeItem(key)
-    }
-  })
-
-  if (window.Storage && typeof window.Storage.syncWithCloud === 'function') {
-    window.Storage.syncWithCloud()
-  }
+  clearAppLocalStorageEntries();
+  localStorage.removeItem('kk_current_user_id');
+  localStorage.removeItem('kk_storage_owner');
 }
 
 function isValidUuid(str) {
@@ -471,23 +941,173 @@ async function updateDisplayName(displayName) {
 }
 
 async function migrateLocalToCloud() {
-  if (isSandbox()) return;
-  if (localStorage.getItem('migrated_to_cloud')) return
-  const user = await getUser()
-  if (!user) return
+  /* deprecated: handled by checkAndOfferSandboxImport */
+}
 
-  const keys = Object.keys(localStorage).filter(k => k.startsWith('prog_') && k !== 'prog_my-class')
-  for (const key of keys) {
-    const toolKey = key.replace('prog_', '')
-    const data = JSON.parse(localStorage.getItem(key))
-    await saveProgress(toolKey, data)
+function _isNonEmptySandboxJson(raw, extraEmptyValues = []) {
+  if (raw === null || raw === undefined) return false;
+  const trimmed = String(raw).trim();
+  if (!trimmed || trimmed === 'null' || trimmed === 'undefined' || trimmed === '[]' || trimmed === '{}') {
+    return false;
+  }
+  if (extraEmptyValues.includes(trimmed)) return false;
+  try {
+    const parsed = JSON.parse(trimmed);
+    if (Array.isArray(parsed)) return parsed.length > 0;
+    if (parsed && typeof parsed === 'object') {
+      if (parsed.classes && typeof parsed.classes === 'object' && Object.keys(parsed).length === 1) {
+        return Object.keys(parsed.classes).length > 0;
+      }
+      return Object.keys(parsed).length > 0;
+    }
+    return Boolean(parsed);
+  } catch (_) {
+    return true;
+  }
+}
+
+function hasMigratableSandboxData(entries) {
+  if (!entries || typeof entries !== 'object') return false;
+
+  for (const [key, raw] of Object.entries(entries)) {
+    if (key.startsWith('prog_') && key !== 'prog_my-class') {
+      if (_isNonEmptySandboxJson(raw)) return true;
+    }
   }
 
-  if (window.Storage && typeof window.Storage.triggerCloudSave === 'function') {
-    await window.Storage.triggerCloudSave()
+  if (_isNonEmptySandboxJson(entries.pinnedGameIds)) return true;
+  if (_isNonEmptySandboxJson(entries.favoriteGames)) return true;
+
+  return false;
+}
+
+async function isCloudAccountEmpty(userId) {
+  if (!userId) return false;
+  try {
+    const checks = await Promise.all([
+      db.from('user_progress').select('id').eq('user_id', userId).neq('tool_key', 'klasskit_hub').limit(1),
+      db.from('notes').select('id').eq('user_id', userId).limit(1),
+      db.from('myspace_events').select('id').eq('user_id', userId).limit(1),
+      db.from('myspace_tasks').select('id').eq('user_id', userId).limit(1),
+      db.from('myspace_my_class').select('id').eq('user_id', userId).limit(1),
+      db.from('myspace_clock').select('id').eq('user_id', userId).limit(1),
+      db.from('tools_cardmaker').select('id').eq('user_id', userId).limit(1),
+      db.from('tools_puzzlemaker').select('id').eq('user_id', userId).limit(1),
+      db.from('tools_worksheetmaker').select('id').eq('user_id', userId).limit(1),
+      db.from('tools_dnd').select('id').eq('user_id', userId).limit(1),
+      db.from('vtt_maps').select('id').eq('user_id', userId).limit(1),
+      db.from('vtt_campaigns').select('id').eq('user_id', userId).limit(1),
+      db.from('workshop_lessonparser').select('id').eq('user_id', userId).limit(1),
+      db.from('spreadsheets').select('id').eq('user_id', userId).limit(1)
+    ]);
+
+    for (const res of checks) {
+      if (res.error) {
+        console.warn('[SandboxImport] Cloud emptiness check failed:', res.error);
+        return false;
+      }
+      if (Array.isArray(res.data) && res.data.length > 0) {
+        return false;
+      }
+    }
+    return true;
+  } catch (err) {
+    console.warn('[SandboxImport] Cloud emptiness check error:', err);
+    return false;
+  }
+}
+
+async function importSandboxVaultToCloud(user) {
+  if (!user || !user.id || user.is_sandbox) return false;
+  const snapshot = await readSandboxVaultSnapshot();
+  if (!snapshot || !snapshot.entries) return false;
+
+  const entries = snapshot.entries;
+
+  for (const [key, raw] of Object.entries(entries)) {
+    if (key.startsWith('prog_') && key !== 'prog_my-class' && raw !== null && raw !== undefined) {
+      try {
+        const parsed = JSON.parse(raw);
+        if (parsed !== null && parsed !== undefined) {
+          const toolKey = key.slice('prog_'.length);
+          await saveProgress(toolKey, parsed);
+        }
+      } catch (err) {
+        console.warn('[SandboxImport] Failed to import progress key:', key, err);
+      }
+    }
   }
 
-  localStorage.setItem('migrated_to_cloud', 'true')
+  const hubImportKeys = [
+    'pinnedGameIds',
+    'favoriteGames',
+    'recentGameIds',
+    'openTabs',
+    'tabGroups',
+    'klasskit_viewMode',
+    'klasskit_librarySort',
+    'klasskit_defaultHome',
+    'klasskit_showRecent',
+    'klasskit_autoExpandGroup'
+  ];
+  const hubState = {};
+  for (const key of hubImportKeys) {
+    const raw = entries[key];
+    if (raw !== null && raw !== undefined) {
+      try {
+        localStorage.setItem(key, raw);
+      } catch (_) {}
+      try {
+        hubState[key] = JSON.parse(raw);
+      } catch (_) {
+        hubState[key] = raw;
+      }
+    }
+  }
+
+  if (Object.keys(hubState).length > 0) {
+    await saveProgress('klasskit_hub', hubState);
+  }
+
+  await setSandboxImportState(user.id, 'imported');
+  return true;
+}
+
+async function checkAndOfferSandboxImport() {
+  if (isSandbox()) return false;
+  const user = await getUser();
+  if (!user || user.is_sandbox) return false;
+
+  const importState = await getSandboxImportState();
+  if (importState?.handledUsers?.[user.id]) return false;
+
+  const snapshot = await readSandboxVaultSnapshot();
+  if (!snapshot || !snapshot.entries || !hasMigratableSandboxData(snapshot.entries)) {
+    return false;
+  }
+
+  const empty = await isCloudAccountEmpty(user.id);
+  if (!empty) return false;
+
+  if (typeof showConfirmModal !== 'function') return false;
+
+  const confirmed = await showConfirmModal(
+    'Your Cloud account is empty, and you have saved Sandbox data on this device. Would you like to copy it to your Cloud account? Your local Sandbox copy will stay safe.',
+    {
+      title: 'Import Sandbox Data?',
+      confirmText: 'Import to Cloud',
+      cancelText: 'Start Fresh',
+      icon: 'cloud-upload',
+      iconColor: 'blue'
+    }
+  );
+
+  if (confirmed) {
+    return await importSandboxVaultToCloud(user);
+  } else {
+    await setSandboxImportState(user.id, 'dismissed');
+    return false;
+  }
 }
 
 /* ── STORAGE HELPERS ── */

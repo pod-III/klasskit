@@ -33,6 +33,12 @@ const UI = {
   },
 
   updateUserUI() {
+    if (typeof isSandbox === 'function' && isSandbox()) {
+      document.querySelectorAll('.pro-only-card, .pro-only-btn').forEach(el => el.classList.add('hidden'));
+      document.getElementById('auth-admin-link')?.classList.add('hidden');
+      return;
+    }
+
     const profile = State.userProfile;
     if (!profile) {
       document.querySelectorAll('.pro-only-card, .pro-only-btn').forEach(el => el.classList.add('hidden'));
