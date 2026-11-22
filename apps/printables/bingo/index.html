@@ -93,6 +93,7 @@
 
             body {
                 background: white !important;
+                color: #1e293b !important;
                 -webkit-print-color-adjust: exact;
                 print-color-adjust: exact;
             }
@@ -400,7 +401,7 @@
                             class="btn-chunky flex-1 md:flex-none bg-brand-green text-brand-dark px-6 py-3 rounded-xl text-sm gap-2 flex justify-center items-center">
                             <i data-lucide="layers" class="w-5 h-5"></i> Generate
                         </button>
-                        <button onclick="window.print()"
+                        <button onclick="handleBingoPrint()"
                             class="btn-chunky flex-1 md:flex-none bg-brand-dark text-white px-6 py-3 rounded-xl text-sm gap-2 flex justify-center items-center">
                             <i data-lucide="printer" class="w-5 h-5"></i> Print Now
                         </button>
@@ -437,6 +438,7 @@
                         <label class="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">Total
                             Cards</label>
                         <input type="number" id="printCount" value="20" min="1" max="100"
+                            onchange="updatePrintPreviewLayout()"
                             class="input-chunky w-full px-3 py-2 text-brand-dark dark:text-white text-sm">
                     </div>
                     <div>
@@ -1339,7 +1341,8 @@
 
                 if (currentCards.length === cardsPerPage || i === count - 1) {
                     const page = document.createElement('div');
-                    page.className = 'print-page bg-white shadow-xl flex shrink-0 box-border mx-auto print:shadow-none print:m-0 print:p-0 print:w-auto print:h-auto overflow-hidden relative';
+                    const isLastPage = i >= count - 1;
+                    page.className = 'print-page bg-white shadow-xl flex shrink-0 box-border mx-auto print:shadow-none print:m-0 overflow-hidden relative';
 
                     page.style.cssText = `
                         width: ${paperWidth};
@@ -1349,8 +1352,8 @@
                         grid-template-columns: repeat(${columns}, 1fr);
                         grid-template-rows: repeat(${rows}, 1fr);
                         gap: 1cm;
-                        page-break-after: always;
-                        break-after: page;
+                        page-break-after: ${isLastPage ? 'auto' : 'always'};
+                        break-after: ${isLastPage ? 'auto' : 'page'};
                     `;
 
                     currentCards.forEach(cardHTML => {
@@ -1383,12 +1386,19 @@
                     }
                     body {
                         background: white !important;
+                        color: #1e293b !important;
                     }
                     .print-page {
-                        width: 100vw !important;
-                        height: 100vh !important;
+                        width: ${paperWidth} !important;
+                        height: ${paperHeight} !important;
+                        padding: 1cm !important;
+                        box-sizing: border-box !important;
                         box-shadow: none !important;
                         margin: 0 !important;
+                    }
+                    .print-page:last-child {
+                        page-break-after: auto !important;
+                        break-after: auto !important;
                     }
                     #printGrid {
                         background: transparent !important;
@@ -1402,6 +1412,19 @@
             const totalPages = Math.ceil(count / cardsPerPage);
             showToast(`Generated ${count} card${count > 1 ? 's' : ''} (${totalPages} page${totalPages > 1 ? 's' : ''})`, 'success');
         }
+
+        function handleBingoPrint() {
+            if (!document.querySelector('#printGrid .print-page')) {
+                generatePrintCards();
+            }
+            window.print();
+        }
+
+        window.addEventListener('beforeprint', () => {
+            if (!document.querySelector('#printGrid .print-page')) {
+                generatePrintCards();
+            }
+        });
 
         // --- CALLER LOGIC ---
         let speechEnabled = false;

@@ -776,7 +776,7 @@ function setOrientation(type, shouldSave = true) {
         page.classList.remove("a4-portrait", "a4-landscape");
         page.classList.add(`a4-${state.orientation}`);
     });
-    printStyle.innerHTML = `@page { size: ${state.orientation}; margin: 0; }`;
+    printStyle.innerHTML = `@page { size: A4 ${state.orientation}; margin: 0; }`;
     if (currentZoomMode === "fit") applyPreviewZoom();
     if (shouldSave) saveState();
 }

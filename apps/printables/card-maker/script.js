@@ -1132,7 +1132,7 @@ function setOrientation(type, shouldSave = true) {
         page.classList.add(`a4-${type}`);
     });
 
-    printStyle.innerHTML = `@page { size: ${type}; margin: 0; }`;
+    printStyle.innerHTML = `@page { size: A4 ${type}; margin: 0; }`;
     if (currentZoomMode === "fit" && typeof applyPreviewZoom === "function") applyPreviewZoom();
     if (shouldSave) saveState();
 }

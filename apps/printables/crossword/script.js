@@ -776,8 +776,13 @@ window.setPrintMode = function(mode) {
     } else {
         printArea.classList.remove('print-separate-pages');
     }
+    if (words && words.length) preparePrintVersion();
     window.print();
 };
+
+window.addEventListener('beforeprint', () => {
+    if (words && words.length) preparePrintVersion();
+});
 
 // --- UPDATED: Dynamic Sizing ---
 function preparePrintVersion() {

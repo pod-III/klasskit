@@ -1094,8 +1094,12 @@ window.setPrintMode = function (mode) {
 const originalPrint = window.print;
 window.print = function () {
     if (State.grid.length) preparePrintVersion();
-    originalPrint();
+    originalPrint.call(window);
 };
+
+window.addEventListener('beforeprint', () => {
+    if (State.grid.length) preparePrintVersion();
+});
 
 function preparePrintVersion() {
     const printGrid = els.grid.cloneNode(true);
@@ -1104,6 +1108,9 @@ function preparePrintVersion() {
     printGrid.style.height = '';
     printGrid.style.gridTemplateColumns = `repeat(${State.grid.length}, 1fr)`;
     printGrid.style.setProperty('--grid-size', State.grid.length);
+    printGrid.querySelectorAll('.grid-cell').forEach((cell) => {
+        cell.classList.remove('selected', 'preview-line', 'found', 'revealed');
+    });
 
     document.getElementById('print-grid-container').innerHTML = '';
     document.getElementById('print-grid-container').appendChild(printGrid);
