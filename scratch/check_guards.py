@@ -13,7 +13,15 @@ for root, dirs, files in os.walk(apps_dir):
             # Read HTML
             with open(html_path, 'r', encoding='utf-8', errors='ignore') as f:
                 html_content = f.read()
-            
+
+            # Skip pure redirect stubs that forward immediately to a parent index.html
+            if (
+                re.search(r'<meta\s+http-equiv=["\']refresh["\'][^>]+url=\.\./index\.html', html_content, re.IGNORECASE)
+                and "window.location.replace('../index.html" in html_content
+                and os.path.exists(os.path.normpath(os.path.join(root, '../index.html')))
+            ):
+                continue
+
             # Check if guards are in HTML
             has_guard = any(guard in html_content for guard in guards)
             
