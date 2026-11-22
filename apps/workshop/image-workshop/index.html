@@ -5,220 +5,3380 @@
     <!-- Supabase Auth -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.105.4"></script>
     <script src="/supabase.js"></script>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Image Workshop - KlassKit</title>
     <link rel="icon" type="image/x-icon" href="../../../media/icon.ico" />
     <link rel="icon" type="image/webp" href="../../../media/icon.webp" />
 
     <script src="https://unpkg.com/lucide@1.16.0"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
     <link rel="stylesheet" href="../../../css/tailwind.generated.css" />
+    <link rel="stylesheet" href="../../../css/base.css" />
+    <link rel="stylesheet" href="../../../css/components.css" />
     <script src="../../../components/input-modal.js"></script>
 
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-        href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Nunito:wght@400;700;900&display=swap"
-        rel="stylesheet">
+        href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Nunito:wght@400;600;700;800;900&display=swap"
+        rel="stylesheet" />
 
     <script>
-        // Check for saved theme or default to light
-        const st = localStorage.getItem('theme_image-workshop');
-        if (st === 'dark' || (!st && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-            document.documentElement.classList.add('dark');
-        } else {
-            document.documentElement.classList.remove('dark');
-        }
-
-        function toggleTheme() {
-            if (document.documentElement.classList.contains('dark')) {
-                document.documentElement.classList.remove('dark');
-                localStorage.setItem('theme_image-workshop', 'light');
-            } else {
+        (function () {
+            const st = localStorage.getItem('theme_image-workshop');
+            if (st === 'dark' || (!st && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
                 document.documentElement.classList.add('dark');
-                localStorage.setItem('theme_image-workshop', 'dark');
+            } else {
+                document.documentElement.classList.remove('dark');
             }
-            lucide.createIcons();
-        }
+        })();
     </script>
 
     <style>
-        body {
-            font-family: 'Nunito', sans-serif;
-            background-color: #F0F4F8;
-            /* Grid Pattern Background */
+        *:focus-visible {
+            outline: 3px solid var(--color-blue);
+            outline-offset: 2px;
+        }
+
+        .tab-btn {
+            transition: transform var(--transition-fast), box-shadow var(--transition-fast), background-color var(--transition-fast), color var(--transition-fast);
+        }
+
+        .tab-btn:hover:not(.tab-active) {
+            transform: translateY(-2px);
+        }
+
+        .tab-btn.tab-active {
+            transform: translateY(2px);
+            box-shadow: 0 0 0 var(--border-primary);
+        }
+
+        .checkerboard {
             background-image:
-                linear-gradient(#CBD5E1 1.5px, transparent 1.5px),
-                linear-gradient(90deg, #CBD5E1 1.5px, transparent 1.5px);
-            background-size: 30px 30px;
-            color: #0F172A;
+                linear-gradient(45deg, #e2e8f0 25%, transparent 25%),
+                linear-gradient(-45deg, #e2e8f0 25%, transparent 25%),
+                linear-gradient(45deg, transparent 75%, #e2e8f0 75%),
+                linear-gradient(-45deg, transparent 75%, #e2e8f0 75%);
+            background-size: 20px 20px;
+            background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
         }
 
-        .dark body {
-            background-color: #020617;
+        .dark .checkerboard {
             background-image:
-                linear-gradient(#0f172a 1.5px, transparent 1.5px),
-                linear-gradient(90deg, #0f172a 1.5px, transparent 1.5px);
-            color: #F8FAFC;
+                linear-gradient(45deg, #1e293b 25%, transparent 25%),
+                linear-gradient(-45deg, #1e293b 25%, transparent 25%),
+                linear-gradient(45deg, transparent 75%, #1e293b 75%),
+                linear-gradient(-45deg, transparent 75%, #1e293b 75%);
         }
 
-        .tool-card {
-            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        /* Brutalist Range Sliders */
+        input[type="range"] {
+            -webkit-appearance: none;
+            appearance: none;
+            background: transparent;
         }
 
-        .tool-card:hover {
-            transform: translate(-4px, -4px);
-            box-shadow: 8px 8px 0px 0px #0F172A;
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 20px;
+            width: 20px;
+            border-radius: 50%;
+            background: #ff7e33;
+            border: 3px solid #1e293b;
+            cursor: pointer;
+            margin-top: -7px;
+            box-shadow: 2px 2px 0px 0px #1e293b;
+            transition: transform 0.1s;
         }
 
-        .dark .tool-card:hover {
-            box-shadow: 8px 8px 0px 0px #1E293B;
+        input[type="range"]::-webkit-slider-thumb:hover {
+            transform: scale(1.12);
         }
 
-        .tool-card:active {
-            transform: translate(0px, 0px);
-            box-shadow: 0px 0px 0px 0px #0F172A;
+        input[type="range"]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 8px;
+            cursor: pointer;
+            background: #cbd5e1;
+            border: 2px solid #1e293b;
+            border-radius: 9999px;
+        }
+
+        .dark input[type="range"]::-webkit-slider-runnable-track {
+            background: #334155;
+            border-color: #64748b;
+        }
+
+        /* Crop overlay */
+        #cropOverlay {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            z-index: 20;
+        }
+
+        #cropOverlay.active {
+            pointer-events: auto;
+            cursor: crosshair;
+        }
+
+        .crop-rect {
+            position: absolute;
+            border: 2px dashed #ff4785;
+            box-shadow: 0 0 0 9999px rgba(2, 6, 23, 0.45);
+            z-index: 21;
+        }
+
+        .crop-handle {
+            position: absolute;
+            width: 14px;
+            height: 14px;
+            background: #ffffff;
+            border: 3px solid #ff4785;
+            border-radius: 4px;
+            z-index: 22;
+        }
+
+        .crop-handle.tl { top: -7px; left: -7px; cursor: nw-resize; }
+        .crop-handle.tr { top: -7px; right: -7px; cursor: ne-resize; }
+        .crop-handle.bl { bottom: -7px; left: -7px; cursor: sw-resize; }
+        .crop-handle.br { bottom: -7px; right: -7px; cursor: se-resize; }
+        .crop-handle.tm { top: -7px; left: 50%; transform: translateX(-50%); cursor: n-resize; }
+        .crop-handle.bm { bottom: -7px; left: 50%; transform: translateX(-50%); cursor: s-resize; }
+        .crop-handle.ml { top: 50%; left: -7px; transform: translateY(-50%); cursor: w-resize; }
+        .crop-handle.mr { top: 50%; right: -7px; transform: translateY(-50%); cursor: e-resize; }
+
+        .crop-rect-inner {
+            width: 100%;
+            height: 100%;
+            cursor: move;
+        }
+
+        .crop-info {
+            position: absolute;
+            bottom: -28px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(15, 23, 42, 0.9);
+            color: #ffffff;
+            font-size: 11px;
+            font-weight: 800;
+            padding: 2px 8px;
+            border-radius: 8px;
+            white-space: nowrap;
+            pointer-events: none;
+            z-index: 23;
+        }
+
+        /* Splitter overlay */
+        .grid-overlay-container {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            z-index: 30;
+        }
+
+        .grid-overlay-container.interactive {
+            pointer-events: auto;
+        }
+
+        .cut-line {
+            position: absolute;
+            pointer-events: none;
+            z-index: 40;
+            box-shadow: 0 0 8px rgba(0, 0, 0, 0.2);
+        }
+
+        .cut-line.active {
+            opacity: 1;
+            filter: brightness(1.2);
+            z-index: 45;
+        }
+
+        .cut-handle {
+            position: absolute;
+            width: 40px;
+            height: 40px;
+            background-color: #ffffff;
+            border: 3px solid #1e293b;
+            border-radius: 12px;
+            font-size: 13px;
+            font-weight: 900;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 50;
+            transform: translate(-50%, -50%);
+            box-shadow: 3px 3px 0px 0px #1e293b;
+            cursor: grab;
+            pointer-events: auto;
+            transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.15s;
+            user-select: none;
+            touch-action: none;
+        }
+
+        .cut-handle:hover {
+            transform: translate(-50%, -50%) scale(1.1);
+        }
+
+        .cut-handle.dragging {
+            cursor: grabbing;
+            transform: translate(-50%, -50%) scale(1.25);
+            box-shadow: 6px 6px 0px 0px #1e293b;
+            z-index: 60;
+        }
+
+        .thumb-strip::-webkit-scrollbar {
+            height: 8px;
         }
     </style>
-    <link rel="stylesheet" href="../../../css/base.css" />
-    <link rel="stylesheet" href="../../../css/components.css" />
 </head>
 
-<body class="min-h-screen flex flex-col items-center justify-center p-6">
+<body class="font-body text-dark dark:text-white min-h-screen p-4 md:p-6 lg:p-8">
 
-    <main class="w-full max-w-6xl mx-auto relative pt-12 md:pt-0">
+    <main class="w-full max-w-7xl mx-auto flex flex-col gap-6">
 
-        <button onclick="toggleTheme()"
-            class="fixed top-6 right-6 z-50 p-3 bg-white dark:bg-slate-800 border-4 border-dark dark:border-slate-500 rounded-2xl shadow-hard hover:translate-y-[-2px] active:translate-y-[4px] active:shadow-none transition-all group">
-            <i data-lucide="sun" class="w-6 h-6 text-orange hidden dark:block"></i>
-            <i data-lucide="moon" class="w-6 h-6 text-blue block dark:hidden"></i>
-        </button>
+        <!-- Floating Glassmorphic Header -->
+        <header
+            class="bg-white/85 dark:bg-slate-900/85 backdrop-blur-xl border-4 border-dark dark:border-slate-500 rounded-[2rem] p-4 md:p-6 shadow-hard flex flex-col lg:flex-row justify-between items-center gap-4 animate-slide-down">
 
-        <div
-            class="bg-white dark:bg-slate-900/80 dark:backdrop-blur-xl border-4 border-dark dark:border-slate-500 rounded-2xl p-8 mb-8 shadow-hard flex flex-col md:flex-row justify-between items-center text-center md:text-left transition-colors">
-            <div>
-                <h2
-                    class="font-heading font-bold text-slate-400 dark:text-slate-500 tracking-widest uppercase text-sm mb-1">
-                    Image Utilities</h2>
-                <h1 class="font-heading font-bold text-4xl md:text-5xl text-dark dark:text-white uppercase">
-                    IMAGE <span class="text-pink">WORKSHOP</span>
-                </h1>
+            <div class="flex flex-wrap items-center justify-center lg:justify-start gap-4">
+                <div
+                    class="w-14 h-14 bg-pink text-white border-3 border-dark dark:border-slate-500 rounded-2xl flex items-center justify-center shadow-hard -rotate-2 shrink-0">
+                    <i data-lucide="image" class="w-7 h-7"></i>
+                </div>
+                <div class="text-center sm:text-left">
+                    <p
+                        class="font-heading font-bold text-slate-500 dark:text-slate-400 tracking-widest uppercase text-xs leading-none mb-1">
+                        Image Utilities Suite
+                    </p>
+                    <h1
+                        class="font-heading font-bold text-3xl md:text-4xl text-dark dark:text-white uppercase tracking-tight leading-none">
+                        IMAGE <span class="text-pink">WORKSHOP</span>
+                    </h1>
+                </div>
+                <div class="hidden sm:flex items-center gap-2 ml-1">
+                    <span
+                        class="px-3 py-1 bg-pink text-white font-heading font-bold text-xs uppercase border-2 border-dark dark:border-slate-500 rounded-xl shadow-hard-sm -rotate-2">
+                        Workshop
+                    </span>
+                    <span
+                        class="px-3 py-1 bg-orange text-white font-heading font-bold text-xs uppercase border-2 border-dark dark:border-slate-500 rounded-xl shadow-hard-sm rotate-2">
+                        Teacher
+                    </span>
+                </div>
             </div>
-            <div class="mt-4 md:mt-0 flex gap-3">
-                <div
-                    class="px-4 py-2 bg-pink text-white font-heading font-bold border-2 border-dark dark:border-slate-500 rounded-lg shadow-hard -rotate-2">
-                    Workshop
-                </div>
-                <div
-                    class="px-4 py-2 bg-orange text-white font-heading font-bold border-2 border-dark dark:border-slate-500 rounded-lg shadow-hard rotate-2">
-                    Teacher
-                </div>
+
+            <div class="flex flex-wrap items-center justify-center gap-2.5">
+                <button id="sampleImgBtn" onclick="loadSampleImage()" title="Generate a sample classroom image"
+                    class="btn-chunky px-3.5 py-2.5 bg-orange text-white border-3 border-dark dark:border-slate-500 rounded-xl text-xs flex items-center gap-1.5">
+                    <i data-lucide="sparkles" class="w-4 h-4"></i>
+                    <span>Sample Image</span>
+                </button>
+                <button id="resetAllBtn" onclick="resetWorkspace()" title="Clear image queue and reset settings"
+                    class="btn-chunky px-3.5 py-2.5 bg-white dark:bg-slate-800 text-pink border-3 border-dark dark:border-slate-500 rounded-xl text-xs flex items-center gap-1.5">
+                    <i data-lucide="rotate-ccw" class="w-4 h-4"></i>
+                    <span>Reset All</span>
+                </button>
+                <button id="themeToggle" onclick="toggleTheme()" title="Toggle Light/Dark Mode"
+                    aria-label="Toggle Light/Dark Mode"
+                    class="btn-chunky p-2.5 bg-white dark:bg-slate-800 text-dark dark:text-white border-3 border-dark dark:border-slate-500 rounded-xl">
+                    <i data-lucide="sun" class="w-5 h-5 text-orange hidden dark:block"></i>
+                    <i data-lucide="moon" class="w-5 h-5 text-blue block dark:hidden"></i>
+                </button>
             </div>
-        </div>
+        </header>
 
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <!-- 4-Tab Tool Navigation -->
+        <nav aria-label="Image Workshop Tools" role="tablist"
+            class="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-4 border-dark dark:border-slate-500 rounded-2xl p-2 shadow-hard grid grid-cols-2 lg:grid-cols-4 gap-2.5">
+            <button id="tab-editor" role="tab" aria-selected="true" onclick="switchTab('editor')"
+                class="tab-btn btn-chunky rounded-xl py-3 px-4 text-sm flex items-center justify-center gap-2 border-3 border-dark dark:border-slate-500 bg-blue text-white tab-active">
+                <i data-lucide="pencil-ruler" class="w-5 h-5 shrink-0"></i>
+                <span>Image Editor</span>
+            </button>
+            <button id="tab-remove-bg" role="tab" aria-selected="false" onclick="switchTab('remove-bg')"
+                class="tab-btn btn-chunky rounded-xl py-3 px-4 text-sm flex items-center justify-center gap-2 border-3 border-dark dark:border-slate-500 bg-slate-50 dark:bg-slate-800 text-dark dark:text-white">
+                <i data-lucide="eraser" class="w-5 h-5 shrink-0"></i>
+                <span>BG Remover</span>
+            </button>
+            <button id="tab-splitter" role="tab" aria-selected="false" onclick="switchTab('splitter')"
+                class="tab-btn btn-chunky rounded-xl py-3 px-4 text-sm flex items-center justify-center gap-2 border-3 border-dark dark:border-slate-500 bg-slate-50 dark:bg-slate-800 text-dark dark:text-white">
+                <i data-lucide="scissors" class="w-5 h-5 shrink-0"></i>
+                <span>Image Splitter</span>
+            </button>
+            <button id="tab-converter" role="tab" aria-selected="false" onclick="switchTab('converter')"
+                class="tab-btn btn-chunky rounded-xl py-3 px-4 text-sm flex items-center justify-center gap-2 border-3 border-dark dark:border-slate-500 bg-slate-50 dark:bg-slate-800 text-dark dark:text-white">
+                <i data-lucide="file-type-2" class="w-5 h-5 shrink-0"></i>
+                <span>File Converter</span>
+            </button>
+        </nav>
 
-            <a href="./pages/remove-bg.html"
-                class="tool-card block bg-white dark:bg-slate-900/80 dark:backdrop-blur-xl border-4 border-dark dark:border-slate-500 rounded-2xl p-6 relative overflow-hidden group transition-colors">
+        <!-- Main 12-Column Workspace -->
+        <section class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+
+            <!-- LEFT SIDEBAR (4 Cols): Shared Queue + Active Tool Controls -->
+            <aside class="lg:col-span-4 flex flex-col gap-5">
+
+                <!-- Shared Image Asset Queue Card -->
                 <div
-                    class="absolute top-0 right-0 w-24 h-24 bg-pink/10 rounded-bl-full -mr-4 -mt-4 transition-transform group-hover:scale-150">
+                    class="bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl border-4 border-dark dark:border-slate-500 rounded-[2rem] p-5 shadow-hard">
+                    <div class="flex items-center justify-between gap-2 mb-3">
+                        <h2
+                            class="font-heading font-bold text-lg uppercase tracking-tight flex items-center gap-2 text-dark dark:text-white">
+                            <i data-lucide="images" class="w-5 h-5 text-blue"></i>
+                            Image Queue
+                        </h2>
+                        <div class="flex items-center gap-2">
+                            <span id="queueCountBadge"
+                                class="px-2.5 py-0.5 bg-blue/15 text-blue border-2 border-blue rounded-full text-[11px] font-black uppercase">
+                                0 Images
+                            </span>
+                            <button id="clearQueueBtn" onclick="clearImageQueue()" disabled title="Clear all images"
+                                class="px-2 py-0.5 bg-white dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-xl text-[10px] font-extrabold uppercase text-slate-500 hover:text-pink disabled:opacity-40">
+                                Clear
+                            </button>
+                        </div>
+                    </div>
+
+                    <div id="sharedDropZone"
+                        class="relative border-3 border-dashed border-slate-300 dark:border-slate-600 rounded-2xl p-4 text-center bg-slate-50/70 dark:bg-slate-800/50 hover:border-blue hover:bg-blue/5 transition-colors cursor-pointer">
+                        <input type="file" id="sharedFileInput" accept="image/*" multiple
+                            aria-label="Upload images to shared queue"
+                            class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" />
+                        <div class="flex items-center justify-center gap-3 pointer-events-none">
+                            <div
+                                class="w-10 h-10 bg-blue text-white border-2 border-dark rounded-xl flex items-center justify-center shadow-hard-sm shrink-0">
+                                <i data-lucide="image-plus" class="w-5 h-5"></i>
+                            </div>
+                            <div class="text-left">
+                                <p class="font-extrabold text-sm text-dark dark:text-white leading-tight">
+                                    Drop or select images
+                                </p>
+                                <p class="text-[11px] font-bold text-slate-500 dark:text-slate-400">
+                                    Shared across Editor, BG, Splitter &amp; PDF
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="sharedThumbWrap" class="hidden mt-3">
+                        <div id="sharedThumbList" class="flex gap-2.5 overflow-x-auto pb-2 thumb-strip"></div>
+                    </div>
                 </div>
 
-                <div
-                    class="w-16 h-16 bg-pink text-white border-2 border-dark dark:border-slate-500 rounded-xl flex items-center justify-center mb-4 shadow-hard">
-                    <i data-lucide="eraser" class="w-8 h-8"></i>
+                <!-- CONTROLS 1: IMAGE EDITOR -->
+                <div id="ctrl-editor" class="flex flex-col gap-5 animate-pop-in">
+                    <div id="editorControlsCard"
+                        class="bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl border-4 border-dark dark:border-slate-500 rounded-[2rem] p-5 shadow-hard flex flex-col gap-5 opacity-50 pointer-events-none transition-opacity">
+
+                        <!-- Rotate & Flip -->
+                        <div>
+                            <div class="flex items-center justify-between mb-2.5">
+                                <h3 class="font-heading font-bold text-base uppercase flex items-center gap-2">
+                                    <i data-lucide="rotate-cw" class="w-4 h-4 text-blue"></i>
+                                    Rotate &amp; Flip
+                                </h3>
+                                <span id="rotationValBadge"
+                                    class="text-xs font-black text-blue bg-blue/10 px-2 py-0.5 rounded-lg">0°</span>
+                            </div>
+
+                            <div class="grid grid-cols-4 gap-2 mb-3">
+                                <button onclick="nudgeRotation(-90)"
+                                    class="btn-chunky py-2 px-2 bg-slate-50 dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-xl text-xs">
+                                    -90°
+                                </button>
+                                <button onclick="nudgeRotation(90)"
+                                    class="btn-chunky py-2 px-2 bg-slate-50 dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-xl text-xs">
+                                    +90°
+                                </button>
+                                <button onclick="nudgeRotation(180)"
+                                    class="btn-chunky py-2 px-2 bg-slate-50 dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-xl text-xs">
+                                    180°
+                                </button>
+                                <button onclick="setRotation(0)"
+                                    class="btn-chunky py-2 px-2 bg-slate-50 dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-xl text-xs">
+                                    0°
+                                </button>
+                            </div>
+
+                            <input type="range" id="rotationSlider" min="0" max="360" value="0" step="1"
+                                class="w-full mb-3" />
+
+                            <div class="grid grid-cols-2 gap-2.5">
+                                <button id="flipHBtn" onclick="toggleFlip('h')"
+                                    class="btn-chunky py-2 px-3 bg-slate-50 dark:bg-slate-800 border-3 border-dark dark:border-slate-500 rounded-xl text-xs">
+                                    Flip Horizontal
+                                </button>
+                                <button id="flipVBtn" onclick="toggleFlip('v')"
+                                    class="btn-chunky py-2 px-3 bg-slate-50 dark:bg-slate-800 border-3 border-dark dark:border-slate-500 rounded-xl text-xs">
+                                    Flip Vertical
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Crop & Aspect Ratio -->
+                        <div class="pt-4 border-t-2 border-slate-200 dark:border-slate-700">
+                            <h3 class="font-heading font-bold text-base uppercase flex items-center gap-2 mb-2.5">
+                                <i data-lucide="crop" class="w-4 h-4 text-green"></i>
+                                Crop &amp; Aspect Ratio
+                            </h3>
+
+                            <div class="flex gap-2 mb-2.5">
+                                <button id="cropToggle" onclick="toggleCropMode()"
+                                    class="btn-chunky flex-grow py-2.5 px-3 bg-slate-50 dark:bg-slate-800 border-3 border-dark dark:border-slate-500 rounded-xl text-xs flex items-center justify-center gap-1.5">
+                                    <i data-lucide="crop" class="w-4 h-4"></i>
+                                    <span id="cropToggleLabel">Enable Crop</span>
+                                </button>
+                                <button id="resetCropBtn" onclick="resetCropRegion()"
+                                    class="btn-chunky py-2.5 px-3 bg-slate-50 dark:bg-slate-800 border-3 border-dark dark:border-slate-500 rounded-xl text-xs flex items-center gap-1">
+                                    <i data-lucide="maximize" class="w-4 h-4"></i>
+                                    <span>Reset</span>
+                                </button>
+                            </div>
+
+                            <div class="grid grid-cols-4 gap-1.5 mb-2">
+                                <button data-aspect="free" onclick="setCropAspect('free')"
+                                    class="aspect-btn btn-chunky py-1.5 rounded-xl text-[11px] bg-pink text-white border-2 border-dark dark:border-slate-500">
+                                    Free
+                                </button>
+                                <button data-aspect="1:1" onclick="setCropAspect('1:1')"
+                                    class="aspect-btn btn-chunky py-1.5 rounded-xl text-[11px] bg-slate-50 dark:bg-slate-800 border-2 border-dark dark:border-slate-500">
+                                    1:1
+                                </button>
+                                <button data-aspect="4:3" onclick="setCropAspect('4:3')"
+                                    class="aspect-btn btn-chunky py-1.5 rounded-xl text-[11px] bg-slate-50 dark:bg-slate-800 border-2 border-dark dark:border-slate-500">
+                                    4:3
+                                </button>
+                                <button data-aspect="16:9" onclick="setCropAspect('16:9')"
+                                    class="aspect-btn btn-chunky py-1.5 rounded-xl text-[11px] bg-slate-50 dark:bg-slate-800 border-2 border-dark dark:border-slate-500">
+                                    16:9
+                                </button>
+                            </div>
+
+                            <p id="cropDimensions"
+                                class="hidden text-xs font-extrabold text-green bg-slate-50 dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2">
+                                Region: <span id="cropRegionInfo">—</span>
+                            </p>
+                        </div>
+
+                        <!-- Adjustments & Filters -->
+                        <div class="pt-4 border-t-2 border-slate-200 dark:border-slate-700">
+                            <div class="flex items-center justify-between mb-2.5">
+                                <h3 class="font-heading font-bold text-base uppercase flex items-center gap-2">
+                                    <i data-lucide="sliders-horizontal" class="w-4 h-4 text-orange"></i>
+                                    Adjustments
+                                </h3>
+                                <button onclick="resetFilters()"
+                                    class="text-[11px] font-black uppercase text-slate-400 hover:text-pink transition-colors">
+                                    Reset
+                                </button>
+                            </div>
+
+                            <div class="space-y-2.5 mb-3">
+                                <div>
+                                    <div class="flex justify-between text-[11px] font-extrabold uppercase mb-1">
+                                        <span>Brightness</span>
+                                        <span id="valBrightness" class="text-blue">100%</span>
+                                    </div>
+                                    <input type="range" id="filterBrightness" min="50" max="150" value="100"
+                                        oninput="onFilterInput()" class="w-full" />
+                                </div>
+                                <div>
+                                    <div class="flex justify-between text-[11px] font-extrabold uppercase mb-1">
+                                        <span>Contrast</span>
+                                        <span id="valContrast" class="text-blue">100%</span>
+                                    </div>
+                                    <input type="range" id="filterContrast" min="50" max="150" value="100"
+                                        oninput="onFilterInput()" class="w-full" />
+                                </div>
+                                <div>
+                                    <div class="flex justify-between text-[11px] font-extrabold uppercase mb-1">
+                                        <span>Saturation</span>
+                                        <span id="valSaturation" class="text-blue">100%</span>
+                                    </div>
+                                    <input type="range" id="filterSaturation" min="0" max="200" value="100"
+                                        oninput="onFilterInput()" class="w-full" />
+                                </div>
+                            </div>
+
+                            <div class="grid grid-cols-2 gap-2">
+                                <button id="filterGrayscale" onclick="toggleFilterFlag('grayscale')"
+                                    class="btn-chunky py-2 px-3 bg-slate-50 dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-xl text-xs">
+                                    Grayscale
+                                </button>
+                                <button id="filterSepia" onclick="toggleFilterFlag('sepia')"
+                                    class="btn-chunky py-2 px-3 bg-slate-50 dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-xl text-xs">
+                                    Sepia
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Export & Chaining -->
+                        <div class="pt-4 border-t-2 border-slate-200 dark:border-slate-700 space-y-3">
+                            <div class="grid grid-cols-2 gap-2.5">
+                                <div>
+                                    <label for="editorFormat"
+                                        class="block text-[10px] font-black uppercase text-slate-500 dark:text-slate-400 mb-1">
+                                        Format
+                                    </label>
+                                    <select id="editorFormat" onchange="persistState()"
+                                        class="w-full bg-slate-50 dark:bg-slate-800 border-3 border-dark dark:border-slate-500 rounded-xl px-2.5 py-2 font-bold text-xs">
+                                        <option value="image/webp">WebP</option>
+                                        <option value="image/png">PNG</option>
+                                        <option value="image/jpeg">JPEG</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label for="batchPrefix"
+                                        class="block text-[10px] font-black uppercase text-slate-500 dark:text-slate-400 mb-1">
+                                        Filename Prefix
+                                    </label>
+                                    <input type="text" id="batchPrefix" oninput="persistState()"
+                                        placeholder="lesson_asset"
+                                        class="w-full bg-slate-50 dark:bg-slate-800 border-3 border-dark dark:border-slate-500 rounded-xl px-2.5 py-2 font-bold text-xs" />
+                                </div>
+                            </div>
+
+                            <div>
+                                <div class="flex justify-between text-[11px] font-extrabold uppercase mb-1">
+                                    <span>Quality</span>
+                                    <span class="text-blue"><span id="qualityVal">92</span>%</span>
+                                </div>
+                                <input type="range" id="qualitySlider" min="10" max="100" value="92"
+                                    oninput="onQualityInput()" class="w-full" />
+                            </div>
+
+                            <button onclick="applyEditorToQueue()"
+                                class="btn-chunky w-full py-3 px-4 bg-orange text-white border-3 border-dark dark:border-slate-500 rounded-xl text-xs flex items-center justify-center gap-2">
+                                <i data-lucide="check-circle" class="w-4 h-4"></i>
+                                <span>Apply to Active Image</span>
+                            </button>
+
+                            <div class="grid grid-cols-2 gap-2.5">
+                                <button id="downloadSingleBtn" onclick="downloadEditorSingle()"
+                                    class="btn-chunky py-3 px-3 bg-blue text-white border-3 border-dark dark:border-slate-500 rounded-xl text-xs flex items-center justify-center gap-1.5">
+                                    <i data-lucide="download" class="w-4 h-4"></i>
+                                    <span>Current</span>
+                                </button>
+                                <button id="downloadBatchBtn" onclick="downloadEditorZip()"
+                                    class="btn-chunky py-3 px-3 bg-green text-dark border-3 border-dark dark:border-slate-500 rounded-xl text-xs flex items-center justify-center gap-1.5">
+                                    <i data-lucide="archive" class="w-4 h-4"></i>
+                                    <span>All (.ZIP)</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
-                <h3 class="font-heading font-bold text-2xl text-dark dark:text-white mb-2">BG Remover</h3>
-                <p class="text-slate-500 dark:text-slate-400 font-bold text-sm leading-tight mb-6">
-                    Quickly remove backgrounds from images to create clean stickers for your lessons.
-                </p>
+                <!-- CONTROLS 2: BG REMOVER -->
+                <div id="ctrl-remove-bg" class="hidden flex-col gap-5 animate-pop-in">
+                    <div
+                        class="bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl border-4 border-dark dark:border-slate-500 rounded-[2rem] p-5 shadow-hard flex flex-col gap-4">
+                        <h3 class="font-heading font-bold text-lg uppercase flex items-center gap-2">
+                            <i data-lucide="wand-2" class="w-5 h-5 text-pink"></i>
+                            AI Cutout Engine
+                        </h3>
+                        <p class="text-xs font-bold text-slate-500 dark:text-slate-400">
+                            Removes the background of the active queue image completely on-device.
+                        </p>
 
-                <div
-                    class="w-full py-3 bg-dark dark:bg-slate-800 text-white font-heading font-bold rounded-lg text-center mt-auto border-2 border-transparent group-hover:bg-pink group-hover:border-dark group-hover:text-dark transition-colors">
-                    LAUNCH
+                        <button id="processBgBtn" onclick="runBgRemoval()" disabled
+                            class="btn-chunky w-full py-3.5 px-4 bg-pink text-white border-3 border-dark dark:border-slate-500 rounded-2xl text-sm flex items-center justify-center gap-2">
+                            <i data-lucide="eraser" class="w-5 h-5"></i>
+                            <span>Remove Background</span>
+                        </button>
+
+                        <div id="bgLoadingOverlay" class="hidden">
+                            <div class="flex items-center justify-between mb-1.5">
+                                <span id="bgLoadingStatus"
+                                    class="text-[11px] font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                                    Initializing...
+                                </span>
+                                <span id="bgLoadingPercent" class="text-xs font-black text-pink">0%</span>
+                            </div>
+                            <div
+                                class="w-full h-3.5 bg-slate-100 dark:bg-slate-800 rounded-full border-2 border-dark overflow-hidden">
+                                <div id="bgLoadingBar" class="h-full bg-pink transition-all duration-300"
+                                    style="width: 0%"></div>
+                            </div>
+                            <p class="text-[10px] font-bold text-slate-400 mt-1.5">
+                                First run downloads AI model (~40MB) into browser cache.
+                            </p>
+                        </div>
+                    </div>
+
+                    <div
+                        class="bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl border-4 border-dark dark:border-slate-500 rounded-[2rem] p-5 shadow-hard flex flex-col gap-4">
+                        <h3 class="font-heading font-bold text-lg uppercase flex items-center gap-2">
+                            <i data-lucide="palette" class="w-5 h-5 text-orange"></i>
+                            Background Fill
+                        </h3>
+
+                        <div class="grid grid-cols-2 gap-2">
+                            <button data-bgfill="transparent" onclick="setBgFillMode('transparent')"
+                                class="bg-fill-btn btn-chunky py-2 px-3 rounded-xl text-xs bg-blue text-white border-2 border-dark dark:border-slate-500">
+                                Transparent
+                            </button>
+                            <button data-bgfill="white" onclick="setBgFillMode('white')"
+                                class="bg-fill-btn btn-chunky py-2 px-3 rounded-xl text-xs bg-slate-50 dark:bg-slate-800 border-2 border-dark dark:border-slate-500">
+                                White
+                            </button>
+                            <button data-bgfill="dark" onclick="setBgFillMode('dark')"
+                                class="bg-fill-btn btn-chunky py-2 px-3 rounded-xl text-xs bg-slate-50 dark:bg-slate-800 border-2 border-dark dark:border-slate-500">
+                                Dark Slate
+                            </button>
+                            <label
+                                class="flex items-center justify-between gap-2 px-3 py-1.5 bg-slate-50 dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-xl text-xs font-heading font-bold uppercase cursor-pointer">
+                                <span>Custom</span>
+                                <input type="color" id="bgCustomColor" value="#ff4785"
+                                    oninput="onCustomBgColorChange()"
+                                    class="w-7 h-7 rounded-lg border-2 border-dark cursor-pointer bg-transparent" />
+                            </label>
+                        </div>
+
+                        <div class="pt-3 border-t-2 border-slate-200 dark:border-slate-700 flex flex-col gap-2.5">
+                            <button id="chainBgBtn" onclick="useBgResultInQueue()" disabled
+                                class="btn-chunky w-full py-3 px-4 bg-orange text-white border-3 border-dark dark:border-slate-500 rounded-xl text-xs flex items-center justify-center gap-2">
+                                <i data-lucide="layers" class="w-4 h-4"></i>
+                                <span>Use Cutout in Workshop</span>
+                            </button>
+                            <button id="downloadBgBtn" onclick="downloadBgResult()" disabled
+                                class="btn-chunky w-full py-3 px-4 bg-green text-dark border-3 border-dark dark:border-slate-500 rounded-xl text-xs flex items-center justify-center gap-2">
+                                <i data-lucide="file-down" class="w-4 h-4"></i>
+                                <span>Download Cutout PNG</span>
+                            </button>
+                        </div>
+                    </div>
                 </div>
-            </a>
 
-            <a href="./pages/editor.html"
-                class="tool-card block bg-white dark:bg-slate-900/80 dark:backdrop-blur-xl border-4 border-dark dark:border-slate-500 rounded-2xl p-6 relative overflow-hidden group transition-colors">
-                <div
-                    class="absolute top-0 right-0 w-24 h-24 bg-blue/10 rounded-bl-full -mr-4 -mt-4 transition-transform group-hover:scale-150">
+                <!-- CONTROLS 3: IMAGE SPLITTER -->
+                <div id="ctrl-splitter" class="hidden flex-col gap-5 animate-pop-in">
+                    <div id="splitterControlsCard"
+                        class="bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl border-4 border-dark dark:border-slate-500 rounded-[2rem] p-5 shadow-hard flex flex-col gap-5 opacity-50 pointer-events-none transition-opacity">
+
+                        <div>
+                            <div class="flex items-center justify-between mb-3">
+                                <h3 class="font-heading font-bold text-base uppercase flex items-center gap-2">
+                                    <i data-lucide="sliders" class="w-4 h-4 text-green"></i>
+                                    Grid Mode
+                                </h3>
+                                <span id="sliceCountBadge"
+                                    class="px-2.5 py-0.5 bg-green/15 text-green border-2 border-green rounded-full text-[11px] font-black uppercase">
+                                    4 Slices (2 × 2)
+                                </span>
+                            </div>
+
+                            <div class="grid grid-cols-2 gap-2">
+                                <button id="splitModeEqual" onclick="setSplitterMode('equal')"
+                                    class="btn-chunky py-2.5 px-3 rounded-xl text-xs bg-green text-dark border-3 border-dark dark:border-slate-500">
+                                    Equal Grid
+                                </button>
+                                <button id="splitModeCustom" onclick="setSplitterMode('custom')"
+                                    class="btn-chunky py-2.5 px-3 rounded-xl text-xs bg-slate-50 dark:bg-slate-800 border-3 border-dark dark:border-slate-500">
+                                    Custom Cuts
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Equal Controls -->
+                        <div id="equalControls" class="space-y-4">
+                            <div>
+                                <div class="flex justify-between items-center mb-1">
+                                    <label for="eqRowsInput"
+                                        class="text-xs font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                                        Rows
+                                    </label>
+                                    <span id="eqRowsVal"
+                                        class="font-heading font-bold bg-dark text-white px-2.5 py-0.5 rounded-lg text-xs">2</span>
+                                </div>
+                                <input type="range" id="eqRowsInput" min="1" max="10" value="2"
+                                    oninput="onEqualGridInput()" class="w-full" />
+                            </div>
+                            <div>
+                                <div class="flex justify-between items-center mb-1">
+                                    <label for="eqColsInput"
+                                        class="text-xs font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                                        Columns
+                                    </label>
+                                    <span id="eqColsVal"
+                                        class="font-heading font-bold bg-dark text-white px-2.5 py-0.5 rounded-lg text-xs">2</span>
+                                </div>
+                                <input type="range" id="eqColsInput" min="1" max="10" value="2"
+                                    oninput="onEqualGridInput()" class="w-full" />
+                            </div>
+                        </div>
+
+                        <!-- Custom Multi-Cut Controls -->
+                        <div id="customControls" class="hidden space-y-3">
+                            <div
+                                class="bg-slate-50 dark:bg-slate-800 p-3.5 rounded-2xl border-3 border-dark dark:border-slate-500 space-y-3">
+                                <div class="flex items-center justify-between">
+                                    <span class="font-extrabold text-xs uppercase flex items-center gap-2">
+                                        <i data-lucide="rows" class="w-4 h-4 text-blue"></i> Rows
+                                    </span>
+                                    <div class="flex items-center gap-1.5">
+                                        <button onclick="adjustCustomCount('row', -1)"
+                                            class="w-8 h-8 bg-white dark:bg-slate-700 border-2 border-dark rounded-xl font-black">-</button>
+                                        <span id="custRowCount"
+                                            class="font-heading font-bold text-base w-7 text-center">2</span>
+                                        <button onclick="adjustCustomCount('row', 1)"
+                                            class="w-8 h-8 bg-white dark:bg-slate-700 border-2 border-dark rounded-xl font-black">+</button>
+                                    </div>
+                                </div>
+                                <div class="flex items-center justify-between">
+                                    <span class="font-extrabold text-xs uppercase flex items-center gap-2">
+                                        <i data-lucide="columns" class="w-4 h-4 text-pink"></i> Columns
+                                    </span>
+                                    <div class="flex items-center gap-1.5">
+                                        <button onclick="adjustCustomCount('col', -1)"
+                                            class="w-8 h-8 bg-white dark:bg-slate-700 border-2 border-dark rounded-xl font-black">-</button>
+                                        <span id="custColCount"
+                                            class="font-heading font-bold text-base w-7 text-center">2</span>
+                                        <button onclick="adjustCustomCount('col', 1)"
+                                            class="w-8 h-8 bg-white dark:bg-slate-700 border-2 border-dark rounded-xl font-black">+</button>
+                                    </div>
+                                </div>
+                            </div>
+                            <p class="text-[11px] font-bold text-slate-500 dark:text-slate-400 text-center">
+                                Drag numbered handles on the image preview to position cuts.
+                            </p>
+                        </div>
+
+                        <!-- Splitter Export -->
+                        <div class="pt-4 border-t-2 border-slate-200 dark:border-slate-700 space-y-3">
+                            <div class="grid grid-cols-2 gap-2.5">
+                                <div>
+                                    <label for="splitterFormat"
+                                        class="block text-[10px] font-black uppercase text-slate-500 dark:text-slate-400 mb-1">
+                                        Slice Format
+                                    </label>
+                                    <select id="splitterFormat" onchange="persistState()"
+                                        class="w-full bg-slate-50 dark:bg-slate-800 border-3 border-dark dark:border-slate-500 rounded-xl px-2.5 py-2 font-bold text-xs">
+                                        <option value="image/png">PNG</option>
+                                        <option value="image/webp">WebP</option>
+                                        <option value="image/jpeg">JPEG</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label for="splitterPrefix"
+                                        class="block text-[10px] font-black uppercase text-slate-500 dark:text-slate-400 mb-1">
+                                        Slice Prefix
+                                    </label>
+                                    <input type="text" id="splitterPrefix" value="slice" oninput="persistState()"
+                                        class="w-full bg-slate-50 dark:bg-slate-800 border-3 border-dark dark:border-slate-500 rounded-xl px-2.5 py-2 font-bold text-xs" />
+                                </div>
+                            </div>
+
+                            <button id="downloadSplitZipBtn" onclick="generateSplitterZip()"
+                                class="btn-chunky w-full py-3.5 px-4 bg-green text-dark border-3 border-dark dark:border-slate-500 rounded-2xl text-sm flex items-center justify-center gap-2">
+                                <i data-lucide="archive" class="w-5 h-5"></i>
+                                <span>Download Slices (.ZIP)</span>
+                            </button>
+                        </div>
+                    </div>
                 </div>
 
-                <div
-                    class="w-16 h-16 bg-blue text-white border-2 border-dark dark:border-slate-500 rounded-xl flex items-center justify-center mb-4 shadow-hard">
-                    <i data-lucide="pencil-ruler" class="w-8 h-8"></i>
+                <!-- CONTROLS 4: FILE CONVERTER -->
+                <div id="ctrl-converter" class="hidden flex-col gap-5 animate-pop-in">
+                    <div
+                        class="bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl border-4 border-dark dark:border-slate-500 rounded-[2rem] p-5 shadow-hard flex flex-col gap-4">
+                        <h3 class="font-heading font-bold text-lg uppercase flex items-center gap-2">
+                            <i data-lucide="refresh-cw" class="w-5 h-5 text-orange"></i>
+                            Conversion Mode
+                        </h3>
+                        <div class="grid grid-cols-2 gap-2">
+                            <button id="convModePdf2Img" onclick="switchConverterMode('pdf2img')"
+                                class="btn-chunky py-2.5 px-3 rounded-xl text-xs bg-orange text-white border-3 border-dark dark:border-slate-500 flex items-center justify-center gap-1.5">
+                                <i data-lucide="file-image" class="w-4 h-4"></i>
+                                <span>PDF &rarr; IMG</span>
+                            </button>
+                            <button id="convModeImg2Pdf" onclick="switchConverterMode('img2pdf')"
+                                class="btn-chunky py-2.5 px-3 rounded-xl text-xs bg-slate-50 dark:bg-slate-800 border-3 border-dark dark:border-slate-500 flex items-center justify-center gap-1.5">
+                                <i data-lucide="file-plus" class="w-4 h-4"></i>
+                                <span>IMG &rarr; PDF</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Mode A: PDF -> IMG Controls -->
+                    <div id="convPdfControls"
+                        class="bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl border-4 border-dark dark:border-slate-500 rounded-[2rem] p-5 shadow-hard flex flex-col gap-4">
+                        <h3 class="font-heading font-bold text-base uppercase flex items-center gap-2">
+                            <i data-lucide="upload" class="w-4 h-4 text-orange"></i>
+                            PDF Input &amp; Settings
+                        </h3>
+
+                        <label class="block cursor-pointer">
+                            <input type="file" id="pdfInput" accept="application/pdf" class="hidden" />
+                            <div id="pdfDrop"
+                                class="border-3 border-dashed border-slate-300 dark:border-slate-600 rounded-2xl p-6 text-center hover:bg-orange/5 hover:border-orange transition-colors">
+                                <i data-lucide="file-text" class="w-10 h-10 mx-auto mb-2 text-slate-400"></i>
+                                <p class="font-bold text-sm text-slate-500 dark:text-slate-400">Drop PDF here or click</p>
+                            </div>
+                        </label>
+                        <div id="pdfFileBadge" class="hidden"></div>
+
+                        <div class="grid grid-cols-2 gap-2.5">
+                            <div>
+                                <label for="imgFormat"
+                                    class="block text-[10px] font-black uppercase text-slate-500 dark:text-slate-400 mb-1">
+                                    Output Format
+                                </label>
+                                <select id="imgFormat" onchange="persistState()"
+                                    class="w-full bg-slate-50 dark:bg-slate-800 border-3 border-dark dark:border-slate-500 rounded-xl px-2.5 py-2 font-bold text-xs">
+                                    <option value="image/png">PNG</option>
+                                    <option value="image/jpeg">JPEG</option>
+                                    <option value="image/webp">WebP</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label for="imgScale"
+                                    class="block text-[10px] font-black uppercase text-slate-500 dark:text-slate-400 mb-1">
+                                    Scale / DPI
+                                </label>
+                                <select id="imgScale" onchange="persistState()"
+                                    class="w-full bg-slate-50 dark:bg-slate-800 border-3 border-dark dark:border-slate-500 rounded-xl px-2.5 py-2 font-bold text-xs">
+                                    <option value="1">1x (72 DPI)</option>
+                                    <option value="2" selected>2x (144 DPI)</option>
+                                    <option value="3">3x (216 DPI)</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <button id="convertPdfBtn" onclick="convertPdfToImages()" disabled
+                            class="btn-chunky w-full py-3.5 px-4 bg-orange text-white border-3 border-dark dark:border-slate-500 rounded-2xl text-sm flex items-center justify-center gap-2">
+                            <i data-lucide="refresh-cw" class="w-4 h-4"></i>
+                            <span>Convert Pages</span>
+                        </button>
+                    </div>
+
+                    <!-- Mode B: IMG -> PDF Controls -->
+                    <div id="convImgControls"
+                        class="hidden bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl border-4 border-dark dark:border-slate-500 rounded-[2rem] p-5 shadow-hard flex-col gap-4">
+                        <h3 class="font-heading font-bold text-base uppercase flex items-center gap-2">
+                            <i data-lucide="file-text" class="w-4 h-4 text-blue"></i>
+                            PDF Page Layout
+                        </h3>
+
+                        <div class="grid grid-cols-2 gap-2.5">
+                            <div>
+                                <label for="pageSize"
+                                    class="block text-[10px] font-black uppercase text-slate-500 dark:text-slate-400 mb-1">
+                                    Page Size
+                                </label>
+                                <select id="pageSize" onchange="persistState()"
+                                    class="w-full bg-slate-50 dark:bg-slate-800 border-3 border-dark dark:border-slate-500 rounded-xl px-2.5 py-2 font-bold text-xs">
+                                    <option value="a4">A4</option>
+                                    <option value="letter">Letter</option>
+                                    <option value="fit">Fit Image</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label for="pageOrient"
+                                    class="block text-[10px] font-black uppercase text-slate-500 dark:text-slate-400 mb-1">
+                                    Orientation
+                                </label>
+                                <select id="pageOrient" onchange="persistState()"
+                                    class="w-full bg-slate-50 dark:bg-slate-800 border-3 border-dark dark:border-slate-500 rounded-xl px-2.5 py-2 font-bold text-xs">
+                                    <option value="auto">Auto</option>
+                                    <option value="portrait">Portrait</option>
+                                    <option value="landscape">Landscape</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label for="pageMargin"
+                                    class="block text-[10px] font-black uppercase text-slate-500 dark:text-slate-400 mb-1">
+                                    Margin
+                                </label>
+                                <select id="pageMargin" onchange="persistState()"
+                                    class="w-full bg-slate-50 dark:bg-slate-800 border-3 border-dark dark:border-slate-500 rounded-xl px-2.5 py-2 font-bold text-xs">
+                                    <option value="0">None (0 pt)</option>
+                                    <option value="20" selected>Small (20 pt)</option>
+                                    <option value="36">Medium (36 pt)</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label for="pdfQuality"
+                                    class="block text-[10px] font-black uppercase text-slate-500 dark:text-slate-400 mb-1">
+                                    Quality
+                                </label>
+                                <select id="pdfQuality" onchange="persistState()"
+                                    class="w-full bg-slate-50 dark:bg-slate-800 border-3 border-dark dark:border-slate-500 rounded-xl px-2.5 py-2 font-bold text-xs">
+                                    <option value="0.75">75% (Small)</option>
+                                    <option value="0.92" selected>92% (High)</option>
+                                    <option value="1">100% (Max)</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <button id="convertImgBtn" onclick="generatePdfFromQueue()" disabled
+                            class="btn-chunky w-full py-3.5 px-4 bg-blue text-white border-3 border-dark dark:border-slate-500 rounded-2xl text-sm flex items-center justify-center gap-2">
+                            <i data-lucide="file-output" class="w-4 h-4"></i>
+                            <span>Generate PDF</span>
+                        </button>
+                    </div>
+                </div>
+            </aside>
+
+            <!-- RIGHT STAGE (8 Cols): Preview & Results -->
+            <section class="lg:col-span-8 flex flex-col gap-5">
+
+                <!-- STAGE 1: IMAGE EDITOR -->
+                <div id="view-editor"
+                    class="bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl border-4 border-dark dark:border-slate-500 rounded-[2rem] p-4 md:p-5 shadow-hard min-h-[580px] flex flex-col gap-3 animate-pop-in">
+                    <div class="flex flex-wrap items-center justify-between gap-2">
+                        <h2 class="font-heading font-bold text-lg uppercase flex items-center gap-2">
+                            <i data-lucide="eye" class="w-5 h-5 text-blue"></i>
+                            Editor Canvas
+                        </h2>
+                        <span id="editorActiveName"
+                            class="px-3 py-1 bg-slate-100 dark:bg-slate-800 border-2 border-dark dark:border-slate-600 rounded-full text-xs font-extrabold truncate max-w-[240px]">
+                            No image loaded
+                        </span>
+                    </div>
+
+                    <div id="editorPreviewBox"
+                        class="flex-grow checkerboard rounded-2xl border-3 border-dark dark:border-slate-600 flex items-center justify-center overflow-hidden relative p-4 min-h-[450px]">
+                        <div id="editorEmptyState" class="text-center p-8">
+                            <div
+                                class="w-20 h-20 bg-white dark:bg-slate-800 rounded-3xl border-4 border-dark dark:border-slate-600 flex items-center justify-center mx-auto mb-4 shadow-hard-sm">
+                                <i data-lucide="layout-grid" class="w-10 h-10 text-slate-400"></i>
+                            </div>
+                            <p class="font-heading font-bold text-lg text-slate-500 dark:text-slate-400 uppercase">
+                                Upload images or click Sample Image
+                            </p>
+                        </div>
+
+                        <div id="canvasWrapper" class="relative hidden">
+                            <canvas id="editorCanvas"
+                                class="shadow-hard border-3 border-dark dark:border-slate-500 max-w-full max-h-[520px] object-contain rounded-lg"></canvas>
+                            <div id="cropOverlay"></div>
+                        </div>
+                    </div>
+
+                    <div
+                        class="flex flex-wrap justify-between items-center gap-2 px-3 py-2 bg-slate-50 dark:bg-slate-800 border-2 border-dark dark:border-slate-600 rounded-xl text-xs font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-300">
+                        <span>Original: <strong id="origDim" class="text-dark dark:text-white">—</strong></span>
+                        <span>Output: <strong id="outDim" class="text-blue">—</strong></span>
+                    </div>
                 </div>
 
-                <h3 class="font-heading font-bold text-2xl text-dark dark:text-white mb-2">Image Editor</h3>
-                <p class="text-slate-500 dark:text-slate-400 font-bold text-sm leading-tight mb-6">
-                    Crop, filter, and adjust your images for classroom presentations and materials.
-                </p>
+                <!-- STAGE 2: BG REMOVER -->
+                <div id="view-remove-bg"
+                    class="hidden bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl border-4 border-dark dark:border-slate-500 rounded-[2rem] p-4 md:p-5 shadow-hard min-h-[580px] flex-col gap-3 animate-pop-in">
+                    <div class="flex flex-wrap items-center justify-between gap-2">
+                        <div class="flex items-center gap-2">
+                            <button id="bgViewOriginal" onclick="setBgViewMode('original')"
+                                class="btn-chunky px-3.5 py-1.5 rounded-xl text-xs bg-blue text-white border-2 border-dark dark:border-slate-500">
+                                Original
+                            </button>
+                            <button id="bgViewResult" onclick="setBgViewMode('result')"
+                                class="btn-chunky px-3.5 py-1.5 rounded-xl text-xs bg-slate-50 dark:bg-slate-800 border-2 border-dark dark:border-slate-500">
+                                Result
+                            </button>
+                            <button id="bgViewSide" onclick="setBgViewMode('side')"
+                                class="btn-chunky px-3.5 py-1.5 rounded-xl text-xs bg-slate-50 dark:bg-slate-800 border-2 border-dark dark:border-slate-500">
+                                Side-by-Side
+                            </button>
+                        </div>
+                        <span id="bgStatusBadge"
+                            class="px-3 py-1 bg-slate-100 dark:bg-slate-800 border-2 border-dark dark:border-slate-600 rounded-full text-xs font-extrabold uppercase">
+                            Ready
+                        </span>
+                    </div>
 
-                <div
-                    class="w-full py-3 bg-dark dark:bg-slate-800 text-white font-heading font-bold rounded-lg text-center mt-auto border-2 border-transparent group-hover:bg-blue group-hover:border-dark group-hover:text-dark transition-colors">
-                    LAUNCH
+                    <div
+                        class="flex-grow checkerboard rounded-2xl border-3 border-dark dark:border-slate-600 flex items-center justify-center overflow-hidden relative p-4 min-h-[450px]">
+                        <div id="bgEmptyState" class="text-center p-8">
+                            <div
+                                class="w-20 h-20 bg-white dark:bg-slate-800 rounded-3xl border-4 border-dark dark:border-slate-600 flex items-center justify-center mx-auto mb-4 shadow-hard-sm">
+                                <i data-lucide="eraser" class="w-10 h-10 text-slate-400"></i>
+                            </div>
+                            <p class="font-heading font-bold text-lg text-slate-500 dark:text-slate-400 uppercase">
+                                Select an image from the queue
+                            </p>
+                        </div>
+
+                        <img id="bgOriginalImg" src="" alt="Original Image"
+                            class="hidden max-w-full max-h-[500px] object-contain rounded-xl shadow-hard" />
+                        <img id="bgResultImg" src="" alt="Background Removed Result"
+                            class="hidden max-w-full max-h-[500px] object-contain rounded-xl shadow-hard" />
+
+                        <div id="bgSideWrap" class="hidden w-full grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
+                            <div class="flex flex-col items-center gap-2">
+                                <span
+                                    class="px-2.5 py-0.5 bg-white dark:bg-slate-800 border-2 border-dark rounded-full text-[10px] font-black uppercase">Original</span>
+                                <img id="bgSideOrigImg" src="" alt="Original Comparison"
+                                    class="max-w-full max-h-[420px] object-contain rounded-xl border-2 border-dark/40" />
+                            </div>
+                            <div class="flex flex-col items-center gap-2">
+                                <span
+                                    class="px-2.5 py-0.5 bg-pink text-white border-2 border-dark rounded-full text-[10px] font-black uppercase">Cutout</span>
+                                <img id="bgSideResultImg" src="" alt="Result Comparison"
+                                    class="max-w-full max-h-[420px] object-contain rounded-xl border-2 border-dark/40" />
+                            </div>
+                        </div>
+                    </div>
+
+                    <div
+                        class="flex justify-between items-center px-3 py-2 bg-slate-50 dark:bg-slate-800 border-2 border-dark dark:border-slate-600 rounded-xl text-xs font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-300">
+                        <span id="bgDimInfo">0 × 0</span>
+                        <span id="bgSizeInfo">0 KB</span>
+                    </div>
                 </div>
-            </a>
 
-            <a href="./pages/splitter.html"
-                class="tool-card block bg-white dark:bg-slate-900/80 dark:backdrop-blur-xl border-4 border-dark dark:border-slate-500 rounded-2xl p-6 relative overflow-hidden group transition-colors">
-                <div
-                    class="absolute top-0 right-0 w-24 h-24 bg-green/10 rounded-bl-full -mr-4 -mt-4 transition-transform group-hover:scale-150">
+                <!-- STAGE 3: IMAGE SPLITTER -->
+                <div id="view-splitter"
+                    class="hidden bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl border-4 border-dark dark:border-slate-500 rounded-[2rem] p-4 md:p-5 shadow-hard min-h-[580px] flex-col gap-3 animate-pop-in">
+                    <div class="flex items-center justify-between gap-2">
+                        <h2 class="font-heading font-bold text-lg uppercase flex items-center gap-2">
+                            <i data-lucide="scissors" class="w-5 h-5 text-green"></i>
+                            Split Grid Preview
+                        </h2>
+                        <span id="splitterStatusMsg"
+                            class="text-xs font-black uppercase tracking-wider text-green"></span>
+                    </div>
+
+                    <div id="splitterPreviewContainer"
+                        class="flex-grow checkerboard rounded-2xl border-3 border-dark dark:border-slate-600 flex items-center justify-center overflow-hidden relative p-8 min-h-[480px]">
+                        <div id="splitterEmptyState" class="text-center p-8">
+                            <div
+                                class="w-20 h-20 bg-white dark:bg-slate-800 rounded-3xl border-4 border-dark dark:border-slate-600 flex items-center justify-center mx-auto mb-4 shadow-hard-sm">
+                                <i data-lucide="layout-grid" class="w-10 h-10 text-slate-400"></i>
+                            </div>
+                            <p class="font-heading font-bold text-lg text-slate-500 dark:text-slate-400 uppercase">
+                                Waiting for an image...
+                            </p>
+                        </div>
+
+                        <div id="splitterWrapper" class="relative inline-block touch-none hidden">
+                            <canvas id="splitterCanvas"
+                                class="shadow-hard border-3 border-dark dark:border-slate-500 rounded-lg"></canvas>
+                            <div id="gridOverlay" class="grid-overlay-container"></div>
+                        </div>
+                    </div>
                 </div>
 
-                <div
-                    class="w-16 h-16 bg-green text-white border-2 border-dark dark:border-slate-500 rounded-xl flex items-center justify-center mb-4 shadow-hard">
-                    <i data-lucide="scissors" class="w-8 h-8"></i>
+                <!-- STAGE 4: FILE CONVERTER -->
+                <div id="view-converter"
+                    class="hidden bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl border-4 border-dark dark:border-slate-500 rounded-[2rem] p-4 md:p-5 shadow-hard min-h-[580px] flex-col gap-4 animate-pop-in">
+
+                    <!-- PDF -> IMG View -->
+                    <div id="convPdfView" class="flex flex-col gap-4 flex-grow">
+                        <div class="flex flex-wrap items-center justify-between gap-2">
+                            <h2 class="font-heading font-bold text-lg uppercase flex items-center gap-2">
+                                <i data-lucide="file-image" class="w-5 h-5 text-orange"></i>
+                                Rendered PDF Pages
+                            </h2>
+                            <div id="pdfActions" class="hidden flex items-center gap-2">
+                                <button onclick="downloadAllPdfZip()"
+                                    class="btn-chunky px-3.5 py-2 bg-green text-dark border-2 border-dark rounded-xl text-xs flex items-center gap-1.5">
+                                    <i data-lucide="archive" class="w-4 h-4"></i>
+                                    <span>Download All (.ZIP)</span>
+                                </button>
+                                <button onclick="clearPdfResults()"
+                                    class="btn-chunky px-3.5 py-2 bg-slate-100 dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-xl text-xs">
+                                    Clear
+                                </button>
+                            </div>
+                        </div>
+
+                        <div id="pdfProgress" class="hidden">
+                            <div class="flex items-center justify-between mb-1.5">
+                                <span id="pdfProgressText"
+                                    class="text-xs font-extrabold uppercase tracking-wider text-slate-500">Processing...</span>
+                                <span id="pdfProgressPct" class="text-xs font-black text-orange">0%</span>
+                            </div>
+                            <div
+                                class="w-full h-3.5 bg-slate-100 dark:bg-slate-800 rounded-full border-2 border-dark overflow-hidden">
+                                <div id="pdfProgressFill" class="h-full bg-orange transition-all duration-300"
+                                    style="width: 0%"></div>
+                            </div>
+                        </div>
+
+                        <div id="pdfImgGrid"
+                            class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 overflow-y-auto max-h-[520px] p-1 flex-grow">
+                            <div id="pdfEmptyState" class="col-span-full py-20 text-center">
+                                <i data-lucide="file-image" class="w-16 h-16 mx-auto mb-3 text-slate-300"></i>
+                                <p class="font-heading font-bold text-lg text-slate-400 uppercase">
+                                    Upload a PDF on the left to convert pages
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- IMG -> PDF View -->
+                    <div id="convImgView" class="hidden flex-col gap-4 flex-grow">
+                        <div class="flex flex-wrap items-center justify-between gap-2">
+                            <h2 class="font-heading font-bold text-lg uppercase flex items-center gap-2">
+                                <i data-lucide="file-plus" class="w-5 h-5 text-blue"></i>
+                                Queued Pages Order
+                            </h2>
+                            <span class="text-xs font-bold text-slate-500 dark:text-slate-400">
+                                Reorder images below before generating PDF
+                            </span>
+                        </div>
+
+                        <div id="imgProgress" class="hidden">
+                            <div class="flex items-center justify-between mb-1.5">
+                                <span id="imgProgressText"
+                                    class="text-xs font-extrabold uppercase tracking-wider text-slate-500">Preparing...</span>
+                                <span id="imgProgressPct" class="text-xs font-black text-blue">0%</span>
+                            </div>
+                            <div
+                                class="w-full h-3.5 bg-slate-100 dark:bg-slate-800 rounded-full border-2 border-dark overflow-hidden">
+                                <div id="imgProgressFill" class="h-full bg-blue transition-all duration-300"
+                                    style="width: 0%"></div>
+                            </div>
+                        </div>
+
+                        <div id="imgPdfResultBanner"
+                            class="hidden bg-green/15 border-4 border-green rounded-2xl p-4 flex flex-col sm:flex-row items-center gap-4 shadow-hard-sm">
+                            <div
+                                class="w-12 h-12 bg-green text-dark rounded-xl border-2 border-dark flex items-center justify-center shrink-0">
+                                <i data-lucide="file-check" class="w-6 h-6"></i>
+                            </div>
+                            <div class="flex-grow text-center sm:text-left min-w-0">
+                                <div id="outPdfName" class="font-heading font-bold text-lg truncate">output.pdf</div>
+                                <div id="outPdfMeta" class="text-xs font-extrabold text-slate-600 dark:text-slate-300">
+                                    Ready
+                                </div>
+                            </div>
+                            <button id="downloadPdfBtn"
+                                class="btn-chunky px-5 py-2.5 bg-green text-dark border-3 border-dark rounded-xl text-xs flex items-center gap-2 shrink-0">
+                                <i data-lucide="download" class="w-4 h-4"></i>
+                                <span>Download PDF</span>
+                            </button>
+                        </div>
+
+                        <div id="convImgGrid"
+                            class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 overflow-y-auto max-h-[460px] p-1 flex-grow">
+                            <div id="convImgEmptyState" class="col-span-full py-20 text-center">
+                                <i data-lucide="images" class="w-16 h-16 mx-auto mb-3 text-slate-300"></i>
+                                <p class="font-heading font-bold text-lg text-slate-400 uppercase">
+                                    Add images to the queue to build a PDF
+                                </p>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
-                <h3 class="font-heading font-bold text-2xl text-dark dark:text-white mb-2">Image Splitter</h3>
-                <p class="text-slate-500 dark:text-slate-400 font-bold text-sm leading-tight mb-6">
-                    Slice large images into multiple parts. Perfect for creating puzzle pieces or grid-based materials.
-                </p>
+            </section>
+        </section>
 
-                <div
-                    class="w-full py-3 bg-dark dark:bg-slate-800 text-white font-heading font-bold rounded-lg text-center mt-auto border-2 border-transparent group-hover:bg-green group-hover:border-dark group-hover:text-dark transition-colors">
-                    LAUNCH
-                </div>
-            </a>
-
-            <a href="./pages/converter.html"
-                class="tool-card block bg-white dark:bg-slate-900/80 dark:backdrop-blur-xl border-4 border-dark dark:border-slate-500 rounded-2xl p-6 relative overflow-hidden group transition-colors">
-                <div
-                    class="absolute top-0 right-0 w-24 h-24 bg-orange/10 rounded-bl-full -mr-4 -mt-4 transition-transform group-hover:scale-150">
-                </div>
-
-                <div
-                    class="w-16 h-16 bg-orange text-white border-2 border-dark dark:border-slate-500 rounded-xl flex items-center justify-center mb-4 shadow-hard">
-                    <i data-lucide="file-type-2" class="w-8 h-8"></i>
-                </div>
-
-                <h3 class="font-heading font-bold text-2xl text-dark dark:text-white mb-2">Converter</h3>
-                <p class="text-slate-500 dark:text-slate-400 font-bold text-sm leading-tight mb-6">
-                    Convert between JPG, PNG, WebP, and PDF formats with high quality retention.
-                </p>
-
-                <div
-                    class="w-full py-3 bg-dark dark:bg-slate-800 text-white font-heading font-bold rounded-lg text-center mt-auto border-2 border-transparent group-hover:bg-orange group-hover:border-dark group-hover:text-dark transition-colors">
-                    LAUNCH
-                </div>
-            </a>
-
-        </div>
-
-        <div class="mt-8 text-center">
-            <p class="font-heading text-slate-400 dark:text-slate-500 font-bold text-sm uppercase tracking-widest">
-                KlassKit Workshop • Professional Tools
+        <footer class="mt-2 pb-4 text-center">
+            <p class="font-heading text-slate-500 dark:text-slate-400 font-bold text-xs uppercase tracking-widest">
+                KlassKit Workshop &bull; Unified Image Studio &bull; Client-Side Processing
             </p>
-        </div>
-
+        </footer>
     </main>
 
+    <!-- Toast Notification -->
+    <div id="workshopToast" class="toast" role="status" aria-live="polite"></div>
+
     <script>
+        if (window.pdfjsLib) {
+            pdfjsLib.GlobalWorkerOptions.workerSrc =
+                'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+        }
+
+        const TOOL_ID = 'image-workshop';
+        const DB_NAME = 'KlassKit_ImageWorkshop_DB';
+        const DB_STORE = 'assets';
+        const VALID_TABS = ['editor', 'remove-bg', 'splitter', 'converter'];
+        const TAB_THEME_CLASSES = {
+            'editor': ['bg-blue', 'text-white'],
+            'remove-bg': ['bg-pink', 'text-white'],
+            'splitter': ['bg-green', 'text-dark'],
+            'converter': ['bg-orange', 'text-white']
+        };
+
+        // Shared App State
+        let activeTab = 'editor';
+        let converterMode = 'pdf2img';
+        let imageQueue = []; // [{ id, name, type, blob }]
+        let currentFileIndex = 0;
+        let queueObjectUrls = [];
+        let activeImageObj = null; // HTMLImageElement for currentFileIndex
+        let saveCloudTimeout = null;
+        let toastTimeout = null;
+
+        // Editor State
+        const editorState = {
+            rotation: 0,
+            flipH: false,
+            flipV: false,
+            cropEnabled: false,
+            isCropped: false,
+            cropAspect: 'free',
+            cropRect: { x: 0, y: 0, w: 0, h: 0 },
+            brightness: 100,
+            contrast: 100,
+            saturation: 100,
+            grayscale: false,
+            sepia: false,
+            quality: 0.92,
+            format: 'image/webp',
+            prefix: 'lesson_asset'
+        };
+        let cropDragging = false;
+        let cropDragType = null;
+        let cropDragStart = { x: 0, y: 0 };
+        let cropRectStart = { x: 0, y: 0, w: 0, h: 0 };
+
+        // BG Remover State
+        let removeBackgroundFn = null;
+        let bgRawBlob = null;
+        let bgCompositeBlob = null;
+        let bgCompositeUrl = null;
+        let bgOrigUrl = null;
+        let bgFillMode = 'transparent';
+        let bgViewMode = 'original';
+        let bgSourceId = null;
+
+        // Splitter State
+        const splitterState = {
+            mode: 'equal',
+            equalRows: 2,
+            equalCols: 2,
+            customCounts: { row: 2, col: 2 },
+            customCuts: { rows: [50], cols: [50] },
+            dragging: null
+        };
+
+        // Converter State
+        let pdfFile = null;
+        let pdfRenderedBlobs = [];
+        let pdfResultUrls = [];
+        let outPdfBlob = null;
+
+        // DOM Shortcuts
+        const sharedFileInput = document.getElementById('sharedFileInput');
+        const sharedDropZone = document.getElementById('sharedDropZone');
+        const sharedThumbList = document.getElementById('sharedThumbList');
+        const sharedThumbWrap = document.getElementById('sharedThumbWrap');
+        const queueCountBadge = document.getElementById('queueCountBadge');
+        const clearQueueBtn = document.getElementById('clearQueueBtn');
+
+        const editorCanvas = document.getElementById('editorCanvas');
+        const editorCtx = editorCanvas.getContext('2d');
+        const cropOverlay = document.getElementById('cropOverlay');
+
+        const splitterCanvas = document.getElementById('splitterCanvas');
+        const splitterCtx = splitterCanvas.getContext('2d');
+        const gridOverlay = document.getElementById('gridOverlay');
+
+        // --- THEME & TOAST ---
+        function toggleTheme() {
+            const isDark = document.documentElement.classList.toggle('dark');
+            localStorage.setItem('theme_image-workshop', isDark ? 'dark' : 'light');
+            lucide.createIcons();
+        }
+
+        function showToast(message, type = 'info') {
+            const toast = document.getElementById('workshopToast');
+            toast.textContent = message;
+            toast.className = `toast ${type} show`;
+            clearTimeout(toastTimeout);
+            toastTimeout = setTimeout(() => toast.classList.remove('show'), 2500);
+        }
+
+        function fmtSize(bytes) {
+            if (bytes < 1024) return `${bytes} B`;
+            if (bytes < 1048576) return `${(bytes / 1024).toFixed(1)} KB`;
+            return `${(bytes / 1048576).toFixed(2)} MB`;
+        }
+
+        function extForMime(mime) {
+            if (mime === 'image/jpeg') return 'jpg';
+            if (mime === 'image/webp') return 'webp';
+            return 'png';
+        }
+
+        function clamp(v, min, max) {
+            return Math.max(min, Math.min(v, max));
+        }
+
+        function triggerBlobDownload(blob, filename) {
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            setTimeout(() => URL.revokeObjectURL(url), 4000);
+        }
+
+        // --- INDEXEDDB HELPERS ---
+        function openWorkshopDB() {
+            return new Promise((resolve, reject) => {
+                if (typeof indexedDB === 'undefined') {
+                    reject(new Error('IndexedDB unavailable'));
+                    return;
+                }
+                const req = indexedDB.open(DB_NAME, 1);
+                req.onupgradeneeded = (e) => {
+                    const db = e.target.result;
+                    if (!db.objectStoreNames.contains(DB_STORE)) {
+                        db.createObjectStore(DB_STORE);
+                    }
+                };
+                req.onsuccess = (e) => resolve(e.target.result);
+                req.onerror = (e) => reject(e.target.error);
+            });
+        }
+
+        async function idbPut(key, value) {
+            try {
+                const db = await openWorkshopDB();
+                return new Promise((resolve) => {
+                    const tx = db.transaction(DB_STORE, 'readwrite');
+                    tx.objectStore(DB_STORE).put(value, key);
+                    tx.oncomplete = () => resolve(true);
+                    tx.onerror = () => resolve(false);
+                });
+            } catch (e) {
+                console.warn('[ImageWorkshop] IDB put failed:', e);
+                return false;
+            }
+        }
+
+        async function idbGet(key) {
+            try {
+                const db = await openWorkshopDB();
+                return new Promise((resolve) => {
+                    const tx = db.transaction(DB_STORE, 'readonly');
+                    const req = tx.objectStore(DB_STORE).get(key);
+                    req.onsuccess = () => resolve(req.result || null);
+                    req.onerror = () => resolve(null);
+                });
+            } catch (e) {
+                return null;
+            }
+        }
+
+        async function idbClearAll() {
+            try {
+                const db = await openWorkshopDB();
+                return new Promise((resolve) => {
+                    const tx = db.transaction(DB_STORE, 'readwrite');
+                    tx.objectStore(DB_STORE).clear();
+                    tx.oncomplete = () => resolve(true);
+                    tx.onerror = () => resolve(false);
+                });
+            } catch (e) {
+                return false;
+            }
+        }
+
+        async function loadLegacyIDBImages() {
+            try {
+                if (typeof indexedDB === 'undefined') return null;
+                return await new Promise((resolve) => {
+                    const req = indexedDB.open('KlassKit_Editor_Images', 1);
+                    req.onupgradeneeded = () => {
+                        // Do not persist empty legacy DB if it didn't exist
+                    };
+                    req.onsuccess = (e) => {
+                        const db = e.target.result;
+                        if (!db.objectStoreNames.contains('session_images')) {
+                            db.close();
+                            resolve(null);
+                            return;
+                        }
+                        const tx = db.transaction('session_images', 'readonly');
+                        const getReq = tx.objectStore('session_images').get('current_batch');
+                        getReq.onsuccess = () => {
+                            const res = getReq.result;
+                            db.close();
+                            resolve(Array.isArray(res) && res.length > 0 ? res : null);
+                        };
+                        getReq.onerror = () => {
+                            db.close();
+                            resolve(null);
+                        };
+                    };
+                    req.onerror = () => resolve(null);
+                });
+            } catch (e) {
+                return null;
+            }
+        }
+
+        async function saveQueueToIDB() {
+            const serializable = imageQueue.map(item => ({
+                id: item.id,
+                name: item.name,
+                type: item.type || item.blob.type || 'image/png',
+                blob: item.blob
+            }));
+            await idbPut('image_queue', serializable);
+        }
+
+        // --- TAB SWITCHING ---
+        function switchTab(tabId, skipSave = false) {
+            if (!VALID_TABS.includes(tabId)) tabId = 'editor';
+            activeTab = tabId;
+
+            VALID_TABS.forEach(id => {
+                const btn = document.getElementById(`tab-${id}`);
+                const activeClasses = TAB_THEME_CLASSES[id];
+                const isActive = id === tabId;
+
+                btn.setAttribute('aria-selected', isActive ? 'true' : 'false');
+                if (isActive) {
+                    btn.classList.remove('bg-slate-50', 'dark:bg-slate-800', 'text-dark', 'dark:text-white');
+                    btn.classList.add(...activeClasses, 'tab-active');
+                } else {
+                    btn.classList.remove(...activeClasses, 'tab-active');
+                    btn.classList.add('bg-slate-50', 'dark:bg-slate-800', 'text-dark', 'dark:text-white');
+                }
+
+                const ctrl = document.getElementById(`ctrl-${id}`);
+                const view = document.getElementById(`view-${id}`);
+                if (isActive) {
+                    ctrl.classList.remove('hidden');
+                    ctrl.classList.add('flex');
+                    view.classList.remove('hidden');
+                    view.classList.add('flex');
+                } else {
+                    ctrl.classList.add('hidden');
+                    ctrl.classList.remove('flex');
+                    view.classList.add('hidden');
+                    view.classList.remove('flex');
+                }
+            });
+
+            if (window.location.hash !== `#${tabId}`) {
+                history.replaceState(null, '', `#${tabId}`);
+            }
+
+            requestAnimationFrame(() => {
+                if (tabId === 'editor' && activeImageObj) renderEditorPreview();
+                if (tabId === 'splitter' && activeImageObj) renderSplitterPreview();
+                if (tabId === 'converter') renderConverterImgQueue();
+            });
+
+            if (!skipSave) persistState();
+        }
+
+        // --- SHARED IMAGE QUEUE MANAGEMENT ---
+        function makeQueueItem(fileOrBlob, fallbackName = 'image.png', existingId = null) {
+            return {
+                id: existingId || `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+                name: fileOrBlob.name || fallbackName,
+                type: fileOrBlob.type || 'image/png',
+                blob: fileOrBlob
+            };
+        }
+
+        function loadBlobAsImage(blob) {
+            return new Promise((resolve, reject) => {
+                const url = URL.createObjectURL(blob);
+                const img = new Image();
+                img.onload = () => {
+                    URL.revokeObjectURL(url);
+                    resolve(img);
+                };
+                img.onerror = () => {
+                    URL.revokeObjectURL(url);
+                    reject(new Error('Failed to decode image'));
+                };
+                img.src = url;
+            });
+        }
+
+        async function addImagesToQueue(fileList, selectNew = false) {
+            const files = Array.from(fileList).filter(f => f.type.startsWith('image/'));
+            if (files.length === 0) {
+                showToast('Please select valid image files', 'warning');
+                return;
+            }
+            const firstNewIdx = imageQueue.length;
+            files.forEach(f => imageQueue.push(makeQueueItem(f)));
+            if (selectNew || imageQueue.length === files.length) {
+                currentFileIndex = firstNewIdx;
+            }
+            await saveQueueToIDB();
+            await syncQueueUI(true);
+            showToast(`Added ${files.length} image${files.length > 1 ? 's' : ''} to queue`, 'success');
+        }
+
+        async function selectQueueIndex(idx) {
+            if (idx < 0 || idx >= imageQueue.length) return;
+            currentFileIndex = idx;
+            await syncQueueUI(true);
+            persistState();
+        }
+
+        async function removeQueueIndex(idx, event) {
+            if (event) event.stopPropagation();
+            if (idx < 0 || idx >= imageQueue.length) return;
+            imageQueue.splice(idx, 1);
+            if (currentFileIndex >= imageQueue.length) {
+                currentFileIndex = Math.max(0, imageQueue.length - 1);
+            }
+            await saveQueueToIDB();
+            await syncQueueUI(true);
+            persistState();
+        }
+
+        async function moveQueueItem(idx, delta) {
+            const target = idx + delta;
+            if (target < 0 || target >= imageQueue.length) return;
+            const activeId = imageQueue[currentFileIndex]?.id;
+            [imageQueue[idx], imageQueue[target]] = [imageQueue[target], imageQueue[idx]];
+            if (activeId) {
+                currentFileIndex = Math.max(0, imageQueue.findIndex(item => item.id === activeId));
+            }
+            await saveQueueToIDB();
+            await syncQueueUI(false);
+            persistState();
+        }
+
+        async function clearImageQueue() {
+            if (imageQueue.length === 0) return;
+            imageQueue = [];
+            currentFileIndex = 0;
+            bgRawBlob = null;
+            bgSourceId = null;
+            await idbPut('image_queue', []);
+            await idbPut('bg_removed_blob', null);
+            await syncQueueUI(true);
+            persistState();
+            showToast('Image queue cleared', 'info');
+        }
+
+        async function syncQueueUI(reloadActive = true) {
+            // Revoke previous thumb URLs
+            queueObjectUrls.forEach(u => URL.revokeObjectURL(u));
+            queueObjectUrls = [];
+
+            const count = imageQueue.length;
+            queueCountBadge.textContent = `${count} Image${count === 1 ? '' : 's'}`;
+            clearQueueBtn.disabled = count === 0;
+            sharedThumbWrap.classList.toggle('hidden', count === 0);
+            sharedThumbList.innerHTML = '';
+
+            imageQueue.forEach((item, idx) => {
+                const url = URL.createObjectURL(item.blob);
+                queueObjectUrls.push(url);
+
+                const card = document.createElement('div');
+                const isActive = idx === currentFileIndex;
+                card.className = `relative shrink-0 w-16 h-16 rounded-xl border-3 ${isActive ? 'border-pink ring-2 ring-pink/40' : 'border-dark dark:border-slate-500'} overflow-hidden cursor-pointer hover:scale-105 transition-transform group bg-slate-100 dark:bg-slate-800`;
+                card.title = item.name;
+                card.onclick = () => selectQueueIndex(idx);
+
+                const img = document.createElement('img');
+                img.src = url;
+                img.alt = item.name;
+                img.className = 'w-full h-full object-cover';
+
+                const rmBtn = document.createElement('button');
+                rmBtn.type = 'button';
+                rmBtn.title = 'Remove image';
+                rmBtn.className = 'absolute top-0.5 right-0.5 w-5 h-5 bg-pink text-white rounded-md border border-dark flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity';
+                rmBtn.innerHTML = '<i data-lucide="x" class="w-3 h-3"></i>';
+                rmBtn.onclick = (e) => removeQueueIndex(idx, e);
+
+                card.appendChild(img);
+                card.appendChild(rmBtn);
+                sharedThumbList.appendChild(card);
+            });
+
+            renderConverterImgQueue();
+
+            if (reloadActive) {
+                await loadActiveImageIntoTools();
+            }
+            lucide.createIcons();
+        }
+
+        async function loadActiveImageIntoTools() {
+            const hasImage = imageQueue.length > 0 && imageQueue[currentFileIndex];
+
+            const editorCtrl = document.getElementById('editorControlsCard');
+            const splitterCtrl = document.getElementById('splitterControlsCard');
+            const processBgBtn = document.getElementById('processBgBtn');
+
+            if (!hasImage) {
+                activeImageObj = null;
+                editorCtrl.classList.add('opacity-50', 'pointer-events-none');
+                splitterCtrl.classList.add('opacity-50', 'pointer-events-none');
+                processBgBtn.disabled = true;
+
+                document.getElementById('editorEmptyState').classList.remove('hidden');
+                document.getElementById('canvasWrapper').classList.add('hidden');
+                document.getElementById('editorActiveName').textContent = 'No image loaded';
+                document.getElementById('origDim').textContent = '—';
+                document.getElementById('outDim').textContent = '—';
+
+                document.getElementById('bgEmptyState').classList.remove('hidden');
+                document.getElementById('bgOriginalImg').classList.add('hidden');
+                document.getElementById('bgResultImg').classList.add('hidden');
+                document.getElementById('bgSideWrap').classList.add('hidden');
+                document.getElementById('bgDimInfo').textContent = '0 × 0';
+                document.getElementById('bgSizeInfo').textContent = '0 KB';
+                document.getElementById('chainBgBtn').disabled = true;
+                document.getElementById('downloadBgBtn').disabled = true;
+
+                document.getElementById('splitterEmptyState').classList.remove('hidden');
+                document.getElementById('splitterWrapper').classList.add('hidden');
+                return;
+            }
+
+            const activeItem = imageQueue[currentFileIndex];
+            try {
+                activeImageObj = await loadBlobAsImage(activeItem.blob);
+            } catch (e) {
+                showToast('Could not load selected image', 'error');
+                return;
+            }
+
+            // Enable panels
+            editorCtrl.classList.remove('opacity-50', 'pointer-events-none');
+            splitterCtrl.classList.remove('opacity-50', 'pointer-events-none');
+            processBgBtn.disabled = false;
+
+            // Update Editor stage
+            document.getElementById('editorEmptyState').classList.add('hidden');
+            document.getElementById('canvasWrapper').classList.remove('hidden');
+            document.getElementById('editorActiveName').textContent = activeItem.name;
+            document.getElementById('origDim').textContent = `${activeImageObj.width} × ${activeImageObj.height}`;
+
+            // Keep crop rect inside bounds
+            if (!editorState.isCropped || editorState.cropRect.w <= 0 || editorState.cropRect.x + editorState.cropRect.w > activeImageObj.width || editorState.cropRect.y + editorState.cropRect.h > activeImageObj.height) {
+                editorState.cropRect = { x: 0, y: 0, w: activeImageObj.width, h: activeImageObj.height };
+            }
+            renderEditorPreview();
+
+            // Update BG Remover stage
+            if (bgOrigUrl) URL.revokeObjectURL(bgOrigUrl);
+            bgOrigUrl = URL.createObjectURL(activeItem.blob);
+            document.getElementById('bgEmptyState').classList.add('hidden');
+            document.getElementById('bgOriginalImg').src = bgOrigUrl;
+            document.getElementById('bgSideOrigImg').src = bgOrigUrl;
+            document.getElementById('bgDimInfo').textContent = `${activeImageObj.width} × ${activeImageObj.height}`;
+            document.getElementById('bgSizeInfo').textContent = fmtSize(activeItem.blob.size);
+
+            if (bgRawBlob && bgSourceId === activeItem.id) {
+                await composeBgResult();
+                setBgViewMode(bgViewMode);
+            } else {
+                bgRawBlob = null;
+                bgCompositeBlob = null;
+                document.getElementById('chainBgBtn').disabled = true;
+                document.getElementById('downloadBgBtn').disabled = true;
+                document.getElementById('bgStatusBadge').textContent = 'Ready';
+                setBgViewMode('original');
+            }
+
+            // Update Splitter stage
+            document.getElementById('splitterEmptyState').classList.add('hidden');
+            document.getElementById('splitterWrapper').classList.remove('hidden');
+            requestAnimationFrame(() => renderSplitterPreview());
+        }
+
+        // --- SAMPLE IMAGE & RESET ---
+        async function loadSampleImage() {
+            const c = document.createElement('canvas');
+            c.width = 800;
+            c.height = 600;
+            const g = c.getContext('2d');
+
+            // Crisp grid card background
+            g.fillStyle = '#f8fafc';
+            g.fillRect(0, 0, 800, 600);
+            g.strokeStyle = '#cbd5e1';
+            g.lineWidth = 2;
+            for (let x = 0; x <= 800; x += 40) {
+                g.beginPath(); g.moveTo(x, 0); g.lineTo(x, 600); g.stroke();
+            }
+            for (let y = 0; y <= 600; y += 40) {
+                g.beginPath(); g.moveTo(0, y); g.lineTo(800, y); g.stroke();
+            }
+
+            // Bold soft-brutalist color blocks
+            const cards = [
+                { x: 60, y: 70, w: 320, h: 210, color: '#1ea7fd', label: 'SHAPES' },
+                { x: 420, y: 70, w: 320, h: 210, color: '#ff4785', label: 'COLORS' },
+                { x: 60, y: 320, w: 320, h: 210, color: '#00d063', label: 'PUZZLES' },
+                { x: 420, y: 320, w: 320, h: 210, color: '#ff7e33', label: 'STICKERS' }
+            ];
+
+            cards.forEach(item => {
+                g.fillStyle = '#1e293b';
+                g.beginPath(); g.roundRect(item.x + 8, item.y + 8, item.w, item.h, 24); g.fill();
+                g.fillStyle = item.color;
+                g.beginPath(); g.roundRect(item.x, item.y, item.w, item.h, 24); g.fill();
+                g.lineWidth = 6;
+                g.strokeStyle = '#1e293b';
+                g.stroke();
+
+                g.fillStyle = '#ffffff';
+                g.font = 'bold 40px Fredoka, sans-serif';
+                g.textAlign = 'center';
+                g.textBaseline = 'middle';
+                g.fillText(item.label, item.x + item.w / 2, item.y + item.h / 2);
+            });
+
+            const blob = await new Promise(res => c.toBlob(res, 'image/png'));
+            const sampleFile = new File([blob], 'klasskit-sample-grid.png', { type: 'image/png' });
+            await addImagesToQueue([sampleFile], true);
+        }
+
+        async function resetWorkspace() {
+            const confirmed = typeof showConfirmModal === 'function'
+                ? await showConfirmModal('Clear all queued images and reset Image Workshop settings?', {
+                    title: 'Reset Image Workshop?',
+                    confirmText: 'Reset All',
+                    cancelText: 'Cancel',
+                    icon: 'rotate-ccw',
+                    iconColor: 'red'
+                })
+                : confirm('Reset Image Workshop and clear all queued images?');
+
+            if (!confirmed) return;
+
+            await idbClearAll();
+            localStorage.removeItem(`prog_${TOOL_ID}`);
+            imageQueue = [];
+            currentFileIndex = 0;
+            bgRawBlob = null;
+            bgSourceId = null;
+
+            Object.assign(editorState, {
+                rotation: 0, flipH: false, flipV: false,
+                cropEnabled: false, isCropped: false, cropAspect: 'free',
+                brightness: 100, contrast: 100, saturation: 100,
+                grayscale: false, sepia: false, quality: 0.92,
+                format: 'image/webp', prefix: 'lesson_asset'
+            });
+            Object.assign(splitterState, {
+                mode: 'equal', equalRows: 2, equalCols: 2,
+                customCounts: { row: 2, col: 2 },
+                customCuts: { rows: [50], cols: [50] }
+            });
+
+            applyEditorUI();
+            applySplitterUI();
+            await syncQueueUI(true);
+            showToast('Workspace reset', 'info');
+        }
+
+        // --- TAB 1: IMAGE EDITOR ---
+        function getCanvasFilterString() {
+            const parts = [
+                `brightness(${editorState.brightness}%)`,
+                `contrast(${editorState.contrast}%)`,
+                `saturate(${editorState.saturation}%)`
+            ];
+            if (editorState.grayscale) parts.push('grayscale(100%)');
+            if (editorState.sepia) parts.push('sepia(100%)');
+            return parts.join(' ');
+        }
+
+        function setRotation(deg) {
+            editorState.rotation = ((deg % 360) + 360) % 360;
+            document.getElementById('rotationSlider').value = editorState.rotation;
+            document.getElementById('rotationValBadge').textContent = `${editorState.rotation}°`;
+            renderEditorPreview();
+            persistState();
+        }
+
+        function nudgeRotation(delta) {
+            setRotation(editorState.rotation + delta);
+        }
+
+        document.getElementById('rotationSlider').addEventListener('input', (e) => {
+            editorState.rotation = parseInt(e.target.value, 10) || 0;
+            document.getElementById('rotationValBadge').textContent = `${editorState.rotation}°`;
+            renderEditorPreview();
+            persistState();
+        });
+
+        function toggleFlip(axis) {
+            if (axis === 'h') editorState.flipH = !editorState.flipH;
+            else editorState.flipV = !editorState.flipV;
+            updateFlipButtons();
+            renderEditorPreview();
+            persistState();
+        }
+
+        function updateFlipButtons() {
+            const fh = document.getElementById('flipHBtn');
+            const fv = document.getElementById('flipVBtn');
+            fh.classList.toggle('bg-pink', editorState.flipH);
+            fh.classList.toggle('text-white', editorState.flipH);
+            fh.classList.toggle('bg-slate-50', !editorState.flipH);
+            fh.classList.toggle('dark:bg-slate-800', !editorState.flipH);
+
+            fv.classList.toggle('bg-pink', editorState.flipV);
+            fv.classList.toggle('text-white', editorState.flipV);
+            fv.classList.toggle('bg-slate-50', !editorState.flipV);
+            fv.classList.toggle('dark:bg-slate-800', !editorState.flipV);
+        }
+
+        function onFilterInput() {
+            editorState.brightness = parseInt(document.getElementById('filterBrightness').value, 10);
+            editorState.contrast = parseInt(document.getElementById('filterContrast').value, 10);
+            editorState.saturation = parseInt(document.getElementById('filterSaturation').value, 10);
+            document.getElementById('valBrightness').textContent = `${editorState.brightness}%`;
+            document.getElementById('valContrast').textContent = `${editorState.contrast}%`;
+            document.getElementById('valSaturation').textContent = `${editorState.saturation}%`;
+            renderEditorPreview();
+            persistState();
+        }
+
+        function toggleFilterFlag(flag) {
+            editorState[flag] = !editorState[flag];
+            updateFilterButtons();
+            renderEditorPreview();
+            persistState();
+        }
+
+        function updateFilterButtons() {
+            const gBtn = document.getElementById('filterGrayscale');
+            const sBtn = document.getElementById('filterSepia');
+            gBtn.classList.toggle('bg-blue', editorState.grayscale);
+            gBtn.classList.toggle('text-white', editorState.grayscale);
+            gBtn.classList.toggle('bg-slate-50', !editorState.grayscale);
+            gBtn.classList.toggle('dark:bg-slate-800', !editorState.grayscale);
+
+            sBtn.classList.toggle('bg-orange', editorState.sepia);
+            sBtn.classList.toggle('text-white', editorState.sepia);
+            sBtn.classList.toggle('bg-slate-50', !editorState.sepia);
+            sBtn.classList.toggle('dark:bg-slate-800', !editorState.sepia);
+        }
+
+        function resetFilters() {
+            editorState.brightness = 100;
+            editorState.contrast = 100;
+            editorState.saturation = 100;
+            editorState.grayscale = false;
+            editorState.sepia = false;
+            applyEditorUI();
+            renderEditorPreview();
+            persistState();
+        }
+
+        function onQualityInput() {
+            const q = parseInt(document.getElementById('qualitySlider').value, 10);
+            editorState.quality = q / 100;
+            document.getElementById('qualityVal').textContent = q;
+            persistState();
+        }
+
+        function parseAspectValue(ratioStr) {
+            if (ratioStr === '1:1') return 1;
+            if (ratioStr === '4:3') return 4 / 3;
+            if (ratioStr === '16:9') return 16 / 9;
+            return null;
+        }
+
+        function setCropAspect(ratioStr) {
+            editorState.cropAspect = ratioStr;
+            document.querySelectorAll('.aspect-btn').forEach(btn => {
+                const active = btn.dataset.aspect === ratioStr;
+                btn.classList.toggle('bg-pink', active);
+                btn.classList.toggle('text-white', active);
+                btn.classList.toggle('bg-slate-50', !active);
+                btn.classList.toggle('dark:bg-slate-800', !active);
+            });
+
+            if (activeImageObj && ratioStr !== 'free') {
+                editorState.cropEnabled = true;
+                editorState.isCropped = true;
+                const visualRatio = parseAspectValue(ratioStr);
+                const srcRatio = (editorState.rotation % 180 !== 0) ? (1 / visualRatio) : visualRatio;
+                const imgW = activeImageObj.width;
+                const imgH = activeImageObj.height;
+
+                let w = imgW;
+                let h = w / srcRatio;
+                if (h > imgH) {
+                    h = imgH;
+                    w = h * srcRatio;
+                }
+                editorState.cropRect = {
+                    x: Math.round((imgW - w) / 2),
+                    y: Math.round((imgH - h) / 2),
+                    w: Math.max(1, Math.round(w)),
+                    h: Math.max(1, Math.round(h))
+                };
+                updateCropToggleUI();
+                renderCropOverlay();
+                updateEditorDimensions();
+            }
+            persistState();
+        }
+
+        function toggleCropMode() {
+            if (!activeImageObj) return;
+            editorState.cropEnabled = !editorState.cropEnabled;
+            if (editorState.cropEnabled && !editorState.isCropped) {
+                editorState.cropRect = { x: 0, y: 0, w: activeImageObj.width, h: activeImageObj.height };
+            }
+            updateCropToggleUI();
+            renderCropOverlay();
+            updateEditorDimensions();
+            persistState();
+        }
+
+        function resetCropRegion() {
+            if (!activeImageObj) return;
+            editorState.cropRect = { x: 0, y: 0, w: activeImageObj.width, h: activeImageObj.height };
+            editorState.isCropped = false;
+            setCropAspect('free');
+            renderCropOverlay();
+            updateEditorDimensions();
+            persistState();
+        }
+
+        function updateCropToggleUI() {
+            const btn = document.getElementById('cropToggle');
+            const label = document.getElementById('cropToggleLabel');
+            const dims = document.getElementById('cropDimensions');
+            btn.classList.toggle('bg-green', editorState.cropEnabled);
+            btn.classList.toggle('text-dark', editorState.cropEnabled);
+            btn.classList.toggle('bg-slate-50', !editorState.cropEnabled);
+            btn.classList.toggle('dark:bg-slate-800', !editorState.cropEnabled);
+            label.textContent = editorState.cropEnabled ? 'Crop Active' : 'Enable Crop';
+            dims.classList.toggle('hidden', !editorState.cropEnabled);
+        }
+
+        function updateEditorDimensions() {
+            if (!activeImageObj) return;
+            let w = (editorState.isCropped && editorState.cropEnabled)
+                ? Math.round(editorState.cropRect.w)
+                : activeImageObj.width;
+            let h = (editorState.isCropped && editorState.cropEnabled)
+                ? Math.round(editorState.cropRect.h)
+                : activeImageObj.height;
+            if (editorState.rotation % 180 !== 0) [w, h] = [h, w];
+            document.getElementById('outDim').textContent = `${w} × ${h}`;
+        }
+
+        function renderEditorPreview() {
+            if (!activeImageObj) return;
+            const srcW = activeImageObj.width;
+            const srcH = activeImageObj.height;
+            const outW = (editorState.rotation % 180 !== 0) ? srcH : srcW;
+            const outH = (editorState.rotation % 180 !== 0) ? srcW : srcH;
+
+            editorCanvas.width = outW;
+            editorCanvas.height = outH;
+
+            editorCtx.clearRect(0, 0, outW, outH);
+            editorCtx.save();
+            editorCtx.filter = getCanvasFilterString();
+            editorCtx.translate(outW / 2, outH / 2);
+            editorCtx.rotate(editorState.rotation * Math.PI / 180);
+            editorCtx.scale(editorState.flipH ? -1 : 1, editorState.flipV ? -1 : 1);
+
+            const drawW = (editorState.rotation % 180 !== 0) ? outH : outW;
+            const drawH = (editorState.rotation % 180 !== 0) ? outW : outH;
+            editorCtx.drawImage(activeImageObj, 0, 0, srcW, srcH, -drawW / 2, -drawH / 2, drawW, drawH);
+            editorCtx.restore();
+
+            updateEditorDimensions();
+            if (editorState.cropEnabled) {
+                requestAnimationFrame(() => renderCropOverlay());
+            } else {
+                cropOverlay.innerHTML = '';
+                cropOverlay.classList.remove('active');
+            }
+        }
+
+        function getCanvasDisplayRect() {
+            const cRect = editorCanvas.getBoundingClientRect();
+            const oRect = cropOverlay.getBoundingClientRect();
+            return {
+                left: cRect.left - oRect.left,
+                top: cRect.top - oRect.top,
+                width: cRect.width,
+                height: cRect.height
+            };
+        }
+
+        function getCropInCanvasCoords() {
+            const { x, y, w, h } = editorState.cropRect;
+            const cW = editorCanvas.width;
+            const cH = editorCanvas.height;
+            const sW = activeImageObj.width;
+            const sH = activeImageObj.height;
+            const rot = editorState.rotation;
+
+            if (rot === 90) {
+                const sx = cW / sH, sy = cH / sW;
+                return {
+                    x: (editorState.flipV ? (sH - y - h) : y) * sx,
+                    y: (editorState.flipH ? x : (sW - x - w)) * sy,
+                    w: h * sx,
+                    h: w * sy
+                };
+            }
+            if (rot === 180) {
+                const sx = cW / sW, sy = cH / sH;
+                return {
+                    x: (editorState.flipH ? x : (sW - x - w)) * sx,
+                    y: (editorState.flipV ? y : (sH - y - h)) * sy,
+                    w: w * sx,
+                    h: h * sy
+                };
+            }
+            if (rot === 270) {
+                const sx = cW / sH, sy = cH / sW;
+                return {
+                    x: (editorState.flipV ? y : (sH - y - h)) * sx,
+                    y: (editorState.flipH ? (sW - x - w) : x) * sy,
+                    w: h * sx,
+                    h: w * sy
+                };
+            }
+            const sx = cW / sW, sy = cH / sH;
+            return {
+                x: (editorState.flipH ? (sW - x - w) : x) * sx,
+                y: (editorState.flipV ? (sH - y - h) : y) * sy,
+                w: w * sx,
+                h: h * sy
+            };
+        }
+
+        function renderCropOverlay() {
+            cropOverlay.innerHTML = '';
+            if (!editorState.cropEnabled || !activeImageObj) {
+                cropOverlay.classList.remove('active');
+                return;
+            }
+            cropOverlay.classList.add('active');
+
+            const cr = getCropInCanvasCoords();
+            const dr = getCanvasDisplayRect();
+            if (!dr.width || !dr.height) return;
+
+            const scaleX = dr.width / editorCanvas.width;
+            const scaleY = dr.height / editorCanvas.height;
+
+            const dispX = dr.left + cr.x * scaleX;
+            const dispY = dr.top + cr.y * scaleY;
+            const dispW = cr.w * scaleX;
+            const dispH = cr.h * scaleY;
+
+            const rectDiv = document.createElement('div');
+            rectDiv.className = 'crop-rect';
+            rectDiv.style.left = `${dispX}px`;
+            rectDiv.style.top = `${dispY}px`;
+            rectDiv.style.width = `${dispW}px`;
+            rectDiv.style.height = `${dispH}px`;
+
+            const inner = document.createElement('div');
+            inner.className = 'crop-rect-inner';
+            rectDiv.appendChild(inner);
+
+            ['tl', 'tr', 'bl', 'br', 'tm', 'bm', 'ml', 'mr'].forEach(h => {
+                const handle = document.createElement('div');
+                handle.className = `crop-handle ${h}`;
+                handle.dataset.handle = h;
+                rectDiv.appendChild(handle);
+            });
+
+            const info = document.createElement('div');
+            info.className = 'crop-info';
+            info.textContent = `${Math.round(editorState.cropRect.w)} × ${Math.round(editorState.cropRect.h)}`;
+            rectDiv.appendChild(info);
+
+            cropOverlay.appendChild(rectDiv);
+            document.getElementById('cropRegionInfo').textContent =
+                `${Math.round(editorState.cropRect.x)}, ${Math.round(editorState.cropRect.y)} → ${Math.round(editorState.cropRect.w)} × ${Math.round(editorState.cropRect.h)}`;
+        }
+
+        function getOverlayPointerPos(e) {
+            const rect = cropOverlay.getBoundingClientRect();
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+            return { x: clientX - rect.left, y: clientY - rect.top };
+        }
+
+        function startCropInteraction(e) {
+            if (!editorState.cropEnabled || !activeImageObj) return;
+            e.preventDefault();
+
+            const pos = getOverlayPointerPos(e);
+            const cr = getCropInCanvasCoords();
+            const dr = getCanvasDisplayRect();
+            const scaleX = dr.width / editorCanvas.width;
+            const scaleY = dr.height / editorCanvas.height;
+
+            const dispX = dr.left + cr.x * scaleX;
+            const dispY = dr.top + cr.y * scaleY;
+            const dispW = cr.w * scaleX;
+            const dispH = cr.h * scaleY;
+            const HANDLE_SIZE = 18;
+
+            const handles = {
+                tl: { x: dispX, y: dispY },
+                tr: { x: dispX + dispW, y: dispY },
+                bl: { x: dispX, y: dispY + dispH },
+                br: { x: dispX + dispW, y: dispY + dispH },
+                tm: { x: dispX + dispW / 2, y: dispY },
+                bm: { x: dispX + dispW / 2, y: dispY + dispH },
+                ml: { x: dispX, y: dispY + dispH / 2 },
+                mr: { x: dispX + dispW, y: dispY + dispH / 2 }
+            };
+
+            for (const [key, hp] of Object.entries(handles)) {
+                if (Math.abs(pos.x - hp.x) < HANDLE_SIZE && Math.abs(pos.y - hp.y) < HANDLE_SIZE) {
+                    cropDragging = true;
+                    cropDragType = key;
+                    cropDragStart = pos;
+                    cropRectStart = { ...editorState.cropRect };
+                    return;
+                }
+            }
+
+            if (pos.x >= dispX && pos.x <= dispX + dispW && pos.y >= dispY && pos.y <= dispY + dispH) {
+                cropDragging = true;
+                cropDragType = 'move';
+                cropDragStart = pos;
+                cropRectStart = { ...editorState.cropRect };
+                return;
+            }
+
+            const cx = clamp((pos.x - dr.left) * (editorCanvas.width / dr.width), 0, editorCanvas.width);
+            const cy = clamp((pos.y - dr.top) * (editorCanvas.height / dr.height), 0, editorCanvas.height);
+            const sx = clamp((cx / editorCanvas.width) * activeImageObj.width, 0, activeImageObj.width - 10);
+            const sy = clamp((cy / editorCanvas.height) * activeImageObj.height, 0, activeImageObj.height - 10);
+
+            editorState.cropRect = { x: sx, y: sy, w: 10, h: 10 };
+            editorState.isCropped = true;
+            cropDragging = true;
+            cropDragType = 'br';
+            cropDragStart = pos;
+            cropRectStart = { ...editorState.cropRect };
+            renderCropOverlay();
+        }
+
+        function moveCropInteraction(e) {
+            if (!cropDragging || !activeImageObj) return;
+            e.preventDefault();
+
+            const pos = getOverlayPointerPos(e);
+            const dr = getCanvasDisplayRect();
+            const sdx = (pos.x - cropDragStart.x) * (activeImageObj.width / dr.width);
+            const sdy = (pos.y - cropDragStart.y) * (activeImageObj.height / dr.height);
+
+            const maxW = activeImageObj.width;
+            const maxH = activeImageObj.height;
+            const { x: sx, y: sy, w: sw, h: sh } = cropRectStart;
+
+            if (cropDragType === 'move') {
+                editorState.cropRect.x = clamp(sx + sdx, 0, maxW - sw);
+                editorState.cropRect.y = clamp(sy + sdy, 0, maxH - sh);
+            } else {
+                let nx = sx, ny = sy, nw = sw, nh = sh;
+                if (cropDragType.includes('l')) {
+                    nx = clamp(sx + sdx, 0, sx + sw - 10);
+                    nw = sw - (nx - sx);
+                }
+                if (cropDragType.includes('r')) {
+                    nw = clamp(sw + sdx, 10, maxW - sx);
+                }
+                if (cropDragType.includes('t')) {
+                    ny = clamp(sy + sdy, 0, sy + sh - 10);
+                    nh = sh - (ny - sy);
+                }
+                if (cropDragType.includes('b')) {
+                    nh = clamp(sh + sdy, 10, maxH - sy);
+                }
+
+                const visualRatio = parseAspectValue(editorState.cropAspect);
+                if (visualRatio) {
+                    const srcRatio = (editorState.rotation % 180 !== 0) ? (1 / visualRatio) : visualRatio;
+                    if (cropDragType.includes('t') || cropDragType.includes('b')) {
+                        nw = clamp(nh * srcRatio, 10, maxW - nx);
+                        nh = nw / srcRatio;
+                    } else {
+                        nh = clamp(nw / srcRatio, 10, maxH - ny);
+                        nw = nh * srcRatio;
+                    }
+                }
+                editorState.cropRect = { x: nx, y: ny, w: nw, h: nh };
+            }
+
+            editorState.isCropped = true;
+            renderCropOverlay();
+            updateEditorDimensions();
+        }
+
+        function endCropInteraction() {
+            if (!cropDragging) return;
+            cropDragging = false;
+            cropDragType = null;
+            if (activeImageObj) {
+                editorState.cropRect.x = Math.round(clamp(editorState.cropRect.x, 0, activeImageObj.width - 1));
+                editorState.cropRect.y = Math.round(clamp(editorState.cropRect.y, 0, activeImageObj.height - 1));
+                editorState.cropRect.w = Math.round(clamp(editorState.cropRect.w, 1, activeImageObj.width - editorState.cropRect.x));
+                editorState.cropRect.h = Math.round(clamp(editorState.cropRect.h, 1, activeImageObj.height - editorState.cropRect.y));
+            }
+            renderCropOverlay();
+            updateEditorDimensions();
+            persistState();
+        }
+
+        cropOverlay.addEventListener('mousedown', startCropInteraction);
+        cropOverlay.addEventListener('mousemove', moveCropInteraction);
+        cropOverlay.addEventListener('mouseup', endCropInteraction);
+        cropOverlay.addEventListener('mouseleave', endCropInteraction);
+        cropOverlay.addEventListener('touchstart', startCropInteraction, { passive: false });
+        cropOverlay.addEventListener('touchmove', moveCropInteraction, { passive: false });
+        cropOverlay.addEventListener('touchend', endCropInteraction);
+
+        async function processEditorImage(img, refWidth, refHeight) {
+            const useCrop = editorState.isCropped && editorState.cropEnabled;
+            let sx = 0, sy = 0, sw = img.width, sh = img.height;
+
+            if (useCrop && refWidth && refHeight) {
+                sx = Math.round((editorState.cropRect.x / refWidth) * img.width);
+                sy = Math.round((editorState.cropRect.y / refHeight) * img.height);
+                sw = Math.round((editorState.cropRect.w / refWidth) * img.width);
+                sh = Math.round((editorState.cropRect.h / refHeight) * img.height);
+                sx = clamp(sx, 0, img.width - 1);
+                sy = clamp(sy, 0, img.height - 1);
+                sw = clamp(sw, 1, img.width - sx);
+                sh = clamp(sh, 1, img.height - sy);
+            }
+
+            const outW = (editorState.rotation % 180 !== 0) ? sh : sw;
+            const outH = (editorState.rotation % 180 !== 0) ? sw : sh;
+            const off = document.createElement('canvas');
+            off.width = outW;
+            off.height = outH;
+            const octx = off.getContext('2d');
+
+            const format = document.getElementById('editorFormat').value;
+            if (format === 'image/jpeg') {
+                octx.fillStyle = '#ffffff';
+                octx.fillRect(0, 0, outW, outH);
+            }
+
+            octx.save();
+            octx.filter = getCanvasFilterString();
+            octx.translate(outW / 2, outH / 2);
+            octx.rotate(editorState.rotation * Math.PI / 180);
+            octx.scale(editorState.flipH ? -1 : 1, editorState.flipV ? -1 : 1);
+            octx.drawImage(img, sx, sy, sw, sh, -sw / 2, -sh / 2, sw, sh);
+            octx.restore();
+
+            const blob = await new Promise(res => off.toBlob(res, format, editorState.quality));
+            return { blob, format };
+        }
+
+        async function applyEditorToQueue() {
+            if (!activeImageObj || !imageQueue[currentFileIndex]) return;
+            const { blob, format } = await processEditorImage(activeImageObj, activeImageObj.width, activeImageObj.height);
+            if (!blob) return;
+
+            const oldName = imageQueue[currentFileIndex].name.replace(/\.[^.]+$/, '');
+            const newName = `${oldName}-edited.${extForMime(format)}`;
+            imageQueue[currentFileIndex] = makeQueueItem(new File([blob], newName, { type: format }), newName);
+
+            // Reset transforms so edits aren't applied twice
+            editorState.rotation = 0;
+            editorState.flipH = false;
+            editorState.flipV = false;
+            editorState.cropEnabled = false;
+            editorState.isCropped = false;
+            editorState.cropAspect = 'free';
+            editorState.brightness = 100;
+            editorState.contrast = 100;
+            editorState.saturation = 100;
+            editorState.grayscale = false;
+            editorState.sepia = false;
+            applyEditorUI();
+
+            await saveQueueToIDB();
+            await syncQueueUI(true);
+            persistState();
+            showToast('Applied edits to active image!', 'success');
+        }
+
+        async function downloadEditorSingle() {
+            if (!activeImageObj) return;
+            const prefix = document.getElementById('batchPrefix').value.trim() || 'lesson_asset';
+            const { blob, format } = await processEditorImage(activeImageObj, activeImageObj.width, activeImageObj.height);
+            if (blob) {
+                triggerBlobDownload(blob, `${prefix}_${currentFileIndex + 1}.${extForMime(format)}`);
+            }
+        }
+
+        async function downloadEditorZip() {
+            if (imageQueue.length === 0 || !activeImageObj) return;
+            const btn = document.getElementById('downloadBatchBtn');
+            btn.disabled = true;
+            showToast(`Processing ${imageQueue.length} image(s)...`, 'info');
+
+            try {
+                const zip = new JSZip();
+                const prefix = document.getElementById('batchPrefix').value.trim() || 'lesson_asset';
+                const refW = activeImageObj.width;
+                const refH = activeImageObj.height;
+
+                for (let i = 0; i < imageQueue.length; i++) {
+                    const img = await loadBlobAsImage(imageQueue[i].blob);
+                    const { blob, format } = await processEditorImage(img, refW, refH);
+                    if (blob) {
+                        zip.file(`${prefix}_${i + 1}.${extForMime(format)}`, blob);
+                    }
+                }
+
+                const content = await zip.generateAsync({ type: 'blob' });
+                triggerBlobDownload(content, `${prefix}_batch.zip`);
+                showToast('Downloaded edited ZIP archive!', 'success');
+            } catch (e) {
+                showToast('Batch export failed', 'error');
+            } finally {
+                btn.disabled = false;
+            }
+        }
+
+        function applyEditorUI() {
+            document.getElementById('rotationSlider').value = editorState.rotation;
+            document.getElementById('rotationValBadge').textContent = `${editorState.rotation}°`;
+            document.getElementById('filterBrightness').value = editorState.brightness;
+            document.getElementById('filterContrast').value = editorState.contrast;
+            document.getElementById('filterSaturation').value = editorState.saturation;
+            document.getElementById('valBrightness').textContent = `${editorState.brightness}%`;
+            document.getElementById('valContrast').textContent = `${editorState.contrast}%`;
+            document.getElementById('valSaturation').textContent = `${editorState.saturation}%`;
+            document.getElementById('qualitySlider').value = Math.round(editorState.quality * 100);
+            document.getElementById('qualityVal').textContent = Math.round(editorState.quality * 100);
+            document.getElementById('editorFormat').value = editorState.format;
+            document.getElementById('batchPrefix').value = editorState.prefix;
+            updateFlipButtons();
+            updateFilterButtons();
+            updateCropToggleUI();
+            setCropAspect(editorState.cropAspect);
+        }
+
+        // --- TAB 2: BG REMOVER ---
+        function setBgViewMode(mode) {
+            bgViewMode = mode;
+            const origEl = document.getElementById('bgOriginalImg');
+            const resEl = document.getElementById('bgResultImg');
+            const sideEl = document.getElementById('bgSideWrap');
+
+            ['original', 'result', 'side'].forEach(m => {
+                const btn = document.getElementById(m === 'original' ? 'bgViewOriginal' : m === 'result' ? 'bgViewResult' : 'bgViewSide');
+                const active = m === mode;
+                btn.classList.toggle('bg-blue', active);
+                btn.classList.toggle('text-white', active);
+                btn.classList.toggle('bg-slate-50', !active);
+                btn.classList.toggle('dark:bg-slate-800', !active);
+            });
+
+            if (!imageQueue[currentFileIndex]) return;
+
+            origEl.classList.toggle('hidden', mode !== 'original');
+            resEl.classList.toggle('hidden', mode !== 'result' || !bgCompositeUrl);
+            sideEl.classList.toggle('hidden', mode !== 'side');
+
+            if (mode === 'result' && !bgCompositeUrl) {
+                origEl.classList.remove('hidden');
+            }
+            if (mode === 'side') {
+                document.getElementById('bgSideResultImg').src = bgCompositeUrl || bgOrigUrl;
+            }
+        }
+
+        function setBgFillMode(mode) {
+            bgFillMode = mode;
+            document.querySelectorAll('.bg-fill-btn').forEach(btn => {
+                const active = btn.dataset.bgfill === mode;
+                btn.classList.toggle('bg-blue', active);
+                btn.classList.toggle('text-white', active);
+                btn.classList.toggle('bg-slate-50', !active);
+                btn.classList.toggle('dark:bg-slate-800', !active);
+            });
+            if (bgRawBlob) composeBgResult();
+            persistState();
+        }
+
+        function onCustomBgColorChange() {
+            bgFillMode = 'custom';
+            document.querySelectorAll('.bg-fill-btn').forEach(btn => {
+                btn.classList.remove('bg-blue', 'text-white');
+                btn.classList.add('bg-slate-50', 'dark:bg-slate-800');
+            });
+            if (bgRawBlob) composeBgResult();
+            persistState();
+        }
+
+        async function composeBgResult() {
+            if (!bgRawBlob) return;
+            const img = await loadBlobAsImage(bgRawBlob);
+            let outBlob = bgRawBlob;
+
+            if (bgFillMode !== 'transparent') {
+                const c = document.createElement('canvas');
+                c.width = img.width;
+                c.height = img.height;
+                const ctx = c.getContext('2d');
+                ctx.fillStyle = bgFillMode === 'white'
+                    ? '#ffffff'
+                    : bgFillMode === 'dark'
+                        ? '#0f172a'
+                        : document.getElementById('bgCustomColor').value;
+                ctx.fillRect(0, 0, c.width, c.height);
+                ctx.drawImage(img, 0, 0);
+                outBlob = await new Promise(res => c.toBlob(res, 'image/png'));
+            }
+
+            bgCompositeBlob = outBlob;
+            if (bgCompositeUrl) URL.revokeObjectURL(bgCompositeUrl);
+            bgCompositeUrl = URL.createObjectURL(outBlob);
+
+            document.getElementById('bgResultImg').src = bgCompositeUrl;
+            document.getElementById('bgSideResultImg').src = bgCompositeUrl;
+            document.getElementById('bgSizeInfo').textContent = fmtSize(outBlob.size);
+            document.getElementById('chainBgBtn').disabled = false;
+            document.getElementById('downloadBgBtn').disabled = false;
+            document.getElementById('bgStatusBadge').textContent = 'Cutout Ready';
+        }
+
+        async function runBgRemoval() {
+            const activeItem = imageQueue[currentFileIndex];
+            if (!activeItem) return;
+
+            const processBtn = document.getElementById('processBgBtn');
+            const overlay = document.getElementById('bgLoadingOverlay');
+            const bar = document.getElementById('bgLoadingBar');
+            const status = document.getElementById('bgLoadingStatus');
+            const pctEl = document.getElementById('bgLoadingPercent');
+
+            processBtn.disabled = true;
+            overlay.classList.remove('hidden');
+            bar.style.width = '5%';
+            pctEl.textContent = '5%';
+            status.textContent = 'Loading AI engine...';
+
+            try {
+                if (!removeBackgroundFn) {
+                    const mod = await import('https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.6.0/+esm');
+                    removeBackgroundFn = mod.removeBackground;
+                }
+
+                const blob = await removeBackgroundFn(activeItem.blob, {
+                    progress: (key, current, total) => {
+                        const pct = total ? Math.round((current / total) * 100) : 50;
+                        bar.style.width = `${pct}%`;
+                        pctEl.textContent = `${pct}%`;
+                        if (key.includes('fetch')) status.textContent = 'Downloading AI Model...';
+                        else if (key.includes('onnx')) status.textContent = 'Loading Engine...';
+                        else if (key.includes('compute')) status.textContent = 'Removing Background...';
+                        else status.textContent = 'Processing...';
+                    }
+                });
+
+                bgRawBlob = blob;
+                bgSourceId = activeItem.id;
+                await idbPut('bg_removed_blob', { sourceId: activeItem.id, blob });
+                await composeBgResult();
+                setBgViewMode('result');
+                status.textContent = 'Done!';
+                showToast('Background removed!', 'success');
+            } catch (err) {
+                console.error('[ImageWorkshop] BG Removal Error:', err);
+                status.textContent = 'Error occurred!';
+                if (typeof showAlertModal === 'function') {
+                    await showAlertModal('Background removal failed. Please try a different image or check network connectivity for the AI model.', {
+                        title: 'BG Removal Error',
+                        icon: 'alert-circle',
+                        iconColor: 'red'
+                    });
+                } else {
+                    showToast('Background removal failed', 'error');
+                }
+            } finally {
+                processBtn.disabled = false;
+                setTimeout(() => {
+                    if (status.textContent === 'Done!') overlay.classList.add('hidden');
+                }, 2200);
+            }
+        }
+
+        async function useBgResultInQueue() {
+            if (!bgCompositeBlob) return;
+            const activeItem = imageQueue[currentFileIndex];
+            const base = activeItem ? activeItem.name.replace(/\.[^.]+$/, '') : 'sticker';
+            const filename = `${base}-cutout.png`;
+            const file = new File([bgCompositeBlob], filename, { type: 'image/png' });
+            await addImagesToQueue([file], true);
+            showToast('Cutout added to Shared Image Queue!', 'success');
+        }
+
+        function downloadBgResult() {
+            if (!bgCompositeBlob) return;
+            const activeItem = imageQueue[currentFileIndex];
+            const base = activeItem ? activeItem.name.replace(/\.[^.]+$/, '') : 'klasskit-cutout';
+            triggerBlobDownload(bgCompositeBlob, `${base}-nobg.png`);
+        }
+
+        // --- TAB 3: IMAGE SPLITTER ---
+        function updateSliceCountBadge() {
+            const rows = splitterState.mode === 'equal' ? splitterState.equalRows : splitterState.customCounts.row;
+            const cols = splitterState.mode === 'equal' ? splitterState.equalCols : splitterState.customCounts.col;
+            document.getElementById('sliceCountBadge').textContent = `${rows * cols} Slice${rows * cols > 1 ? 's' : ''} (${rows} × ${cols})`;
+        }
+
+        function setSplitterMode(mode) {
+            splitterState.mode = mode;
+            const eqBtn = document.getElementById('splitModeEqual');
+            const custBtn = document.getElementById('splitModeCustom');
+
+            eqBtn.classList.toggle('bg-green', mode === 'equal');
+            eqBtn.classList.toggle('text-dark', mode === 'equal');
+            eqBtn.classList.toggle('bg-slate-50', mode !== 'equal');
+            eqBtn.classList.toggle('dark:bg-slate-800', mode !== 'equal');
+
+            custBtn.classList.toggle('bg-green', mode === 'custom');
+            custBtn.classList.toggle('text-dark', mode === 'custom');
+            custBtn.classList.toggle('bg-slate-50', mode !== 'custom');
+            custBtn.classList.toggle('dark:bg-slate-800', mode !== 'custom');
+
+            document.getElementById('equalControls').classList.toggle('hidden', mode !== 'equal');
+            document.getElementById('customControls').classList.toggle('hidden', mode !== 'custom');
+            gridOverlay.classList.toggle('interactive', mode === 'custom');
+
+            if (mode === 'custom' && splitterState.customCuts.rows.length !== splitterState.customCounts.row - 1) {
+                initCustomCuts();
+            }
+            updateSliceCountBadge();
+            renderSplitterPreview();
+            persistState();
+        }
+
+        function onEqualGridInput() {
+            splitterState.equalRows = parseInt(document.getElementById('eqRowsInput').value, 10);
+            splitterState.equalCols = parseInt(document.getElementById('eqColsInput').value, 10);
+            document.getElementById('eqRowsVal').textContent = splitterState.equalRows;
+            document.getElementById('eqColsVal').textContent = splitterState.equalCols;
+            updateSliceCountBadge();
+            renderSplitterPreview();
+            persistState();
+        }
+
+        function initCustomCuts() {
+            splitterState.customCuts.rows = [];
+            splitterState.customCuts.cols = [];
+            for (let i = 1; i < splitterState.customCounts.row; i++) {
+                splitterState.customCuts.rows.push(Math.round((i / splitterState.customCounts.row) * 100));
+            }
+            for (let i = 1; i < splitterState.customCounts.col; i++) {
+                splitterState.customCuts.cols.push(Math.round((i / splitterState.customCounts.col) * 100));
+            }
+        }
+
+        function syncCuts(arr, targetCount) {
+            const targetCuts = targetCount - 1;
+            while (arr.length < targetCuts) {
+                const last = arr.length > 0 ? arr[arr.length - 1] : 0;
+                arr.push(Math.min(99, Math.max(1, last + 10)));
+            }
+            while (arr.length > targetCuts) arr.pop();
+            arr.sort((a, b) => a - b);
+        }
+
+        function adjustCustomCount(type, delta) {
+            const key = type === 'row' ? 'row' : 'col';
+            splitterState.customCounts[key] = clamp(splitterState.customCounts[key] + delta, 1, 10);
+            if (key === 'row') {
+                document.getElementById('custRowCount').textContent = splitterState.customCounts.row;
+                syncCuts(splitterState.customCuts.rows, splitterState.customCounts.row);
+            } else {
+                document.getElementById('custColCount').textContent = splitterState.customCounts.col;
+                syncCuts(splitterState.customCuts.cols, splitterState.customCounts.col);
+            }
+            updateSliceCountBadge();
+            renderSplitterPreview();
+            persistState();
+        }
+
+        function renderSplitterPreview() {
+            if (!activeImageObj || activeTab !== 'splitter') return;
+            const container = document.getElementById('splitterPreviewContainer');
+            const boxW = Math.max(200, container.clientWidth - 72);
+            const boxH = Math.max(200, container.clientHeight - 72);
+            const scale = Math.min(boxW / activeImageObj.width, boxH / activeImageObj.height);
+            const dispW = Math.max(1, Math.round(activeImageObj.width * scale));
+            const dispH = Math.max(1, Math.round(activeImageObj.height * scale));
+
+            splitterCanvas.width = dispW;
+            splitterCanvas.height = dispH;
+            splitterCtx.drawImage(activeImageObj, 0, 0, dispW, dispH);
+
+            gridOverlay.style.width = `${dispW}px`;
+            gridOverlay.style.height = `${dispH}px`;
+            gridOverlay.innerHTML = '';
+
+            if (splitterState.mode === 'equal') {
+                const r = splitterState.equalRows;
+                const c = splitterState.equalCols;
+                for (let i = 1; i < c; i++) createCutLine(i * (dispW / c), 0, 3, dispH, '#ff4785', false);
+                for (let i = 1; i < r; i++) createCutLine(0, i * (dispH / r), dispW, 3, '#ff4785', false);
+            } else {
+                splitterState.customCuts.rows.forEach((pct, idx) =>
+                    createCutLine(0, (pct / 100) * dispH, dispW, 4, '#1ea7fd', true, 'row', idx));
+                splitterState.customCuts.cols.forEach((pct, idx) =>
+                    createCutLine((pct / 100) * dispW, 0, 4, dispH, '#ff4785', true, 'col', idx));
+            }
+        }
+
+        function createCutLine(x, y, w, h, color, interactive, type, index) {
+            const line = document.createElement('div');
+            line.className = 'cut-line';
+            if (splitterState.dragging && splitterState.dragging.type === type && splitterState.dragging.index === index) {
+                line.classList.add('active');
+            }
+            line.style.backgroundColor = color;
+            line.style.left = `${x}px`;
+            line.style.top = `${y}px`;
+            line.style.width = `${w}px`;
+            line.style.height = `${h}px`;
+            gridOverlay.appendChild(line);
+
+            if (interactive) {
+                const handle = document.createElement('div');
+                handle.className = 'cut-handle';
+                if (splitterState.dragging && splitterState.dragging.type === type && splitterState.dragging.index === index) {
+                    handle.classList.add('dragging');
+                }
+                handle.style.left = w > h ? '50%' : `${x}px`;
+                handle.style.top = h > w ? '50%' : `${y}px`;
+                handle.style.borderColor = color;
+                handle.style.color = color;
+                handle.textContent = String(index + 1);
+
+                handle.addEventListener('pointerdown', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    e.target.setPointerCapture(e.pointerId);
+                    splitterState.dragging = { type, index };
+                    renderSplitterPreview();
+                });
+
+                gridOverlay.appendChild(handle);
+            }
+        }
+
+        let lastSplitDragTs = 0;
+        document.addEventListener('pointermove', (e) => {
+            if (!splitterState.dragging || !activeImageObj) return;
+            const now = Date.now();
+            if (now - lastSplitDragTs < 16) return;
+            lastSplitDragTs = now;
+
+            const rect = gridOverlay.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+
+            if (splitterState.dragging.type === 'row') {
+                splitterState.customCuts.rows[splitterState.dragging.index] = clamp(Math.round((y / rect.height) * 100), 1, 99);
+                splitterState.customCuts.rows.sort((a, b) => a - b);
+            } else {
+                splitterState.customCuts.cols[splitterState.dragging.index] = clamp(Math.round((x / rect.width) * 100), 1, 99);
+                splitterState.customCuts.cols.sort((a, b) => a - b);
+            }
+            renderSplitterPreview();
+            persistState();
+        });
+
+        document.addEventListener('pointerup', () => {
+            if (splitterState.dragging) {
+                splitterState.dragging = null;
+                renderSplitterPreview();
+            }
+        });
+        document.addEventListener('pointercancel', () => {
+            if (splitterState.dragging) {
+                splitterState.dragging = null;
+                renderSplitterPreview();
+            }
+        });
+
+        async function generateSplitterZip() {
+            if (!activeImageObj) return;
+            const btn = document.getElementById('downloadSplitZipBtn');
+            const msg = document.getElementById('splitterStatusMsg');
+            btn.disabled = true;
+            msg.textContent = 'Slicing...';
+
+            try {
+                const zip = new JSZip();
+                const w = activeImageObj.width;
+                const h = activeImageObj.height;
+                const format = document.getElementById('splitterFormat').value;
+                const ext = extForMime(format);
+                const prefix = document.getElementById('splitterPrefix').value.trim() || 'slice';
+
+                let yStops = [], xStops = [];
+                if (splitterState.mode === 'equal') {
+                    for (let i = 0; i <= splitterState.equalRows; i++) yStops.push((i / splitterState.equalRows) * h);
+                    for (let i = 0; i <= splitterState.equalCols; i++) xStops.push((i / splitterState.equalCols) * w);
+                } else {
+                    yStops = [0, ...splitterState.customCuts.rows.map(p => (p / 100) * h), h];
+                    xStops = [0, ...splitterState.customCuts.cols.map(p => (p / 100) * w), w];
+                }
+
+                const off = document.createElement('canvas');
+                const octx = off.getContext('2d');
+                for (let r = 0; r < yStops.length - 1; r++) {
+                    for (let c = 0; c < xStops.length - 1; c++) {
+                        const y = yStops[r];
+                        const sliceH = Math.round(yStops[r + 1] - y);
+                        const x = xStops[c];
+                        const sliceW = Math.round(xStops[c + 1] - x);
+                        if (sliceW < 1 || sliceH < 1) continue;
+
+                        off.width = sliceW;
+                        off.height = sliceH;
+                        if (format === 'image/jpeg') {
+                            octx.fillStyle = '#ffffff';
+                            octx.fillRect(0, 0, sliceW, sliceH);
+                        } else {
+                            octx.clearRect(0, 0, sliceW, sliceH);
+                        }
+                        octx.drawImage(activeImageObj, x, y, sliceW, sliceH, 0, 0, sliceW, sliceH);
+                        const blob = await new Promise(res => off.toBlob(res, format, 0.92));
+                        if (blob) zip.file(`${prefix}_r${r + 1}_c${c + 1}.${ext}`, blob);
+                    }
+                }
+
+                const content = await zip.generateAsync({ type: 'blob' });
+                triggerBlobDownload(content, `${prefix}_slices.zip`);
+                msg.textContent = 'Done!';
+                showToast('Downloaded slices ZIP!', 'success');
+                setTimeout(() => { msg.textContent = ''; }, 2500);
+            } catch (e) {
+                msg.textContent = 'Error';
+                showToast('Splitting failed', 'error');
+            } finally {
+                btn.disabled = false;
+            }
+        }
+
+        function applySplitterUI() {
+            document.getElementById('eqRowsInput').value = splitterState.equalRows;
+            document.getElementById('eqColsInput').value = splitterState.equalCols;
+            document.getElementById('eqRowsVal').textContent = splitterState.equalRows;
+            document.getElementById('eqColsVal').textContent = splitterState.equalCols;
+            document.getElementById('custRowCount').textContent = splitterState.customCounts.row;
+            document.getElementById('custColCount').textContent = splitterState.customCounts.col;
+            setSplitterMode(splitterState.mode);
+        }
+
+        // --- TAB 4: FILE CONVERTER ---
+        function switchConverterMode(mode) {
+            converterMode = mode;
+            const pdfBtn = document.getElementById('convModePdf2Img');
+            const imgBtn = document.getElementById('convModeImg2Pdf');
+            const isPdf = mode === 'pdf2img';
+
+            pdfBtn.classList.toggle('bg-orange', isPdf);
+            pdfBtn.classList.toggle('text-white', isPdf);
+            pdfBtn.classList.toggle('bg-slate-50', !isPdf);
+            pdfBtn.classList.toggle('dark:bg-slate-800', !isPdf);
+
+            imgBtn.classList.toggle('bg-blue', !isPdf);
+            imgBtn.classList.toggle('text-white', !isPdf);
+            imgBtn.classList.toggle('bg-slate-50', isPdf);
+            imgBtn.classList.toggle('dark:bg-slate-800', isPdf);
+
+            document.getElementById('convPdfControls').classList.toggle('hidden', !isPdf);
+            document.getElementById('convPdfControls').classList.toggle('flex', isPdf);
+            document.getElementById('convImgControls').classList.toggle('hidden', isPdf);
+            document.getElementById('convImgControls').classList.toggle('flex', !isPdf);
+
+            document.getElementById('convPdfView').classList.toggle('hidden', !isPdf);
+            document.getElementById('convPdfView').classList.toggle('flex', isPdf);
+            document.getElementById('convImgView').classList.toggle('hidden', isPdf);
+            document.getElementById('convImgView').classList.toggle('flex', !isPdf);
+
+            if (!isPdf) renderConverterImgQueue();
+            persistState();
+        }
+
+        function setPdfFile(file) {
+            if (!file || file.type !== 'application/pdf') {
+                showToast('Please select a valid PDF file', 'warning');
+                return;
+            }
+            pdfFile = file;
+            const badge = document.getElementById('pdfFileBadge');
+            badge.classList.remove('hidden');
+            badge.innerHTML = '';
+
+            const box = document.createElement('div');
+            box.className = 'flex items-center gap-2.5 p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border-2 border-dark dark:border-slate-500 text-xs font-extrabold';
+            const icon = document.createElement('i');
+            icon.setAttribute('data-lucide', 'file-text');
+            icon.className = 'w-4 h-4 text-orange shrink-0';
+            const nameSpan = document.createElement('span');
+            nameSpan.className = 'truncate flex-grow';
+            nameSpan.textContent = file.name;
+            const rm = document.createElement('button');
+            rm.className = 'text-pink hover:scale-110 transition-transform';
+            rm.innerHTML = '<i data-lucide="x-circle" class="w-4 h-4"></i>';
+            rm.onclick = () => {
+                pdfFile = null;
+                badge.classList.add('hidden');
+                document.getElementById('convertPdfBtn').disabled = true;
+            };
+            box.append(icon, nameSpan, rm);
+            badge.appendChild(box);
+            document.getElementById('convertPdfBtn').disabled = false;
+            lucide.createIcons();
+        }
+
+        document.getElementById('pdfInput').addEventListener('change', (e) => {
+            if (e.target.files[0]) setPdfFile(e.target.files[0]);
+        });
+        const pdfDrop = document.getElementById('pdfDrop');
+        pdfDrop.addEventListener('dragover', (e) => { e.preventDefault(); pdfDrop.classList.add('border-orange', 'bg-orange/5'); });
+        pdfDrop.addEventListener('dragleave', () => pdfDrop.classList.remove('border-orange', 'bg-orange/5'));
+        pdfDrop.addEventListener('drop', (e) => {
+            e.preventDefault();
+            pdfDrop.classList.remove('border-orange', 'bg-orange/5');
+            if (e.dataTransfer.files[0]) setPdfFile(e.dataTransfer.files[0]);
+        });
+
+        async function convertPdfToImages() {
+            if (!pdfFile) return;
+            const grid = document.getElementById('pdfImgGrid');
+            const empty = document.getElementById('pdfEmptyState');
+            const progWrap = document.getElementById('pdfProgress');
+            const progFill = document.getElementById('pdfProgressFill');
+            const progTxt = document.getElementById('pdfProgressText');
+            const progPct = document.getElementById('pdfProgressPct');
+            const btn = document.getElementById('convertPdfBtn');
+
+            pdfResultUrls.forEach(u => URL.revokeObjectURL(u));
+            pdfResultUrls = [];
+            pdfRenderedBlobs = [];
+            grid.innerHTML = '';
+            empty.classList.add('hidden');
+            document.getElementById('pdfActions').classList.add('hidden');
+
+            btn.disabled = true;
+            progWrap.classList.remove('hidden');
+            progFill.style.width = '5%';
+            progPct.textContent = '5%';
+            progTxt.textContent = 'Reading PDF...';
+
+            const format = document.getElementById('imgFormat').value;
+            const scale = parseFloat(document.getElementById('imgScale').value);
+            const ext = extForMime(format);
+
+            try {
+                const buf = await pdfFile.arrayBuffer();
+                const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+                const total = pdf.numPages;
+
+                for (let i = 1; i <= total; i++) {
+                    const page = await pdf.getPage(i);
+                    const viewport = page.getViewport({ scale });
+                    const canvas = document.createElement('canvas');
+                    canvas.width = viewport.width;
+                    canvas.height = viewport.height;
+                    const ctx = canvas.getContext('2d');
+                    if (format === 'image/jpeg') {
+                        ctx.fillStyle = '#ffffff';
+                        ctx.fillRect(0, 0, canvas.width, canvas.height);
+                    }
+                    await page.render({ canvasContext: ctx, viewport }).promise;
+
+                    const blob = await new Promise(res => canvas.toBlob(res, format, 0.92));
+                    const filename = `page-${String(i).padStart(3, '0')}.${ext}`;
+                    pdfRenderedBlobs.push({ blob, name: filename });
+
+                    const url = URL.createObjectURL(blob);
+                    pdfResultUrls.push(url);
+
+                    const card = document.createElement('div');
+                    card.className = 'group relative aspect-[3/4] bg-white dark:bg-slate-800 rounded-xl border-3 border-dark dark:border-slate-500 overflow-hidden shadow-hard-sm';
+                    card.innerHTML = `
+                        <div class="checkerboard w-full h-full">
+                            <img src="${url}" alt="Page ${i}" class="w-full h-full object-contain" />
+                        </div>
+                        <div class="absolute top-1.5 left-1.5 bg-white/90 dark:bg-slate-900/90 px-2 py-0.5 rounded-lg border-2 border-dark text-[10px] font-black">
+                            PG ${i}
+                        </div>
+                        <div class="absolute inset-x-0 bottom-0 p-2 bg-dark/75 backdrop-blur-sm flex gap-1.5 justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button class="dl-btn px-2 py-1 bg-green text-dark border border-dark rounded-lg text-[10px] font-black uppercase">Save</button>
+                            <button class="q-btn px-2 py-1 bg-blue text-white border border-dark rounded-lg text-[10px] font-black uppercase">+ Queue</button>
+                        </div>
+                    `;
+
+                    card.querySelector('.dl-btn').onclick = () => triggerBlobDownload(blob, filename);
+                    card.querySelector('.q-btn').onclick = () => addImagesToQueue([new File([blob], filename, { type: format })], true);
+                    grid.appendChild(card);
+
+                    const pct = Math.round((i / total) * 100);
+                    progFill.style.width = `${pct}%`;
+                    progPct.textContent = `${pct}%`;
+                    progTxt.textContent = `Rendered page ${i} of ${total}`;
+                    await new Promise(r => setTimeout(r, 0));
+                }
+
+                document.getElementById('pdfActions').classList.remove('hidden');
+                showToast(`Rendered ${total} PDF page${total > 1 ? 's' : ''}`, 'success');
+            } catch (err) {
+                console.error(err);
+                showToast('PDF conversion failed', 'error');
+            } finally {
+                btn.disabled = false;
+            }
+        }
+
+        async function downloadAllPdfZip() {
+            if (pdfRenderedBlobs.length === 0) return;
+            const zip = new JSZip();
+            pdfRenderedBlobs.forEach(({ blob, name }) => zip.file(name, blob));
+            const base = pdfFile ? pdfFile.name.replace(/\.[^.]+$/, '') : 'pdf_pages';
+            const content = await zip.generateAsync({ type: 'blob' });
+            triggerBlobDownload(content, `${base}_pages.zip`);
+            showToast('Downloaded all pages ZIP!', 'success');
+        }
+
+        function clearPdfResults() {
+            pdfResultUrls.forEach(u => URL.revokeObjectURL(u));
+            pdfResultUrls = [];
+            pdfRenderedBlobs = [];
+            const grid = document.getElementById('pdfImgGrid');
+            const empty = document.getElementById('pdfEmptyState');
+            grid.innerHTML = '';
+            empty.classList.remove('hidden');
+            grid.appendChild(empty);
+            document.getElementById('pdfActions').classList.add('hidden');
+            document.getElementById('pdfProgress').classList.add('hidden');
+        }
+
+        let convGridUrls = [];
+        function renderConverterImgQueue() {
+            convGridUrls.forEach(u => URL.revokeObjectURL(u));
+            convGridUrls = [];
+
+            const grid = document.getElementById('convImgGrid');
+            const empty = document.getElementById('convImgEmptyState');
+            const convertBtn = document.getElementById('convertImgBtn');
+
+            grid.innerHTML = '';
+            if (imageQueue.length === 0) {
+                empty.classList.remove('hidden');
+                grid.appendChild(empty);
+                convertBtn.disabled = true;
+                return;
+            }
+
+            empty.classList.add('hidden');
+            convertBtn.disabled = false;
+
+            imageQueue.forEach((item, idx) => {
+                const url = URL.createObjectURL(item.blob);
+                convGridUrls.push(url);
+
+                const card = document.createElement('div');
+                card.className = 'relative aspect-square bg-slate-50 dark:bg-slate-800 rounded-xl border-3 border-dark dark:border-slate-500 overflow-hidden shadow-hard-sm group';
+
+                const img = document.createElement('img');
+                img.src = url;
+                img.alt = item.name;
+                img.className = 'w-full h-full object-cover';
+
+                const pageBadge = document.createElement('span');
+                pageBadge.className = 'absolute top-1.5 left-1.5 bg-white/90 dark:bg-slate-900/90 px-2 py-0.5 rounded-lg border-2 border-dark text-[10px] font-black';
+                pageBadge.textContent = `#${idx + 1}`;
+
+                const controls = document.createElement('div');
+                controls.className = 'absolute top-1.5 right-1.5 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity';
+
+                const leftBtn = document.createElement('button');
+                leftBtn.className = 'w-6 h-6 bg-white dark:bg-slate-800 border-2 border-dark rounded-lg flex items-center justify-center disabled:opacity-40';
+                leftBtn.disabled = idx === 0;
+                leftBtn.innerHTML = '<i data-lucide="arrow-left" class="w-3.5 h-3.5"></i>';
+                leftBtn.onclick = () => moveQueueItem(idx, -1);
+
+                const rightBtn = document.createElement('button');
+                rightBtn.className = 'w-6 h-6 bg-white dark:bg-slate-800 border-2 border-dark rounded-lg flex items-center justify-center disabled:opacity-40';
+                rightBtn.disabled = idx === imageQueue.length - 1;
+                rightBtn.innerHTML = '<i data-lucide="arrow-right" class="w-3.5 h-3.5"></i>';
+                rightBtn.onclick = () => moveQueueItem(idx, 1);
+
+                const rmBtn = document.createElement('button');
+                rmBtn.className = 'w-6 h-6 bg-pink text-white border-2 border-dark rounded-lg flex items-center justify-center';
+                rmBtn.innerHTML = '<i data-lucide="x" class="w-3.5 h-3.5"></i>';
+                rmBtn.onclick = (e) => removeQueueIndex(idx, e);
+
+                controls.append(leftBtn, rightBtn, rmBtn);
+
+                const footer = document.createElement('div');
+                footer.className = 'absolute bottom-0 inset-x-0 bg-white/90 dark:bg-slate-900/90 px-2 py-1 border-t-2 border-dark text-[10px] font-bold truncate';
+                footer.textContent = item.name;
+
+                card.append(img, pageBadge, controls, footer);
+                grid.appendChild(card);
+            });
+            lucide.createIcons();
+        }
+
+        async function generatePdfFromQueue() {
+            if (imageQueue.length === 0) return;
+            const btn = document.getElementById('convertImgBtn');
+            const progWrap = document.getElementById('imgProgress');
+            const progFill = document.getElementById('imgProgressFill');
+            const progTxt = document.getElementById('imgProgressText');
+            const progPct = document.getElementById('imgProgressPct');
+            const banner = document.getElementById('imgPdfResultBanner');
+
+            btn.disabled = true;
+            banner.classList.add('hidden');
+            progWrap.classList.remove('hidden');
+
+            try {
+                const { jsPDF } = window.jspdf;
+                const pageSize = document.getElementById('pageSize').value;
+                const orient = document.getElementById('pageOrient').value;
+                const margin = parseFloat(document.getElementById('pageMargin').value) || 0;
+                const quality = parseFloat(document.getElementById('pdfQuality').value);
+                const PAGE_SIZES = { a4: [595.28, 841.89], letter: [612, 792] };
+
+                let pdf = null;
+                for (let i = 0; i < imageQueue.length; i++) {
+                    const pct = Math.round((i / imageQueue.length) * 90);
+                    progFill.style.width = `${pct}%`;
+                    progPct.textContent = `${pct}%`;
+                    progTxt.textContent = `Adding image ${i + 1} of ${imageQueue.length}...`;
+                    await new Promise(r => setTimeout(r, 0));
+
+                    const img = await loadBlobAsImage(imageQueue[i].blob);
+                    const iw = img.naturalWidth || img.width;
+                    const ih = img.naturalHeight || img.height;
+
+                    let pw, ph, o;
+                    if (pageSize === 'fit') {
+                        pw = iw + margin * 2;
+                        ph = ih + margin * 2;
+                        o = pw >= ph ? 'landscape' : 'portrait';
+                    } else {
+                        const base = PAGE_SIZES[pageSize];
+                        const isLand = orient === 'landscape' || (orient === 'auto' && iw > ih);
+                        o = isLand ? 'landscape' : 'portrait';
+                        [pw, ph] = isLand ? [base[1], base[0]] : base;
+                    }
+
+                    if (!pdf) {
+                        pdf = new jsPDF({
+                            orientation: o,
+                            unit: pageSize === 'fit' ? 'px' : 'pt',
+                            format: pageSize === 'fit' ? [pw, ph] : pageSize
+                        });
+                    } else {
+                        pdf.addPage(pageSize === 'fit' ? [pw, ph] : pageSize, o);
+                    }
+
+                    const pdfW = pdf.internal.pageSize.getWidth();
+                    const pdfH = pdf.internal.pageSize.getHeight();
+                    const availW = Math.max(10, pdfW - margin * 2);
+                    const availH = Math.max(10, pdfH - margin * 2);
+                    const ratio = Math.min(availW / iw, availH / ih);
+                    const drawW = iw * ratio;
+                    const drawH = ih * ratio;
+                    const x = (pdfW - drawW) / 2;
+                    const y = (pdfH - drawH) / 2;
+
+                    const c = document.createElement('canvas');
+                    c.width = iw;
+                    c.height = ih;
+                    const ctx = c.getContext('2d');
+                    ctx.fillStyle = '#ffffff';
+                    ctx.fillRect(0, 0, iw, ih);
+                    ctx.drawImage(img, 0, 0);
+                    const dataUrl = c.toDataURL('image/jpeg', quality);
+                    pdf.addImage(dataUrl, 'JPEG', x, y, drawW, drawH);
+                }
+
+                progFill.style.width = '100%';
+                progPct.textContent = '100%';
+                progTxt.textContent = 'Done!';
+
+                const firstBase = imageQueue[0].name.replace(/\.[^.]+$/, '');
+                const outName = `${firstBase}${imageQueue.length > 1 ? `_+${imageQueue.length - 1}` : ''}.pdf`;
+                outPdfBlob = pdf.output('blob');
+
+                document.getElementById('outPdfName').textContent = outName;
+                document.getElementById('outPdfMeta').textContent =
+                    `${imageQueue.length} page${imageQueue.length > 1 ? 's' : ''} • ${fmtSize(outPdfBlob.size)}`;
+                document.getElementById('downloadPdfBtn').onclick = () => triggerBlobDownload(outPdfBlob, outName);
+                banner.classList.remove('hidden');
+                showToast('PDF generated successfully!', 'success');
+            } catch (err) {
+                console.error(err);
+                showToast('PDF generation failed', 'error');
+            } finally {
+                btn.disabled = false;
+            }
+        }
+
+        // --- PERSISTENCE (LocalStorage + Cloud Sync) ---
+        function gatherState() {
+            return {
+                activeTab,
+                converterMode,
+                currentFileIndex,
+                editor: {
+                    rotation: editorState.rotation,
+                    flipH: editorState.flipH,
+                    flipV: editorState.flipV,
+                    cropEnabled: editorState.cropEnabled,
+                    isCropped: editorState.isCropped,
+                    cropAspect: editorState.cropAspect,
+                    cropRect: editorState.cropRect,
+                    brightness: editorState.brightness,
+                    contrast: editorState.contrast,
+                    saturation: editorState.saturation,
+                    grayscale: editorState.grayscale,
+                    sepia: editorState.sepia,
+                    quality: editorState.quality,
+                    format: document.getElementById('editorFormat').value,
+                    prefix: document.getElementById('batchPrefix').value
+                },
+                removeBg: {
+                    bgFillMode,
+                    customColor: document.getElementById('bgCustomColor').value
+                },
+                splitter: {
+                    mode: splitterState.mode,
+                    equalRows: splitterState.equalRows,
+                    equalCols: splitterState.equalCols,
+                    customCounts: splitterState.customCounts,
+                    customCuts: splitterState.customCuts,
+                    format: document.getElementById('splitterFormat').value,
+                    prefix: document.getElementById('splitterPrefix').value
+                },
+                converter: {
+                    imgFormat: document.getElementById('imgFormat').value,
+                    imgScale: document.getElementById('imgScale').value,
+                    pageSize: document.getElementById('pageSize').value,
+                    pageOrient: document.getElementById('pageOrient').value,
+                    pageMargin: document.getElementById('pageMargin').value,
+                    pdfQuality: document.getElementById('pdfQuality').value
+                }
+            };
+        }
+
+        function persistState() {
+            const state = gatherState();
+            try {
+                localStorage.setItem(`prog_${TOOL_ID}`, JSON.stringify(state));
+            } catch (e) {
+                console.warn('[ImageWorkshop] LocalStorage save failed:', e);
+            }
+
+            clearTimeout(saveCloudTimeout);
+            saveCloudTimeout = setTimeout(() => {
+                if (typeof saveProgress === 'function') {
+                    saveProgress(TOOL_ID, state);
+                }
+            }, 800);
+        }
+
+        function applyState(state) {
+            if (!state || typeof state !== 'object') return;
+            if (typeof state.currentFileIndex === 'number') currentFileIndex = state.currentFileIndex;
+
+            if (state.editor) {
+                const e = state.editor;
+                if (typeof e.rotation === 'number') editorState.rotation = e.rotation;
+                if (typeof e.flipH === 'boolean') editorState.flipH = e.flipH;
+                if (typeof e.flipV === 'boolean') editorState.flipV = e.flipV;
+                if (typeof e.cropEnabled === 'boolean') editorState.cropEnabled = e.cropEnabled;
+                if (typeof e.isCropped === 'boolean') editorState.isCropped = e.isCropped;
+                if (e.cropAspect) editorState.cropAspect = e.cropAspect;
+                if (e.cropRect) editorState.cropRect = e.cropRect;
+                if (typeof e.brightness === 'number') editorState.brightness = e.brightness;
+                if (typeof e.contrast === 'number') editorState.contrast = e.contrast;
+                if (typeof e.saturation === 'number') editorState.saturation = e.saturation;
+                if (typeof e.grayscale === 'boolean') editorState.grayscale = e.grayscale;
+                if (typeof e.sepia === 'boolean') editorState.sepia = e.sepia;
+                if (typeof e.quality === 'number') editorState.quality = e.quality;
+                if (e.format) editorState.format = e.format;
+                if (typeof e.prefix === 'string') editorState.prefix = e.prefix;
+            }
+
+            if (state.removeBg) {
+                if (state.removeBg.customColor) document.getElementById('bgCustomColor').value = state.removeBg.customColor;
+                if (state.removeBg.bgFillMode) bgFillMode = state.removeBg.bgFillMode;
+            }
+
+            if (state.splitter) {
+                const s = state.splitter;
+                if (s.mode) splitterState.mode = s.mode;
+                if (s.equalRows) splitterState.equalRows = parseInt(s.equalRows, 10) || 2;
+                if (s.equalCols) splitterState.equalCols = parseInt(s.equalCols, 10) || 2;
+                if (s.customCounts) splitterState.customCounts = s.customCounts;
+                if (s.customCuts) splitterState.customCuts = s.customCuts;
+                if (s.format) document.getElementById('splitterFormat').value = s.format;
+                if (typeof s.prefix === 'string') document.getElementById('splitterPrefix').value = s.prefix;
+            }
+
+            if (state.converter) {
+                const c = state.converter;
+                if (c.imgFormat) document.getElementById('imgFormat').value = c.imgFormat;
+                if (c.imgScale) document.getElementById('imgScale').value = c.imgScale;
+                if (c.pageSize) document.getElementById('pageSize').value = c.pageSize;
+                if (c.pageOrient) document.getElementById('pageOrient').value = c.pageOrient;
+                if (c.pageMargin !== undefined) document.getElementById('pageMargin').value = c.pageMargin;
+                if (c.pdfQuality) document.getElementById('pdfQuality').value = c.pdfQuality;
+            }
+
+            applyEditorUI();
+            applySplitterUI();
+            if (bgFillMode === 'custom') onCustomBgColorChange();
+            else setBgFillMode(bgFillMode);
+            switchConverterMode(state.converterMode || 'pdf2img');
+        }
+
+        async function initPersistence() {
+            let saved = null;
+            const localRaw = localStorage.getItem(`prog_${TOOL_ID}`);
+            if (localRaw) {
+                try { saved = JSON.parse(localRaw); } catch (e) { saved = null; }
+            }
+
+            if (!saved && typeof loadProgress === 'function') {
+                try {
+                    saved = await loadProgress(TOOL_ID);
+                } catch (e) {
+                    console.warn('[ImageWorkshop] Cloud load skipped:', e);
+                }
+            }
+
+            // Legacy migration from separate editor / splitter storage
+            if (!saved) {
+                const legacyEditorRaw = localStorage.getItem('prog_workshop_editor');
+                const legacySplitterRaw = localStorage.getItem('prog_workshop_splitter');
+                const migrated = {};
+                if (legacyEditorRaw) {
+                    try {
+                        const le = JSON.parse(legacyEditorRaw);
+                        migrated.editor = {
+                            quality: le.quality ?? 0.92,
+                            rotation: le.rotation ?? 0,
+                            flipH: !!le.flipH,
+                            flipV: !!le.flipV,
+                            cropEnabled: !!le.cropEnabled,
+                            isCropped: !!le.isCropped,
+                            cropRect: le.cropRect || { x: 0, y: 0, w: 0, h: 0 },
+                            prefix: le.batchPrefix || 'lesson_asset'
+                        };
+                        if (typeof le.currentFileIndex === 'number') migrated.currentFileIndex = le.currentFileIndex;
+                    } catch (e) { /* ignore */ }
+                }
+                if (legacySplitterRaw) {
+                    try {
+                        const ls = JSON.parse(legacySplitterRaw);
+                        migrated.splitter = {
+                            mode: ls.mode || 'equal',
+                            equalRows: ls.equalRows || 2,
+                            equalCols: ls.equalCols || 2,
+                            customCounts: ls.customCounts || { row: 2, col: 2 },
+                            customCuts: ls.customCuts || { rows: [50], cols: [50] }
+                        };
+                    } catch (e) { /* ignore */ }
+                }
+                if (Object.keys(migrated).length > 0) saved = migrated;
+            }
+
+            if (saved) applyState(saved);
+
+            // Load image queue from IndexedDB (with legacy editor DB fallback)
+            let storedQueue = await idbGet('image_queue');
+            if (!Array.isArray(storedQueue) || storedQueue.length === 0) {
+                const legacyFiles = await loadLegacyIDBImages();
+                if (legacyFiles && legacyFiles.length > 0) {
+                    storedQueue = legacyFiles.map(f => makeQueueItem(f));
+                    await idbPut('image_queue', storedQueue);
+                }
+            }
+
+            if (Array.isArray(storedQueue) && storedQueue.length > 0) {
+                imageQueue = storedQueue.map(item => makeQueueItem(item.blob, item.name, item.id));
+                if (currentFileIndex >= imageQueue.length) currentFileIndex = 0;
+            }
+
+            const savedBg = await idbGet('bg_removed_blob');
+            if (savedBg && savedBg.blob && imageQueue[currentFileIndex] && savedBg.sourceId === imageQueue[currentFileIndex].id) {
+                bgRawBlob = savedBg.blob;
+                bgSourceId = savedBg.sourceId;
+            }
+
+            await syncQueueUI(true);
+
+            const hashTab = window.location.hash.replace('#', '');
+            const initialTab = VALID_TABS.includes(hashTab)
+                ? hashTab
+                : (saved && VALID_TABS.includes(saved.activeTab) ? saved.activeTab : 'editor');
+            switchTab(initialTab, true);
+        }
+
+        // --- UPLOAD & RESIZE LISTENERS ---
+        sharedFileInput.addEventListener('change', (e) => {
+            if (e.target.files && e.target.files.length > 0) {
+                addImagesToQueue(e.target.files, true);
+                e.target.value = '';
+            }
+        });
+
+        sharedDropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            sharedDropZone.classList.add('border-blue', 'bg-blue/10');
+        });
+        sharedDropZone.addEventListener('dragleave', () => {
+            sharedDropZone.classList.remove('border-blue', 'bg-blue/10');
+        });
+        sharedDropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            sharedDropZone.classList.remove('border-blue', 'bg-blue/10');
+            if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                addImagesToQueue(e.dataTransfer.files, true);
+            }
+        });
+
+        window.addEventListener('resize', () => {
+            if (activeTab === 'editor' && activeImageObj && editorState.cropEnabled) {
+                renderCropOverlay();
+            } else if (activeTab === 'splitter' && activeImageObj) {
+                renderSplitterPreview();
+            }
+        });
+
+        window.addEventListener('hashchange', () => {
+            const hashTab = window.location.hash.replace('#', '');
+            if (VALID_TABS.includes(hashTab) && hashTab !== activeTab) {
+                switchTab(hashTab);
+            }
+        });
+
         window.onload = async () => {
             if (typeof requireAuth === 'function') await requireAuth();
+            await initPersistence();
             lucide.createIcons();
         };
     </script>

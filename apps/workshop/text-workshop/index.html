@@ -13,218 +13,1899 @@
 
     <script src="https://unpkg.com/lucide@1.16.0"></script>
     <link rel="stylesheet" href="../../../css/tailwind.generated.css" />
+    <link rel="stylesheet" href="../../../css/base.css" />
+    <link rel="stylesheet" href="../../../css/components.css" />
     <script src="../../../components/input-modal.js"></script>
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link
-        href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Nunito:wght@400;700;900&display=swap"
+        href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Nunito:wght@400;600;700;800;900&display=swap"
         rel="stylesheet">
 
     <script>
-        // Check for saved theme or default to light
-        const st = localStorage.getItem('theme_text-workshop');
-        if (st === 'dark' || (!st && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-            document.documentElement.classList.add('dark');
-        } else {
-            document.documentElement.classList.remove('dark');
-        }
-
-        function toggleTheme() {
-            if (document.documentElement.classList.contains('dark')) {
-                document.documentElement.classList.remove('dark');
-                localStorage.setItem('theme_text-workshop', 'light');
-            } else {
+        (function () {
+            const st = localStorage.getItem('theme_text-workshop');
+            if (st === 'dark' || (!st && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
                 document.documentElement.classList.add('dark');
-                localStorage.setItem('theme_text-workshop', 'dark');
+            } else {
+                document.documentElement.classList.remove('dark');
             }
-            lucide.createIcons();
-        }
+        })();
     </script>
 
     <style>
-        body {
-            font-family: 'Nunito', sans-serif;
-            background-color: #F0F4F8;
-            /* Grid Pattern Background */
-            background-image:
-                linear-gradient(#CBD5E1 1.5px, transparent 1.5px),
-                linear-gradient(90deg, #CBD5E1 1.5px, transparent 1.5px);
-            background-size: 30px 30px;
-            color: #0F172A;
+        *:focus-visible {
+            outline: 3px solid var(--color-blue);
+            outline-offset: 2px;
         }
 
-        .dark body {
-            background-color: #020617;
-            background-image:
-                linear-gradient(#0f172a 1.5px, transparent 1.5px),
-                linear-gradient(90deg, #0f172a 1.5px, transparent 1.5px);
-            color: #F8FAFC;
+        .tool-panel-card {
+            border-radius: 2rem;
         }
 
-        .tool-card {
-            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        .tab-btn {
+            transition: transform var(--transition-fast), box-shadow var(--transition-fast), background-color var(--transition-fast), color var(--transition-fast);
         }
 
-        .tool-card:hover {
-            transform: translate(-4px, -4px);
-            box-shadow: 8px 8px 0px 0px #0F172A;
+        .tab-btn:hover:not(.tab-active) {
+            transform: translateY(-2px);
         }
 
-        .dark .tool-card:hover {
-            box-shadow: 8px 8px 0px 0px #1E293B;
+        .tab-btn.tab-active {
+            transform: translateY(2px);
+            box-shadow: 0 0 0 var(--border-primary);
         }
 
-        .tool-card:active {
-            transform: translate(0px, 0px);
-            box-shadow: 0px 0px 0px 0px #0F172A;
+        .letter-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(56px, 1fr));
+            gap: 8px;
+        }
+
+        .stat-card {
+            transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .stat-card:hover {
+            transform: scale(1.03);
+        }
+
+        @keyframes inputFlash {
+            0% {
+                box-shadow: 0 0 0 0 rgba(30, 167, 253, 0.5);
+            }
+            50% {
+                box-shadow: 0 0 0 6px rgba(30, 167, 253, 0.45);
+            }
+            100% {
+                box-shadow: 0 0 0 0 rgba(30, 167, 253, 0);
+            }
+        }
+
+        .flash-ring {
+            animation: inputFlash 0.45s ease-out;
         }
     </style>
-    <link rel="stylesheet" href="../../../css/base.css" />
-    <link rel="stylesheet" href="../../../css/components.css" />
 </head>
 
-<body class="min-h-screen flex flex-col items-center justify-center p-6">
+<body class="font-body text-dark dark:text-white min-h-screen p-4 md:p-6 lg:p-8">
 
-    <main class="w-full max-w-6xl mx-auto relative pt-12 md:pt-0">
+    <main class="w-full max-w-7xl mx-auto flex flex-col gap-6">
 
-        <button onclick="toggleTheme()"
-            class="fixed top-6 right-6 z-50 p-3 bg-white dark:bg-slate-800 border-4 border-dark dark:border-slate-500 rounded-2xl shadow-hard hover:translate-y-[-2px] active:translate-y-[4px] active:shadow-none transition-all group">
-            <i data-lucide="sun" class="w-6 h-6 text-orange hidden dark:block"></i>
-            <i data-lucide="moon" class="w-6 h-6 text-blue block dark:hidden"></i>
-        </button>
+        <!-- Floating Glassmorphic Header -->
+        <header
+            class="bg-white/85 dark:bg-slate-900/85 backdrop-blur-xl border-4 border-dark dark:border-slate-500 rounded-[2rem] p-4 md:p-6 shadow-hard flex flex-col lg:flex-row justify-between items-center gap-4 animate-slide-down">
 
-        <div
-            class="bg-white dark:bg-slate-900/80 dark:backdrop-blur-xl border-4 border-dark dark:border-slate-500 rounded-2xl p-8 mb-8 shadow-hard flex flex-col md:flex-row justify-between items-center text-center md:text-left transition-colors">
-            <div>
-                <h2
-                    class="font-heading font-bold text-slate-400 dark:text-slate-500 tracking-widest uppercase text-sm mb-1">
-                    Text Utilities</h2>
-                <h1 class="font-heading font-bold text-4xl md:text-5xl text-dark dark:text-white uppercase">
-                    TEXT <span class="text-blue">WORKSHOP</span>
-                </h1>
-            </div>
-            <div class="mt-4 md:mt-0 flex gap-3">
+            <!-- Brand & Badges -->
+            <div class="flex flex-wrap items-center justify-center lg:justify-start gap-4">
                 <div
-                    class="px-4 py-2 bg-blue text-white font-heading font-bold border-2 border-dark dark:border-slate-500 rounded-lg shadow-hard -rotate-2">
-                    Workshop
+                    class="w-14 h-14 bg-blue text-white border-3 border-dark dark:border-slate-500 rounded-2xl flex items-center justify-center shadow-hard -rotate-2 shrink-0">
+                    <i data-lucide="file-text" class="w-7 h-7"></i>
                 </div>
-                <div
-                    class="px-4 py-2 bg-orange text-white font-heading font-bold border-2 border-dark dark:border-slate-500 rounded-lg shadow-hard rotate-2">
-                    Teacher
+                <div class="text-center sm:text-left">
+                    <p
+                        class="font-heading font-bold text-slate-500 dark:text-slate-400 tracking-widest uppercase text-xs leading-none mb-1">
+                        Text Utilities Suite
+                    </p>
+                    <h1
+                        class="font-heading font-bold text-3xl md:text-4xl text-dark dark:text-white uppercase tracking-tight leading-none">
+                        TEXT <span class="text-blue">WORKSHOP</span>
+                    </h1>
                 </div>
-            </div>
-        </div>
-
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-
-            <a href="javascript:void(0)" onclick="return false;"
-                class="tool-card block bg-white dark:bg-slate-900/80 dark:backdrop-blur-xl border-4 border-dark dark:border-slate-500 rounded-2xl p-6 relative overflow-hidden group transition-colors opacity-70 cursor-not-allowed">
-                <div class="absolute top-4 left-4 z-20">
-                    <span class="bg-orange text-dark text-[8px] font-black px-2 py-1 rounded-full border-2 border-dark uppercase tracking-tighter shadow-sm flex items-center gap-1">
-                        <i data-lucide="hammer" class="w-3 h-3"></i>
-                        Under Construction
+                <div class="hidden sm:flex items-center gap-2 ml-1">
+                    <span
+                        class="px-3 py-1 bg-blue text-white font-heading font-bold text-xs uppercase border-2 border-dark dark:border-slate-500 rounded-xl shadow-hard-sm -rotate-2">
+                        Workshop
+                    </span>
+                    <span
+                        class="px-3 py-1 bg-orange text-white font-heading font-bold text-xs uppercase border-2 border-dark dark:border-slate-500 rounded-xl shadow-hard-sm rotate-2">
+                        Teacher
                     </span>
                 </div>
-                <div
-                    class="absolute top-0 right-0 w-24 h-24 bg-blue/10 rounded-bl-full -mr-4 -mt-4 transition-transform group-hover:scale-150">
+            </div>
+
+            <!-- Global Actions -->
+            <div class="flex flex-wrap items-center justify-center gap-2.5">
+                <button id="undoBtn" onclick="undoText()" disabled title="Undo (Ctrl+Z)"
+                    class="btn-chunky px-3.5 py-2.5 bg-white dark:bg-slate-800 text-dark dark:text-white border-3 border-dark dark:border-slate-500 rounded-xl text-xs flex items-center gap-1.5">
+                    <i data-lucide="undo-2" class="w-4 h-4"></i>
+                    <span class="hidden sm:inline">Undo</span>
+                </button>
+                <button id="redoBtn" onclick="redoText()" disabled title="Redo (Ctrl+Y)"
+                    class="btn-chunky px-3.5 py-2.5 bg-white dark:bg-slate-800 text-dark dark:text-white border-3 border-dark dark:border-slate-500 rounded-xl text-xs flex items-center gap-1.5">
+                    <i data-lucide="redo-2" class="w-4 h-4"></i>
+                    <span class="hidden sm:inline">Redo</span>
+                </button>
+                <button id="sampleBtn" onclick="loadSampleText()" title="Load Sample Classroom Text"
+                    class="btn-chunky px-3.5 py-2.5 bg-orange text-white border-3 border-dark dark:border-slate-500 rounded-xl text-xs flex items-center gap-1.5">
+                    <i data-lucide="sparkles" class="w-4 h-4"></i>
+                    <span>Sample Text</span>
+                </button>
+                <button id="themeToggle" onclick="toggleTheme()" title="Toggle Light/Dark Mode"
+                    aria-label="Toggle Light/Dark Mode"
+                    class="btn-chunky p-2.5 bg-white dark:bg-slate-800 text-dark dark:text-white border-3 border-dark dark:border-slate-500 rounded-xl">
+                    <i data-lucide="sun" class="w-5 h-5 text-orange hidden dark:block"></i>
+                    <i data-lucide="moon" class="w-5 h-5 text-blue block dark:hidden"></i>
+                </button>
+            </div>
+        </header>
+
+        <!-- 4-Tab Tool Navigation -->
+        <nav aria-label="Text Workshop Tools" role="tablist"
+            class="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-4 border-dark dark:border-slate-500 rounded-2xl p-2 shadow-hard grid grid-cols-2 lg:grid-cols-4 gap-2.5">
+            <button id="tab-formatter" role="tab" aria-selected="true" onclick="switchTab('formatter')"
+                class="tab-btn btn-chunky rounded-xl py-3 px-4 text-sm flex items-center justify-center gap-2 border-3 border-dark dark:border-slate-500 bg-pink text-white tab-active">
+                <i data-lucide="list-ordered" class="w-5 h-5 shrink-0"></i>
+                <span>List Formatter</span>
+            </button>
+            <button id="tab-cleaner" role="tab" aria-selected="false" onclick="switchTab('cleaner')"
+                class="tab-btn btn-chunky rounded-xl py-3 px-4 text-sm flex items-center justify-center gap-2 border-3 border-dark dark:border-slate-500 bg-slate-50 dark:bg-slate-800 text-dark dark:text-white">
+                <i data-lucide="wand-2" class="w-5 h-5 shrink-0"></i>
+                <span>Text Cleaner</span>
+            </button>
+            <button id="tab-case" role="tab" aria-selected="false" onclick="switchTab('case')"
+                class="tab-btn btn-chunky rounded-xl py-3 px-4 text-sm flex items-center justify-center gap-2 border-3 border-dark dark:border-slate-500 bg-slate-50 dark:bg-slate-800 text-dark dark:text-white">
+                <i data-lucide="type" class="w-5 h-5 shrink-0"></i>
+                <span>Case Converter</span>
+            </button>
+            <button id="tab-analyzer" role="tab" aria-selected="false" onclick="switchTab('analyzer')"
+                class="tab-btn btn-chunky rounded-xl py-3 px-4 text-sm flex items-center justify-center gap-2 border-3 border-dark dark:border-slate-500 bg-slate-50 dark:bg-slate-800 text-dark dark:text-white">
+                <i data-lucide="bar-chart-3" class="w-5 h-5 shrink-0"></i>
+                <span>Vocab Analyzer</span>
+            </button>
+        </nav>
+
+        <!-- Main 12-Column Workspace -->
+        <section class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+
+            <!-- LEFT COLUMN: Shared Source Text -->
+            <div class="lg:col-span-4 flex flex-col gap-3">
+                <div class="flex justify-between items-center px-2">
+                    <label for="inputText"
+                        class="font-heading font-bold text-xl uppercase tracking-tight flex items-center gap-2 text-dark dark:text-white">
+                        <i data-lucide="text-quote" class="w-5 h-5 text-blue"></i>
+                        Source Text
+                    </label>
+                    <div class="flex items-center gap-2">
+                        <button onclick="pasteFromClipboard()"
+                            class="px-3 py-1 bg-white dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-xl text-xs font-extrabold uppercase tracking-wide hover:bg-blue/10 dark:hover:bg-slate-700 transition-colors flex items-center gap-1 shadow-hard-sm">
+                            <i data-lucide="clipboard-paste" class="w-3.5 h-3.5 text-blue"></i>
+                            Paste
+                        </button>
+                        <button onclick="clearAll()"
+                            class="px-3 py-1 bg-white dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-xl text-xs font-extrabold uppercase tracking-wide text-slate-600 dark:text-slate-300 hover:text-pink hover:bg-pink/10 dark:hover:bg-slate-700 transition-colors flex items-center gap-1 shadow-hard-sm">
+                            <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                            Clear
+                        </button>
+                    </div>
+                </div>
+
+                <div id="inputCard"
+                    class="bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl border-4 border-dark dark:border-slate-500 rounded-[2rem] shadow-hard flex flex-col overflow-hidden min-h-[420px] lg:h-[620px]">
+                    <textarea id="inputText"
+                        class="w-full flex-grow p-5 font-body font-semibold text-base md:text-lg outline-none resize-none bg-transparent text-dark dark:text-white placeholder-slate-400 dark:placeholder-slate-500 leading-relaxed"
+                        placeholder="Paste your vocabulary list, student draft, messy notes, or paragraph here..."></textarea>
+
+                    <div
+                        class="bg-slate-100/90 dark:bg-slate-800/90 border-t-4 border-dark dark:border-slate-600 px-4 py-3 grid grid-cols-4 gap-2 text-center text-[11px] font-extrabold uppercase tracking-wider text-slate-600 dark:text-slate-300">
+                        <span id="statChars">0 Chars</span>
+                        <span id="statWords">0 Words</span>
+                        <span id="statLines">0 Lines</span>
+                        <span id="statSentences">0 Sent.</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- MIDDLE COLUMN: Tool Controls (Formatter / Cleaner / Case) -->
+            <div id="middlePanel" class="lg:col-span-4 flex flex-col gap-5">
+
+                <!-- PANEL 1: LIST FORMATTER -->
+                <div id="panel-formatter" class="flex flex-col gap-5 animate-pop-in">
+
+                    <!-- Card A: Delimiters & Affixes -->
+                    <div
+                        class="bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl border-4 border-dark dark:border-slate-500 rounded-[2rem] p-5 shadow-hard">
+                        <h2
+                            class="font-heading font-bold text-lg uppercase tracking-tight mb-4 flex items-center gap-2 text-dark dark:text-white">
+                            <i data-lucide="sliders-horizontal" class="w-5 h-5 text-pink"></i>
+                            Delimiters &amp; Affixes
+                        </h2>
+
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+                            <div>
+                                <label for="splitMode"
+                                    class="block text-[11px] font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">
+                                    Split Input By
+                                </label>
+                                <select id="splitMode" onchange="onFormatterOptionChange()"
+                                    class="w-full bg-slate-50 dark:bg-slate-800 border-3 border-dark dark:border-slate-500 rounded-xl px-3 py-2 font-bold text-sm text-dark dark:text-white cursor-pointer">
+                                    <option value="auto">Auto (Lines / Commas)</option>
+                                    <option value="newline">Newline (\n)</option>
+                                    <option value="comma">Comma (,)</option>
+                                    <option value="semicolon">Semicolon (;)</option>
+                                    <option value="pipe">Pipe (|)</option>
+                                    <option value="space">Whitespace</option>
+                                    <option value="custom">Custom...</option>
+                                </select>
+                            </div>
+
+                            <div>
+                                <label for="joinMode"
+                                    class="block text-[11px] font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">
+                                    Join Output With
+                                </label>
+                                <select id="joinMode" onchange="onFormatterOptionChange()"
+                                    class="w-full bg-slate-50 dark:bg-slate-800 border-3 border-dark dark:border-slate-500 rounded-xl px-3 py-2 font-bold text-sm text-dark dark:text-white cursor-pointer">
+                                    <option value="newline">Newline (\n)</option>
+                                    <option value="comma">Comma (, )</option>
+                                    <option value="semicolon">Semicolon (; )</option>
+                                    <option value="pipe">Pipe ( | )</option>
+                                    <option value="space">Single Space</option>
+                                    <option value="custom">Custom...</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div id="customSplitWrap" class="hidden mb-3 animate-slide-down">
+                            <label for="customSplitInput"
+                                class="block text-[11px] font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">
+                                Custom Split Separator
+                            </label>
+                            <input id="customSplitInput" type="text" oninput="persistState()"
+                                placeholder="e.g. :: or /"
+                                class="w-full bg-slate-50 dark:bg-slate-800 border-3 border-dark dark:border-slate-500 rounded-xl px-3 py-2 font-bold text-sm text-dark dark:text-white placeholder-slate-400" />
+                        </div>
+
+                        <div id="customJoinWrap" class="hidden mb-3 animate-slide-down">
+                            <label for="customJoinInput"
+                                class="block text-[11px] font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">
+                                Custom Join Separator (use \n for newline)
+                            </label>
+                            <input id="customJoinInput" type="text" oninput="persistState()"
+                                placeholder="e.g.  -  or \n"
+                                class="w-full bg-slate-50 dark:bg-slate-800 border-3 border-dark dark:border-slate-500 rounded-xl px-3 py-2 font-bold text-sm text-dark dark:text-white placeholder-slate-400" />
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-3 mb-3">
+                            <div>
+                                <label for="itemPrefix"
+                                    class="block text-[11px] font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">
+                                    Item Prefix
+                                </label>
+                                <input id="itemPrefix" type="text" oninput="persistState()"
+                                    placeholder="Prefix (e.g. - )"
+                                    class="w-full bg-slate-50 dark:bg-slate-800 border-3 border-dark dark:border-slate-500 rounded-xl px-3 py-2 font-bold text-sm text-dark dark:text-white placeholder-slate-400" />
+                            </div>
+                            <div>
+                                <label for="itemSuffix"
+                                    class="block text-[11px] font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">
+                                    Item Suffix
+                                </label>
+                                <input id="itemSuffix" type="text" oninput="persistState()"
+                                    placeholder="Suffix (e.g. ;)"
+                                    class="w-full bg-slate-50 dark:bg-slate-800 border-3 border-dark dark:border-slate-500 rounded-xl px-3 py-2 font-bold text-sm text-dark dark:text-white placeholder-slate-400" />
+                            </div>
+                        </div>
+
+                        <label class="flex items-center gap-2 text-xs font-extrabold text-slate-600 dark:text-slate-300 mb-4 cursor-pointer select-none">
+                            <input id="trimItems" type="checkbox" checked onchange="persistState()"
+                                class="w-4 h-4 rounded accent-pink cursor-pointer" />
+                            <span>Trim items &amp; skip empty entries</span>
+                        </label>
+
+                        <button onclick="processFormatter('customFormat')"
+                            class="btn-chunky w-full py-3 px-4 bg-pink text-white border-3 border-dark dark:border-slate-500 rounded-xl text-sm flex items-center justify-center gap-2">
+                            <i data-lucide="wand-2" class="w-4 h-4"></i>
+                            <span>Apply Delimiters &amp; Affixes</span>
+                        </button>
+                    </div>
+
+                    <!-- Card B: Sort & Deduplicate -->
+                    <div
+                        class="bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl border-4 border-dark dark:border-slate-500 rounded-[2rem] p-5 shadow-hard">
+                        <div class="flex items-center justify-between gap-2 mb-4">
+                            <h2
+                                class="font-heading font-bold text-lg uppercase tracking-tight flex items-center gap-2 text-dark dark:text-white">
+                                <i data-lucide="arrow-up-down" class="w-5 h-5 text-blue"></i>
+                                Sort &amp; Deduplicate
+                            </h2>
+                            <label
+                                class="flex items-center gap-1.5 text-[11px] font-extrabold uppercase text-slate-500 dark:text-slate-400 cursor-pointer select-none">
+                                <input id="dedupeCaseInsensitive" type="checkbox" checked onchange="persistState()"
+                                    class="w-3.5 h-3.5 rounded accent-blue cursor-pointer" />
+                                <span>Ignore Case</span>
+                            </label>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-2.5">
+                            <button onclick="processFormatter('sortAZ')"
+                                class="btn-chunky py-2.5 px-3 bg-slate-50 dark:bg-slate-800 text-dark dark:text-white border-3 border-dark dark:border-slate-500 rounded-xl text-xs flex items-center justify-center gap-1.5 hover:bg-blue/10 dark:hover:bg-slate-700">
+                                <i data-lucide="arrow-down-a-z" class="w-4 h-4 text-blue"></i>
+                                <span>Sort A &rarr; Z</span>
+                            </button>
+                            <button onclick="processFormatter('sortZA')"
+                                class="btn-chunky py-2.5 px-3 bg-slate-50 dark:bg-slate-800 text-dark dark:text-white border-3 border-dark dark:border-slate-500 rounded-xl text-xs flex items-center justify-center gap-1.5 hover:bg-blue/10 dark:hover:bg-slate-700">
+                                <i data-lucide="arrow-up-z-a" class="w-4 h-4 text-blue"></i>
+                                <span>Sort Z &rarr; A</span>
+                            </button>
+                            <button onclick="processFormatter('sortLenAsc')"
+                                class="btn-chunky py-2.5 px-3 bg-slate-50 dark:bg-slate-800 text-dark dark:text-white border-3 border-dark dark:border-slate-500 rounded-xl text-xs flex items-center justify-center gap-1.5 hover:bg-green/10 dark:hover:bg-slate-700">
+                                <i data-lucide="arrow-up-down" class="w-4 h-4 text-green"></i>
+                                <span>Short &rarr; Long</span>
+                            </button>
+                            <button onclick="processFormatter('sortLenDesc')"
+                                class="btn-chunky py-2.5 px-3 bg-slate-50 dark:bg-slate-800 text-dark dark:text-white border-3 border-dark dark:border-slate-500 rounded-xl text-xs flex items-center justify-center gap-1.5 hover:bg-green/10 dark:hover:bg-slate-700">
+                                <i data-lucide="arrow-up-down" class="w-4 h-4 text-orange"></i>
+                                <span>Long &rarr; Short</span>
+                            </button>
+                            <button onclick="processFormatter('dedupe')"
+                                class="btn-chunky col-span-2 py-2.5 px-3 bg-blue text-white border-3 border-dark dark:border-slate-500 rounded-xl text-xs flex items-center justify-center gap-2">
+                                <i data-lucide="filter" class="w-4 h-4"></i>
+                                <span>Remove Duplicates</span>
+                            </button>
+                            <button onclick="processFormatter('shuffle')"
+                                class="btn-chunky py-2.5 px-3 bg-orange text-white border-3 border-dark dark:border-slate-500 rounded-xl text-xs flex items-center justify-center gap-1.5">
+                                <i data-lucide="shuffle" class="w-4 h-4"></i>
+                                <span>Shuffle</span>
+                            </button>
+                            <button onclick="processFormatter('reverse')"
+                                class="btn-chunky py-2.5 px-3 bg-slate-50 dark:bg-slate-800 text-dark dark:text-white border-3 border-dark dark:border-slate-500 rounded-xl text-xs flex items-center justify-center gap-1.5 hover:bg-pink/10 dark:hover:bg-slate-700">
+                                <i data-lucide="rotate-ccw" class="w-4 h-4 text-pink"></i>
+                                <span>Reverse Order</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Card C: List & Data Conversion -->
+                    <div
+                        class="bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl border-4 border-dark dark:border-slate-500 rounded-[2rem] p-5 shadow-hard">
+                        <h2
+                            class="font-heading font-bold text-lg uppercase tracking-tight mb-4 flex items-center gap-2 text-dark dark:text-white">
+                            <i data-lucide="list-checks" class="w-5 h-5 text-green"></i>
+                            List &amp; Data Conversion
+                        </h2>
+
+                        <div class="flex flex-col gap-2.5">
+                            <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                                <button onclick="processFormatter('paragraphToCsv')"
+                                    class="btn-chunky py-2.5 px-2.5 bg-slate-50 dark:bg-slate-800 text-dark dark:text-white border-3 border-dark dark:border-slate-500 rounded-xl text-[11px] flex items-center justify-center gap-1 hover:bg-orange/10 dark:hover:bg-slate-700">
+                                    <i data-lucide="braces" class="w-3.5 h-3.5 text-orange shrink-0"></i>
+                                    <span>Para &rarr; CSV</span>
+                                </button>
+                                <button onclick="processFormatter('linesToComma')"
+                                    class="btn-chunky py-2.5 px-2.5 bg-slate-50 dark:bg-slate-800 text-dark dark:text-white border-3 border-dark dark:border-slate-500 rounded-xl text-[11px] flex items-center justify-center gap-1 hover:bg-blue/10 dark:hover:bg-slate-700">
+                                    <i data-lucide="arrow-down-to-line" class="w-3.5 h-3.5 text-blue shrink-0"></i>
+                                    <span>Lines &rarr; CSV</span>
+                                </button>
+                                <button onclick="processFormatter('commaToLines')"
+                                    class="btn-chunky py-2.5 px-2.5 bg-slate-50 dark:bg-slate-800 text-dark dark:text-white border-3 border-dark dark:border-slate-500 rounded-xl text-[11px] flex items-center justify-center gap-1 hover:bg-pink/10 dark:hover:bg-slate-700">
+                                    <i data-lucide="wrap-text" class="w-3.5 h-3.5 text-pink shrink-0"></i>
+                                    <span>CSV &rarr; Lines</span>
+                                </button>
+                            </div>
+
+                            <!-- Bullet List + Style Selector -->
+                            <div class="flex gap-2 items-stretch">
+                                <button onclick="processFormatter('bulletList')"
+                                    class="btn-chunky flex-grow py-2.5 px-3 bg-slate-50 dark:bg-slate-800 text-dark dark:text-white border-3 border-dark dark:border-slate-500 rounded-xl text-xs flex items-center justify-center gap-2 hover:bg-green/10 dark:hover:bg-slate-700">
+                                    <i data-lucide="list" class="w-4 h-4 text-green"></i>
+                                    <span>Bullet List</span>
+                                </button>
+                                <select id="bulletOpt" onchange="persistState()" aria-label="Bullet Symbol"
+                                    class="w-20 bg-white dark:bg-slate-800 border-3 border-dark dark:border-slate-500 rounded-xl px-2 font-heading font-bold text-base text-center text-dark dark:text-white cursor-pointer shadow-hard-sm">
+                                    <option value="•">•</option>
+                                    <option value="-">-</option>
+                                    <option value="★">★</option>
+                                    <option value="→">→</option>
+                                    <option value="☐">☐</option>
+                                </select>
+                            </div>
+
+                            <!-- Numbered List + Style Selector -->
+                            <div class="flex gap-2 items-stretch">
+                                <button onclick="processFormatter('numberedList')"
+                                    class="btn-chunky flex-grow py-2.5 px-3 bg-slate-50 dark:bg-slate-800 text-dark dark:text-white border-3 border-dark dark:border-slate-500 rounded-xl text-xs flex items-center justify-center gap-2 hover:bg-green/10 dark:hover:bg-slate-700">
+                                    <i data-lucide="list-ordered" class="w-4 h-4 text-pink"></i>
+                                    <span>Numbered List</span>
+                                </button>
+                                <select id="numOpt" onchange="persistState()" aria-label="Numbering Style"
+                                    class="w-20 bg-white dark:bg-slate-800 border-3 border-dark dark:border-slate-500 rounded-xl px-2 font-heading font-bold text-sm text-center text-dark dark:text-white cursor-pointer shadow-hard-sm">
+                                    <option value="dot">1.</option>
+                                    <option value="paren">1)</option>
+                                    <option value="alpha">a.</option>
+                                    <option value="ALPHA">A.</option>
+                                    <option value="roman">I.</option>
+                                </select>
+                            </div>
+
+                            <button onclick="processFormatter('stripMarkers')"
+                                class="btn-chunky w-full py-2.5 px-3 bg-slate-50 dark:bg-slate-800 text-dark dark:text-white border-3 border-dark dark:border-slate-500 rounded-xl text-xs flex items-center justify-center gap-2 hover:bg-orange/10 dark:hover:bg-slate-700">
+                                <i data-lucide="eraser" class="w-4 h-4 text-orange"></i>
+                                <span>Strip List Markers</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- PANEL 2: TEXT CLEANER -->
+                <div id="panel-cleaner" class="hidden flex-col gap-5 animate-pop-in">
+
+                    <!-- Smart Clean All Card -->
+                    <div
+                        class="bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl border-4 border-dark dark:border-slate-500 rounded-[2rem] p-5 shadow-hard">
+                        <h2
+                            class="font-heading font-bold text-lg uppercase tracking-tight mb-2 flex items-center gap-2 text-dark dark:text-white">
+                            <i data-lucide="wand-2" class="w-5 h-5 text-blue"></i>
+                            One-Click Sanitizer
+                        </h2>
+                        <p class="text-xs font-bold text-slate-500 dark:text-slate-400 mb-4">
+                            Normalizes smart quotes, removes invisible spaces, trims every line, and cleans up blank gaps.
+                        </p>
+                        <button onclick="processCleaner('smartClean')"
+                            class="btn-chunky w-full py-4 px-4 bg-blue text-white border-3 border-dark dark:border-slate-500 rounded-2xl text-base flex items-center justify-center gap-2">
+                            <i data-lucide="sparkles" class="w-5 h-5"></i>
+                            <span>Smart Clean All</span>
+                        </button>
+                    </div>
+
+                    <!-- Quick Cleanup Grid -->
+                    <div
+                        class="bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl border-4 border-dark dark:border-slate-500 rounded-[2rem] p-5 shadow-hard">
+                        <h2
+                            class="font-heading font-bold text-lg uppercase tracking-tight mb-4 flex items-center gap-2 text-dark dark:text-white">
+                            <i data-lucide="eraser" class="w-5 h-5 text-pink"></i>
+                            Quick Cleanup
+                        </h2>
+
+                        <div class="grid grid-cols-2 gap-2.5">
+                            <button onclick="processCleaner('extraSpaces')"
+                                class="btn-chunky py-3 px-3 bg-slate-50 dark:bg-slate-800 text-dark dark:text-white border-3 border-dark dark:border-slate-500 rounded-xl text-xs flex items-center justify-center gap-1.5 hover:bg-blue/10 dark:hover:bg-slate-700">
+                                <i data-lucide="scissors" class="w-4 h-4 text-blue"></i>
+                                <span>Extra Spaces</span>
+                            </button>
+                            <button onclick="processCleaner('emptyLines')"
+                                class="btn-chunky py-3 px-3 bg-slate-50 dark:bg-slate-800 text-dark dark:text-white border-3 border-dark dark:border-slate-500 rounded-xl text-xs flex items-center justify-center gap-1.5 hover:bg-pink/10 dark:hover:bg-slate-700">
+                                <i data-lucide="list" class="w-4 h-4 text-pink"></i>
+                                <span>Empty Lines</span>
+                            </button>
+                            <button onclick="processCleaner('lineBreaks')"
+                                class="btn-chunky py-3 px-3 bg-slate-50 dark:bg-slate-800 text-dark dark:text-white border-3 border-dark dark:border-slate-500 rounded-xl text-xs flex items-center justify-center gap-1.5 hover:bg-green/10 dark:hover:bg-slate-700">
+                                <i data-lucide="wrap-text" class="w-4 h-4 text-green"></i>
+                                <span>Line Breaks</span>
+                            </button>
+                            <button onclick="processCleaner('duplicateLines')"
+                                class="btn-chunky py-3 px-3 bg-slate-50 dark:bg-slate-800 text-dark dark:text-white border-3 border-dark dark:border-slate-500 rounded-xl text-xs flex items-center justify-center gap-1.5 hover:bg-orange/10 dark:hover:bg-slate-700">
+                                <i data-lucide="filter" class="w-4 h-4 text-orange"></i>
+                                <span>Duplicate Lines</span>
+                            </button>
+                            <button onclick="processCleaner('stripMarkup')"
+                                class="btn-chunky py-3 px-3 bg-slate-50 dark:bg-slate-800 text-dark dark:text-white border-3 border-dark dark:border-slate-500 rounded-xl text-xs flex items-center justify-center gap-1.5 hover:bg-blue/10 dark:hover:bg-slate-700">
+                                <i data-lucide="code" class="w-4 h-4 text-blue"></i>
+                                <span>Strip HTML / MD</span>
+                            </button>
+                            <button onclick="processCleaner('stripPunctuation')"
+                                class="btn-chunky py-3 px-3 bg-slate-50 dark:bg-slate-800 text-dark dark:text-white border-3 border-dark dark:border-slate-500 rounded-xl text-xs flex items-center justify-center gap-1.5 hover:bg-pink/10 dark:hover:bg-slate-700">
+                                <i data-lucide="text" class="w-4 h-4 text-pink"></i>
+                                <span>Strip Punctuation</span>
+                            </button>
+                            <button onclick="processCleaner('stripNumbers')"
+                                class="btn-chunky py-3 px-3 bg-slate-50 dark:bg-slate-800 text-dark dark:text-white border-3 border-dark dark:border-slate-500 rounded-xl text-xs flex items-center justify-center gap-1.5 hover:bg-orange/10 dark:hover:bg-slate-700">
+                                <i data-lucide="hash" class="w-4 h-4 text-orange"></i>
+                                <span>Strip Numbers</span>
+                            </button>
+                            <button onclick="processCleaner('trimLines')"
+                                class="btn-chunky py-3 px-3 bg-slate-50 dark:bg-slate-800 text-dark dark:text-white border-3 border-dark dark:border-slate-500 rounded-xl text-xs flex items-center justify-center gap-1.5 hover:bg-green/10 dark:hover:bg-slate-700">
+                                <i data-lucide="align-left" class="w-4 h-4 text-green"></i>
+                                <span>Trim Lines</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Find & Replace Card -->
+                    <div
+                        class="bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl border-4 border-dark dark:border-slate-500 rounded-[2rem] p-5 shadow-hard">
+                        <h2
+                            class="font-heading font-bold text-lg uppercase tracking-tight mb-4 flex items-center gap-2 text-dark dark:text-white">
+                            <i data-lucide="search" class="w-5 h-5 text-orange"></i>
+                            Find &amp; Replace
+                        </h2>
+
+                        <div class="flex flex-col gap-3">
+                            <div>
+                                <label for="findInput"
+                                    class="block text-[11px] font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">
+                                    Find
+                                </label>
+                                <input id="findInput" type="text" oninput="persistState()"
+                                    placeholder="Text to search for..."
+                                    class="w-full bg-slate-50 dark:bg-slate-800 border-3 border-dark dark:border-slate-500 rounded-xl px-3 py-2 font-bold text-sm text-dark dark:text-white placeholder-slate-400" />
+                            </div>
+
+                            <div>
+                                <label for="replaceInput"
+                                    class="block text-[11px] font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">
+                                    Replace With
+                                </label>
+                                <input id="replaceInput" type="text" oninput="persistState()"
+                                    placeholder="Replacement text (leave blank to remove)"
+                                    class="w-full bg-slate-50 dark:bg-slate-800 border-3 border-dark dark:border-slate-500 rounded-xl px-3 py-2 font-bold text-sm text-dark dark:text-white placeholder-slate-400" />
+                            </div>
+
+                            <label
+                                class="flex items-center gap-2 text-xs font-extrabold text-slate-600 dark:text-slate-300 cursor-pointer select-none">
+                                <input id="findCaseSensitive" type="checkbox" onchange="persistState()"
+                                    class="w-4 h-4 rounded accent-orange cursor-pointer" />
+                                <span>Match exact case</span>
+                            </label>
+
+                            <button onclick="processCleaner('findReplace')"
+                                class="btn-chunky w-full py-3 px-4 bg-orange text-white border-3 border-dark dark:border-slate-500 rounded-xl text-sm flex items-center justify-center gap-2">
+                                <i data-lucide="arrow-left-right" class="w-4 h-4"></i>
+                                <span>Replace All</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- PANEL 3: CASE CONVERTER -->
+                <div id="panel-case" class="hidden flex-col gap-5 animate-pop-in">
+                    <div
+                        class="bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl border-4 border-dark dark:border-slate-500 rounded-[2rem] p-5 shadow-hard">
+                        <h2
+                            class="font-heading font-bold text-lg uppercase tracking-tight mb-2 flex items-center gap-2 text-dark dark:text-white">
+                            <i data-lucide="zap" class="w-5 h-5 text-green"></i>
+                            Case Styles
+                        </h2>
+                        <p class="text-xs font-bold text-slate-500 dark:text-slate-400 mb-4">
+                            Transform capitalization without altering your source text.
+                        </p>
+
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <button onclick="processCase('sentence')"
+                                class="btn-chunky py-3.5 px-4 bg-slate-50 dark:bg-slate-800 text-dark dark:text-white border-3 border-dark dark:border-slate-500 rounded-xl text-sm normal-case tracking-normal hover:bg-pink/10 dark:hover:bg-slate-700">
+                                Sentence case.
+                            </button>
+                            <button onclick="processCase('lower')"
+                                class="btn-chunky py-3.5 px-4 bg-slate-50 dark:bg-slate-800 text-dark dark:text-white border-3 border-dark dark:border-slate-500 rounded-xl text-sm normal-case tracking-normal hover:bg-blue/10 dark:hover:bg-slate-700">
+                                lower case
+                            </button>
+                            <button onclick="processCase('upper')"
+                                class="btn-chunky py-3.5 px-4 bg-slate-50 dark:bg-slate-800 text-dark dark:text-white border-3 border-dark dark:border-slate-500 rounded-xl text-sm hover:bg-orange/10 dark:hover:bg-slate-700">
+                                UPPER CASE
+                            </button>
+                            <button onclick="processCase('title')"
+                                class="btn-chunky py-3.5 px-4 bg-green text-dark border-3 border-dark dark:border-slate-500 rounded-xl text-sm normal-case tracking-normal">
+                                Smart Title Case
+                            </button>
+                            <button onclick="processCase('capitalize')"
+                                class="btn-chunky py-3.5 px-4 bg-slate-50 dark:bg-slate-800 text-dark dark:text-white border-3 border-dark dark:border-slate-500 rounded-xl text-sm normal-case tracking-normal hover:bg-green/10 dark:hover:bg-slate-700">
+                                Capitalize Words
+                            </button>
+                            <button onclick="processCase('alternating')"
+                                class="btn-chunky py-3.5 px-4 bg-slate-50 dark:bg-slate-800 text-dark dark:text-white border-3 border-dark dark:border-slate-500 rounded-xl text-sm normal-case tracking-normal hover:bg-pink/10 dark:hover:bg-slate-700">
+                                aLtErNaTiNg
+                            </button>
+                            <button onclick="processCase('inverse')"
+                                class="btn-chunky sm:col-span-2 py-3.5 px-4 bg-slate-50 dark:bg-slate-800 text-dark dark:text-white border-3 border-dark dark:border-slate-500 rounded-xl text-sm normal-case tracking-normal hover:bg-blue/10 dark:hover:bg-slate-700">
+                                iNVERSE cASE
+                            </button>
+                            <button onclick="processCase('snake')"
+                                class="btn-chunky py-3.5 px-4 bg-slate-50 dark:bg-slate-800 text-dark dark:text-white border-3 border-dark dark:border-slate-500 rounded-xl text-sm normal-case tracking-normal hover:bg-orange/10 dark:hover:bg-slate-700">
+                                snake_case
+                            </button>
+                            <button onclick="processCase('kebab')"
+                                class="btn-chunky py-3.5 px-4 bg-slate-50 dark:bg-slate-800 text-dark dark:text-white border-3 border-dark dark:border-slate-500 rounded-xl text-sm normal-case tracking-normal hover:bg-orange/10 dark:hover:bg-slate-700">
+                                kebab-case
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- RIGHT COLUMN: Shared Output & Export (Hidden when Analyzer is active) -->
+            <div id="outputPanel" class="lg:col-span-4 flex flex-col gap-3">
+                <div class="flex justify-between items-center px-2">
+                    <label for="outputText"
+                        class="font-heading font-bold text-xl uppercase tracking-tight flex items-center gap-2 text-dark dark:text-white">
+                        <i data-lucide="sparkles" class="w-5 h-5 text-green"></i>
+                        Result
+                    </label>
+                    <span id="outputState"
+                        class="px-2.5 py-0.5 bg-white dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-full text-[11px] font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-300 shadow-hard-sm">
+                        Ready
+                    </span>
                 </div>
 
                 <div
-                    class="w-16 h-16 bg-blue text-white border-2 border-dark dark:border-slate-500 rounded-xl flex items-center justify-center mb-4 shadow-hard">
-                    <i data-lucide="wand-2" class="w-8 h-8"></i>
+                    class="bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl border-4 border-dark dark:border-slate-500 rounded-[2rem] shadow-hard flex flex-col overflow-hidden min-h-[420px] lg:h-[620px]">
+                    <textarea id="outputText"
+                        class="w-full flex-grow p-5 font-body font-semibold text-base md:text-lg outline-none resize-none bg-slate-50/40 dark:bg-slate-800/20 text-dark dark:text-white placeholder-slate-400 dark:placeholder-slate-500 leading-relaxed"
+                        placeholder="Formatted output will appear here. You can also edit it directly before copying or downloading..."></textarea>
+
+                    <div
+                        class="bg-slate-100/90 dark:bg-slate-800/90 border-t-3 border-dark dark:border-slate-600 px-4 py-2 flex justify-between items-center text-[11px] font-extrabold uppercase tracking-wider text-slate-600 dark:text-slate-300">
+                        <span id="outputLines">0 Lines</span>
+                        <span id="outputWords">0 Words</span>
+                    </div>
+
+                    <div
+                        class="bg-white dark:bg-slate-900 border-t-4 border-dark dark:border-slate-600 p-4 flex flex-col gap-2.5">
+                        <div class="grid grid-cols-2 gap-2.5">
+                            <button id="swapBtn" onclick="swapInputOutput()" disabled
+                                title="Send Result into Source Text to chain another tool"
+                                class="btn-chunky py-3 px-3 bg-orange text-white border-3 border-dark dark:border-slate-500 rounded-xl text-xs flex items-center justify-center gap-1.5">
+                                <i data-lucide="arrow-left-right" class="w-4 h-4"></i>
+                                <span>Use as Input</span>
+                            </button>
+                            <button id="copyBtn" onclick="copyOutput()" disabled
+                                class="btn-chunky py-3 px-3 bg-blue text-white border-3 border-dark dark:border-slate-500 rounded-xl text-xs flex items-center justify-center gap-1.5">
+                                <i data-lucide="copy" class="w-4 h-4"></i>
+                                <span>Copy Result</span>
+                            </button>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-2.5">
+                            <button id="downloadTxtBtn" onclick="downloadOutput('txt')" disabled
+                                class="btn-chunky py-2.5 px-3 bg-green text-dark border-3 border-dark dark:border-slate-500 rounded-xl text-xs flex items-center justify-center gap-1.5">
+                                <i data-lucide="download" class="w-4 h-4"></i>
+                                <span>Save .TXT</span>
+                            </button>
+                            <button id="downloadCsvBtn" onclick="downloadOutput('csv')" disabled
+                                class="btn-chunky py-2.5 px-3 bg-slate-50 dark:bg-slate-800 text-dark dark:text-white border-3 border-dark dark:border-slate-500 rounded-xl text-xs flex items-center justify-center gap-1.5">
+                                <i data-lucide="file-spreadsheet" class="w-4 h-4 text-green"></i>
+                                <span>Save .CSV</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ANALYZER PANEL (Spans 8 columns when Vocab Analyzer tab is active) -->
+            <div id="panel-analyzer" class="hidden lg:col-span-8 flex-col gap-6 animate-pop-in">
+
+                <!-- 6 Top Metric Cards -->
+                <div class="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3.5">
+                    <div
+                        class="stat-card bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl border-4 border-dark dark:border-slate-500 rounded-2xl p-4 shadow-hard">
+                        <span
+                            class="block text-[10px] font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">
+                            Sentences
+                        </span>
+                        <span id="sentenceCount" class="text-3xl font-heading font-bold text-blue">0</span>
+                    </div>
+
+                    <div
+                        class="stat-card bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl border-4 border-dark dark:border-slate-500 rounded-2xl p-4 shadow-hard">
+                        <span
+                            class="block text-[10px] font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">
+                            Paragraphs
+                        </span>
+                        <span id="paragraphCount" class="text-3xl font-heading font-bold text-pink">0</span>
+                    </div>
+
+                    <div
+                        class="stat-card bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl border-4 border-dark dark:border-slate-500 rounded-2xl p-4 shadow-hard">
+                        <span
+                            class="block text-[10px] font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">
+                            Unique Words
+                        </span>
+                        <span id="uniqueWordCount" class="text-3xl font-heading font-bold text-green">0</span>
+                    </div>
+
+                    <div
+                        class="stat-card bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl border-4 border-dark dark:border-slate-500 rounded-2xl p-4 shadow-hard">
+                        <span
+                            class="block text-[10px] font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">
+                            Avg Length
+                        </span>
+                        <span id="avgWordLength" class="text-3xl font-heading font-bold text-pink">0</span>
+                    </div>
+
+                    <div
+                        class="stat-card bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl border-4 border-dark dark:border-slate-500 rounded-2xl p-4 shadow-hard">
+                        <span
+                            class="block text-[10px] font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">
+                            Read Time
+                        </span>
+                        <span id="readTime" class="text-3xl font-heading font-bold text-green">0m</span>
+                    </div>
+
+                    <div
+                        class="stat-card bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl border-4 border-dark dark:border-slate-500 rounded-2xl p-4 shadow-hard">
+                        <span
+                            class="block text-[10px] font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">
+                            Difficulty
+                        </span>
+                        <span id="difficulty" class="text-2xl font-heading font-bold text-orange">N/A</span>
+                    </div>
                 </div>
 
-                <h3 class="font-heading font-bold text-2xl text-dark dark:text-white mb-2">Text Cleaner</h3>
-                <p class="text-slate-500 dark:text-slate-400 font-bold text-sm leading-tight mb-6">
-                    Remove extra spaces, line breaks, and messy formatting from your copied text.
-                </p>
-
+                <!-- Top Vocabulary Frequency Card -->
                 <div
-                    class="w-full py-3 bg-dark dark:bg-slate-800 text-white font-heading font-bold rounded-lg text-center mt-auto border-2 border-transparent group-hover:bg-blue group-hover:border-dark group-hover:text-dark transition-colors">
-                    LAUNCH
-                </div>
-            </a>
+                    class="bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl border-4 border-dark dark:border-slate-500 rounded-[2rem] p-6 shadow-hard flex flex-col min-h-[240px]">
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+                        <h2
+                            class="font-heading font-bold text-xl uppercase tracking-tight flex items-center gap-2 text-dark dark:text-white">
+                            <i data-lucide="trending-up" class="w-5 h-5 text-pink"></i>
+                            Top Vocabulary
+                        </h2>
 
-            <a href="./pages/formatter.html"
-                class="tool-card block bg-white dark:bg-slate-900/80 dark:backdrop-blur-xl border-4 border-dark dark:border-slate-500 rounded-2xl p-6 relative overflow-hidden group transition-colors">
+                        <div class="flex flex-wrap items-center gap-3">
+                            <label
+                                class="flex items-center gap-2 text-xs font-extrabold text-slate-600 dark:text-slate-300 cursor-pointer select-none">
+                                <input id="excludeStopWords" type="checkbox" checked onchange="onAnalyzerOptionChange()"
+                                    class="w-4 h-4 rounded accent-orange cursor-pointer" />
+                                <span>Exclude Stop Words</span>
+                            </label>
+                            <button id="sendVocabBtn" onclick="sendVocabToFormatter()" disabled
+                                class="btn-chunky py-2 px-3.5 bg-orange text-white border-3 border-dark dark:border-slate-500 rounded-xl text-xs flex items-center gap-1.5">
+                                <i data-lucide="list-ordered" class="w-4 h-4"></i>
+                                <span>Send Vocab to Formatter</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div id="wordFrequency" class="flex flex-wrap gap-2.5">
+                        <p class="text-slate-500 dark:text-slate-400 italic text-sm font-semibold">
+                            Analysis results will appear as you type...
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Letter Distribution Card -->
                 <div
-                    class="absolute top-0 right-0 w-24 h-24 bg-pink/10 rounded-bl-full -mr-4 -mt-4 transition-transform group-hover:scale-150">
+                    class="bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl border-4 border-dark dark:border-slate-500 rounded-[2rem] p-6 shadow-hard">
+                    <h2
+                        class="font-heading font-bold text-xl uppercase tracking-tight mb-4 flex items-center gap-2 text-dark dark:text-white">
+                        <i data-lucide="bar-chart-horizontal" class="w-5 h-5 text-green"></i>
+                        Letter Distribution
+                    </h2>
+                    <div id="letterFrequency" class="letter-grid"></div>
                 </div>
+            </div>
 
-                <div
-                    class="w-16 h-16 bg-pink text-white border-2 border-dark dark:border-slate-500 rounded-xl flex items-center justify-center mb-4 shadow-hard">
-                    <i data-lucide="list-ordered" class="w-8 h-8"></i>
-                </div>
+        </section>
 
-                <h3 class="font-heading font-bold text-2xl text-dark dark:text-white mb-2">List Formatter</h3>
-                <p class="text-slate-500 dark:text-slate-400 font-bold text-sm leading-tight mb-6">
-                    Convert raw text into numbered lists, bullet points, or comma-separated values.
-                </p>
-
-                <div
-                    class="w-full py-3 bg-dark dark:bg-slate-800 text-white font-heading font-bold rounded-lg text-center mt-auto border-2 border-transparent group-hover:bg-pink group-hover:border-dark group-hover:text-dark transition-colors">
-                    LAUNCH
-                </div>
-            </a>
-
-            <a href="./pages/case.html"
-                class="tool-card block bg-white dark:bg-slate-900/80 dark:backdrop-blur-xl border-4 border-dark dark:border-slate-500 rounded-2xl p-6 relative overflow-hidden group transition-colors">
-                <div
-                    class="absolute top-0 right-0 w-24 h-24 bg-green/10 rounded-bl-full -mr-4 -mt-4 transition-transform group-hover:scale-150">
-                </div>
-
-                <div
-                    class="w-16 h-16 bg-green text-white border-2 border-dark dark:border-slate-500 rounded-xl flex items-center justify-center mb-4 shadow-hard">
-                    <i data-lucide="type" class="w-8 h-8"></i>
-                </div>
-
-                <h3 class="font-heading font-bold text-2xl text-dark dark:text-white mb-2">Case Converter</h3>
-                <p class="text-slate-500 dark:text-slate-400 font-bold text-sm leading-tight mb-6">
-                    Switch between UPPERCASE, lowercase, Sentence case, and Title Case instantly.
-                </p>
-
-                <div
-                    class="w-full py-3 bg-dark dark:bg-slate-800 text-white font-heading font-bold rounded-lg text-center mt-auto border-2 border-transparent group-hover:bg-green group-hover:border-dark group-hover:text-dark transition-colors">
-                    LAUNCH
-                </div>
-            </a>
-
-            <a href="./pages/analyzer.html"
-                class="tool-card block bg-white dark:bg-slate-900/80 dark:backdrop-blur-xl border-4 border-dark dark:border-slate-500 rounded-2xl p-6 relative overflow-hidden group transition-colors">
-                <div
-                    class="absolute top-0 right-0 w-24 h-24 bg-orange/10 rounded-bl-full -mr-4 -mt-4 transition-transform group-hover:scale-150">
-                </div>
-
-                <div
-                    class="w-16 h-16 bg-orange text-white border-2 border-dark dark:border-slate-500 rounded-xl flex items-center justify-center mb-4 shadow-hard">
-                    <i data-lucide="bar-chart-3" class="w-8 h-8"></i>
-                </div>
-
-                <h3 class="font-heading font-bold text-2xl text-dark dark:text-white mb-2">Vocab Analyzer</h3>
-                <p class="text-slate-500 dark:text-slate-400 font-bold text-sm leading-tight mb-6">
-                    Check word frequency, reading level, and identify complex vocabulary.
-                </p>
-
-                <div
-                    class="w-full py-3 bg-dark dark:bg-slate-800 text-white font-heading font-bold rounded-lg text-center mt-auto border-2 border-transparent group-hover:bg-orange group-hover:border-dark group-hover:text-dark transition-colors">
-                    LAUNCH
-                </div>
-            </a>
-
-        </div>
-
-        <div class="mt-8 text-center">
-            <p class="font-heading text-slate-400 dark:text-slate-500 font-bold text-sm uppercase tracking-widest">
-                KlassKit Workshop • Professional Tools
+        <footer class="mt-2 pb-4 text-center">
+            <p class="font-heading text-slate-500 dark:text-slate-400 font-bold text-xs uppercase tracking-widest">
+                KlassKit Workshop &bull; Unified Text Studio
             </p>
-        </div>
-
+        </footer>
     </main>
 
+    <!-- Toast Notification -->
+    <div id="workshopToast" class="toast" role="status" aria-live="polite"></div>
+
     <script>
+        const TOOL_ID = 'text-workshop';
+        const VALID_TABS = ['formatter', 'cleaner', 'case', 'analyzer'];
+        const TAB_THEME_CLASSES = {
+            formatter: ['bg-pink', 'text-white'],
+            cleaner: ['bg-blue', 'text-white'],
+            case: ['bg-green', 'text-dark'],
+            analyzer: ['bg-orange', 'text-white']
+        };
+        const TITLE_MINOR_WORDS = new Set([
+            'a', 'an', 'and', 'as', 'at', 'but', 'by', 'en', 'for', 'if',
+            'in', 'nor', 'of', 'on', 'or', 'per', 'the', 'to', 'v', 'vs', 'via'
+        ]);
+        const STOP_WORDS = new Set([
+            'the', 'a', 'an', 'and', 'or', 'but', 'is', 'are', 'was', 'were',
+            'be', 'been', 'being', 'have', 'has', 'had', 'do', 'does', 'did',
+            'to', 'in', 'of', 'for', 'with', 'on', 'at', 'by', 'from', 'as',
+            'into', 'through', 'during', 'before', 'after', 'about', 'it', 'its',
+            'this', 'that', 'these', 'those', 'i', 'you', 'he', 'she', 'we', 'they',
+            'my', 'your', 'his', 'her', 'our', 'their', 'not', 'no', 'so', 'if', 'can'
+        ]);
+
+        let activeTab = 'formatter';
+        let currentOutputState = 'Ready';
+        let latestTopWords = [];
+        let undoStack = [];
+        let redoStack = [];
+        let lastCommittedInput = '';
+        let saveCloudTimeout = null;
+        let toastTimeout = null;
+
+        // DOM Elements
+        const inputEl = document.getElementById('inputText');
+        const outputEl = document.getElementById('outputText');
+        const inputCardEl = document.getElementById('inputCard');
+        const outputStateEl = document.getElementById('outputState');
+        const undoBtn = document.getElementById('undoBtn');
+        const redoBtn = document.getElementById('redoBtn');
+        const swapBtn = document.getElementById('swapBtn');
+        const copyBtn = document.getElementById('copyBtn');
+        const downloadTxtBtn = document.getElementById('downloadTxtBtn');
+        const downloadCsvBtn = document.getElementById('downloadCsvBtn');
+        const sendVocabBtn = document.getElementById('sendVocabBtn');
+
+        // --- THEME ---
+        function toggleTheme() {
+            const isDark = document.documentElement.classList.toggle('dark');
+            localStorage.setItem('theme_text-workshop', isDark ? 'dark' : 'light');
+            lucide.createIcons();
+        }
+
+        // --- TOAST ---
+        function showToast(message, type = 'info') {
+            const toast = document.getElementById('workshopToast');
+            toast.textContent = message;
+            toast.className = `toast ${type} show`;
+            clearTimeout(toastTimeout);
+            toastTimeout = setTimeout(() => {
+                toast.classList.remove('show');
+            }, 2400);
+        }
+
+        // --- UNDO / REDO ---
+        function recordHistory(prevText) {
+            if (prevText === inputEl.value) return;
+            undoStack.push(prevText);
+            if (undoStack.length > 50) undoStack.shift();
+            redoStack = [];
+            lastCommittedInput = inputEl.value;
+            updateHistoryButtons();
+        }
+
+        function updateHistoryButtons() {
+            undoBtn.disabled = undoStack.length === 0;
+            redoBtn.disabled = redoStack.length === 0;
+        }
+
+        function setInputWithHistory(newText) {
+            const prev = inputEl.value;
+            if (prev === newText) return;
+            recordHistory(prev);
+            inputEl.value = newText;
+            lastCommittedInput = newText;
+            flashInputCard();
+            handleInputChange(false);
+        }
+
+        function undoText() {
+            if (undoStack.length === 0) return;
+            redoStack.push(inputEl.value);
+            const prev = undoStack.pop();
+            inputEl.value = prev;
+            lastCommittedInput = prev;
+            updateHistoryButtons();
+            handleInputChange(false);
+            showToast('Undid last source change', 'info');
+        }
+
+        function redoText() {
+            if (redoStack.length === 0) return;
+            undoStack.push(inputEl.value);
+            const next = redoStack.pop();
+            inputEl.value = next;
+            lastCommittedInput = next;
+            updateHistoryButtons();
+            handleInputChange(false);
+            showToast('Redid source change', 'info');
+        }
+
+        function flashInputCard() {
+            inputCardEl.classList.remove('flash-ring');
+            void inputCardEl.offsetWidth;
+            inputCardEl.classList.add('flash-ring');
+        }
+
+        // --- TAB SWITCHING ---
+        function switchTab(tabId, skipSave = false) {
+            if (!VALID_TABS.includes(tabId)) tabId = 'formatter';
+            activeTab = tabId;
+
+            VALID_TABS.forEach(id => {
+                const btn = document.getElementById(`tab-${id}`);
+                const activeClasses = TAB_THEME_CLASSES[id];
+                const isActive = id === tabId;
+
+                btn.setAttribute('aria-selected', isActive ? 'true' : 'false');
+                if (isActive) {
+                    btn.classList.remove('bg-slate-50', 'dark:bg-slate-800', 'text-dark', 'dark:text-white');
+                    btn.classList.add(...activeClasses, 'tab-active');
+                } else {
+                    btn.classList.remove(...activeClasses, 'tab-active');
+                    btn.classList.add('bg-slate-50', 'dark:bg-slate-800', 'text-dark', 'dark:text-white');
+                }
+            });
+
+            const middlePanel = document.getElementById('middlePanel');
+            const outputPanel = document.getElementById('outputPanel');
+            const analyzerPanel = document.getElementById('panel-analyzer');
+
+            if (tabId === 'analyzer') {
+                middlePanel.classList.add('hidden');
+                outputPanel.classList.add('hidden');
+                analyzerPanel.classList.remove('hidden');
+                analyzerPanel.classList.add('flex');
+                runAnalyzer();
+            } else {
+                analyzerPanel.classList.add('hidden');
+                analyzerPanel.classList.remove('flex');
+                middlePanel.classList.remove('hidden');
+                outputPanel.classList.remove('hidden');
+
+                ['formatter', 'cleaner', 'case'].forEach(panelId => {
+                    const panel = document.getElementById(`panel-${panelId}`);
+                    if (panelId === tabId) {
+                        panel.classList.remove('hidden');
+                        panel.classList.add('flex');
+                    } else {
+                        panel.classList.add('hidden');
+                        panel.classList.remove('flex');
+                    }
+                });
+            }
+
+            if (window.location.hash !== `#${tabId}`) {
+                history.replaceState(null, '', `#${tabId}`);
+            }
+
+            if (!skipSave) persistState();
+        }
+
+        // --- SAMPLE, PASTE, CLEAR ---
+        function loadSampleText() {
+            const sample = [
+                '  1. photosynthesis - plants converting sunlight into energy  ',
+                '2.   chlorophyll   ',
+                '3. evaporation',
+                '2. chlorophyll',
+                '• condensation',
+                '• precipitation',
+                '',
+                'The   water cycle   moves continuously   above and below the earth’s surface.  '
+            ].join('\n');
+            setInputWithHistory(sample);
+            showToast('Loaded classroom sample text', 'success');
+        }
+
+        async function pasteFromClipboard() {
+            try {
+                if (navigator.clipboard && navigator.clipboard.readText) {
+                    const clip = await navigator.clipboard.readText();
+                    if (!clip) {
+                        showToast('Clipboard is empty', 'warning');
+                        return;
+                    }
+                    setInputWithHistory(clip);
+                    showToast('Pasted from clipboard', 'success');
+                } else {
+                    inputEl.focus();
+                    showToast('Press Ctrl+V / Cmd+V to paste into Source Text', 'info');
+                }
+            } catch (err) {
+                inputEl.focus();
+                showToast('Clipboard permission blocked — paste with Ctrl+V', 'warning');
+            }
+        }
+
+        function clearAll() {
+            if (inputEl.value) {
+                recordHistory(inputEl.value);
+            }
+            inputEl.value = '';
+            outputEl.value = '';
+            lastCommittedInput = '';
+            setOutputState('Ready', false);
+            updateInputStats();
+            updateOutputStats();
+            runAnalyzer();
+            persistState();
+            inputEl.focus();
+        }
+
+        // --- OUTPUT HELPERS ---
+        function setOutput(text, label) {
+            outputEl.value = text;
+            setOutputState(label || 'Done', text.length > 0);
+            updateOutputStats();
+            persistState();
+        }
+
+        function setOutputState(label, hasContent) {
+            currentOutputState = label || 'Ready';
+            outputStateEl.textContent = currentOutputState;
+
+            if (hasContent) {
+                outputStateEl.classList.remove('text-slate-500', 'dark:text-slate-300');
+                outputStateEl.classList.add('text-green', 'dark:text-green');
+            } else {
+                outputStateEl.classList.remove('text-green', 'dark:text-green');
+                outputStateEl.classList.add('text-slate-500', 'dark:text-slate-300');
+            }
+
+            const disabled = !hasContent;
+            swapBtn.disabled = disabled;
+            copyBtn.disabled = disabled;
+            downloadTxtBtn.disabled = disabled;
+            downloadCsvBtn.disabled = disabled;
+        }
+
+        function updateOutputStats() {
+            const text = outputEl.value;
+            const lines = text ? text.split(/\r?\n/).length : 0;
+            const words = text.trim() ? text.trim().split(/\s+/).length : 0;
+            document.getElementById('outputLines').textContent = `${lines} ${lines === 1 ? 'Line' : 'Lines'}`;
+            document.getElementById('outputWords').textContent = `${words} ${words === 1 ? 'Word' : 'Words'}`;
+            const hasContent = text.length > 0;
+            swapBtn.disabled = !hasContent;
+            copyBtn.disabled = !hasContent;
+            downloadTxtBtn.disabled = !hasContent;
+            downloadCsvBtn.disabled = !hasContent;
+        }
+
+        function swapInputOutput() {
+            if (!outputEl.value) return;
+            setInputWithHistory(outputEl.value);
+            showToast('Output sent to Source Text!', 'success');
+        }
+
+        async function copyOutput() {
+            const text = outputEl.value;
+            if (!text) return;
+
+            let copied = false;
+            try {
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    await navigator.clipboard.writeText(text);
+                    copied = true;
+                }
+            } catch (e) {
+                copied = false;
+            }
+
+            if (!copied) {
+                outputEl.select();
+                copied = document.execCommand('copy');
+            }
+
+            if (copied) {
+                copyBtn.innerHTML = '<i data-lucide="check" class="w-4 h-4"></i><span>Copied!</span>';
+                copyBtn.classList.replace('bg-blue', 'bg-green');
+                copyBtn.classList.replace('text-white', 'text-dark');
+                lucide.createIcons();
+
+                setTimeout(() => {
+                    copyBtn.innerHTML = '<i data-lucide="copy" class="w-4 h-4"></i><span>Copy Result</span>';
+                    copyBtn.classList.replace('bg-green', 'bg-blue');
+                    copyBtn.classList.replace('text-dark', 'text-white');
+                    lucide.createIcons();
+                }, 1800);
+            }
+        }
+
+        function downloadOutput(ext) {
+            const text = outputEl.value;
+            if (!text) return;
+
+            const isCsv = ext === 'csv';
+            const payload = isCsv ? `\uFEFF${text}` : text;
+            const mime = isCsv ? 'text/csv;charset=utf-8;' : 'text/plain;charset=utf-8;';
+            const blob = new Blob([payload], { type: mime });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `klasskit-text-workshop.${ext}`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            showToast(`Saved klasskit-text-workshop.${ext}`, 'success');
+        }
+
+        // --- INPUT COUNTERS & LIVE ANALYSIS ---
+        function updateInputStats() {
+            const text = inputEl.value;
+            const chars = text.length;
+            const words = text.trim() ? text.trim().split(/\s+/) : [];
+            const lines = text ? text.split(/\r?\n/).length : 0;
+            const sentences = text.trim() ? text.split(/[.!?]+/).filter(s => s.trim().length > 0) : [];
+
+            document.getElementById('statChars').textContent = `${chars} Chars`;
+            document.getElementById('statWords').textContent = `${words.length} Words`;
+            document.getElementById('statLines').textContent = `${lines} Lines`;
+            document.getElementById('statSentences').textContent = `${sentences.length} Sent.`;
+        }
+
+        function handleInputChange(trackHistory = true) {
+            if (trackHistory) {
+                // Group rapid typing; commit history only if a pause or big jump occurred
+                if (Math.abs(inputEl.value.length - lastCommittedInput.length) > 12) {
+                    recordHistory(lastCommittedInput);
+                }
+            }
+            updateInputStats();
+            runAnalyzer();
+            persistState();
+        }
+
+        // --- TAB 1: LIST FORMATTER ---
+        function onFormatterOptionChange() {
+            const splitMode = document.getElementById('splitMode').value;
+            const joinMode = document.getElementById('joinMode').value;
+            document.getElementById('customSplitWrap').classList.toggle('hidden', splitMode !== 'custom');
+            document.getElementById('customJoinWrap').classList.toggle('hidden', joinMode !== 'custom');
+            persistState();
+        }
+
+        function getSplitItems(rawText) {
+            const mode = document.getElementById('splitMode').value;
+            const trimItems = document.getElementById('trimItems').checked;
+            let rawItems = [];
+
+            if (mode === 'auto') {
+                rawItems = rawText.includes('\n') ? rawText.split(/\r?\n/) : rawText.split(',');
+            } else if (mode === 'newline') {
+                rawItems = rawText.split(/\r?\n/);
+            } else if (mode === 'comma') {
+                rawItems = rawText.split(',');
+            } else if (mode === 'semicolon') {
+                rawItems = rawText.split(';');
+            } else if (mode === 'pipe') {
+                rawItems = rawText.split('|');
+            } else if (mode === 'space') {
+                rawItems = rawText.trim().split(/\s+/);
+            } else if (mode === 'custom') {
+                const sep = document.getElementById('customSplitInput').value.replace(/\\n/g, '\n');
+                rawItems = sep ? rawText.split(sep) : rawText.split(/\r?\n/);
+            }
+
+            if (trimItems) {
+                return rawItems.map(item => item.trim()).filter(item => item !== '');
+            }
+            return rawItems.filter(item => item !== '');
+        }
+
+        function getJoinSeparator() {
+            const mode = document.getElementById('joinMode').value;
+            if (mode === 'newline') return '\n';
+            if (mode === 'comma') return ', ';
+            if (mode === 'semicolon') return '; ';
+            if (mode === 'pipe') return ' | ';
+            if (mode === 'space') return ' ';
+            if (mode === 'custom') {
+                const raw = document.getElementById('customJoinInput').value;
+                return raw.replace(/\\n/g, '\n').replace(/\\t/g, '\t');
+            }
+            return '\n';
+        }
+
+        function applyAffixes(items) {
+            const prefix = document.getElementById('itemPrefix').value;
+            const suffix = document.getElementById('itemSuffix').value;
+            if (!prefix && !suffix) return items;
+            return items.map(item => `${prefix}${item}${suffix}`);
+        }
+
+        function toAlpha(num, uppercase = false) {
+            let result = '';
+            let n = num;
+            while (n > 0) {
+                n--;
+                result = String.fromCharCode((uppercase ? 65 : 97) + (n % 26)) + result;
+                n = Math.floor(n / 26);
+            }
+            return result;
+        }
+
+        function toRoman(num) {
+            const lookup = [
+                ['M', 1000], ['CM', 900], ['D', 500], ['CD', 400],
+                ['C', 100], ['XC', 90], ['L', 50], ['XL', 40],
+                ['X', 10], ['IX', 9], ['V', 5], ['IV', 4], ['I', 1]
+            ];
+            let roman = '';
+            let n = num;
+            for (const [sym, val] of lookup) {
+                while (n >= val) {
+                    roman += sym;
+                    n -= val;
+                }
+            }
+            return roman || String(num);
+        }
+
+        function requireInputText() {
+            if (!inputEl.value.trim()) {
+                flashInputCard();
+                showToast('Add some Source Text first!', 'warning');
+                inputEl.focus();
+                return false;
+            }
+            return true;
+        }
+
+        function processFormatter(action) {
+            if (!requireInputText()) return;
+            const rawText = inputEl.value.trim();
+
+            if (action === 'paragraphToCsv') {
+                const sentences = rawText.split(/[.;!?]+/);
+                const csvLines = sentences
+                    .map(sentence => {
+                        const clean = sentence.replace(/[,/#!$%\^&\*:{}=\-_`~()\"\'?]/g, '');
+                        const words = clean.trim().split(/\s+/).filter(Boolean);
+                        return applyAffixes(words).join(', ');
+                    })
+                    .filter(Boolean);
+                setOutput(csvLines.join('\n'), 'Paragraph → CSV');
+                return;
+            }
+
+            if (action === 'linesToComma') {
+                const trimItems = document.getElementById('trimItems').checked;
+                let items = rawText.split(/\r?\n/);
+                items = trimItems ? items.map(i => i.trim()).filter(Boolean) : items.filter(Boolean);
+                setOutput(applyAffixes(items).join(', '), 'Lines → CSV');
+                return;
+            }
+
+            if (action === 'commaToLines') {
+                const trimItems = document.getElementById('trimItems').checked;
+                let items = rawText.split(',');
+                items = trimItems ? items.map(i => i.trim()).filter(Boolean) : items.filter(Boolean);
+                setOutput(applyAffixes(items).join('\n'), 'CSV → Lines');
+                return;
+            }
+
+            let items = getSplitItems(rawText);
+            if (items.length === 0) {
+                showToast('No list items found with current delimiter', 'warning');
+                return;
+            }
+
+            const joinSep = getJoinSeparator();
+
+            if (action === 'customFormat') {
+                setOutput(applyAffixes(items).join(joinSep), `Formatted (${items.length})`);
+                return;
+            }
+
+            if (action === 'sortAZ') {
+                const sorted = [...items].sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
+                setOutput(applyAffixes(sorted).join(joinSep), 'Sorted A → Z');
+                return;
+            }
+
+            if (action === 'sortZA') {
+                const sorted = [...items].sort((a, b) => b.localeCompare(a, undefined, { numeric: true, sensitivity: 'base' }));
+                setOutput(applyAffixes(sorted).join(joinSep), 'Sorted Z → A');
+                return;
+            }
+
+            if (action === 'sortLenAsc') {
+                const sorted = [...items].sort((a, b) => a.length - b.length || a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
+                setOutput(applyAffixes(sorted).join(joinSep), 'Short → Long');
+                return;
+            }
+
+            if (action === 'sortLenDesc') {
+                const sorted = [...items].sort((a, b) => b.length - a.length || a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
+                setOutput(applyAffixes(sorted).join(joinSep), 'Long → Short');
+                return;
+            }
+
+            if (action === 'dedupe') {
+                const ignoreCase = document.getElementById('dedupeCaseInsensitive').checked;
+                const seen = new Set();
+                const unique = [];
+                items.forEach(item => {
+                    const key = ignoreCase ? item.toLowerCase() : item;
+                    if (!seen.has(key)) {
+                        seen.add(key);
+                        unique.push(item);
+                    }
+                });
+                const removed = items.length - unique.length;
+                const label = removed > 0
+                    ? `Removed ${removed} Duplicate${removed === 1 ? '' : 's'}`
+                    : 'No Duplicates Found';
+                setOutput(applyAffixes(unique).join(joinSep), label);
+                return;
+            }
+
+            if (action === 'shuffle') {
+                const shuffled = [...items];
+                for (let i = shuffled.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+                }
+                setOutput(applyAffixes(shuffled).join(joinSep), 'Shuffled');
+                return;
+            }
+
+            if (action === 'reverse') {
+                const reversed = [...items].reverse();
+                setOutput(applyAffixes(reversed).join(joinSep), 'Reversed');
+                return;
+            }
+
+            if (action === 'bulletList') {
+                const bullet = document.getElementById('bulletOpt').value;
+                const formatted = applyAffixes(items).map(item => `${bullet} ${item}`).join('\n');
+                setOutput(formatted, 'Bullet List');
+                return;
+            }
+
+            if (action === 'numberedList') {
+                const style = document.getElementById('numOpt').value;
+                const formatted = applyAffixes(items).map((item, idx) => {
+                    const n = idx + 1;
+                    let marker = `${n}.`;
+                    if (style === 'paren') marker = `${n})`;
+                    else if (style === 'alpha') marker = `${toAlpha(n, false)}.`;
+                    else if (style === 'ALPHA') marker = `${toAlpha(n, true)}.`;
+                    else if (style === 'roman') marker = `${toRoman(n)}.`;
+                    return `${marker} ${item}`;
+                }).join('\n');
+                setOutput(formatted, 'Numbered List');
+                return;
+            }
+
+            if (action === 'stripMarkers') {
+                const stripped = items
+                    .map(item => item.replace(/^\s*(?:\[[ xX]\]\s+|(?:\d+|[a-zA-Z]|[ivxlcdmIVXLCDM]+)[.)]\s+|[•\-*★→☐☑✓]+\s+)/, '').trim())
+                    .filter(Boolean);
+                setOutput(applyAffixes(stripped).join(joinSep), 'Markers Stripped');
+            }
+        }
+
+        // --- TAB 2: TEXT CLEANER ---
+        function escapeRegExp(str) {
+            return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        }
+
+        function processCleaner(action) {
+            if (!requireInputText()) return;
+            const raw = inputEl.value;
+            let result = raw;
+            let stateLabel = 'Cleaned';
+
+            if (action === 'smartClean') {
+                result = raw
+                    .replace(/\r\n?/g, '\n')
+                    .replace(/[\u200B-\u200D\uFEFF]/g, '')
+                    .replace(/\u00A0/g, ' ')
+                    .replace(/[\u2018\u2019]/g, "'")
+                    .replace(/[\u201C\u201D]/g, '"')
+                    .split('\n')
+                    .map(line => line.replace(/[ \t]+/g, ' ').trim())
+                    .join('\n')
+                    .replace(/\n{3,}/g, '\n\n')
+                    .trim();
+                stateLabel = 'Smart Cleaned';
+            } else if (action === 'extraSpaces') {
+                result = raw
+                    .replace(/\r\n?/g, '\n')
+                    .split('\n')
+                    .map(line => line.replace(/[ \t]+/g, ' ').trim())
+                    .join('\n');
+                stateLabel = 'Spaces Normalized';
+            } else if (action === 'emptyLines') {
+                result = raw
+                    .replace(/\r\n?/g, '\n')
+                    .split('\n')
+                    .filter(line => line.trim() !== '')
+                    .join('\n');
+                stateLabel = 'Empty Lines Removed';
+            } else if (action === 'lineBreaks') {
+                result = raw
+                    .replace(/\r\n?/g, '\n')
+                    .replace(/\n{2,}/g, '\u0000')
+                    .replace(/\n/g, ' ')
+                    .replace(/\u0000/g, '\n\n')
+                    .replace(/[ \t]{2,}/g, ' ')
+                    .trim();
+                stateLabel = 'Breaks Joined';
+            } else if (action === 'duplicateLines') {
+                const lines = raw.replace(/\r\n?/g, '\n').split('\n');
+                const seen = new Set();
+                const unique = [];
+                lines.forEach(line => {
+                    if (!seen.has(line)) {
+                        seen.add(line);
+                        unique.push(line);
+                    }
+                });
+                const removed = lines.length - unique.length;
+                result = unique.join('\n');
+                stateLabel = removed > 0 ? `Removed ${removed} Dup. Lines` : 'No Duplicate Lines';
+            } else if (action === 'stripMarkup') {
+                result = raw
+                    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+                    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+                    .replace(/<[^>]+>/g, '')
+                    .replace(/&nbsp;/gi, ' ')
+                    .replace(/&amp;/gi, '&')
+                    .replace(/&lt;/gi, '<')
+                    .replace(/&gt;/gi, '>')
+                    .replace(/&quot;/gi, '"')
+                    .replace(/&#39;/gi, "'")
+                    .replace(/!\[([^\]]*)\]\([^)]*\)/g, '$1')
+                    .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
+                    .replace(/^\s{0,3}#{1,6}\s+/gm, '')
+                    .replace(/^\s*>\s?/gm, '')
+                    .replace(/(\*\*|__|\*|_|~~|`)/g, '');
+                stateLabel = 'Markup Stripped';
+            } else if (action === 'stripPunctuation') {
+                result = raw
+                    .replace(/[!"#$%&'()*+,\-./:;<=>?@[\\\]^_`{|}~\u201C\u201D\u2018\u2019\u2014\u2013\u2026]/g, '')
+                    .split('\n')
+                    .map(l => l.replace(/[ \t]{2,}/g, ' ').trim())
+                    .join('\n');
+                stateLabel = 'Punctuation Stripped';
+            } else if (action === 'stripNumbers') {
+                result = raw
+                    .replace(/\d+/g, '')
+                    .split('\n')
+                    .map(l => l.replace(/[ \t]{2,}/g, ' ').trim())
+                    .join('\n');
+                stateLabel = 'Numbers Stripped';
+            } else if (action === 'trimLines') {
+                result = raw
+                    .replace(/\r\n?/g, '\n')
+                    .split('\n')
+                    .map(l => l.trim())
+                    .join('\n');
+                stateLabel = 'Lines Trimmed';
+            } else if (action === 'findReplace') {
+                const findVal = document.getElementById('findInput').value;
+                const replaceVal = document.getElementById('replaceInput').value;
+                if (!findVal) {
+                    showToast('Enter text to find first', 'warning');
+                    document.getElementById('findInput').focus();
+                    return;
+                }
+                const caseSensitive = document.getElementById('findCaseSensitive').checked;
+                const regex = new RegExp(escapeRegExp(findVal), caseSensitive ? 'g' : 'gi');
+                const matches = raw.match(regex);
+                const count = matches ? matches.length : 0;
+                result = raw.replace(regex, replaceVal);
+                stateLabel = count > 0 ? `Replaced ${count} Match${count === 1 ? '' : 'es'}` : '0 Matches Found';
+            }
+
+            setOutput(result, stateLabel);
+        }
+
+        // --- TAB 3: CASE CONVERTER ---
+        function toSmartTitleCase(text) {
+            return text.split('\n').map(line => {
+                const tokens = line.split(/(\s+)/);
+                const wordIndices = [];
+                tokens.forEach((tok, idx) => {
+                    if (tok.trim() !== '') wordIndices.push(idx);
+                });
+                const lastWordIdx = wordIndices[wordIndices.length - 1];
+
+                return tokens.map((tok, idx) => {
+                    if (tok.trim() === '') return tok;
+                    const isFirst = idx === wordIndices[0];
+                    const isLast = idx === lastWordIdx;
+                    const prevToken = idx >= 2 ? tokens[idx - 2] : '';
+                    const afterBoundary = /[:.!?—\-]$/.test(prevToken);
+                    const bareLower = tok.toLowerCase().replace(/^[^a-z0-9]+|[^a-z0-9]+$/gi, '');
+
+                    if (!isFirst && !isLast && !afterBoundary && TITLE_MINOR_WORDS.has(bareLower)) {
+                        return tok.toLowerCase();
+                    }
+                    return tok.toLowerCase().replace(/[a-z\u00C0-\u024F]/i, ch => ch.toUpperCase());
+                }).join('');
+            }).join('\n');
+        }
+
+        function toSlugCase(text, sep) {
+            return text
+                .replace(/\r\n?/g, '\n')
+                .split('\n')
+                .map(line => {
+                    return line
+                        .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+                        .toLowerCase()
+                        .replace(/[^a-z0-9]+/g, sep)
+                        .replace(new RegExp(`^${escapeRegExp(sep)}+|${escapeRegExp(sep)}+$`, 'g'), '');
+                })
+                .join('\n');
+        }
+
+        function processCase(type) {
+            if (!requireInputText()) return;
+            const raw = inputEl.value;
+            let result = raw;
+            let label = 'Converted';
+
+            if (type === 'sentence') {
+                result = raw
+                    .toLowerCase()
+                    .replace(/(^\s*["'(“‘]*[a-z\u00C0-\u024F]|[.!?]\s+["'(“‘]*[a-z\u00C0-\u024F]|\n\s*["'(“‘]*[a-z\u00C0-\u024F])/g,
+                        c => c.toUpperCase());
+                label = 'Sentence Case';
+            } else if (type === 'lower') {
+                result = raw.toLowerCase();
+                label = 'lower case';
+            } else if (type === 'upper') {
+                result = raw.toUpperCase();
+                label = 'UPPER CASE';
+            } else if (type === 'title') {
+                result = toSmartTitleCase(raw);
+                label = 'Smart Title Case';
+            } else if (type === 'capitalize') {
+                result = raw.toLowerCase().replace(/(^|[\s\-_/('"“‘])([a-z\u00C0-\u024F])/g, (_, sep, ch) => sep + ch.toUpperCase());
+                label = 'Capitalized Words';
+            } else if (type === 'alternating') {
+                let upperNext = false;
+                result = raw.split('').map(ch => {
+                    if (/[a-z]/i.test(ch)) {
+                        const out = upperNext ? ch.toUpperCase() : ch.toLowerCase();
+                        upperNext = !upperNext;
+                        return out;
+                    }
+                    return ch;
+                }).join('');
+                label = 'aLtErNaTiNg';
+            } else if (type === 'inverse') {
+                result = raw.split('').map(ch => {
+                    if (ch === ch.toUpperCase() && ch !== ch.toLowerCase()) return ch.toLowerCase();
+                    if (ch === ch.toLowerCase() && ch !== ch.toUpperCase()) return ch.toUpperCase();
+                    return ch;
+                }).join('');
+                label = 'iNVERSE cASE';
+            } else if (type === 'snake') {
+                result = toSlugCase(raw, '_');
+                label = 'snake_case';
+            } else if (type === 'kebab') {
+                result = toSlugCase(raw, '-');
+                label = 'kebab-case';
+            }
+
+            setOutput(result, label);
+        }
+
+        // --- TAB 4: VOCAB ANALYZER ---
+        function initLetterGrid() {
+            const letterFreqEl = document.getElementById('letterFrequency');
+            letterFreqEl.innerHTML = '';
+            'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').forEach(letter => {
+                const card = document.createElement('div');
+                card.id = `letter-${letter.toLowerCase()}`;
+                card.className = 'bg-slate-50 dark:bg-slate-800 border-3 border-dark dark:border-slate-600 rounded-xl p-2 text-center transition-all';
+                card.innerHTML = `
+                    <div class="text-[10px] font-black text-slate-500 dark:text-slate-400 leading-none mb-1">${letter}</div>
+                    <div class="font-heading font-bold text-lg text-dark dark:text-white count">0</div>
+                `;
+                letterFreqEl.appendChild(card);
+            });
+        }
+
+        function onAnalyzerOptionChange() {
+            runAnalyzer();
+            persistState();
+        }
+
+        function runAnalyzer() {
+            const text = inputEl.value;
+            const trimmed = text.trim();
+            const words = trimmed ? trimmed.split(/\s+/) : [];
+            const sentences = trimmed ? text.split(/[.!?]+/).filter(s => s.trim().length > 0) : [];
+            const paragraphs = trimmed ? trimmed.split(/\n\s*\n/).filter(p => p.trim().length > 0) : [];
+
+            document.getElementById('sentenceCount').textContent = sentences.length;
+            document.getElementById('paragraphCount').textContent = paragraphs.length;
+
+            // Normalized words for unique count & avg length
+            const cleanWords = words
+                .map(w => w.toLowerCase().replace(/[^a-z\u00C0-\u024F']/g, '').replace(/^'+|'+$/g, ''))
+                .filter(Boolean);
+
+            const uniqueSet = new Set(cleanWords);
+            document.getElementById('uniqueWordCount').textContent = uniqueSet.size;
+
+            if (words.length > 0) {
+                const totalAlpha = words.reduce((acc, w) => acc + w.replace(/[^a-zA-Z]/g, '').length, 0);
+                document.getElementById('avgWordLength').textContent = (totalAlpha / words.length).toFixed(1);
+            } else {
+                document.getElementById('avgWordLength').textContent = '0';
+            }
+
+            const minutes = Math.ceil(words.length / 200);
+            document.getElementById('readTime').textContent = words.length > 0 ? `${minutes}m` : '0m';
+
+            const difficultyEl = document.getElementById('difficulty');
+            if (words.length > 5 && sentences.length > 0) {
+                const charNoSpace = text.replace(/\s/g, '').length;
+                const score = 4.71 * (charNoSpace / words.length) + 0.5 * (words.length / sentences.length) - 21.43;
+                let level = 'Easy';
+                if (score > 14) level = 'Expert';
+                else if (score > 10) level = 'Hard';
+                else if (score > 6) level = 'Medium';
+                difficultyEl.textContent = level;
+            } else {
+                difficultyEl.textContent = 'N/A';
+            }
+
+            updateWordFrequency(cleanWords);
+            updateLetterFrequency(text);
+        }
+
+        function updateWordFrequency(cleanWords) {
+            const wordFreqEl = document.getElementById('wordFrequency');
+            const excludeStop = document.getElementById('excludeStopWords').checked;
+
+            if (cleanWords.length === 0) {
+                latestTopWords = [];
+                sendVocabBtn.disabled = true;
+                wordFreqEl.innerHTML = '<p class="text-slate-500 dark:text-slate-400 italic text-sm font-semibold">Analysis results will appear as you type...</p>';
+                return;
+            }
+
+            const freq = {};
+            cleanWords.forEach(word => {
+                if (excludeStop && STOP_WORDS.has(word)) return;
+                freq[word] = (freq[word] || 0) + 1;
+            });
+
+            const sorted = Object.entries(freq).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, 20);
+            latestTopWords = sorted.map(([word]) => word);
+            sendVocabBtn.disabled = latestTopWords.length === 0;
+
+            wordFreqEl.innerHTML = '';
+            if (sorted.length === 0) {
+                wordFreqEl.innerHTML = '<p class="text-slate-500 dark:text-slate-400 italic text-sm font-semibold">Only stop words found. Uncheck "Exclude Stop Words" to view them.</p>';
+                return;
+            }
+
+            sorted.forEach(([word, count]) => {
+                const badge = document.createElement('div');
+                badge.className = 'bg-slate-50 dark:bg-slate-800 border-3 border-dark dark:border-slate-500 rounded-full px-3.5 py-1.5 flex items-center gap-2 shadow-hard-sm animate-pop-in hover:scale-105 transition-transform';
+
+                const wordSpan = document.createElement('span');
+                wordSpan.className = 'font-extrabold text-sm text-dark dark:text-white';
+                wordSpan.textContent = word;
+
+                const countSpan = document.createElement('span');
+                countSpan.className = 'bg-orange text-white text-[11px] px-2 py-0.5 rounded-full font-black border border-dark';
+                countSpan.textContent = String(count);
+
+                badge.appendChild(wordSpan);
+                badge.appendChild(countSpan);
+                wordFreqEl.appendChild(badge);
+            });
+        }
+
+        function updateLetterFrequency(text) {
+            const counts = {};
+            const cleanText = text.toLowerCase().replace(/[^a-z]/g, '');
+            for (const char of cleanText) {
+                counts[char] = (counts[char] || 0) + 1;
+            }
+
+            'abcdefghijklmnopqrstuvwxyz'.split('').forEach(letter => {
+                const el = document.getElementById(`letter-${letter}`);
+                if (!el) return;
+                const countEl = el.querySelector('.count');
+                const count = counts[letter] || 0;
+                countEl.textContent = count;
+
+                if (count > 0) {
+                    el.classList.add('bg-orange/15', 'border-orange');
+                    el.classList.remove('bg-slate-50', 'dark:bg-slate-800', 'border-dark', 'dark:border-slate-600');
+                } else {
+                    el.classList.remove('bg-orange/15', 'border-orange');
+                    el.classList.add('bg-slate-50', 'dark:bg-slate-800', 'border-dark', 'dark:border-slate-600');
+                }
+            });
+        }
+
+        function sendVocabToFormatter() {
+            if (latestTopWords.length === 0) return;
+            const vocabText = latestTopWords.join('\n');
+            switchTab('formatter');
+            setOutput(vocabText, `Extracted Vocab (${latestTopWords.length})`);
+            showToast(`Sent ${latestTopWords.length} vocab words to Result — click "Use as Input" to format!`, 'success');
+        }
+
+        // --- PERSISTENCE (LocalStorage + Cloud Sync) ---
+        function gatherState() {
+            return {
+                activeTab,
+                inputText: inputEl.value,
+                outputText: outputEl.value,
+                outputState: currentOutputState,
+                formatter: {
+                    splitMode: document.getElementById('splitMode').value,
+                    customSplit: document.getElementById('customSplitInput').value,
+                    joinMode: document.getElementById('joinMode').value,
+                    customJoin: document.getElementById('customJoinInput').value,
+                    itemPrefix: document.getElementById('itemPrefix').value,
+                    itemSuffix: document.getElementById('itemSuffix').value,
+                    trimItems: document.getElementById('trimItems').checked,
+                    dedupeCaseInsensitive: document.getElementById('dedupeCaseInsensitive').checked,
+                    bulletOpt: document.getElementById('bulletOpt').value,
+                    numOpt: document.getElementById('numOpt').value
+                },
+                cleaner: {
+                    findText: document.getElementById('findInput').value,
+                    replaceText: document.getElementById('replaceInput').value,
+                    findCaseSensitive: document.getElementById('findCaseSensitive').checked
+                },
+                analyzer: {
+                    excludeStopWords: document.getElementById('excludeStopWords').checked
+                }
+            };
+        }
+
+        function persistState() {
+            const state = gatherState();
+            try {
+                localStorage.setItem(`prog_${TOOL_ID}`, JSON.stringify(state));
+            } catch (e) {
+                console.warn('[TextWorkshop] LocalStorage write failed:', e);
+            }
+
+            clearTimeout(saveCloudTimeout);
+            saveCloudTimeout = setTimeout(() => {
+                if (typeof saveProgress === 'function') {
+                    saveProgress(TOOL_ID, state);
+                }
+            }, 800);
+        }
+
+        function applyState(state) {
+            if (!state || typeof state !== 'object') return;
+
+            if (typeof state.inputText === 'string') {
+                inputEl.value = state.inputText;
+                lastCommittedInput = state.inputText;
+            }
+            if (typeof state.outputText === 'string') {
+                outputEl.value = state.outputText;
+            }
+            if (state.formatter) {
+                const f = state.formatter;
+                if (f.splitMode) document.getElementById('splitMode').value = f.splitMode;
+                if (typeof f.customSplit === 'string') document.getElementById('customSplitInput').value = f.customSplit;
+                if (f.joinMode) document.getElementById('joinMode').value = f.joinMode;
+                if (typeof f.customJoin === 'string') document.getElementById('customJoinInput').value = f.customJoin;
+                if (typeof f.itemPrefix === 'string') document.getElementById('itemPrefix').value = f.itemPrefix;
+                if (typeof f.itemSuffix === 'string') document.getElementById('itemSuffix').value = f.itemSuffix;
+                if (typeof f.trimItems === 'boolean') document.getElementById('trimItems').checked = f.trimItems;
+                if (typeof f.dedupeCaseInsensitive === 'boolean') document.getElementById('dedupeCaseInsensitive').checked = f.dedupeCaseInsensitive;
+                if (f.bulletOpt) document.getElementById('bulletOpt').value = f.bulletOpt;
+                if (f.numOpt) document.getElementById('numOpt').value = f.numOpt;
+            }
+            if (state.cleaner) {
+                const c = state.cleaner;
+                if (typeof c.findText === 'string') document.getElementById('findInput').value = c.findText;
+                if (typeof c.replaceText === 'string') document.getElementById('replaceInput').value = c.replaceText;
+                if (typeof c.findCaseSensitive === 'boolean') document.getElementById('findCaseSensitive').checked = c.findCaseSensitive;
+            }
+            if (state.analyzer && typeof state.analyzer.excludeStopWords === 'boolean') {
+                document.getElementById('excludeStopWords').checked = state.analyzer.excludeStopWords;
+            }
+
+            onFormatterOptionChange();
+            setOutputState(state.outputState || (outputEl.value ? 'Restored' : 'Ready'), outputEl.value.length > 0);
+            updateInputStats();
+            updateOutputStats();
+            runAnalyzer();
+        }
+
+        async function initPersistence() {
+            let saved = null;
+
+            const localRaw = localStorage.getItem(`prog_${TOOL_ID}`);
+            if (localRaw) {
+                try {
+                    saved = JSON.parse(localRaw);
+                } catch (e) {
+                    saved = null;
+                }
+            }
+
+            if (!saved && typeof loadProgress === 'function') {
+                try {
+                    const remote = await loadProgress(TOOL_ID);
+                    if (remote) {
+                        saved = remote;
+                    }
+                } catch (e) {
+                    console.warn('[TextWorkshop] Cloud load skipped:', e);
+                }
+            }
+
+            // Backwards-compatible migration from legacy separate pages
+            if (!saved || !saved.inputText) {
+                const legacyKeys = ['prog_workshop_formatter', 'prog_workshop_case', 'prog_workshop_analyzer'];
+                for (const key of legacyKeys) {
+                    try {
+                        const rawLegacy = localStorage.getItem(key);
+                        if (rawLegacy) {
+                            const parsed = JSON.parse(rawLegacy);
+                            if (parsed && parsed.text) {
+                                saved = Object.assign({}, saved || {}, { inputText: parsed.text });
+                                break;
+                            }
+                        }
+                    } catch (e) {
+                        // ignore malformed legacy entry
+                    }
+                }
+            }
+
+            if (saved) {
+                applyState(saved);
+            } else {
+                updateInputStats();
+                updateOutputStats();
+                runAnalyzer();
+            }
+
+            const hashTab = window.location.hash.replace('#', '');
+            const initialTab = VALID_TABS.includes(hashTab)
+                ? hashTab
+                : (saved && VALID_TABS.includes(saved.activeTab) ? saved.activeTab : 'formatter');
+            switchTab(initialTab, true);
+        }
+
+        // --- EVENTS & BOOTSTRAP ---
+        inputEl.addEventListener('input', () => handleInputChange(true));
+        outputEl.addEventListener('input', () => {
+            setOutputState(outputEl.value ? 'Edited' : 'Ready', outputEl.value.length > 0);
+            updateOutputStats();
+            persistState();
+        });
+
+        window.addEventListener('hashchange', () => {
+            const hashTab = window.location.hash.replace('#', '');
+            if (VALID_TABS.includes(hashTab) && hashTab !== activeTab) {
+                switchTab(hashTab);
+            }
+        });
+
+        // Keyboard shortcuts for Undo / Redo inside workspace
+        document.addEventListener('keydown', (e) => {
+            if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'z' && document.activeElement !== inputEl && document.activeElement !== outputEl) {
+                if (undoStack.length > 0) {
+                    e.preventDefault();
+                    undoText();
+                }
+            } else if (((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') || ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'z')) {
+                if (document.activeElement !== inputEl && document.activeElement !== outputEl && redoStack.length > 0) {
+                    e.preventDefault();
+                    redoText();
+                }
+            }
+        });
+
+        initLetterGrid();
+        updateHistoryButtons();
+
         window.onload = async () => {
             if (typeof requireAuth === 'function') await requireAuth();
+            await initPersistence();
             lucide.createIcons();
         };
     </script>
