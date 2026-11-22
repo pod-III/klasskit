@@ -49,207 +49,332 @@
     <link rel="stylesheet" href="style.css">
 </head>
 
-<body class="font-body text-slate-900 dark:text-slate-100 min-h-screen">
+<body class="font-body text-dark dark:text-white min-h-screen p-4 md:p-6 lg:p-8">
 
-    <header class="sticky top-0 z-50 border-b-3 border-slate-900 dark:border-slate-700 backdrop-blur-xl">
-        <div class="max-w-[1440px] mx-auto px-4 sm:px-6 py-3.5 flex items-center justify-between gap-3">
-            <div class="flex items-center gap-3.5 min-w-0">
-                <div class="w-12 h-12 shrink-0 rounded-2xl border-3 border-slate-900 dark:border-slate-500 flex items-center justify-center shadow-[4px_4px_0_var(--border-primary)] -rotate-2 transition-transform hover:rotate-0" style="background:var(--color-pink);">
-                    <i data-lucide="book-open" class="w-6 h-6 text-white"></i>
+    <main class="w-full max-w-[1440px] mx-auto flex flex-col gap-5">
+
+        <!-- Floating Glassmorphic Header -->
+        <header class="bg-white/85 dark:bg-slate-900/85 backdrop-blur-xl border-4 border-dark dark:border-slate-500 rounded-[2rem] p-4 md:p-5 shadow-hard flex flex-col xl:flex-row justify-between items-center gap-4 animate-slide-down">
+
+            <!-- Brand, Stickers & Active Session Status -->
+            <div class="flex flex-wrap items-center justify-center xl:justify-start gap-4 min-w-0">
+                <div class="w-14 h-14 bg-pink text-white border-3 border-dark dark:border-slate-500 rounded-2xl flex items-center justify-center shadow-hard -rotate-2 shrink-0 transition-transform hover:rotate-0">
+                    <i data-lucide="book-open" class="w-7 h-7"></i>
                 </div>
-                <div class="min-w-0">
-                    <div class="flex items-center gap-2.5 flex-wrap">
-                        <h1 class="font-heading text-xl sm:text-2xl uppercase tracking-tight leading-none truncate" id="doc-title">Lesson Extractor</h1>
-                        <span id="course-badge" class="hidden badge -rotate-2 bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 border-2 border-slate-900 dark:border-slate-500"></span>
+
+                <div class="text-center sm:text-left min-w-0">
+                    <p class="font-heading font-bold text-slate-500 dark:text-slate-400 tracking-widest uppercase text-[11px] leading-none mb-1">
+                        English 1 Teacher Notes Suite
+                    </p>
+                    <h1 class="font-heading font-bold text-2xl sm:text-3xl text-dark dark:text-white uppercase tracking-tight leading-none">
+                        LESSON <span class="text-pink">EXTRACTOR</span>
+                    </h1>
+                    <div class="flex items-center justify-center sm:justify-start gap-2 mt-1.5 flex-wrap text-[11px] font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                        <span id="doc-title" class="text-dark dark:text-slate-200 truncate max-w-[220px]">No Unit Loaded</span>
+                        <span class="opacity-40">&bull;</span>
+                        <span id="current-set-name" class="truncate max-w-[160px]">Unsaved Session</span>
+                        <span id="save-status-indicator" class="w-2 h-2 rounded-full bg-orange-400 shrink-0" title="Sync Status"></span>
+                        <span id="sync-status-label" class="text-[10px]">Ready</span>
                     </div>
-                    <div class="flex items-center gap-2 mt-1.5 flex-wrap">
-                        <span id="current-set-name" class="text-[11px] font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-widest truncate">Unsaved Session</span>
-                        <span id="save-status-indicator" class="w-2 h-2 rounded-full bg-orange-400 shrink-0"></span>
-                        <span id="sync-status-label" class="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Ready</span>
-                    </div>
+                </div>
+
+                <div class="hidden sm:flex items-center gap-2 ml-1">
+                    <span class="px-3 py-1 bg-blue text-white font-heading font-bold text-xs uppercase border-2 border-dark dark:border-slate-500 rounded-xl shadow-hard-sm -rotate-2">
+                        Workshop
+                    </span>
+                    <span id="course-badge" class="hidden px-3 py-1 font-heading font-bold text-xs uppercase border-2 border-dark dark:border-slate-500 rounded-xl shadow-hard-sm rotate-2"></span>
                 </div>
             </div>
-            <div class="flex items-center gap-2.5 shrink-0">
-                <button onclick="toggleDark()" class="btn-chunky btn-chalk !p-2.5 !rounded-2xl" title="Toggle Dark Mode" aria-label="Toggle Dark Mode">
-                    <i data-lucide="moon" class="w-5 h-5" id="dark-icon"></i>
+
+            <!-- Global Workspace Actions -->
+            <div class="flex flex-wrap items-center justify-center gap-2.5 shrink-0">
+                <button onclick="toggleLibrary()" title="Open Saved Library"
+                    class="btn-chunky px-3.5 py-2.5 bg-dark dark:bg-slate-800 text-white border-3 border-dark dark:border-slate-500 rounded-xl text-xs flex items-center gap-2">
+                    <i data-lucide="library" class="w-4 h-4 text-blue"></i>
+                    <span>Library</span>
+                    <span id="library-count-badge" class="px-1.5 py-0.5 rounded-md bg-white/15 text-[10px] font-black">0</span>
                 </button>
-                <button onclick="clearData()" class="btn-chunky btn-chalk !p-2.5 !rounded-2xl" title="Clear Session" aria-label="Clear Session">
-                    <i data-lucide="trash-2" class="w-5 h-5 text-pink-500"></i>
+                <button onclick="createNewSet()" title="Start New Lesson"
+                    class="btn-chunky px-3.5 py-2.5 bg-white dark:bg-slate-800 text-dark dark:text-white border-3 border-dark dark:border-slate-500 rounded-xl text-xs flex items-center gap-1.5">
+                    <i data-lucide="file-plus-2" class="w-4 h-4 text-green"></i>
+                    <span>New</span>
+                </button>
+                <button onclick="showSaveModal()" title="Save Parsed Lesson"
+                    class="btn-chunky px-3.5 py-2.5 bg-blue text-white border-3 border-dark dark:border-slate-500 rounded-xl text-xs flex items-center gap-1.5">
+                    <i data-lucide="save" class="w-4 h-4"></i>
+                    <span>Save</span>
+                </button>
+                <button onclick="clearData()" title="Clear Session" aria-label="Clear Session"
+                    class="btn-chunky p-2.5 bg-white dark:bg-slate-800 text-pink border-3 border-dark dark:border-slate-500 rounded-xl">
+                    <i data-lucide="trash-2" class="w-4 h-4"></i>
+                </button>
+                <button onclick="toggleDark()" title="Toggle Light/Dark Mode" aria-label="Toggle Light/Dark Mode"
+                    class="btn-chunky p-2.5 bg-white dark:bg-slate-800 text-dark dark:text-white border-3 border-dark dark:border-slate-500 rounded-xl">
+                    <i data-lucide="sun" class="w-5 h-5 text-orange hidden dark:block"></i>
+                    <i data-lucide="moon" class="w-5 h-5 text-blue block dark:hidden"></i>
                 </button>
             </div>
-        </div>
-    </header>
+        </header>
 
-    <main class="max-w-[1440px] mx-auto px-4 sm:px-6 py-6 sm:py-8">
-        <div class="grid grid-cols-1 lg:grid-cols-[440px_1fr] gap-8 items-start">
+        <!-- Top Workspace Toolbar: Tabs + Live Filter + Ergonomics -->
+        <nav aria-label="Lesson Extractor Workspace Controls"
+            class="bg-white/85 dark:bg-slate-900/85 backdrop-blur-xl border-4 border-dark dark:border-slate-500 rounded-2xl p-2.5 shadow-hard flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-2.5">
 
-            <!-- Left Pane: Library Controls, Unit Metadata & Input Notes -->
-            <aside class="flex flex-col gap-6 lg:sticky lg:top-24">
-
-                <button onclick="toggleLibrary()" class="btn-chunky w-full py-3 bg-slate-900 dark:bg-slate-800 border-3 border-slate-900 dark:border-slate-500 rounded-2xl text-white font-heading font-bold text-base shadow-[4px_4px_0_var(--border-primary)] flex items-center justify-center gap-2 hover:bg-slate-800 dark:hover:bg-slate-700 transition-colors">
-                    <i data-lucide="library" class="w-5 h-5 text-blue-400"></i> MY LIBRARY
+            <!-- Primary View Tabs -->
+            <div role="tablist" aria-label="Result Views" class="grid grid-cols-2 sm:flex items-center gap-2 shrink-0">
+                <button id="tab-paste" role="tab" aria-selected="true" onclick="switchTab('paste')"
+                    class="tab-btn btn-chunky rounded-xl py-2.5 px-4 text-xs sm:text-sm flex items-center justify-center gap-2 border-3 border-dark dark:border-slate-500 bg-pink text-white tab-active">
+                    <i data-lucide="layers" class="w-4 h-4 shrink-0"></i>
+                    <span>Modules</span>
+                    <span id="tab-modules-count" class="px-2 py-0.5 rounded-full text-[10px] font-black bg-white/25">0</span>
                 </button>
+                <button id="tab-overview" role="tab" aria-selected="false" onclick="switchTab('overview')"
+                    class="tab-btn btn-chunky rounded-xl py-2.5 px-4 text-xs sm:text-sm flex items-center justify-center gap-2 border-3 border-dark dark:border-slate-500 bg-slate-50 dark:bg-slate-800 text-dark dark:text-white">
+                    <i data-lucide="layout-grid" class="w-4 h-4 shrink-0"></i>
+                    <span>Unit Overview</span>
+                </button>
+            </div>
 
-                <div class="grid grid-cols-2 gap-3">
-                    <button onclick="createNewSet()" class="btn-chunky btn-chalk w-full py-2.5 rounded-2xl text-sm font-heading font-bold flex items-center justify-center gap-2">
-                        <i data-lucide="plus" class="w-4 h-4 text-green-500"></i> NEW
-                    </button>
-                    <button onclick="showSaveModal()" class="btn-chunky btn-chalk w-full py-2.5 rounded-2xl text-sm font-heading font-bold flex items-center justify-center gap-2">
-                        <i data-lucide="save" class="w-4 h-4 text-blue-500"></i> SAVE AS
+            <!-- Live Module Search -->
+            <div id="module-search-wrap" class="relative flex-1 min-w-[200px]">
+                <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none"></i>
+                <input type="text" id="module-search-input" oninput="filterModules()"
+                    placeholder="Filter modules, vocab, grammar, pages, slides..."
+                    class="w-full pl-10 pr-24 py-2 bg-slate-50 dark:bg-slate-800 border-3 border-dark dark:border-slate-600 rounded-xl text-sm font-bold text-dark dark:text-white placeholder-slate-400 focus:border-blue transition-colors" />
+                <div class="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center gap-1.5">
+                    <span id="module-filter-count" class="hidden px-2 py-0.5 rounded-lg bg-blue/15 text-blue text-[10px] font-black uppercase"></span>
+                    <button id="module-search-clear" type="button" onclick="clearModuleFilter()"
+                        class="hidden p-1 rounded-lg text-slate-400 hover:text-pink hover:bg-pink/10 transition-colors" aria-label="Clear filter">
+                        <i data-lucide="x" class="w-3.5 h-3.5"></i>
                     </button>
                 </div>
+            </div>
 
-                <div class="seg-track w-full" role="tablist" aria-label="Result View">
-                    <button class="seg-btn active flex items-center justify-center gap-2 font-heading text-sm uppercase tracking-wider" id="tab-paste" onclick="switchTab('paste')" role="tab" aria-selected="true">
-                        <i data-lucide="layers" class="w-4 h-4"></i> Modules
-                    </button>
-                    <button class="seg-btn flex items-center justify-center gap-2 font-heading text-sm uppercase tracking-wider" id="tab-overview" onclick="switchTab('overview')" role="tab" aria-selected="false">
-                        <i data-lucide="layout-grid" class="w-4 h-4"></i> Overview
-                    </button>
-                </div>
+            <!-- Reading & Layout Controls -->
+            <div class="flex flex-wrap items-center justify-end gap-2 shrink-0">
+                <button id="layout-toggle-btn" type="button" onclick="toggleCardLayout()" title="Switch between 2-column Grid and Single-column List"
+                    class="btn-chunky px-3 py-2 bg-white dark:bg-slate-800 text-dark dark:text-white border-3 border-dark dark:border-slate-500 rounded-xl text-xs flex items-center gap-1.5">
+                    <i id="layout-toggle-icon" data-lucide="rows-3" class="w-4 h-4 text-orange"></i>
+                    <span id="layout-toggle-label">List</span>
+                </button>
+                <button id="toggle-all-will-btn" type="button" onclick="toggleAllWill()" title="Expand or collapse all Learning Outcomes"
+                    class="btn-chunky px-3 py-2 bg-white dark:bg-slate-800 text-dark dark:text-white border-3 border-dark dark:border-slate-500 rounded-xl text-xs flex items-center gap-1.5">
+                    <i data-lucide="chevrons-up-down" class="w-4 h-4 text-green"></i>
+                    <span>Outcomes</span>
+                </button>
+                <button id="focus-mode-btn" type="button" onclick="toggleFocusMode()" title="Hide/Show Left Input Panel for Classroom View"
+                    class="btn-chunky px-3 py-2 bg-white dark:bg-slate-800 text-dark dark:text-white border-3 border-dark dark:border-slate-500 rounded-xl text-xs flex items-center gap-1.5">
+                    <i id="focus-mode-icon" data-lucide="panel-left-close" class="w-4 h-4 text-blue"></i>
+                    <span id="focus-mode-label">Focus</span>
+                </button>
+            </div>
+        </nav>
 
-                <!-- Unit Metadata -->
-                <div id="unit-metadata" class="card p-5 flex flex-col gap-4">
-                    <div class="grid grid-cols-1 sm:grid-cols-[1fr_155px] gap-3">
-                        <div class="flex flex-col gap-1.5">
-                            <label for="unit-title-input" class="font-heading text-xs uppercase tracking-widest text-slate-500 dark:text-slate-400">Unit / Lesson Title</label>
-                            <input type="text" id="unit-title-input" oninput="updateUnitMetadata()"
-                                class="w-full bg-slate-50 dark:bg-slate-800 border-3 border-slate-900 dark:border-slate-600 rounded-xl px-3.5 py-2.5 text-sm font-bold focus:outline-none focus:border-blue-500 transition-colors"
-                                placeholder="e.g. Level 3, Unit 3">
-                        </div>
-                        <div class="flex flex-col gap-1.5">
-                            <label for="unit-course-select" class="font-heading text-xs uppercase tracking-widest text-slate-500 dark:text-slate-400">Program</label>
-                            <select id="unit-course-select" onchange="updateUnitMetadata()"
-                                class="w-full bg-slate-50 dark:bg-slate-800 border-3 border-slate-900 dark:border-slate-600 rounded-xl px-3 py-2.5 text-sm font-bold focus:outline-none focus:border-blue-500 transition-colors">
-                                <option value="">Auto-detect</option>
-                                <option value="High Flyers">High Flyers</option>
-                                <option value="Small Stars 3.0">Small Stars 3.0</option>
-                                <option value="Trailblazers 3.0">Trailblazers 3.0</option>
-                                <option value="Frontrunner">Frontrunner</option>
-                            </select>
-                        </div>
+        <!-- Main 12-Column Workspace -->
+        <section id="workspace-grid" class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+
+            <!-- LEFT SIDEBAR (4 Cols): Input Studio + Collapsible Unit Details -->
+            <aside id="input-sidebar" class="lg:col-span-4 flex flex-col gap-5 lg:sticky lg:top-6">
+
+                <!-- Card A: Tabbed Input Source (PDF Drop / Paste Text) -->
+                <div class="bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl border-4 border-dark dark:border-slate-500 rounded-[2rem] shadow-hard overflow-hidden">
+
+                    <!-- Input Mode Switcher -->
+                    <div class="bg-slate-100/90 dark:bg-slate-800/90 border-b-4 border-dark dark:border-slate-600 p-2 grid grid-cols-2 gap-2" role="tablist" aria-label="Input Source Mode">
+                        <button id="input-mode-pdf" type="button" role="tab" aria-selected="true" onclick="switchInputMode('pdf')"
+                            class="btn-chunky py-2 px-3 rounded-xl text-xs border-2 border-dark dark:border-slate-500 bg-blue text-white flex items-center justify-center gap-1.5">
+                            <i data-lucide="file-up" class="w-4 h-4"></i>
+                            <span>Upload PDF</span>
+                        </button>
+                        <button id="input-mode-paste" type="button" role="tab" aria-selected="false" onclick="switchInputMode('paste')"
+                            class="btn-chunky py-2 px-3 rounded-xl text-xs border-2 border-dark dark:border-slate-500 bg-white dark:bg-slate-900 text-dark dark:text-white flex items-center justify-center gap-1.5">
+                            <i data-lucide="clipboard-paste" class="w-4 h-4"></i>
+                            <span>Paste Text</span>
+                        </button>
                     </div>
 
-                    <div class="flex flex-col gap-1.5">
-                        <label for="unit-aims-input" class="font-heading text-xs uppercase tracking-widest text-slate-500 dark:text-slate-400">Unit Aims / Objectives</label>
-                        <textarea id="unit-aims-input" oninput="updateUnitMetadata()"
-                            class="w-full bg-slate-50 dark:bg-slate-800 border-3 border-slate-900 dark:border-slate-600 rounded-xl px-3.5 py-2.5 h-24 text-sm font-semibold resize-y focus:outline-none focus:border-blue-500 transition-colors"
-                            placeholder="What should students achieve in this unit?"></textarea>
-                    </div>
+                    <!-- Pane 1: Direct PDF Upload -->
+                    <div id="input-pane-pdf" class="p-5 flex flex-col gap-4">
+                        <input type="file" id="pdf-file-input" accept="application/pdf,.pdf" class="hidden" onchange="handlePdfFileSelect(event)">
 
-                    <div id="lesson-aims-group" class="hidden flex-col gap-1.5">
-                        <label for="lesson-aims-input" class="font-heading text-xs uppercase tracking-widest text-slate-500 dark:text-slate-400">Lesson Aims</label>
-                        <textarea id="lesson-aims-input" oninput="updateUnitMetadata()"
-                            class="w-full bg-slate-50 dark:bg-slate-800 border-3 border-slate-900 dark:border-slate-600 rounded-xl px-3.5 py-2.5 h-20 text-sm font-semibold resize-y focus:outline-none focus:border-blue-500 transition-colors"
-                            placeholder="At the end of this lesson, students will be able to..."></textarea>
-                    </div>
-                </div>
-
-                <!-- Input Notes (Direct PDF Upload + Quill Text Paste) -->
-                <div id="view-paste-container" class="flex flex-col gap-5">
-                    <div class="card overflow-hidden">
-                        <div class="relative z-20 px-4 py-3.5 border-b-3 border-slate-900 dark:border-slate-600 flex items-center justify-between text-white" style="background:var(--color-blue);">
-                            <div class="flex items-center gap-2.5">
-                                <i data-lucide="file-text" class="w-5 h-5"></i>
-                                <h2 class="font-heading text-base uppercase tracking-wide">Input Teacher Notes</h2>
+                        <div id="pdf-dropzone" role="button" tabindex="0" onclick="triggerPdfPicker()"
+                            class="rounded-2xl border-3 border-dashed border-slate-300 dark:border-slate-600 hover:border-blue dark:hover:border-blue bg-slate-50/80 dark:bg-slate-800/60 p-6 text-center cursor-pointer transition-all flex flex-col items-center gap-3">
+                            <div class="w-14 h-14 rounded-2xl bg-blue text-white border-3 border-dark dark:border-slate-500 flex items-center justify-center shadow-hard -rotate-2">
+                                <i data-lucide="file-up" class="w-7 h-7"></i>
                             </div>
-                            <span class="badge bg-white/90 text-slate-900 border-2 border-slate-900 text-[10px]">PDF + Paste</span>
+                            <div>
+                                <p class="font-heading text-base uppercase tracking-tight text-dark dark:text-white">Drop Teacher Notes PDF</p>
+                                <p class="text-xs font-bold text-slate-500 dark:text-slate-400 mt-1">Click to browse or drag &amp; drop here</p>
+                            </div>
+                            <div class="flex flex-wrap items-center justify-center gap-1.5 pt-1">
+                                <span class="px-2 py-0.5 rounded-lg bg-pink/15 text-pink border border-pink/40 text-[10px] font-black uppercase">High Flyers</span>
+                                <span class="px-2 py-0.5 rounded-lg bg-orange/15 text-orange border border-orange/40 text-[10px] font-black uppercase">Small Stars 3.0</span>
+                                <span class="px-2 py-0.5 rounded-lg bg-green/15 text-green-600 dark:text-green border border-green/40 text-[10px] font-black uppercase">Trailblazers 3.0</span>
+                                <span class="px-2 py-0.5 rounded-lg bg-blue/15 text-blue border border-blue/40 text-[10px] font-black uppercase">Frontrunner</span>
+                            </div>
                         </div>
 
-                        <!-- Direct PDF Upload Drop Zone -->
-                        <div class="p-4 bg-slate-50 dark:bg-slate-900/60 border-b-3 border-slate-900 dark:border-slate-700 flex flex-col gap-3">
-                            <input type="file" id="pdf-file-input" accept="application/pdf,.pdf" class="hidden" onchange="handlePdfFileSelect(event)">
-                            <div id="pdf-dropzone" role="button" tabindex="0" onclick="triggerPdfPicker()"
-                                class="rounded-2xl border-3 border-dashed border-slate-300 dark:border-slate-600 hover:border-blue-500 dark:hover:border-blue-400 bg-white dark:bg-slate-800/80 p-4 text-center cursor-pointer transition-all flex flex-col items-center gap-2">
-                                <div class="w-11 h-11 rounded-xl bg-blue-100 dark:bg-blue-900/40 border-2 border-slate-900 dark:border-slate-500 flex items-center justify-center shadow-[2px_2px_0_var(--border-primary)]">
-                                    <i data-lucide="file-up" class="w-5 h-5 text-blue-600 dark:text-blue-400"></i>
-                                </div>
-                                <div>
-                                    <p class="font-heading text-sm uppercase tracking-wide text-slate-800 dark:text-slate-100">Drop Teacher Notes PDF or Click to Upload</p>
-                                    <p class="text-[11px] font-bold text-slate-400 dark:text-slate-500 mt-0.5">High Flyers &middot; Small Stars 3.0 &middot; Trailblazers 3.0 &middot; Frontrunner</p>
-                                </div>
+                        <!-- Progress -->
+                        <div id="pdf-progress-wrap" class="hidden flex-col gap-1.5">
+                            <div class="flex items-center justify-between text-xs font-extrabold text-blue">
+                                <span id="pdf-progress-text">Reading PDF...</span>
+                                <i data-lucide="loader-2" class="w-3.5 h-3.5 animate-spin"></i>
                             </div>
-
-                            <!-- PDF Progress -->
-                            <div id="pdf-progress-wrap" class="hidden flex-col gap-1.5">
-                                <div class="flex items-center justify-between text-xs font-extrabold text-blue-600 dark:text-blue-400">
-                                    <span id="pdf-progress-text">Reading PDF...</span>
-                                    <i data-lucide="loader-2" class="w-3.5 h-3.5 animate-spin"></i>
-                                </div>
-                                <div class="w-full h-2.5 rounded-full bg-slate-200 dark:bg-slate-700 border-2 border-slate-900 dark:border-slate-600 overflow-hidden">
-                                    <div id="pdf-progress-bar" class="h-full bg-blue-500 transition-all duration-150" style="width:0%"></div>
-                                </div>
+                            <div class="w-full h-3 rounded-full bg-slate-200 dark:bg-slate-700 border-2 border-dark dark:border-slate-600 overflow-hidden">
+                                <div id="pdf-progress-bar" class="h-full bg-blue transition-all duration-150" style="width:0%"></div>
                             </div>
+                        </div>
 
-                            <!-- Loaded PDF Badge -->
-                            <div id="pdf-file-badge" class="hidden items-center justify-between gap-2 px-3 py-2 rounded-xl bg-green-50 dark:bg-green-900/20 border-2 border-green-500/60 text-xs font-bold">
-                                <div class="flex items-center gap-2 min-w-0">
-                                    <i data-lucide="file-check-2" class="w-4 h-4 text-green-600 dark:text-green-400 shrink-0"></i>
-                                    <span id="pdf-file-name" class="truncate text-slate-800 dark:text-slate-200"></span>
-                                </div>
-                                <button onclick="clearPdfBadge()" type="button" class="text-slate-400 hover:text-pink-500 transition-colors p-0.5 rounded" aria-label="Dismiss PDF file indicator">
+                        <!-- Loaded PDF Badge -->
+                        <div id="pdf-file-badge" class="hidden items-center justify-between gap-2 p-3 rounded-2xl bg-green/10 border-2 border-green text-xs font-bold">
+                            <div class="flex items-center gap-2 min-w-0">
+                                <i data-lucide="file-check-2" class="w-4 h-4 text-green shrink-0"></i>
+                                <span id="pdf-file-name" class="truncate text-dark dark:text-slate-100"></span>
+                            </div>
+                            <div class="flex items-center gap-1.5 shrink-0">
+                                <button type="button" onclick="switchInputMode('paste', true)"
+                                    class="px-2 py-1 rounded-lg bg-white dark:bg-slate-800 border-2 border-dark dark:border-slate-500 text-[10px] font-black uppercase hover:text-blue transition-colors">
+                                    Text
+                                </button>
+                                <button onclick="clearPdfBadge()" type="button" class="text-slate-400 hover:text-pink transition-colors p-1 rounded-lg" aria-label="Dismiss PDF file indicator">
                                     <i data-lucide="x" class="w-4 h-4"></i>
                                 </button>
                             </div>
-
-                            <!-- Divider + Extract Button -->
-                            <div class="flex items-center gap-2 pt-1">
-                                <div class="h-px flex-1 bg-slate-200 dark:bg-slate-700"></div>
-                                <span class="text-[10px] font-extrabold uppercase tracking-widest text-slate-400 dark:text-slate-500">Or Paste Notes Text</span>
-                                <div class="h-px flex-1 bg-slate-200 dark:bg-slate-700"></div>
-                            </div>
-
-                            <button onclick="processPastedText()" class="btn-chunky btn-green w-full py-2.5 rounded-xl text-sm flex items-center justify-center gap-2">
-                                <i data-lucide="sparkles" class="w-4 h-4"></i> Extract Data
-                            </button>
                         </div>
 
-                        <!-- Quill Editor Container -->
+                        <!-- Privacy Note -->
+                        <div class="flex items-center gap-2.5 px-3 py-2 rounded-xl bg-slate-100/80 dark:bg-slate-800/70 border-2 border-slate-200 dark:border-slate-700 text-[11px] font-bold text-slate-500 dark:text-slate-400">
+                            <i data-lucide="shield-check" class="w-4 h-4 text-green shrink-0"></i>
+                            <span>Cloud saves extracted modules only &mdash; raw PDF text stays local.</span>
+                        </div>
+                    </div>
+
+                    <!-- Pane 2: Rich-Text Paste Editor -->
+                    <div id="input-pane-paste" class="hidden flex-col">
+                        <div class="p-3 bg-slate-50 dark:bg-slate-800/70 border-b-2 border-slate-200 dark:border-slate-700 flex items-center justify-between gap-2">
+                            <div class="flex items-center gap-1.5">
+                                <button type="button" onclick="pasteIntoQuill()"
+                                    class="px-2.5 py-1.5 bg-white dark:bg-slate-900 border-2 border-dark dark:border-slate-500 rounded-xl text-[11px] font-extrabold uppercase tracking-wide flex items-center gap-1 hover:text-blue transition-colors shadow-hard-sm">
+                                    <i data-lucide="clipboard-paste" class="w-3.5 h-3.5 text-blue"></i>
+                                    Paste
+                                </button>
+                                <button type="button" onclick="clearQuillText()"
+                                    class="px-2.5 py-1.5 bg-white dark:bg-slate-900 border-2 border-dark dark:border-slate-500 rounded-xl text-[11px] font-extrabold uppercase tracking-wide flex items-center gap-1 text-slate-500 hover:text-pink transition-colors shadow-hard-sm">
+                                    <i data-lucide="eraser" class="w-3.5 h-3.5"></i>
+                                    Clear
+                                </button>
+                            </div>
+                            <button type="button" onclick="processPastedText()"
+                                class="btn-chunky py-1.5 px-3.5 bg-green text-white border-2 border-dark dark:border-slate-500 rounded-xl text-xs flex items-center gap-1.5">
+                                <i data-lucide="sparkles" class="w-3.5 h-3.5"></i>
+                                Extract
+                            </button>
+                        </div>
                         <div class="bg-white dark:bg-slate-900">
                             <div id="editor-container"></div>
+                        </div>
+                    </div>
+
+                </div>
+
+                <!-- Card B: Collapsible Unit Details -->
+                <div id="unit-metadata" class="bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl border-4 border-dark dark:border-slate-500 rounded-[2rem] shadow-hard overflow-hidden">
+                    <button type="button" onclick="toggleMetadataCard()"
+                        class="w-full px-5 py-3.5 bg-slate-50/90 dark:bg-slate-800/80 border-b-3 border-dark dark:border-slate-600 flex items-center justify-between gap-2 text-left hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+                        <span class="font-heading text-sm uppercase tracking-wider flex items-center gap-2 text-dark dark:text-white">
+                            <i data-lucide="sliders-horizontal" class="w-4 h-4 text-orange"></i>
+                            Unit Details
+                        </span>
+                        <i id="meta-chevron" data-lucide="chevron-down" class="w-4 h-4 text-slate-400 transition-transform"></i>
+                    </button>
+
+                    <div id="unit-metadata-body" class="p-5 flex flex-col gap-3.5">
+                        <div class="grid grid-cols-1 sm:grid-cols-[1fr_148px] gap-3">
+                            <div class="flex flex-col gap-1">
+                                <label for="unit-title-input" class="font-heading text-[11px] uppercase tracking-widest text-slate-500 dark:text-slate-400">Unit / Lesson</label>
+                                <input type="text" id="unit-title-input" oninput="updateUnitMetadata()"
+                                    class="w-full bg-slate-50 dark:bg-slate-800 border-3 border-dark dark:border-slate-600 rounded-xl px-3 py-2 text-sm font-bold focus:border-blue transition-colors"
+                                    placeholder="e.g. Level 3, Unit 3">
+                            </div>
+                            <div class="flex flex-col gap-1">
+                                <label for="unit-course-select" class="font-heading text-[11px] uppercase tracking-widest text-slate-500 dark:text-slate-400">Program</label>
+                                <select id="unit-course-select" onchange="updateUnitMetadata()"
+                                    class="w-full bg-slate-50 dark:bg-slate-800 border-3 border-dark dark:border-slate-600 rounded-xl px-2.5 py-2 text-sm font-bold focus:border-blue transition-colors">
+                                    <option value="">Auto-detect</option>
+                                    <option value="High Flyers">High Flyers</option>
+                                    <option value="Small Stars 3.0">Small Stars 3.0</option>
+                                    <option value="Trailblazers 3.0">Trailblazers 3.0</option>
+                                    <option value="Frontrunner">Frontrunner</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="flex flex-col gap-1">
+                            <label for="unit-aims-input" class="font-heading text-[11px] uppercase tracking-widest text-slate-500 dark:text-slate-400">Unit Aims / Objectives</label>
+                            <textarea id="unit-aims-input" oninput="updateUnitMetadata()"
+                                class="w-full bg-slate-50 dark:bg-slate-800 border-3 border-dark dark:border-slate-600 rounded-xl px-3 py-2 h-24 text-xs sm:text-sm font-semibold resize-y focus:border-blue transition-colors"
+                                placeholder="What should students achieve in this unit?"></textarea>
+                        </div>
+
+                        <div id="lesson-aims-group" class="hidden flex-col gap-1">
+                            <label for="lesson-aims-input" class="font-heading text-[11px] uppercase tracking-widest text-slate-500 dark:text-slate-400">Lesson Aims</label>
+                            <textarea id="lesson-aims-input" oninput="updateUnitMetadata()"
+                                class="w-full bg-slate-50 dark:bg-slate-800 border-3 border-dark dark:border-slate-600 rounded-xl px-3 py-2 h-20 text-xs sm:text-sm font-semibold resize-y focus:border-blue transition-colors"
+                                placeholder="At the end of this lesson, students will be able to..."></textarea>
                         </div>
                     </div>
                 </div>
 
             </aside>
 
-            <!-- Right Pane: Results (Modules or Overview) -->
-            <section class="flex flex-col gap-8 min-w-0">
+            <!-- RIGHT STAGE (8 Cols, expands to 12 in Focus Mode): Modules / Overview -->
+            <section id="results-stage" class="lg:col-span-8 flex flex-col gap-5 min-w-0">
+
                 <!-- Overview View -->
-                <div id="view-overview" class="hidden">
+                <div id="view-overview" class="hidden animate-pop-in">
                     <div id="overview-content"></div>
                 </div>
 
-                <!-- Modules Display -->
-                <div id="view-modules" class="space-y-6">
+                <!-- Modules View -->
+                <div id="view-modules" class="flex flex-col gap-5">
                     <div id="module-nav" class="hidden"></div>
-                    <div id="modules-container" class="space-y-8"></div>
+                    <div id="modules-container" class="grid grid-cols-1 xl:grid-cols-2 gap-5 items-start"></div>
                 </div>
+
             </section>
 
-        </div>
+        </section>
+
     </main>
 
     <div id="toast-container" aria-live="polite"></div>
 
     <!-- Library Drawer Backdrop -->
-    <div id="library-backdrop" onclick="toggleLibrary()" class="hidden fixed inset-0 z-[90] bg-slate-900/50 backdrop-blur-sm transition-opacity"></div>
+    <div id="library-backdrop" onclick="toggleLibrary()" class="hidden fixed inset-0 z-[90] bg-slate-900/55 backdrop-blur-sm transition-opacity"></div>
 
     <!-- Library Drawer -->
-    <aside id="library-drawer" class="fixed inset-y-0 left-0 w-80 max-w-[90vw] bg-white dark:bg-slate-900 border-r-4 border-slate-900 dark:border-slate-600 shadow-2xl transform -translate-x-full transition-transform duration-300 flex flex-col z-[100]">
-        <div class="p-5 border-b-3 border-slate-900 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 flex justify-between items-center">
-            <h2 class="font-heading font-bold text-xl uppercase tracking-tight flex items-center gap-2">
-                <i data-lucide="library" class="w-5 h-5 text-blue-500"></i> Library
+    <aside id="library-drawer" class="fixed inset-y-0 left-0 w-96 max-w-[92vw] bg-white dark:bg-slate-900 border-r-4 border-dark dark:border-slate-500 rounded-r-[2rem] shadow-2xl transform -translate-x-full transition-transform duration-300 flex flex-col z-[100] overflow-hidden">
+        <div class="p-5 border-b-4 border-dark dark:border-slate-600 bg-slate-50 dark:bg-slate-800 flex justify-between items-center">
+            <h2 class="font-heading font-bold text-xl uppercase tracking-tight flex items-center gap-2 text-dark dark:text-white">
+                <i data-lucide="library" class="w-5 h-5 text-blue"></i> Saved Library
             </h2>
             <button onclick="toggleLibrary()" class="p-2 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-xl transition-colors" aria-label="Close Library">
                 <i data-lucide="x" class="w-5 h-5"></i>
             </button>
         </div>
 
-        <div class="p-4 border-b-2 border-slate-100 dark:border-slate-800">
+        <div class="p-4 border-b-2 border-slate-100 dark:border-slate-800 flex flex-col gap-3">
             <div class="relative">
-                <i data-lucide="search" class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400"></i>
-                <input type="text" id="library-search" oninput="renderLibrary()" placeholder="Search saved sets..." class="w-full pl-9 pr-4 py-2 bg-slate-50 dark:bg-slate-800 border-2 border-slate-900 dark:border-slate-600 rounded-xl text-sm font-bold focus:outline-none focus:border-blue-500">
+                <i data-lucide="search" class="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400"></i>
+                <input type="text" id="library-search" oninput="renderLibrary()" placeholder="Search saved lessons..."
+                    class="w-full pl-10 pr-4 py-2 bg-slate-50 dark:bg-slate-800 border-3 border-dark dark:border-slate-600 rounded-xl text-sm font-bold focus:border-blue transition-colors">
+            </div>
+            <div id="library-filter-bar" class="flex flex-wrap gap-1.5">
+                <button type="button" onclick="setLibraryFilter('')" data-lib-filter="" class="lib-filter-pill px-2.5 py-1 rounded-lg border-2 border-dark dark:border-slate-500 bg-blue text-white text-[10px] font-black uppercase">All</button>
+                <button type="button" onclick="setLibraryFilter('High Flyers')" data-lib-filter="High Flyers" class="lib-filter-pill px-2.5 py-1 rounded-lg border-2 border-dark dark:border-slate-500 bg-slate-100 dark:bg-slate-800 text-dark dark:text-slate-200 text-[10px] font-black uppercase">HF</button>
+                <button type="button" onclick="setLibraryFilter('Small Stars 3.0')" data-lib-filter="Small Stars 3.0" class="lib-filter-pill px-2.5 py-1 rounded-lg border-2 border-dark dark:border-slate-500 bg-slate-100 dark:bg-slate-800 text-dark dark:text-slate-200 text-[10px] font-black uppercase">SS3</button>
+                <button type="button" onclick="setLibraryFilter('Trailblazers 3.0')" data-lib-filter="Trailblazers 3.0" class="lib-filter-pill px-2.5 py-1 rounded-lg border-2 border-dark dark:border-slate-500 bg-slate-100 dark:bg-slate-800 text-dark dark:text-slate-200 text-[10px] font-black uppercase">TB3</button>
+                <button type="button" onclick="setLibraryFilter('Frontrunner')" data-lib-filter="Frontrunner" class="lib-filter-pill px-2.5 py-1 rounded-lg border-2 border-dark dark:border-slate-500 bg-slate-100 dark:bg-slate-800 text-dark dark:text-slate-200 text-[10px] font-black uppercase">FR</button>
             </div>
         </div>
 
@@ -260,20 +385,20 @@
 
     <!-- Save Modal -->
     <div id="save-modal" class="hidden fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/75 backdrop-blur-md">
-        <div class="card max-w-sm w-full p-7 flex flex-col items-center bg-white dark:bg-slate-900 border-3 border-slate-900 dark:border-slate-500 rounded-[2rem] shadow-hard animate-pop-in">
-            <div class="w-16 h-16 rounded-2xl bg-blue-100 dark:bg-blue-900/40 flex items-center justify-center border-3 border-blue-500 mb-5 shadow-[3px_3px_0_var(--border-primary)]">
-                <i data-lucide="save" class="w-8 h-8 text-blue-500"></i>
+        <div class="max-w-sm w-full p-7 flex flex-col items-center bg-white dark:bg-slate-900 border-4 border-dark dark:border-slate-500 rounded-[2rem] shadow-hard animate-pop-in">
+            <div class="w-16 h-16 rounded-2xl bg-blue/15 flex items-center justify-center border-3 border-blue mb-5 shadow-hard-sm">
+                <i data-lucide="save" class="w-8 h-8 text-blue"></i>
             </div>
             <h3 class="text-2xl font-heading font-bold uppercase mb-1">Save Lesson</h3>
-            <p class="text-sm text-slate-500 dark:text-slate-400 font-bold mb-5 text-center">Parsed results sync to cloud; source text stays local.</p>
+            <p class="text-xs text-slate-500 dark:text-slate-400 font-bold mb-5 text-center">Parsed results sync to cloud; source text stays local.</p>
 
-            <input type="text" id="set-name-input" class="w-full bg-slate-50 dark:bg-slate-800 border-3 border-slate-900 dark:border-slate-600 px-4 py-3 mb-6 text-center text-base font-bold rounded-xl focus:outline-none focus:border-blue-500" placeholder="e.g. Level 3, Unit 3">
+            <input type="text" id="set-name-input" class="w-full bg-slate-50 dark:bg-slate-800 border-3 border-dark dark:border-slate-600 px-4 py-3 mb-6 text-center text-base font-bold rounded-xl focus:border-blue" placeholder="e.g. Level 3, Unit 3">
 
             <div class="flex gap-3 w-full">
-                <button onclick="closeSaveModal()" class="flex-1 btn-chunky btn-chalk py-2.5 rounded-xl font-bold text-sm">
+                <button onclick="closeSaveModal()" class="flex-1 btn-chunky bg-white dark:bg-slate-800 text-dark dark:text-white border-3 border-dark dark:border-slate-500 py-2.5 rounded-xl font-bold text-sm">
                     Cancel
                 </button>
-                <button onclick="confirmSaveSet()" class="flex-1 btn-chunky text-white py-2.5 rounded-xl font-bold text-sm">
+                <button onclick="confirmSaveSet()" class="flex-1 btn-chunky bg-blue text-white border-3 border-dark dark:border-slate-500 py-2.5 rounded-xl font-bold text-sm">
                     Save
                 </button>
             </div>
@@ -282,15 +407,15 @@
 
     <!-- Confirm Modal -->
     <div id="confirm-modal" class="hidden fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/75 backdrop-blur-md">
-        <div class="card max-w-sm w-full p-7 flex flex-col items-center text-center bg-white dark:bg-slate-900 border-3 border-slate-900 dark:border-slate-500 rounded-[2rem] shadow-hard animate-pop-in">
-            <div id="confirm-icon-bg" class="w-16 h-16 rounded-2xl flex items-center justify-center mb-4 bg-slate-100 dark:bg-slate-800 border-3 border-slate-900 dark:border-slate-500 shadow-[3px_3px_0_var(--border-primary)]">
-                <i id="confirm-icon" data-lucide="alert-triangle" class="w-8 h-8 text-pink-500"></i>
+        <div class="max-w-sm w-full p-7 flex flex-col items-center text-center bg-white dark:bg-slate-900 border-4 border-dark dark:border-slate-500 rounded-[2rem] shadow-hard animate-pop-in">
+            <div id="confirm-icon-bg" class="w-16 h-16 rounded-2xl flex items-center justify-center mb-4 bg-slate-100 dark:bg-slate-800 border-3 border-dark dark:border-slate-500 shadow-hard-sm">
+                <i id="confirm-icon" data-lucide="alert-triangle" class="w-8 h-8 text-pink"></i>
             </div>
             <h3 id="confirm-title" class="text-2xl font-heading font-bold uppercase mb-2">Are you sure?</h3>
             <p id="confirm-desc" class="text-sm text-slate-500 dark:text-slate-400 font-bold mb-6">This action cannot be undone.</p>
             <div class="flex gap-3 w-full">
-                <button id="confirm-cancel" class="flex-1 btn-chunky btn-chalk py-2.5 rounded-xl font-bold text-sm">Cancel</button>
-                <button id="confirm-do" class="flex-1 btn-chunky btn-pink py-2.5 rounded-xl font-bold text-sm">Confirm</button>
+                <button id="confirm-cancel" class="flex-1 btn-chunky bg-white dark:bg-slate-800 text-dark dark:text-white border-3 border-dark dark:border-slate-500 py-2.5 rounded-xl font-bold text-sm">Cancel</button>
+                <button id="confirm-do" class="flex-1 btn-chunky bg-pink text-white border-3 border-dark dark:border-slate-500 py-2.5 rounded-xl font-bold text-sm">Confirm</button>
             </div>
         </div>
     </div>

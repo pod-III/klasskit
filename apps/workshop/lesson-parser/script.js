@@ -124,6 +124,48 @@ const appState = {
   library: [],
 };
 
+const UI_PREFS_KEY = "lp_ui_prefs";
+let uiPrefs = {
+  inputMode: "pdf",
+  cardLayout: "grid",
+  focusMode: false,
+  metaCollapsed: false,
+};
+let activeLibraryCourseFilter = "";
+let allOutcomesExpanded = false;
+
+function loadUiPrefs() {
+  try {
+    const raw = localStorage.getItem(UI_PREFS_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      uiPrefs = {
+        inputMode: parsed.inputMode === "paste" ? "paste" : "pdf",
+        cardLayout: parsed.cardLayout === "list" ? "list" : "grid",
+        focusMode: Boolean(parsed.focusMode),
+        metaCollapsed: Boolean(parsed.metaCollapsed),
+      };
+    }
+  } catch (e) {
+    console.warn("Could not load UI prefs", e);
+  }
+}
+
+function saveUiPrefs() {
+  try {
+    localStorage.setItem(UI_PREFS_KEY, JSON.stringify(uiPrefs));
+  } catch (e) {
+    console.warn("Could not save UI prefs", e);
+  }
+}
+
+function applyUiPrefs() {
+  switchInputMode(uiPrefs.inputMode, false, false);
+  applyCardLayoutClass();
+  applyFocusModeState();
+  applyMetadataCardState();
+}
+
 // ── Initialization ────────────────────────────────────────────────────────────
 if (typeof window !== "undefined") {
   window.addEventListener("load", async () => {
@@ -132,12 +174,44 @@ if (typeof window !== "undefined") {
       pdfjsLib.GlobalWorkerOptions.workerSrc =
         "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
     }
+    loadUiPrefs();
     initQuill();
     setupPdfDropzone();
-    syncDarkIcon();
+    setupKeyboardShortcuts();
+    applyUiPrefs();
     await initDB();
     await initializeData();
     if (window.lucide) lucide.createIcons();
+  });
+}
+
+function setupKeyboardShortcuts() {
+  const saveInput = document.getElementById("set-name-input");
+  if (saveInput) {
+    saveInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        confirmSaveSet();
+      }
+    });
+  }
+
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape") return;
+    const confirmModal = document.getElementById("confirm-modal");
+    if (confirmModal && !confirmModal.classList.contains("hidden")) {
+      document.getElementById("confirm-cancel")?.click();
+      return;
+    }
+    const saveModal = document.getElementById("save-modal");
+    if (saveModal && !saveModal.classList.contains("hidden")) {
+      closeSaveModal();
+      return;
+    }
+    const drawer = document.getElementById("library-drawer");
+    if (drawer && !drawer.classList.contains("-translate-x-full")) {
+      toggleLibrary();
+    }
   });
 }
 
@@ -296,7 +370,10 @@ function updateUIFromState() {
   if (courseSelect) courseSelect.value = data.course || "";
   if (aimsInput) aimsInput.value = data.aims || "";
   if (lessonAimsInput) lessonAimsInput.value = data.lessonAims || "";
-  if (docTitle) docTitle.innerText = data.title || "Lesson Extractor";
+  if (docTitle) docTitle.innerText = data.title || "No Unit Loaded";
+
+  const tabCount = document.getElementById("tab-modules-count");
+  if (tabCount) tabCount.innerText = String((data.modules || []).length);
 
   if (lessonAimsGroup) {
     const showLessonAims =
@@ -323,6 +400,7 @@ function updateUIFromState() {
   renderModules(data.modules || []);
   renderOverview(data.modules || []);
   updateActiveIndicator();
+  updateLibraryCountBadge();
 }
 
 function updateCourseBadge(course) {
@@ -334,12 +412,12 @@ function updateCourseBadge(course) {
     return;
   }
   const colorMap = {
-    "High Flyers": "bg-pink-100 dark:bg-pink-900/40 text-pink-700 dark:text-pink-300",
-    "Small Stars 3.0": "bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300",
-    "Trailblazers 3.0": "bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300",
-    "Frontrunner": "bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300",
+    "High Flyers": "bg-pink text-white",
+    "Small Stars 3.0": "bg-orange text-white",
+    "Trailblazers 3.0": "bg-green text-white",
+    "Frontrunner": "bg-purple text-white",
   };
-  badge.className = `badge -rotate-2 border-2 border-slate-900 dark:border-slate-500 ${colorMap[course] || "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200"}`;
+  badge.className = `px-3 py-1 font-heading font-bold text-xs uppercase border-2 border-dark dark:border-slate-500 rounded-xl shadow-hard-sm rotate-2 ${colorMap[course] || "bg-slate-200 dark:bg-slate-800 text-dark dark:text-white"}`;
   badge.innerText = course;
 }
 
@@ -355,10 +433,17 @@ function updateActiveIndicator() {
   }
 }
 
+function updateLibraryCountBadge() {
+  const el = document.getElementById("library-count-badge");
+  if (!el) return;
+  const count = (appState.library || []).filter((s) => s && s.id !== 0).length;
+  el.innerText = String(count);
+}
+
 function initQuill() {
   quill = new Quill("#editor-container", {
     theme: "snow",
-    placeholder: "Upload a Teacher Notes PDF above or paste notes text here...",
+    placeholder: "Paste Teacher Notes text here, then click Extract...",
     modules: {
       toolbar: [
         ["bold", "italic", "underline"],
@@ -370,20 +455,10 @@ function initQuill() {
 }
 
 // ── Dark mode ─────────────────────────────────────────────────────────────────
-function syncDarkIcon() {
-  const dark = document.documentElement.classList.contains("dark");
-  const darkIcon = document.getElementById("dark-icon");
-  if (darkIcon) {
-    darkIcon.setAttribute("data-lucide", dark ? "sun" : "moon");
-    if (window.lucide) lucide.createIcons();
-  }
-}
-
 function toggleDark() {
   document.documentElement.classList.toggle("dark");
   const dark = document.documentElement.classList.contains("dark");
   localStorage.setItem("theme", dark ? "dark" : "light");
-  syncDarkIcon();
 }
 
 // ── IndexedDB ─────────────────────────────────────────────────────────────────
@@ -573,6 +648,8 @@ async function clearData() {
   };
 
   clearPdfBadge();
+  const msInput = document.getElementById("module-search-input");
+  if (msInput) msInput.value = "";
   updateUIFromState();
   showToast("Session cleared");
   updateSessionPersistence();
@@ -600,32 +677,238 @@ function showToast(msg, type = "success") {
   }, 2800);
 }
 
-// ── Tabs ──────────────────────────────────────────────────────────────────────
+// ── Tabs & Workspace Controls ─────────────────────────────────────────────────
 function switchTab(tab) {
-  ["paste", "overview"].forEach((t) => {
-    const btn = document.getElementById("tab-" + t);
-    if (btn) {
-      btn.classList.remove("active");
-      btn.setAttribute("aria-selected", "false");
-    }
-  });
+  const pasteBtn = document.getElementById("tab-paste");
+  const overviewBtn = document.getElementById("tab-overview");
 
-  const activeBtn = document.getElementById("tab-" + tab);
-  if (activeBtn) {
-    activeBtn.classList.add("active");
-    activeBtn.setAttribute("aria-selected", "true");
+  const activeCls = ["tab-active", "text-white"];
+  const inactiveCls = ["bg-slate-50", "dark:bg-slate-800", "text-dark", "dark:text-white"];
+
+  if (pasteBtn) {
+    if (tab === "paste") {
+      pasteBtn.classList.add("bg-pink", ...activeCls);
+      pasteBtn.classList.remove(...inactiveCls);
+      pasteBtn.setAttribute("aria-selected", "true");
+    } else {
+      pasteBtn.classList.remove("bg-pink", ...activeCls);
+      pasteBtn.classList.add(...inactiveCls);
+      pasteBtn.setAttribute("aria-selected", "false");
+    }
+  }
+
+  if (overviewBtn) {
+    if (tab === "overview") {
+      overviewBtn.classList.add("bg-blue", ...activeCls);
+      overviewBtn.classList.remove(...inactiveCls);
+      overviewBtn.setAttribute("aria-selected", "true");
+    } else {
+      overviewBtn.classList.remove("bg-blue", ...activeCls);
+      overviewBtn.classList.add(...inactiveCls);
+      overviewBtn.setAttribute("aria-selected", "false");
+    }
   }
 
   const overviewView = document.getElementById("view-overview");
   const modulesView = document.getElementById("view-modules");
+  const searchWrap = document.getElementById("module-search-wrap");
+  const layoutBtn = document.getElementById("layout-toggle-btn");
+  const willBtn = document.getElementById("toggle-all-will-btn");
 
-  if (tab === "overview") {
-    if (overviewView) overviewView.classList.remove("hidden");
-    if (modulesView) modulesView.classList.add("hidden");
-  } else {
-    if (overviewView) overviewView.classList.add("hidden");
-    if (modulesView) modulesView.classList.remove("hidden");
+  const isOverview = tab === "overview";
+  if (overviewView) overviewView.classList.toggle("hidden", !isOverview);
+  if (modulesView) modulesView.classList.toggle("hidden", isOverview);
+  if (searchWrap) searchWrap.classList.toggle("opacity-40", isOverview);
+  if (layoutBtn) layoutBtn.classList.toggle("hidden", isOverview);
+  if (willBtn) willBtn.classList.toggle("hidden", isOverview);
+}
+
+function switchInputMode(mode, focusEditor = false, persist = true) {
+  const isPaste = mode === "paste";
+  uiPrefs.inputMode = isPaste ? "paste" : "pdf";
+  if (persist) saveUiPrefs();
+
+  const pdfPane = document.getElementById("input-pane-pdf");
+  const pastePane = document.getElementById("input-pane-paste");
+  const pdfBtn = document.getElementById("input-mode-pdf");
+  const pasteBtn = document.getElementById("input-mode-paste");
+
+  if (pdfPane) {
+    pdfPane.classList.toggle("hidden", isPaste);
+    pdfPane.classList.toggle("flex", !isPaste);
   }
+  if (pastePane) {
+    pastePane.classList.toggle("hidden", !isPaste);
+    pastePane.classList.toggle("flex", isPaste);
+  }
+
+  if (pdfBtn) {
+    pdfBtn.classList.toggle("bg-blue", !isPaste);
+    pdfBtn.classList.toggle("text-white", !isPaste);
+    pdfBtn.classList.toggle("bg-white", isPaste);
+    pdfBtn.classList.toggle("dark:bg-slate-900", isPaste);
+    pdfBtn.classList.toggle("text-dark", isPaste);
+    pdfBtn.classList.toggle("dark:text-white", isPaste);
+    pdfBtn.setAttribute("aria-selected", String(!isPaste));
+  }
+  if (pasteBtn) {
+    pasteBtn.classList.toggle("bg-orange", isPaste);
+    pasteBtn.classList.toggle("text-white", isPaste);
+    pasteBtn.classList.toggle("bg-white", !isPaste);
+    pasteBtn.classList.toggle("dark:bg-slate-900", !isPaste);
+    pasteBtn.classList.toggle("text-dark", !isPaste);
+    pasteBtn.classList.toggle("dark:text-white", !isPaste);
+    pasteBtn.setAttribute("aria-selected", String(isPaste));
+  }
+
+  if (focusEditor && isPaste && quill) {
+    quill.focus();
+  }
+}
+
+async function pasteIntoQuill() {
+  if (!quill) return;
+  try {
+    const text = await navigator.clipboard.readText();
+    if (!text.trim()) {
+      showToast("Clipboard is empty", "warn");
+      return;
+    }
+    quill.setText(text);
+    showToast("Notes pasted into editor");
+  } catch (e) {
+    quill.focus();
+    showToast("Use Ctrl+V / Cmd+V inside editor to paste", "warn");
+  }
+}
+
+function clearQuillText() {
+  if (!quill) return;
+  quill.setText("");
+  quill.focus();
+}
+
+function applyMetadataCardState() {
+  const body = document.getElementById("unit-metadata-body");
+  const chev = document.getElementById("meta-chevron");
+  if (body) body.classList.toggle("hidden", uiPrefs.metaCollapsed);
+  if (chev) chev.style.transform = uiPrefs.metaCollapsed ? "rotate(-90deg)" : "rotate(0deg)";
+}
+
+function toggleMetadataCard() {
+  uiPrefs.metaCollapsed = !uiPrefs.metaCollapsed;
+  saveUiPrefs();
+  applyMetadataCardState();
+}
+
+function applyCardLayoutClass() {
+  const container = document.getElementById("modules-container");
+  const icon = document.getElementById("layout-toggle-icon");
+  const label = document.getElementById("layout-toggle-label");
+  const isList = uiPrefs.cardLayout === "list";
+
+  if (container && (appState.current.modules || []).length > 0) {
+    container.className = isList
+      ? "flex flex-col gap-5"
+      : "grid grid-cols-1 xl:grid-cols-2 gap-5 items-start";
+  }
+  if (icon) icon.setAttribute("data-lucide", isList ? "layout-grid" : "rows-3");
+  if (label) label.innerText = isList ? "Grid" : "List";
+  if (window.lucide) lucide.createIcons();
+}
+
+function toggleCardLayout() {
+  uiPrefs.cardLayout = uiPrefs.cardLayout === "grid" ? "list" : "grid";
+  saveUiPrefs();
+  applyCardLayoutClass();
+}
+
+function applyFocusModeState() {
+  const sidebar = document.getElementById("input-sidebar");
+  const stage = document.getElementById("results-stage");
+  const icon = document.getElementById("focus-mode-icon");
+  const label = document.getElementById("focus-mode-label");
+  const isFocus = uiPrefs.focusMode;
+
+  if (sidebar) sidebar.classList.toggle("hidden", isFocus);
+  if (stage) {
+    stage.classList.toggle("lg:col-span-8", !isFocus);
+    stage.classList.toggle("lg:col-span-12", isFocus);
+  }
+  if (icon) icon.setAttribute("data-lucide", isFocus ? "panel-left-open" : "panel-left-close");
+  if (label) label.innerText = isFocus ? "Show Input" : "Focus";
+  if (window.lucide) lucide.createIcons();
+}
+
+function toggleFocusMode() {
+  uiPrefs.focusMode = !uiPrefs.focusMode;
+  saveUiPrefs();
+  applyFocusModeState();
+}
+
+function toggleAllWill() {
+  allOutcomesExpanded = !allOutcomesExpanded;
+  const panels = document.querySelectorAll('[id^="will-"]');
+  panels.forEach((el) => {
+    const idx = el.id.replace("will-", "");
+    const chev = document.getElementById(`chev-${idx}`);
+    el.classList.toggle("hidden", !allOutcomesExpanded);
+    if (chev) chev.style.transform = allOutcomesExpanded ? "rotate(180deg)" : "rotate(0deg)";
+  });
+}
+
+function filterModules() {
+  const input = document.getElementById("module-search-input");
+  const container = document.getElementById("modules-container");
+  const countBadge = document.getElementById("module-filter-count");
+  const clearBtn = document.getElementById("module-search-clear");
+  if (!container) return;
+
+  const query = (input ? input.value : "").trim().toLowerCase();
+  const cards = container.querySelectorAll("article.module-card");
+
+  const oldEmpty = document.getElementById("filter-empty-state");
+  if (oldEmpty) oldEmpty.remove();
+
+  if (clearBtn) clearBtn.classList.toggle("hidden", !query);
+  if (!cards.length) {
+    if (countBadge) countBadge.classList.add("hidden");
+    return;
+  }
+
+  let visible = 0;
+  cards.forEach((card) => {
+    const haystack = card.getAttribute("data-mod-search") || "";
+    const match = !query || haystack.includes(query);
+    card.classList.toggle("hidden", !match);
+    if (match) visible++;
+  });
+
+  if (countBadge) {
+    countBadge.classList.toggle("hidden", !query);
+    countBadge.innerText = `${visible}/${cards.length}`;
+  }
+
+  if (query && visible === 0) {
+    container.insertAdjacentHTML(
+      "beforeend",
+      `
+      <div id="filter-empty-state" class="col-span-full bg-white/90 dark:bg-slate-900/90 border-4 border-dark dark:border-slate-500 rounded-[2rem] p-8 text-center flex flex-col items-center gap-3 shadow-hard">
+        <i data-lucide="search-x" class="w-8 h-8 text-orange"></i>
+        <h3 class="font-heading text-lg uppercase">No Modules Match "${escapeHtml(query)}"</h3>
+        <button type="button" onclick="clearModuleFilter()" class="btn-chunky px-4 py-2 bg-blue text-white border-3 border-dark dark:border-slate-500 rounded-xl text-xs">
+          Reset Filter
+        </button>
+      </div>`,
+    );
+    if (window.lucide) lucide.createIcons();
+  }
+}
+
+function clearModuleFilter() {
+  const input = document.getElementById("module-search-input");
+  if (input) input.value = "";
+  filterModules();
 }
 
 async function updateUnitMetadata() {
@@ -633,7 +916,7 @@ async function updateUnitMetadata() {
   const courseSelect = document.getElementById("unit-course-select");
   const docTitle = document.getElementById("doc-title");
   if (docTitle && titleInput) {
-    docTitle.innerText = titleInput.value.trim() || "Lesson Extractor";
+    docTitle.innerText = titleInput.value.trim() || "No Unit Loaded";
   }
   if (courseSelect) {
     updateCourseBadge(courseSelect.value || "");
@@ -2162,11 +2445,11 @@ function pagesHTML(pages) {
   return `<span class="page-chip"><i data-lucide="book-open" class="w-3.5 h-3.5 shrink-0"></i><span>pp. ${escapeHtml(formatNumRanges(pages))}</span></span>`;
 }
 
-function targetSubsectionHTML(label, items, badgeClass = "text-slate-400 dark:text-slate-500") {
+function targetSubsectionHTML(label, items, pillClass = "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-300 dark:border-slate-600") {
   if (!items || !items.length) return "";
   return `
     <div>
-      <p class="text-[11px] font-extrabold uppercase tracking-wider mb-1 ${badgeClass}">${escapeHtml(label)}</p>
+      <span class="inline-block px-2 py-0.5 rounded-md border text-[10px] font-black uppercase tracking-wider mb-1.5 ${pillClass}">${escapeHtml(label)}</span>
       ${listHTML(items)}
     </div>`;
 }
@@ -2180,24 +2463,83 @@ function sumMinutes(modules) {
   return total;
 }
 
+function collectAllPages(modules) {
+  const all = [];
+  (modules || []).forEach((m) => {
+    (m?.data?.pages || []).forEach((p) => all.push(p));
+  });
+  return formatNumRanges(all);
+}
+
+function buildModuleSearchText(mod) {
+  const d = mod.data;
+  const presStr = Object.keys(d.presentations || {})
+    .map((k) => `${k} ${(d.presentations[k] || []).join(" ")}`)
+    .join(" ");
+  return [
+    mod.title,
+    mod.duration,
+    ...d.lang,
+    ...d.recycledLang,
+    ...d.phonics,
+    ...d.hfw,
+    ...d.gram,
+    ...d.recycledGram,
+    ...d.skill,
+    ...d.materials,
+    ...d.prep,
+    ...d.will,
+    ...d.pages,
+    presStr,
+  ]
+    .join(" ")
+    .toLowerCase();
+}
+
 function renderModules(modules) {
+  allOutcomesExpanded = false;
   renderModuleNav(modules);
   const container = document.getElementById("modules-container");
   if (!container) return;
   container.innerHTML = "";
 
   if (!modules || !modules.length) {
+    container.className = "flex flex-col gap-5";
     container.innerHTML = `
-      <div class="card p-10 sm:p-12 text-center flex flex-col items-center gap-4">
-        <div class="w-16 h-16 bg-slate-100 dark:bg-slate-800 rounded-2xl border-3 border-slate-900 dark:border-slate-600 flex items-center justify-center shadow-[3px_3px_0_var(--border-primary)]">
-          <i data-lucide="inbox" class="w-8 h-8 text-slate-400"></i>
+      <div class="bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl border-4 border-dark dark:border-slate-500 rounded-[2rem] p-8 sm:p-12 text-center flex flex-col items-center gap-5 shadow-hard animate-pop-in">
+        <div class="w-20 h-20 bg-blue/15 rounded-3xl border-4 border-dark dark:border-slate-500 flex items-center justify-center shadow-hard -rotate-2">
+          <i data-lucide="file-scan" class="w-10 h-10 text-blue"></i>
         </div>
-        <h3 class="font-heading text-xl uppercase">No Modules Extracted</h3>
-        <p class="text-slate-500 dark:text-slate-400 text-sm font-bold max-w-md">Upload a Teacher Notes PDF or paste notes text on the left and click Extract Data.</p>
+        <div class="space-y-2 max-w-lg">
+          <h3 class="font-heading text-2xl sm:text-3xl uppercase tracking-tight">Ready to Parse Teacher Notes</h3>
+          <p class="text-slate-500 dark:text-slate-400 text-sm sm:text-base font-bold leading-relaxed">
+            Drop an English 1 Teacher Notes PDF or paste notes text in the left panel to extract modules, target language, grammar, slides, and book pages.
+          </p>
+        </div>
+        <div class="flex flex-wrap items-center justify-center gap-2">
+          <span class="px-3 py-1 rounded-xl bg-pink text-white border-2 border-dark text-xs font-black uppercase -rotate-2 shadow-hard-sm">High Flyers</span>
+          <span class="px-3 py-1 rounded-xl bg-orange text-white border-2 border-dark text-xs font-black uppercase rotate-2 shadow-hard-sm">Small Stars 3.0</span>
+          <span class="px-3 py-1 rounded-xl bg-green text-white border-2 border-dark text-xs font-black uppercase -rotate-2 shadow-hard-sm">Trailblazers 3.0</span>
+          <span class="px-3 py-1 rounded-xl bg-purple text-white border-2 border-dark text-xs font-black uppercase rotate-2 shadow-hard-sm">Frontrunner</span>
+        </div>
+        <div class="flex flex-wrap items-center justify-center gap-3 pt-2">
+          <button type="button" onclick="if (uiPrefs.focusMode) toggleFocusMode(); switchInputMode('pdf'); triggerPdfPicker();"
+            class="btn-chunky px-5 py-3 bg-blue text-white border-3 border-dark dark:border-slate-500 rounded-2xl text-sm flex items-center gap-2">
+            <i data-lucide="file-up" class="w-5 h-5"></i>
+            Upload Teacher Notes PDF
+          </button>
+          <button type="button" onclick="if (uiPrefs.focusMode) toggleFocusMode(); switchInputMode('paste', true);"
+            class="btn-chunky px-5 py-3 bg-white dark:bg-slate-800 text-dark dark:text-white border-3 border-dark dark:border-slate-500 rounded-2xl text-sm flex items-center gap-2">
+            <i data-lucide="clipboard-paste" class="w-5 h-5 text-orange"></i>
+            Paste Text Instead
+          </button>
+        </div>
       </div>`;
     if (window.lucide) lucide.createIcons();
     return;
   }
+
+  applyCardLayoutClass();
 
   modules.forEach((rawMod, i) => {
     const mod = normalizeModule(rawMod);
@@ -2207,84 +2549,100 @@ function renderModules(modules) {
     const d = mod.data;
 
     const targetBlocks = [
-      targetSubsectionHTML("Target Language / Vocabulary", d.lang),
-      targetSubsectionHTML("Recycled Vocabulary", d.recycledLang, "text-amber-600 dark:text-amber-400"),
-      targetSubsectionHTML("Phonics", d.phonics, "text-pink-600 dark:text-pink-400"),
-      targetSubsectionHTML("High-Frequency Words", d.hfw, "text-purple-600 dark:text-purple-400"),
-      targetSubsectionHTML("Grammar / Structures", d.gram, "text-orange-600 dark:text-orange-400"),
-      targetSubsectionHTML("Recycled Grammar", d.recycledGram, "text-amber-600 dark:text-amber-400"),
-      targetSubsectionHTML("Target Skill", d.skill, "text-emerald-600 dark:text-emerald-400"),
+      targetSubsectionHTML("Vocabulary / Language", d.lang, "bg-pink/15 text-pink border-pink/40"),
+      targetSubsectionHTML("Recycled Vocab", d.recycledLang, "bg-orange/15 text-orange border-orange/40"),
+      targetSubsectionHTML("Phonics", d.phonics, "bg-purple/15 text-purple border-purple/40"),
+      targetSubsectionHTML("High-Frequency Words", d.hfw, "bg-blue/15 text-blue border-blue/40"),
+      targetSubsectionHTML("Grammar / Structures", d.gram, "bg-orange/15 text-orange border-orange/40"),
+      targetSubsectionHTML("Recycled Grammar", d.recycledGram, "bg-yellow/20 text-amber-700 dark:text-yellow border-yellow/60"),
+      targetSubsectionHTML("Target Skill", d.skill, "bg-green/15 text-green-700 dark:text-green border-green/40"),
     ]
       .filter(Boolean)
       .join("");
 
     const outcomesLabel = mod.isReview ? "Review Activities" : "Learning Outcomes";
+    const hasRefs = Object.keys(d.presentations || {}).length > 0 || (d.pages || []).length > 0;
+    const isPrepNone = d.prep.length === 1 && /^None$/i.test(d.prep[0]);
+    const prepContent = isPrepNone
+      ? `<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-green/15 text-green-700 dark:text-green border border-green/40 text-xs font-extrabold"><i data-lucide="check" class="w-3.5 h-3.5"></i>No prep needed</span>`
+      : listHTML(d.prep);
 
     const html = `
-      <article class="card" id="${id}" style="animation-delay:${Math.min(i * 45, 360)}ms;">
-        <div class="flex items-center justify-between gap-3 px-4 py-3 border-b-3 border-slate-900 dark:border-slate-600" style="background:${accent};">
+      <article class="module-card bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border-4 border-dark dark:border-slate-500 rounded-[1.75rem] shadow-hard overflow-hidden flex flex-col"
+        id="${id}"
+        data-mod-search="${escapeHtml(buildModuleSearchText(mod))}"
+        style="animation-delay:${Math.min(i * 35, 280)}ms;">
+
+        <!-- Card Header -->
+        <div class="flex items-center justify-between gap-3 px-4 py-3 border-b-4 border-dark dark:border-slate-600" style="background:${accent};">
           <div class="flex items-center gap-3 min-w-0">
-            <span class="w-8 h-8 shrink-0 bg-white/25 rounded-xl border-2 border-white/40 flex items-center justify-center font-heading font-bold text-sm" style="color:${txtcol};">${i + 1}</span>
+            <span class="w-8 h-8 shrink-0 bg-white/25 rounded-xl border-2 border-white/50 flex items-center justify-center font-heading font-bold text-sm" style="color:${txtcol};">${i + 1}</span>
             <h2 class="font-heading text-base sm:text-lg leading-tight" style="color:${txtcol};">${escapeHtml(mod.title)}</h2>
           </div>
-          ${mod.duration ? `<span class="badge shrink-0 bg-white/90 text-slate-900 border-2 border-slate-900">${escapeHtml(mod.duration)}</span>` : ""}
+          <div class="flex items-center gap-2 shrink-0">
+            ${mod.duration ? `<span class="px-2.5 py-1 rounded-xl bg-white/95 text-dark border-2 border-dark text-[11px] font-black uppercase shadow-hard-xs">${escapeHtml(mod.duration)}</span>` : ""}
+            <button type="button" onclick="copyCard(${i})" title="Copy Module Summary" aria-label="Copy module summary"
+              class="w-8 h-8 rounded-xl bg-white/20 hover:bg-white/35 border-2 border-white/40 flex items-center justify-center text-white transition-colors">
+              <i data-lucide="copy" class="w-4 h-4"></i>
+            </button>
+          </div>
         </div>
 
-        <div class="p-5 flex flex-col gap-5">
-          <div class="section-stripe" style="border-color:${accent};">
-            <h3 class="font-heading text-xs uppercase tracking-widest text-slate-500 dark:text-slate-400 mb-2.5">Target Focus</h3>
-            <div class="space-y-3">
-              ${targetBlocks || `<span class="opacity-60 italic text-sm">Routine / Review section — see Teacher Notes.</span>`}
-            </div>
+        ${
+          hasRefs
+            ? `
+          <!-- Instant Slide & Page Reference Strip -->
+          <div class="px-4 py-2.5 bg-slate-50/90 dark:bg-slate-800/70 border-b-2 border-slate-200 dark:border-slate-700 flex flex-wrap items-center justify-between gap-2">
+            <div class="flex-1 min-w-[160px]">${presHTML(d.presentations)}</div>
+            <div class="shrink-0">${pagesHTML(d.pages)}</div>
+          </div>`
+            : ""
+        }
+
+        <div class="p-4 sm:p-5 flex flex-col gap-4 flex-1">
+          <!-- Target Focus -->
+          <div class="section-stripe space-y-2.5" style="border-color:${accent};">
+            ${targetBlocks || `<p class="text-xs font-bold text-slate-400 dark:text-slate-500 italic">Routine / review section &mdash; see Teacher Notes for instructions.</p>`}
           </div>
 
-          <div>
-            <h3 class="font-heading text-xs uppercase tracking-widest text-slate-500 dark:text-slate-400 mb-2.5">Requirements</h3>
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div class="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl border-2 border-slate-200 dark:border-slate-700">
-                <p class="text-[11px] font-extrabold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1">Materials</p>
-                ${listHTML(d.materials)}
-              </div>
-              <div class="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl border-2 border-slate-200 dark:border-slate-700">
-                <p class="text-[11px] font-extrabold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1">Preparation</p>
-                ${listHTML(d.prep)}
-              </div>
+          <!-- Requirements -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div class="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border-2 border-slate-200 dark:border-slate-700">
+              <p class="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-1.5 flex items-center gap-1.5">
+                <i data-lucide="package" class="w-3.5 h-3.5 text-blue"></i> Materials
+              </p>
+              ${listHTML(d.materials)}
+            </div>
+            <div class="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border-2 border-slate-200 dark:border-slate-700">
+              <p class="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-1.5 flex items-center gap-1.5">
+                <i data-lucide="clipboard-check" class="w-3.5 h-3.5 text-orange"></i> Preparation
+              </p>
+              ${prepContent}
             </div>
           </div>
 
           ${
             d.will.length
               ? `
-            <div class="pt-3 border-t-2 border-slate-100 dark:border-slate-800">
-              <button type="button" class="w-full flex items-center justify-between py-1 text-left rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800/40 px-2 -mx-2 transition-colors" onclick="toggleWill(${i})">
-                <span class="font-heading text-xs uppercase tracking-widest text-slate-500 dark:text-slate-400">${escapeHtml(outcomesLabel)} (${d.will.length})</span>
+            <div class="pt-2 border-t-2 border-slate-100 dark:border-slate-800">
+              <button type="button" class="w-full flex items-center justify-between py-1.5 px-2.5 -mx-1 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800/60 transition-colors" onclick="toggleWill(${i})">
+                <span class="font-heading text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+                  <i data-lucide="target" class="w-3.5 h-3.5 text-green"></i>
+                  ${escapeHtml(outcomesLabel)} (${d.will.length})
+                </span>
                 <i data-lucide="chevron-down" class="w-4 h-4 text-slate-400 transition-transform" id="chev-${i}"></i>
               </button>
-              <div class="hidden mt-2 p-3.5 bg-slate-50 dark:bg-slate-800/60 rounded-xl border-2 border-slate-200 dark:border-slate-700" id="will-${i}">${listHTML(d.will)}</div>
+              <div class="hidden mt-2 p-3 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border-2 border-slate-200 dark:border-slate-700" id="will-${i}">${listHTML(d.will)}</div>
             </div>`
               : ""
           }
-
-          <div class="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-3">
-            <div class="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border-2 border-slate-200 dark:border-slate-700">
-              <p class="text-[10px] font-extrabold uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-2">Presentations / Slides</p>
-              ${presHTML(d.presentations)}
-            </div>
-            <div class="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border-2 border-slate-200 dark:border-slate-700 flex flex-col justify-between min-w-[130px]">
-              <p class="text-[10px] font-extrabold uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-2">Book Pages</p>
-              <div>${pagesHTML(d.pages)}</div>
-            </div>
-          </div>
-
-          <button type="button" onclick="copyCard(${i})" class="btn-chunky btn-chalk w-full text-xs py-2.5 rounded-xl flex items-center justify-center gap-2">
-            <i data-lucide="copy" class="w-4 h-4"></i> Copy Module Summary
-          </button>
         </div>
       </article>`;
     container.insertAdjacentHTML("beforeend", html);
   });
 
   if (window.lucide) lucide.createIcons();
+  filterModules();
 }
 
 function getUniqueCategorized(items) {
@@ -2317,6 +2675,7 @@ function renderOverview(modules) {
   const aims = appState.current.aims || document.getElementById("unit-aims-input")?.value || "";
   const lessonAims = appState.current.lessonAims || document.getElementById("lesson-aims-input")?.value || "";
   const totalMins = sumMinutes(normalizedMods);
+  const allPagesRange = collectAllPages(normalizedMods);
 
   const rawLang = [...ov.lang];
   const rawRecycledLang = [...ov.recycledLang];
@@ -2344,59 +2703,89 @@ function renderOverview(modules) {
   const uniqueRecycledGram = dedupeStrings(rawRecycledGram);
   const uniqueSkill = dedupeStrings(rawSkill);
 
+  window._cachedOverviewSections = {
+    lang: [...uniqueLang, ...uniqueRecycledLang, ...uniquePhonics, ...uniqueHfw],
+    gram: [...uniqueGram, ...uniqueRecycledGram, ...uniqueSkill],
+  };
+
   const html = `
-    <div class="flex flex-col gap-6">
-      <div class="card p-6 text-white relative overflow-hidden" style="background:var(--color-blue);">
-        <div class="flex flex-wrap items-center justify-between gap-3 relative z-10">
-          <div class="flex items-center gap-2.5 flex-wrap">
-            <h2 class="font-heading text-2xl uppercase tracking-tight">${escapeHtml(title)}</h2>
-            ${course ? `<span class="badge bg-white text-slate-900 border-2 border-slate-900">${escapeHtml(course)}</span>` : ""}
+    <div class="flex flex-col gap-5">
+      <!-- Hero Unit Summary -->
+      <div class="bg-blue text-white border-4 border-dark dark:border-slate-500 rounded-[2rem] p-6 shadow-hard relative overflow-hidden">
+        <div class="flex flex-wrap items-start justify-between gap-4">
+          <div class="space-y-2">
+            <div class="flex items-center gap-2.5 flex-wrap">
+              ${course ? `<span class="px-3 py-1 rounded-xl bg-white text-dark border-2 border-dark text-xs font-black uppercase shadow-hard-sm -rotate-1">${escapeHtml(course)}</span>` : ""}
+              <span class="px-3 py-1 rounded-xl bg-slate-900/25 border-2 border-white/30 text-xs font-black uppercase">${normalizedMods.length} Modules</span>
+              <span class="px-3 py-1 rounded-xl bg-slate-900/25 border-2 border-white/30 text-xs font-black uppercase">${totalMins} Min Total</span>
+              ${allPagesRange ? `<span class="px-3 py-1 rounded-xl bg-slate-900/25 border-2 border-white/30 text-xs font-black uppercase">pp. ${escapeHtml(allPagesRange)}</span>` : ""}
+            </div>
+            <h2 class="font-heading text-2xl sm:text-3xl uppercase tracking-tight leading-tight">${escapeHtml(title)}</h2>
           </div>
-          <div class="flex items-center gap-2">
-            <span class="badge bg-slate-900/25 text-white border-2 border-white/40">${normalizedMods.length} Modules &middot; ${totalMins} min</span>
-            <button type="button" onclick="copyOverview()" class="btn-chunky btn-chalk !py-1.5 !px-3 text-xs rounded-xl">
-              <i data-lucide="copy" class="w-3.5 h-3.5"></i> Copy Overview
+
+          <div class="flex flex-wrap items-center gap-2">
+            <button type="button" onclick="copyOverview('text')" class="btn-chunky py-2 px-3.5 bg-white text-dark border-3 border-dark rounded-xl text-xs flex items-center gap-1.5">
+              <i data-lucide="copy" class="w-3.5 h-3.5 text-blue"></i> Copy Overview
+            </button>
+            <button type="button" onclick="copyOverview('md')" class="btn-chunky py-2 px-3.5 bg-dark text-white border-3 border-dark rounded-xl text-xs flex items-center gap-1.5">
+              <i data-lucide="file-code-2" class="w-3.5 h-3.5 text-green"></i> Markdown
             </button>
           </div>
         </div>
 
-        <div class="mt-4 p-4 bg-white/15 backdrop-blur-md rounded-2xl border-2 border-white/25 relative z-10">
-          <p class="text-xs uppercase font-extrabold tracking-widest opacity-80 mb-1">Unit Aims</p>
-          <p class="text-sm sm:text-base font-bold leading-relaxed">${aims ? escapeHtml(aims).replace(/\n/g, "<br>") : "No unit aims extracted."}</p>
+        <div class="grid grid-cols-1 ${lessonAims ? "md:grid-cols-2" : ""} gap-4 mt-5">
+          <div class="p-4 bg-white/15 backdrop-blur-md rounded-2xl border-2 border-white/30">
+            <p class="text-[11px] uppercase font-black tracking-widest opacity-85 mb-1.5 flex items-center gap-1.5">
+              <i data-lucide="target" class="w-3.5 h-3.5"></i> Unit Aims
+            </p>
+            <p class="text-sm font-bold leading-relaxed">${aims ? escapeHtml(aims).replace(/\n/g, "<br>") : "No unit aims extracted."}</p>
+          </div>
+          ${
+            lessonAims
+              ? `
+            <div class="p-4 bg-white/15 backdrop-blur-md rounded-2xl border-2 border-white/30">
+              <p class="text-[11px] uppercase font-black tracking-widest opacity-85 mb-1.5 flex items-center gap-1.5">
+                <i data-lucide="flag" class="w-3.5 h-3.5"></i> Lesson Aims
+              </p>
+              <p class="text-sm font-bold leading-relaxed">${escapeHtml(lessonAims).replace(/\n/g, "<br>")}</p>
+            </div>`
+              : ""
+          }
         </div>
-
-        ${
-          lessonAims
-            ? `
-          <div class="mt-3 p-4 bg-white/15 backdrop-blur-md rounded-2xl border-2 border-white/25 relative z-10">
-            <p class="text-xs uppercase font-extrabold tracking-widest opacity-80 mb-1">Lesson Aims</p>
-            <p class="text-sm sm:text-base font-bold leading-relaxed">${escapeHtml(lessonAims).replace(/\n/g, "<br>")}</p>
-          </div>`
-            : ""
-        }
       </div>
 
+      <!-- Language & Grammar Bento -->
       <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
-        <div class="card p-5" style="border-color:var(--color-pink);">
-          <h3 class="font-heading text-pink-500 text-base uppercase mb-3 flex items-center gap-2">
-            <i data-lucide="languages" class="w-5 h-5"></i> All Target Language
-          </h3>
+        <div class="bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border-4 border-dark dark:border-slate-500 rounded-[2rem] p-5 shadow-hard">
+          <div class="flex items-center justify-between gap-2 mb-3">
+            <h3 class="font-heading text-pink text-lg uppercase flex items-center gap-2">
+              <i data-lucide="languages" class="w-5 h-5"></i> Target Language
+            </h3>
+            <button type="button" onclick="copySectionList('lang')" class="px-2.5 py-1 bg-slate-100 dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-xl text-[10px] font-black uppercase hover:text-pink transition-colors flex items-center gap-1">
+              <i data-lucide="copy" class="w-3 h-3"></i> Copy
+            </button>
+          </div>
           <div class="space-y-3">
             ${listHTML(uniqueLang, "No language extracted.")}
-            ${targetSubsectionHTML("Recycled Vocabulary", uniqueRecycledLang, "text-amber-600 dark:text-amber-400")}
-            ${targetSubsectionHTML("Phonics", uniquePhonics, "text-pink-600 dark:text-pink-400")}
-            ${targetSubsectionHTML("High-Frequency Words", uniqueHfw, "text-purple-600 dark:text-purple-400")}
+            ${targetSubsectionHTML("Recycled Vocabulary", uniqueRecycledLang, "bg-orange/15 text-orange border-orange/40")}
+            ${targetSubsectionHTML("Phonics", uniquePhonics, "bg-purple/15 text-purple border-purple/40")}
+            ${targetSubsectionHTML("High-Frequency Words", uniqueHfw, "bg-blue/15 text-blue border-blue/40")}
           </div>
         </div>
 
-        <div class="card p-5" style="border-color:var(--color-orange);">
-          <h3 class="font-heading text-orange-500 text-base uppercase mb-3 flex items-center gap-2">
-            <i data-lucide="scroll" class="w-5 h-5"></i> All Target Grammar &amp; Skills
-          </h3>
+        <div class="bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border-4 border-dark dark:border-slate-500 rounded-[2rem] p-5 shadow-hard">
+          <div class="flex items-center justify-between gap-2 mb-3">
+            <h3 class="font-heading text-orange text-lg uppercase flex items-center gap-2">
+              <i data-lucide="scroll" class="w-5 h-5"></i> Grammar &amp; Skills
+            </h3>
+            <button type="button" onclick="copySectionList('gram')" class="px-2.5 py-1 bg-slate-100 dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-xl text-[10px] font-black uppercase hover:text-orange transition-colors flex items-center gap-1">
+              <i data-lucide="copy" class="w-3 h-3"></i> Copy
+            </button>
+          </div>
           <div class="space-y-3">
             ${listHTML(uniqueGram, "No grammar extracted.")}
-            ${targetSubsectionHTML("Recycled Grammar", uniqueRecycledGram, "text-amber-600 dark:text-amber-400")}
-            ${targetSubsectionHTML("Target Skills", uniqueSkill, "text-emerald-600 dark:text-emerald-400")}
+            ${targetSubsectionHTML("Recycled Grammar", uniqueRecycledGram, "bg-yellow/20 text-amber-700 dark:text-yellow border-yellow/60")}
+            ${targetSubsectionHTML("Target Skills", uniqueSkill, "bg-green/15 text-green-700 dark:text-green border-green/40")}
           </div>
         </div>
       </div>
@@ -2408,8 +2797,8 @@ function renderOverview(modules) {
           ${
             ov.materials.length
               ? `
-            <div class="card p-5">
-              <h3 class="font-heading text-blue-500 text-base uppercase mb-3 flex items-center gap-2">
+            <div class="bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border-4 border-dark dark:border-slate-500 rounded-[2rem] p-5 shadow-hard">
+              <h3 class="font-heading text-blue text-lg uppercase mb-3 flex items-center gap-2">
                 <i data-lucide="package" class="w-5 h-5"></i> Lesson Materials
               </h3>
               ${listHTML(ov.materials)}
@@ -2419,8 +2808,8 @@ function renderOverview(modules) {
           ${
             ov.tips.length
               ? `
-            <div class="card p-5">
-              <h3 class="font-heading text-green-500 text-base uppercase mb-3 flex items-center gap-2">
+            <div class="bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border-4 border-dark dark:border-slate-500 rounded-[2rem] p-5 shadow-hard">
+              <h3 class="font-heading text-green text-lg uppercase mb-3 flex items-center gap-2">
                 <i data-lucide="lightbulb" class="w-5 h-5"></i> Teaching Tips
               </h3>
               ${listHTML(ov.tips)}
@@ -2431,19 +2820,20 @@ function renderOverview(modules) {
           : ""
       }
 
-      <div class="card overflow-hidden">
-        <div class="p-4 bg-slate-900 dark:bg-slate-800 text-white font-heading uppercase tracking-wide flex items-center justify-between gap-2">
-          <span class="flex items-center gap-2"><i data-lucide="map" class="w-5 h-5 text-green-400"></i> Resource Navigator</span>
-          <span class="text-xs opacity-70 font-bold">${normalizedMods.length} Sections</span>
+      <!-- Resource Navigator -->
+      <div class="bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border-4 border-dark dark:border-slate-500 rounded-[2rem] shadow-hard overflow-hidden">
+        <div class="px-5 py-4 bg-dark dark:bg-slate-800 text-white border-b-4 border-dark dark:border-slate-600 font-heading uppercase tracking-wide flex items-center justify-between gap-2">
+          <span class="flex items-center gap-2 text-lg"><i data-lucide="map" class="w-5 h-5 text-green"></i> Resource Navigator</span>
+          <span class="px-2.5 py-0.5 rounded-lg bg-white/15 text-xs font-black">${normalizedMods.length} Sections</span>
         </div>
         <div class="overflow-x-auto">
           <table class="w-full text-left border-collapse">
             <thead>
-              <tr class="bg-slate-50 dark:bg-slate-900/50 border-b-2 border-slate-900 dark:border-slate-700">
-                <th class="p-3.5 text-xs font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400"># &amp; Module</th>
-                <th class="p-3.5 text-xs font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400">Time</th>
-                <th class="p-3.5 text-xs font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400">Slides</th>
-                <th class="p-3.5 text-xs font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400">Pages</th>
+              <tr class="bg-slate-50 dark:bg-slate-800/70 border-b-3 border-dark dark:border-slate-600">
+                <th class="p-3.5 text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400"># &amp; Module</th>
+                <th class="p-3.5 text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Time</th>
+                <th class="p-3.5 text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Slides</th>
+                <th class="p-3.5 text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Pages</th>
               </tr>
             </thead>
             <tbody>
@@ -2452,10 +2842,11 @@ function renderOverview(modules) {
                   ? normalizedMods
                       .map(
                         (m, i) => `
-                  <tr class="border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors">
+                  <tr class="border-b border-slate-100 dark:border-slate-800 hover:bg-blue/5 dark:hover:bg-slate-800/60 transition-colors">
                     <td class="p-3.5 font-bold text-sm">
-                      <button type="button" onclick="scrollToModule(${i})" class="text-left hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
-                        <span class="opacity-50 mr-1">${i + 1}.</span>${escapeHtml(m.title)}
+                      <button type="button" onclick="scrollToModule(${i})" class="text-left hover:text-blue transition-colors flex items-center gap-2">
+                        <span class="w-6 h-6 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-600 text-[11px] font-black flex items-center justify-center shrink-0">${i + 1}</span>
+                        <span>${escapeHtml(m.title)}</span>
                       </button>
                     </td>
                     <td class="p-3.5 text-xs font-extrabold text-slate-500 dark:text-slate-400 whitespace-nowrap">${escapeHtml(m.duration || "-")}</td>
@@ -2464,7 +2855,7 @@ function renderOverview(modules) {
                   </tr>`,
                       )
                       .join("")
-                  : `<tr><td colspan="4" class="p-6 text-center text-sm font-bold text-slate-400">No modules to display yet.</td></tr>`
+                  : `<tr><td colspan="4" class="p-8 text-center text-sm font-bold text-slate-400">No modules to display yet.</td></tr>`
               }
             </tbody>
           </table>
@@ -2474,6 +2865,17 @@ function renderOverview(modules) {
 
   container.innerHTML = html;
   if (window.lucide) lucide.createIcons();
+}
+
+function copySectionList(kind) {
+  const items = (window._cachedOverviewSections && window._cachedOverviewSections[kind]) || [];
+  if (!items.length) {
+    showToast("Nothing to copy yet", "warn");
+    return;
+  }
+  navigator.clipboard?.writeText(items.join("\n")).then(() => {
+    showToast(kind === "lang" ? "Target language copied!" : "Grammar & skills copied!");
+  });
 }
 
 function toggleWill(i) {
@@ -2519,35 +2921,56 @@ function copyCard(index) {
   });
 }
 
-function copyOverview() {
+function copyOverview(format = "text") {
   const mods = (appState.current.modules || []).map(normalizeModule);
   const title = appState.current.title || "Unit Overview";
   const course = appState.current.course ? ` [${appState.current.course}]` : "";
-  const lines = [`${title}${course} (${mods.length} modules, ${sumMinutes(mods)} min)`];
-  if (appState.current.aims) lines.push(`\nUnit Aims:\n${appState.current.aims}`);
-  if (appState.current.lessonAims) lines.push(`\nLesson Aims:\n${appState.current.lessonAims}`);
+  const lines = [];
 
-  mods.forEach((m, idx) => {
-    lines.push(
-      `\n${idx + 1}. ${m.title} (${m.duration || "-"}) | Slides: ${formatPresText(m.data.presentations)} | Pages: ${m.data.pages.length ? formatNumRanges(m.data.pages) : "-"}`,
-    );
-  });
+  if (format === "md") {
+    lines.push(`# ${title}${course}`);
+    lines.push(`**${mods.length} modules** | **${sumMinutes(mods)} min**`);
+    if (appState.current.aims) lines.push(`\n## Unit Aims\n${appState.current.aims}`);
+    if (appState.current.lessonAims) lines.push(`\n## Lesson Aims\n${appState.current.lessonAims}`);
+    lines.push(`\n## Modules\n| # | Module | Time | Slides | Pages |\n|---|---|---|---|---|`);
+    mods.forEach((m, idx) => {
+      lines.push(
+        `| ${idx + 1} | ${m.title} | ${m.duration || "-"} | ${formatPresText(m.data.presentations)} | ${m.data.pages.length ? formatNumRanges(m.data.pages) : "-"} |`,
+      );
+    });
+  } else {
+    lines.push(`${title}${course} (${mods.length} modules, ${sumMinutes(mods)} min)`);
+    if (appState.current.aims) lines.push(`\nUnit Aims:\n${appState.current.aims}`);
+    if (appState.current.lessonAims) lines.push(`\nLesson Aims:\n${appState.current.lessonAims}`);
+    mods.forEach((m, idx) => {
+      lines.push(
+        `\n${idx + 1}. ${m.title} (${m.duration || "-"}) | Slides: ${formatPresText(m.data.presentations)} | Pages: ${m.data.pages.length ? formatNumRanges(m.data.pages) : "-"}`,
+      );
+    });
+  }
 
   navigator.clipboard?.writeText(lines.join("\n")).then(() => {
-    showToast("Full overview copied!");
+    showToast(format === "md" ? "Markdown overview copied!" : "Full overview copied!");
   });
 }
 
 function scrollToModule(index) {
   switchTab("paste");
-  const el = document.getElementById(`mod-${index}`);
+  let el = document.getElementById(`mod-${index}`);
+  if (el && el.classList.contains("hidden")) {
+    clearModuleFilter();
+    el = document.getElementById(`mod-${index}`);
+  }
   if (!el) return;
-  const offset = 155;
+  const offset = 110;
   const elementTop = el.getBoundingClientRect().top + window.scrollY;
   window.scrollTo({
     top: Math.max(0, elementTop - offset),
     behavior: "smooth",
   });
+  el.classList.remove("module-highlight-pulse");
+  void el.offsetWidth;
+  el.classList.add("module-highlight-pulse");
 }
 
 function renderModuleNav(modules) {
@@ -2561,21 +2984,21 @@ function renderModuleNav(modules) {
   }
 
   const totalMins = sumMinutes(modules);
-  nav.className =
-    "sticky top-[78px] z-30 pb-2 pt-1 bg-transparent";
+  const allPagesRange = collectAllPages(modules);
+  nav.className = "block";
   nav.innerHTML = `
-    <div class="card p-3.5 bg-white/85 dark:bg-slate-900/85 backdrop-blur-xl flex flex-wrap gap-3 items-center justify-between border-blue-500">
+    <div class="bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl border-4 border-dark dark:border-slate-500 rounded-[1.5rem] p-3.5 shadow-hard flex flex-wrap gap-3 items-center justify-between">
       <div class="flex items-center gap-2.5 flex-wrap">
         <div class="flex items-center gap-1.5 mr-1">
-          <i data-lucide="compass" class="w-4 h-4 text-blue-500"></i>
-          <span class="text-xs font-extrabold uppercase tracking-widest text-slate-500 dark:text-slate-400">Quick Nav</span>
+          <i data-lucide="compass" class="w-4 h-4 text-blue"></i>
+          <span class="text-xs font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">Jump</span>
         </div>
-        <div class="flex flex-wrap gap-2">
+        <div class="flex flex-wrap gap-1.5">
           ${modules
             .map(
               (m, i) => `
             <button type="button" onclick="scrollToModule(${i})"
-              class="btn-chunky w-9 h-9 rounded-xl flex items-center justify-center text-xs font-bold"
+              class="btn-chunky w-8 h-8 rounded-xl border-2 border-dark dark:border-slate-500 flex items-center justify-center text-xs font-bold"
               style="background:${ACCENTS[i % ACCENTS.length]}; color:${TXT_ON[i % TXT_ON.length]};"
               title="${escapeHtml(m.title)}">
               ${i + 1}
@@ -2584,9 +3007,12 @@ function renderModuleNav(modules) {
             .join("")}
         </div>
       </div>
-      <span class="badge bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-2 border-slate-900 dark:border-slate-600 shrink-0">
-        ${modules.length} Mod &middot; ${totalMins} min
-      </span>
+      <div class="flex items-center gap-2 flex-wrap">
+        <span class="px-2.5 py-1 rounded-xl bg-slate-100 dark:bg-slate-800 border-2 border-dark dark:border-slate-500 text-dark dark:text-slate-200 text-xs font-black uppercase">
+          ${modules.length} Mod &middot; ${totalMins} min
+        </span>
+        ${allPagesRange ? `<span class="page-chip">pp. ${escapeHtml(allPagesRange)}</span>` : ""}
+      </div>
     </div>`;
   if (window.lucide) lucide.createIcons();
 }
@@ -2602,6 +3028,20 @@ function toggleLibrary() {
   if (isOpen) renderLibrary();
 }
 
+function setLibraryFilter(course) {
+  activeLibraryCourseFilter = course || "";
+  document.querySelectorAll(".lib-filter-pill").forEach((btn) => {
+    const match = (btn.getAttribute("data-lib-filter") || "") === activeLibraryCourseFilter;
+    btn.classList.toggle("bg-blue", match);
+    btn.classList.toggle("text-white", match);
+    btn.classList.toggle("bg-slate-100", !match);
+    btn.classList.toggle("dark:bg-slate-800", !match);
+    btn.classList.toggle("text-dark", !match);
+    btn.classList.toggle("dark:text-slate-200", !match);
+  });
+  renderLibrary();
+}
+
 async function renderLibrary() {
   const list = document.getElementById("library-list");
   if (!list || !dataBase) return;
@@ -2612,13 +3052,16 @@ async function renderLibrary() {
     .filter((s) => s.id !== 0)
     .sort((a, b) => (b.lastUsed || 0) - (a.lastUsed || 0));
   appState.library = sets;
+  updateLibraryCountBadge();
 
   list.innerHTML = "";
-  const filtered = sets.filter(
-    (s) =>
+  const filtered = sets.filter((s) => {
+    const matchesSearch =
       (s.name || "").toLowerCase().includes(search) ||
-      (s.course || "").toLowerCase().includes(search),
-  );
+      (s.course || "").toLowerCase().includes(search);
+    const matchesCourse = !activeLibraryCourseFilter || s.course === activeLibraryCourseFilter;
+    return matchesSearch && matchesCourse;
+  });
 
   if (filtered.length === 0) {
     list.innerHTML = `<div class="text-center py-8 text-slate-400 font-bold text-sm">No saved sets found.</div>`;
@@ -2627,7 +3070,7 @@ async function renderLibrary() {
 
   filtered.forEach((set) => {
     const el = document.createElement("div");
-    el.className = `group p-3.5 bg-white dark:bg-slate-800 border-3 border-slate-900 dark:border-slate-600 rounded-2xl shadow-[3px_3px_0_var(--border-primary)] cursor-pointer hover:border-blue-500 transition-all ${appState.activeId === set.id ? "ring-3 ring-blue-500" : ""}`;
+    el.className = `group p-3.5 bg-white dark:bg-slate-800 border-3 border-dark dark:border-slate-500 rounded-2xl shadow-hard-sm cursor-pointer hover:border-blue transition-all ${appState.activeId === set.id ? "ring-4 ring-blue/40 border-blue" : ""}`;
 
     const date = new Date(set.lastUsed || Date.now()).toLocaleDateString();
     const modCount = Array.isArray(set.modules) ? set.modules.length : 0;
@@ -2635,13 +3078,13 @@ async function renderLibrary() {
     el.innerHTML = `
       <div class="flex justify-between items-start gap-2">
         <div class="min-w-0 flex-1" onclick="loadSet(${set.id})">
-          <h4 class="font-heading font-bold text-slate-900 dark:text-white truncate">${escapeHtml(set.name)}</h4>
+          <h4 class="font-heading font-bold text-dark dark:text-white truncate">${escapeHtml(set.name)}</h4>
           <div class="flex items-center gap-1.5 mt-1 flex-wrap">
-            ${set.course ? `<span class="text-[10px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300">${escapeHtml(set.course)}</span>` : ""}
+            ${set.course ? `<span class="text-[10px] font-black uppercase px-2 py-0.5 rounded-lg bg-blue/15 text-blue">${escapeHtml(set.course)}</span>` : ""}
             <span class="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">${modCount} mod &middot; ${escapeHtml(date)}</span>
           </div>
         </div>
-        <button type="button" onclick="deleteSet(event, ${set.id})" class="p-1.5 text-slate-400 hover:text-pink-500 hover:bg-pink-50 dark:hover:bg-pink-900/20 rounded-lg transition-colors" aria-label="Delete saved set">
+        <button type="button" onclick="deleteSet(event, ${set.id})" class="p-1.5 text-slate-400 hover:text-pink hover:bg-pink/10 rounded-lg transition-colors" aria-label="Delete saved set">
           <i data-lucide="trash-2" class="w-4 h-4"></i>
         </button>
       </div>`;
@@ -2676,6 +3119,8 @@ async function createNewSet() {
   };
   localStorage.removeItem("lp_session");
   clearPdfBadge();
+  const msInput = document.getElementById("module-search-input");
+  if (msInput) msInput.value = "";
   updateUIFromState();
   showToast("New lesson started");
 }
