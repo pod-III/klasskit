@@ -19,7 +19,13 @@ function shuffleArray(arr) {
     return copy;
 }
 
+let buildFeedbackTimer = null;
+
 function showBuildFeedback(message, tone = 'error') {
+    if (buildFeedbackTimer) {
+        clearTimeout(buildFeedbackTimer);
+        buildFeedbackTimer = null;
+    }
     const el = document.getElementById('build-feedback');
     if (!el) return;
     if (!message) {
@@ -549,10 +555,10 @@ function checkPlacementDynamic(word, startR, startC, dir, targetGrid, size) {
 
         if (currentVal === char) {
             if (dir === 'across') {
-                if (targetGrid[r][c - 1] !== null && targetGrid[r][c + 1] !== null) return false;
+                if (c > 0 && c < size - 1 && targetGrid[r][c - 1] !== null && targetGrid[r][c + 1] !== null) return false;
             }
             if (dir === 'down') {
-                if (targetGrid[r - 1][c] !== null && targetGrid[r + 1][c] !== null) return false;
+                if (r > 0 && r < size - 1 && targetGrid[r - 1][c] !== null && targetGrid[r + 1][c] !== null) return false;
             }
         }
 
@@ -973,30 +979,29 @@ function clearBoardLetters() {
     broadcastFullState();
 }
 
-// --- INIT & EVENTS ---
-document.getElementById('dedupe-btn')?.addEventListener('click', dedupeWords);
-
-document.getElementById('generate-btn').onclick = () => {
+function buildPuzzleFromInput({ autoCloseMobile = true, celebrate = true } = {}) {
     showBuildFeedback('');
     const rawLines = els.input.value.split('\n').filter(l => l.includes(':'));
     const inputData = rawLines.map(l => {
         const colonIdx = l.indexOf(':');
-        const w = l.slice(0, colonIdx);
-        const c = l.slice(colonIdx + 1);
+        const w = colonIdx >= 0 ? l.slice(0, colonIdx) : '';
+        const c = colonIdx >= 0 ? l.slice(colonIdx + 1) : '';
         return {
             word: w.trim().toUpperCase().replace(/[^A-Z]/g, ''),
             clue: c.trim()
         };
-    }).filter(item => item.word.length > 0 && item.clue.length > 0)
+    }).filter(item => item.word.length >= 2 && item.clue.length > 0)
       .sort((a, b) => b.word.length - a.word.length);
 
     if (inputData.length < 2) {
-        showBuildFeedback('Add at least 2 valid "WORD : CLUE" lines.', 'error');
+        showBuildFeedback('Add at least 2 valid "WORD : CLUE" lines (2+ letters each).', 'error');
         Sound.error();
         const btn = document.getElementById('generate-btn');
-        btn.classList.add('animate-shake');
-        setTimeout(() => btn.classList.remove('animate-shake'), 400);
-        return;
+        if (btn) {
+            btn.classList.add('bg-pink', 'animate-shake');
+            setTimeout(() => btn.classList.remove('bg-pink', 'animate-shake'), 400);
+        }
+        return false;
     }
 
     if (generateLayout(inputData)) {
@@ -1004,10 +1009,12 @@ document.getElementById('generate-btn').onclick = () => {
             showBuildFeedback(`Placed ${words.length} of ${inputData.length} words (others could not intersect).`, 'warn');
         } else {
             showBuildFeedback(`Puzzle built with all ${words.length} words!`, 'success');
-            setTimeout(() => showBuildFeedback(''), 3000);
+            buildFeedbackTimer = setTimeout(() => showBuildFeedback(''), 3000);
         }
-        if (window.innerWidth < 768) toggleControlPanel(true);
-        confetti({ particleCount: 50, spread: 60, origin: { y: 0.6 }, colors: ['#1ea7fd', '#ff4785'] });
+        if (autoCloseMobile && window.innerWidth < 768) toggleControlPanel(true);
+        if (celebrate && typeof confetti === 'function') {
+            confetti({ particleCount: 50, spread: 60, origin: { y: 0.6 }, colors: ['#1ea7fd', '#ff4785'] });
+        }
         broadcastFullState();
         return true;
     } else {
@@ -1036,7 +1043,7 @@ function showCwToast(message, type = 'info') {
         info: 'bg-dark text-white',
     };
     const toast = document.createElement('div');
-    toast.className = `px-4 py-2.5 rounded-2xl border-2 border-dark shadow-hard font-heading text-xs uppercase tracking-wide flex items-center gap-2 ${bgMap[type] || bgMap.info}`;
+    toast.className = `px-4 py-2.5 rounded-2xl border-2 border-dark dark:border-slate-500 shadow-hard font-heading text-xs uppercase tracking-wide flex items-center gap-2 ${bgMap[type] || bgMap.info}`;
     toast.textContent = message;
     container.appendChild(toast);
     setTimeout(() => {
@@ -1047,7 +1054,203 @@ function showCwToast(message, type = 'info') {
     }, 2200);
 }
 
+function parseCrosswordImport(rawText) {
+    const validLevels = new Set(['A1', 'A2', 'B1', 'B1+', 'B2', 'B2+', 'C1', 'C2']);
+    const blocks = window.KlassKitBulkImport.splitImportBlocks(rawText);
+    const items = [];
+    const warnings = [];
+    const badges = [];
+
+    blocks.forEach((block, blockIdx) => {
+        const setNum = blockIdx + 1;
+        let level = '';
+        const entries = [];
+        const seen = new Set();
+
+        for (const rawLine of block.lines) {
+            const trimmed = rawLine.trim();
+            if (!trimmed) continue;
+
+            if (trimmed.startsWith('@') && !/\s/.test(trimmed.slice(1).trim())) {
+                const lvl = trimmed.slice(1).trim().toUpperCase();
+                if (validLevels.has(lvl)) {
+                    level = lvl;
+                } else {
+                    warnings.push(`Set ${setNum}: Unknown level "${trimmed}" — ignored.`);
+                }
+                continue;
+            }
+
+            // Tolerate optional list bullet (- , * , 1. ) only before a WORD : Clue pair
+            const cleanedLine = trimmed.replace(/^(?:[-*•]|\d+[.)])\s+(?=[^:=|]+[:=|])/, '');
+            const pairMatch = cleanedLine.match(/^([^:=|]+?)\s*[:=|]\s*(.*)$/);
+            if (!pairMatch) {
+                warnings.push(`Set ${setNum}: Line "${trimmed.slice(0, 32)}" missing ": Clue" separator — skipped.`);
+                continue;
+            }
+
+            const rawWord = pairMatch[1].trim();
+            const word = rawWord.toUpperCase().replace(/[^A-Z]/g, '');
+            const clue = pairMatch[2].trim();
+
+            if (word.length < 2) {
+                warnings.push(`Set ${setNum}: "${rawWord}" skipped (words need at least 2 A–Z letters).`);
+                continue;
+            }
+            if (!clue) {
+                warnings.push(`Set ${setNum}: "${word}" skipped (missing clue).`);
+                continue;
+            }
+            if (seen.has(word)) {
+                warnings.push(`Set ${setNum}: Duplicate word "${word}" skipped.`);
+                continue;
+            }
+            if (word.length > 22) {
+                warnings.push(`Set ${setNum}: "${word}" is ${word.length} letters long and may not fit cleanly.`);
+            }
+
+            seen.add(word);
+            entries.push({ word, clue });
+        }
+
+        if (entries.length < 2) {
+            if (entries.length > 0 || block.hasExplicitTitle) {
+                warnings.push(`Set ${setNum}${block.title ? ` ("${block.title}")` : ''}: Needs at least 2 valid WORD : Clue pairs (found ${entries.length}).`);
+            }
+            return;
+        }
+
+        const cleanTitle = block.title || `Imported Crossword ${items.length + 1}`;
+        const formatted = entries.map(e => `${e.word} : ${e.clue}`).join('\n');
+        items.push({ title: cleanTitle, level, entries, content: formatted });
+        badges.push({
+            tag: level || 'CROSSWORD',
+            label: cleanTitle,
+            meta: `${entries.length} words`,
+            tone: window.KlassKitBulkImport.LEVEL_TONES[level] || 'green',
+            title: `${cleanTitle}: ${entries.map(e => e.word).join(', ')}`,
+        });
+    });
+
+    return { items, warnings, badges };
+}
+
+function initCrosswordImportAndPresets() {
+    if (IS_PLAYER_WINDOW || !window.KlassKitBulkImport) return;
+
+    const CW_TEMPLATE = `// ============================================================
+//  KLASSKIT CROSSWORD BULK IMPORT TEMPLATE
+//  Lines starting with // or single # are ignored comments.
+// ============================================================
+//
+// Format per word set (separate multiple sets with ## Title or ---):
+// ## Set Title
+// @A1   (optional CEFR badge: A1, A2, B1, B1+, B2, C1, C2)
+// WORD : Short, clear clue for students
+// (Also accepts = or | instead of : , letters A-Z only, min 2 letters)
+
+## Classroom Objects
+@A1
+TEACHER : The person who helps students learn
+PENCIL : Wooden tool used for writing
+ERASER : Removes pencil marks from paper
+NOTEBOOK : Book with lined pages for writing notes
+RULER : Tool used to measure or draw straight lines
+BACKPACK : Bag carried on your shoulders to school
+
+---
+
+## Weather & Sky
+@A2
+RAINBOW : Colorful arc in the sky after rain
+CLOUD : White or gray mass floating high in the sky
+BREEZE : A gentle, pleasant wind
+THUNDER : Loud rumbling sound during a storm
+SUNSHINE : Warm bright light coming from the sun`;
+
+    const importModal = window.KlassKitBulkImport.create({
+        id: 'cw-import-overlay',
+        title: 'Bulk Import Word Sets',
+        subtitle: 'Copy AI template or paste WORD : Clue lists',
+        accentColor: 'blue',
+        unitLabel: 'word set',
+        unitLabelPlural: 'word sets',
+        guideItems: [
+            { label: 'Set Title', syntax: '## My Word Set', color: 'orange', desc: 'Optional name; starts a new word set (or divide with ---).' },
+            { label: 'Word & Clue', syntax: 'WORD : Clue', color: 'blue', desc: 'One pair per line (also accepts = or |).' },
+            { label: 'Level Tag', syntax: '@A1 … @B2', color: 'green', desc: 'Optional CEFR badge shown in the preview bar.' },
+        ],
+        tips: [
+            '<strong>Tips:</strong> Use at least <b>2 words</b> per set; letters A–Z only.',
+            '<strong>Comments:</strong> Lines starting with <code>//</code> or single <code>#</code> are ignored.',
+        ],
+        placeholder: `## Animals\n@A1\nELEPHANT : Large gray animal with a trunk\nGIRAFFE : Tall animal with a very long neck\nMONKEY : Playful animal that climbs trees`,
+        template: CW_TEMPLATE,
+        sample: `## Kitchen & Cooking\n@A2\nTOMATO : Red juicy fruit used in pasta sauce\nCHEESE : Dairy food melted on pizza\nSPOON : Round utensil used for eating soup\nOVEN : Appliance used for baking bread\nRECIPE : Step-by-step instructions for cooking a meal\nGARLIC : Flavorful bulb used to season dishes`,
+        options: [
+            { id: 'saveToSets', label: 'Save imported list(s) to Saved Word Sets', defaultChecked: true },
+        ],
+        parse: parseCrosswordImport,
+        onCopyTemplate: () => {
+            Sound.click();
+            showCwToast('Template copied — paste into any AI or editor!', 'success');
+        },
+        onImport: async (result, opts) => {
+            const items = result.items || [];
+            if (!items.length) return false;
+
+            if (opts.saveToSets || items.length > 1) {
+                for (const item of items) {
+                    const label = item.level ? `[${item.level}] ${item.title}` : item.title;
+                    await saveWordSet(label, item.content);
+                }
+                await renderWordSets();
+            }
+
+            const first = items[0];
+            els.input.value = first.content;
+            const setNameEl = document.getElementById('set-name-input');
+            if (setNameEl && first.title) setNameEl.value = first.title;
+            await saveGameState();
+            buildPuzzleFromInput({ autoCloseMobile: false, celebrate: true });
+
+            if (items.length === 1) {
+                showCwToast(`Imported "${first.title}" (${first.entries.length} words)`, 'success');
+            } else {
+                showCwToast(`Imported ${items.length} sets & built "${first.title}"!`, 'success');
+            }
+            return true;
+        },
+    });
+
+    document.getElementById('open-import-btn')?.addEventListener('click', () => {
+        Sound.click();
+        importModal.open();
+    });
+
+    window.KlassKitBulkImport.mountPresets({
+        container: '#crossword-presets-slot',
+        url: 'presets.json',
+        collapsible: false,
+        maxHeightClass: 'max-h-52',
+        getMeta: (p) => ({ icon: 'hash', label: `${(p.items || []).length}w` }),
+        onSelect: async (preset) => {
+            const lines = (preset.items || []).map(it => `${it.word} : ${it.clue}`).join('\n');
+            if (!lines) return;
+            els.input.value = lines;
+            const setNameEl = document.getElementById('set-name-input');
+            if (setNameEl) setNameEl.value = preset.title || '';
+            await saveGameState();
+            Sound.click();
+            buildPuzzleFromInput({ autoCloseMobile: false, celebrate: false });
+            showCwToast(`Loaded "${preset.title}" (${preset.level})`, 'success');
+        },
+    });
+}
+
 // --- INIT & EVENTS ---
+document.getElementById('dedupe-btn')?.addEventListener('click', dedupeWords);
+
 document.getElementById('generate-btn').onclick = () => buildPuzzleFromInput();
 
 document.getElementById('solution-btn').onclick = () => {
@@ -1065,10 +1268,6 @@ document.getElementById('solution-btn').onclick = () => {
 };
 
 document.getElementById('clear-grid-btn')?.addEventListener('click', clearBoardLetters);
-
-document.querySelectorAll('.preset-btn').forEach(b => {
-    b.onclick = () => { els.input.value = b.dataset.text; showBuildFeedback(''); saveGameState(); Sound.click(); };
-});
 
 document.getElementById('zoom-in').onclick = () => { CELL_SIZE = Math.min(CELL_SIZE + 5, 80); updateGridSize(); };
 document.getElementById('zoom-out').onclick = () => { CELL_SIZE = Math.max(CELL_SIZE - 5, 25); updateGridSize(); };
