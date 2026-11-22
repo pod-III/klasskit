@@ -1,0 +1,2369 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Path Board Game Generator — KlassKit</title>
+    <link rel="icon" type="image/x-icon" href="../../../media/icon.ico" />
+    <link rel="icon" type="image/webp" href="../../../media/icon.webp" />
+
+    <!-- Apply saved theme before first paint (syncs with KlassKit Hub) -->
+    <script>
+        (function () {
+            function readTheme(key) {
+                try {
+                    var raw = localStorage.getItem(key);
+                    if (raw == null) return null;
+                    try { return JSON.parse(raw); } catch (e) { return raw; }
+                } catch (e) { return null; }
+            }
+            function syncTheme(changedKey) {
+                var isDark;
+                if (changedKey === 'theme_hub') {
+                    var hubVal = readTheme('theme_hub');
+                    isDark = hubVal ? hubVal === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
+                } else {
+                    var toolTheme = readTheme('theme_path-board') || readTheme('theme_board-game') || readTheme('klasskit-theme');
+                    var hubTheme = readTheme('theme_hub');
+                    isDark = toolTheme
+                        ? toolTheme === 'dark'
+                        : hubTheme
+                            ? hubTheme === 'dark'
+                            : window.matchMedia('(prefers-color-scheme: dark)').matches;
+                }
+                document.documentElement.classList.toggle('dark', isDark);
+                var btn = document.getElementById('theme-btn');
+                if (btn) btn.setAttribute('aria-pressed', String(isDark));
+            }
+            syncTheme();
+            window.addEventListener('storage', function (e) {
+                if (e.key === 'theme_hub' || e.key === 'theme_path-board' || e.key === 'theme_board-game' || e.key === 'klasskit-theme') {
+                    syncTheme(e.key);
+                }
+            });
+        })();
+    </script>
+
+    <!-- Supabase Auth & Cloud Persistence -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.105.4"></script>
+    <script src="/supabase.js"></script>
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=JetBrains+Mono:wght@600;700&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet" />
+
+    <!-- Icons, Sound & Confetti -->
+    <script src="https://unpkg.com/lucide@1.16.0"></script>
+    <script src="https://cdn.jsdelivr.net/npm/tone@14.8.49/build/Tone.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
+
+    <!-- Shared KlassKit Styles -->
+    <link rel="stylesheet" href="../../../css/tailwind.generated.css" />
+    <link rel="stylesheet" href="../../../css/base.css" />
+    <link rel="stylesheet" href="../../../css/components.css" />
+
+    <style>
+        /* ---------- Theme tokens (light = chalk paper, dark = OLED slate) ---------- */
+        :root {
+            --line: #1e293b;
+            --ink: #1e293b;
+            --surface: #ffffff;
+            --muted: #64748b;
+            --shadow: #1e293b;
+            --dots: #cbd5e1;
+            --track: #e2e8f0;
+            --tile-bg: #ffffff;
+            --tile-ink: #1e293b;
+        }
+
+        .dark {
+            --line: #64748b;
+            --ink: #f8fafc;
+            --surface: #0f172a;
+            --muted: #94a3b8;
+            --shadow: #000000;
+            --dots: #334155;
+            --track: #1e293b;
+            --tile-bg: #1e293b;
+            --tile-ink: #f8fafc;
+        }
+
+        body {
+            font-family: 'Nunito', sans-serif;
+            overflow: hidden;
+            -webkit-tap-highlight-color: transparent;
+            user-select: none;
+        }
+
+        @media (max-width: 767px) {
+            body { padding-bottom: 0 !important; }
+        }
+
+        /* --- NEO-BRUTALISM CONSOLE --- */
+        .game-console {
+            border: 6px solid #1e293b;
+            border-radius: 2rem;
+            box-shadow: 14px 14px 0px rgba(30, 41, 59, 0.15);
+        }
+
+        .dark .game-console {
+            border-color: #64748b;
+            box-shadow: 14px 14px 0px rgba(0, 0, 0, 0.45);
+        }
+
+        :where(.btn-chunky) {
+            transition: all 0.1s cubic-bezier(0.4, 0, 0.2, 1);
+            transform: translateY(0);
+            position: relative;
+            border: 3px solid var(--line);
+            box-shadow: 0 4px 0 var(--shadow);
+        }
+
+        .btn-chunky {
+            font-family: 'Fredoka', sans-serif;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .btn-chunky:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 0 var(--shadow);
+            filter: brightness(1.05);
+        }
+
+        .btn-chunky:active:not(:disabled) {
+            transform: translateY(4px);
+            box-shadow: 0 0 0 var(--shadow) !important;
+        }
+
+        .btn-chunky:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .btn-chunky:focus-visible,
+        input:focus-visible,
+        select:focus-visible,
+        textarea:focus-visible {
+            outline: 3px solid var(--color-blue);
+            outline-offset: 2px;
+        }
+
+        /* --- SEGMENTED TOGGLE CARDS --- */
+        .seg { position: relative; display: block; }
+        .seg input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
+
+        .seg span {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.3rem;
+            padding: 0.5rem 0.35rem;
+            font-family: 'Nunito', sans-serif;
+            font-size: 10px;
+            font-weight: 800;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            user-select: none;
+            color: #64748b;
+            background: var(--surface);
+            border: 2px solid var(--line);
+            border-radius: 0.75rem;
+            box-shadow: 2px 2px 0 var(--shadow);
+            transition: all 0.15s ease;
+        }
+
+        .dark .seg span { color: #94a3b8; }
+
+        .seg span.seg-col { flex-direction: column; gap: 0.25rem; padding: 0.6rem 0.25rem; }
+
+        .seg:hover input:not(:checked) + span {
+            transform: translateY(-2px);
+            color: var(--ink);
+        }
+
+        .seg:active input + span {
+            transform: translateY(2px);
+            box-shadow: none;
+        }
+
+        .seg input:checked + span {
+            background: #1ea7fd;
+            color: #ffffff;
+            border-color: var(--line);
+            box-shadow: 2px 2px 0 var(--shadow);
+            transform: translateY(2px);
+        }
+
+        .seg input:focus-visible + span {
+            outline: 3px solid var(--color-blue);
+            outline-offset: 2px;
+        }
+
+        /* --- ANIMATIONS --- */
+        @keyframes popIn {
+            0% { opacity: 0; transform: scale(0.92); }
+            100% { opacity: 1; transform: scale(1); }
+        }
+        .animate-pop-in { animation: popIn 0.2s cubic-bezier(0.2, 0.9, 0.3, 1.1) forwards; }
+
+        @keyframes diceShake {
+            0%, 100% { transform: rotate(0deg) scale(1); }
+            25% { transform: rotate(-14deg) scale(1.08); }
+            50% { transform: rotate(12deg) scale(0.95); }
+            75% { transform: rotate(-8deg) scale(1.05); }
+        }
+        .dice-rolling { animation: diceShake 0.18s linear infinite; }
+
+        /* --- UTILS --- */
+        .custom-scrollbar::-webkit-scrollbar { height: 6px; width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        .dark .custom-scrollbar::-webkit-scrollbar-thumb { background: #475569; }
+        .custom-scrollbar { scrollbar-color: #cbd5e1 transparent; scrollbar-width: thin; }
+
+        textarea {
+            user-select: text;
+            background-image: radial-gradient(var(--dots) 1.5px, transparent 1.5px);
+            background-size: 12px 12px;
+        }
+
+        /* Panel Toggles */
+        @media (max-width: 767px) {
+            .hidden-panel-mobile { display: none !important; }
+        }
+        @media (min-width: 768px) {
+            .hidden-panel-desktop { margin-left: -20rem; border-right-width: 0 !important; }
+        }
+        @media (min-width: 1024px) {
+            .hidden-panel-desktop { margin-left: -24rem; }
+        }
+
+        /* Saved Sets Collapsible Drawer */
+        #saved-sets-controls {
+            max-height: 0;
+            overflow: hidden;
+            transition: all 0.3s ease-out;
+            opacity: 0;
+        }
+        #saved-sets-controls.active {
+            max-height: 260px;
+            opacity: 1;
+            margin-top: 8px;
+        }
+        #saved-sets-toggle-icon.active {
+            transform: rotate(180deg);
+        }
+
+        .canvas-dots {
+            background-image: radial-gradient(var(--dots) 1.8px, transparent 1.8px);
+            background-size: 24px 24px;
+        }
+
+        /* --- SVG BOARD ARTWORK --- */
+        #svg-wrapper {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: transform 0.2s ease;
+            transform-origin: center center;
+        }
+
+        #svg-wrapper svg {
+            width: 100%;
+            height: 100%;
+            max-width: 100%;
+            max-height: 100%;
+            user-select: none;
+        }
+
+        .board-tile { cursor: pointer; transition: opacity 0.15s ease; }
+        .board-tile:hover .tile-rect { stroke: #1ea7fd; stroke-width: 4.5px; }
+        .tile-shadow { fill: var(--shadow); opacity: 0.22; }
+        .dark .tile-shadow { opacity: 0.5; }
+        .tile-rect { stroke: var(--line); stroke-width: 3px; }
+        .tile-bg-normal { fill: var(--tile-bg); }
+        .tile-bg-start { fill: #00d063; }
+        .tile-bg-finish { fill: #ff4785; }
+        .tile-bg-bonus { fill: #FEF08A; }
+        .tile-bg-back { fill: #FED7AA; }
+        .tile-bg-skip { fill: #DBEAFE; }
+
+        .dark .tile-bg-bonus { fill: #854d0e; }
+        .dark .tile-bg-back { fill: #9a3412; }
+        .dark .tile-bg-skip { fill: #1e3a8a; }
+
+        .tile-text {
+            fill: var(--tile-ink);
+            font-family: 'Nunito', sans-serif;
+            font-weight: 800;
+            pointer-events: none;
+        }
+        .tile-text-dark { fill: #1e293b; }
+        .tile-text-light { fill: #ffffff; }
+        .dark .tile-text-special { fill: #f8fafc; }
+
+        .tile-num {
+            fill: var(--muted);
+            font-family: 'Fredoka', sans-serif;
+            font-weight: 700;
+            pointer-events: none;
+        }
+        .tile-answer {
+            fill: #ff4785;
+            font-family: 'JetBrains Mono', monospace;
+            font-weight: 700;
+            display: none;
+            pointer-events: none;
+        }
+        .show-answers .tile-answer { display: block; }
+        .track-line { stroke: var(--line); opacity: 0.25; }
+        .dark .track-line { stroke: #94a3b8; opacity: 0.35; }
+        .track-dash { stroke: var(--line); opacity: 0.45; }
+
+        /* Team tokens on SVG */
+        .player-token {
+            transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+            cursor: pointer;
+        }
+
+        /* ---------- PRINT (always light, strict A4 dimensions) ---------- */
+        @page { size: A4 landscape; margin: 0; }
+
+        #print-area {
+            --line: #1e293b;
+            --ink: #1e293b;
+            --muted: #64748b;
+            --shadow: #1e293b;
+            --tile-bg: #ffffff;
+            --tile-ink: #1e293b;
+            color: #1e293b;
+        }
+
+        @media print {
+            html, body {
+                display: block !important;
+                width: 297mm !important;
+                height: 210mm !important;
+                padding: 0 !important;
+                margin: 0 !important;
+                overflow: hidden !important;
+                background: #fff !important;
+                background-image: none !important;
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+            }
+
+            html[data-orient="portrait"],
+            html[data-orient="portrait"] body {
+                width: 210mm !important;
+                height: 297mm !important;
+            }
+
+            body > :not(#print-area) { display: none !important; }
+
+            #print-area {
+                display: flex !important;
+                flex-direction: column !important;
+                width: 297mm !important;
+                height: 210mm !important;
+                max-width: 297mm !important;
+                max-height: 210mm !important;
+                padding: 9mm 12mm !important;
+                margin: 0 auto !important;
+                box-sizing: border-box !important;
+                overflow: hidden !important;
+                background: #fff !important;
+                page-break-after: avoid !important;
+                break-after: avoid !important;
+            }
+
+            html[data-orient="portrait"] #print-area {
+                width: 210mm !important;
+                height: 297mm !important;
+                max-width: 210mm !important;
+                max-height: 297mm !important;
+                padding: 11mm 12mm !important;
+            }
+
+            #print-area .tile-bg-normal { fill: #ffffff !important; }
+            #print-area .tile-bg-start { fill: #00d063 !important; }
+            #print-area .tile-bg-finish { fill: #ff4785 !important; }
+            #print-area .tile-bg-bonus { fill: #FEF08A !important; }
+            #print-area .tile-bg-back { fill: #FED7AA !important; }
+            #print-area .tile-bg-skip { fill: #DBEAFE !important; }
+            #print-area .tile-text { fill: #1e293b !important; }
+            #print-area .tile-text-light { fill: #ffffff !important; }
+            #print-area .tile-text-special { fill: #1e293b !important; }
+            #print-area .tile-rect { stroke: #1e293b !important; }
+            #print-area .tile-shadow { opacity: 0.22 !important; }
+            #print-area .track-line { stroke: #1e293b !important; opacity: 0.25 !important; }
+            #print-area .tile-num { fill: #64748b !important; }
+            #print-area .player-token { display: none !important; }
+
+            .print-header {
+                flex-shrink: 0;
+                display: flex;
+                justify-content: space-between;
+                align-items: flex-end;
+                border-bottom: 4px solid #1e293b;
+                padding-bottom: 6px;
+                margin-bottom: 8px;
+            }
+
+            .print-title h1 {
+                font-family: 'Fredoka', sans-serif;
+                font-size: 2rem;
+                text-transform: uppercase;
+                line-height: 1;
+                margin: 0;
+            }
+
+            .print-title p {
+                font-family: 'Nunito', sans-serif;
+                font-size: 0.85rem;
+                font-weight: 800;
+                color: #475569;
+                margin: 4px 0 0;
+            }
+
+            .print-meta {
+                display: flex;
+                gap: 16px;
+                font-family: 'Nunito', sans-serif;
+                font-size: 0.9rem;
+                font-weight: 700;
+            }
+
+            .meta-line { display: flex; align-items: flex-end; min-width: 140px; }
+            .meta-line span:last-child { flex-grow: 1; margin-left: 8px; border-bottom: 2px solid #1e293b; }
+
+            #print-svg-container {
+                flex: 1 1 0% !important;
+                min-height: 0 !important;
+                width: 100% !important;
+                display: flex !important;
+                justify-content: center !important;
+                align-items: center !important;
+                overflow: hidden !important;
+            }
+
+            #print-svg-container svg {
+                width: 100% !important;
+                height: 100% !important;
+                max-width: 100% !important;
+                max-height: 100% !important;
+                display: block !important;
+            }
+
+            #print-footer {
+                flex-shrink: 0;
+                margin-top: 6px;
+                padding-top: 6px;
+                border-top: 2px dashed #cbd5e1;
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                gap: 12px;
+                font-family: 'Nunito', sans-serif;
+                font-size: 9pt;
+                font-weight: 700;
+                color: #334155;
+            }
+
+            .print-tokens {
+                display: flex;
+                align-items: center;
+                gap: 6px;
+                flex-shrink: 0;
+            }
+
+            .print-cut-token {
+                width: 22px;
+                height: 22px;
+                border-radius: 999px;
+                border: 2px dashed #1e293b;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                font-family: 'Fredoka', sans-serif;
+                font-size: 9pt;
+                font-weight: 700;
+            }
+
+            .print-key-grid {
+                width: 100%;
+                display: grid;
+                grid-template-columns: repeat(auto-fill, minmax(54mm, 1fr));
+                gap: 3px 10px;
+                font-size: 8.5pt;
+            }
+        }
+    </style>
+    <style id="page-style"></style>
+</head>
+
+<body class="opacity-0 transition-opacity duration-200 h-screen w-screen flex flex-col items-center justify-center p-2 md:p-5 overflow-hidden text-dark dark:text-white">
+
+    <!-- Toast Container -->
+    <div id="toast-container" class="print:hidden fixed bottom-6 left-1/2 -translate-x-1/2 z-[600] flex flex-col gap-2 pointer-events-none"></div>
+
+    <!-- MAIN CONSOLE -->
+    <div class="game-console print:hidden w-full h-full relative flex flex-col md:flex-row overflow-hidden bg-white dark:bg-slate-900">
+
+        <!-- SIDEBAR: SETUP (Left) -->
+        <aside id="sidebar"
+            class="w-full md:w-80 lg:w-96 bg-white dark:bg-slate-900 border-b-4 md:border-b-0 md:border-r-4 border-dark dark:border-slate-500 flex flex-col z-30 transition-all duration-300 h-[48%] md:h-full relative shrink-0">
+
+            <!-- Header -->
+            <div class="p-4 border-b-4 border-dark dark:border-slate-500 bg-blue/10 dark:bg-slate-800/80 flex justify-between items-center gap-2 shrink-0">
+                <div>
+                    <h1 class="text-2xl font-heading font-bold text-dark dark:text-white tracking-wide leading-none">
+                        Path Board
+                    </h1>
+                    <p class="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-widest mt-1">KlassKit Board Game</p>
+                </div>
+                <div class="flex items-center gap-1.5">
+                    <button id="sound-btn" type="button" aria-pressed="true" title="Toggle Sound Effects"
+                        class="p-2 bg-green/20 text-dark dark:text-green border-2 border-dark dark:border-slate-500 rounded-lg shadow-hard-sm hover:translate-y-[-1px] active:translate-y-0.5 active:shadow-none transition-all">
+                        <span id="sound-icon-on" class="inline-flex"><i data-lucide="volume-2" class="w-4 h-4"></i></span>
+                        <span id="sound-icon-off" class="hidden inline-flex"><i data-lucide="volume-x" class="w-4 h-4"></i></span>
+                    </button>
+                    <button id="help-btn" type="button" title="How to Use & Classroom Ideas"
+                        class="p-2 bg-orange/20 text-orange border-2 border-dark dark:border-slate-500 rounded-lg shadow-hard-sm hover:translate-y-[-1px] active:translate-y-0.5 active:shadow-none transition-all">
+                        <i data-lucide="help-circle" class="w-4 h-4"></i>
+                    </button>
+                    <button id="theme-btn" type="button" aria-pressed="false" aria-label="Toggle dark mode" title="Toggle Dark Mode"
+                        class="p-2 bg-white dark:bg-slate-800 text-dark dark:text-white border-2 border-dark dark:border-slate-500 rounded-lg shadow-hard-sm hover:translate-y-[-1px] active:translate-y-0.5 active:shadow-none transition-all">
+                        <i data-lucide="moon" class="w-4 h-4 dark:hidden"></i>
+                        <i data-lucide="sun" class="w-4 h-4 hidden dark:block text-orange"></i>
+                    </button>
+                    <button id="mobile-close-panel" type="button"
+                        class="md:hidden p-2 bg-pink/20 text-pink border-2 border-dark dark:border-slate-500 rounded-lg shadow-hard-sm active:translate-y-1 active:shadow-none transition-all"
+                        title="Close Setup Panel">
+                        <i data-lucide="x" class="w-4 h-4"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Scrollable Content -->
+            <div class="flex-1 p-4 overflow-y-auto custom-scrollbar space-y-5 bg-white dark:bg-slate-900">
+
+                <!-- Active Set Banner -->
+                <div id="active-set-banner" class="hidden animate-pop-in p-3 rounded-xl bg-blue/10 dark:bg-blue/20 border-2 border-blue flex items-center justify-between gap-2">
+                    <div class="flex items-center gap-2 min-w-0">
+                        <div class="w-7 h-7 rounded-lg bg-blue text-white flex items-center justify-center shrink-0 border-2 border-dark">
+                            <i data-lucide="bookmark-check" class="w-3.5 h-3.5"></i>
+                        </div>
+                        <div class="min-w-0">
+                            <p class="text-[9px] font-bold uppercase tracking-wider text-blue leading-none">Active Set</p>
+                            <p id="active-set-name" class="text-xs font-extrabold truncate mt-0.5"></p>
+                        </div>
+                    </div>
+                    <button id="close-set-btn" type="button" title="Detach from saved set" class="p-1 rounded-lg hover:bg-blue/20 text-slate-500 dark:text-slate-300">
+                        <i data-lucide="x" class="w-3.5 h-3.5"></i>
+                    </button>
+                </div>
+
+                <!-- Board Length Slider -->
+                <div class="space-y-2.5">
+                    <div class="flex justify-between items-end">
+                        <label for="size-slider" class="text-xs font-bold text-slate-400 uppercase tracking-widest">Board Spaces</label>
+                        <output id="size-display" for="size-slider" class="font-heading font-bold text-lg text-blue">20 spaces</output>
+                    </div>
+                    <input type="range" id="size-slider" min="12" max="28" step="2" value="20"
+                        class="w-full h-3 bg-slate-100 dark:bg-slate-800 rounded-full appearance-none cursor-pointer accent-blue border-2 border-dark dark:border-slate-500 shadow-inner-hard">
+                    <div class="flex justify-between text-[10px] font-bold text-slate-400">
+                        <span>QUICK (12)</span>
+                        <span>EPIC (28)</span>
+                    </div>
+                </div>
+
+                <!-- Track Shape -->
+                <div class="space-y-2.5 pt-4 border-t-2 border-dashed border-slate-300 dark:border-slate-700">
+                    <label class="text-xs font-bold text-slate-400 uppercase tracking-widest block">Track Layout</label>
+                    <div class="grid grid-cols-3 gap-2">
+                        <label class="seg" title="Classic S-curve winding path (Landscape)">
+                            <input type="radio" name="shape" value="winding" checked>
+                            <span class="seg-col"><i data-lucide="route" class="w-4 h-4"></i>Winding</span>
+                        </label>
+                        <label class="seg" title="Square spiral inward to Finish">
+                            <input type="radio" name="shape" value="spiral">
+                            <span class="seg-col"><i data-lucide="orbit" class="w-4 h-4"></i>Spiral</span>
+                        </label>
+                        <label class="seg" title="Vertical zig-zag track (Portrait)">
+                            <input type="radio" name="shape" value="zigzag">
+                            <span class="seg-col"><i data-lucide="git-commit-vertical" class="w-4 h-4"></i>Zig-Zag</span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Special Tiles & Options -->
+                <div class="space-y-3 pt-4 border-t-2 border-dashed border-slate-300 dark:border-slate-700">
+                    <label class="text-xs font-bold text-slate-400 uppercase tracking-widest block">Action Tiles &amp; Options</label>
+                    <div class="grid grid-cols-3 gap-1.5">
+                        <label class="seg" title="Every space is a prompt">
+                            <input type="radio" name="action-mode" value="none">
+                            <span>None</span>
+                        </label>
+                        <label class="seg" title="Sprinkles a few Roll Again, +2, and Go Back spaces">
+                            <input type="radio" name="action-mode" value="balanced" checked>
+                            <span>Balanced</span>
+                        </label>
+                        <label class="seg" title="Lots of surprise boosts and setbacks!">
+                            <input type="radio" name="action-mode" value="chaotic">
+                            <span>Wild</span>
+                        </label>
+                    </div>
+                    <div class="flex flex-col gap-2">
+                        <label class="flex items-center gap-2 cursor-pointer text-xs font-bold text-slate-500 dark:text-slate-300">
+                            <input type="checkbox" id="show-numbers" checked class="w-4 h-4 shrink-0 accent-blue cursor-pointer">
+                            <span>Show tile numbers (1, 2, 3...)</span>
+                        </label>
+                        <label class="flex items-center gap-2 cursor-pointer text-xs font-bold text-slate-500 dark:text-slate-300">
+                            <input type="checkbox" id="shuffle-prompts" class="w-4 h-4 shrink-0 accent-blue cursor-pointer">
+                            <span>Shuffle prompt order on build</span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Worksheet Header -->
+                <div class="space-y-2 pt-4 border-t-2 border-dashed border-slate-300 dark:border-slate-700">
+                    <label class="text-xs font-bold text-slate-400 uppercase tracking-widest block">Worksheet Header</label>
+                    <input id="custom-title" type="text" value="Speaking Race" placeholder="Board Game Title"
+                        class="w-full p-2 bg-slate-50 dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-lg text-dark dark:text-white font-bold text-xs focus:outline-none focus:border-blue" />
+                    <input id="custom-subtitle" type="text" value="Roll the die, move your token, and answer the prompt in a complete sentence!" placeholder="Student instructions..."
+                        class="w-full p-2 bg-slate-50 dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-lg text-dark dark:text-white font-semibold text-xs focus:outline-none focus:border-blue" />
+                </div>
+
+                <!-- Quick Presets -->
+                <div class="pt-4 border-t-2 border-dashed border-slate-300 dark:border-slate-700">
+                    <label class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2.5 block">Quick Presets</label>
+                    <div class="flex gap-2 flex-wrap">
+                        <button type="button" data-preset="speaking"
+                            class="preset-btn px-3 py-1.5 bg-white dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-full text-xs font-bold shadow-hard-sm hover:translate-y-[-1px] active:translate-y-[3px] active:shadow-none transition-all">🗣️ Speaking</button>
+                        <button type="button" data-preset="past"
+                            class="preset-btn px-3 py-1.5 bg-white dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-full text-xs font-bold shadow-hard-sm hover:translate-y-[-1px] active:translate-y-[3px] active:shadow-none transition-all">⚡ Past Tense</button>
+                        <button type="button" data-preset="wyr"
+                            class="preset-btn px-3 py-1.5 bg-white dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-full text-xs font-bold shadow-hard-sm hover:translate-y-[-1px] active:translate-y-[3px] active:shadow-none transition-all">🤔 Would You Rather</button>
+                        <button type="button" data-preset="vocab"
+                            class="preset-btn px-3 py-1.5 bg-white dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-full text-xs font-bold shadow-hard-sm hover:translate-y-[-1px] active:translate-y-[3px] active:shadow-none transition-all">🍎 Describe It</button>
+                    </div>
+                </div>
+
+                <!-- Prompts Input -->
+                <div class="space-y-2 pt-4 border-t-2 border-dashed border-slate-300 dark:border-slate-700 flex flex-col">
+                    <div class="flex items-center justify-between gap-2">
+                        <label for="prompt-input" class="text-xs font-bold text-slate-400 uppercase tracking-widest">Prompts (1 per line)</label>
+                        <div class="flex items-center gap-2">
+                            <span id="capacity" class="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 border-2 border-dark dark:border-slate-500" aria-live="polite"></span>
+                            <button type="button" id="clear-prompts-btn" class="text-[11px] font-extrabold text-pink hover:underline">Clear</button>
+                        </div>
+                    </div>
+                    <p class="text-[10px] font-bold text-slate-400">Tip: Add <code class="font-mono text-blue">| answer</code> after a prompt to include it on the Teacher Key.</p>
+                    <textarea id="prompt-input" spellcheck="false"
+                        class="w-full h-36 p-3 bg-slate-50 dark:bg-slate-800 text-dark dark:text-white font-mono text-xs leading-relaxed border-2 border-dark dark:border-slate-500 rounded-xl focus:border-blue focus:ring-0 outline-none resize-none shadow-inner-hard"
+                        placeholder="Favorite food?&#10;Past tense of GO | went&#10;Describe your weekend"></textarea>
+                </div>
+
+                <!-- Inline Status -->
+                <p id="status" role="status" aria-live="polite"
+                    class="hidden px-3 py-2 rounded-xl text-xs font-extrabold bg-pink/20 text-dark dark:text-white border-2 border-pink shadow-hard-sm animate-pop-in"></p>
+
+                <!-- Generate Button -->
+                <button id="generate-btn" type="button"
+                    class="w-full btn-chunky bg-green text-dark py-3 rounded-xl text-lg tracking-wide flex items-center justify-center gap-2 hover:brightness-105">
+                    <i data-lucide="dices" class="w-5 h-5"></i> BUILD BOARD
+                </button>
+            </div>
+
+            <!-- Footer Print Actions -->
+            <div class="p-3 border-t-4 border-dark dark:border-slate-500 bg-slate-100 dark:bg-slate-800 space-y-2 shrink-0">
+                <div class="grid grid-cols-2 gap-2">
+                    <label class="seg"><input type="radio" name="page-orient" value="portrait"><span><i data-lucide="rectangle-vertical" class="w-3.5 h-3.5"></i> Portrait</span></label>
+                    <label class="seg"><input type="radio" name="page-orient" value="landscape" checked><span><i data-lucide="rectangle-horizontal" class="w-3.5 h-3.5"></i> Landscape</span></label>
+                </div>
+                <div class="flex gap-2">
+                    <button id="print-btn" type="button"
+                        class="flex-1 btn-chunky bg-blue text-white py-2 rounded-lg text-xs border-2 border-dark flex items-center justify-center gap-1.5" title="Print Student Handout">
+                        <i data-lucide="printer" class="w-4 h-4"></i> HANDOUT
+                    </button>
+                    <button id="print-key-btn" type="button"
+                        class="flex-1 btn-chunky bg-white dark:bg-slate-900 text-dark dark:text-white py-2 rounded-lg text-xs border-2 border-dark dark:border-slate-500 flex items-center justify-center gap-1.5" title="Print Teacher Key">
+                        <i data-lucide="key-round" class="w-4 h-4"></i> KEY
+                    </button>
+                </div>
+            </div>
+        </aside>
+
+        <!-- MAIN DISPLAY AREA -->
+        <main class="flex-1 relative h-[52%] md:h-full bg-slate-50 dark:bg-slate-950 flex flex-col lg:flex-row overflow-hidden">
+
+            <!-- Subtle Dot Background -->
+            <div class="canvas-dots absolute inset-0 opacity-60 dark:opacity-50 pointer-events-none"></div>
+
+            <!-- Floating Controls (top-left of canvas) -->
+            <div class="absolute top-4 left-4 z-20 flex gap-2">
+                <button id="toggle-sidebar-btn" type="button"
+                    class="p-2 bg-white/90 dark:bg-slate-800/90 backdrop-blur-md border-2 border-dark dark:border-slate-500 rounded-lg shadow-hard-sm hover:-translate-y-0.5 active:translate-y-0.5 active:shadow-none transition-all text-slate-700 dark:text-slate-200 hover:text-dark"
+                    title="Toggle Setup Panel">
+                    <i data-lucide="settings" class="w-5 h-5"></i>
+                </button>
+                <button id="answer-toggle-btn" type="button" aria-pressed="false"
+                    class="p-2 bg-white/90 dark:bg-slate-800/90 backdrop-blur-md border-2 border-dark dark:border-slate-500 rounded-lg shadow-hard-sm hover:-translate-y-0.5 active:translate-y-0.5 active:shadow-none transition-all text-orange hover:text-dark"
+                    title="Show / Hide Teacher Answers on Board">
+                    <i data-lucide="eye" class="w-5 h-5"></i>
+                </button>
+                <button id="reset-tokens-btn" type="button"
+                    class="p-2 bg-white/90 dark:bg-slate-800/90 backdrop-blur-md border-2 border-dark dark:border-slate-500 rounded-lg shadow-hard-sm hover:-translate-y-0.5 active:translate-y-0.5 active:shadow-none transition-all text-pink hover:text-dark"
+                    title="Reset All Tokens to START">
+                    <i data-lucide="rotate-ccw" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            <!-- Board Canvas Area -->
+            <div class="flex-1 h-full relative flex items-center justify-center p-3 md:p-5 overflow-hidden">
+                <!-- Empty state -->
+                <div id="empty-state"
+                    class="hidden absolute inset-0 flex flex-col items-center justify-center text-slate-400 opacity-60 pointer-events-none text-center p-6">
+                    <i data-lucide="dices" class="w-16 h-16 mb-4"></i>
+                    <h2 class="font-heading text-2xl text-dark dark:text-white">Ready to Play?</h2>
+                    <p class="font-body text-sm mt-2">Add prompts on the left and press <b class="text-green">BUILD BOARD</b></p>
+                </div>
+
+                <!-- Board SVG is rendered here -->
+                <div id="svg-wrapper" class="relative z-10 w-full h-full"></div>
+
+                <!-- Zoom Controls -->
+                <div class="absolute bottom-4 right-4 z-20 flex gap-2">
+                    <button id="zoom-out" type="button" title="Zoom Out"
+                        class="p-2 bg-white/90 dark:bg-slate-800/90 backdrop-blur-md border-2 border-dark dark:border-slate-500 rounded-lg shadow-hard-sm hover:bg-slate-50 dark:hover:bg-slate-700 active:translate-y-0.5 active:shadow-none">
+                        <i data-lucide="minus" class="w-4 h-4"></i>
+                    </button>
+                    <button id="zoom-reset" type="button" title="Reset Zoom"
+                        class="px-2.5 py-2 bg-white/90 dark:bg-slate-800/90 backdrop-blur-md border-2 border-dark dark:border-slate-500 rounded-lg shadow-hard-sm font-mono text-[10px] font-bold hover:bg-slate-50 dark:hover:bg-slate-700 active:translate-y-0.5 active:shadow-none">
+                        100%
+                    </button>
+                    <button id="zoom-in" type="button" title="Zoom In"
+                        class="p-2 bg-white/90 dark:bg-slate-800/90 backdrop-blur-md border-2 border-dark dark:border-slate-500 rounded-lg shadow-hard-sm hover:bg-slate-50 dark:hover:bg-slate-700 active:translate-y-0.5 active:shadow-none">
+                        <i data-lucide="plus" class="w-4 h-4"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- LIVE PLAY & SAVED SETS PANEL (Right Side) -->
+            <div class="w-full lg:w-80 h-[40%] lg:h-full bg-white dark:bg-slate-900 border-t-4 lg:border-t-0 lg:border-l-4 border-dark dark:border-slate-500 flex flex-col z-10 shadow-xl lg:shadow-none shrink-0"
+                id="play-controls">
+                <div class="p-3 bg-pink border-b-4 border-dark dark:border-slate-500 text-white font-heading font-bold text-lg tracking-wide flex items-center justify-between gap-2 shrink-0">
+                    <div class="flex items-center gap-2">
+                        <i data-lucide="gamepad-2" class="w-5 h-5"></i> LIVE PLAY
+                    </div>
+                    <div class="flex items-center gap-1 bg-dark/20 px-2 py-0.5 rounded-full text-[11px] font-bold">
+                        <label for="team-count" class="sr-only">Teams</label>
+                        <select id="team-count" class="bg-transparent text-white font-extrabold text-xs focus:outline-none cursor-pointer">
+                            <option value="2" class="text-dark">2 Teams</option>
+                            <option value="3" class="text-dark">3 Teams</option>
+                            <option value="4" class="text-dark" selected>4 Teams</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Status Feedback -->
+                <div id="status-bar"
+                    class="p-2 bg-slate-50 dark:bg-slate-800 border-b-2 border-slate-200 dark:border-slate-700 text-[10px] font-bold text-center text-slate-500 dark:text-slate-400 uppercase tracking-widest">
+                    Roll Dice to Move ➔ Tap Any Tile to Zoom
+                </div>
+
+                <!-- Dice & Teams Scroll Area -->
+                <div class="flex-1 overflow-y-auto p-3.5 custom-scrollbar space-y-3.5">
+
+                    <!-- Dice Roller Box -->
+                    <div class="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/80 border-3 border-dark dark:border-slate-500 shadow-hard-sm flex items-center gap-3">
+                        <button id="roll-dice-btn" type="button" title="Roll Die for Active Team"
+                            class="w-16 h-16 shrink-0 rounded-2xl bg-white dark:bg-slate-900 border-3 border-dark dark:border-slate-400 shadow-hard-sm flex items-center justify-center hover:translate-y-[-2px] active:translate-y-1 active:shadow-none transition-all">
+                            <svg id="dice-svg" viewBox="0 0 60 60" class="w-12 h-12"></svg>
+                        </button>
+                        <div class="flex-1 min-w-0">
+                            <p id="turn-label" class="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">Active Turn</p>
+                            <p id="turn-team-name" class="font-heading font-bold text-base truncate text-dark dark:text-white">Team Pink</p>
+                            <div class="flex items-center gap-1.5 mt-1.5">
+                                <button id="roll-text-btn" type="button"
+                                    class="flex-1 btn-chunky bg-orange text-dark py-1 px-2 rounded-lg text-[11px]">
+                                    ROLL
+                                </button>
+                                <button id="step-back-btn" type="button" title="Move Back 1 Space"
+                                    class="btn-chunky bg-white dark:bg-slate-700 text-dark dark:text-white py-1 px-2 rounded-lg text-[11px]">-1</button>
+                                <button id="step-fwd-btn" type="button" title="Move Forward 1 Space"
+                                    class="btn-chunky bg-white dark:bg-slate-700 text-dark dark:text-white py-1 px-2 rounded-lg text-[11px]">+1</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Team Cards -->
+                    <div id="team-list" class="grid grid-cols-2 lg:grid-cols-1 gap-2"></div>
+                </div>
+
+                <!-- Saved Sets (Collapsible Drawer) -->
+                <div class="p-3 border-t-2 border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/40 shrink-0">
+                    <button type="button" id="toggle-saved-sets-btn"
+                        class="w-full flex items-center justify-between text-[10px] font-extrabold text-slate-400 uppercase tracking-widest mb-1 hover:text-dark dark:hover:text-white">
+                        <span>Saved Boards (<span id="saved-count">0</span>)</span>
+                        <span id="saved-sets-toggle-icon" class="inline-flex transition-transform"><i data-lucide="chevron-up" class="w-3.5 h-3.5"></i></span>
+                    </button>
+                    <div id="saved-sets-controls" class="space-y-2 mt-2">
+                        <div class="flex items-center gap-1.5">
+                            <select id="library-sort" aria-label="Sort saved boards"
+                                class="flex-1 p-1.5 bg-white dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-lg text-dark dark:text-white font-bold text-[10px] focus:outline-none">
+                                <option value="recent">Recent</option>
+                                <option value="alpha">A–Z</option>
+                                <option value="popular">Popular</option>
+                            </select>
+                            <button id="new-set-btn" type="button" title="New Board"
+                                class="p-1.5 bg-white dark:bg-slate-800 text-dark dark:text-white border-2 border-dark dark:border-slate-500 rounded-lg hover:brightness-95 active:translate-y-0.5 font-bold text-[10px] flex items-center gap-1">
+                                <i data-lucide="plus" class="w-3 h-3"></i> NEW
+                            </button>
+                            <button id="save-set-btn" type="button" title="Save Board"
+                                class="p-1.5 bg-blue text-white border-2 border-dark rounded-lg hover:brightness-110 active:translate-y-0.5 font-bold text-[10px] flex items-center gap-1">
+                                <i data-lucide="save" class="w-3 h-3"></i> SAVE
+                            </button>
+                        </div>
+                        <div id="library-list" class="space-y-1.5 max-h-36 overflow-y-auto custom-scrollbar pr-1"></div>
+                    </div>
+                </div>
+            </div>
+
+        </main>
+    </div>
+
+    <!-- TILE SPOTLIGHT MODAL (Big Projector View when tapping a tile) -->
+    <div id="tileModal" class="hidden fixed inset-0 bg-dark/60 backdrop-blur-md z-[500] items-center justify-center p-4">
+        <div class="bg-white dark:bg-slate-800 w-full max-w-md rounded-[2rem] border-4 border-dark dark:border-slate-500 shadow-hard-lg animate-pop-in overflow-hidden">
+            <div id="tile-modal-header" class="p-4 border-b-4 border-dark dark:border-slate-500 bg-blue/15 flex items-center justify-between gap-3">
+                <div class="flex items-center gap-2.5">
+                    <span id="tile-modal-badge" class="px-3 py-1 rounded-xl bg-blue text-white border-2 border-dark font-heading font-bold text-sm">SPACE 1</span>
+                    <span id="tile-modal-type" class="text-xs font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-300">Prompt</span>
+                </div>
+                <button id="tile-modal-close" type="button" class="btn-chunky w-9 h-9 rounded-xl bg-white dark:bg-slate-700 text-dark dark:text-white flex items-center justify-center">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
+            </div>
+            <div class="p-6 text-center space-y-5">
+                <p id="tile-modal-prompt" class="font-heading font-bold text-2xl md:text-3xl text-dark dark:text-white leading-snug"></p>
+                <div id="tile-modal-answer-wrap" class="hidden space-y-2">
+                    <button id="tile-modal-reveal-btn" type="button" class="btn-chunky px-4 py-2 rounded-xl text-xs bg-orange text-dark">
+                        Reveal Answer
+                    </button>
+                    <p id="tile-modal-answer" class="hidden p-3 rounded-xl bg-green/20 border-2 border-dark dark:border-green font-mono font-bold text-base text-dark dark:text-white"></p>
+                </div>
+                <div class="flex justify-center gap-2 pt-1">
+                    <button id="tile-modal-done" type="button" class="btn-chunky px-6 py-2.5 rounded-xl text-xs bg-green text-dark">Done</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- HOW TO USE / HELP MODAL -->
+    <div id="helpModal" class="hidden fixed inset-0 bg-dark/60 backdrop-blur-md z-[500] items-center justify-center p-4">
+        <div class="bg-white dark:bg-slate-800 w-full max-w-lg rounded-[2rem] border-4 border-dark dark:border-slate-500 shadow-hard-lg animate-pop-in overflow-hidden">
+            <div class="p-5 border-b-4 border-dark dark:border-slate-500 bg-orange/15 flex items-center justify-between gap-3">
+                <div class="flex items-center gap-3">
+                    <div class="w-11 h-11 rounded-2xl bg-orange flex items-center justify-center border-3 border-dark shadow-hard-sm shrink-0">
+                        <i data-lucide="lightbulb" class="w-6 h-6 text-dark"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-xl font-heading font-bold text-dark dark:text-white uppercase leading-tight">How to Use Path Board</h3>
+                        <p class="text-xs font-semibold text-slate-500 dark:text-slate-400">Print A4 Board Games &amp; Live Smartboard Play</p>
+                    </div>
+                </div>
+                <button id="help-close-btn" type="button" class="btn-chunky w-9 h-9 rounded-xl bg-white dark:bg-slate-700 text-dark dark:text-white flex items-center justify-center">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
+            </div>
+            <div class="p-6 space-y-4 text-sm font-semibold text-slate-600 dark:text-slate-300 max-h-[70vh] overflow-y-auto custom-scrollbar">
+                <div class="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-900 border-2 border-dark dark:border-slate-600">
+                    <h4 class="font-heading font-bold text-sm uppercase text-dark dark:text-white mb-1 flex items-center gap-1.5">
+                        <i data-lucide="printer" class="w-4 h-4 text-blue"></i> 1. Printable A4 Board Games
+                    </h4>
+                    <p class="text-xs leading-relaxed">Type one prompt per line, pick a layout (<b>Winding</b>, <b>Spiral</b>, or <b>Zig-Zag</b>), and click <b>HANDOUT</b> for a crisp A4 board with cut-out paper tokens. Add <code class="font-mono text-blue">| answer</code> after any line to generate a numbered <b>Teacher Key</b>.</p>
+                </div>
+                <div class="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-900 border-2 border-dark dark:border-slate-600">
+                    <h4 class="font-heading font-bold text-sm uppercase text-dark dark:text-white mb-1 flex items-center gap-1.5">
+                        <i data-lucide="monitor-play" class="w-4 h-4 text-green"></i> 2. Live Smartboard / Projector Play
+                    </h4>
+                    <p class="text-xs leading-relaxed">Hide the left sidebar, pick 2–4 teams, and roll the built-in die! Tokens hop automatically along the path, trigger bonus/go-back tiles, and open a big readable prompt card when a team lands on a space.</p>
+                </div>
+                <div class="flex justify-end pt-1">
+                    <button id="help-got-it-btn" type="button" class="btn-chunky px-6 py-2.5 rounded-xl text-xs bg-green text-dark">Got It!</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- SAVE AS MODAL -->
+    <div id="saveModal" class="hidden fixed inset-0 bg-dark/60 backdrop-blur-md z-[500] items-center justify-center p-4">
+        <div class="bg-white dark:bg-slate-800 w-full max-w-sm rounded-[2rem] border-4 border-dark dark:border-slate-500 shadow-hard-lg animate-pop-in overflow-hidden">
+            <div class="p-5 border-b-4 border-dark dark:border-slate-500 bg-blue/10 flex items-center gap-3">
+                <div class="w-11 h-11 rounded-2xl bg-blue flex items-center justify-center border-3 border-dark shadow-hard-sm shrink-0">
+                    <i data-lucide="bookmark-plus" class="w-5 h-5 text-white"></i>
+                </div>
+                <div>
+                    <h3 class="text-lg font-heading font-bold text-dark dark:text-white uppercase leading-tight">Save Board Game</h3>
+                    <p class="text-xs font-semibold text-slate-500 dark:text-slate-400">Save this prompt set to your library</p>
+                </div>
+            </div>
+            <div class="p-5 space-y-4">
+                <div>
+                    <label for="save-set-input" class="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block mb-1.5">Board Name</label>
+                    <input id="save-set-input" type="text" placeholder="e.g., Unit 4 Past Simple Race"
+                        class="w-full px-3.5 py-2.5 text-sm font-bold rounded-xl border-2 border-dark dark:border-slate-500 bg-slate-50 dark:bg-slate-900 text-dark dark:text-white focus:outline-none focus:border-blue" />
+                </div>
+                <div class="flex gap-3">
+                    <button id="save-modal-cancel" type="button" class="flex-1 btn-chunky bg-white dark:bg-slate-700 text-dark dark:text-white py-2.5 rounded-xl text-xs">Cancel</button>
+                    <button id="save-modal-confirm" type="button" class="flex-1 btn-chunky bg-green text-dark py-2.5 rounded-xl text-xs">Save Board</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- CONFIRM MODAL -->
+    <div id="confirmModal" class="hidden fixed inset-0 bg-dark/60 backdrop-blur-md z-[500] items-center justify-center p-4">
+        <div class="bg-white dark:bg-slate-800 w-full max-w-sm rounded-[2rem] border-4 border-dark dark:border-slate-500 shadow-hard-lg animate-pop-in overflow-hidden">
+            <div class="p-6 text-center">
+                <div class="w-14 h-14 rounded-2xl bg-pink/15 flex items-center justify-center border-3 border-dark mx-auto mb-3">
+                    <i data-lucide="alert-triangle" class="w-7 h-7 text-pink"></i>
+                </div>
+                <h3 id="confirmTitle" class="text-xl font-heading font-bold text-dark dark:text-white uppercase mb-1.5">Are you sure?</h3>
+                <p id="confirmMessage" class="text-sm font-semibold text-slate-500 dark:text-slate-400 mb-5">This action cannot be undone.</p>
+                <div class="flex gap-3">
+                    <button id="confirmBtnNo" type="button" class="flex-1 btn-chunky bg-white dark:bg-slate-700 text-dark dark:text-white py-2.5 rounded-xl text-xs">Cancel</button>
+                    <button id="confirmBtnYes" type="button" class="flex-1 btn-chunky bg-pink text-white py-2.5 rounded-xl text-xs">Yes, Continue</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- PRINT LAYOUT (hidden on screen, strict A4 when printing) -->
+    <div id="print-area" class="hidden">
+        <div class="print-header">
+            <div class="print-title">
+                <h1 id="print-heading">Speaking Race</h1>
+                <p id="print-subheading">Roll the die, move your token, and answer the prompt in a complete sentence!</p>
+            </div>
+            <div class="print-meta">
+                <div class="meta-line"><span>Group:</span><span></span></div>
+                <div class="meta-line"><span>Date:</span><span></span></div>
+            </div>
+        </div>
+        <div id="print-svg-container"></div>
+        <div id="print-footer"></div>
+    </div>
+
+    <script>
+        (() => {
+            'use strict';
+
+            // ===== PRESETS & CONSTANTS ==========================================
+
+            const PRESETS = {
+                speaking: {
+                    title: 'Speaking Race',
+                    subtitle: 'Roll the die, move your token, and answer the question in 2+ full sentences!',
+                    prompts: [
+                        'What did you eat for breakfast?',
+                        'Describe your dream vacation.',
+                        'Name 3 things in your bag.',
+                        'What is your favorite movie and why?',
+                        'What superpower would you choose?',
+                        'Talk about a hobby you enjoy.',
+                        'What makes you laugh?',
+                        'Describe your best friend.',
+                        'What is a skill you want to learn?',
+                        'Morning person or night owl?',
+                        'Name 3 animals you like.',
+                        'What is the best meal you ever had?',
+                        'Where do you want to live someday?',
+                        'What song do you listen to often?',
+                        'Talk about your favorite season.',
+                        'What did you do last weekend?',
+                        'Name 3 things you do every day.',
+                        'What is a book or show you recommend?'
+                    ].join('\n')
+                },
+                past: {
+                    title: 'Past Simple Sprint',
+                    subtitle: 'Say the past simple form and use it in a full sentence to stay on your space!',
+                    prompts: [
+                        'GO | went',
+                        'EAT | ate',
+                        'BUY | bought',
+                        'SEE | saw',
+                        'TAKE | took',
+                        'WRITE | wrote',
+                        'DRINK | drank',
+                        'SPEAK | spoke',
+                        'MAKE | made',
+                        'FIND | found',
+                        'GIVE | gave',
+                        'COME | came',
+                        'THINK | thought',
+                        'TEACH | taught',
+                        'CATCH | caught',
+                        'SWIM | swam',
+                        'SLEEP | slept',
+                        'BRING | brought'
+                    ].join('\n')
+                },
+                wyr: {
+                    title: 'Would You Rather?',
+                    subtitle: 'Pick one option and give TWO clear reasons why you chose it!',
+                    prompts: [
+                        'Fly or be invisible?',
+                        'Live by the beach or mountains?',
+                        'Always be hot or always be cold?',
+                        'No phone or no music for a week?',
+                        'Travel to the past or future?',
+                        'Speak every language or talk to animals?',
+                        'Eat only sweet or only savory food?',
+                        'Be famous or be super rich?',
+                        'Explore space or the deep ocean?',
+                        'Have a pet dragon or a pet robot?',
+                        'Never sleep or never need to eat?',
+                        'Read minds or stop time?',
+                        'Summer forever or winter forever?',
+                        'Live in a treehouse or houseboat?',
+                        'Free flights or free food for life?',
+                        'Be a great chef or a great singer?'
+                    ].join('\n')
+                },
+                vocab: {
+                    title: 'Describe It!',
+                    subtitle: 'Describe the word WITHOUT saying it so your group can guess!',
+                    prompts: [
+                        'UMBRELLA | keeps you dry in rain',
+                        'PASSPORT | ID for flying abroad',
+                        'BACKPACK | bag worn on shoulders',
+                        'ALARM CLOCK | wakes you up',
+                        'HEADPHONES | listen privately',
+                        'CALENDAR | shows days & months',
+                        'MICROWAVE | heats food fast',
+                        'ELEVATOR | moves between floors',
+                        'SUNGLASSES | protects eyes from sun',
+                        'TOOTHBRUSH | cleans your teeth',
+                        'KEYBOARD | used for typing',
+                        'SUITCASE | holds clothes for trips',
+                        'BICYCLE | two-wheeled ride',
+                        'TELESCOPE | looks at stars',
+                        'COMPASS | shows north & south',
+                        'NOTEBOOK | pages for writing'
+                    ].join('\n')
+                }
+            };
+
+            const ACTION_TILES = [
+                { type: 'bonus', label: 'ROLL AGAIN!', delta: 0, extraTurn: true, icon: '★' },
+                { type: 'bonus', label: 'BOOST +2', delta: 2, extraTurn: false, icon: '⚡' },
+                { type: 'back', label: 'GO BACK 2', delta: -2, extraTurn: false, icon: '↩' },
+                { type: 'skip', label: 'MISS A TURN', delta: 0, skipTurn: true, icon: '⏸' },
+            ];
+
+            const TEAM_DEFS = [
+                { id: 'pink', name: 'Team Pink', short: 'P', color: '#ff4785', text: '#ffffff' },
+                { id: 'blue', name: 'Team Blue', short: 'B', color: '#1ea7fd', text: '#ffffff' },
+                { id: 'green', name: 'Team Green', short: 'G', color: '#00d063', text: '#1e293b' },
+                { id: 'orange', name: 'Team Orange', short: 'O', color: '#ff7e33', text: '#1e293b' },
+            ];
+
+            const DEFAULT_ORIENT = { winding: 'landscape', spiral: 'landscape', zigzag: 'portrait' };
+
+            const STORAGE_KEY = 'klasskit_path_board_v1';
+            const SETS_KEY = 'klasskit_path_board_sets_v1';
+            const CLOUD_TOOL_KEY = 'path-board';
+
+            // ===== PURE LOGIC ===================================================
+
+            function parsePrompts(raw) {
+                return (raw || '')
+                    .split(/\n+/)
+                    .map((line) => line.trim())
+                    .filter(Boolean)
+                    .map((line) => {
+                        const parts = line.split('|');
+                        return {
+                            text: parts[0].trim(),
+                            answer: parts[1] ? parts.slice(1).join('|').trim() : ''
+                        };
+                    })
+                    .filter((item) => item.text.length > 0);
+            }
+
+            function shuffleArray(arr) {
+                const copy = arr.slice();
+                for (let i = copy.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [copy[i], copy[j]] = [copy[j], copy[i]];
+                }
+                return copy;
+            }
+
+            /** Wrap text cleanly into up to maxLines lines for SVG tiles */
+            function wrapLines(text, maxChars, maxLines = 4) {
+                const words = text.split(/\s+/);
+                const lines = [];
+                let cur = '';
+                for (const w of words) {
+                    const candidate = cur ? `${cur} ${w}` : w;
+                    if (candidate.length <= maxChars) {
+                        cur = candidate;
+                    } else {
+                        if (cur) lines.push(cur);
+                        cur = w.length > maxChars ? w.slice(0, maxChars - 1) + '…' : w;
+                    }
+                    if (lines.length === maxLines) break;
+                }
+                if (cur && lines.length < maxLines) lines.push(cur);
+                if (lines.length === maxLines && words.join(' ').length > lines.join(' ').length + 2) {
+                    const last = lines[maxLines - 1];
+                    lines[maxLines - 1] = last.length > maxChars - 1 ? last.slice(0, maxChars - 1) + '…' : last + '…';
+                }
+                return lines;
+            }
+
+            function escapeXml(str) {
+                return String(str)
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;')
+                    .replace(/"/g, '&quot;');
+            }
+
+            /** Build tile list: START + middle tiles (prompts + action tiles) + FINISH */
+            function buildTileData(totalSpaces, rawPrompts, actionMode, doShuffle) {
+                const middleCount = Math.max(2, totalSpaces - 2);
+                const basePrompts = doShuffle ? shuffleArray(rawPrompts) : rawPrompts.slice();
+
+                // Decide which middle indices are action tiles
+                const actionIndices = new Set();
+                if (actionMode !== 'none' && middleCount >= 6) {
+                    const step = actionMode === 'chaotic' ? 3 : 5;
+                    for (let i = step - 1; i < middleCount - 1; i += step) {
+                        actionIndices.add(i);
+                    }
+                }
+
+                const tiles = [{ index: 0, kind: 'start', text: 'START', answer: '' }];
+                let pCursor = 0;
+                let aCursor = 0;
+
+                for (let m = 0; m < middleCount; m++) {
+                    if (actionIndices.has(m)) {
+                        const act = ACTION_TILES[aCursor % ACTION_TILES.length];
+                        aCursor++;
+                        tiles.push({
+                            index: m + 1,
+                            kind: act.type,
+                            text: act.label,
+                            icon: act.icon,
+                            delta: act.delta || 0,
+                            extraTurn: !!act.extraTurn,
+                            skipTurn: !!act.skipTurn,
+                            answer: ''
+                        });
+                    } else {
+                        const item = basePrompts.length > 0
+                            ? basePrompts[pCursor % basePrompts.length]
+                            : { text: `Prompt ${pCursor + 1}`, answer: '' };
+                        pCursor++;
+                        tiles.push({
+                            index: m + 1,
+                            kind: 'normal',
+                            text: item.text,
+                            answer: item.answer
+                        });
+                    }
+                }
+
+                tiles.push({ index: totalSpaces - 1, kind: 'finish', text: 'FINISH', answer: '' });
+                return tiles;
+            }
+
+            /** Compute (x, y) grid coordinates for Winding, Spiral, or Zig-Zag */
+            function computeGridCoords(count, shape) {
+                let cols, rows;
+                if (shape === 'zigzag') {
+                    cols = count <= 16 ? 3 : 4;
+                    rows = Math.ceil(count / cols);
+                } else if (shape === 'spiral') {
+                    cols = Math.ceil(Math.sqrt(count * 1.35));
+                    rows = Math.ceil(count / cols);
+                } else {
+                    // winding (landscape S-curve)
+                    cols = count <= 14 ? 5 : count <= 20 ? 5 : count <= 24 ? 6 : 7;
+                    rows = Math.ceil(count / cols);
+                }
+
+                const coords = [];
+                if (shape === 'spiral') {
+                    let top = 0, bottom = rows - 1, left = 0, right = cols - 1;
+                    while (coords.length < count && top <= bottom && left <= right) {
+                        for (let c = left; c <= right && coords.length < count; c++) coords.push({ r: top, c });
+                        top++;
+                        for (let r = top; r <= bottom && coords.length < count; r++) coords.push({ r, c: right });
+                        right--;
+                        for (let c = right; c >= left && coords.length < count; c--) coords.push({ r: bottom, c });
+                        bottom--;
+                        for (let r = bottom; r >= top && coords.length < count; r++) coords.push({ r, c: left });
+                        left++;
+                    }
+                } else {
+                    for (let i = 0; i < count; i++) {
+                        const r = Math.floor(i / cols);
+                        const cInRow = i % cols;
+                        const c = r % 2 === 0 ? cInRow : cols - 1 - cInRow;
+                        coords.push({ r, c });
+                    }
+                }
+
+                return { cols, rows, coords };
+            }
+
+            /** Generate complete SVG markup for the board + live team tokens */
+            function buildBoardSVG(tiles, shape, showNumbers, teams, activeTeamIdx) {
+                const { cols, rows, coords } = computeGridCoords(tiles.length, shape);
+                const tileW = shape === 'zigzag' ? 175 : 165;
+                const tileH = shape === 'zigzag' ? 112 : 114;
+                const gapX = 28;
+                const gapY = 28;
+                const pad = 28;
+
+                const vbW = pad * 2 + cols * tileW + (cols - 1) * gapX;
+                const vbH = pad * 2 + rows * tileH + (rows - 1) * gapY;
+
+                const centers = coords.map(({ r, c }) => ({
+                    x: pad + c * (tileW + gapX) + tileW / 2,
+                    y: pad + r * (tileH + gapY) + tileH / 2
+                }));
+
+                // Connector track path
+                const pathD = centers.map((pt, i) => `${i === 0 ? 'M' : 'L'} ${pt.x} ${pt.y}`).join(' ');
+
+                // Direction arrows between tiles
+                const arrows = [];
+                for (let i = 0; i < centers.length - 1; i++) {
+                    const a = centers[i], b = centers[i + 1];
+                    const mx = (a.x + b.x) / 2;
+                    const my = (a.y + b.y) / 2;
+                    const deg = (Math.atan2(b.y - a.y, b.x - a.x) * 180) / Math.PI;
+                    arrows.push(
+                        `<g transform="translate(${mx} ${my}) rotate(${deg})">
+                            <polygon points="-6,-6 7,0 -6,6" fill="#1ea7fd" stroke="#1e293b" stroke-width="1.5" />
+                        </g>`
+                    );
+                }
+
+                // Tile elements
+                const maxChars = tileW >= 170 ? 17 : 15;
+                const tileNodes = tiles.map((tile, i) => {
+                    const cx = centers[i].x;
+                    const cy = centers[i].y;
+                    const x = cx - tileW / 2;
+                    const y = cy - tileH / 2;
+
+                    const bgClass =
+                        tile.kind === 'start' ? 'tile-bg-start' :
+                        tile.kind === 'finish' ? 'tile-bg-finish' :
+                        tile.kind === 'bonus' ? 'tile-bg-bonus' :
+                        tile.kind === 'back' ? 'tile-bg-back' :
+                        tile.kind === 'skip' ? 'tile-bg-skip' : 'tile-bg-normal';
+
+                    let innerMarkup = '';
+                    if (tile.kind === 'start' || tile.kind === 'finish') {
+                        const textCls = tile.kind === 'finish' ? 'tile-text-light' : 'tile-text-dark';
+                        const badge = tile.kind === 'start' ? 'GO!' : 'WIN!';
+                        innerMarkup = `
+                            <text x="${cx}" y="${cy - 8}" text-anchor="middle" font-family="Fredoka, sans-serif" font-weight="700" font-size="26" class="${textCls}">${tile.text}</text>
+                            <text x="${cx}" y="${cy + 20}" text-anchor="middle" font-family="Nunito, sans-serif" font-weight="800" font-size="13" opacity="0.85" class="${textCls}">${badge}</text>
+                        `;
+                    } else if (tile.kind !== 'normal') {
+                        innerMarkup = `
+                            <text x="${cx}" y="${cy - 8}" text-anchor="middle" font-size="24" class="tile-text tile-text-special">${tile.icon || '★'}</text>
+                            <text x="${cx}" y="${cy + 20}" text-anchor="middle" font-family="Fredoka, sans-serif" font-weight="700" font-size="14" class="tile-text tile-text-special">${escapeXml(tile.text)}</text>
+                        `;
+                    } else {
+                        const lines = wrapLines(tile.text, maxChars, 4);
+                        const fontSize = lines.length >= 4 ? 12.5 : lines.length === 3 ? 13.5 : 14.5;
+                        const lineH = fontSize * 1.28;
+                        const totalH = lines.length * lineH;
+                        const startY = cy - totalH / 2 + fontSize * 0.85 + (showNumbers ? 4 : 0);
+
+                        const tspans = lines.map((ln, idx) =>
+                            `<tspan x="${cx}" y="${(startY + idx * lineH).toFixed(1)}">${escapeXml(ln)}</tspan>`
+                        ).join('');
+
+                        const ansMarkup = tile.answer
+                            ? `<text x="${cx}" y="${(y + tileH - 8).toFixed(1)}" text-anchor="middle" font-size="10.5" class="tile-answer">✓ ${escapeXml(tile.answer.slice(0, 18))}</text>`
+                            : '';
+
+                        innerMarkup = `<text text-anchor="middle" font-size="${fontSize}" class="tile-text">${tspans}</text>${ansMarkup}`;
+                    }
+
+                    const numBadge = showNumbers && tile.kind !== 'start' && tile.kind !== 'finish'
+                        ? `<text x="${x + 11}" y="${y + 19}" font-size="12" class="tile-num">${i}</text>`
+                        : '';
+
+                    return `<g class="board-tile" data-tile-idx="${i}">
+                        <rect x="${x + 5}" y="${y + 5}" width="${tileW}" height="${tileH}" rx="16" class="tile-shadow" />
+                        <rect x="${x}" y="${y}" width="${tileW}" height="${tileH}" rx="16" class="tile-rect ${bgClass}" />
+                        ${numBadge}
+                        ${innerMarkup}
+                    </g>`;
+                }).join('');
+
+                // Render live player tokens grouped neatly on their tile corners
+                const offsets = [
+                    [-tileW / 2 + 20, tileH / 2 - 18],
+                    [tileW / 2 - 20, tileH / 2 - 18],
+                    [-tileW / 2 + 20, -tileH / 2 + 18],
+                    [tileW / 2 - 20, -tileH / 2 + 18],
+                ];
+
+                const tokenNodes = teams.map((team, tIdx) => {
+                    const safePos = Math.max(0, Math.min(tiles.length - 1, team.pos));
+                    const c = centers[safePos];
+                    const [ox, oy] = offsets[tIdx % offsets.length];
+                    const isTurn = tIdx === activeTeamIdx;
+                    const tx = c.x + ox;
+                    const ty = c.y + oy;
+                    return `<g class="player-token" data-team-idx="${tIdx}" transform="translate(${tx} ${ty})">
+                        ${isTurn ? `<circle r="19" fill="none" stroke="${team.color}" stroke-width="3.5" stroke-dasharray="5 3" opacity="0.95" />` : ''}
+                        <circle cx="2" cy="3" r="14" fill="#1e293b" opacity="0.35" />
+                        <circle r="14" fill="${team.color}" stroke="#1e293b" stroke-width="3" />
+                        <text y="5" text-anchor="middle" font-family="Fredoka, sans-serif" font-weight="700" font-size="13" fill="${team.text}">${team.short}</text>
+                    </g>`;
+                }).join('');
+
+                return `<svg viewBox="0 0 ${vbW} ${vbH}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Printable path board game with ${tiles.length} spaces" xmlns="http://www.w3.org/2000/svg">
+                    <path d="${pathD}" fill="none" stroke-width="26" stroke-linecap="round" stroke-linejoin="round" class="track-line" />
+                    <path d="${pathD}" fill="none" stroke-width="4" stroke-dasharray="10 10" stroke-linecap="round" stroke-linejoin="round" class="track-dash" />
+                    ${arrows.join('')}
+                    ${tileNodes}
+                    <g id="svg-tokens-layer">${tokenNodes}</g>
+                </svg>`;
+            }
+
+            function renderDiceSVG(value) {
+                const pips = {
+                    1: [[30, 30]],
+                    2: [[16, 16], [44, 44]],
+                    3: [[16, 16], [30, 30], [44, 44]],
+                    4: [[16, 16], [44, 16], [16, 44], [44, 44]],
+                    5: [[16, 16], [44, 16], [30, 30], [16, 44], [44, 44]],
+                    6: [[16, 14], [44, 14], [16, 30], [44, 30], [16, 46], [44, 46]],
+                };
+                const pts = pips[value] || pips[1];
+                return pts.map(([cx, cy]) =>
+                    `<circle cx="${cx}" cy="${cy}" r="5.5" fill="currentColor" />`
+                ).join('');
+            }
+
+            // ===== SOUND (Tone.js with safe fallback) ===========================
+
+            let soundEnabled = true;
+            let synth = null;
+
+            function playTone(note, dur = '16n') {
+                if (!soundEnabled || typeof window.Tone === 'undefined') return;
+                try {
+                    if (window.Tone.context.state !== 'running') window.Tone.start();
+                    if (!synth) {
+                        synth = new window.Tone.Synth({
+                            oscillator: { type: 'triangle' },
+                            envelope: { attack: 0.01, decay: 0.1, sustain: 0.05, release: 0.15 }
+                        }).toDestination();
+                    }
+                    synth.triggerAttackRelease(note, dur);
+                } catch (e) { /* ignore audio errors */ }
+            }
+
+            // ===== UI STATE & DOM ===============================================
+
+            const $ = (id) => document.getElementById(id);
+            const el = {
+                sidebar: $('sidebar'),
+                toggleSidebar: $('toggle-sidebar-btn'),
+                mobileClose: $('mobile-close-panel'),
+                slider: $('size-slider'),
+                display: $('size-display'),
+                input: $('prompt-input'),
+                showNumbers: $('show-numbers'),
+                shufflePrompts: $('shuffle-prompts'),
+                customTitle: $('custom-title'),
+                customSubtitle: $('custom-subtitle'),
+                capacity: $('capacity'),
+                status: $('status'),
+                generate: $('generate-btn'),
+                print: $('print-btn'),
+                printKey: $('print-key-btn'),
+                theme: $('theme-btn'),
+                sound: $('sound-btn'),
+                soundOn: $('sound-icon-on'),
+                soundOff: $('sound-icon-off'),
+                help: $('help-btn'),
+                empty: $('empty-state'),
+                wrapper: $('svg-wrapper'),
+                answerToggle: $('answer-toggle-btn'),
+                resetTokens: $('reset-tokens-btn'),
+                zoomIn: $('zoom-in'),
+                zoomOut: $('zoom-out'),
+                zoomReset: $('zoom-reset'),
+                teamCount: $('team-count'),
+                teamList: $('team-list'),
+                rollDiceBtn: $('roll-dice-btn'),
+                rollTextBtn: $('roll-text-btn'),
+                stepBackBtn: $('step-back-btn'),
+                stepFwdBtn: $('step-fwd-btn'),
+                diceSvg: $('dice-svg'),
+                turnTeamName: $('turn-team-name'),
+                clearPrompts: $('clear-prompts-btn'),
+                toggleSavedSets: $('toggle-saved-sets-btn'),
+                newSet: $('new-set-btn'),
+                saveSet: $('save-set-btn'),
+                librarySort: $('library-sort'),
+                libraryList: $('library-list'),
+                activeSetBanner: $('active-set-banner'),
+                activeSetName: $('active-set-name'),
+                closeSet: $('close-set-btn'),
+                printArea: $('print-area'),
+                printHeading: $('print-heading'),
+                printSubheading: $('print-subheading'),
+                printSvg: $('print-svg-container'),
+                printFooter: $('print-footer'),
+                pageStyle: $('page-style'),
+            };
+
+            let tiles = [];
+            let teams = TEAM_DEFS.map((t) => ({ ...t, pos: 0, skipNext: false }));
+            let activeTeamIdx = 0;
+            let diceValue = 4;
+            let isRolling = false;
+            let showAnswers = false;
+            let zoomLevel = 1;
+            let activeSetId = null;
+            let cloudSaveTimer = null;
+            let activeConfirmCancel = null;
+
+            const choice = (name, fallback = '') => document.querySelector(`input[name="${name}"]:checked`)?.value || fallback;
+            const setRadio = (name, val) => {
+                const r = document.querySelector(`input[name="${name}"][value="${val}"]`);
+                if (r) r.checked = true;
+            };
+            const currentSpaces = () => parseInt(el.slider.value, 10) || 20;
+
+            function hydrateIcons(root) {
+                if (!window.lucide || typeof window.lucide.createIcons !== 'function') return;
+                try {
+                    window.lucide.createIcons(root && root !== document ? { root } : undefined);
+                } catch (e) {
+                    window.lucide.createIcons();
+                }
+            }
+
+            // ----- Toast & Modals -----
+            function showToast(message, type = 'info') {
+                const container = $('toast-container');
+                if (!container) return;
+                const toast = document.createElement('div');
+                const colors = {
+                    success: 'bg-green text-dark border-dark',
+                    error: 'bg-pink text-white border-dark',
+                    info: 'bg-blue text-white border-dark',
+                    warning: 'bg-orange text-dark border-dark',
+                };
+                const icons = {
+                    success: 'check-circle',
+                    error: 'alert-circle',
+                    info: 'info',
+                    warning: 'alert-triangle',
+                };
+                toast.className = `${colors[type] || colors.info} px-5 py-3 rounded-2xl shadow-hard border-3 border-dark font-extrabold text-xs uppercase tracking-wider flex items-center gap-2 pointer-events-auto animate-pop-in`;
+                toast.innerHTML = `<i data-lucide="${icons[type] || 'info'}" class="w-4 h-4 shrink-0"></i><span></span>`;
+                toast.querySelector('span').textContent = message;
+                container.appendChild(toast);
+                hydrateIcons(toast);
+                setTimeout(() => {
+                    toast.style.opacity = '0';
+                    toast.style.transform = 'translateY(12px)';
+                    toast.style.transition = 'all 0.3s ease';
+                    setTimeout(() => toast.remove(), 320);
+                }, 2600);
+            }
+
+            function showConfirm(title, message) {
+                return new Promise((resolve) => {
+                    const modal = $('confirmModal');
+                    $('confirmTitle').textContent = title;
+                    $('confirmMessage').textContent = message;
+                    modal.classList.remove('hidden');
+                    modal.classList.add('flex');
+                    hydrateIcons(modal);
+
+                    const cleanup = (val) => {
+                        modal.classList.add('hidden');
+                        modal.classList.remove('flex');
+                        $('confirmBtnYes').onclick = null;
+                        $('confirmBtnNo').onclick = null;
+                        modal.onclick = null;
+                        activeConfirmCancel = null;
+                        resolve(val);
+                    };
+                    activeConfirmCancel = () => cleanup(false);
+                    $('confirmBtnYes').onclick = () => cleanup(true);
+                    $('confirmBtnNo').onclick = () => cleanup(false);
+                    modal.onclick = (e) => { if (e.target === modal) cleanup(false); };
+                });
+            }
+
+            function openTileModal(tileIdx) {
+                const tile = tiles[tileIdx];
+                if (!tile) return;
+                const modal = $('tileModal');
+                const badge = $('tile-modal-badge');
+                const typeEl = $('tile-modal-type');
+                const promptEl = $('tile-modal-prompt');
+                const ansWrap = $('tile-modal-answer-wrap');
+                const ansEl = $('tile-modal-answer');
+                const revealBtn = $('tile-modal-reveal-btn');
+
+                badge.textContent = tile.kind === 'start' ? 'START' : tile.kind === 'finish' ? 'FINISH' : `SPACE ${tileIdx}`;
+                typeEl.textContent =
+                    tile.kind === 'normal' ? 'Prompt' :
+                    tile.kind === 'bonus' ? 'Bonus Tile' :
+                    tile.kind === 'back' ? 'Setback Tile' :
+                    tile.kind === 'skip' ? 'Pause Tile' : 'Milestone';
+
+                promptEl.textContent = tile.kind === 'start'
+                    ? 'Starting line! Roll the die to begin.'
+                    : tile.kind === 'finish'
+                        ? 'Finish line! First team here wins!'
+                        : tile.text;
+
+                if (tile.answer) {
+                    ansWrap.classList.remove('hidden');
+                    ansEl.textContent = tile.answer;
+                    ansEl.classList.toggle('hidden', !showAnswers);
+                    revealBtn.classList.toggle('hidden', showAnswers);
+                } else {
+                    ansWrap.classList.add('hidden');
+                }
+
+                modal.classList.remove('hidden');
+                modal.classList.add('flex');
+                if (window.lucide) window.lucide.createIcons();
+            }
+
+            // ----- Persistence (LocalStorage + Supabase Cloud) -----
+            function getWorkspaceData() {
+                return {
+                    prompts: el.input.value,
+                    spaces: currentSpaces(),
+                    shape: choice('shape', 'winding'),
+                    actionMode: choice('action-mode', 'balanced'),
+                    showNumbers: el.showNumbers.checked,
+                    shufflePrompts: el.shufflePrompts.checked,
+                    customTitle: el.customTitle.value,
+                    customSubtitle: el.customSubtitle.value,
+                    orient: choice('page-orient', 'landscape'),
+                    teamCount: parseInt(el.teamCount.value, 10) || 4,
+                    activeSetId
+                };
+            }
+
+            function applyWorkspaceData(data) {
+                if (!data) return;
+                if (typeof data.prompts === 'string') el.input.value = data.prompts;
+                if (data.spaces) el.slider.value = data.spaces;
+                if (data.shape) setRadio('shape', data.shape);
+                if (data.actionMode) setRadio('action-mode', data.actionMode);
+                if (typeof data.showNumbers === 'boolean') el.showNumbers.checked = data.showNumbers;
+                if (typeof data.shufflePrompts === 'boolean') el.shufflePrompts.checked = data.shufflePrompts;
+                if (typeof data.customTitle === 'string') el.customTitle.value = data.customTitle;
+                if (typeof data.customSubtitle === 'string') el.customSubtitle.value = data.customSubtitle;
+                if (data.orient) setRadio('page-orient', data.orient);
+                if (data.teamCount) el.teamCount.value = String(data.teamCount);
+                if (data.activeSetId !== undefined) activeSetId = data.activeSetId;
+            }
+
+            function readSets() {
+                try {
+                    const raw = localStorage.getItem(SETS_KEY);
+                    const sets = raw ? JSON.parse(raw) : [];
+                    return Array.isArray(sets) ? sets : [];
+                } catch (e) { return []; }
+            }
+
+            function writeSets(sets) {
+                try { localStorage.setItem(SETS_KEY, JSON.stringify(sets)); } catch (e) { /* ignore */ }
+            }
+
+            function scheduleCloudSave(ws) {
+                clearTimeout(cloudSaveTimer);
+                cloudSaveTimer = setTimeout(() => {
+                    if (typeof window.saveProgress === 'function') {
+                        window.saveProgress(CLOUD_TOOL_KEY, {
+                            workspace: ws,
+                            sets: readSets()
+                        }).catch(() => {});
+                    }
+                }, 700);
+            }
+
+            function persistState() {
+                const ws = getWorkspaceData();
+                try { localStorage.setItem(STORAGE_KEY, JSON.stringify(ws)); } catch (e) { /* ignore */ }
+
+                if (activeSetId) {
+                    const sets = readSets();
+                    const idx = sets.findIndex((s) => s.id === activeSetId);
+                    if (idx !== -1) {
+                        sets[idx] = { ...sets[idx], ...ws, lastUsed: Date.now() };
+                        writeSets(sets);
+                        renderLibrary();
+                    }
+                }
+
+                scheduleCloudSave(ws);
+            }
+
+            async function loadPersistedState() {
+                let hasWorkspace = false;
+                try {
+                    const raw = localStorage.getItem(STORAGE_KEY);
+                    if (raw) {
+                        applyWorkspaceData(JSON.parse(raw));
+                        hasWorkspace = true;
+                    }
+                } catch (e) { /* ignore */ }
+
+                if (typeof window.loadProgress === 'function') {
+                    try {
+                        const cloud = await window.loadProgress(CLOUD_TOOL_KEY);
+                        if (cloud) {
+                            if (cloud.workspace) {
+                                applyWorkspaceData(cloud.workspace);
+                                try { localStorage.setItem(STORAGE_KEY, JSON.stringify(cloud.workspace)); } catch (e) { /* ignore */ }
+                                hasWorkspace = true;
+                            }
+                            if (Array.isArray(cloud.sets) && cloud.sets.length > 0 && readSets().length === 0) {
+                                writeSets(cloud.sets);
+                            }
+                        }
+                    } catch (e) { /* ignore */ }
+                }
+
+                if (!hasWorkspace) {
+                    el.input.value = PRESETS.speaking.prompts;
+                    el.customTitle.value = PRESETS.speaking.title;
+                    el.customSubtitle.value = PRESETS.speaking.subtitle;
+                }
+            }
+
+            function updateActiveSetBanner() {
+                const sets = readSets();
+                const current = sets.find((s) => s.id === activeSetId);
+                if (current) {
+                    el.activeSetBanner.classList.remove('hidden');
+                    el.activeSetName.textContent = current.name;
+                } else {
+                    activeSetId = null;
+                    el.activeSetBanner.classList.add('hidden');
+                }
+            }
+
+            function renderLibrary() {
+                const sets = readSets();
+                const sort = el.librarySort.value;
+                if (sort === 'recent') sets.sort((a, b) => (b.lastUsed || 0) - (a.lastUsed || 0));
+                else if (sort === 'alpha') sets.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+                else if (sort === 'popular') sets.sort((a, b) => (b.usageCount || 0) - (a.usageCount || 0));
+
+                const countEl = $('saved-count');
+                if (countEl) countEl.textContent = String(sets.length);
+
+                updateActiveSetBanner();
+
+                if (!sets.length) {
+                    el.libraryList.innerHTML = `<p class="text-xs font-semibold text-slate-400 text-center py-3">No saved boards yet.</p>`;
+                    return;
+                }
+
+                el.libraryList.innerHTML = sets.map((s) => {
+                    const isActive = s.id === activeSetId;
+                    const count = parsePrompts(s.prompts || '').length;
+                    return `
+                        <div class="flex items-center gap-2 p-2 rounded-xl border-2 ${isActive ? 'border-blue bg-blue/10' : 'border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60'} hover:border-blue transition-colors">
+                            <button type="button" data-load-id="${s.id}" class="flex-1 text-left min-w-0">
+                                <p class="text-xs font-extrabold truncate flex items-center gap-1.5">
+                                    <span></span>
+                                    ${isActive ? '<span class="px-1.5 py-0.5 rounded bg-blue text-white text-[9px] uppercase">Active</span>' : ''}
+                                </p>
+                                <p class="text-[10px] font-bold text-slate-400">${count} prompts · ${s.spaces || 20} spaces</p>
+                            </button>
+                            <button type="button" data-delete-id="${s.id}" class="p-1.5 rounded-lg text-slate-400 hover:text-pink hover:bg-pink/10 transition-colors" title="Delete board">
+                                <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                            </button>
+                        </div>
+                    `;
+                }).join('');
+
+                const loadBtns = el.libraryList.querySelectorAll('[data-load-id]');
+                sets.forEach((s, idx) => {
+                    const span = loadBtns[idx]?.querySelector('p span:first-child');
+                    if (span) span.textContent = s.name;
+                });
+
+                hydrateIcons(el.libraryList);
+            }
+
+            // ----- Board Rendering & Live Teams -----
+
+            function syncTeamCount() {
+                const count = parseInt(el.teamCount.value, 10) || 4;
+                const oldPositions = teams.map((t) => t.pos);
+                teams = TEAM_DEFS.slice(0, count).map((def, i) => ({
+                    ...def,
+                    pos: Math.min(Math.max(0, tiles.length - 1), oldPositions[i] || 0),
+                    skipNext: false
+                }));
+                if (activeTeamIdx >= teams.length) activeTeamIdx = 0;
+            }
+
+            function renderTeamCards() {
+                const maxIdx = Math.max(1, tiles.length - 1);
+                el.turnTeamName.textContent = teams[activeTeamIdx]?.name || 'Team Pink';
+                el.turnTeamName.style.color = teams[activeTeamIdx]?.color || '';
+
+                el.teamList.innerHTML = teams.map((team, idx) => {
+                    const isTurn = idx === activeTeamIdx;
+                    const pct = Math.round((team.pos / maxIdx) * 100);
+                    const posLabel = team.pos === 0 ? 'START' : team.pos === maxIdx ? 'FINISH 🏆' : `Space ${team.pos}`;
+                    return `
+                        <button type="button" data-select-team="${idx}"
+                            class="w-full text-left p-2.5 rounded-xl border-2 transition-all ${isTurn ? 'border-dark dark:border-white bg-slate-100 dark:bg-slate-800 shadow-hard-sm translate-y-[-1px]' : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 opacity-80 hover:opacity-100'}">
+                            <div class="flex items-center justify-between gap-2">
+                                <div class="flex items-center gap-2 min-w-0">
+                                    <span class="w-6 h-6 rounded-full border-2 border-dark flex items-center justify-center font-heading font-bold text-xs shrink-0"
+                                        style="background:${team.color}; color:${team.text};">${team.short}</span>
+                                    <span class="font-heading font-bold text-xs truncate text-dark dark:text-white">${team.name}</span>
+                                </div>
+                                <span class="font-mono text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-700 text-dark dark:text-white shrink-0">${posLabel}</span>
+                            </div>
+                            <div class="mt-2 h-2 w-full rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden border border-dark/30">
+                                <div class="h-full transition-all duration-300" style="width:${pct}%; background:${team.color};"></div>
+                            </div>
+                            ${team.skipNext ? '<p class="text-[9px] font-extrabold text-pink uppercase mt-1">⏸ Skips next turn</p>' : ''}
+                        </button>
+                    `;
+                }).join('');
+            }
+
+            function renderSVGOnly() {
+                if (!tiles.length) return;
+                const svg = buildBoardSVG(tiles, choice('shape', 'winding'), el.showNumbers.checked, teams, activeTeamIdx);
+                el.wrapper.innerHTML = svg;
+                el.printSvg.innerHTML = svg;
+                renderTeamCards();
+            }
+
+            function updateCapacity() {
+                const prompts = parsePrompts(el.input.value);
+                const total = currentSpaces();
+                const middle = total - 2;
+                el.capacity.textContent = `${prompts.length} prompts · ${middle} tiles`;
+                const low = prompts.length === 0;
+                el.capacity.classList.toggle('bg-pink/20', low);
+                el.capacity.classList.toggle('border-pink', low);
+                el.capacity.classList.toggle('text-pink', low);
+            }
+
+            function updateSizeLabel() {
+                const n = currentSpaces();
+                el.display.textContent = `${n} spaces`;
+                el.slider.setAttribute('aria-valuetext', `${n} spaces`);
+            }
+
+            function applyPage() {
+                const orient = choice('page-orient', 'landscape');
+                document.documentElement.dataset.orient = orient;
+                el.pageStyle.textContent = `@page { size: A4 ${orient}; margin: 0; }`;
+            }
+
+            function generate(silent = false, { skipPersist = false } = {}) {
+                const prompts = parsePrompts(el.input.value);
+                if (prompts.length === 0) {
+                    if (!silent) {
+                        el.status.textContent = 'Add at least one prompt line to build your board game.';
+                        el.status.classList.remove('hidden');
+                    }
+                    tiles = [];
+                    el.wrapper.classList.add('hidden');
+                    el.empty.classList.remove('hidden');
+                    el.print.disabled = true;
+                    el.printKey.disabled = true;
+                    return;
+                }
+
+                el.status.classList.add('hidden');
+                tiles = buildTileData(
+                    currentSpaces(),
+                    prompts,
+                    choice('action-mode', 'balanced'),
+                    el.shufflePrompts.checked
+                );
+
+                // Keep team positions in bounds
+                teams.forEach((t) => {
+                    if (t.pos >= tiles.length) t.pos = tiles.length - 1;
+                });
+
+                el.empty.classList.add('hidden');
+                el.wrapper.classList.remove('hidden');
+                el.print.disabled = false;
+                el.printKey.disabled = false;
+                renderSVGOnly();
+                if (!skipPersist) persistState();
+            }
+
+            // ----- Live Turn & Dice Mechanics -----
+
+            function advanceTurn() {
+                activeTeamIdx = (activeTeamIdx + 1) % teams.length;
+                if (teams[activeTeamIdx].skipNext) {
+                    const skipped = teams[activeTeamIdx];
+                    skipped.skipNext = false;
+                    showToast(`${skipped.name} missed a turn!`, 'warning');
+                    activeTeamIdx = (activeTeamIdx + 1) % teams.length;
+                }
+                renderSVGOnly();
+            }
+
+            function moveActiveTeam(steps, fromDice = false) {
+                if (!tiles.length) return;
+                const team = teams[activeTeamIdx];
+                const maxIdx = tiles.length - 1;
+                const target = Math.max(0, Math.min(maxIdx, team.pos + steps));
+                team.pos = target;
+                playTone(steps >= 0 ? 'E5' : 'C4', '16n');
+                renderSVGOnly();
+
+                const landed = tiles[target];
+                if (target === maxIdx) {
+                    playTone('G5', '8n');
+                    showToast(`${team.name} reached FINISH!`, 'success');
+                    if (typeof window.confetti === 'function') {
+                        window.confetti({ particleCount: 90, spread: 70, origin: { y: 0.6 } });
+                    }
+                    return;
+                }
+
+                if (fromDice && landed) {
+                    if (landed.kind === 'bonus' && landed.extraTurn) {
+                        showToast(`${team.name} landed on ROLL AGAIN!`, 'success');
+                        return; // keep same team's turn
+                    }
+                    if (landed.kind === 'bonus' && landed.delta) {
+                        isRolling = true;
+                        showToast(`${team.name} got ${landed.text}!`, 'success');
+                        setTimeout(() => {
+                            team.pos = Math.min(maxIdx, team.pos + landed.delta);
+                            playTone('A5', '16n');
+                            renderSVGOnly();
+                            if (team.pos < maxIdx) openTileModal(team.pos);
+                            advanceTurn();
+                            isRolling = false;
+                        }, 550);
+                        return;
+                    }
+                    if (landed.kind === 'back' && landed.delta) {
+                        isRolling = true;
+                        showToast(`${team.name} hit ${landed.text}!`, 'warning');
+                        setTimeout(() => {
+                            team.pos = Math.max(0, team.pos + landed.delta);
+                            playTone('C4', '16n');
+                            renderSVGOnly();
+                            advanceTurn();
+                            isRolling = false;
+                        }, 550);
+                        return;
+                    }
+                    if (landed.kind === 'skip') {
+                        team.skipNext = true;
+                        showToast(`${team.name} will miss their next turn!`, 'warning');
+                        advanceTurn();
+                        return;
+                    }
+                    if (landed.kind === 'normal') {
+                        setTimeout(() => openTileModal(target), 350);
+                    }
+                    advanceTurn();
+                }
+            }
+
+            function rollDice() {
+                if (isRolling || !tiles.length) return;
+                isRolling = true;
+                el.rollDiceBtn.classList.add('dice-rolling');
+                let ticks = 0;
+                const interval = setInterval(() => {
+                    diceValue = Math.floor(Math.random() * 6) + 1;
+                    el.diceSvg.innerHTML = renderDiceSVG(diceValue);
+                    playTone(['C5', 'D5', 'E5', 'G5'][ticks % 4], '32n');
+                    ticks++;
+                    if (ticks >= 8) {
+                        clearInterval(interval);
+                        el.rollDiceBtn.classList.remove('dice-rolling');
+                        isRolling = false;
+                        moveActiveTeam(diceValue, true);
+                    }
+                }, 75);
+            }
+
+            // ----- Print Preparation -----
+            let printingAsKey = false;
+            function preparePrint(asKey) {
+                applyPage();
+                const baseTitle = el.customTitle.value.trim() || 'Path Board Game';
+                const baseSub = el.customSubtitle.value.trim() || 'Roll the die, move your token, and answer the prompt on each space!';
+                el.printArea.classList.toggle('show-answers', asKey);
+                el.printHeading.textContent = asKey ? `${baseTitle} — Teacher Key` : baseTitle;
+                el.printSubheading.textContent = asKey ? 'Teacher reference with space numbers and answers.' : baseSub;
+
+                if (asKey) {
+                    const answered = tiles
+                        .map((t, i) => ({ i, text: t.text, answer: t.answer }))
+                        .filter((t) => t.answer);
+
+                    if (answered.length > 0) {
+                        el.printFooter.innerHTML = `<div class="print-key-grid">${
+                            answered.map((a) => `<div><b>#${a.i}:</b> ${escapeXml(a.text)} → <span style="color:#ff4785">${escapeXml(a.answer)}</span></div>`).join('')
+                        }</div>`;
+                    } else {
+                        el.printFooter.innerHTML = `<div>Tip: Add <code>| answer</code> after any prompt line in the sidebar to print a full answer key here.</div>`;
+                    }
+                } else {
+                    el.printFooter.innerHTML = `
+                        <div><b>How to Play:</b> 1) Place tokens on START. 2) Roll a die and move. 3) Answer the prompt in a full sentence. 4) First to FINISH wins!</div>
+                        <div class="print-tokens">
+                            <span>Cut Tokens:</span>
+                            <span class="print-cut-token" style="background:#ff4785;color:#fff;">P</span>
+                            <span class="print-cut-token" style="background:#1ea7fd;color:#fff;">B</span>
+                            <span class="print-cut-token" style="background:#00d063;color:#1e293b;">G</span>
+                            <span class="print-cut-token" style="background:#ff7e33;color:#1e293b;">O</span>
+                        </div>
+                    `;
+                }
+            }
+
+            function printHandout(asKey = false) {
+                printingAsKey = asKey;
+                preparePrint(asKey);
+                window.print();
+                setTimeout(() => {
+                    printingAsKey = false;
+                    preparePrint(false);
+                }, 300);
+            }
+
+            window.addEventListener('beforeprint', () => preparePrint(printingAsKey));
+
+            // ----- UI Controls & Event Wiring -----
+
+            function toggleControlPanel(forceHide = false) {
+                const isHidden = window.innerWidth >= 768
+                    ? el.sidebar.classList.contains('hidden-panel-desktop')
+                    : el.sidebar.classList.contains('hidden-panel-mobile');
+                if (forceHide || !isHidden) {
+                    el.sidebar.classList.add('hidden-panel-mobile', 'hidden-panel-desktop');
+                } else {
+                    el.sidebar.classList.remove('hidden-panel-mobile', 'hidden-panel-desktop');
+                }
+            }
+
+            function setTheme(dark) {
+                document.documentElement.classList.toggle('dark', dark);
+                el.theme.setAttribute('aria-pressed', String(dark));
+                try {
+                    localStorage.setItem('theme_path-board', dark ? 'dark' : 'light');
+                    localStorage.setItem('klasskit-theme', dark ? 'dark' : 'light');
+                } catch (e) { /* ignore */ }
+            }
+
+            function applyZoom() {
+                el.wrapper.style.transform = `scale(${zoomLevel})`;
+                el.zoomReset.textContent = `${Math.round(zoomLevel * 100)}%`;
+            }
+
+            function applySoundUI() {
+                el.sound.setAttribute('aria-pressed', String(soundEnabled));
+                el.soundOn.classList.toggle('hidden', !soundEnabled);
+                el.soundOff.classList.toggle('hidden', soundEnabled);
+                el.sound.classList.toggle('bg-green/20', soundEnabled);
+                el.sound.classList.toggle('bg-slate-200', !soundEnabled);
+                el.sound.classList.toggle('dark:bg-slate-700', !soundEnabled);
+            }
+
+            function initSoundState() {
+                try {
+                    if (localStorage.getItem('soundMuted') === 'true') {
+                        soundEnabled = false;
+                        applySoundUI();
+                    }
+                } catch (e) {}
+            }
+
+            el.toggleSidebar.addEventListener('click', () => toggleControlPanel(false));
+            el.mobileClose.addEventListener('click', () => toggleControlPanel(true));
+
+            el.sound.addEventListener('click', () => {
+                soundEnabled = !soundEnabled;
+                applySoundUI();
+                if (soundEnabled) playTone('C5', '16n');
+            });
+
+            el.theme.addEventListener('click', () => setTheme(!document.documentElement.classList.contains('dark')));
+
+            el.answerToggle.addEventListener('click', () => {
+                showAnswers = !showAnswers;
+                el.wrapper.classList.toggle('show-answers', showAnswers);
+                el.answerToggle.setAttribute('aria-pressed', String(showAnswers));
+                el.answerToggle.classList.toggle('bg-white/90', !showAnswers);
+                el.answerToggle.classList.toggle('dark:bg-slate-800/90', !showAnswers);
+                el.answerToggle.classList.toggle('bg-pink', showAnswers);
+                el.answerToggle.classList.toggle('text-white', showAnswers);
+                el.answerToggle.classList.toggle('text-orange', !showAnswers);
+            });
+
+            el.resetTokens.addEventListener('click', () => {
+                if (isRolling) return;
+                teams.forEach((t) => { t.pos = 0; t.skipNext = false; });
+                activeTeamIdx = 0;
+                playTone('C4', '16n');
+                renderSVGOnly();
+                showToast('All tokens reset to START', 'info');
+            });
+
+            document.querySelectorAll('input[name="shape"]').forEach((r) => r.addEventListener('change', () => {
+                setRadio('page-orient', DEFAULT_ORIENT[choice('shape', 'winding')] || 'landscape');
+                applyPage();
+                generate(true);
+            }));
+
+            document.querySelectorAll('input[name="action-mode"]').forEach((r) => r.addEventListener('change', () => generate(true)));
+            document.querySelectorAll('input[name="page-orient"]').forEach((r) => r.addEventListener('change', () => {
+                applyPage();
+                persistState();
+            }));
+
+            el.showNumbers.addEventListener('change', () => { renderSVGOnly(); persistState(); });
+            el.shufflePrompts.addEventListener('change', () => generate(true));
+            el.customTitle.addEventListener('input', persistState);
+            el.customSubtitle.addEventListener('input', persistState);
+
+            el.slider.addEventListener('input', () => { updateSizeLabel(); updateCapacity(); });
+            el.slider.addEventListener('change', () => generate(true));
+            el.input.addEventListener('input', () => { updateCapacity(); persistState(); });
+
+            el.generate.addEventListener('click', () => {
+                playTone('G5', '16n');
+                generate(false);
+                if (window.innerWidth < 768) toggleControlPanel(true);
+            });
+
+            el.print.addEventListener('click', () => printHandout(false));
+            el.printKey.addEventListener('click', () => printHandout(true));
+
+            el.zoomIn.addEventListener('click', () => {
+                zoomLevel = Math.min(1.6, Math.round((zoomLevel + 0.1) * 10) / 10);
+                applyZoom();
+            });
+            el.zoomOut.addEventListener('click', () => {
+                zoomLevel = Math.max(0.6, Math.round((zoomLevel - 0.1) * 10) / 10);
+                applyZoom();
+            });
+            el.zoomReset.addEventListener('click', () => {
+                zoomLevel = 1;
+                applyZoom();
+            });
+
+            // Click on SVG tiles or tokens
+            el.wrapper.addEventListener('click', (e) => {
+                const tokenEl = e.target.closest('.player-token');
+                if (tokenEl) {
+                    activeTeamIdx = parseInt(tokenEl.getAttribute('data-team-idx'), 10) || 0;
+                    playTone('D5', '32n');
+                    renderSVGOnly();
+                    return;
+                }
+                const tileEl = e.target.closest('.board-tile');
+                if (tileEl) {
+                    const idx = parseInt(tileEl.getAttribute('data-tile-idx'), 10);
+                    playTone('E5', '32n');
+                    openTileModal(idx);
+                }
+            });
+
+            // Live Play Controls
+            el.rollDiceBtn.addEventListener('click', rollDice);
+            el.rollTextBtn.addEventListener('click', rollDice);
+            el.stepBackBtn.addEventListener('click', () => moveActiveTeam(-1, false));
+            el.stepFwdBtn.addEventListener('click', () => moveActiveTeam(1, false));
+
+            el.teamCount.addEventListener('change', () => {
+                if (isRolling) {
+                    el.teamCount.value = String(teams.length);
+                    return;
+                }
+                syncTeamCount();
+                renderSVGOnly();
+                persistState();
+            });
+
+            el.teamList.addEventListener('click', (e) => {
+                const btn = e.target.closest('[data-select-team]');
+                if (!btn) return;
+                activeTeamIdx = parseInt(btn.getAttribute('data-select-team'), 10) || 0;
+                playTone('D5', '32n');
+                renderSVGOnly();
+            });
+
+            // Presets & Clear
+            document.querySelectorAll('[data-preset]').forEach((btn) => {
+                btn.addEventListener('click', () => {
+                    const key = btn.getAttribute('data-preset');
+                    const preset = PRESETS[key];
+                    if (!preset) return;
+                    activeSetId = null;
+                    el.input.value = preset.prompts;
+                    el.customTitle.value = preset.title;
+                    el.customSubtitle.value = preset.subtitle;
+                    updateCapacity();
+                    renderLibrary();
+                    generate(false);
+                    showToast(`Loaded "${preset.title}"`, 'info');
+                });
+            });
+
+            el.clearPrompts.addEventListener('click', () => {
+                el.input.value = '';
+                updateCapacity();
+                generate(true);
+                persistState();
+            });
+
+            // Tile Spotlight Modal
+            const closeTileModal = () => {
+                $('tileModal').classList.add('hidden');
+                $('tileModal').classList.remove('flex');
+            };
+            $('tile-modal-close').addEventListener('click', closeTileModal);
+            $('tile-modal-done').addEventListener('click', closeTileModal);
+            $('tileModal').addEventListener('click', (e) => { if (e.target === $('tileModal')) closeTileModal(); });
+            $('tile-modal-reveal-btn').addEventListener('click', () => {
+                $('tile-modal-answer').classList.remove('hidden');
+                $('tile-modal-reveal-btn').classList.add('hidden');
+                playTone('G5', '16n');
+            });
+
+            // Help Modal
+            const closeHelp = () => {
+                $('helpModal').classList.add('hidden');
+                $('helpModal').classList.remove('flex');
+            };
+            el.help.addEventListener('click', () => {
+                $('helpModal').classList.remove('hidden');
+                $('helpModal').classList.add('flex');
+                if (window.lucide) window.lucide.createIcons();
+            });
+            $('help-close-btn').addEventListener('click', closeHelp);
+            $('help-got-it-btn').addEventListener('click', closeHelp);
+            $('helpModal').addEventListener('click', (e) => { if (e.target === $('helpModal')) closeHelp(); });
+
+            // Saved Sets Drawer & Modals
+            el.toggleSavedSets.addEventListener('click', () => {
+                $('saved-sets-controls').classList.toggle('active');
+                $('saved-sets-toggle-icon').classList.toggle('active');
+            });
+
+            el.newSet.addEventListener('click', async () => {
+                const ok = await showConfirm('Start New Board?', 'This will detach from any active saved board and load default settings.');
+                if (!ok) return;
+                activeSetId = null;
+                el.input.value = PRESETS.speaking.prompts;
+                el.customTitle.value = PRESETS.speaking.title;
+                el.customSubtitle.value = PRESETS.speaking.subtitle;
+                setRadio('shape', 'winding');
+                el.slider.value = '20';
+                setRadio('action-mode', 'balanced');
+                el.showNumbers.checked = true;
+                el.shufflePrompts.checked = false;
+                setRadio('page-orient', 'landscape');
+                applyPage();
+                updateSizeLabel();
+                updateCapacity();
+                renderLibrary();
+                generate(false);
+                showToast('New board ready', 'info');
+            });
+
+            const closeSaveModal = () => {
+                $('saveModal').classList.add('hidden');
+                $('saveModal').classList.remove('flex');
+            };
+
+            el.saveSet.addEventListener('click', () => {
+                const input = $('save-set-input');
+                const current = readSets().find((s) => s.id === activeSetId);
+                input.value = current ? current.name : el.customTitle.value.trim();
+                $('saveModal').classList.remove('hidden');
+                $('saveModal').classList.add('flex');
+                setTimeout(() => input.focus(), 50);
+            });
+
+            $('save-modal-cancel').addEventListener('click', closeSaveModal);
+            $('saveModal').addEventListener('click', (e) => { if (e.target === $('saveModal')) closeSaveModal(); });
+
+            function confirmSaveSet() {
+                const name = $('save-set-input').value.trim();
+                if (!name) {
+                    showToast('Please enter a board name', 'warning');
+                    return;
+                }
+                const sets = readSets();
+                const now = Date.now();
+                const existingIdx = activeSetId ? sets.findIndex((s) => s.id === activeSetId) : -1;
+                const isSameName = existingIdx !== -1 && (sets[existingIdx].name || '').trim() === name;
+
+                if (isSameName) {
+                    sets[existingIdx] = {
+                        ...sets[existingIdx],
+                        ...getWorkspaceData(),
+                        name,
+                        lastUsed: now
+                    };
+                    writeSets(sets);
+                    closeSaveModal();
+                    renderLibrary();
+                    persistState();
+                    showToast(`Updated "${name}"`, 'success');
+                } else {
+                    const id = 'pb_' + now;
+                    sets.push({
+                        id,
+                        name,
+                        ...getWorkspaceData(),
+                        activeSetId: id,
+                        createdAt: now,
+                        lastUsed: now,
+                        usageCount: 1
+                    });
+                    activeSetId = id;
+                    writeSets(sets);
+                    closeSaveModal();
+                    renderLibrary();
+                    persistState();
+                    showToast(`Saved "${name}"`, 'success');
+                }
+            }
+
+            $('save-modal-confirm').addEventListener('click', confirmSaveSet);
+            $('save-set-input').addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') { e.preventDefault(); confirmSaveSet(); }
+                if (e.key === 'Escape') closeSaveModal();
+            });
+
+            el.closeSet.addEventListener('click', () => {
+                activeSetId = null;
+                renderLibrary();
+                persistState();
+            });
+
+            el.librarySort.addEventListener('change', renderLibrary);
+
+            el.libraryList.addEventListener('click', async (e) => {
+                const loadBtn = e.target.closest('[data-load-id]');
+                if (loadBtn) {
+                    const id = loadBtn.getAttribute('data-load-id');
+                    const sets = readSets();
+                    const item = sets.find((s) => s.id === id);
+                    if (!item) return;
+                    activeSetId = id;
+                    item.lastUsed = Date.now();
+                    item.usageCount = (item.usageCount || 0) + 1;
+                    writeSets(sets);
+                    applyWorkspaceData(item);
+                    syncTeamCount();
+                    applyPage();
+                    updateSizeLabel();
+                    updateCapacity();
+                    renderLibrary();
+                    generate(false);
+                    showToast(`Loaded "${item.name}"`, 'success');
+                    return;
+                }
+
+                const delBtn = e.target.closest('[data-delete-id]');
+                if (delBtn) {
+                    const id = delBtn.getAttribute('data-delete-id');
+                    const sets = readSets();
+                    const item = sets.find((s) => s.id === id);
+                    if (!item) return;
+                    const ok = await showConfirm('Delete Saved Board?', `Delete "${item.name}" from your saved boards?`);
+                    if (!ok) return;
+                    writeSets(sets.filter((s) => s.id !== id));
+                    if (activeSetId === id) activeSetId = null;
+                    renderLibrary();
+                    persistState();
+                    showToast('Board deleted', 'info');
+                }
+            });
+
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') {
+                    closeTileModal();
+                    closeHelp();
+                    closeSaveModal();
+                    if (typeof activeConfirmCancel === 'function') activeConfirmCancel();
+                    return;
+                }
+                const tag = (document.activeElement?.tagName || '').toLowerCase();
+                if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
+                const anyModalOpen = ['tileModal', 'helpModal', 'saveModal', 'confirmModal']
+                    .some((id) => !$(id).classList.contains('hidden'));
+                if (anyModalOpen) return;
+                if (e.code === 'Space') {
+                    e.preventDefault();
+                    rollDice();
+                }
+            });
+
+            // ----- Startup -----
+            (async function init() {
+                if (typeof requireAuth === 'function') await requireAuth();
+                document.body.classList.remove('opacity-0');
+                initSoundState();
+                await loadPersistedState();
+                syncTeamCount();
+                el.diceSvg.innerHTML = renderDiceSVG(diceValue);
+                el.theme.setAttribute('aria-pressed', String(document.documentElement.classList.contains('dark')));
+                applyPage();
+                updateSizeLabel();
+                updateCapacity();
+                renderLibrary();
+                generate(true, { skipPersist: true });
+                hydrateIcons(document);
+            })();
+        })();
+    </script>
+</body>
+
+</html>

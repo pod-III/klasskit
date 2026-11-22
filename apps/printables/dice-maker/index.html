@@ -1,0 +1,1911 @@
+<!DOCTYPE html>
+<html lang="en" data-orient="portrait">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Printable Dice Maker — KlassKit</title>
+    <link rel="icon" type="image/x-icon" href="../../../media/icon.ico" />
+    <link rel="icon" type="image/webp" href="../../../media/icon.webp" />
+
+    <!-- Apply saved theme before first paint (syncs with KlassKit Hub) -->
+    <script>
+        (function () {
+            function readTheme(key) {
+                try {
+                    var raw = localStorage.getItem(key);
+                    if (raw == null) return null;
+                    try { return JSON.parse(raw); } catch (e) { return raw; }
+                } catch (e) { return null; }
+            }
+            function syncTheme(changedKey) {
+                var isDark;
+                if (changedKey === 'theme_hub') {
+                    var hubVal = readTheme('theme_hub');
+                    isDark = hubVal ? hubVal === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
+                } else {
+                    var toolTheme = readTheme('theme_dice-maker') || readTheme('klasskit-theme');
+                    var hubTheme = readTheme('theme_hub');
+                    isDark = toolTheme
+                        ? toolTheme === 'dark'
+                        : hubTheme
+                            ? hubTheme === 'dark'
+                            : window.matchMedia('(prefers-color-scheme: dark)').matches;
+                }
+                document.documentElement.classList.toggle('dark', isDark);
+                var btn = document.getElementById('theme-btn');
+                if (btn) btn.setAttribute('aria-pressed', String(isDark));
+            }
+            syncTheme();
+            window.addEventListener('storage', function (e) {
+                if (e.key === 'theme_hub' || e.key === 'theme_dice-maker' || e.key === 'klasskit-theme') {
+                    syncTheme(e.key);
+                }
+            });
+        })();
+    </script>
+
+    <!-- Supabase Auth & Cloud Persistence -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.105.4"></script>
+    <script src="/supabase.js"></script>
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=JetBrains+Mono:wght@500;700&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet" />
+
+    <!-- Libraries -->
+    <script src="https://unpkg.com/lucide@1.16.0"></script>
+    <script src="https://cdn.jsdelivr.net/npm/tone@14.8.49/build/Tone.js"></script>
+
+    <!-- Shared KlassKit Styles -->
+    <link rel="stylesheet" href="../../../css/tailwind.generated.css" />
+    <link rel="stylesheet" href="../../../css/base.css" />
+    <link rel="stylesheet" href="../../../css/components.css" />
+
+    <style>
+        :root {
+            --shadow-color: #1e293b;
+            --line: #1e293b;
+            --ink: #1e293b;
+            --surface: #ffffff;
+            --shadow: #1e293b;
+        }
+
+        .dark {
+            --shadow-color: #000000;
+            --line: #64748b;
+            --ink: #f8fafc;
+            --surface: #0f172a;
+            --shadow: #000000;
+        }
+
+        body {
+            font-family: 'Nunito', -apple-system, BlinkMacSystemFont, sans-serif;
+            overflow: hidden;
+            -webkit-tap-highlight-color: transparent;
+            user-select: none;
+        }
+
+        @media (max-width: 767px) {
+            body { padding-bottom: 0 !important; }
+        }
+
+        .game-console {
+            border: 6px solid #1e293b;
+            border-radius: 2rem;
+            box-shadow: rgba(30, 41, 59, 0.15) 14px 14px 0px;
+        }
+        .dark .game-console {
+            border-color: #64748b;
+            box-shadow: rgba(0, 0, 0, 0.45) 14px 14px 0px;
+        }
+
+        :where(.btn-chunky) {
+            position: relative;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border: 3px solid var(--line);
+            box-shadow: 0 4px 0 var(--shadow);
+            cursor: pointer;
+            user-select: none;
+            transition: all 0.12s cubic-bezier(0.4, 0, 0.2, 1);
+            transform: translateY(0px);
+        }
+
+        .btn-chunky {
+            font-family: 'Fredoka', sans-serif;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        .btn-chunky:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 0 var(--shadow);
+            filter: brightness(1.04);
+        }
+        .btn-chunky:active:not(:disabled) {
+            transform: translateY(4px);
+            box-shadow: 0 0 0 var(--shadow) !important;
+        }
+        .btn-chunky:disabled { opacity: 0.5; cursor: not-allowed; }
+        .btn-chunky:focus-visible,
+        input:focus-visible,
+        select:focus-visible,
+        textarea:focus-visible {
+            outline: 3px solid var(--color-blue);
+            outline-offset: 2px;
+        }
+
+        .seg { position: relative; display: block; }
+        .seg input {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            opacity: 0;
+            cursor: pointer;
+        }
+        .seg span {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.3rem;
+            padding: 0.5rem 0.35rem;
+            font-family: 'Nunito', sans-serif;
+            font-size: 10px;
+            font-weight: 800;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            color: #64748b;
+            background: var(--surface);
+            border: 2px solid var(--line);
+            border-radius: 0.75rem;
+            box-shadow: 2px 2px 0 var(--shadow);
+            transition: 0.15s;
+        }
+        .dark .seg span { color: #94a3b8; }
+        .seg:hover input:not(:checked) + span { transform: translateY(-2px); color: var(--ink); }
+        .seg:active input + span { transform: translateY(2px); box-shadow: none; }
+        .seg input:checked + span {
+            background: #1ea7fd;
+            color: #ffffff;
+            border-color: var(--line);
+            box-shadow: 2px 2px 0 var(--shadow);
+            transform: translateY(1px);
+        }
+        .seg input:focus-visible + span {
+            outline: 3px solid var(--color-blue);
+            outline-offset: 2px;
+        }
+
+        .input-chunky {
+            border: 2px solid var(--line);
+            border-radius: 0.75rem;
+            box-shadow: 2px 2px 0 var(--shadow);
+        }
+        .input-chunky:focus { outline: none; border-color: var(--color-blue); }
+
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        .dark .custom-scrollbar::-webkit-scrollbar-thumb { background: #475569; }
+        .custom-scrollbar { scrollbar-color: #cbd5e1 transparent; scrollbar-width: thin; }
+
+        @media (max-width: 767px) {
+            .hidden-panel-mobile { display: none !important; }
+        }
+        @media (min-width: 768px) {
+            .hidden-panel-desktop { margin-left: -20rem; border-right-width: 0px !important; }
+        }
+        @media (min-width: 1024px) {
+            .hidden-panel-desktop { margin-left: -24rem; }
+        }
+
+        #saved-sets-controls { max-height: 0; overflow: hidden; transition: 0.3s ease-out; opacity: 0; }
+        #saved-sets-controls.active { max-height: 260px; opacity: 1; margin-top: 8px; }
+        #saved-sets-toggle-icon.active { transform: rotate(180deg); }
+
+        .canvas-dots {
+            background-image: radial-gradient(var(--dots) 1.8px, transparent 1.8px);
+            background-size: 24px 24px;
+        }
+
+        #sheet-stage {
+            transform-origin: center center;
+            transition: transform 0.2s ease;
+        }
+        .a4-paper {
+            background: #ffffff;
+            border: 4px solid #1e293b;
+            border-radius: 1rem;
+            box-shadow: 8px 8px 0 rgba(30, 41, 59, 0.22);
+            position: relative;
+            overflow: hidden;
+        }
+        .dark .a4-paper {
+            border-color: #94a3b8;
+            box-shadow: 8px 8px 0 rgba(0, 0, 0, 0.55);
+        }
+
+        .net-face { cursor: pointer; transition: filter 0.12s ease; }
+        .net-face:hover { filter: brightness(0.95); }
+
+        /* 3D CUBE PREVIEW */
+        .cube-scene {
+            width: 118px;
+            height: 118px;
+            perspective: 460px;
+            margin: 0 auto;
+        }
+        .cube-3d {
+            width: 100%;
+            height: 100%;
+            position: relative;
+            transform-style: preserve-3d;
+            transition: transform 0.75s cubic-bezier(0.22, 1.2, 0.36, 1);
+            cursor: pointer;
+        }
+        .cube-face {
+            position: absolute;
+            width: 118px;
+            height: 118px;
+            border: 3px solid #1e293b;
+            border-radius: 12px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 8px;
+            text-align: center;
+            font-family: 'Fredoka', sans-serif;
+            font-weight: 700;
+            color: #1e293b;
+            backface-visibility: hidden;
+            box-shadow: inset 0 0 0 2px rgba(255,255,255,0.45);
+            overflow: hidden;
+        }
+        .cube-face.f1 { transform: rotateY(0deg) translateZ(59px); }
+        .cube-face.f2 { transform: rotateY(90deg) translateZ(59px); }
+        .cube-face.f3 { transform: rotateY(180deg) translateZ(59px); }
+        .cube-face.f4 { transform: rotateY(-90deg) translateZ(59px); }
+        .cube-face.f5 { transform: rotateX(90deg) translateZ(59px); }
+        .cube-face.f6 { transform: rotateX(-90deg) translateZ(59px); }
+
+        @keyframes pop-in {
+            0% { opacity: 0; transform: scale(0.92); }
+            100% { opacity: 1; transform: scale(1); }
+        }
+        .animate-pop-in { animation: pop-in 0.22s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
+
+        /* STRICT A4 PRINT */
+        @page { size: A4 portrait; margin: 0; }
+        @media print {
+            html, body {
+                display: block !important;
+                width: 210mm !important;
+                height: 297mm !important;
+                padding: 0 !important;
+                margin: 0 !important;
+                overflow: hidden !important;
+                background: #ffffff !important;
+                background-image: none !important;
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+            }
+            html[data-orient="landscape"], html[data-orient="landscape"] body {
+                width: 297mm !important;
+                height: 210mm !important;
+            }
+            body > :not(#print-area) { display: none !important; }
+            #print-area {
+                display: flex !important;
+                align-items: center !important;
+                justify-content: center !important;
+                width: 210mm !important;
+                height: 297mm !important;
+                padding: 0 !important;
+                margin: 0 !important;
+                background: #ffffff !important;
+                overflow: hidden !important;
+                break-after: avoid !important;
+            }
+            html[data-orient="landscape"] #print-area {
+                width: 297mm !important;
+                height: 210mm !important;
+            }
+            #print-area svg {
+                width: 100% !important;
+                height: 100% !important;
+                display: block !important;
+            }
+        }
+    </style>
+    <style id="page-style"></style>
+</head>
+
+<body class="opacity-0 transition-opacity duration-200 h-screen w-screen flex flex-col items-center justify-center p-2 md:p-5 overflow-hidden text-dark dark:text-white">
+
+    <!-- Toast Container -->
+    <div id="toast-container" class="print:hidden fixed bottom-6 left-1/2 -translate-x-1/2 z-[600] flex flex-col gap-2 pointer-events-none"></div>
+
+    <!-- MAIN CONSOLE -->
+    <div class="game-console print:hidden w-full h-full relative flex flex-col md:flex-row overflow-hidden bg-white dark:bg-slate-900">
+
+        <!-- LEFT SIDEBAR: DICE CUSTOMIZER -->
+        <aside id="sidebar" class="w-full md:w-80 lg:w-96 bg-white dark:bg-slate-900 border-b-4 md:border-b-0 md:border-r-4 border-dark dark:border-slate-500 flex flex-col z-40 transition-all duration-300 h-[48%] md:h-full relative shrink-0">
+
+            <!-- Header -->
+            <div class="p-4 border-b-4 border-dark dark:border-slate-500 bg-blue/10 dark:bg-slate-800/80 flex justify-between items-center gap-2 shrink-0">
+                <div>
+                    <h1 class="text-2xl font-heading font-bold text-dark dark:text-white tracking-wide leading-none">
+                        Dice Maker
+                    </h1>
+                    <p class="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-widest mt-1">KlassKit Printable Nets</p>
+                </div>
+                <div class="flex items-center gap-1.5">
+                    <button id="sound-btn" type="button" title="Toggle Sound Effects" aria-pressed="true" class="p-2 bg-white dark:bg-slate-800 text-dark dark:text-white border-2 border-dark dark:border-slate-500 rounded-lg shadow-hard-sm hover:-translate-y-0.5 active:translate-y-0.5 active:shadow-none transition-all">
+                        <span id="sound-icon-on" class="inline-flex"><i data-lucide="volume-2" class="w-4 h-4"></i></span>
+                        <span id="sound-icon-off" class="hidden inline-flex"><i data-lucide="volume-x" class="w-4 h-4 text-slate-400"></i></span>
+                    </button>
+                    <button id="help-btn" type="button" title="How to Cut, Fold &amp; Use" class="p-2 bg-orange/20 text-orange border-2 border-dark dark:border-slate-500 rounded-lg shadow-hard-sm hover:-translate-y-0.5 active:translate-y-0.5 active:shadow-none transition-all">
+                        <i data-lucide="help-circle" class="w-4 h-4"></i>
+                    </button>
+                    <button id="theme-btn" type="button" aria-pressed="false" aria-label="Toggle dark mode" title="Toggle Dark Mode" class="p-2 bg-white dark:bg-slate-800 text-dark dark:text-white border-2 border-dark dark:border-slate-500 rounded-lg shadow-hard-sm hover:-translate-y-0.5 active:translate-y-0.5 active:shadow-none transition-all">
+                        <i data-lucide="moon" class="w-4 h-4 dark:hidden"></i>
+                        <i data-lucide="sun" class="w-4 h-4 hidden dark:block text-orange"></i>
+                    </button>
+                    <button id="mobile-close-panel" type="button" class="md:hidden p-2 bg-pink/20 text-pink border-2 border-dark dark:border-slate-500 rounded-lg shadow-hard-sm active:translate-y-1 active:shadow-none transition-all">
+                        <i data-lucide="x" class="w-4 h-4"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Scrollable Controls -->
+            <div class="flex-1 p-4 overflow-y-auto custom-scrollbar space-y-5 bg-white dark:bg-slate-900">
+
+                <!-- Active Set Banner -->
+                <div id="active-set-banner" class="hidden animate-pop-in p-2.5 rounded-xl bg-blue/10 dark:bg-blue/20 border-2 border-blue flex items-center justify-between gap-2">
+                    <div class="flex items-center gap-2 min-w-0">
+                        <div class="w-7 h-7 rounded-lg bg-blue text-white flex items-center justify-center shrink-0 border-2 border-dark">
+                            <i data-lucide="bookmark-check" class="w-3.5 h-3.5"></i>
+                        </div>
+                        <div class="min-w-0">
+                            <p class="text-[9px] font-bold uppercase tracking-wider text-blue leading-none">Active Die</p>
+                            <p id="active-set-name" class="text-xs font-extrabold truncate mt-0.5"></p>
+                        </div>
+                    </div>
+                    <button id="close-set-btn" type="button" title="Detach from saved die" class="p-1 rounded-lg hover:bg-blue/20 text-slate-500 dark:text-slate-300">
+                        <i data-lucide="x" class="w-3.5 h-3.5"></i>
+                    </button>
+                </div>
+
+                <!-- Sheet Layout & Size -->
+                <div class="space-y-2.5">
+                    <label class="text-xs font-bold text-slate-400 uppercase tracking-widest block">Dice Per A4 Sheet</label>
+                    <div class="grid grid-cols-3 gap-1.5">
+                        <label class="seg" title="1 Jumbo Die (~58mm cube)"><input type="radio" name="sheet-layout" value="1" checked><span>1 Jumbo</span></label>
+                        <label class="seg" title="2 Medium Dice (Same or Pair A+B)"><input type="radio" name="sheet-layout" value="2"><span>2 Medium</span></label>
+                        <label class="seg" title="4 Mini Dice for table groups"><input type="radio" name="sheet-layout" value="4"><span>4 Mini</span></label>
+                    </div>
+
+                    <!-- Pair Mode Toggle (Shown when 2 Medium selected) -->
+                    <div id="pair-mode-box" class="hidden pt-1 space-y-2">
+                        <div class="grid grid-cols-2 gap-1.5">
+                            <label class="seg"><input type="radio" name="pair-mode" value="same" checked><span>Same Die ×2</span></label>
+                            <label class="seg"><input type="radio" name="pair-mode" value="ab"><span>Die A + Die B</span></label>
+                        </div>
+                        <div id="ab-tabs" class="hidden grid grid-cols-2 gap-1.5">
+                            <button type="button" data-edit-die="A" class="ab-tab-btn py-1.5 rounded-lg border-2 border-dark bg-pink text-white text-xs font-heading font-bold shadow-hard-sm">Editing Die A</button>
+                            <button type="button" data-edit-die="B" class="ab-tab-btn py-1.5 rounded-lg border-2 border-dark bg-white dark:bg-slate-800 text-dark dark:text-white text-xs font-heading font-bold">Editing Die B</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Quick Presets -->
+                <div class="pt-4 border-t-2 border-dashed border-slate-300 dark:border-slate-700">
+                    <label class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2.5 block">Quick Presets</label>
+                    <div class="flex gap-1.5 flex-wrap">
+                        <button type="button" data-preset="wh" class="preset-btn px-2.5 py-1.5 bg-white dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-full text-xs font-bold shadow-hard-sm hover:-translate-y-0.5 active:translate-y-0.5 transition-all">❓ WH-Questions</button>
+                        <button type="button" data-preset="story" class="preset-btn px-2.5 py-1.5 bg-white dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-full text-xs font-bold shadow-hard-sm hover:-translate-y-0.5 active:translate-y-0.5 transition-all">📖 Story Cubes</button>
+                        <button type="button" data-preset="grammar_pair" class="preset-btn px-2.5 py-1.5 bg-white dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-full text-xs font-bold shadow-hard-sm hover:-translate-y-0.5 active:translate-y-0.5 transition-all">🕰️ A+B Grammar</button>
+                        <button type="button" data-preset="actions" class="preset-btn px-2.5 py-1.5 bg-white dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-full text-xs font-bold shadow-hard-sm hover:-translate-y-0.5 active:translate-y-0.5 transition-all">🏃 Actions</button>
+                        <button type="button" data-preset="classic" class="preset-btn px-2.5 py-1.5 bg-white dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-full text-xs font-bold shadow-hard-sm hover:-translate-y-0.5 active:translate-y-0.5 transition-all">🎲 1–6 Pips</button>
+                        <button type="button" data-preset="blank" class="preset-btn px-2.5 py-1.5 bg-white dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-full text-xs font-bold shadow-hard-sm hover:-translate-y-0.5 active:translate-y-0.5 transition-all">✏️ Blank DIY</button>
+                    </div>
+                </div>
+
+                <!-- 6 FACES CUSTOMIZER -->
+                <div class="space-y-2.5 pt-4 border-t-2 border-dashed border-slate-300 dark:border-slate-700">
+                    <div class="flex items-center justify-between">
+                        <label class="text-xs font-bold text-slate-400 uppercase tracking-widest">Customize 6 Faces <span id="editing-die-label" class="text-pink"></span></label>
+                        <button id="clear-faces-btn" type="button" class="text-[11px] font-extrabold text-pink hover:underline">Clear</button>
+                    </div>
+                    <p class="text-[10px] font-bold text-slate-400">Add an optional emoji/icon, text label, and color for each face.</p>
+                    <div id="faces-editor-list" class="space-y-2"></div>
+                </div>
+
+                <!-- Color Palette & Print Options -->
+                <div class="space-y-3 pt-4 border-t-2 border-dashed border-slate-300 dark:border-slate-700">
+                    <label class="text-xs font-bold text-slate-400 uppercase tracking-widest block">Palette &amp; Typography</label>
+                    <div class="grid grid-cols-3 gap-1.5">
+                        <button type="button" data-palette="vibrant" class="palette-btn py-1.5 px-2 bg-white dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-xl text-[10px] font-extrabold shadow-hard-sm hover:-translate-y-0.5">🌈 Vibrant</button>
+                        <button type="button" data-palette="pastel" class="palette-btn py-1.5 px-2 bg-white dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-xl text-[10px] font-extrabold shadow-hard-sm hover:-translate-y-0.5">🍬 Pastel</button>
+                        <button type="button" data-palette="bw" class="palette-btn py-1.5 px-2 bg-white dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-xl text-[10px] font-extrabold shadow-hard-sm hover:-translate-y-0.5">🖨️ B&amp;W Print</button>
+                    </div>
+
+                    <div class="space-y-1">
+                        <div class="flex justify-between items-center text-[11px] font-bold">
+                            <span class="text-slate-400 uppercase tracking-wider">Face Text Size</span>
+                            <output id="text-size-val" class="font-heading text-blue">24 px</output>
+                        </div>
+                        <input type="range" id="text-size-slider" min="14" max="38" step="1" value="24" class="w-full h-2.5 bg-slate-100 dark:bg-slate-800 rounded-full appearance-none cursor-pointer accent-blue border-2 border-dark dark:border-slate-500">
+                    </div>
+
+                    <div class="space-y-1.5 pt-1">
+                        <label class="flex items-center gap-2 cursor-pointer text-xs font-bold text-slate-600 dark:text-slate-300">
+                            <input type="checkbox" id="show-glue-labels" checked class="w-4 h-4 shrink-0 accent-blue cursor-pointer">
+                            <span>Show "GLUE" labels &amp; cut scissors</span>
+                        </label>
+                        <label class="flex items-center gap-2 cursor-pointer text-xs font-bold text-slate-600 dark:text-slate-300">
+                            <input type="checkbox" id="show-corner-nums" class="w-4 h-4 shrink-0 accent-orange cursor-pointer">
+                            <span>Show corner numbers (1–6) on faces</span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Sheet Header -->
+                <div class="space-y-2 pt-4 border-t-2 border-dashed border-slate-300 dark:border-slate-700">
+                    <label class="text-xs font-bold text-slate-400 uppercase tracking-widest block">Handout Header</label>
+                    <input id="custom-title" type="text" value="WH-Question Cube" placeholder="Handout Title" class="w-full p-2 bg-slate-50 dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-lg text-dark dark:text-white font-bold text-xs focus:outline-none focus:border-blue">
+                    <input id="custom-subtitle" type="text" value="Cut along the solid outer lines, fold on the dashed lines, and glue the tabs!" placeholder="Student instructions..." class="w-full p-2 bg-slate-50 dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-lg text-dark dark:text-white font-semibold text-xs focus:outline-none focus:border-blue">
+                </div>
+            </div>
+
+            <!-- Footer Print Actions -->
+            <div class="p-3 border-t-4 border-dark dark:border-slate-500 bg-slate-100 dark:bg-slate-800 space-y-2 shrink-0">
+                <div class="grid grid-cols-2 gap-2">
+                    <label class="seg"><input type="radio" name="page-orient" value="portrait" checked><span><i data-lucide="rectangle-vertical" class="w-3.5 h-3.5"></i> Portrait</span></label>
+                    <label class="seg"><input type="radio" name="page-orient" value="landscape"><span><i data-lucide="rectangle-horizontal" class="w-3.5 h-3.5"></i> Landscape</span></label>
+                </div>
+                <div class="flex gap-2">
+                    <button id="print-btn" type="button" class="flex-1 btn-chunky bg-blue text-white py-2 rounded-lg text-xs border-2 border-dark flex items-center justify-center gap-1.5" title="Print Crisp A4 Cut-Out Sheet">
+                        <i data-lucide="printer" class="w-4 h-4"></i> PRINT A4
+                    </button>
+                    <button id="download-svg-btn" type="button" class="flex-1 btn-chunky bg-white dark:bg-slate-900 text-dark dark:text-white py-2 rounded-lg text-xs border-2 border-dark dark:border-slate-500 flex items-center justify-center gap-1.5" title="Download Vector SVG">
+                        <i data-lucide="download" class="w-4 h-4"></i> SAVE SVG
+                    </button>
+                </div>
+            </div>
+        </aside>
+
+        <!-- MAIN WORKSPACE -->
+        <main class="flex-1 relative h-[52%] md:h-full bg-slate-50 dark:bg-slate-950 flex flex-col lg:flex-row overflow-hidden">
+
+            <!-- Dotted Backdrop -->
+            <div class="canvas-dots absolute inset-0 opacity-60 dark:opacity-50 pointer-events-none"></div>
+
+            <!-- CENTER LIVE A4 NET PREVIEW -->
+            <div class="flex-1 h-full relative flex items-center justify-center p-3 md:p-6 overflow-hidden">
+
+                <!-- Top-Left Floating Toolbar -->
+                <div class="absolute top-4 left-4 z-20 flex items-center gap-2">
+                    <button id="toggle-sidebar-btn" type="button" class="p-2 bg-white/90 dark:bg-slate-800/90 backdrop-blur-md border-2 border-dark dark:border-slate-500 rounded-lg shadow-hard-sm hover:-translate-y-0.5 active:translate-y-0.5 active:shadow-none transition-all text-slate-700 dark:text-slate-200" title="Toggle Setup Panel">
+                        <i data-lucide="settings" class="w-5 h-5"></i>
+                    </button>
+                    <span class="px-2.5 py-1.5 bg-white/90 dark:bg-slate-800/90 backdrop-blur-md border-2 border-dark dark:border-slate-500 rounded-lg shadow-hard-sm text-[11px] font-extrabold text-slate-500 dark:text-slate-300">
+                        ✂️ Solid = Cut &nbsp;|&nbsp; ┄ Dashed = Fold
+                    </span>
+                </div>
+
+                <!-- Live A4 Preview Frame -->
+                <div id="sheet-stage" class="relative z-10 flex items-center justify-center max-w-full max-h-full">
+                    <div id="a4-paper" class="a4-paper">
+                        <div id="svg-preview" class="w-full h-full"></div>
+                    </div>
+                </div>
+
+                <!-- Bottom-Right Zoom Controls -->
+                <div class="absolute bottom-4 right-4 z-20 flex gap-2">
+                    <button id="zoom-out" type="button" title="Zoom Out" class="p-2 bg-white/90 dark:bg-slate-800/90 backdrop-blur-md border-2 border-dark dark:border-slate-500 rounded-lg shadow-hard-sm hover:bg-slate-50 dark:hover:bg-slate-700 active:translate-y-0.5 active:shadow-none transition-all">
+                        <i data-lucide="minus" class="w-4 h-4"></i>
+                    </button>
+                    <button id="zoom-reset" type="button" title="Reset Zoom" class="px-2.5 py-2 bg-white/90 dark:bg-slate-800/90 backdrop-blur-md border-2 border-dark dark:border-slate-500 rounded-lg shadow-hard-sm text-[11px] font-mono font-bold active:translate-y-0.5 active:shadow-none transition-all">
+                        100%
+                    </button>
+                    <button id="zoom-in" type="button" title="Zoom In" class="p-2 bg-white/90 dark:bg-slate-800/90 backdrop-blur-md border-2 border-dark dark:border-slate-500 rounded-lg shadow-hard-sm hover:bg-slate-50 dark:hover:bg-slate-700 active:translate-y-0.5 active:shadow-none transition-all">
+                        <i data-lucide="plus" class="w-4 h-4"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- RIGHT PANEL: 3D TEST ROLLER & SAVED DICE -->
+            <div class="w-full lg:w-80 h-[40%] lg:h-full bg-white dark:bg-slate-900 border-t-4 lg:border-t-0 lg:border-l-4 border-dark dark:border-slate-500 flex flex-col z-10 shrink-0">
+
+                <!-- Pink Header -->
+                <div class="p-3 bg-pink border-b-4 border-dark dark:border-slate-500 text-white font-heading font-bold text-lg tracking-wide flex items-center justify-between gap-2 shrink-0">
+                    <div class="flex items-center gap-2">
+                        <i data-lucide="box" class="w-5 h-5"></i> 3D TEST ROLL
+                    </div>
+                    <span id="layout-pill" class="bg-white/20 px-2.5 py-0.5 rounded-full text-[11px] font-extrabold uppercase">1 Jumbo</span>
+                </div>
+
+                <!-- Scrollable 3D Preview & Controls -->
+                <div class="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-4">
+
+                    <!-- 3D Interactive Cube Stage -->
+                    <div class="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/80 border-3 border-dark dark:border-slate-500 shadow-hard-sm flex flex-col items-center gap-4">
+                        <div class="py-3 w-full flex items-center justify-center">
+                            <div class="cube-scene">
+                                <div id="cube-3d" class="cube-3d" style="transform: rotateX(-22deg) rotateY(-28deg);">
+                                    <div class="cube-face f1" data-cface="0"></div>
+                                    <div class="cube-face f2" data-cface="1"></div>
+                                    <div class="cube-face f3" data-cface="2"></div>
+                                    <div class="cube-face f4" data-cface="3"></div>
+                                    <div class="cube-face f5" data-cface="4"></div>
+                                    <div class="cube-face f6" data-cface="5"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <button id="roll-3d-btn" type="button" class="w-full btn-chunky bg-orange text-dark py-2.5 rounded-xl text-sm flex items-center justify-center gap-2">
+                            <i data-lucide="dices" class="w-4 h-4"></i> ROLL 3D DIE
+                        </button>
+                    </div>
+
+                    <!-- Last Roll Result Card -->
+                    <div class="p-3.5 rounded-2xl bg-blue/10 dark:bg-slate-800 border-2 border-dark dark:border-slate-500 text-center space-y-1">
+                        <p class="text-[10px] font-extrabold uppercase tracking-widest text-blue">Rolled Result</p>
+                        <p id="roll-result-text" class="font-heading text-xl font-bold text-dark dark:text-white leading-snug">
+                            Click Roll or Spacebar!
+                        </p>
+                        <p id="roll-result-sub" class="text-[11px] font-bold text-slate-500 dark:text-slate-400">
+                            Test your custom die live on the smartboard
+                        </p>
+                    </div>
+
+                    <!-- Quick Face Inspection Buttons -->
+                    <div class="space-y-1.5">
+                        <span class="text-[10px] font-extrabold uppercase tracking-widest text-slate-400 block">Inspect Face on 3D Cube</span>
+                        <div class="grid grid-cols-6 gap-1">
+                            <button type="button" data-spin-face="0" class="spin-face-btn py-1.5 rounded-lg border-2 border-dark dark:border-slate-500 bg-white dark:bg-slate-800 font-heading font-bold text-xs hover:bg-blue hover:text-white transition-colors">1</button>
+                            <button type="button" data-spin-face="1" class="spin-face-btn py-1.5 rounded-lg border-2 border-dark dark:border-slate-500 bg-white dark:bg-slate-800 font-heading font-bold text-xs hover:bg-blue hover:text-white transition-colors">2</button>
+                            <button type="button" data-spin-face="2" class="spin-face-btn py-1.5 rounded-lg border-2 border-dark dark:border-slate-500 bg-white dark:bg-slate-800 font-heading font-bold text-xs hover:bg-blue hover:text-white transition-colors">3</button>
+                            <button type="button" data-spin-face="3" class="spin-face-btn py-1.5 rounded-lg border-2 border-dark dark:border-slate-500 bg-white dark:bg-slate-800 font-heading font-bold text-xs hover:bg-blue hover:text-white transition-colors">4</button>
+                            <button type="button" data-spin-face="4" class="spin-face-btn py-1.5 rounded-lg border-2 border-dark dark:border-slate-500 bg-white dark:bg-slate-800 font-heading font-bold text-xs hover:bg-blue hover:text-white transition-colors">5</button>
+                            <button type="button" data-spin-face="5" class="spin-face-btn py-1.5 rounded-lg border-2 border-dark dark:border-slate-500 bg-white dark:bg-slate-800 font-heading font-bold text-xs hover:bg-blue hover:text-white transition-colors">6</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Saved Dice Drawer -->
+                <div class="p-3 border-t-2 border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/40 shrink-0">
+                    <button id="saved-sets-toggle-btn" type="button" class="w-full flex items-center justify-between text-[10px] font-extrabold text-slate-400 uppercase tracking-widest mb-1 hover:text-dark dark:hover:text-white">
+                        <span>Saved Dice (<span id="saved-count">0</span>)</span>
+                        <span id="saved-sets-toggle-icon" class="inline-flex transition-transform"><i data-lucide="chevron-up" class="w-3.5 h-3.5"></i></span>
+                    </button>
+                    <div id="saved-sets-controls" class="space-y-2">
+                        <div class="flex items-center gap-1.5">
+                            <select id="library-sort" aria-label="Sort saved dice" class="flex-1 p-1.5 bg-white dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-lg text-dark dark:text-white font-bold text-[10px] focus:outline-none">
+                                <option value="recent">Recent</option>
+                                <option value="alpha">A–Z</option>
+                            </select>
+                            <button id="new-set-btn" type="button" title="New Blank Die" class="p-1.5 bg-white dark:bg-slate-800 text-dark dark:text-white border-2 border-dark dark:border-slate-500 rounded-lg hover:brightness-95 font-bold text-[10px] flex items-center gap-1">
+                                <i data-lucide="plus" class="w-3 h-3"></i> NEW
+                            </button>
+                            <button id="save-set-btn" type="button" title="Save Current Die" class="p-1.5 bg-blue text-white border-2 border-dark rounded-lg hover:brightness-110 font-bold text-[10px] flex items-center gap-1">
+                                <i data-lucide="save" class="w-3 h-3"></i> SAVE
+                            </button>
+                        </div>
+                        <div id="library-list" class="space-y-1.5 max-h-32 overflow-y-auto custom-scrollbar pr-1"></div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- HELP MODAL -->
+    <div id="helpModal" class="hidden fixed inset-0 bg-dark/60 backdrop-blur-md z-[500] flex items-center justify-center p-4">
+        <div class="bg-white dark:bg-slate-800 w-full max-w-lg rounded-[2rem] border-4 border-dark dark:border-slate-500 shadow-hard-lg animate-pop-in overflow-hidden">
+            <div class="p-5 border-b-4 border-dark dark:border-slate-500 bg-orange/15 flex items-center justify-between gap-3">
+                <div class="flex items-center gap-3">
+                    <div class="w-11 h-11 rounded-2xl bg-orange flex items-center justify-center border-3 border-dark shadow-hard-sm shrink-0">
+                        <i data-lucide="scissors" class="w-6 h-6 text-dark"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-xl font-heading font-bold text-dark dark:text-white uppercase leading-tight">Printable Dice Maker</h3>
+                        <p class="text-xs font-semibold text-slate-500 dark:text-slate-400">Cut, Fold, Glue &amp; Live 3D Smartboard Roll</p>
+                    </div>
+                </div>
+                <button id="help-close-btn" type="button" class="btn-chunky w-9 h-9 rounded-xl bg-white dark:bg-slate-700 text-dark dark:text-white">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
+            </div>
+            <div class="p-5 space-y-3.5 text-sm font-semibold text-slate-600 dark:text-slate-300 max-h-[68vh] overflow-y-auto custom-scrollbar">
+                <div class="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-900 border-2 border-dark dark:border-slate-600">
+                    <h4 class="font-heading text-sm uppercase text-dark dark:text-white mb-1 flex items-center gap-1.5">
+                        <i data-lucide="pencil" class="w-4 h-4 text-blue"></i> 1. Customize All 6 Faces
+                    </h4>
+                    <p class="text-xs leading-relaxed">Edit each face's emoji/icon, text label, and background color individually—or switch to <b>2 Medium → Die A + Die B</b> to print a grammar or story-building pair on one A4 page!</p>
+                </div>
+                <div class="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-900 border-2 border-dark dark:border-slate-600">
+                    <h4 class="font-heading text-sm uppercase text-dark dark:text-white mb-1 flex items-center gap-1.5">
+                        <i data-lucide="scissors" class="w-4 h-4 text-pink"></i> 2. Print &amp; Assemble on Cardstock
+                    </h4>
+                    <p class="text-xs leading-relaxed">Print on A4 paper (160–200gsm cardstock works best). Cut along the <b>solid outer outline</b>, crease all <b>dashed fold lines</b>, and apply glue stick to the 7 shaded tabs.</p>
+                </div>
+                <div class="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-900 border-2 border-dark dark:border-slate-600">
+                    <h4 class="font-heading text-sm uppercase text-dark dark:text-white mb-1 flex items-center gap-1.5">
+                        <i data-lucide="box" class="w-4 h-4 text-green"></i> 3. Live 3D Test Roll
+                    </h4>
+                    <p class="text-xs leading-relaxed">Use the <b>3D Test Roll</b> panel on the right to spin and roll your custom cube right on your projector or smartboard before handing out paper copies.</p>
+                </div>
+                <div class="flex justify-end pt-1">
+                    <button id="help-got-it-btn" type="button" class="btn-chunky px-6 py-2.5 rounded-xl text-xs bg-green text-dark">Got It!</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- SAVE MODAL -->
+    <div id="saveModal" class="hidden fixed inset-0 bg-dark/60 backdrop-blur-md z-[500] flex items-center justify-center p-4">
+        <div class="bg-white dark:bg-slate-800 w-full max-w-sm rounded-[2rem] border-4 border-dark dark:border-slate-500 shadow-hard-lg animate-pop-in overflow-hidden">
+            <div class="p-5 border-b-4 border-dark dark:border-slate-500 bg-blue/10 flex items-center gap-3">
+                <div class="w-11 h-11 rounded-2xl bg-blue flex items-center justify-center border-3 border-dark shadow-hard-sm shrink-0">
+                    <i data-lucide="bookmark-plus" class="w-5 h-5 text-white"></i>
+                </div>
+                <div>
+                    <h3 class="text-lg font-heading font-bold text-dark dark:text-white uppercase leading-tight">Save Custom Die</h3>
+                    <p class="text-xs font-semibold text-slate-500 dark:text-slate-400">Store this die net in your library</p>
+                </div>
+            </div>
+            <div class="p-5 space-y-4">
+                <div>
+                    <label for="save-set-input" class="text-[11px] font-extrabold uppercase tracking-wider text-slate-400 block mb-1.5">Die Name</label>
+                    <input id="save-set-input" type="text" placeholder="e.g., Unit 2 WH-Question Cube" class="input-chunky w-full px-3.5 py-2.5 text-sm font-bold bg-slate-50 dark:bg-slate-900 text-dark dark:text-white">
+                </div>
+                <div class="flex gap-3">
+                    <button id="save-modal-cancel" type="button" class="flex-1 btn-chunky bg-white dark:bg-slate-700 text-dark dark:text-white py-2.5 rounded-xl text-xs">Cancel</button>
+                    <button id="save-modal-confirm" type="button" class="flex-1 btn-chunky bg-green text-dark py-2.5 rounded-xl text-xs">Save Die</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- CONFIRM MODAL -->
+    <div id="confirmModal" class="hidden fixed inset-0 bg-dark/60 backdrop-blur-md z-[500] flex items-center justify-center p-4">
+        <div class="bg-white dark:bg-slate-800 w-full max-w-sm rounded-[2rem] border-4 border-dark dark:border-slate-500 shadow-hard-lg animate-pop-in overflow-hidden">
+            <div class="p-6 text-center">
+                <div class="w-14 h-14 rounded-2xl bg-pink/15 flex items-center justify-center border-3 border-dark shadow-hard-sm mx-auto mb-3">
+                    <i data-lucide="alert-triangle" class="w-7 h-7 text-pink"></i>
+                </div>
+                <h3 id="confirmTitle" class="text-xl font-heading font-bold text-dark dark:text-white uppercase mb-1.5">Are you sure?</h3>
+                <p id="confirmMessage" class="text-sm font-semibold text-slate-500 dark:text-slate-400 mb-5">This action cannot be undone.</p>
+                <div class="flex gap-3">
+                    <button id="confirmBtnNo" type="button" class="flex-1 btn-chunky bg-white dark:bg-slate-700 text-dark dark:text-white py-2.5 rounded-xl text-xs">Cancel</button>
+                    <button id="confirmBtnYes" type="button" class="flex-1 btn-chunky bg-pink text-white py-2.5 rounded-xl text-xs">Yes, Continue</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- STRICT A4 PRINT CONTAINER -->
+    <div id="print-area" class="hidden"></div>
+
+    <script>
+        // ============================
+        // PALETTES & PRESETS
+        // ============================
+        const PALETTES = {
+            vibrant: ['#fef08a', '#bae6fd', '#fbcfe8', '#bbf7d0', '#fed7aa', '#ddd6fe'],
+            pastel:  ['#fef9c3', '#e0f2fe', '#fce7f3', '#dcfce7', '#ffedd5', '#ede9fe'],
+            bw:      ['#ffffff', '#ffffff', '#ffffff', '#ffffff', '#ffffff', '#ffffff']
+        };
+
+        const PRESETS = {
+            wh: {
+                title: 'WH-Question Cube',
+                subtitle: 'Roll the cube and ask your partner a question starting with that word!',
+                layout: '1',
+                pairMode: 'same',
+                facesA: [
+                    { emoji: '👤', text: 'WHO?', color: '#fef08a' },
+                    { emoji: '❓', text: 'WHAT?', color: '#bae6fd' },
+                    { emoji: '📍', text: 'WHERE?', color: '#fbcfe8' },
+                    { emoji: '⏰', text: 'WHEN?', color: '#bbf7d0' },
+                    { emoji: '🤔', text: 'WHY?', color: '#fed7aa' },
+                    { emoji: '🛠️', text: 'HOW?', color: '#ddd6fe' }
+                ]
+            },
+            story: {
+                title: 'Story Starter Cube',
+                subtitle: 'Roll the die and include this picture or word in your story sentence!',
+                layout: '1',
+                pairMode: 'same',
+                facesA: [
+                    { emoji: '🚀', text: 'Space', color: '#bae6fd' },
+                    { emoji: '🐉', text: 'Dragon', color: '#bbf7d0' },
+                    { emoji: '🏰', text: 'Castle', color: '#ddd6fe' },
+                    { emoji: '🗺️', text: 'Map', color: '#fef08a' },
+                    { emoji: '🔑', text: 'Magic Key', color: '#fed7aa' },
+                    { emoji: '🧙', text: 'Wizard', color: '#fbcfe8' }
+                ]
+            },
+            grammar_pair: {
+                title: 'Sentence Builder Dice (A + B)',
+                subtitle: 'Roll BOTH cubes and make a full sentence using the subject and verb!',
+                layout: '2',
+                pairMode: 'ab',
+                facesA: [
+                    { emoji: '🙋', text: 'I', color: '#fef08a' },
+                    { emoji: '👉', text: 'You', color: '#bae6fd' },
+                    { emoji: '👦', text: 'He', color: '#bbf7d0' },
+                    { emoji: '👧', text: 'She', color: '#fbcfe8' },
+                    { emoji: '👫', text: 'We', color: '#fed7aa' },
+                    { emoji: '👥', text: 'They', color: '#ddd6fe' }
+                ],
+                facesB: [
+                    { emoji: '⚽', text: 'play', color: '#bbf7d0' },
+                    { emoji: '🍕', text: 'eat', color: '#fed7aa' },
+                    { emoji: '📚', text: 'read', color: '#bae6fd' },
+                    { emoji: '🍳', text: 'cook', color: '#fef08a' },
+                    { emoji: '🏃', text: 'run', color: '#fbcfe8' },
+                    { emoji: '🎬', text: 'watch', color: '#ddd6fe' }
+                ]
+            },
+            actions: {
+                title: 'Brain Break Action Die',
+                subtitle: 'Roll the die and do the action together as a class!',
+                layout: '1',
+                pairMode: 'same',
+                facesA: [
+                    { emoji: '🦘', text: 'Jump 3×', color: '#fef08a' },
+                    { emoji: '👏', text: 'Clap 5×', color: '#bae6fd' },
+                    { emoji: '🌀', text: 'Spin Around', color: '#fbcfe8' },
+                    { emoji: '👃', text: 'Touch Nose', color: '#bbf7d0' },
+                    { emoji: '👋', text: 'High Five!', color: '#fed7aa' },
+                    { emoji: '🧊', text: 'Freeze!', color: '#ddd6fe' }
+                ]
+            },
+            classic: {
+                title: 'Classic 1–6 Game Die',
+                subtitle: 'Cut, fold, and glue your own classroom board-game die!',
+                layout: '2',
+                pairMode: 'same',
+                facesA: [
+                    { emoji: '⚀', text: '1', color: '#ffffff' },
+                    { emoji: '⚁', text: '2', color: '#ffffff' },
+                    { emoji: '⚂', text: '3', color: '#ffffff' },
+                    { emoji: '⚃', text: '4', color: '#ffffff' },
+                    { emoji: '⚄', text: '5', color: '#ffffff' },
+                    { emoji: '⚅', text: '6', color: '#ffffff' }
+                ]
+            },
+            blank: {
+                title: 'Design Your Own Cube',
+                subtitle: 'Draw or write your own words on each face, then cut, fold, and glue!',
+                layout: '1',
+                pairMode: 'same',
+                facesA: [
+                    { emoji: '', text: '', color: '#ffffff' },
+                    { emoji: '', text: '', color: '#ffffff' },
+                    { emoji: '', text: '', color: '#ffffff' },
+                    { emoji: '', text: '', color: '#ffffff' },
+                    { emoji: '', text: '', color: '#ffffff' },
+                    { emoji: '', text: '', color: '#ffffff' }
+                ]
+            }
+        };
+
+        const WS_STORAGE_KEY = 'klasskit_dice_maker_v1';
+        const SETS_STORAGE_KEY = 'klasskit_printable_dice_sets_v1';
+        const CLOUD_TOOL_KEY = 'dice-maker';
+        const THEME_KEY = 'theme_dice-maker';
+
+        // ============================
+        // APP STATE
+        // ============================
+        const state = {
+            layout: '1',            // '1' | '2' | '4'
+            pairMode: 'same',       // 'same' | 'ab'
+            editingDie: 'A',        // 'A' | 'B'
+            orient: 'portrait',     // 'portrait' | 'landscape'
+            textSize: 24,
+            showGlueLabels: true,
+            showCornerNums: false,
+            title: PRESETS.wh.title,
+            subtitle: PRESETS.wh.subtitle,
+            facesA: PRESETS.wh.facesA.map(f => ({ ...f })),
+            facesB: PRESETS.grammar_pair.facesB.map(f => ({ ...f })),
+            zoom: 1,
+            cubeRotX: -22,
+            cubeRotY: -28,
+            soundOn: true,
+            activeSetId: null,
+            savedSets: []
+        };
+
+        let cloudSaveTimer = null;
+
+        function hydrateIcons(root) {
+            if (typeof lucide === 'undefined') return;
+            try {
+                lucide.createIcons(root ? { root } : undefined);
+            } catch (e) {
+                lucide.createIcons();
+            }
+        }
+
+        function getActiveFaces() {
+            return (state.layout === '2' && state.pairMode === 'ab' && state.editingDie === 'B')
+                ? state.facesB
+                : state.facesA;
+        }
+
+        // ============================
+        // SOUND & TOASTS
+        // ============================
+        let synth = null;
+        function applySoundUI() {
+            const onEl = document.getElementById('sound-icon-on');
+            const offEl = document.getElementById('sound-icon-off');
+            const btn = document.getElementById('sound-btn');
+            if (onEl) onEl.classList.toggle('hidden', !state.soundOn);
+            if (offEl) offEl.classList.toggle('hidden', state.soundOn);
+            if (btn) btn.setAttribute('aria-pressed', String(state.soundOn));
+        }
+
+        function initSoundState() {
+            try {
+                state.soundOn = localStorage.getItem('soundMuted') !== 'true';
+            } catch (e) {
+                state.soundOn = true;
+            }
+            applySoundUI();
+        }
+
+        function playSound(kind = 'pop') {
+            if (!state.soundOn || typeof Tone === 'undefined') return;
+            try {
+                if (Tone.context && Tone.context.state !== 'running') Tone.start();
+                if (!synth) {
+                    synth = new Tone.PolySynth(Tone.Synth, {
+                        oscillator: { type: 'triangle' },
+                        envelope: { attack: 0.01, decay: 0.1, sustain: 0.02, release: 0.14 }
+                    }).toDestination();
+                    synth.volume.value = -12;
+                }
+                const now = Tone.now();
+                if (kind === 'roll') {
+                    synth.triggerAttackRelease('G4', '32n', now);
+                    synth.triggerAttackRelease('B4', '32n', now + 0.07);
+                    synth.triggerAttackRelease('D5', '32n', now + 0.14);
+                    synth.triggerAttackRelease('G5', '16n', now + 0.24);
+                } else {
+                    synth.triggerAttackRelease('E5', '32n', now);
+                }
+            } catch (e) {}
+        }
+
+        function showToast(msg, type = 'info') {
+            const container = document.getElementById('toast-container');
+            const colors = {
+                info: 'bg-blue text-white',
+                success: 'bg-green text-dark',
+                warning: 'bg-orange text-dark',
+                error: 'bg-pink text-white'
+            };
+            const icons = {
+                info: 'info',
+                success: 'check-circle',
+                warning: 'alert-triangle',
+                error: 'alert-circle'
+            };
+            const el = document.createElement('div');
+            el.className = `pointer-events-auto px-5 py-3 rounded-2xl border-3 border-dark shadow-hard font-extrabold text-xs uppercase tracking-wider flex items-center gap-2 animate-pop-in ${colors[type] || colors.info}`;
+            el.innerHTML = `<i data-lucide="${icons[type] || 'info'}" class="w-4 h-4 shrink-0"></i><span></span>`;
+            el.querySelector('span').textContent = msg;
+            container.appendChild(el);
+            hydrateIcons(el);
+            setTimeout(() => {
+                el.style.opacity = '0';
+                el.style.transform = 'translateY(10px)';
+                el.style.transition = 'all 0.25s ease';
+                setTimeout(() => el.remove(), 260);
+            }, 2400);
+        }
+
+        let confirmCallback = null;
+        function openConfirm(title, message, onYes) {
+            document.getElementById('confirmTitle').textContent = title;
+            document.getElementById('confirmMessage').textContent = message;
+            confirmCallback = onYes;
+            document.getElementById('confirmModal').classList.remove('hidden');
+        }
+        function closeConfirm() {
+            document.getElementById('confirmModal').classList.add('hidden');
+            confirmCallback = null;
+        }
+
+        function escapeXml(str) {
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;');
+        }
+
+        function wrapFaceText(text, maxChars) {
+            if (!text) return [];
+            const words = text.split(/\s+/);
+            const lines = [];
+            let cur = '';
+            for (const w of words) {
+                if (!cur) cur = w;
+                else if ((cur + ' ' + w).length <= maxChars) cur += ' ' + w;
+                else {
+                    lines.push(cur);
+                    cur = w;
+                    if (lines.length >= 2) break;
+                }
+            }
+            if (cur && lines.length < 3) lines.push(cur);
+            return lines;
+        }
+
+        // ============================
+        // CUBE NET SVG BUILDER
+        // ============================
+        function buildGlueTabSVG(x, y, s, side, tabDepth, showLabel) {
+            const bevel = Math.min(tabDepth * 0.68, s * 0.16);
+            let pts = '';
+            let lx = 0, ly = 0, rot = 0;
+
+            if (side === 'left') {
+                pts = `${x},${y} ${x - tabDepth},${y + bevel} ${x - tabDepth},${y + s - bevel} ${x},${y + s}`;
+                lx = x - tabDepth / 2; ly = y + s / 2; rot = -90;
+            } else if (side === 'right') {
+                pts = `${x + s},${y} ${x + s + tabDepth},${y + bevel} ${x + s + tabDepth},${y + s - bevel} ${x + s},${y + s}`;
+                lx = x + s + tabDepth / 2; ly = y + s / 2; rot = 90;
+            } else if (side === 'top') {
+                pts = `${x},${y} ${x + bevel},${y - tabDepth} ${x + s - bevel},${y - tabDepth} ${x + s},${y}`;
+                lx = x + s / 2; ly = y - tabDepth / 2; rot = 0;
+            } else {
+                pts = `${x},${y + s} ${x + bevel},${y + s + tabDepth} ${x + s - bevel},${y + s + tabDepth} ${x + s},${y + s}`;
+                lx = x + s / 2; ly = y + s + tabDepth / 2; rot = 0;
+            }
+
+            const fontSize = Math.max(7, Math.min(11, tabDepth * 0.44));
+            const labelSVG = showLabel
+                ? `<text x="${lx.toFixed(1)}" y="${ly.toFixed(1)}" text-anchor="middle" dominant-baseline="central" transform="rotate(${rot} ${lx.toFixed(1)} ${ly.toFixed(1)})" font-family="Nunito, sans-serif" font-weight="800" font-size="${fontSize.toFixed(1)}" fill="#94a3b8" letter-spacing="1.2">GLUE</text>`
+                : '';
+
+            return `
+                <polygon points="${pts}" fill="#f1f5f9" stroke="#1e293b" stroke-width="2" stroke-linejoin="round"/>
+                ${labelSVG}
+            `;
+        }
+
+        function buildSingleNetSVG(faces, ox, oy, faceSize, dieLabel = '') {
+            const s = faceSize;
+            const tabDepth = Math.max(18, s * 0.21);
+
+            const layoutMap = [
+                { idx: 4, col: 1, row: 0 },
+                { idx: 3, col: 0, row: 1 },
+                { idx: 0, col: 1, row: 1 },
+                { idx: 1, col: 2, row: 1 },
+                { idx: 5, col: 1, row: 2 },
+                { idx: 2, col: 1, row: 3 }
+            ];
+
+            let tabsSVG = '';
+            tabsSVG += buildGlueTabSVG(ox + 1 * s, oy + 0 * s, s, 'left', tabDepth, state.showGlueLabels);
+            tabsSVG += buildGlueTabSVG(ox + 1 * s, oy + 0 * s, s, 'right', tabDepth, state.showGlueLabels);
+            tabsSVG += buildGlueTabSVG(ox + 1 * s, oy + 2 * s, s, 'left', tabDepth, state.showGlueLabels);
+            tabsSVG += buildGlueTabSVG(ox + 1 * s, oy + 2 * s, s, 'right', tabDepth, state.showGlueLabels);
+            tabsSVG += buildGlueTabSVG(ox + 1 * s, oy + 3 * s, s, 'left', tabDepth, state.showGlueLabels);
+            tabsSVG += buildGlueTabSVG(ox + 1 * s, oy + 3 * s, s, 'right', tabDepth, state.showGlueLabels);
+            tabsSVG += buildGlueTabSVG(ox + 1 * s, oy + 3 * s, s, 'bottom', tabDepth, state.showGlueLabels);
+
+            let facesSVG = '';
+            const scaleFactor = s / 170;
+            const baseFontSize = Math.max(10, state.textSize * scaleFactor);
+            const emojiSize = Math.max(18, s * 0.34);
+
+            layoutMap.forEach(({ idx, col, row }) => {
+                const f = faces[idx] || { emoji: '', text: '', color: '#ffffff' };
+                const fx = ox + col * s;
+                const fy = oy + row * s;
+                const cx = fx + s / 2;
+                const cy = fy + s / 2;
+
+                let content = '';
+                const hasEmoji = Boolean(f.emoji && f.emoji.trim());
+                const hasText = Boolean(f.text && f.text.trim());
+
+                if (hasEmoji && hasText) {
+                    const lines = wrapFaceText(f.text.trim(), 10);
+                    const lineH = baseFontSize * 1.15;
+                    const textStartY = cy + s * 0.21 - ((lines.length - 1) * lineH) / 2;
+                    content += `<text x="${cx.toFixed(1)}" y="${(cy - s * 0.08).toFixed(1)}" text-anchor="middle" dominant-baseline="central" font-size="${(emojiSize * 0.92).toFixed(1)}">${escapeXml(f.emoji.trim())}</text>`;
+                    content += lines.map((ln, i) =>
+                        `<text x="${cx.toFixed(1)}" y="${(textStartY + i * lineH).toFixed(1)}" text-anchor="middle" dominant-baseline="central" font-family="Fredoka, sans-serif" font-weight="700" font-size="${baseFontSize.toFixed(1)}" fill="#1e293b">${escapeXml(ln)}</text>`
+                    ).join('');
+                } else if (hasEmoji) {
+                    content += `<text x="${cx.toFixed(1)}" y="${cy.toFixed(1)}" text-anchor="middle" dominant-baseline="central" font-size="${(emojiSize * 1.25).toFixed(1)}">${escapeXml(f.emoji.trim())}</text>`;
+                } else if (hasText) {
+                    const lines = wrapFaceText(f.text.trim(), 10);
+                    const fs = lines.length === 1 && f.text.length <= 3 ? baseFontSize * 1.35 : baseFontSize;
+                    const lineH = fs * 1.15;
+                    const startY = cy - ((lines.length - 1) * lineH) / 2;
+                    content += lines.map((ln, i) =>
+                        `<text x="${cx.toFixed(1)}" y="${(startY + i * lineH).toFixed(1)}" text-anchor="middle" dominant-baseline="central" font-family="Fredoka, sans-serif" font-weight="700" font-size="${fs.toFixed(1)}" fill="#1e293b">${escapeXml(ln)}</text>`
+                    ).join('');
+                }
+
+                const cornerNum = state.showCornerNums
+                    ? `<text x="${(fx + 10 * scaleFactor + 4).toFixed(1)}" y="${(fy + 14 * scaleFactor + 4).toFixed(1)}" font-family="Fredoka, sans-serif" font-weight="700" font-size="${Math.max(9, 12 * scaleFactor).toFixed(1)}" fill="#64748b">${idx + 1}</text>`
+                    : '';
+
+                facesSVG += `
+                    <g class="net-face" data-face-idx="${idx}" data-die-label="${escapeXml(dieLabel)}">
+                        <rect x="${fx.toFixed(1)}" y="${fy.toFixed(1)}" width="${s.toFixed(1)}" height="${s.toFixed(1)}" fill="${f.color || '#ffffff'}" stroke="none"/>
+                        ${cornerNum}
+                        ${content}
+                    </g>
+                `;
+            });
+
+            const dash = `${(6 * Math.max(0.7, scaleFactor)).toFixed(1)} ${(5 * Math.max(0.7, scaleFactor)).toFixed(1)}`;
+            const foldLines = [
+                [ox + s, oy + s, ox + 2 * s, oy + s],
+                [ox + s, oy + s, ox + s, oy + 2 * s],
+                [ox + 2 * s, oy + s, ox + 2 * s, oy + 2 * s],
+                [ox + s, oy + 2 * s, ox + 2 * s, oy + 2 * s],
+                [ox + s, oy + 3 * s, ox + 2 * s, oy + 3 * s],
+                [ox + s, oy, ox + s, oy + s],
+                [ox + 2 * s, oy, ox + 2 * s, oy + s],
+                [ox + s, oy + 2 * s, ox + s, oy + 3 * s],
+                [ox + 2 * s, oy + 2 * s, ox + 2 * s, oy + 3 * s],
+                [ox + s, oy + 3 * s, ox + s, oy + 4 * s],
+                [ox + 2 * s, oy + 3 * s, ox + 2 * s, oy + 4 * s],
+                [ox + s, oy + 4 * s, ox + 2 * s, oy + 4 * s]
+            ].map(([x1, y1, x2, y2]) =>
+                `<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="#475569" stroke-width="1.8" stroke-dasharray="${dash}"/>`
+            ).join('');
+
+            const solidCutEdges = [
+                [ox + s, oy, ox + 2 * s, oy],
+                [ox, oy + s, ox + s, oy + s],
+                [ox, oy + s, ox, oy + 2 * s],
+                [ox, oy + 2 * s, ox + s, oy + 2 * s],
+                [ox + 2 * s, oy + s, ox + 3 * s, oy + s],
+                [ox + 3 * s, oy + s, ox + 3 * s, oy + 2 * s],
+                [ox + 2 * s, oy + 2 * s, ox + 3 * s, oy + 2 * s]
+            ].map(([x1, y1, x2, y2]) =>
+                `<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="#1e293b" stroke-width="2.4" stroke-linecap="round"/>`
+            ).join('');
+
+            const badge = dieLabel
+                ? `<text x="${(ox + 1.5 * s).toFixed(1)}" y="${(oy - 10).toFixed(1)}" text-anchor="middle" font-family="Fredoka, sans-serif" font-weight="700" font-size="13" fill="#64748b">${escapeXml(dieLabel)}</text>`
+                : '';
+
+            const scissor = state.showGlueLabels
+                ? `<text x="${(ox + 8).toFixed(1)}" y="${(oy + s - 6).toFixed(1)}" font-size="${Math.max(12, 16 * scaleFactor).toFixed(1)}">✂️</text>`
+                : '';
+
+            return `<g>${tabsSVG}${facesSVG}${foldLines}${solidCutEdges}${badge}${scissor}</g>`;
+        }
+
+        function buildSheetSVG() {
+            const isLand = state.orient === 'landscape';
+            const W = isLand ? 1123 : 794;
+            const H = isLand ? 794 : 1123;
+            const marginX = 42;
+            const marginTop = 34;
+
+            let body = `
+                <rect x="0" y="0" width="${W}" height="${H}" fill="#ffffff"/>
+                <g id="sheet-header">
+                    <text x="${marginX}" y="${marginTop + 30}" font-family="Fredoka, sans-serif" font-weight="700" font-size="30" fill="#1e293b">${escapeXml(state.title || 'Custom Printable Die')}</text>
+                    <text x="${marginX}" y="${marginTop + 53}" font-family="Nunito, sans-serif" font-weight="700" font-size="13" fill="#475569">${escapeXml(state.subtitle || '')}</text>
+
+                    <text x="${W - marginX - 190}" y="${marginTop + 22}" font-family="Nunito, sans-serif" font-weight="800" font-size="12.5" fill="#1e293b">Name:</text>
+                    <line x1="${W - marginX - 144}" y1="${marginTop + 24}" x2="${W - marginX}" y2="${marginTop + 24}" stroke="#1e293b" stroke-width="2"/>
+                    <text x="${W - marginX - 190}" y="${marginTop + 48}" font-family="Nunito, sans-serif" font-weight="800" font-size="12.5" fill="#1e293b">Date:</text>
+                    <line x1="${W - marginX - 144}" y1="${marginTop + 50}" x2="${W - marginX}" y2="${marginTop + 50}" stroke="#1e293b" stroke-width="2"/>
+
+                    <line x1="${marginX}" y1="${marginTop + 68}" x2="${W - marginX}" y2="${marginTop + 68}" stroke="#1e293b" stroke-width="4" stroke-linecap="round"/>
+                </g>
+            `;
+
+            const areaTop = marginTop + 88;
+            const areaH = H - areaTop - 44;
+            const areaW = W - marginX * 2;
+
+            if (state.layout === '1') {
+                const s = Math.min(areaW / 3.25, areaH / 4.32);
+                const netW = s * 3;
+                const netH = s * 4.21;
+                const ox = marginX + (areaW - netW) / 2;
+                const oy = areaTop + (areaH - netH) / 2;
+                body += buildSingleNetSVG(state.facesA, ox, oy, s);
+            } else if (state.layout === '2') {
+                const slotW = (areaW - 28) / 2;
+                const s = Math.min(slotW / 3.2, areaH / 4.4);
+                const netW = s * 3;
+                const netH = s * 4.21;
+                const oy = areaTop + (areaH - netH) / 2 + 6;
+                const ox1 = marginX + (slotW - netW) / 2;
+                const ox2 = marginX + slotW + 28 + (slotW - netW) / 2;
+                const secondFaces = state.pairMode === 'ab' ? state.facesB : state.facesA;
+                body += buildSingleNetSVG(state.facesA, ox1, oy, s, state.pairMode === 'ab' ? 'DIE A' : 'COPY 1');
+                body += buildSingleNetSVG(secondFaces, ox2, oy, s, state.pairMode === 'ab' ? 'DIE B' : 'COPY 2');
+            } else {
+                const cols = isLand ? 4 : 2;
+                const rows = isLand ? 1 : 2;
+                const gapX = 20;
+                const gapY = 24;
+                const slotW = (areaW - gapX * (cols - 1)) / cols;
+                const slotH = (areaH - gapY * (rows - 1)) / rows;
+                const s = Math.min(slotW / 3.15, slotH / 4.35);
+                const netW = s * 3;
+                const netH = s * 4.21;
+
+                for (let r = 0; r < rows; r++) {
+                    for (let c = 0; c < cols; c++) {
+                        const ox = marginX + c * (slotW + gapX) + (slotW - netW) / 2;
+                        const oy = areaTop + r * (slotH + gapY) + (slotH - netH) / 2;
+                        body += buildSingleNetSVG(state.facesA, ox, oy, s);
+                    }
+                }
+            }
+
+            body += `
+                <line x1="${marginX}" y1="${H - 36}" x2="${W - marginX}" y2="${H - 36}" stroke="#cbd5e1" stroke-width="1.8" stroke-dasharray="5 5"/>
+                <text x="${marginX}" y="${H - 17}" font-family="Nunito, sans-serif" font-weight="800" font-size="11.5" fill="#64748b">✂️ Cut solid lines  •  ┄ Fold dashed lines  •  🧴 Glue shaded tabs</text>
+                <text x="${W - marginX}" y="${H - 17}" text-anchor="end" font-family="Fredoka, sans-serif" font-weight="700" font-size="12.5" fill="#94a3b8">KlassKit</text>
+            `;
+
+            return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Printable cube net">${body}</svg>`;
+        }
+
+        // ============================
+        // PERSISTENCE (LocalStorage + Supabase Cloud)
+        // ============================
+        function getWorkspaceData() {
+            return {
+                layout: state.layout,
+                pairMode: state.pairMode,
+                editingDie: state.editingDie,
+                orient: state.orient,
+                textSize: state.textSize,
+                showGlueLabels: state.showGlueLabels,
+                showCornerNums: state.showCornerNums,
+                title: document.getElementById('custom-title').value,
+                subtitle: document.getElementById('custom-subtitle').value,
+                facesA: state.facesA.map(f => ({ ...f })),
+                facesB: state.facesB.map(f => ({ ...f })),
+                activeSetId: state.activeSetId
+            };
+        }
+
+        function setRadioVal(name, val) {
+            const el = document.querySelector(`input[name="${name}"][value="${val}"]`);
+            if (el) el.checked = true;
+        }
+
+        function applyWorkspaceData(data) {
+            if (!data) return;
+            if (data.layout) { state.layout = String(data.layout); setRadioVal('sheet-layout', state.layout); }
+            if (data.pairMode) { state.pairMode = data.pairMode; setRadioVal('pair-mode', data.pairMode); }
+            if (data.editingDie) state.editingDie = data.editingDie === 'B' ? 'B' : 'A';
+            if (data.orient) { state.orient = data.orient; setRadioVal('page-orient', data.orient); }
+            if (typeof data.textSize === 'number') {
+                state.textSize = data.textSize;
+                document.getElementById('text-size-slider').value = data.textSize;
+                document.getElementById('text-size-val').textContent = `${data.textSize} px`;
+            }
+            if (typeof data.showGlueLabels === 'boolean') {
+                state.showGlueLabels = data.showGlueLabels;
+                document.getElementById('show-glue-labels').checked = data.showGlueLabels;
+            }
+            if (typeof data.showCornerNums === 'boolean') {
+                state.showCornerNums = data.showCornerNums;
+                document.getElementById('show-corner-nums').checked = data.showCornerNums;
+            }
+            if (typeof data.title === 'string') document.getElementById('custom-title').value = data.title;
+            if (typeof data.subtitle === 'string') document.getElementById('custom-subtitle').value = data.subtitle;
+            if (Array.isArray(data.facesA) && data.facesA.length === 6) {
+                state.facesA = data.facesA.map(f => ({ emoji: f.emoji || '', text: f.text || '', color: f.color || '#ffffff' }));
+            }
+            if (Array.isArray(data.facesB) && data.facesB.length === 6) {
+                state.facesB = data.facesB.map(f => ({ emoji: f.emoji || '', text: f.text || '', color: f.color || '#ffffff' }));
+            }
+            if (data.activeSetId !== undefined) state.activeSetId = data.activeSetId;
+        }
+
+        function updateActiveSetBanner() {
+            const current = state.savedSets.find(s => s.id === state.activeSetId);
+            if (current) {
+                document.getElementById('active-set-name').textContent = current.name;
+                document.getElementById('active-set-banner').classList.remove('hidden');
+            } else {
+                state.activeSetId = null;
+                document.getElementById('active-set-banner').classList.add('hidden');
+            }
+        }
+
+        function persistState() {
+            const ws = getWorkspaceData();
+            try { localStorage.setItem(WS_STORAGE_KEY, JSON.stringify(ws)); } catch (e) {}
+
+            if (state.activeSetId) {
+                const idx = state.savedSets.findIndex(s => s.id === state.activeSetId);
+                if (idx >= 0) {
+                    state.savedSets[idx] = {
+                        ...state.savedSets[idx],
+                        ...ws,
+                        updatedAt: Date.now()
+                    };
+                    try { localStorage.setItem(SETS_STORAGE_KEY, JSON.stringify(state.savedSets)); } catch (e) {}
+                    renderSavedSetsList();
+                }
+            }
+
+            clearTimeout(cloudSaveTimer);
+            cloudSaveTimer = setTimeout(() => {
+                if (typeof window.saveProgress === 'function') {
+                    window.saveProgress(CLOUD_TOOL_KEY, {
+                        workspace: ws,
+                        sets: state.savedSets
+                    }).catch(() => {});
+                }
+            }, 700);
+        }
+
+        async function loadPersistedState() {
+            let hasLocalSets = false;
+            try {
+                const rawSets = localStorage.getItem(SETS_STORAGE_KEY);
+                if (rawSets) {
+                    const parsedSets = JSON.parse(rawSets);
+                    if (Array.isArray(parsedSets)) {
+                        state.savedSets = parsedSets;
+                        hasLocalSets = true;
+                    }
+                }
+            } catch (e) { state.savedSets = []; }
+
+            if (!hasLocalSets) {
+                state.savedSets = [
+                    {
+                        id: 'seed_wh',
+                        name: 'WH-Question Cube',
+                        updatedAt: Date.now() - 86400000,
+                        layout: '1',
+                        pairMode: 'same',
+                        title: PRESETS.wh.title,
+                        subtitle: PRESETS.wh.subtitle,
+                        facesA: PRESETS.wh.facesA
+                    },
+                    {
+                        id: 'seed_story',
+                        name: 'Story Starter Cube',
+                        updatedAt: Date.now() - 172800000,
+                        layout: '1',
+                        pairMode: 'same',
+                        title: PRESETS.story.title,
+                        subtitle: PRESETS.story.subtitle,
+                        facesA: PRESETS.story.facesA
+                    }
+                ];
+                try { localStorage.setItem(SETS_STORAGE_KEY, JSON.stringify(state.savedSets)); } catch (e) {}
+            }
+
+            try {
+                const rawWs = localStorage.getItem(WS_STORAGE_KEY);
+                if (rawWs) {
+                    applyWorkspaceData(JSON.parse(rawWs));
+                }
+            } catch (e) {}
+
+            if (typeof window.loadProgress === 'function') {
+                try {
+                    const cloud = await window.loadProgress(CLOUD_TOOL_KEY);
+                    if (cloud) {
+                        if (cloud.workspace) {
+                            applyWorkspaceData(cloud.workspace);
+                            try { localStorage.setItem(WS_STORAGE_KEY, JSON.stringify(cloud.workspace)); } catch (e) {}
+                        }
+                        if (Array.isArray(cloud.sets) && cloud.sets.length > 0 && (!hasLocalSets || state.savedSets.length === 0)) {
+                            state.savedSets = cloud.sets;
+                            try { localStorage.setItem(SETS_STORAGE_KEY, JSON.stringify(cloud.sets)); } catch (e) {}
+                        }
+                    }
+                } catch (e) {}
+            }
+
+            updateActiveSetBanner();
+            renderSavedSetsList();
+        }
+
+        // ============================
+        // RENDERERS (SIDEBAR, A4, 3D CUBE)
+        // ============================
+        function renderFacesEditor() {
+            const list = document.getElementById('faces-editor-list');
+            const faces = getActiveFaces();
+            const dieLabel = (state.layout === '2' && state.pairMode === 'ab') ? `(Die ${state.editingDie})` : '';
+            document.getElementById('editing-die-label').textContent = dieLabel;
+
+            list.innerHTML = faces.map((f, i) => `
+                <div class="flex items-center gap-1.5 p-1.5 rounded-xl border-2 border-dark dark:border-slate-600 bg-slate-50 dark:bg-slate-800/70">
+                    <span class="w-6 h-6 rounded-lg bg-dark text-white font-heading font-bold text-xs flex items-center justify-center shrink-0">${i + 1}</span>
+                    <input type="text" data-face-emoji="${i}" value="${escapeXml(f.emoji)}" placeholder="😀" maxlength="4" aria-label="Face ${i + 1} emoji" class="w-10 p-1 text-center bg-white dark:bg-slate-900 border-2 border-slate-300 dark:border-slate-600 rounded-lg text-sm focus:outline-none focus:border-blue">
+                    <input type="text" data-face-text="${i}" value="${escapeXml(f.text)}" placeholder="Face ${i + 1} text..." aria-label="Face ${i + 1} text" class="flex-1 min-w-0 p-1.5 bg-white dark:bg-slate-900 border-2 border-slate-300 dark:border-slate-600 rounded-lg text-xs font-bold text-dark dark:text-white focus:outline-none focus:border-blue">
+                    <input type="color" data-face-color="${i}" value="${f.color || '#ffffff'}" aria-label="Face ${i + 1} color" class="w-7 h-7 rounded-lg border-2 border-dark cursor-pointer bg-transparent p-0 shrink-0">
+                </div>
+            `).join('');
+
+            list.querySelectorAll('[data-face-emoji]').forEach(inp => {
+                inp.addEventListener('input', (e) => {
+                    const idx = Number(e.target.dataset.faceEmoji);
+                    getActiveFaces()[idx].emoji = e.target.value;
+                    renderAllPreviews();
+                });
+            });
+            list.querySelectorAll('[data-face-text]').forEach(inp => {
+                inp.addEventListener('input', (e) => {
+                    const idx = Number(e.target.dataset.faceText);
+                    getActiveFaces()[idx].text = e.target.value;
+                    renderAllPreviews();
+                });
+            });
+            list.querySelectorAll('[data-face-color]').forEach(inp => {
+                inp.addEventListener('input', (e) => {
+                    const idx = Number(e.target.dataset.faceColor);
+                    getActiveFaces()[idx].color = e.target.value;
+                    renderAllPreviews();
+                });
+            });
+        }
+
+        function sizePaperFrame() {
+            const paper = document.getElementById('a4-paper');
+            const parent = document.getElementById('sheet-stage').parentElement;
+            const availW = Math.max(140, parent.clientWidth - 36);
+            const availH = Math.max(140, parent.clientHeight - 88);
+            const ratio = state.orient === 'landscape' ? (297 / 210) : (210 / 297);
+
+            let w = availW;
+            let h = w / ratio;
+            if (h > availH) {
+                h = availH;
+                w = h * ratio;
+            }
+            paper.style.width = `${Math.floor(w)}px`;
+            paper.style.height = `${Math.floor(h)}px`;
+        }
+
+        function render3DCubeFaces() {
+            const faces = getActiveFaces();
+            document.querySelectorAll('.cube-face').forEach(el => {
+                const idx = Number(el.dataset.cface);
+                const f = faces[idx] || { emoji: '', text: '', color: '#ffffff' };
+                el.style.backgroundColor = f.color || '#ffffff';
+                el.innerHTML = `
+                    ${f.emoji ? `<div class="text-3xl leading-none">${escapeXml(f.emoji)}</div>` : ''}
+                    ${f.text ? `<div class="text-sm font-bold leading-tight mt-1 break-words max-w-full">${escapeXml(f.text)}</div>` : (!f.emoji ? `<div class="text-xs text-slate-400">Face ${idx + 1}</div>` : '')}
+                `;
+            });
+        }
+
+        function renderAllPreviews({ skipPersist = false } = {}) {
+            state.title = document.getElementById('custom-title').value.trim() || 'Custom Printable Die';
+            state.subtitle = document.getElementById('custom-subtitle').value.trim();
+
+            const pillText = state.layout === '1'
+                ? '1 Jumbo'
+                : (state.layout === '2' ? (state.pairMode === 'ab' ? 'Die A + B' : '2 Medium') : '4 Mini');
+            document.getElementById('layout-pill').textContent = pillText;
+            document.getElementById('pair-mode-box').classList.toggle('hidden', state.layout !== '2');
+            document.getElementById('ab-tabs').classList.toggle('hidden', !(state.layout === '2' && state.pairMode === 'ab'));
+
+            applyPage();
+            sizePaperFrame();
+            document.getElementById('svg-preview').innerHTML = buildSheetSVG();
+            document.getElementById('sheet-stage').style.transform = `scale(${state.zoom})`;
+            document.getElementById('zoom-reset').textContent = `${Math.round(state.zoom * 100)}%`;
+
+            document.querySelectorAll('#svg-preview .net-face').forEach(g => {
+                g.addEventListener('click', () => {
+                    const idx = Number(g.dataset.faceIdx);
+                    const dieLabel = g.dataset.dieLabel;
+                    if (state.layout === '2' && state.pairMode === 'ab') {
+                        const targetDie = dieLabel === 'DIE B' ? 'B' : (dieLabel === 'DIE A' ? 'A' : state.editingDie);
+                        if (targetDie !== state.editingDie) {
+                            state.editingDie = targetDie;
+                            syncABTabsUI();
+                            renderFacesEditor();
+                            render3DCubeFaces();
+                            persistState();
+                        }
+                    }
+                    spinCubeToFace(idx);
+                    const inp = document.querySelector(`[data-face-text="${idx}"]`);
+                    if (inp) inp.focus();
+                });
+            });
+
+            render3DCubeFaces();
+            if (!skipPersist) persistState();
+        }
+
+        // ============================
+        // 3D CUBE ROTATION & ROLL
+        // ============================
+        const FACE_ROTATIONS = [
+            { x: 0, y: 0 },
+            { x: 0, y: -90 },
+            { x: 0, y: 180 },
+            { x: 0, y: 90 },
+            { x: -90, y: 0 },
+            { x: 90, y: 0 }
+        ];
+
+        function spinCubeToFace(idx, addFullSpins = false) {
+            const target = FACE_ROTATIONS[idx] || FACE_ROTATIONS[0];
+            if (addFullSpins) {
+                const spinX = 360 * (1 + Math.floor(Math.random() * 2));
+                const spinY = 360 * (1 + Math.floor(Math.random() * 2));
+                state.cubeRotX = Math.round(state.cubeRotX / 360) * 360 + spinX + target.x;
+                state.cubeRotY = Math.round(state.cubeRotY / 360) * 360 + spinY + target.y;
+            } else {
+                state.cubeRotX = target.x - 10;
+                state.cubeRotY = target.y - 12;
+            }
+            document.getElementById('cube-3d').style.transform = `rotateX(${state.cubeRotX}deg) rotateY(${state.cubeRotY}deg)`;
+        }
+
+        function roll3DDie() {
+            const isAB = state.layout === '2' && state.pairMode === 'ab';
+            const idxA = Math.floor(Math.random() * 6);
+            const idxB = isAB ? Math.floor(Math.random() * 6) : 0;
+            const cubeIdx = (isAB && state.editingDie === 'B') ? idxB : idxA;
+
+            spinCubeToFace(cubeIdx, true);
+            playSound('roll');
+
+            const fA = state.facesA[idxA];
+            const labelA = [fA.emoji, fA.text].filter(Boolean).join(' ') || `Face ${idxA + 1}`;
+
+            if (isAB) {
+                const fB = state.facesB[idxB];
+                const labelB = [fB.emoji, fB.text].filter(Boolean).join(' ') || `Face ${idxB + 1}`;
+                document.getElementById('roll-result-text').textContent = `${labelA}  +  ${labelB}`;
+                document.getElementById('roll-result-sub').textContent = `Die A (#${idxA + 1}) & Die B (#${idxB + 1})`;
+            } else {
+                document.getElementById('roll-result-text').textContent = labelA;
+                document.getElementById('roll-result-sub').textContent = `Landed on Face #${idxA + 1}`;
+            }
+        }
+
+        // ============================
+        // PRINT & SVG DOWNLOAD
+        // ============================
+        function applyPage() {
+            document.documentElement.setAttribute('data-orient', state.orient);
+            const pageStyle = document.getElementById('page-style');
+            if (pageStyle) {
+                pageStyle.textContent = `@page { size: A4 ${state.orient}; margin: 0; }`;
+            }
+        }
+
+        function preparePrint() {
+            applyPage();
+            document.getElementById('print-area').innerHTML = buildSheetSVG();
+        }
+
+        function triggerPrint() {
+            preparePrint();
+            setTimeout(() => window.print(), 80);
+        }
+
+        function downloadSVG() {
+            const svgStr = buildSheetSVG();
+            const blob = new Blob([svgStr], { type: 'image/svg+xml;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            const slug = (state.title || 'printable-dice').toLowerCase().replace(/[^a-z0-9]+/g, '-');
+            a.href = url;
+            a.download = `${slug}.svg`;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            URL.revokeObjectURL(url);
+            playSound('pop');
+            showToast('Downloaded crisp vector SVG!', 'success');
+        }
+
+        // ============================
+        // SAVED DICE LIBRARY UI
+        // ============================
+        function persistSavedSets() {
+            try { localStorage.setItem(SETS_STORAGE_KEY, JSON.stringify(state.savedSets)); } catch (e) {}
+            renderSavedSetsList();
+            persistState();
+        }
+
+        function renderSavedSetsList() {
+            const list = document.getElementById('library-list');
+            const sort = document.getElementById('library-sort').value;
+            document.getElementById('saved-count').textContent = state.savedSets.length;
+            updateActiveSetBanner();
+
+            const sorted = state.savedSets.slice().sort((a, b) => {
+                if (sort === 'alpha') return a.name.localeCompare(b.name);
+                return (b.updatedAt || 0) - (a.updatedAt || 0);
+            });
+
+            if (sorted.length === 0) {
+                list.innerHTML = `<p class="text-[11px] font-bold text-slate-400 text-center py-3">No saved dice yet.</p>`;
+                return;
+            }
+
+            list.innerHTML = sorted.map(item => {
+                const isActive = item.id === state.activeSetId;
+                return `
+                    <div class="flex items-center gap-2 p-2 rounded-xl border-2 ${isActive ? 'border-blue bg-blue/10' : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/70'} hover:border-blue transition-colors">
+                        <button type="button" data-load-id="${item.id}" class="flex-1 text-left min-w-0">
+                            <p class="text-xs font-extrabold truncate text-dark dark:text-white flex items-center gap-1.5">
+                                <span class="truncate">${escapeXml(item.name)}</span>
+                                ${isActive ? '<span class="px-1.5 py-0.5 rounded bg-blue text-white text-[9px] uppercase shrink-0">Active</span>' : ''}
+                            </p>
+                            <p class="text-[10px] font-bold text-slate-400">${item.layout || '1'} per sheet${item.pairMode === 'ab' ? ' · A+B' : ''}</p>
+                        </button>
+                        <button type="button" data-delete-id="${item.id}" class="p-1.5 rounded-lg text-slate-400 hover:text-pink hover:bg-pink/10 transition-colors" title="Delete die">
+                            <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                        </button>
+                    </div>
+                `;
+            }).join('');
+
+            hydrateIcons(list);
+
+            list.querySelectorAll('[data-load-id]').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const item = state.savedSets.find(s => s.id === btn.dataset.loadId);
+                    if (!item) return;
+                    applySavedSet(item);
+                });
+            });
+
+            list.querySelectorAll('[data-delete-id]').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const id = btn.dataset.deleteId;
+                    const item = state.savedSets.find(s => s.id === id);
+                    openConfirm('Delete Die?', `Remove "${item?.name || 'this die'}" from your library?`, () => {
+                        state.savedSets = state.savedSets.filter(s => s.id !== id);
+                        if (state.activeSetId === id) {
+                            state.activeSetId = null;
+                        }
+                        persistSavedSets();
+                        showToast('Die deleted.', 'info');
+                    });
+                });
+            });
+        }
+
+        function applySavedSet(item) {
+            applyWorkspaceData({ ...item, activeSetId: item.id, editingDie: 'A' });
+            item.updatedAt = Date.now();
+            syncABTabsUI();
+            renderFacesEditor();
+            renderAllPreviews();
+            playSound('pop');
+            showToast(`Loaded "${item.name}"`, 'success');
+        }
+
+        function loadPreset(key) {
+            const p = PRESETS[key];
+            if (!p) return;
+            state.layout = p.layout || '1';
+            state.pairMode = p.pairMode || 'same';
+            state.editingDie = 'A';
+
+            setRadioVal('sheet-layout', state.layout);
+            setRadioVal('pair-mode', state.pairMode);
+
+            state.facesA = p.facesA.map(f => ({ ...f }));
+            if (p.facesB) state.facesB = p.facesB.map(f => ({ ...f }));
+            else if (key === 'blank') state.facesB = PRESETS.blank.facesA.map(f => ({ ...f }));
+
+            document.getElementById('custom-title').value = p.title;
+            document.getElementById('custom-subtitle').value = p.subtitle;
+
+            state.activeSetId = null;
+            updateActiveSetBanner();
+            renderSavedSetsList();
+            syncABTabsUI();
+            renderFacesEditor();
+            renderAllPreviews();
+            playSound('pop');
+            showToast(`Loaded "${p.title}" preset`, 'info');
+        }
+
+        function syncABTabsUI() {
+            document.querySelectorAll('.ab-tab-btn').forEach(btn => {
+                const active = btn.dataset.editDie === state.editingDie;
+                btn.className = `ab-tab-btn py-1.5 rounded-lg border-2 border-dark text-xs font-heading font-bold transition-all ${
+                    active ? 'bg-pink text-white shadow-hard-sm' : 'bg-white dark:bg-slate-800 text-dark dark:text-white'
+                }`;
+            });
+        }
+
+        function syncThemeButtonAria() {
+            const isDark = document.documentElement.classList.contains('dark');
+            document.getElementById('theme-btn').setAttribute('aria-pressed', String(isDark));
+        }
+
+        // ============================
+        // INIT & EVENT LISTENERS
+        // ============================
+        document.addEventListener('DOMContentLoaded', async () => {
+            syncThemeButtonAria();
+            initSoundState();
+            if (typeof requireAuth === 'function') await requireAuth();
+            document.body.classList.remove('opacity-0');
+
+            await loadPersistedState();
+            applyPage();
+            syncABTabsUI();
+            renderFacesEditor();
+            renderAllPreviews({ skipPersist: true });
+            hydrateIcons();
+            window.addEventListener('beforeprint', preparePrint);
+
+            const stageParent = document.getElementById('sheet-stage').parentElement;
+            if (typeof ResizeObserver === 'function' && stageParent) {
+                new ResizeObserver(() => sizePaperFrame()).observe(stageParent);
+            }
+            window.addEventListener('resize', sizePaperFrame);
+
+            // Sound toggle & Dark mode
+            document.getElementById('sound-btn').addEventListener('click', () => {
+                state.soundOn = !state.soundOn;
+                try { localStorage.setItem('soundMuted', String(!state.soundOn)); } catch (e) {}
+                applySoundUI();
+                if (state.soundOn) playSound('pop');
+            });
+            document.getElementById('theme-btn').addEventListener('click', () => {
+                const isDark = document.documentElement.classList.toggle('dark');
+                document.getElementById('theme-btn').setAttribute('aria-pressed', String(isDark));
+                try {
+                    localStorage.setItem(THEME_KEY, isDark ? 'dark' : 'light');
+                    localStorage.setItem('klasskit-theme', isDark ? 'dark' : 'light');
+                } catch (e) {}
+                playSound('pop');
+            });
+
+            // Sidebar toggle
+            const sidebar = document.getElementById('sidebar');
+            document.getElementById('toggle-sidebar-btn').addEventListener('click', () => {
+                if (window.innerWidth < 768) sidebar.classList.toggle('hidden-panel-mobile');
+                else sidebar.classList.toggle('hidden-panel-desktop');
+                setTimeout(sizePaperFrame, 320);
+            });
+            document.getElementById('mobile-close-panel').addEventListener('click', () => {
+                sidebar.classList.add('hidden-panel-mobile');
+            });
+
+            // Sheet layout & pair mode
+            document.querySelectorAll('input[name="sheet-layout"]').forEach(r => {
+                r.addEventListener('change', (e) => {
+                    state.layout = e.target.value;
+                    if (state.layout !== '2') state.editingDie = 'A';
+                    syncABTabsUI();
+                    renderFacesEditor();
+                    renderAllPreviews();
+                    playSound('pop');
+                });
+            });
+            document.querySelectorAll('input[name="pair-mode"]').forEach(r => {
+                r.addEventListener('change', (e) => {
+                    state.pairMode = e.target.value;
+                    if (state.pairMode !== 'ab') state.editingDie = 'A';
+                    syncABTabsUI();
+                    renderFacesEditor();
+                    renderAllPreviews();
+                    playSound('pop');
+                });
+            });
+            document.querySelectorAll('.ab-tab-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    state.editingDie = btn.dataset.editDie;
+                    syncABTabsUI();
+                    renderFacesEditor();
+                    render3DCubeFaces();
+                    persistState();
+                    playSound('pop');
+                });
+            });
+
+            // Presets
+            document.querySelectorAll('.preset-btn').forEach(btn => {
+                btn.addEventListener('click', () => loadPreset(btn.dataset.preset));
+            });
+
+            // Clear faces
+            document.getElementById('clear-faces-btn').addEventListener('click', () => {
+                getActiveFaces().forEach(f => { f.emoji = ''; f.text = ''; });
+                renderFacesEditor();
+                renderAllPreviews();
+                playSound('pop');
+            });
+
+            // Palette buttons
+            document.querySelectorAll('.palette-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const colors = PALETTES[btn.dataset.palette] || PALETTES.vibrant;
+                    getActiveFaces().forEach((f, i) => { f.color = colors[i % colors.length]; });
+                    renderFacesEditor();
+                    renderAllPreviews();
+                    playSound('pop');
+                });
+            });
+
+            // Text size slider & checkboxes
+            document.getElementById('text-size-slider').addEventListener('input', (e) => {
+                state.textSize = Number(e.target.value);
+                document.getElementById('text-size-val').textContent = `${state.textSize} px`;
+                renderAllPreviews();
+            });
+            document.getElementById('show-glue-labels').addEventListener('change', (e) => {
+                state.showGlueLabels = e.target.checked;
+                renderAllPreviews();
+            });
+            document.getElementById('show-corner-nums').addEventListener('change', (e) => {
+                state.showCornerNums = e.target.checked;
+                renderAllPreviews();
+            });
+
+            // Header inputs
+            document.getElementById('custom-title').addEventListener('input', () => renderAllPreviews());
+            document.getElementById('custom-subtitle').addEventListener('input', () => renderAllPreviews());
+
+            // Orientation & Print / SVG
+            document.querySelectorAll('input[name="page-orient"]').forEach(r => {
+                r.addEventListener('change', (e) => {
+                    state.orient = e.target.value;
+                    renderAllPreviews();
+                    playSound('pop');
+                });
+            });
+            document.getElementById('print-btn').addEventListener('click', triggerPrint);
+            document.getElementById('download-svg-btn').addEventListener('click', downloadSVG);
+
+            // Zoom
+            document.getElementById('zoom-in').addEventListener('click', () => {
+                state.zoom = Math.min(1.5, +(state.zoom + 0.1).toFixed(2));
+                renderAllPreviews({ skipPersist: true });
+            });
+            document.getElementById('zoom-out').addEventListener('click', () => {
+                state.zoom = Math.max(0.6, +(state.zoom - 0.1).toFixed(2));
+                renderAllPreviews({ skipPersist: true });
+            });
+            document.getElementById('zoom-reset').addEventListener('click', () => {
+                state.zoom = 1;
+                renderAllPreviews({ skipPersist: true });
+            });
+
+            // 3D Cube Roll & Face Inspector
+            document.getElementById('roll-3d-btn').addEventListener('click', roll3DDie);
+            document.getElementById('cube-3d').addEventListener('click', roll3DDie);
+            document.querySelectorAll('.spin-face-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    spinCubeToFace(Number(btn.dataset.spinFace), false);
+                    playSound('pop');
+                });
+            });
+
+            // Spacebar / Escape shortcuts
+            document.addEventListener('keydown', (e) => {
+                if (e.code === 'Escape') {
+                    document.getElementById('helpModal').classList.add('hidden');
+                    document.getElementById('saveModal').classList.add('hidden');
+                    closeConfirm();
+                    return;
+                }
+                const anyModalOpen = ['helpModal', 'saveModal', 'confirmModal']
+                    .some(id => !document.getElementById(id).classList.contains('hidden'));
+                if (anyModalOpen) return;
+                const tag = (document.activeElement?.tagName || '').toLowerCase();
+                if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
+                if (e.code === 'Space') {
+                    e.preventDefault();
+                    roll3DDie();
+                }
+            });
+
+            // Help modal
+            const helpModal = document.getElementById('helpModal');
+            document.getElementById('help-btn').addEventListener('click', () => helpModal.classList.remove('hidden'));
+            document.getElementById('help-close-btn').addEventListener('click', () => helpModal.classList.add('hidden'));
+            document.getElementById('help-got-it-btn').addEventListener('click', () => helpModal.classList.add('hidden'));
+            helpModal.addEventListener('click', (e) => { if (e.target === helpModal) helpModal.classList.add('hidden'); });
+
+            // Saved dice drawer
+            document.getElementById('saved-sets-toggle-btn').addEventListener('click', () => {
+                document.getElementById('saved-sets-controls').classList.toggle('active');
+                document.getElementById('saved-sets-toggle-icon').classList.toggle('active');
+            });
+            document.getElementById('library-sort').addEventListener('change', renderSavedSetsList);
+            document.getElementById('close-set-btn').addEventListener('click', () => {
+                state.activeSetId = null;
+                updateActiveSetBanner();
+                renderSavedSetsList();
+                persistState();
+            });
+            document.getElementById('new-set-btn').addEventListener('click', () => {
+                openConfirm('Start Blank Die?', 'Reset all faces and clear the active saved die selection?', () => {
+                    loadPreset('blank');
+                });
+            });
+
+            const saveModal = document.getElementById('saveModal');
+            const saveInput = document.getElementById('save-set-input');
+            const confirmSave = () => {
+                const name = saveInput.value.trim();
+                if (!name) { showToast('Please enter a die name.', 'warning'); return; }
+                const ws = getWorkspaceData();
+                const existing = state.activeSetId ? state.savedSets.find(s => s.id === state.activeSetId) : null;
+                const isUpdating = Boolean(existing && existing.name.toLowerCase() === name.toLowerCase());
+                const id = isUpdating ? existing.id : ('dice_' + Date.now());
+                const payload = {
+                    ...ws,
+                    id,
+                    name,
+                    updatedAt: Date.now(),
+                    activeSetId: id
+                };
+                const idx = state.savedSets.findIndex(s => s.id === id);
+                if (idx >= 0) state.savedSets[idx] = payload;
+                else state.savedSets.unshift(payload);
+                state.activeSetId = id;
+                saveModal.classList.add('hidden');
+                persistSavedSets();
+                playSound('pop');
+                showToast(isUpdating ? `Updated "${name}"!` : `Saved "${name}"!`, 'success');
+            };
+
+            document.getElementById('save-set-btn').addEventListener('click', () => {
+                const existing = state.savedSets.find(s => s.id === state.activeSetId);
+                saveInput.value = existing
+                    ? existing.name
+                    : (document.getElementById('custom-title').value.trim() || 'My Custom Die');
+                saveModal.classList.remove('hidden');
+                saveInput.focus();
+            });
+            document.getElementById('save-modal-cancel').addEventListener('click', () => saveModal.classList.add('hidden'));
+            saveModal.addEventListener('click', (e) => { if (e.target === saveModal) saveModal.classList.add('hidden'); });
+            document.getElementById('save-modal-confirm').addEventListener('click', confirmSave);
+            saveInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') { e.preventDefault(); confirmSave(); }
+                if (e.key === 'Escape') saveModal.classList.add('hidden');
+            });
+
+            const confirmModal = document.getElementById('confirmModal');
+            document.getElementById('confirmBtnNo').addEventListener('click', closeConfirm);
+            confirmModal.addEventListener('click', (e) => { if (e.target === confirmModal) closeConfirm(); });
+            document.getElementById('confirmBtnYes').addEventListener('click', () => {
+                if (typeof confirmCallback === 'function') confirmCallback();
+                closeConfirm();
+            });
+        });
+    </script>
+</body>
+
+</html>

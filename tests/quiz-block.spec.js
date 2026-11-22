@@ -10,6 +10,7 @@ test.describe('Quiz Block Student View (?player=1 BroadcastChannel Sync)', () =>
     await context.addInitScript(() => {
       localStorage.setItem('kk_mode', 'sandbox');
     });
+    await context.route(/^https:\/\/fonts\.(googleapis|gstatic)\.com\//, (route) => route.abort());
 
     const hostPage = await context.newPage();
     await hostPage.emulateMedia({ reducedMotion: 'reduce' });
@@ -55,19 +56,24 @@ test.describe('Quiz Block Student View (?player=1 BroadcastChannel Sync)', () =>
     const initialTimerText = (await studentPage.locator('#play-timer-readout').textContent())?.trim();
     await hostPage.locator('#btn-timer').click();
     await expect(hostPage.locator('#btn-timer-label')).toHaveText('Restart Timer');
-    await expect(studentPage.locator('#play-timer-readout')).not.toHaveText(initialTimerText || '', { timeout: 5000 });
+    await studentPage.bringToFront();
+    await expect(studentPage.locator('#play-timer-readout')).not.toHaveText(initialTimerText || '', { timeout: 10000 });
 
     // Host reveals answer -> Student view displays answer
+    await hostPage.bringToFront();
     await hostPage.locator('#play-q-actions button:has-text("Reveal Answer")').click();
     await expect(hostPage.locator('#view-answer')).toBeVisible();
+    await studentPage.bringToFront();
     await expect(studentPage.locator('#view-answer')).toBeVisible({ timeout: 10000 });
     await expect(studentPage.locator('#play-answer')).toHaveText(expectedAnswer);
     await expect(studentPage.locator('#play-award-section')).toBeHidden();
 
     // Host awards points to Team 1 and closes modal -> Student scoreboard & visited tile update
+    await hostPage.bringToFront();
     await hostPage.locator('#play-award-teams button:has-text("+")').first().click();
     await hostPage.locator('#play-continue-btn').click();
 
+    await studentPage.bringToFront();
     await expect(studentPage.locator('#modal-play')).toBeHidden({ timeout: 10000 });
     await expect(studentPage.locator('#scoreboard-container')).toContainText('100');
     await expect(studentPage.locator('#game-board button').first()).toBeDisabled();

@@ -1,0 +1,2546 @@
+<!DOCTYPE html>
+<html lang="en" data-orient="portrait">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Chutes &amp; Ladders Generator — KlassKit</title>
+    <link rel="icon" type="image/x-icon" href="../../../media/icon.ico" />
+    <link rel="icon" type="image/webp" href="../../../media/icon.webp" />
+
+    <!-- Apply saved theme before first paint (syncs with KlassKit Hub) -->
+    <script>
+        (function () {
+            function readTheme(key) {
+                try {
+                    var raw = localStorage.getItem(key);
+                    if (raw == null) return null;
+                    try { return JSON.parse(raw); } catch (e) { return raw; }
+                } catch (e) { return null; }
+            }
+            function syncTheme(changedKey) {
+                var isDark;
+                if (changedKey === 'theme_hub') {
+                    var hubVal = readTheme('theme_hub');
+                    isDark = hubVal ? hubVal === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
+                } else {
+                    var toolTheme = readTheme('theme_chutes-ladders') || readTheme('klasskit-theme');
+                    var hubTheme = readTheme('theme_hub');
+                    isDark = toolTheme
+                        ? toolTheme === 'dark'
+                        : hubTheme
+                            ? hubTheme === 'dark'
+                            : window.matchMedia('(prefers-color-scheme: dark)').matches;
+                }
+                document.documentElement.classList.toggle('dark', isDark);
+                var btn = document.getElementById('theme-btn');
+                if (btn) btn.setAttribute('aria-pressed', String(isDark));
+            }
+            syncTheme();
+            window.addEventListener('storage', function (e) {
+                if (e.key === 'theme_hub' || e.key === 'theme_chutes-ladders' || e.key === 'klasskit-theme') {
+                    syncTheme(e.key);
+                }
+            });
+        })();
+    </script>
+
+    <!-- Supabase Auth & Cloud Persistence -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.105.4"></script>
+    <script src="/supabase.js"></script>
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=JetBrains+Mono:wght@500;700&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet" />
+
+    <!-- Libraries -->
+    <script src="https://unpkg.com/lucide@1.16.0"></script>
+    <script src="https://cdn.jsdelivr.net/npm/tone@14.8.49/build/Tone.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
+
+    <!-- Shared KlassKit Styles -->
+    <link rel="stylesheet" href="../../../css/tailwind.generated.css" />
+    <link rel="stylesheet" href="../../../css/base.css" />
+    <link rel="stylesheet" href="../../../css/components.css" />
+
+    <style>
+        :root {
+            --shadow-color: #1e293b;
+            --line: #1e293b;
+            --ink: #1e293b;
+            --surface: #ffffff;
+            --muted: #64748b;
+            --shadow: #1e293b;
+            --dots: #cbd5e1;
+        }
+
+        .dark {
+            --shadow-color: #000000;
+            --line: #64748b;
+            --ink: #f8fafc;
+            --surface: #0f172a;
+            --muted: #94a3b8;
+            --shadow: #000000;
+            --dots: #334155;
+        }
+
+        body {
+            font-family: 'Nunito', -apple-system, BlinkMacSystemFont, sans-serif;
+            overflow: hidden;
+            -webkit-tap-highlight-color: transparent;
+            user-select: none;
+        }
+
+        @media (max-width: 767px) {
+            body { padding-bottom: 0 !important; }
+        }
+
+        .game-console {
+            border: 6px solid #1e293b;
+            border-radius: 2rem;
+            box-shadow: rgba(30, 41, 59, 0.15) 14px 14px 0px;
+        }
+        .dark .game-console {
+            border-color: #64748b;
+            box-shadow: rgba(0, 0, 0, 0.45) 14px 14px 0px;
+        }
+
+        :where(.btn-chunky) {
+            position: relative;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border: 3px solid var(--line);
+            box-shadow: 0 4px 0 var(--shadow);
+            cursor: pointer;
+            user-select: none;
+            transition: all 0.12s cubic-bezier(0.4, 0, 0.2, 1);
+            transform: translateY(0px);
+        }
+
+        .btn-chunky {
+            font-family: 'Fredoka', sans-serif;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        .btn-chunky:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 0 var(--shadow);
+            filter: brightness(1.04);
+        }
+        .btn-chunky:active:not(:disabled) {
+            transform: translateY(4px);
+            box-shadow: 0 0 0 var(--shadow) !important;
+        }
+        .btn-chunky:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .btn-chunky:focus-visible,
+        input:focus-visible,
+        select:focus-visible,
+        textarea:focus-visible {
+            outline: 3px solid var(--color-blue);
+            outline-offset: 2px;
+        }
+
+        .seg { position: relative; display: block; }
+        .seg input {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            opacity: 0;
+            cursor: pointer;
+        }
+        .seg span {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.3rem;
+            padding: 0.5rem 0.35rem;
+            font-family: 'Nunito', sans-serif;
+            font-size: 10px;
+            font-weight: 800;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            user-select: none;
+            color: #64748b;
+            background: var(--surface);
+            border: 2px solid var(--line);
+            border-radius: 0.75rem;
+            box-shadow: 2px 2px 0 var(--shadow);
+            transition: 0.15s;
+        }
+        .dark .seg span { color: #94a3b8; }
+        .seg span.seg-col { flex-direction: column; gap: 0.25rem; padding: 0.55rem 0.25rem; }
+        .seg:hover input:not(:checked) + span { transform: translateY(-2px); color: var(--ink); }
+        .seg:active input + span { transform: translateY(2px); box-shadow: none; }
+        .seg input:checked + span {
+            background: #1ea7fd;
+            color: #ffffff;
+            border-color: var(--line);
+            box-shadow: 2px 2px 0 var(--shadow);
+            transform: translateY(1px);
+        }
+        .seg input:focus-visible + span {
+            outline: 3px solid var(--color-blue);
+            outline-offset: 2px;
+        }
+
+        .input-chunky {
+            border: 2px solid var(--line);
+            border-radius: 0.75rem;
+            box-shadow: 2px 2px 0 var(--shadow);
+            transition: transform 0.12s, box-shadow 0.12s, border-color 0.12s;
+        }
+        .input-chunky:focus {
+            outline: none;
+            border-color: var(--color-blue);
+        }
+
+        textarea {
+            user-select: text;
+            background-image: radial-gradient(var(--dots) 1.5px, transparent 1.5px);
+            background-size: 12px 12px;
+        }
+
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        .dark .custom-scrollbar::-webkit-scrollbar-thumb { background: #475569; }
+        .custom-scrollbar { scrollbar-color: #cbd5e1 transparent; scrollbar-width: thin; }
+
+        @media (max-width: 767px) {
+            .hidden-panel-mobile { display: none !important; }
+        }
+        @media (min-width: 768px) {
+            .hidden-panel-desktop { margin-left: -20rem; border-right-width: 0px !important; }
+        }
+        @media (min-width: 1024px) {
+            .hidden-panel-desktop { margin-left: -24rem; }
+        }
+
+        #saved-sets-controls { max-height: 0; overflow: hidden; transition: 0.3s ease-out; opacity: 0; }
+        #saved-sets-controls.active { max-height: 260px; opacity: 1; margin-top: 8px; }
+        #saved-sets-toggle-icon.active { transform: rotate(180deg); }
+
+        #svg-wrapper {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: transform 0.2s ease;
+            transform-origin: center center;
+        }
+
+        .canvas-dots {
+            background-image: radial-gradient(var(--dots) 1.8px, transparent 1.8px);
+            background-size: 24px 24px;
+        }
+        #svg-wrapper svg {
+            width: 100%;
+            height: 100%;
+            max-width: 100%;
+            max-height: 100%;
+            filter: drop-shadow(5px 5px 0 var(--shadow));
+            user-select: none;
+        }
+
+        .board-tile {
+            cursor: pointer;
+            transition: filter 0.15s ease;
+        }
+        .board-tile:hover .tile-rect {
+            filter: brightness(0.95);
+        }
+        .link-group {
+            cursor: pointer;
+            transition: opacity 0.15s ease, filter 0.15s ease;
+        }
+        .edit-mode .link-group:hover {
+            filter: drop-shadow(0 0 6px #ff4785);
+            opacity: 0.85;
+        }
+
+        @keyframes pop-in {
+            0% { opacity: 0; transform: scale(0.92); }
+            100% { opacity: 1; transform: scale(1); }
+        }
+        .animate-pop-in { animation: pop-in 0.22s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
+
+        @keyframes dice-shake {
+            0%, 100% { transform: rotate(0deg) scale(1); }
+            20% { transform: rotate(-14deg) scale(1.08); }
+            40% { transform: rotate(12deg) scale(0.96); }
+            60% { transform: rotate(-10deg) scale(1.06); }
+            80% { transform: rotate(8deg) scale(0.98); }
+        }
+        .dice-rolling { animation: dice-shake 0.38s ease-in-out infinite; }
+
+        .token-group {
+            transition: transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        /* STRICT A4 PRINT LAYOUT */
+        @page { size: A4 portrait; margin: 0; }
+
+        #print-area {
+            --line: #1e293b;
+            color: #1e293b;
+        }
+
+        @media print {
+            html, body {
+                display: block !important;
+                width: 210mm !important;
+                height: 297mm !important;
+                padding: 0 !important;
+                margin: 0 !important;
+                overflow: hidden !important;
+                background: #ffffff !important;
+                background-image: none !important;
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+            }
+            html[data-orient="landscape"], html[data-orient="landscape"] body {
+                width: 297mm !important;
+                height: 210mm !important;
+            }
+            body > :not(#print-area) { display: none !important; }
+            #print-area {
+                display: flex !important;
+                flex-direction: column !important;
+                width: 210mm !important;
+                height: 297mm !important;
+                padding: 10mm 12mm !important;
+                margin: 0 auto !important;
+                background: #ffffff !important;
+                overflow: hidden !important;
+                break-after: avoid !important;
+            }
+            html[data-orient="landscape"] #print-area {
+                width: 297mm !important;
+                height: 210mm !important;
+                padding: 8mm 12mm !important;
+            }
+            .print-header {
+                flex-shrink: 0;
+                display: flex;
+                justify-content: space-between;
+                align-items: flex-end;
+                border-bottom: 4px solid #1e293b;
+                padding-bottom: 6px;
+                margin-bottom: 8px;
+            }
+            .print-title h1 {
+                font-family: 'Fredoka', sans-serif;
+                font-size: 2rem;
+                text-transform: uppercase;
+                line-height: 1;
+                margin: 0;
+            }
+            .print-title p {
+                font-family: 'Nunito', sans-serif;
+                font-size: 0.85rem;
+                font-weight: 800;
+                color: #475569;
+                margin: 4px 0 0;
+            }
+            .print-meta {
+                display: flex;
+                flex-direction: column;
+                gap: 6px;
+                min-width: 210px;
+                font-family: 'Nunito', sans-serif;
+                font-size: 0.9rem;
+                font-weight: 700;
+            }
+            .meta-line { display: flex; justify-content: space-between; align-items: flex-end; }
+            .meta-line span:last-child { flex-grow: 1; margin-left: 8px; border-bottom: 2px solid #1e293b; }
+            #print-svg-container {
+                flex: 1 1 0% !important;
+                min-height: 0 !important;
+                width: 100% !important;
+                display: flex !important;
+                justify-content: center !important;
+                align-items: center !important;
+                overflow: hidden !important;
+            }
+            #print-svg-container svg {
+                width: 100% !important;
+                height: 100% !important;
+                max-width: 100% !important;
+                max-height: 100% !important;
+            }
+            #print-footer {
+                flex-shrink: 0;
+                margin-top: 6px;
+                padding-top: 6px;
+                border-top: 2px dashed #cbd5e1;
+                font-family: 'Nunito', sans-serif;
+                font-size: 9pt;
+                font-weight: 700;
+                color: #334155;
+            }
+            #print-key-grid {
+                display: grid;
+                grid-template-columns: repeat(4, minmax(0, 1fr));
+                gap: 3px 10px;
+                font-size: 8.2pt;
+                margin-top: 4px;
+            }
+        }
+    </style>
+    <style id="page-style"></style>
+</head>
+
+<body class="opacity-0 transition-opacity duration-200 h-screen w-screen flex flex-col items-center justify-center p-2 md:p-5 overflow-hidden text-dark dark:text-white">
+
+    <!-- Toast Container -->
+    <div id="toast-container" class="print:hidden fixed bottom-6 left-1/2 -translate-x-1/2 z-[600] flex flex-col gap-2 pointer-events-none"></div>
+
+    <!-- MAIN CONSOLE -->
+    <div class="game-console print:hidden w-full h-full relative flex flex-col md:flex-row overflow-hidden bg-white dark:bg-slate-900">
+
+        <!-- LEFT SIDEBAR: SETUP -->
+        <aside id="sidebar" class="w-full md:w-80 lg:w-96 bg-white dark:bg-slate-900 border-b-4 md:border-b-0 md:border-r-4 border-dark dark:border-slate-500 flex flex-col z-40 transition-all duration-300 h-[48%] md:h-full relative shrink-0">
+
+            <!-- Header -->
+            <div class="p-4 border-b-4 border-dark dark:border-slate-500 bg-blue/10 dark:bg-slate-800/80 flex justify-between items-center gap-2 shrink-0">
+                <div>
+                    <h1 class="text-2xl font-heading font-bold text-dark dark:text-white tracking-wide leading-none">
+                        Chutes &amp; Ladders
+                    </h1>
+                    <p class="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-widest mt-1">KlassKit Board Maker</p>
+                </div>
+                <div class="flex items-center gap-1.5">
+                    <button id="sound-btn" type="button" title="Toggle Sound Effects" aria-pressed="true" class="p-2 bg-green/20 text-dark dark:text-green border-2 border-dark dark:border-slate-500 rounded-lg shadow-hard-sm hover:-translate-y-0.5 active:translate-y-0.5 active:shadow-none transition-all">
+                        <span id="sound-icon-on" class="inline-flex"><i data-lucide="volume-2" class="w-4 h-4"></i></span>
+                        <span id="sound-icon-off" class="hidden inline-flex"><i data-lucide="volume-x" class="w-4 h-4"></i></span>
+                    </button>
+                    <button id="help-btn" type="button" title="How to Use &amp; Classroom Ideas" class="p-2 bg-orange/20 text-orange border-2 border-dark dark:border-slate-500 rounded-lg shadow-hard-sm hover:-translate-y-0.5 active:translate-y-0.5 active:shadow-none transition-all">
+                        <i data-lucide="help-circle" class="w-4 h-4"></i>
+                    </button>
+                    <button id="theme-btn" type="button" aria-pressed="false" aria-label="Toggle dark mode" title="Toggle Dark Mode" class="p-2 bg-white dark:bg-slate-800 text-dark dark:text-white border-2 border-dark dark:border-slate-500 rounded-lg shadow-hard-sm hover:-translate-y-0.5 active:translate-y-0.5 active:shadow-none transition-all">
+                        <i data-lucide="moon" class="w-4 h-4 dark:hidden"></i>
+                        <i data-lucide="sun" class="w-4 h-4 hidden dark:block text-orange"></i>
+                    </button>
+                    <button id="mobile-close-panel" type="button" class="md:hidden p-2 bg-pink/20 text-pink border-2 border-dark dark:border-slate-500 rounded-lg shadow-hard-sm active:translate-y-1 active:shadow-none transition-all">
+                        <i data-lucide="x" class="w-4 h-4"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Scrollable Controls -->
+            <div class="flex-1 p-4 overflow-y-auto custom-scrollbar space-y-5 bg-white dark:bg-slate-900">
+
+                <!-- Active Set Banner -->
+                <div id="active-set-banner" class="hidden animate-pop-in p-2.5 rounded-xl bg-blue/10 dark:bg-blue/20 border-2 border-blue flex items-center justify-between gap-2">
+                    <div class="flex items-center gap-2 min-w-0">
+                        <div class="w-7 h-7 rounded-lg bg-blue text-white flex items-center justify-center shrink-0 border-2 border-dark">
+                            <i data-lucide="bookmark-check" class="w-3.5 h-3.5"></i>
+                        </div>
+                        <div class="min-w-0">
+                            <p class="text-[9px] font-bold uppercase tracking-wider text-blue leading-none">Active Set</p>
+                            <p id="active-set-name" class="text-xs font-extrabold truncate mt-0.5"></p>
+                        </div>
+                    </div>
+                    <button id="close-set-btn" type="button" title="Detach from saved set" class="p-1 rounded-lg hover:bg-blue/20 text-slate-500 dark:text-slate-300">
+                        <i data-lucide="x" class="w-3.5 h-3.5"></i>
+                    </button>
+                </div>
+
+                <!-- Grid Size -->
+                <div class="space-y-2.5">
+                    <div class="flex justify-between items-end">
+                        <label class="text-xs font-bold text-slate-400 uppercase tracking-widest">Board Size</label>
+                        <span id="tile-count-badge" class="font-heading text-sm font-bold text-blue">30 tiles</span>
+                    </div>
+                    <div class="grid grid-cols-5 gap-1.5">
+                        <label class="seg" title="5 columns × 5 rows (25 tiles)"><input type="radio" name="grid-size" value="5x5"><span>25</span></label>
+                        <label class="seg" title="6 columns × 5 rows (30 tiles)"><input type="radio" name="grid-size" value="6x5" checked><span>30</span></label>
+                        <label class="seg" title="6 columns × 6 rows (36 tiles)"><input type="radio" name="grid-size" value="6x6"><span>36</span></label>
+                        <label class="seg" title="7 columns × 6 rows (42 tiles)"><input type="radio" name="grid-size" value="7x6"><span>42</span></label>
+                        <label class="seg" title="8 columns × 6 rows (48 tiles)"><input type="radio" name="grid-size" value="8x6"><span>48</span></label>
+                    </div>
+                </div>
+
+                <!-- Style & Links -->
+                <div class="space-y-3 pt-4 border-t-2 border-dashed border-slate-300 dark:border-slate-700">
+                    <label class="text-xs font-bold text-slate-400 uppercase tracking-widest block">Slides &amp; Theme</label>
+                    <div class="grid grid-cols-3 gap-1.5">
+                        <label class="seg" title="Playground slides &amp; ladders"><input type="radio" name="slide-style" value="chutes" checked><span>🛝 Chutes</span></label>
+                        <label class="seg" title="Cartoon snakes &amp; ladders"><input type="radio" name="slide-style" value="snakes"><span>🐍 Snakes</span></label>
+                        <label class="seg" title="Mix of slides and snakes"><input type="radio" name="slide-style" value="mixed"><span>🎲 Mixed</span></label>
+                    </div>
+
+                    <div class="grid grid-cols-3 gap-1.5">
+                        <label class="seg" title="Bright classroom colors"><input type="radio" name="color-theme" value="vibrant" checked><span>Vibrant</span></label>
+                        <label class="seg" title="Soft pastel tones"><input type="radio" name="color-theme" value="pastel"><span>Pastel</span></label>
+                        <label class="seg" title="Ink-saving Black &amp; White"><input type="radio" name="color-theme" value="bw"><span>B&amp;W Print</span></label>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-3 pt-1">
+                        <div>
+                            <div class="flex justify-between text-[11px] font-bold mb-1">
+                                <span class="text-green">🪜 Ladders</span>
+                                <output id="ladder-count-val" class="font-heading text-dark dark:text-white">4</output>
+                            </div>
+                            <input type="range" id="ladder-count" min="1" max="7" value="4" class="w-full h-2.5 bg-slate-100 dark:bg-slate-800 rounded-full appearance-none cursor-pointer accent-green border-2 border-dark dark:border-slate-500">
+                        </div>
+                        <div>
+                            <div class="flex justify-between text-[11px] font-bold mb-1">
+                                <span class="text-pink">🛝 Chutes</span>
+                                <output id="chute-count-val" class="font-heading text-dark dark:text-white">4</output>
+                            </div>
+                            <input type="range" id="chute-count" min="1" max="7" value="4" class="w-full h-2.5 bg-slate-100 dark:bg-slate-800 rounded-full appearance-none cursor-pointer accent-pink border-2 border-dark dark:border-slate-500">
+                        </div>
+                    </div>
+
+                    <div class="flex gap-2">
+                        <button id="shuffle-links-btn" type="button" class="flex-1 py-1.5 px-2.5 bg-slate-100 dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-xl text-[11px] font-extrabold shadow-hard-sm hover:-translate-y-0.5 active:translate-y-0.5 active:shadow-none transition-all flex items-center justify-center gap-1.5">
+                            <i data-lucide="shuffle" class="w-3.5 h-3.5 text-blue"></i> New Links
+                        </button>
+                        <button id="sidebar-edit-links-btn" type="button" class="flex-1 py-1.5 px-2.5 bg-orange/15 text-dark dark:text-orange border-2 border-dark dark:border-slate-500 rounded-xl text-[11px] font-extrabold shadow-hard-sm hover:-translate-y-0.5 active:translate-y-0.5 active:shadow-none transition-all flex items-center justify-center gap-1.5">
+                            <i data-lucide="pencil-ruler" class="w-3.5 h-3.5"></i> Draw Custom
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Worksheet Header -->
+                <div class="space-y-2 pt-4 border-t-2 border-dashed border-slate-300 dark:border-slate-700">
+                    <label class="text-xs font-bold text-slate-400 uppercase tracking-widest block">Worksheet Header</label>
+                    <input id="custom-title" type="text" value="Chutes &amp; Ladders" placeholder="Board Title" class="w-full p-2 bg-slate-50 dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-lg text-dark dark:text-white font-bold text-xs focus:outline-none focus:border-blue">
+                    <input id="custom-subtitle" type="text" value="Roll the die, move your counter, and answer the square! Climb ladders up and slide down chutes." placeholder="Student instructions..." class="w-full p-2 bg-slate-50 dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-lg text-dark dark:text-white font-semibold text-xs focus:outline-none focus:border-blue">
+                </div>
+
+                <!-- Quick Presets -->
+                <div class="pt-4 border-t-2 border-dashed border-slate-300 dark:border-slate-700">
+                    <label class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2.5 block">Quick Presets</label>
+                    <div class="flex gap-1.5 flex-wrap">
+                        <button type="button" data-preset="past_simple" class="preset-btn px-2.5 py-1.5 bg-white dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-full text-xs font-bold shadow-hard-sm hover:-translate-y-0.5 active:translate-y-0.5 active:shadow-none transition-all">🕰️ Past Simple</button>
+                        <button type="button" data-preset="speaking" class="preset-btn px-2.5 py-1.5 bg-white dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-full text-xs font-bold shadow-hard-sm hover:-translate-y-0.5 active:translate-y-0.5 active:shadow-none transition-all">🗣️ Speaking</button>
+                        <button type="button" data-preset="opposites" class="preset-btn px-2.5 py-1.5 bg-white dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-full text-xs font-bold shadow-hard-sm hover:-translate-y-0.5 active:translate-y-0.5 active:shadow-none transition-all">🔄 Opposites</button>
+                        <button type="button" data-preset="classic" class="preset-btn px-2.5 py-1.5 bg-white dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-full text-xs font-bold shadow-hard-sm hover:-translate-y-0.5 active:translate-y-0.5 active:shadow-none transition-all">🎲 Classic Blank</button>
+                    </div>
+                </div>
+
+                <!-- Square Prompts Input -->
+                <div class="space-y-2 pt-4 border-t-2 border-dashed border-slate-300 dark:border-slate-700">
+                    <div class="flex items-center justify-between gap-2">
+                        <label for="prompt-input" class="text-xs font-bold text-slate-400 uppercase tracking-widest">Square Prompts</label>
+                        <div class="flex items-center gap-2">
+                            <span id="prompt-count-pill" class="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 border-2 border-dark dark:border-slate-500">28 prompts</span>
+                            <button type="button" id="clear-prompts-btn" class="text-[11px] font-extrabold text-pink hover:underline">Clear</button>
+                        </div>
+                    </div>
+                    <p class="text-[10px] font-bold text-slate-400 leading-snug">One per line. Optional answer key: <code class="font-mono bg-slate-100 dark:bg-slate-800 px-1 rounded text-blue">prompt | answer</code></p>
+                    <textarea id="prompt-input" spellcheck="false" class="w-full h-36 p-3 bg-slate-50 dark:bg-slate-800 text-dark dark:text-white font-mono text-xs border-2 border-dark dark:border-slate-500 rounded-xl focus:border-blue focus:ring-0 outline-none resize-none shadow-inner-hard" placeholder="go | went&#10;eat | ate&#10;Name 3 fruits!"></textarea>
+                    <label class="flex items-center gap-2 cursor-pointer text-xs font-bold text-slate-500 dark:text-slate-300">
+                        <input type="checkbox" id="shuffle-prompts" class="w-4 h-4 shrink-0 accent-blue cursor-pointer">
+                        <span>Shuffle prompts when building</span>
+                    </label>
+                </div>
+
+                <!-- Primary Build CTA -->
+                <button id="build-btn" type="button" class="w-full btn-chunky bg-green text-dark py-3 rounded-xl text-lg tracking-wide flex items-center justify-center gap-2">
+                    <i data-lucide="sparkles" class="w-5 h-5"></i> BUILD BOARD
+                </button>
+            </div>
+
+            <!-- Footer Print Actions -->
+            <div class="p-3 border-t-4 border-dark dark:border-slate-500 bg-slate-100 dark:bg-slate-800 space-y-2 shrink-0">
+                <div class="grid grid-cols-2 gap-2">
+                    <label class="seg"><input type="radio" name="page-orient" value="portrait" checked><span><i data-lucide="rectangle-vertical" class="w-3.5 h-3.5"></i> Portrait</span></label>
+                    <label class="seg"><input type="radio" name="page-orient" value="landscape"><span><i data-lucide="rectangle-horizontal" class="w-3.5 h-3.5"></i> Landscape</span></label>
+                </div>
+                <div class="flex gap-2">
+                    <button id="print-handout-btn" type="button" class="flex-1 btn-chunky bg-blue text-white py-2 rounded-lg text-xs border-2 border-dark flex items-center justify-center gap-1.5" title="Print Student A4 Board">
+                        <i data-lucide="printer" class="w-4 h-4"></i> HANDOUT
+                    </button>
+                    <button id="print-key-btn" type="button" class="flex-1 btn-chunky bg-white dark:bg-slate-900 text-dark dark:text-white py-2 rounded-lg text-xs border-2 border-dark dark:border-slate-500 flex items-center justify-center gap-1.5" title="Print Teacher Answer Key">
+                        <i data-lucide="key-round" class="w-4 h-4"></i> KEY
+                    </button>
+                </div>
+            </div>
+        </aside>
+
+        <!-- MAIN WORKSPACE -->
+        <main class="flex-1 relative h-[52%] md:h-full bg-slate-50 dark:bg-slate-950 flex flex-col lg:flex-row overflow-hidden">
+
+            <!-- Subtle Dotted Grid -->
+            <div class="canvas-dots absolute inset-0 opacity-60 dark:opacity-50 pointer-events-none"></div>
+
+            <!-- CENTER BOARD CANVAS -->
+            <div class="flex-1 h-full relative flex flex-col items-center justify-center p-3 md:p-5 overflow-hidden">
+
+                <!-- Top-Left Floating Toolbar -->
+                <div class="absolute top-4 left-4 z-20 flex flex-wrap items-center gap-2">
+                    <button id="toggle-sidebar-btn" type="button" class="p-2 bg-white/90 dark:bg-slate-800/90 backdrop-blur-md border-2 border-dark dark:border-slate-500 rounded-lg shadow-hard-sm hover:-translate-y-0.5 active:translate-y-0.5 active:shadow-none transition-all text-slate-700 dark:text-slate-200" title="Toggle Setup Panel">
+                        <i data-lucide="settings" class="w-5 h-5"></i>
+                    </button>
+                    <button id="edit-links-btn" type="button" aria-pressed="false" class="px-2.5 py-2 bg-white/90 dark:bg-slate-800/90 backdrop-blur-md border-2 border-dark dark:border-slate-500 rounded-lg shadow-hard-sm hover:-translate-y-0.5 active:translate-y-0.5 active:shadow-none transition-all text-dark dark:text-white text-xs font-extrabold flex items-center gap-1.5" title="Click two tiles to draw a Ladder or Chute">
+                        <span id="edit-links-icon" class="inline-flex text-orange"><i data-lucide="pencil-ruler" class="w-4 h-4"></i></span>
+                        <span class="hidden sm:inline">Edit Links</span>
+                    </button>
+                    <button id="answer-toggle-btn" type="button" aria-pressed="false" class="p-2 bg-white/90 dark:bg-slate-800/90 backdrop-blur-md border-2 border-dark dark:border-slate-500 rounded-lg shadow-hard-sm hover:-translate-y-0.5 active:translate-y-0.5 active:shadow-none transition-all text-orange" title="Toggle Teacher Answers on Board">
+                        <i data-lucide="eye" class="w-5 h-5"></i>
+                    </button>
+                    <button id="reset-game-btn" type="button" class="p-2 bg-white/90 dark:bg-slate-800/90 backdrop-blur-md border-2 border-dark dark:border-slate-500 rounded-lg shadow-hard-sm hover:-translate-y-0.5 active:translate-y-0.5 active:shadow-none transition-all text-pink" title="Reset Player Counters to Start">
+                        <i data-lucide="rotate-ccw" class="w-5 h-5"></i>
+                    </button>
+                </div>
+
+                <!-- Edit Links Helper Banner -->
+                <div id="edit-links-banner" class="hidden absolute top-16 left-1/2 -translate-x-1/2 z-20 px-4 py-2 rounded-2xl bg-orange text-dark border-3 border-dark shadow-hard-md text-xs font-extrabold flex items-center gap-2 animate-pop-in">
+                    <i data-lucide="mouse-pointer-click" class="w-4 h-4 shrink-0"></i>
+                    <span id="edit-links-hint">Click a START square, then an END square (low→high = Ladder, high→low = Chute). Click any ladder/chute to remove it.</span>
+                    <button id="done-edit-links-btn" type="button" class="ml-1 px-2.5 py-0.5 bg-dark text-white rounded-lg text-[10px] font-heading uppercase">Done</button>
+                </div>
+
+                <!-- Board SVG Container -->
+                <div id="svg-wrapper" class="relative z-10 w-full h-full pt-10 pb-8 flex items-center justify-center"></div>
+
+                <!-- Bottom-Right Zoom Controls -->
+                <div class="absolute bottom-4 right-4 z-20 flex gap-2">
+                    <button id="zoom-out" type="button" title="Zoom Out" class="p-2 bg-white/90 dark:bg-slate-800/90 backdrop-blur-md border-2 border-dark dark:border-slate-500 rounded-lg shadow-hard-sm hover:bg-slate-50 dark:hover:bg-slate-700 active:translate-y-0.5 active:shadow-none">
+                        <i data-lucide="minus" class="w-4 h-4"></i>
+                    </button>
+                    <button id="zoom-reset" type="button" title="Reset Zoom" class="px-2.5 py-2 bg-white/90 dark:bg-slate-800/90 backdrop-blur-md border-2 border-dark dark:border-slate-500 rounded-lg shadow-hard-sm text-[11px] font-mono font-bold hover:bg-slate-50 dark:hover:bg-slate-700 active:translate-y-0.5 active:shadow-none">
+                        100%
+                    </button>
+                    <button id="zoom-in" type="button" title="Zoom In" class="p-2 bg-white/90 dark:bg-slate-800/90 backdrop-blur-md border-2 border-dark dark:border-slate-500 rounded-lg shadow-hard-sm hover:bg-slate-50 dark:hover:bg-slate-700 active:translate-y-0.5 active:shadow-none">
+                        <i data-lucide="plus" class="w-4 h-4"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- RIGHT PANEL: LIVE PLAY & SAVED SETS -->
+            <div id="play-controls" class="w-full lg:w-80 h-[40%] lg:h-full bg-white dark:bg-slate-900 border-t-4 lg:border-t-0 lg:border-l-4 border-dark dark:border-slate-500 flex flex-col z-10 shrink-0">
+
+                <!-- Panel Header -->
+                <div class="p-3 bg-pink border-b-4 border-dark dark:border-slate-500 text-white font-heading font-bold text-lg tracking-wide flex items-center justify-between gap-2 shrink-0">
+                    <div class="flex items-center gap-2">
+                        <i data-lucide="dices" class="w-5 h-5"></i> PLAY &amp; DICE
+                    </div>
+                    <div class="flex items-center gap-1 bg-white/20 px-2.5 py-0.5 rounded-full text-xs font-extrabold">
+                        <span id="turn-badge">Team 1's Turn</span>
+                    </div>
+                </div>
+
+                <!-- Scrollable Play Controls -->
+                <div class="flex-1 overflow-y-auto custom-scrollbar p-3.5 space-y-3.5">
+
+                    <!-- Player Count + Roster -->
+                    <div class="space-y-2">
+                        <div class="flex items-center justify-between">
+                            <span class="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest">Players / Teams</span>
+                            <div class="flex gap-1">
+                                <button type="button" data-pcount="2" class="pcount-btn px-2 py-0.5 rounded-md border-2 border-dark text-[10px] font-extrabold bg-blue text-white">2P</button>
+                                <button type="button" data-pcount="3" class="pcount-btn px-2 py-0.5 rounded-md border-2 border-dark text-[10px] font-extrabold bg-white dark:bg-slate-800">3P</button>
+                                <button type="button" data-pcount="4" class="pcount-btn px-2 py-0.5 rounded-md border-2 border-dark text-[10px] font-extrabold bg-white dark:bg-slate-800">4P</button>
+                            </div>
+                        </div>
+                        <div id="players-list" class="grid grid-cols-2 gap-1.5"></div>
+                    </div>
+
+                    <!-- Dice Roller Box -->
+                    <div class="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/80 border-3 border-dark dark:border-slate-500 shadow-hard-sm flex items-center gap-3">
+                        <div id="dice-face" class="w-16 h-16 shrink-0 bg-white border-3 border-dark rounded-2xl shadow-hard-sm flex items-center justify-center cursor-pointer" title="Click to Roll">
+                            <!-- SVG die pips rendered by JS -->
+                        </div>
+                        <div class="flex-1 min-w-0 space-y-1.5">
+                            <button id="roll-dice-btn" type="button" class="w-full btn-chunky bg-orange text-dark py-2 rounded-xl text-sm flex items-center justify-center gap-1.5">
+                                <i data-lucide="dices" class="w-4 h-4"></i> ROLL DIE
+                            </button>
+                            <p id="game-status-msg" class="text-[11px] font-extrabold text-slate-500 dark:text-slate-300 leading-tight truncate">
+                                Ready! Press Roll or Spacebar.
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- Active Square Prompt Card -->
+                    <div id="active-prompt-card" class="p-3.5 rounded-2xl bg-blue/10 dark:bg-slate-800 border-2 border-dark dark:border-slate-500 space-y-2">
+                        <div class="flex items-center justify-between gap-2">
+                            <span id="card-tile-label" class="text-[10px] font-extrabold uppercase tracking-widest px-2 py-0.5 rounded-full bg-dark text-white">Square #1</span>
+                            <span id="card-link-badge" class="hidden text-[10px] font-extrabold px-2 py-0.5 rounded-full border border-dark"></span>
+                        </div>
+                        <p id="card-prompt-text" class="font-heading text-base font-bold text-dark dark:text-white leading-snug">
+                            Roll the die or click any square on the board to preview its prompt!
+                        </p>
+                        <div id="card-answer-row" class="hidden pt-1 border-t border-dashed border-slate-300 dark:border-slate-600 flex items-center justify-between gap-2">
+                            <span id="card-answer-text" class="text-xs font-extrabold text-green hidden"></span>
+                            <button id="card-reveal-btn" type="button" class="text-[11px] font-extrabold text-blue hover:underline flex items-center gap-1">
+                                <i data-lucide="eye" class="w-3.5 h-3.5"></i> Reveal Answer
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Board Stats Summary -->
+                    <div class="grid grid-cols-2 gap-2 text-center">
+                        <div class="p-2 rounded-xl bg-green/10 border-2 border-dark dark:border-slate-600">
+                            <p class="text-[9px] font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400">Ladders</p>
+                            <p id="stat-ladders" class="font-heading text-lg font-bold text-green leading-tight">4</p>
+                        </div>
+                        <div class="p-2 rounded-xl bg-pink/10 border-2 border-dark dark:border-slate-600">
+                            <p class="text-[9px] font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400">Chutes</p>
+                            <p id="stat-chutes" class="font-heading text-lg font-bold text-pink leading-tight">4</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Saved Sets Collapsible Drawer -->
+                <div class="p-3 border-t-2 border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/40 shrink-0">
+                    <button id="saved-sets-toggle-btn" type="button" class="w-full flex items-center justify-between text-[10px] font-extrabold text-slate-400 uppercase tracking-widest mb-1 hover:text-dark dark:hover:text-white">
+                        <span>Saved Boards (<span id="saved-count">0</span>)</span>
+                        <span id="saved-sets-toggle-icon" class="inline-flex transition-transform"><i data-lucide="chevron-up" class="w-3.5 h-3.5"></i></span>
+                    </button>
+                    <div id="saved-sets-controls" class="space-y-2">
+                        <div class="flex items-center gap-1.5">
+                            <select id="library-sort" aria-label="Sort saved boards" class="flex-1 p-1.5 bg-white dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-lg text-dark dark:text-white font-bold text-[10px] focus:outline-none">
+                                <option value="recent">Recent</option>
+                                <option value="alpha">A–Z</option>
+                            </select>
+                            <button id="new-set-btn" type="button" title="New Blank Board" class="p-1.5 bg-white dark:bg-slate-800 text-dark dark:text-white border-2 border-dark dark:border-slate-500 rounded-lg hover:brightness-95 font-bold text-[10px] flex items-center gap-1">
+                                <i data-lucide="plus" class="w-3 h-3"></i> NEW
+                            </button>
+                            <button id="save-set-btn" type="button" title="Save Current Board" class="p-1.5 bg-blue text-white border-2 border-dark rounded-lg hover:brightness-110 font-bold text-[10px] flex items-center gap-1">
+                                <i data-lucide="save" class="w-3 h-3"></i> SAVE
+                            </button>
+                        </div>
+                        <div id="library-list" class="space-y-1.5 max-h-32 overflow-y-auto custom-scrollbar pr-1"></div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- TILE PROMPT SPOTLIGHT MODAL (Smartboard Friendly) -->
+    <div id="tileModal" class="hidden fixed inset-0 bg-dark/60 backdrop-blur-md z-[500] flex items-center justify-center p-4">
+        <div class="bg-white dark:bg-slate-800 w-full max-w-md rounded-[2rem] border-4 border-dark dark:border-slate-500 shadow-hard-lg animate-pop-in overflow-hidden">
+            <div class="p-4 border-b-4 border-dark dark:border-slate-500 bg-blue/15 flex items-center justify-between">
+                <div class="flex items-center gap-2.5">
+                    <span id="modal-tile-num" class="w-10 h-10 rounded-xl bg-blue text-white font-heading font-bold text-lg flex items-center justify-center border-3 border-dark shadow-hard-sm">1</span>
+                    <div>
+                        <h3 class="font-heading text-lg font-bold text-dark dark:text-white leading-none">Square Prompt</h3>
+                        <p id="modal-tile-sub" class="text-[11px] font-bold text-slate-500 dark:text-slate-400 mt-0.5">Classroom Spotlight</p>
+                    </div>
+                </div>
+                <button id="tile-modal-close" type="button" class="btn-chunky w-9 h-9 rounded-xl bg-white dark:bg-slate-700 text-dark dark:text-white">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
+            </div>
+            <div class="p-6 text-center space-y-4">
+                <p id="modal-prompt-text" class="font-heading text-2xl font-bold text-dark dark:text-white leading-snug"></p>
+                <div id="modal-answer-box" class="hidden p-3 rounded-2xl bg-green/15 border-2 border-dark">
+                    <p class="text-[10px] font-extrabold uppercase tracking-widest text-slate-500">Answer</p>
+                    <p id="modal-answer-val" class="font-heading text-xl font-bold text-dark dark:text-white mt-0.5"></p>
+                </div>
+                <div class="flex gap-2 justify-center pt-1">
+                    <button id="modal-reveal-btn" type="button" class="hidden btn-chunky px-5 py-2.5 rounded-xl text-xs bg-orange text-dark gap-1.5">
+                        <i data-lucide="eye" class="w-4 h-4"></i> Show Answer
+                    </button>
+                    <button id="tile-modal-ok" type="button" class="btn-chunky px-6 py-2.5 rounded-xl text-xs bg-green text-dark">Got It!</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- HELP MODAL -->
+    <div id="helpModal" class="hidden fixed inset-0 bg-dark/60 backdrop-blur-md z-[500] flex items-center justify-center p-4">
+        <div class="bg-white dark:bg-slate-800 w-full max-w-lg rounded-[2rem] border-4 border-dark dark:border-slate-500 shadow-hard-lg animate-pop-in overflow-hidden">
+            <div class="p-5 border-b-4 border-dark dark:border-slate-500 bg-orange/15 flex items-center justify-between gap-3">
+                <div class="flex items-center gap-3">
+                    <div class="w-11 h-11 rounded-2xl bg-orange flex items-center justify-center border-3 border-dark shadow-hard-sm shrink-0">
+                        <i data-lucide="lightbulb" class="w-6 h-6 text-dark"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-xl font-heading font-bold text-dark dark:text-white uppercase leading-tight">How to Use Chutes &amp; Ladders</h3>
+                        <p class="text-xs font-semibold text-slate-500 dark:text-slate-400">Printable A4 Boards &amp; Live Smartboard Play</p>
+                    </div>
+                </div>
+                <button id="help-close-btn" type="button" class="btn-chunky w-9 h-9 rounded-xl bg-white dark:bg-slate-700 text-dark dark:text-white">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
+            </div>
+            <div class="p-5 space-y-3.5 text-sm font-semibold text-slate-600 dark:text-slate-300 max-h-[68vh] overflow-y-auto custom-scrollbar">
+                <div class="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-900 border-2 border-dark dark:border-slate-600">
+                    <h4 class="font-heading text-sm uppercase text-dark dark:text-white mb-1 flex items-center gap-1.5">
+                        <i data-lucide="pencil-ruler" class="w-4 h-4 text-orange"></i> 1. Customize Ladders &amp; Chutes
+                    </h4>
+                    <p class="text-xs leading-relaxed">Click <b>New Links</b> to auto-generate balanced paths, or click <b>Edit Links</b> and tap any two squares on the board: low → high draws a <b>Ladder</b>, high → low draws a <b>Chute/Snake</b>. Tap any existing link in Edit Mode to delete it.</p>
+                </div>
+                <div class="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-900 border-2 border-dark dark:border-slate-600">
+                    <h4 class="font-heading text-sm uppercase text-dark dark:text-white mb-1 flex items-center gap-1.5">
+                        <i data-lucide="printer" class="w-4 h-4 text-blue"></i> 2. Printable A4 Handouts &amp; Keys
+                    </h4>
+                    <p class="text-xs leading-relaxed">Add prompts one per line (use <code class="font-mono text-blue">go | went</code> for auto Answer Keys). Switch to <b>B&amp;W Print</b> to save ink, pick Portrait or Landscape, and print a crisp A4 <b>HANDOUT</b> or <b>KEY</b>.</p>
+                </div>
+                <div class="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-900 border-2 border-dark dark:border-slate-600">
+                    <h4 class="font-heading text-sm uppercase text-dark dark:text-white mb-1 flex items-center gap-1.5">
+                        <i data-lucide="dices" class="w-4 h-4 text-green"></i> 3. Live Smartboard Play
+                    </h4>
+                    <p class="text-xs leading-relaxed">Collapse the left sidebar, pick 2–4 teams, and press <b>ROLL DIE</b> (or Spacebar). Counters hop square by square, automatically climb ladders or slide down chutes, and pop up the square's prompt card!</p>
+                </div>
+                <div class="flex justify-end pt-1">
+                    <button id="help-got-it-btn" type="button" class="btn-chunky px-6 py-2.5 rounded-xl text-xs bg-green text-dark">Got It!</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- SAVE SET MODAL -->
+    <div id="saveModal" class="hidden fixed inset-0 bg-dark/60 backdrop-blur-md z-[500] flex items-center justify-center p-4">
+        <div class="bg-white dark:bg-slate-800 w-full max-w-sm rounded-[2rem] border-4 border-dark dark:border-slate-500 shadow-hard-lg animate-pop-in overflow-hidden">
+            <div class="p-5 border-b-4 border-dark dark:border-slate-500 bg-blue/10 flex items-center gap-3">
+                <div class="w-11 h-11 rounded-2xl bg-blue flex items-center justify-center border-3 border-dark shadow-hard-sm shrink-0">
+                    <i data-lucide="bookmark-plus" class="w-5 h-5 text-white"></i>
+                </div>
+                <div>
+                    <h3 class="text-lg font-heading font-bold text-dark dark:text-white uppercase leading-tight">Save Board</h3>
+                    <p class="text-xs font-semibold text-slate-500 dark:text-slate-400">Store this game in your library</p>
+                </div>
+            </div>
+            <div class="p-5 space-y-4">
+                <div>
+                    <label for="save-set-input" class="text-[11px] font-extrabold uppercase tracking-wider text-slate-400 block mb-1.5">Board Name</label>
+                    <input id="save-set-input" type="text" placeholder="e.g., Unit 4 Past Simple Review" class="input-chunky w-full px-3.5 py-2.5 text-sm font-bold bg-slate-50 dark:bg-slate-900 text-dark dark:text-white">
+                </div>
+                <div class="flex gap-3">
+                    <button id="save-modal-cancel" type="button" class="flex-1 btn-chunky bg-white dark:bg-slate-700 text-dark dark:text-white py-2.5 rounded-xl text-xs">Cancel</button>
+                    <button id="save-modal-confirm" type="button" class="flex-1 btn-chunky bg-green text-dark py-2.5 rounded-xl text-xs">Save Board</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- CONFIRM MODAL -->
+    <div id="confirmModal" class="hidden fixed inset-0 bg-dark/60 backdrop-blur-md z-[500] flex items-center justify-center p-4">
+        <div class="bg-white dark:bg-slate-800 w-full max-w-sm rounded-[2rem] border-4 border-dark dark:border-slate-500 shadow-hard-lg animate-pop-in overflow-hidden">
+            <div class="p-6 text-center">
+                <div class="w-14 h-14 rounded-2xl bg-pink/15 flex items-center justify-center border-3 border-dark mx-auto mb-3">
+                    <i data-lucide="alert-triangle" class="w-7 h-7 text-pink"></i>
+                </div>
+                <h3 id="confirmTitle" class="text-xl font-heading font-bold text-dark dark:text-white uppercase mb-1.5">Are you sure?</h3>
+                <p id="confirmMessage" class="text-sm font-semibold text-slate-500 dark:text-slate-400 mb-5">This action cannot be undone.</p>
+                <div class="flex gap-3">
+                    <button id="confirmBtnNo" type="button" class="flex-1 btn-chunky bg-white dark:bg-slate-700 text-dark dark:text-white py-2.5 rounded-xl text-xs">Cancel</button>
+                    <button id="confirmBtnYes" type="button" class="flex-1 btn-chunky bg-pink text-white py-2.5 rounded-xl text-xs">Yes, Continue</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- STRICT A4 PRINT LAYOUT -->
+    <div id="print-area" class="hidden">
+        <div class="print-header">
+            <div class="print-title">
+                <h1 id="print-heading">Chutes &amp; Ladders</h1>
+                <p id="print-subheading">Roll the die, move your counter, and answer the square! Climb ladders up and slide down chutes.</p>
+            </div>
+            <div class="print-meta">
+                <div class="meta-line"><span>Name:</span><span></span></div>
+                <div class="meta-line"><span>Date:</span><span></span></div>
+            </div>
+        </div>
+        <div id="print-svg-container"></div>
+        <div id="print-footer">
+            <div id="print-legend" class="flex justify-between items-center">
+                <span>🎲 START at 1 ➔ Race to FINISH! &nbsp;|&nbsp; 🪜 Ladders go UP &nbsp;|&nbsp; 🛝 Chutes go DOWN</span>
+                <span class="font-heading">KlassKit</span>
+            </div>
+            <div id="print-key-grid" class="hidden"></div>
+        </div>
+    </div>
+
+    <script>
+        // ============================
+        // PRESETS & CONSTANTS
+        // ============================
+        const PRESETS = {
+            past_simple: {
+                title: 'Past Simple Chutes & Ladders',
+                subtitle: 'Roll the die, move your counter, and say the past simple form of the verb!',
+                prompts: [
+                    'go | went', 'eat | ate', 'see | saw', 'buy | bought',
+                    'take | took', 'make | made', 'come | came', 'give | gave',
+                    'find | found', 'write | wrote', 'drink | drank', 'sleep | slept',
+                    'run | ran', 'read | read', 'speak | spoke', 'have | had',
+                    'do | did', 'fly | flew', 'swim | swam', 'drive | drove',
+                    'sing | sang', 'think | thought', 'know | knew', 'wear | wore',
+                    'draw | drew', 'teach | taught', 'catch | caught', 'win | won',
+                    'begin | began', 'break | broke', 'bring | brought', 'build | built',
+                    'choose | chose', 'feel | felt', 'forget | forgot', 'get | got',
+                    'hear | heard', 'keep | kept', 'leave | left', 'meet | met',
+                    'pay | paid', 'put | put', 'ride | rode', 'send | sent',
+                    'sit | sat', 'stand | stood'
+                ]
+            },
+            speaking: {
+                title: 'Talk & Climb Board Game',
+                subtitle: 'Land on a square and speak for 15 seconds to answer the prompt!',
+                prompts: [
+                    'Name 3 animals', 'Favorite food?', 'What did you eat today?', 'Spell your name',
+                    'Name 3 colors', 'Describe your best friend', 'Favorite movie?', 'Count 10 to 1',
+                    'What is the weather?', 'Name 3 sports', 'Your dream job?', 'Ask a friend a question',
+                    'Favorite weekend activity', 'Name 3 countries', 'What are you wearing?', 'Say a tongue twister',
+                    'Favorite school subject', 'Name 3 fruits', 'What makes you happy?', 'Act like an animal!',
+                    'Favorite season?', 'Name 3 jobs', 'What time do you wake up?', 'Describe your bedroom',
+                    'Favorite superhero?', 'Name 3 drinks', 'Sing 1 line of a song', 'What did you do yesterday?',
+                    'Favorite holiday?', 'Name 3 hobbies', 'Cats or dogs? Why?', 'Say 3 adjectives',
+                    'Favorite book?', 'Name 3 vehicles', 'What can you cook?', 'Tell a quick joke',
+                    'Beach or mountains?', 'Name 3 clothes', 'Favorite ice cream?', 'Say 3 verbs',
+                    'Your lucky number?', 'Name 3 body parts', 'Pizza or burger?', 'Describe your teacher',
+                    'Morning or night?', 'Name 3 places in town'
+                ]
+            },
+            opposites: {
+                title: 'Opposites Chutes & Ladders',
+                subtitle: 'Say the opposite word when you land on a square!',
+                prompts: [
+                    'hot | cold', 'big | small', 'fast | slow', 'happy | sad',
+                    'tall | short', 'old | young', 'heavy | light', 'loud | quiet',
+                    'clean | dirty', 'hard | soft', 'rich | poor', 'early | late',
+                    'open | closed', 'full | empty', 'day | night', 'bright | dark',
+                    'strong | weak', 'wet | dry', 'near | far', 'easy | difficult',
+                    'safe | dangerous', 'cheap | expensive', 'wide | narrow', 'deep | shallow',
+                    'brave | shy', 'polite | rude', 'sweet | sour', 'sharp | dull',
+                    'smooth | rough', 'thick | thin', 'tight | loose', 'wild | tame',
+                    'noisy | peaceful', 'active | lazy', 'ancient | modern', 'bitter | sweet',
+                    'clever | silly', 'fresh | stale', 'giant | tiny', 'honest | dishonest',
+                    'indoor | outdoor', 'kind | mean', 'major | minor', 'north | south',
+                    'push | pull', 'win | lose'
+                ]
+            },
+            classic: {
+                title: 'Chutes & Ladders',
+                subtitle: 'Roll the die and race to the top! Climb ladders up and slide down chutes.',
+                prompts: []
+            }
+        };
+
+        const PLAYER_COLORS = [
+            { name: 'Team 1', color: '#ff4785', light: '#ffe4ed', label: 'P1' },
+            { name: 'Team 2', color: '#1ea7fd', light: '#e0f2fe', label: 'P2' },
+            { name: 'Team 3', color: '#00d063', light: '#dcfce7', label: 'P3' },
+            { name: 'Team 4', color: '#ff7e33', light: '#ffedd5', label: 'P4' }
+        ];
+
+        const TILE_PALETTES = {
+            vibrant: ['#fef08a', '#bae6fd', '#fbcfe8', '#bbf7d0', '#fed7aa', '#ddd6fe'],
+            pastel:  ['#fef9c3', '#e0f2fe', '#fce7f3', '#dcfce7', '#ffedd5', '#ede9fe'],
+            bw:      ['#ffffff', '#f1f5f9', '#ffffff', '#f1f5f9', '#ffffff', '#f1f5f9']
+        };
+
+        const WS_STORAGE_KEY = 'klasskit_chutes_ladders_v1';
+        const SETS_STORAGE_KEY = 'klasskit_chutes_ladders_sets_v1';
+        const CLOUD_TOOL_KEY = 'chutes-ladders';
+        const THEME_KEY = 'theme_chutes-ladders';
+
+        // ============================
+        // APP STATE
+        // ============================
+        const state = {
+            cols: 6,
+            rows: 5,
+            totalTiles: 30,
+            slideStyle: 'chutes',      // 'chutes' | 'snakes' | 'mixed'
+            colorTheme: 'vibrant',     // 'vibrant' | 'pastel' | 'bw'
+            ladderCount: 4,
+            chuteCount: 4,
+            orient: 'portrait',
+            title: PRESETS.past_simple.title,
+            subtitle: PRESETS.past_simple.subtitle,
+            prompts: [],               // [{ prompt, answer }] indexed for tiles 2..(N-1)
+            links: [],                 // [{ from, to, type: 'ladder'|'chute', variant: 'chute'|'snake' }]
+            showAnswers: false,
+            editLinksMode: false,
+            editLinkStart: null,
+            zoom: 1,
+            soundOn: true,
+            playerCount: 2,
+            players: [],               // [{ id, name, color, light, pos }]
+            currentTurn: 0,
+            isRolling: false,
+            winner: null,
+            activeSetId: null,
+            savedPlayerNames: null,
+            savedSets: []
+        };
+
+        let cloudSaveTimer = null;
+        let hasSavedLinks = false;
+        let printingAsKey = false;
+
+        function hydrateIcons(root) {
+            if (typeof lucide === 'undefined' || typeof lucide.createIcons !== 'function') return;
+            try {
+                lucide.createIcons(root && root !== document ? { root } : undefined);
+            } catch (e) {
+                lucide.createIcons();
+            }
+        }
+
+        // ============================
+        // SOUND ENGINE (Tone.js)
+        // ============================
+        let synth = null;
+        function ensureAudio() {
+            if (!state.soundOn || typeof Tone === 'undefined') return null;
+            try {
+                if (Tone.context && Tone.context.state !== 'running') {
+                    Tone.start();
+                }
+                if (!synth) {
+                    synth = new Tone.PolySynth(Tone.Synth, {
+                        oscillator: { type: 'triangle' },
+                        envelope: { attack: 0.01, decay: 0.12, sustain: 0.05, release: 0.2 }
+                    }).toDestination();
+                    synth.volume.value = -10;
+                }
+                return synth;
+            } catch (e) {
+                return null;
+            }
+        }
+
+        function playSound(type) {
+            const s = ensureAudio();
+            if (!s) return;
+            try {
+                const now = Tone.now();
+                if (type === 'pop') {
+                    s.triggerAttackRelease('C5', '32n', now);
+                } else if (type === 'hop') {
+                    s.triggerAttackRelease('E5', '32n', now);
+                } else if (type === 'dice') {
+                    s.triggerAttackRelease('G4', '32n', now);
+                    s.triggerAttackRelease('B4', '32n', now + 0.07);
+                    s.triggerAttackRelease('D5', '32n', now + 0.14);
+                } else if (type === 'ladder') {
+                    ['C5', 'E5', 'G5', 'C6'].forEach((n, i) => s.triggerAttackRelease(n, '16n', now + i * 0.08));
+                } else if (type === 'chute') {
+                    ['G5', 'E5', 'C5', 'G4'].forEach((n, i) => s.triggerAttackRelease(n, '16n', now + i * 0.08));
+                } else if (type === 'win') {
+                    ['C5', 'E5', 'G5', 'C6', 'E6'].forEach((n, i) => s.triggerAttackRelease(n, '8n', now + i * 0.09));
+                }
+            } catch (e) {}
+        }
+
+        // ============================
+        // TOAST & CONFIRM MODALS
+        // ============================
+        function showToast(msg, type = 'info') {
+            const container = document.getElementById('toast-container');
+            if (!container) return;
+            const colors = {
+                info: 'bg-blue text-white',
+                success: 'bg-green text-dark',
+                warning: 'bg-orange text-dark',
+                error: 'bg-pink text-white'
+            };
+            const icons = {
+                success: 'check-circle',
+                error: 'alert-circle',
+                info: 'info',
+                warning: 'alert-triangle'
+            };
+            const el = document.createElement('div');
+            el.className = `pointer-events-auto px-5 py-3 rounded-2xl border-3 border-dark shadow-hard font-extrabold text-xs uppercase tracking-wider flex items-center gap-2 animate-pop-in ${colors[type] || colors.info}`;
+            el.innerHTML = `<i data-lucide="${icons[type] || 'info'}" class="w-4 h-4 shrink-0"></i><span></span>`;
+            el.querySelector('span').textContent = msg;
+            container.appendChild(el);
+            hydrateIcons(el);
+            setTimeout(() => {
+                el.style.opacity = '0';
+                el.style.transform = 'translateY(10px)';
+                el.style.transition = 'all 0.25s ease';
+                setTimeout(() => el.remove(), 260);
+            }, 2600);
+        }
+
+        let confirmCallback = null;
+        function openConfirm(title, message, onYes) {
+            document.getElementById('confirmTitle').textContent = title;
+            document.getElementById('confirmMessage').textContent = message;
+            confirmCallback = onYes;
+            document.getElementById('confirmModal').classList.remove('hidden');
+        }
+        function closeConfirm() {
+            document.getElementById('confirmModal').classList.add('hidden');
+            confirmCallback = null;
+        }
+
+        // ============================
+        // BOARD MATH & LINK GENERATION
+        // ============================
+        function getTileCoords(tileNum, cols, rows) {
+            const idx = tileNum - 1;
+            const rowFromBottom = Math.floor(idx / cols);
+            const rowFromTop = rows - 1 - rowFromBottom;
+            const colInRow = idx % cols;
+            const col = (rowFromBottom % 2 === 0) ? colInRow : (cols - 1 - colInRow);
+            return { col, row: rowFromTop, rowFromBottom };
+        }
+
+        function getTileCenter(tileNum, cols, rows, cellW, cellH, padX, padY) {
+            const { col, row } = getTileCoords(tileNum, cols, rows);
+            return {
+                x: padX + col * cellW + cellW / 2,
+                y: padY + row * cellH + cellH / 2,
+                col,
+                row
+            };
+        }
+
+        function parsePromptsInput() {
+            const raw = document.getElementById('prompt-input').value.trim();
+            if (!raw) return [];
+            const lines = raw.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+            return lines.map(line => {
+                const parts = line.split('|');
+                return {
+                    prompt: (parts[0] || '').trim(),
+                    answer: parts.length > 1 ? parts.slice(1).join('|').trim() : ''
+                };
+            });
+        }
+
+        function shuffleArray(arr) {
+            const a = arr.slice();
+            for (let i = a.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [a[i], a[j]] = [a[j], a[i]];
+            }
+            return a;
+        }
+
+        function generateBalancedLinks() {
+            const N = state.totalTiles;
+            const cols = state.cols;
+            const rows = state.rows;
+            const used = new Set([1, N]);
+            const links = [];
+
+            const tryPlace = (type, count) => {
+                let placed = 0;
+                let attempts = 0;
+                while (placed < count && attempts < 240) {
+                    attempts++;
+                    const a = 2 + Math.floor(Math.random() * (N - 3));
+                    const b = 2 + Math.floor(Math.random() * (N - 3));
+                    if (a === b) continue;
+                    const lo = Math.min(a, b);
+                    const hi = Math.max(a, b);
+                    if (used.has(lo) || used.has(hi)) continue;
+
+                    const cLo = getTileCoords(lo, cols, rows);
+                    const cHi = getTileCoords(hi, cols, rows);
+                    const rowDiff = cHi.rowFromBottom - cLo.rowFromBottom;
+                    const colDiff = Math.abs(cHi.col - cLo.col);
+
+                    if (rowDiff < 1 || rowDiff > Math.max(2, Math.floor(rows * 0.6))) continue;
+                    if (colDiff > Math.max(2, Math.floor(cols * 0.5))) continue;
+
+                    const from = type === 'ladder' ? lo : hi;
+                    const to = type === 'ladder' ? hi : lo;
+                    let variant = 'chute';
+                    if (type === 'chute') {
+                        if (state.slideStyle === 'snakes') variant = 'snake';
+                        else if (state.slideStyle === 'mixed') variant = (placed % 2 === 0) ? 'chute' : 'snake';
+                    }
+
+                    used.add(lo);
+                    used.add(hi);
+                    links.push({ from, to, type, variant });
+                    placed++;
+                }
+            };
+
+            tryPlace('ladder', state.ladderCount);
+            tryPlace('chute', state.chuteCount);
+            state.links = links;
+        }
+
+        function applySlideStyleToExistingLinks() {
+            let chuteIdx = 0;
+            state.links.forEach(l => {
+                if (l.type === 'chute') {
+                    if (state.slideStyle === 'chutes') l.variant = 'chute';
+                    else if (state.slideStyle === 'snakes') l.variant = 'snake';
+                    else l.variant = (chuteIdx % 2 === 0) ? 'chute' : 'snake';
+                    chuteIdx++;
+                }
+            });
+        }
+
+        // ============================
+        // SVG BOARD RENDERER
+        // ============================
+        function wrapText(text, maxCharsPerLine, maxLines) {
+            if (!text) return [];
+            const words = text.split(/\s+/);
+            const lines = [];
+            let current = '';
+            for (const w of words) {
+                if (!current) {
+                    current = w;
+                } else if ((current + ' ' + w).length <= maxCharsPerLine) {
+                    current += ' ' + w;
+                } else {
+                    lines.push(current);
+                    current = w;
+                    if (lines.length >= maxLines - 1) break;
+                }
+            }
+            if (current && lines.length < maxLines) lines.push(current);
+            if (lines.length === maxLines) {
+                const last = lines[maxLines - 1];
+                if (last.length > maxCharsPerLine + 2) {
+                    lines[maxLines - 1] = last.slice(0, maxCharsPerLine) + '…';
+                }
+            }
+            return lines;
+        }
+
+        function escapeXml(str) {
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;');
+        }
+
+        function buildLadderSVG(x1, y1, x2, y2, idx, isBW) {
+            const dx = x2 - x1;
+            const dy = y2 - y1;
+            const len = Math.hypot(dx, dy);
+            if (len < 10) return '';
+            const ux = dx / len;
+            const uy = dy / len;
+            const px = -uy;
+            const py = ux;
+
+            const halfW = 14;
+            const trim = 18;
+            const sx = x1 + ux * trim;
+            const sy = y1 + uy * trim;
+            const ex = x2 - ux * trim;
+            const ey = y2 - uy * trim;
+            const effLen = Math.max(20, len - trim * 2);
+
+            const l1x1 = sx + px * halfW, l1y1 = sy + py * halfW;
+            const l1x2 = ex + px * halfW, l1y2 = ey + py * halfW;
+            const l2x1 = sx - px * halfW, l2y1 = sy - py * halfW;
+            const l2x2 = ex - px * halfW, l2y2 = ey - py * halfW;
+
+            const rungsCount = Math.max(3, Math.floor(effLen / 24));
+            let rungs = '';
+            const fillRail = isBW ? '#ffffff' : '#00d063';
+            const fillRung = isBW ? '#e2e8f0' : '#fef08a';
+
+            for (let i = 1; i <= rungsCount; i++) {
+                const t = i / (rungsCount + 1);
+                const rx = sx + (ex - sx) * t;
+                const ry = sy + (ey - sy) * t;
+                const rx1 = rx + px * halfW, ry1 = ry + py * halfW;
+                const rx2 = rx - px * halfW, ry2 = ry - py * halfW;
+                rungs += `
+                    <line x1="${rx1.toFixed(1)}" y1="${ry1.toFixed(1)}" x2="${rx2.toFixed(1)}" y2="${ry2.toFixed(1)}" stroke="#1e293b" stroke-width="9" stroke-linecap="round"/>
+                    <line x1="${rx1.toFixed(1)}" y1="${ry1.toFixed(1)}" x2="${rx2.toFixed(1)}" y2="${ry2.toFixed(1)}" stroke="${fillRung}" stroke-width="4.5" stroke-linecap="round"/>
+                `;
+            }
+
+            return `
+                <g class="link-group" data-link-idx="${idx}" opacity="0.94">
+                    ${rungs}
+                    <line x1="${l1x1.toFixed(1)}" y1="${l1y1.toFixed(1)}" x2="${l1x2.toFixed(1)}" y2="${l1y2.toFixed(1)}" stroke="#1e293b" stroke-width="10" stroke-linecap="round"/>
+                    <line x1="${l1x1.toFixed(1)}" y1="${l1y1.toFixed(1)}" x2="${l1x2.toFixed(1)}" y2="${l1y2.toFixed(1)}" stroke="${fillRail}" stroke-width="5" stroke-linecap="round"/>
+                    <line x1="${l2x1.toFixed(1)}" y1="${l2y1.toFixed(1)}" x2="${l2x2.toFixed(1)}" y2="${l2y2.toFixed(1)}" stroke="#1e293b" stroke-width="10" stroke-linecap="round"/>
+                    <line x1="${l2x1.toFixed(1)}" y1="${l2y1.toFixed(1)}" x2="${l2x2.toFixed(1)}" y2="${l2y2.toFixed(1)}" stroke="${fillRail}" stroke-width="5" stroke-linecap="round"/>
+                </g>
+            `;
+        }
+
+        function buildChuteSVG(x1, y1, x2, y2, idx, variant, isBW) {
+            const dx = x2 - x1;
+            const dy = y2 - y1;
+            const len = Math.hypot(dx, dy);
+            if (len < 10) return '';
+            const ux = dx / len;
+            const uy = dy / len;
+            const px = -uy;
+            const py = ux;
+
+            const trim = 18;
+            const sx = x1 + ux * trim;
+            const sy = y1 + uy * trim;
+            const ex = x2 - ux * trim;
+            const ey = y2 - uy * trim;
+
+            const sway = Math.min(48, len * 0.22) * (idx % 2 === 0 ? 1 : -1);
+            const c1x = sx + (ex - sx) * 0.33 + px * sway;
+            const c1y = sy + (ey - sy) * 0.33 + py * sway;
+            const c2x = sx + (ex - sx) * 0.66 - px * sway;
+            const c2y = sy + (ey - sy) * 0.66 - py * sway;
+
+            const pathD = `M ${sx.toFixed(1)} ${sy.toFixed(1)} C ${c1x.toFixed(1)} ${c1y.toFixed(1)}, ${c2x.toFixed(1)} ${c2y.toFixed(1)}, ${ex.toFixed(1)} ${ey.toFixed(1)}`;
+
+            if (variant === 'snake') {
+                const bodyColor = isBW ? '#cbd5e1' : (idx % 2 === 0 ? '#ff4785' : '#ff7e33');
+                const spotColor = isBW ? '#ffffff' : '#fef08a';
+                const headAngle = Math.atan2(c1y - sy, c1x - sx) * 180 / Math.PI - 90;
+                return `
+                    <g class="link-group" data-link-idx="${idx}" opacity="0.95">
+                        <path d="${pathD}" fill="none" stroke="#1e293b" stroke-width="22" stroke-linecap="round"/>
+                        <path d="${pathD}" fill="none" stroke="${bodyColor}" stroke-width="15" stroke-linecap="round"/>
+                        <path d="${pathD}" fill="none" stroke="${spotColor}" stroke-width="6" stroke-dasharray="1 18" stroke-linecap="round"/>
+                        <g transform="translate(${sx.toFixed(1)} ${sy.toFixed(1)}) rotate(${headAngle.toFixed(1)})">
+                            <path d="M 0,-12 L 0,-25 L -5,-30 M 0,-25 L 5,-30" fill="none" stroke="#ff4785" stroke-width="2.5" stroke-linecap="round"/>
+                            <ellipse cx="0" cy="0" rx="13" ry="15" fill="${bodyColor}" stroke="#1e293b" stroke-width="3.5"/>
+                            <circle cx="-5" cy="-4" r="3.5" fill="#ffffff" stroke="#1e293b" stroke-width="1.5"/>
+                            <circle cx="5" cy="-4" r="3.5" fill="#ffffff" stroke="#1e293b" stroke-width="1.5"/>
+                            <circle cx="-5" cy="-5" r="1.5" fill="#1e293b"/>
+                            <circle cx="5" cy="-5" r="1.5" fill="#1e293b"/>
+                        </g>
+                    </g>
+                `;
+            }
+
+            const slideColors = ['#ff4785', '#ff7e33', '#1ea7fd'];
+            const outerColor = isBW ? '#cbd5e1' : slideColors[idx % slideColors.length];
+            const innerColor = isBW ? '#ffffff' : '#fff7ed';
+
+            return `
+                <g class="link-group" data-link-idx="${idx}" opacity="0.93">
+                    <path d="${pathD}" fill="none" stroke="#1e293b" stroke-width="28" stroke-linecap="round"/>
+                    <path d="${pathD}" fill="none" stroke="${outerColor}" stroke-width="21" stroke-linecap="round"/>
+                    <path d="${pathD}" fill="none" stroke="${innerColor}" stroke-width="11" stroke-linecap="round"/>
+                    <path d="${pathD}" fill="none" stroke="${outerColor}" stroke-width="3" stroke-dasharray="8 12" stroke-linecap="round"/>
+                    <circle cx="${sx.toFixed(1)}" cy="${sy.toFixed(1)}" r="8" fill="${outerColor}" stroke="#1e293b" stroke-width="3"/>
+                    <circle cx="${ex.toFixed(1)}" cy="${ey.toFixed(1)}" r="6" fill="#ffffff" stroke="#1e293b" stroke-width="3"/>
+                </g>
+            `;
+        }
+
+        function buildBoardSVG({ forPrint = false, showAnswers = false } = {}) {
+            const cols = state.cols;
+            const rows = state.rows;
+            const N = state.totalTiles;
+            const isBW = state.colorTheme === 'bw';
+            const palette = TILE_PALETTES[state.colorTheme] || TILE_PALETTES.vibrant;
+
+            const cellW = 140;
+            const cellH = 118;
+            const padX = 16;
+            const padY = 16;
+            const boardW = cols * cellW;
+            const boardH = rows * cellH;
+            const svgW = boardW + padX * 2;
+            const svgH = boardH + padY * 2;
+
+            const linkFromMap = new Map();
+            state.links.forEach(l => linkFromMap.set(l.from, l));
+
+            let tilesSVG = '';
+            let labelsSVG = '';
+            const maxChars = cols >= 8 ? 13 : (cols >= 7 ? 14 : 16);
+            const fontSize = cols >= 8 ? 13.5 : (cols >= 7 ? 14.5 : 15.5);
+
+            for (let num = 1; num <= N; num++) {
+                const { col, row } = getTileCoords(num, cols, rows);
+                const x = padX + col * cellW;
+                const y = padY + row * cellH;
+
+                let fill = palette[(num - 1) % palette.length];
+                if (num === 1) fill = isBW ? '#e2e8f0' : '#00d063';
+                if (num === N) fill = isBW ? '#e2e8f0' : '#ff7e33';
+
+                const isSelectedStart = !forPrint && state.editLinksMode && state.editLinkStart === num;
+                const strokeCol = isSelectedStart ? '#ff4785' : '#1e293b';
+                const strokeW = isSelectedStart ? 5 : 3;
+
+                let promptObj = null;
+                if (num > 1 && num < N && state.prompts.length > 0) {
+                    promptObj = state.prompts[(num - 2) % state.prompts.length];
+                }
+
+                const badgeBg = (num === 1 || num === N) ? '#1e293b' : '#ffffff';
+                const badgeText = (num === 1 || num === N) ? '#ffffff' : '#1e293b';
+
+                let contentSVG = '';
+                if (num === 1) {
+                    contentSVG = `
+                        <text x="${x + cellW / 2}" y="${y + 52}" text-anchor="middle" font-family="Fredoka, sans-serif" font-weight="700" font-size="22" fill="#1e293b">START</text>
+                        <text x="${x + cellW / 2}" y="${y + 68}" text-anchor="middle" font-family="Nunito, sans-serif" font-weight="800" font-size="10" fill="#1e293b">ROLL TO BEGIN ➔</text>
+                    `;
+                } else if (num === N) {
+                    contentSVG = `
+                        <text x="${x + cellW / 2}" y="${y + cellH / 2 + 4}" text-anchor="middle" font-family="Fredoka, sans-serif" font-weight="700" font-size="23" fill="#1e293b">FINISH!</text>
+                        <text x="${x + cellW / 2}" y="${y + cellH / 2 + 24}" text-anchor="middle" font-family="Nunito, sans-serif" font-weight="800" font-size="11" fill="#1e293b">★ WINNER ★</text>
+                    `;
+                } else if (promptObj && promptObj.prompt) {
+                    const lines = wrapText(promptObj.prompt, maxChars, showAnswers && promptObj.answer ? 2 : 3);
+                    const lineH = fontSize + 3;
+                    const startY = y + cellH / 2 + 8 - ((lines.length - 1) * lineH) / 2 - (showAnswers && promptObj.answer ? 9 : 0);
+                    contentSVG = lines.map((ln, idx) =>
+                        `<text x="${x + cellW / 2}" y="${(startY + idx * lineH).toFixed(1)}" text-anchor="middle" font-family="Nunito, sans-serif" font-weight="800" font-size="${fontSize}" fill="#1e293b" paint-order="stroke" stroke="rgba(255,255,255,0.92)" stroke-width="5" stroke-linejoin="round">${escapeXml(ln)}</text>`
+                    ).join('');
+                    if (showAnswers && promptObj.answer) {
+                        contentSVG += `
+                            <rect x="${x + 10}" y="${y + cellH - 27}" width="${cellW - 20}" height="20" rx="6" fill="#1e293b"/>
+                            <text x="${x + cellW / 2}" y="${y + cellH - 13}" text-anchor="middle" font-family="JetBrains Mono, monospace" font-weight="700" font-size="11.5" fill="#00d063">${escapeXml(promptObj.answer.slice(0, 16))}</text>
+                        `;
+                    }
+                } else {
+                    contentSVG = `
+                        <text x="${x + cellW / 2}" y="${y + cellH / 2 + 12}" text-anchor="middle" font-family="Fredoka, sans-serif" font-weight="700" font-size="34" fill="#1e293b" opacity="0.22">${num}</text>
+                    `;
+                }
+
+                const link = linkFromMap.get(num);
+                let linkMiniBadge = '';
+                if (link) {
+                    const lBg = link.type === 'ladder' ? (isBW ? '#ffffff' : '#00d063') : (isBW ? '#e2e8f0' : '#ff4785');
+                    const lFg = link.type === 'ladder' ? '#1e293b' : (isBW ? '#1e293b' : '#ffffff');
+                    const sym = link.type === 'ladder' ? `▲${link.to}` : `▼${link.to}`;
+                    linkMiniBadge = `
+                        <rect x="${x + cellW - 44}" y="${y + 7}" width="37" height="19" rx="6" fill="${lBg}" stroke="#1e293b" stroke-width="2"/>
+                        <text x="${x + cellW - 25.5}" y="${y + 20}" text-anchor="middle" font-family="Fredoka, sans-serif" font-weight="700" font-size="10.5" fill="${lFg}">${sym}</text>
+                    `;
+                }
+
+                tilesSVG += `
+                    <g class="board-tile" data-tile="${num}">
+                        <rect class="tile-rect" x="${x}" y="${y}" width="${cellW}" height="${cellH}" fill="${fill}" stroke="${strokeCol}" stroke-width="${strokeW}"/>
+                        <rect x="${x + 7}" y="${y + 7}" width="30" height="22" rx="6" fill="${badgeBg}" stroke="#1e293b" stroke-width="2"/>
+                        <text x="${x + 22}" y="${y + 22}" text-anchor="middle" font-family="Fredoka, sans-serif" font-weight="700" font-size="13" fill="${badgeText}">${num}</text>
+                        ${linkMiniBadge}
+                    </g>
+                `;
+                labelsSVG += `<g pointer-events="none">${contentSVG}</g>`;
+            }
+
+            let linksSVG = '';
+            state.links.forEach((link, idx) => {
+                const p1 = getTileCenter(link.from, cols, rows, cellW, cellH, padX, padY);
+                const p2 = getTileCenter(link.to, cols, rows, cellW, cellH, padX, padY);
+                if (link.type === 'ladder') {
+                    linksSVG += buildLadderSVG(p1.x, p1.y, p2.x, p2.y, idx, isBW);
+                } else {
+                    linksSVG += buildChuteSVG(p1.x, p1.y, p2.x, p2.y, idx, link.variant, isBW);
+                }
+            });
+
+            let tokensSVG = '';
+            if (!forPrint) {
+                const offsets = [
+                    { dx: -24, dy: 24 },
+                    { dx: 24, dy: 24 },
+                    { dx: -24, dy: -20 },
+                    { dx: 24, dy: -20 }
+                ];
+                state.players.forEach((p, idx) => {
+                    const center = getTileCenter(p.pos, cols, rows, cellW, cellH, padX, padY);
+                    const off = offsets[idx % offsets.length];
+                    const isTurn = idx === state.currentTurn && !state.winner;
+                    const tx = center.x + off.dx;
+                    const ty = center.y + off.dy;
+                    tokensSVG += `
+                        <g class="token-group" data-player-id="${p.id}" transform="translate(${tx.toFixed(1)} ${ty.toFixed(1)})">
+                            ${isTurn ? `<circle cx="0" cy="0" r="22" fill="none" stroke="${p.color}" stroke-width="4" stroke-dasharray="5 4" opacity="0.85"/>` : ''}
+                            <circle cx="2" cy="4" r="16" fill="rgba(30,41,59,0.35)"/>
+                            <circle cx="0" cy="0" r="16" fill="${p.color}" stroke="#1e293b" stroke-width="3.5"/>
+                            <text x="0" y="5" text-anchor="middle" font-family="Fredoka, sans-serif" font-weight="700" font-size="13" fill="#ffffff">${escapeXml(p.label)}</text>
+                        </g>
+                    `;
+                });
+            }
+
+            return `
+                <svg viewBox="0 0 ${svgW} ${svgH}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Chutes and Ladders board with ${N} tiles" xmlns="http://www.w3.org/2000/svg" class="${state.editLinksMode && !forPrint ? 'edit-mode' : ''}">
+                    <rect x="${padX - 4}" y="${padY - 4}" width="${boardW + 8}" height="${boardH + 8}" rx="14" fill="#1e293b"/>
+                    <g id="tiles-layer">${tilesSVG}</g>
+                    <g id="links-layer" opacity="0.82">${linksSVG}</g>
+                    <g id="labels-layer">${labelsSVG}</g>
+                    <g id="tokens-layer">${tokensSVG}</g>
+                </svg>
+            `;
+        }
+
+        function renderBoard() {
+            const wrapper = document.getElementById('svg-wrapper');
+            wrapper.innerHTML = buildBoardSVG({ forPrint: false, showAnswers: state.showAnswers });
+            wrapper.style.transform = `scale(${state.zoom})`;
+            document.getElementById('zoom-reset').textContent = `${Math.round(state.zoom * 100)}%`;
+
+            const ladderCount = state.links.filter(l => l.type === 'ladder').length;
+            const chuteCount = state.links.filter(l => l.type === 'chute').length;
+            document.getElementById('stat-ladders').textContent = ladderCount;
+            document.getElementById('stat-chutes').textContent = chuteCount;
+            document.getElementById('tile-count-badge').textContent = `${state.totalTiles} tiles`;
+
+            wrapper.querySelectorAll('.board-tile').forEach(g => {
+                g.addEventListener('click', () => {
+                    const num = Number(g.dataset.tile);
+                    handleTileClick(num);
+                });
+            });
+
+            wrapper.querySelectorAll('.link-group').forEach(g => {
+                g.addEventListener('click', (e) => {
+                    if (!state.editLinksMode) return;
+                    e.stopPropagation();
+                    const idx = Number(g.dataset.linkIdx);
+                    const removed = state.links.splice(idx, 1)[0];
+                    if (removed) {
+                        playSound('pop');
+                        showToast(`Removed ${removed.type === 'ladder' ? 'Ladder' : 'Chute'} (${removed.from} → ${removed.to})`, 'warning');
+                        renderBoard();
+                        persistState();
+                    }
+                });
+            });
+        }
+
+        function handleTileClick(num) {
+            if (state.editLinksMode) {
+                if (num === 1 || num === state.totalTiles) {
+                    showToast('Cannot place a ladder or chute on START or FINISH.', 'warning');
+                    return;
+                }
+                if (state.editLinkStart === null) {
+                    state.editLinkStart = num;
+                    playSound('pop');
+                    document.getElementById('edit-links-hint').textContent = `Start: Square #${num}. Now click the destination square!`;
+                    renderBoard();
+                } else if (state.editLinkStart === num) {
+                    state.editLinkStart = null;
+                    document.getElementById('edit-links-hint').textContent = 'Click a START square, then an END square (low→high = Ladder, high→low = Chute).';
+                    renderBoard();
+                } else {
+                    const from = state.editLinkStart;
+                    const to = num;
+                    const type = from < to ? 'ladder' : 'chute';
+                    state.links = state.links.filter(l => l.from !== from);
+                    const variant = type === 'chute'
+                        ? (state.slideStyle === 'snakes' ? 'snake' : 'chute')
+                        : 'ladder';
+                    state.links.push({ from, to, type, variant });
+                    state.editLinkStart = null;
+                    playSound(type === 'ladder' ? 'ladder' : 'chute');
+                    showToast(`Added ${type === 'ladder' ? 'Ladder' : 'Chute'}: ${from} ➔ ${to}`, 'success');
+                    document.getElementById('edit-links-hint').textContent = 'Click a START square, then an END square (low→high = Ladder, high→low = Chute).';
+                    renderBoard();
+                    persistState();
+                }
+                return;
+            }
+
+            updateActivePromptCard(num);
+            openTileModal(num);
+        }
+
+        // ============================
+        // PROMPT CARD & SPOTLIGHT MODAL
+        // ============================
+        function getTilePromptData(num) {
+            if (num === 1) return { prompt: 'START — Roll the die to begin your adventure!', answer: '' };
+            if (num === state.totalTiles) return { prompt: 'FINISH! You reached the top and won the game!', answer: '' };
+            if (state.prompts.length === 0) return { prompt: `Square #${num} — Classic board space!`, answer: '' };
+            return state.prompts[(num - 2) % state.prompts.length];
+        }
+
+        function updateActivePromptCard(num, linkNote = '') {
+            const data = getTilePromptData(num);
+            document.getElementById('card-tile-label').textContent = `Square #${num}`;
+            document.getElementById('card-prompt-text').textContent = data.prompt || `Square #${num}`;
+
+            const badge = document.getElementById('card-link-badge');
+            if (linkNote) {
+                badge.textContent = linkNote;
+                badge.classList.remove('hidden');
+                badge.className = `text-[10px] font-extrabold px-2 py-0.5 rounded-full border border-dark ${linkNote.includes('Ladder') ? 'bg-green text-dark' : 'bg-pink text-white'}`;
+            } else {
+                badge.classList.add('hidden');
+            }
+
+            const ansRow = document.getElementById('card-answer-row');
+            const ansText = document.getElementById('card-answer-text');
+            const revBtn = document.getElementById('card-reveal-btn');
+            if (data.answer) {
+                ansRow.classList.remove('hidden');
+                ansText.textContent = `Answer: ${data.answer}`;
+                ansText.classList.toggle('hidden', !state.showAnswers);
+                revBtn.classList.toggle('hidden', state.showAnswers);
+            } else {
+                ansRow.classList.add('hidden');
+            }
+        }
+
+        function openTileModal(num) {
+            const data = getTilePromptData(num);
+            document.getElementById('modal-tile-num').textContent = num;
+            document.getElementById('modal-tile-sub').textContent =
+                num === 1 ? 'Starting Square' : (num === state.totalTiles ? 'Finish Square' : 'Classroom Spotlight');
+            document.getElementById('modal-prompt-text').textContent = data.prompt;
+
+            const ansBox = document.getElementById('modal-answer-box');
+            const revBtn = document.getElementById('modal-reveal-btn');
+            document.getElementById('modal-answer-val').textContent = data.answer || '';
+
+            if (data.answer) {
+                ansBox.classList.toggle('hidden', !state.showAnswers);
+                revBtn.classList.toggle('hidden', state.showAnswers);
+            } else {
+                ansBox.classList.add('hidden');
+                revBtn.classList.add('hidden');
+            }
+            document.getElementById('tileModal').classList.remove('hidden');
+            playSound('pop');
+        }
+
+        // ============================
+        // PLAYERS & LIVE DICE GAMEPLAY
+        // ============================
+        function initPlayers(count, { names = null, skipRender = false } = {}) {
+            state.playerCount = count;
+            state.players = [];
+            for (let i = 0; i < count; i++) {
+                const preset = PLAYER_COLORS[i];
+                const customName = Array.isArray(names) && typeof names[i] === 'string' && names[i].trim()
+                    ? names[i].trim()
+                    : preset.name;
+                state.players.push({
+                    id: i,
+                    name: customName,
+                    color: preset.color,
+                    light: preset.light,
+                    label: preset.label,
+                    pos: 1
+                });
+            }
+            state.currentTurn = 0;
+            state.winner = null;
+            if (!skipRender) {
+                renderPlayersUI();
+                renderBoard();
+            }
+        }
+
+        function renderPlayersUI() {
+            const list = document.getElementById('players-list');
+            list.innerHTML = '';
+            state.players.forEach((p, idx) => {
+                const isTurn = idx === state.currentTurn && !state.winner;
+                const card = document.createElement('div');
+                card.className = `p-2 rounded-xl border-2 transition-all flex items-center gap-2 ${
+                    isTurn
+                        ? 'border-dark dark:border-white bg-orange/15 shadow-hard-sm scale-[1.02]'
+                        : 'border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60'
+                }`;
+                card.innerHTML = `
+                    <span class="w-7 h-7 rounded-full border-2 border-dark text-white font-heading font-bold text-xs flex items-center justify-center shrink-0" style="background:${p.color}">${p.label}</span>
+                    <div class="min-w-0 flex-1">
+                        <input type="text" data-player-name="${idx}" value="${escapeXml(p.name)}" aria-label="Player ${idx + 1} name" class="w-full bg-transparent text-xs font-extrabold text-dark dark:text-white focus:outline-none truncate">
+                        <p class="text-[10px] font-bold text-slate-400">Sq. <span class="text-dark dark:text-white font-mono">${p.pos}</span>/${state.totalTiles}</p>
+                    </div>
+                `;
+                list.appendChild(card);
+            });
+
+            list.querySelectorAll('input[data-player-name]').forEach(inp => {
+                inp.addEventListener('input', (e) => {
+                    const idx = Number(e.target.dataset.playerName);
+                    state.players[idx].name = e.target.value || `Team ${idx + 1}`;
+                    state.savedPlayerNames = state.players.map(p => p.name);
+                    updateTurnBadge();
+                    persistState();
+                });
+            });
+
+            document.querySelectorAll('.pcount-btn').forEach(btn => {
+                const c = Number(btn.dataset.pcount);
+                btn.className = `pcount-btn px-2 py-0.5 rounded-md border-2 border-dark text-[10px] font-extrabold transition-colors ${
+                    c === state.playerCount ? 'bg-blue text-white' : 'bg-white dark:bg-slate-800 text-dark dark:text-white'
+                }`;
+            });
+            updateTurnBadge();
+        }
+
+        function updateTurnBadge() {
+            const badge = document.getElementById('turn-badge');
+            if (state.winner) {
+                badge.textContent = `🏆 ${state.winner.name} Wins!`;
+            } else {
+                badge.textContent = `${state.players[state.currentTurn]?.name || 'Team 1'}'s Turn`;
+            }
+        }
+
+        function renderDiceFace(val) {
+            const pipsMap = {
+                1: [[50, 50]],
+                2: [[28, 28], [72, 72]],
+                3: [[28, 28], [50, 50], [72, 72]],
+                4: [[28, 28], [72, 28], [28, 72], [72, 72]],
+                5: [[28, 28], [72, 28], [50, 50], [28, 72], [72, 72]],
+                6: [[28, 24], [72, 24], [28, 50], [72, 50], [28, 76], [72, 76]]
+            };
+            const pips = pipsMap[val] || pipsMap[1];
+            const color = val === 6 ? '#ff4785' : '#1e293b';
+            document.getElementById('dice-face').innerHTML = `
+                <svg viewBox="0 0 100 100" class="w-12 h-12">
+                    ${pips.map(([cx, cy]) => `<circle cx="${cx}" cy="${cy}" r="10.5" fill="${color}"/>`).join('')}
+                </svg>
+            `;
+        }
+
+        function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+        async function rollDice() {
+            if (state.isRolling) return;
+            if (state.winner) {
+                resetGameCounters();
+            }
+            state.isRolling = true;
+            const rollBtn = document.getElementById('roll-dice-btn');
+            const diceEl = document.getElementById('dice-face');
+            rollBtn.disabled = true;
+            diceEl.classList.add('dice-rolling');
+            playSound('dice');
+
+            let finalVal = 1;
+            for (let i = 0; i < 8; i++) {
+                finalVal = 1 + Math.floor(Math.random() * 6);
+                renderDiceFace(finalVal);
+                await sleep(55);
+            }
+            diceEl.classList.remove('dice-rolling');
+
+            const player = state.players[state.currentTurn];
+            const statusMsg = document.getElementById('game-status-msg');
+            statusMsg.textContent = `${player.name} rolled a ${finalVal}!`;
+
+            const target = Math.min(state.totalTiles, player.pos + finalVal);
+            for (let step = player.pos + 1; step <= target; step++) {
+                player.pos = step;
+                playSound('hop');
+                renderPlayersUI();
+                renderBoard();
+                await sleep(230);
+            }
+
+            let linkNote = '';
+            const hitLink = state.links.find(l => l.from === player.pos);
+            if (hitLink) {
+                await sleep(260);
+                player.pos = hitLink.to;
+                if (hitLink.type === 'ladder') {
+                    playSound('ladder');
+                    linkNote = `🪜 Ladder ${hitLink.from} ➔ ${hitLink.to}`;
+                    statusMsg.textContent = `${player.name} climbed a ladder to #${hitLink.to}!`;
+                    showToast(`${player.name} climbed Ladder ${hitLink.from} ➔ ${hitLink.to}!`, 'success');
+                } else {
+                    playSound('chute');
+                    linkNote = `🛝 Chute ${hitLink.from} ➔ ${hitLink.to}`;
+                    statusMsg.textContent = `${player.name} slid down to #${hitLink.to}!`;
+                    showToast(`${player.name} slid down ${hitLink.from} ➔ ${hitLink.to}!`, 'warning');
+                }
+                renderPlayersUI();
+                renderBoard();
+            }
+
+            updateActivePromptCard(player.pos, linkNote);
+
+            if (player.pos >= state.totalTiles) {
+                state.winner = player;
+                playSound('win');
+                statusMsg.textContent = `🏆 ${player.name} reached #${state.totalTiles} and won!`;
+                showToast(`🏆 ${player.name} wins the game!`, 'success');
+                if (typeof confetti === 'function') {
+                    confetti({ particleCount: 90, spread: 70, origin: { y: 0.6 } });
+                }
+            } else {
+                state.currentTurn = (state.currentTurn + 1) % state.players.length;
+            }
+
+            renderPlayersUI();
+            renderBoard();
+            rollBtn.disabled = false;
+            state.isRolling = false;
+        }
+
+        function resetGameCounters() {
+            if (state.isRolling) return;
+            state.players.forEach(p => { p.pos = 1; });
+            state.currentTurn = 0;
+            state.winner = null;
+            document.getElementById('game-status-msg').textContent = 'Counters reset! Press Roll or Spacebar.';
+            updateActivePromptCard(1);
+            renderPlayersUI();
+            renderBoard();
+            playSound('pop');
+        }
+
+        // ============================
+        // PERSISTENCE (LocalStorage + Supabase Cloud)
+        // ============================
+        function getWorkspaceData() {
+            return {
+                gridSize: `${state.cols}x${state.rows}`,
+                slideStyle: state.slideStyle,
+                colorTheme: state.colorTheme,
+                ladderCount: state.ladderCount,
+                chuteCount: state.chuteCount,
+                orient: state.orient,
+                title: document.getElementById('custom-title').value,
+                subtitle: document.getElementById('custom-subtitle').value,
+                promptsRaw: document.getElementById('prompt-input').value,
+                shufflePrompts: document.getElementById('shuffle-prompts').checked,
+                links: state.links.map(l => ({ ...l })),
+                playerCount: state.playerCount,
+                playerNames: state.players.length ? state.players.map(p => p.name) : (state.savedPlayerNames || null),
+                activeSetId: state.activeSetId
+            };
+        }
+
+        function applyWorkspaceData(data) {
+            if (!data) return;
+            if (data.gridSize && /^\d+x\d+$/.test(data.gridSize)) {
+                const [c, r] = data.gridSize.split('x').map(Number);
+                state.cols = c;
+                state.rows = r;
+                state.totalTiles = c * r;
+                const gridRadio = document.querySelector(`input[name="grid-size"][value="${data.gridSize}"]`);
+                if (gridRadio) gridRadio.checked = true;
+            }
+            if (data.slideStyle) {
+                state.slideStyle = data.slideStyle;
+                const sRadio = document.querySelector(`input[name="slide-style"][value="${data.slideStyle}"]`);
+                if (sRadio) sRadio.checked = true;
+            }
+            if (data.colorTheme) {
+                state.colorTheme = data.colorTheme;
+                const cRadio = document.querySelector(`input[name="color-theme"][value="${data.colorTheme}"]`);
+                if (cRadio) cRadio.checked = true;
+            }
+            if (typeof data.ladderCount === 'number') {
+                state.ladderCount = data.ladderCount;
+                document.getElementById('ladder-count').value = data.ladderCount;
+                document.getElementById('ladder-count-val').textContent = data.ladderCount;
+            }
+            if (typeof data.chuteCount === 'number') {
+                state.chuteCount = data.chuteCount;
+                document.getElementById('chute-count').value = data.chuteCount;
+                document.getElementById('chute-count-val').textContent = data.chuteCount;
+            }
+            if (data.orient) {
+                state.orient = data.orient;
+                const oRadio = document.querySelector(`input[name="page-orient"][value="${data.orient}"]`);
+                if (oRadio) oRadio.checked = true;
+            }
+            if (typeof data.title === 'string') document.getElementById('custom-title').value = data.title;
+            if (typeof data.subtitle === 'string') document.getElementById('custom-subtitle').value = data.subtitle;
+            if (typeof data.promptsRaw === 'string') document.getElementById('prompt-input').value = data.promptsRaw;
+            if (typeof data.shufflePrompts === 'boolean') document.getElementById('shuffle-prompts').checked = data.shufflePrompts;
+            if (Array.isArray(data.links)) {
+                state.links = data.links.map(l => ({ ...l }));
+                hasSavedLinks = true;
+            }
+            if (typeof data.playerCount === 'number') state.playerCount = Math.min(4, Math.max(2, data.playerCount));
+            if (Array.isArray(data.playerNames)) state.savedPlayerNames = data.playerNames.slice();
+            if (data.activeSetId !== undefined) state.activeSetId = data.activeSetId;
+        }
+
+        function updateActiveSetBanner() {
+            const current = state.savedSets.find(s => s.id === state.activeSetId);
+            if (current) {
+                document.getElementById('active-set-name').textContent = current.name;
+                document.getElementById('active-set-banner').classList.remove('hidden');
+            } else {
+                state.activeSetId = null;
+                document.getElementById('active-set-banner').classList.add('hidden');
+            }
+        }
+
+        function persistState() {
+            const ws = getWorkspaceData();
+            try { localStorage.setItem(WS_STORAGE_KEY, JSON.stringify(ws)); } catch (e) {}
+
+            if (state.activeSetId) {
+                const idx = state.savedSets.findIndex(s => s.id === state.activeSetId);
+                if (idx >= 0) {
+                    state.savedSets[idx] = {
+                        ...state.savedSets[idx],
+                        ...ws,
+                        updatedAt: Date.now()
+                    };
+                    try { localStorage.setItem(SETS_STORAGE_KEY, JSON.stringify(state.savedSets)); } catch (e) {}
+                    renderSavedSetsList();
+                }
+            }
+
+            clearTimeout(cloudSaveTimer);
+            cloudSaveTimer = setTimeout(() => {
+                if (typeof window.saveProgress === 'function') {
+                    window.saveProgress(CLOUD_TOOL_KEY, {
+                        workspace: ws,
+                        sets: state.savedSets
+                    }).catch(() => {});
+                }
+            }, 700);
+        }
+
+        async function loadPersistedState() {
+            let hasLocalSets = false;
+            try {
+                const rawSets = localStorage.getItem(SETS_STORAGE_KEY);
+                if (rawSets) {
+                    const parsedSets = JSON.parse(rawSets);
+                    if (Array.isArray(parsedSets)) {
+                        state.savedSets = parsedSets;
+                        hasLocalSets = true;
+                    }
+                }
+            } catch (e) { state.savedSets = []; }
+
+            if (!hasLocalSets) {
+                state.savedSets = [
+                    {
+                        id: 'seed_past_simple',
+                        name: 'Past Simple Review (30)',
+                        updatedAt: Date.now() - 86400000,
+                        gridSize: '6x5',
+                        slideStyle: 'chutes',
+                        colorTheme: 'vibrant',
+                        ladderCount: 4,
+                        chuteCount: 4,
+                        orient: 'portrait',
+                        title: PRESETS.past_simple.title,
+                        subtitle: PRESETS.past_simple.subtitle,
+                        promptsRaw: PRESETS.past_simple.prompts.join('\n')
+                    },
+                    {
+                        id: 'seed_speaking',
+                        name: 'Speaking Warm-Up (25)',
+                        updatedAt: Date.now() - 172800000,
+                        gridSize: '5x5',
+                        slideStyle: 'snakes',
+                        colorTheme: 'pastel',
+                        ladderCount: 4,
+                        chuteCount: 4,
+                        orient: 'portrait',
+                        title: PRESETS.speaking.title,
+                        subtitle: PRESETS.speaking.subtitle,
+                        promptsRaw: PRESETS.speaking.prompts.join('\n')
+                    }
+                ];
+                try { localStorage.setItem(SETS_STORAGE_KEY, JSON.stringify(state.savedSets)); } catch (e) {}
+            }
+
+            let hasWorkspace = false;
+            try {
+                const rawWs = localStorage.getItem(WS_STORAGE_KEY);
+                if (rawWs) {
+                    applyWorkspaceData(JSON.parse(rawWs));
+                    hasWorkspace = true;
+                }
+            } catch (e) {}
+
+            if (typeof window.loadProgress === 'function') {
+                try {
+                    const cloud = await window.loadProgress(CLOUD_TOOL_KEY);
+                    if (cloud) {
+                        if (cloud.workspace) {
+                            applyWorkspaceData(cloud.workspace);
+                            try { localStorage.setItem(WS_STORAGE_KEY, JSON.stringify(cloud.workspace)); } catch (e) {}
+                            hasWorkspace = true;
+                        }
+                        if (Array.isArray(cloud.sets) && cloud.sets.length > 0 && (!hasLocalSets || state.savedSets.length === 0)) {
+                            state.savedSets = cloud.sets;
+                            try { localStorage.setItem(SETS_STORAGE_KEY, JSON.stringify(cloud.sets)); } catch (e) {}
+                        }
+                    }
+                } catch (e) {}
+            }
+
+            if (!hasWorkspace) {
+                document.getElementById('custom-title').value = PRESETS.past_simple.title;
+                document.getElementById('custom-subtitle').value = PRESETS.past_simple.subtitle;
+                document.getElementById('prompt-input').value = PRESETS.past_simple.prompts.join('\n');
+            }
+
+            updateActiveSetBanner();
+            renderSavedSetsList();
+        }
+
+        // ============================
+        // BUILD / SYNC WORKSPACE
+        // ============================
+        function updatePromptCountPill() {
+            const parsed = parsePromptsInput();
+            const pill = document.getElementById('prompt-count-pill');
+            pill.textContent = parsed.length === 0 ? 'Classic (blank)' : `${parsed.length} prompt${parsed.length === 1 ? '' : 's'}`;
+        }
+
+        function buildBoard({ keepLinks = false, skipPersist = false } = {}) {
+            state.title = document.getElementById('custom-title').value.trim() || 'Chutes & Ladders';
+            state.subtitle = document.getElementById('custom-subtitle').value.trim() || '';
+
+            let parsed = parsePromptsInput();
+            if (document.getElementById('shuffle-prompts').checked && parsed.length > 1) {
+                parsed = shuffleArray(parsed);
+            }
+            state.prompts = parsed;
+
+            if (!keepLinks) {
+                generateBalancedLinks();
+            } else {
+                state.links = state.links.filter(l => l.from > 1 && l.from < state.totalTiles && l.to > 1 && l.to < state.totalTiles);
+                applySlideStyleToExistingLinks();
+            }
+
+            state.players.forEach(p => { if (p.pos > state.totalTiles) p.pos = 1; });
+            updatePromptCountPill();
+            renderPlayersUI();
+            renderBoard();
+            if (!skipPersist) persistState();
+        }
+
+        function loadPreset(key) {
+            const p = PRESETS[key];
+            if (!p) return;
+            document.getElementById('custom-title').value = p.title;
+            document.getElementById('custom-subtitle').value = p.subtitle;
+            document.getElementById('prompt-input').value = p.prompts.join('\n');
+            state.activeSetId = null;
+            updateActiveSetBanner();
+            renderSavedSetsList();
+            buildBoard({ keepLinks: false });
+            playSound('pop');
+            showToast(`Loaded "${p.title}" preset`, 'info');
+        }
+
+        // ============================
+        // PRINT A4 (HANDOUT & KEY)
+        // ============================
+        function applyPage() {
+            document.documentElement.setAttribute('data-orient', state.orient);
+            const styleEl = document.getElementById('page-style');
+            if (styleEl) styleEl.textContent = `@page { size: A4 ${state.orient}; margin: 0; }`;
+        }
+
+        function preparePrint(isKey = false) {
+            applyPage();
+
+            const title = document.getElementById('custom-title').value.trim() || 'Chutes & Ladders';
+            const subtitle = document.getElementById('custom-subtitle').value.trim() || '';
+            document.getElementById('print-heading').textContent = isKey ? `${title} — ANSWER KEY` : title;
+            document.getElementById('print-subheading').textContent = isKey
+                ? 'Teacher Reference Sheet with square answers and ladder/chute routes.'
+                : subtitle;
+
+            document.getElementById('print-svg-container').innerHTML = buildBoardSVG({
+                forPrint: true,
+                showAnswers: isKey
+            });
+
+            const keyGrid = document.getElementById('print-key-grid');
+            const answersList = [];
+            if (isKey && state.prompts.length > 0) {
+                for (let n = 2; n < state.totalTiles; n++) {
+                    const obj = state.prompts[(n - 2) % state.prompts.length];
+                    if (obj && obj.answer) {
+                        answersList.push(`<div><b>#${n}:</b> ${escapeXml(obj.prompt)} ➔ <span style="color:#00a84f">${escapeXml(obj.answer)}</span></div>`);
+                    }
+                }
+            }
+            if (isKey && answersList.length > 0) {
+                keyGrid.innerHTML = answersList.join('');
+                keyGrid.classList.remove('hidden');
+            } else {
+                keyGrid.innerHTML = '';
+                keyGrid.classList.add('hidden');
+            }
+        }
+
+        function triggerPrint(isKey = false) {
+            printingAsKey = isKey;
+            preparePrint(isKey);
+            setTimeout(() => window.print(), 80);
+        }
+
+        window.addEventListener('beforeprint', () => preparePrint(printingAsKey));
+        window.addEventListener('afterprint', () => {
+            printingAsKey = false;
+            preparePrint(false);
+        });
+
+        // ============================
+        // SAVED BOARDS LIBRARY UI
+        // ============================
+        function persistSavedSets() {
+            try { localStorage.setItem(SETS_STORAGE_KEY, JSON.stringify(state.savedSets)); } catch (e) {}
+            renderSavedSetsList();
+            persistState();
+        }
+
+        function renderSavedSetsList() {
+            const list = document.getElementById('library-list');
+            const sort = document.getElementById('library-sort').value;
+            document.getElementById('saved-count').textContent = state.savedSets.length;
+            updateActiveSetBanner();
+
+            const sorted = state.savedSets.slice().sort((a, b) => {
+                if (sort === 'alpha') return a.name.localeCompare(b.name);
+                return (b.updatedAt || 0) - (a.updatedAt || 0);
+            });
+
+            if (sorted.length === 0) {
+                list.innerHTML = `<p class="text-[11px] font-bold text-slate-400 text-center py-3">No saved boards yet.</p>`;
+                return;
+            }
+
+            list.innerHTML = sorted.map(item => {
+                const isActive = item.id === state.activeSetId;
+                return `
+                    <div class="flex items-center gap-2 p-2 rounded-xl border-2 ${isActive ? 'border-blue bg-blue/10' : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/70'} hover:border-blue transition-colors">
+                        <button type="button" data-load-id="${item.id}" class="flex-1 text-left min-w-0">
+                            <p class="text-xs font-extrabold truncate text-dark dark:text-white flex items-center gap-1.5">
+                                <span class="truncate">${escapeXml(item.name)}</span>
+                                ${isActive ? '<span class="px-1.5 py-0.5 rounded bg-blue text-white text-[9px] uppercase shrink-0">Active</span>' : ''}
+                            </p>
+                            <p class="text-[10px] font-bold text-slate-400">${item.gridSize || '6x5'} · ${item.slideStyle || 'chutes'}</p>
+                        </button>
+                        <button type="button" data-delete-id="${item.id}" class="p-1.5 rounded-lg text-slate-400 hover:text-pink hover:bg-pink/10 transition-colors" title="Delete board">
+                            <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                        </button>
+                    </div>
+                `;
+            }).join('');
+
+            hydrateIcons(list);
+
+            list.querySelectorAll('[data-load-id]').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const item = state.savedSets.find(s => s.id === btn.dataset.loadId);
+                    if (!item) return;
+                    applySavedSet(item);
+                });
+            });
+
+            list.querySelectorAll('[data-delete-id]').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const id = btn.dataset.deleteId;
+                    const item = state.savedSets.find(s => s.id === id);
+                    openConfirm('Delete Board?', `Remove "${item?.name || 'this board'}" from your saved library?`, () => {
+                        state.savedSets = state.savedSets.filter(s => s.id !== id);
+                        if (state.activeSetId === id) {
+                            state.activeSetId = null;
+                        }
+                        persistSavedSets();
+                        showToast('Board deleted.', 'info');
+                    });
+                });
+            });
+        }
+
+        function applySavedSet(item) {
+            state.savedPlayerNames = null;
+            applyWorkspaceData({ ...item, activeSetId: item.id });
+            initPlayers(state.playerCount, { names: state.savedPlayerNames, skipRender: true });
+            item.updatedAt = Date.now();
+            const hasCustomLinks = Array.isArray(item.links);
+            applyPage();
+            buildBoard({ keepLinks: hasCustomLinks });
+            playSound('pop');
+            showToast(`Loaded "${item.name}"`, 'success');
+        }
+
+        // ============================
+        // THEME & EDIT LINKS TOGGLES
+        // ============================
+        function setEditLinksMode(on) {
+            state.editLinksMode = on;
+            state.editLinkStart = null;
+            const btn = document.getElementById('edit-links-btn');
+            const iconWrap = document.getElementById('edit-links-icon');
+            const banner = document.getElementById('edit-links-banner');
+            btn.setAttribute('aria-pressed', String(on));
+            btn.classList.toggle('bg-white/90', !on);
+            btn.classList.toggle('dark:bg-slate-800/90', !on);
+            btn.classList.toggle('dark:text-white', !on);
+            btn.classList.toggle('bg-orange', on);
+            btn.classList.toggle('text-dark', true);
+            if (iconWrap) {
+                iconWrap.classList.toggle('text-orange', !on);
+                iconWrap.classList.toggle('text-dark', on);
+            }
+            banner.classList.toggle('hidden', !on);
+            document.getElementById('edit-links-hint').textContent = 'Click a START square, then an END square (low→high = Ladder, high→low = Chute). Click any link to delete.';
+            renderBoard();
+        }
+
+        function applySoundUI() {
+            const btn = document.getElementById('sound-btn');
+            btn.setAttribute('aria-pressed', String(state.soundOn));
+            document.getElementById('sound-icon-on').classList.toggle('hidden', !state.soundOn);
+            document.getElementById('sound-icon-off').classList.toggle('hidden', state.soundOn);
+            btn.classList.toggle('bg-green/20', state.soundOn);
+            btn.classList.toggle('bg-slate-200', !state.soundOn);
+            btn.classList.toggle('dark:bg-slate-700', !state.soundOn);
+        }
+
+        function initSoundState() {
+            try {
+                if (localStorage.getItem('soundMuted') === 'true') {
+                    state.soundOn = false;
+                    applySoundUI();
+                }
+            } catch (e) {}
+        }
+
+        function syncThemeButtonAria() {
+            const isDark = document.documentElement.classList.contains('dark');
+            document.getElementById('theme-btn').setAttribute('aria-pressed', String(isDark));
+        }
+
+        // ============================
+        // EVENT BINDINGS & INIT
+        // ============================
+        document.addEventListener('DOMContentLoaded', async () => {
+            syncThemeButtonAria();
+            initSoundState();
+            if (typeof requireAuth === 'function') await requireAuth();
+            document.body.classList.remove('opacity-0');
+
+            await loadPersistedState();
+            applyPage();
+            renderDiceFace(6);
+            initPlayers(state.playerCount, { names: state.savedPlayerNames, skipRender: true });
+            buildBoard({ keepLinks: hasSavedLinks, skipPersist: true });
+            updateActivePromptCard(1);
+            hydrateIcons(document);
+
+            // Dark mode
+            document.getElementById('theme-btn').addEventListener('click', () => {
+                const isDark = document.documentElement.classList.toggle('dark');
+                document.getElementById('theme-btn').setAttribute('aria-pressed', String(isDark));
+                try {
+                    localStorage.setItem(THEME_KEY, isDark ? 'dark' : 'light');
+                    localStorage.setItem('klasskit-theme', isDark ? 'dark' : 'light');
+                } catch (e) {}
+                playSound('pop');
+            });
+
+            // Sound toggle
+            document.getElementById('sound-btn').addEventListener('click', () => {
+                state.soundOn = !state.soundOn;
+                applySoundUI();
+                if (state.soundOn) playSound('pop');
+            });
+
+            // Sidebar toggle
+            const sidebar = document.getElementById('sidebar');
+            document.getElementById('toggle-sidebar-btn').addEventListener('click', () => {
+                if (window.innerWidth < 768) {
+                    sidebar.classList.toggle('hidden-panel-mobile');
+                } else {
+                    sidebar.classList.toggle('hidden-panel-desktop');
+                }
+            });
+            document.getElementById('mobile-close-panel').addEventListener('click', () => {
+                sidebar.classList.add('hidden-panel-mobile');
+            });
+
+            // Grid size radios
+            document.querySelectorAll('input[name="grid-size"]').forEach(r => {
+                r.addEventListener('change', (e) => {
+                    const [c, rows] = e.target.value.split('x').map(Number);
+                    state.cols = c;
+                    state.rows = rows;
+                    state.totalTiles = c * rows;
+                    buildBoard({ keepLinks: false });
+                    playSound('pop');
+                });
+            });
+
+            // Slide style radios
+            document.querySelectorAll('input[name="slide-style"]').forEach(r => {
+                r.addEventListener('change', (e) => {
+                    state.slideStyle = e.target.value;
+                    applySlideStyleToExistingLinks();
+                    renderBoard();
+                    persistState();
+                    playSound('pop');
+                });
+            });
+
+            // Color theme radios
+            document.querySelectorAll('input[name="color-theme"]').forEach(r => {
+                r.addEventListener('change', (e) => {
+                    state.colorTheme = e.target.value;
+                    renderBoard();
+                    persistState();
+                    playSound('pop');
+                });
+            });
+
+            // Sliders
+            document.getElementById('ladder-count').addEventListener('input', (e) => {
+                state.ladderCount = Number(e.target.value);
+                document.getElementById('ladder-count-val').textContent = state.ladderCount;
+                generateBalancedLinks();
+                renderBoard();
+                persistState();
+            });
+            document.getElementById('chute-count').addEventListener('input', (e) => {
+                state.chuteCount = Number(e.target.value);
+                document.getElementById('chute-count-val').textContent = state.chuteCount;
+                generateBalancedLinks();
+                renderBoard();
+                persistState();
+            });
+
+            // Shuffle links & Edit links
+            document.getElementById('shuffle-links-btn').addEventListener('click', () => {
+                generateBalancedLinks();
+                renderBoard();
+                persistState();
+                playSound('pop');
+                showToast('Generated fresh ladders & chutes!', 'info');
+            });
+            document.getElementById('edit-links-btn').addEventListener('click', () => setEditLinksMode(!state.editLinksMode));
+            document.getElementById('sidebar-edit-links-btn').addEventListener('click', () => setEditLinksMode(!state.editLinksMode));
+            document.getElementById('done-edit-links-btn').addEventListener('click', () => setEditLinksMode(false));
+
+            // Answer toggle
+            document.getElementById('answer-toggle-btn').addEventListener('click', () => {
+                state.showAnswers = !state.showAnswers;
+                const btn = document.getElementById('answer-toggle-btn');
+                btn.setAttribute('aria-pressed', String(state.showAnswers));
+                btn.classList.toggle('bg-white/90', !state.showAnswers);
+                btn.classList.toggle('dark:bg-slate-800/90', !state.showAnswers);
+                btn.classList.toggle('bg-orange', state.showAnswers);
+                btn.classList.toggle('text-dark', state.showAnswers);
+                btn.classList.toggle('text-orange', !state.showAnswers);
+                renderBoard();
+                playSound('pop');
+                showToast(state.showAnswers ? 'Teacher Answers visible on board' : 'Teacher Answers hidden', 'info');
+            });
+
+            // Reset counters
+            document.getElementById('reset-game-btn').addEventListener('click', resetGameCounters);
+
+            // Presets
+            document.querySelectorAll('.preset-btn').forEach(btn => {
+                btn.addEventListener('click', () => loadPreset(btn.dataset.preset));
+            });
+
+            // Clear prompts
+            document.getElementById('clear-prompts-btn').addEventListener('click', () => {
+                document.getElementById('prompt-input').value = '';
+                buildBoard({ keepLinks: true });
+                playSound('pop');
+            });
+
+            // Live title / subtitle / prompt sync
+            document.getElementById('custom-title').addEventListener('input', persistState);
+            document.getElementById('custom-subtitle').addEventListener('input', persistState);
+            document.getElementById('prompt-input').addEventListener('input', () => {
+                updatePromptCountPill();
+                persistState();
+            });
+            document.getElementById('shuffle-prompts').addEventListener('change', () => buildBoard({ keepLinks: true }));
+
+            // Build button
+            document.getElementById('build-btn').addEventListener('click', () => {
+                buildBoard({ keepLinks: false });
+                playSound('ladder');
+                showToast('Board rebuilt!', 'success');
+            });
+
+            // Orientation & Print
+            document.querySelectorAll('input[name="page-orient"]').forEach(r => {
+                r.addEventListener('change', (e) => {
+                    state.orient = e.target.value;
+                    applyPage();
+                    persistState();
+                });
+            });
+            document.getElementById('print-handout-btn').addEventListener('click', () => triggerPrint(false));
+            document.getElementById('print-key-btn').addEventListener('click', () => triggerPrint(true));
+
+            // Zoom controls
+            document.getElementById('zoom-in').addEventListener('click', () => {
+                state.zoom = Math.min(1.6, +(state.zoom + 0.1).toFixed(2));
+                renderBoard();
+            });
+            document.getElementById('zoom-out').addEventListener('click', () => {
+                state.zoom = Math.max(0.6, +(state.zoom - 0.1).toFixed(2));
+                renderBoard();
+            });
+            document.getElementById('zoom-reset').addEventListener('click', () => {
+                state.zoom = 1;
+                renderBoard();
+            });
+
+            // Player count buttons
+            document.querySelectorAll('.pcount-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    if (state.isRolling) return;
+                    const prevNames = state.players.map(p => p.name);
+                    initPlayers(Number(btn.dataset.pcount), { names: prevNames });
+                    state.savedPlayerNames = state.players.map(p => p.name);
+                    persistState();
+                    playSound('pop');
+                });
+            });
+
+            // Dice Roll
+            document.getElementById('roll-dice-btn').addEventListener('click', rollDice);
+            document.getElementById('dice-face').addEventListener('click', rollDice);
+
+            // Spacebar / Escape shortcuts
+            document.addEventListener('keydown', (e) => {
+                if (e.code === 'Escape') {
+                    document.getElementById('tileModal').classList.add('hidden');
+                    document.getElementById('helpModal').classList.add('hidden');
+                    document.getElementById('saveModal').classList.add('hidden');
+                    closeConfirm();
+                    return;
+                }
+                const tag = (document.activeElement?.tagName || '').toLowerCase();
+                if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
+                const anyModalOpen = ['tileModal', 'helpModal', 'saveModal', 'confirmModal']
+                    .some(id => !document.getElementById(id).classList.contains('hidden'));
+                if (anyModalOpen) return;
+                if (e.code === 'Space') {
+                    e.preventDefault();
+                    rollDice();
+                }
+            });
+
+            // Prompt card reveal button
+            document.getElementById('card-reveal-btn').addEventListener('click', () => {
+                document.getElementById('card-answer-text').classList.remove('hidden');
+                document.getElementById('card-reveal-btn').classList.add('hidden');
+                playSound('pop');
+            });
+
+            // Tile Spotlight Modal
+            const tileModal = document.getElementById('tileModal');
+            document.getElementById('tile-modal-close').addEventListener('click', () => tileModal.classList.add('hidden'));
+            document.getElementById('tile-modal-ok').addEventListener('click', () => tileModal.classList.add('hidden'));
+            tileModal.addEventListener('click', (e) => { if (e.target === tileModal) tileModal.classList.add('hidden'); });
+            document.getElementById('modal-reveal-btn').addEventListener('click', () => {
+                document.getElementById('modal-answer-box').classList.remove('hidden');
+                document.getElementById('modal-reveal-btn').classList.add('hidden');
+                playSound('pop');
+            });
+
+            // Help Modal
+            const helpModal = document.getElementById('helpModal');
+            document.getElementById('help-btn').addEventListener('click', () => helpModal.classList.remove('hidden'));
+            document.getElementById('help-close-btn').addEventListener('click', () => helpModal.classList.add('hidden'));
+            document.getElementById('help-got-it-btn').addEventListener('click', () => helpModal.classList.add('hidden'));
+            helpModal.addEventListener('click', (e) => { if (e.target === helpModal) helpModal.classList.add('hidden'); });
+
+            // Saved Sets Drawer
+            document.getElementById('saved-sets-toggle-btn').addEventListener('click', () => {
+                document.getElementById('saved-sets-controls').classList.toggle('active');
+                document.getElementById('saved-sets-toggle-icon').classList.toggle('active');
+            });
+            document.getElementById('library-sort').addEventListener('change', renderSavedSetsList);
+            document.getElementById('close-set-btn').addEventListener('click', () => {
+                state.activeSetId = null;
+                updateActiveSetBanner();
+                renderSavedSetsList();
+                persistState();
+            });
+
+            document.getElementById('new-set-btn').addEventListener('click', () => {
+                openConfirm('Start New Board?', 'This will detach from any active saved board and start a blank workspace.', () => {
+                    state.activeSetId = null;
+                    updateActiveSetBanner();
+                    document.getElementById('custom-title').value = 'New Chutes & Ladders';
+                    document.getElementById('custom-subtitle').value = 'Roll the die, move your counter, and complete each square!';
+                    document.getElementById('prompt-input').value = '';
+                    renderSavedSetsList();
+                    buildBoard({ keepLinks: false });
+                    showToast('Started a fresh blank board', 'info');
+                });
+            });
+
+            const saveModal = document.getElementById('saveModal');
+            const saveInput = document.getElementById('save-set-input');
+            const confirmSave = () => {
+                const name = saveInput.value.trim();
+                if (!name) {
+                    showToast('Please enter a board name.', 'warning');
+                    return;
+                }
+                const ws = getWorkspaceData();
+                const existingIdx = state.activeSetId ? state.savedSets.findIndex(s => s.id === state.activeSetId) : -1;
+                const isSameName = existingIdx >= 0 && (state.savedSets[existingIdx].name || '').trim() === name;
+
+                if (isSameName) {
+                    state.savedSets[existingIdx] = {
+                        ...state.savedSets[existingIdx],
+                        ...ws,
+                        name,
+                        updatedAt: Date.now()
+                    };
+                    saveModal.classList.add('hidden');
+                    persistSavedSets();
+                    playSound('ladder');
+                    showToast(`Updated "${name}"!`, 'success');
+                } else {
+                    const id = 'cl_' + Date.now();
+                    const payload = {
+                        id,
+                        name,
+                        updatedAt: Date.now(),
+                        ...ws,
+                        activeSetId: id
+                    };
+                    state.savedSets.unshift(payload);
+                    state.activeSetId = id;
+                    saveModal.classList.add('hidden');
+                    persistSavedSets();
+                    playSound('ladder');
+                    showToast(`Saved "${name}"!`, 'success');
+                }
+            };
+
+            document.getElementById('save-set-btn').addEventListener('click', () => {
+                const existing = state.savedSets.find(s => s.id === state.activeSetId);
+                saveInput.value = existing
+                    ? existing.name
+                    : (document.getElementById('custom-title').value.trim() || 'My Chutes & Ladders');
+                saveModal.classList.remove('hidden');
+                saveInput.focus();
+            });
+            document.getElementById('save-modal-cancel').addEventListener('click', () => saveModal.classList.add('hidden'));
+            saveModal.addEventListener('click', (e) => { if (e.target === saveModal) saveModal.classList.add('hidden'); });
+            document.getElementById('save-modal-confirm').addEventListener('click', confirmSave);
+            saveInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') { e.preventDefault(); confirmSave(); }
+                if (e.key === 'Escape') saveModal.classList.add('hidden');
+            });
+
+            // Confirm modal
+            const confirmModal = document.getElementById('confirmModal');
+            document.getElementById('confirmBtnNo').addEventListener('click', closeConfirm);
+            confirmModal.addEventListener('click', (e) => { if (e.target === confirmModal) closeConfirm(); });
+            document.getElementById('confirmBtnYes').addEventListener('click', () => {
+                if (typeof confirmCallback === 'function') confirmCallback();
+                closeConfirm();
+            });
+        });
+    </script>
+</body>
+
+</html>

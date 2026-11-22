@@ -1,0 +1,2082 @@
+<!DOCTYPE html>
+<html lang="en" data-orient="portrait">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Tracing Handout Maker — KlassKit</title>
+    <link rel="icon" type="image/x-icon" href="../../../media/icon.ico" />
+    <link rel="icon" type="image/webp" href="../../../media/icon.webp" />
+
+    <!-- Apply saved theme before first paint (syncs with KlassKit Hub) -->
+    <script>
+        (function () {
+            function readTheme(key) {
+                try {
+                    var raw = localStorage.getItem(key);
+                    if (raw == null) return null;
+                    try { return JSON.parse(raw); } catch (e) { return raw; }
+                } catch (e) { return null; }
+            }
+            function syncTheme(changedKey) {
+                var isDark;
+                if (changedKey === 'theme_hub') {
+                    var hubVal = readTheme('theme_hub');
+                    isDark = hubVal ? hubVal === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
+                } else {
+                    var toolTheme = readTheme('theme_tracing-maker') || readTheme('klasskit-theme');
+                    var hubTheme = readTheme('theme_hub');
+                    isDark = toolTheme
+                        ? toolTheme === 'dark'
+                        : hubTheme
+                            ? hubTheme === 'dark'
+                            : window.matchMedia('(prefers-color-scheme: dark)').matches;
+                }
+                document.documentElement.classList.toggle('dark', isDark);
+                var btn = document.getElementById('theme-btn');
+                if (btn) btn.setAttribute('aria-pressed', String(isDark));
+            }
+            syncTheme();
+            window.addEventListener('storage', function (e) {
+                if (e.key === 'theme_hub' || e.key === 'theme_tracing-maker' || e.key === 'klasskit-theme') {
+                    syncTheme(e.key);
+                }
+            });
+        })();
+    </script>
+
+    <!-- Supabase Auth & Cloud Persistence -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.105.4"></script>
+    <script src="/supabase.js"></script>
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@600;700&family=Fredoka:wght@400;600;700&family=JetBrains+Mono:wght@500;700&family=Nunito:wght@400;600;700;800&family=Quicksand:wght@500;600;700&display=swap" rel="stylesheet" />
+
+    <!-- Libraries -->
+    <script src="https://unpkg.com/lucide@1.16.0"></script>
+    <script src="https://cdn.jsdelivr.net/npm/tone@14.8.49/build/Tone.js"></script>
+
+    <!-- Shared KlassKit Styles -->
+    <link rel="stylesheet" href="../../../css/tailwind.generated.css" />
+    <link rel="stylesheet" href="../../../css/base.css" />
+    <link rel="stylesheet" href="../../../css/components.css" />
+
+    <style>
+        :root {
+            --shadow-color: #1e293b;
+            --line: #1e293b;
+            --ink: #1e293b;
+            --surface: #ffffff;
+            --shadow: #1e293b;
+            --dots: #cbd5e1;
+        }
+
+        .dark {
+            --shadow-color: #000000;
+            --line: #64748b;
+            --ink: #f8fafc;
+            --surface: #0f172a;
+            --shadow: #000000;
+            --dots: #334155;
+        }
+
+        body {
+            font-family: 'Nunito', -apple-system, BlinkMacSystemFont, sans-serif;
+            overflow: hidden;
+            -webkit-tap-highlight-color: transparent;
+            user-select: none;
+        }
+
+        @media (max-width: 767px) {
+            body { padding-bottom: 0 !important; }
+        }
+
+        .game-console {
+            border: 6px solid #1e293b;
+            border-radius: 2rem;
+            box-shadow: rgba(30, 41, 59, 0.15) 14px 14px 0px;
+        }
+        .dark .game-console {
+            border-color: #64748b;
+            box-shadow: rgba(0, 0, 0, 0.45) 14px 14px 0px;
+        }
+
+        :where(.btn-chunky) {
+            position: relative;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border: 3px solid var(--line);
+            box-shadow: 0 4px 0 var(--shadow);
+            cursor: pointer;
+            user-select: none;
+            transition: all 0.12s cubic-bezier(0.4, 0, 0.2, 1);
+            transform: translateY(0px);
+        }
+
+        .btn-chunky {
+            font-family: 'Fredoka', sans-serif;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        .btn-chunky:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 0 var(--shadow);
+            filter: brightness(1.04);
+        }
+        .btn-chunky:active:not(:disabled) {
+            transform: translateY(4px);
+            box-shadow: 0 0 0 var(--shadow) !important;
+        }
+        .btn-chunky:disabled { opacity: 0.5; cursor: not-allowed; }
+        .btn-chunky:focus-visible,
+        input:focus-visible,
+        select:focus-visible,
+        textarea:focus-visible {
+            outline: 3px solid var(--color-blue);
+            outline-offset: 2px;
+        }
+
+        .seg { position: relative; display: block; }
+        .seg input {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            opacity: 0;
+            cursor: pointer;
+        }
+        .seg span {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.3rem;
+            padding: 0.5rem 0.35rem;
+            font-family: 'Nunito', sans-serif;
+            font-size: 10px;
+            font-weight: 800;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            color: #64748b;
+            background: var(--surface);
+            border: 2px solid var(--line);
+            border-radius: 0.75rem;
+            box-shadow: 2px 2px 0 var(--shadow);
+            transition: 0.15s;
+        }
+        .dark .seg span { color: #94a3b8; }
+        .seg:hover input:not(:checked) + span { transform: translateY(-2px); color: var(--ink); }
+        .seg:active input + span { transform: translateY(2px); box-shadow: none; }
+        .seg input:checked + span {
+            background: #1ea7fd;
+            color: #ffffff;
+            border-color: var(--line);
+            box-shadow: 2px 2px 0 var(--shadow);
+            transform: translateY(1px);
+        }
+        .seg input:focus-visible + span {
+            outline: 3px solid var(--color-blue);
+            outline-offset: 2px;
+        }
+
+        .input-chunky {
+            border: 2px solid var(--line);
+            border-radius: 0.75rem;
+            box-shadow: 2px 2px 0 var(--shadow);
+        }
+        .input-chunky:focus { outline: none; border-color: var(--color-blue); }
+
+        textarea {
+            user-select: text;
+            background-image: radial-gradient(var(--dots) 1.5px, transparent 1.5px);
+            background-size: 12px 12px;
+        }
+
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        .dark .custom-scrollbar::-webkit-scrollbar-thumb { background: #475569; }
+        .custom-scrollbar { scrollbar-color: #cbd5e1 transparent; scrollbar-width: thin; }
+
+        @media (max-width: 767px) {
+            .hidden-panel-mobile { display: none !important; }
+        }
+        @media (min-width: 768px) {
+            .hidden-panel-desktop { margin-left: -20rem; border-right-width: 0px !important; }
+        }
+        @media (min-width: 1024px) {
+            .hidden-panel-desktop { margin-left: -24rem; }
+        }
+
+        #saved-sets-controls { max-height: 0; overflow: hidden; transition: 0.3s ease-out; opacity: 0; }
+        #saved-sets-controls.active { max-height: 260px; opacity: 1; margin-top: 8px; }
+        #saved-sets-toggle-icon.active { transform: rotate(180deg); }
+
+        .canvas-dots {
+            background-image: radial-gradient(var(--dots) 1.8px, transparent 1.8px);
+            background-size: 24px 24px;
+        }
+
+        /* A4 Sheet Stage */
+        #sheet-stage {
+            transform-origin: center center;
+            transition: transform 0.2s ease;
+        }
+        .a4-paper {
+            background: #ffffff;
+            border: 4px solid #1e293b;
+            border-radius: 1rem;
+            box-shadow: 8px 8px 0 rgba(30, 41, 59, 0.22);
+            position: relative;
+            overflow: hidden;
+        }
+        .dark .a4-paper {
+            border-color: #94a3b8;
+            box-shadow: 8px 8px 0 rgba(0, 0, 0, 0.55);
+        }
+
+        #draw-canvas {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            touch-action: none;
+        }
+
+        @keyframes pop-in {
+            0% { opacity: 0; transform: scale(0.92); }
+            100% { opacity: 1; transform: scale(1); }
+        }
+        .animate-pop-in { animation: pop-in 0.22s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
+
+        /* STRICT A4 PRINT */
+        @page { size: A4 portrait; margin: 0; }
+
+        @media print {
+            html, body {
+                display: block !important;
+                width: 210mm !important;
+                height: 297mm !important;
+                padding: 0 !important;
+                margin: 0 !important;
+                overflow: hidden !important;
+                background: #ffffff !important;
+                background-image: none !important;
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+            }
+            html[data-orient="landscape"], html[data-orient="landscape"] body {
+                width: 297mm !important;
+                height: 210mm !important;
+            }
+            body > :not(#print-area) { display: none !important; }
+            #print-area {
+                display: flex !important;
+                align-items: center !important;
+                justify-content: center !important;
+                width: 210mm !important;
+                height: 297mm !important;
+                padding: 0 !important;
+                margin: 0 !important;
+                background: #ffffff !important;
+                overflow: hidden !important;
+                break-after: avoid !important;
+            }
+            html[data-orient="landscape"] #print-area {
+                width: 297mm !important;
+                height: 210mm !important;
+            }
+            #print-area svg {
+                width: 100% !important;
+                height: 100% !important;
+                display: block !important;
+            }
+        }
+    </style>
+    <style id="page-style"></style>
+</head>
+
+<body class="opacity-0 transition-opacity duration-200 h-screen w-screen flex flex-col items-center justify-center p-2 md:p-5 overflow-hidden text-dark dark:text-white">
+
+    <!-- Toast Container -->
+    <div id="toast-container" class="print:hidden fixed bottom-6 left-1/2 -translate-x-1/2 z-[600] flex flex-col gap-2 pointer-events-none"></div>
+
+    <!-- MAIN CONSOLE -->
+    <div class="game-console print:hidden w-full h-full relative flex flex-col md:flex-row overflow-hidden bg-white dark:bg-slate-900">
+
+        <!-- LEFT SIDEBAR: CUSTOMIZER -->
+        <aside id="sidebar" class="w-full md:w-80 lg:w-96 bg-white dark:bg-slate-900 border-b-4 md:border-b-0 md:border-r-4 border-dark dark:border-slate-500 flex flex-col z-40 transition-all duration-300 h-[48%] md:h-full relative shrink-0">
+
+            <!-- Header -->
+            <div class="p-4 border-b-4 border-dark dark:border-slate-500 bg-blue/10 dark:bg-slate-800/80 flex justify-between items-center gap-2 shrink-0">
+                <div>
+                    <h1 class="text-2xl font-heading font-bold text-dark dark:text-white tracking-wide leading-none">
+                        Tracing Maker
+                    </h1>
+                    <p class="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-widest mt-1">KlassKit Handout Studio</p>
+                </div>
+                <div class="flex items-center gap-1.5">
+                    <button id="sound-btn" type="button" title="Toggle Sound Effects" aria-pressed="true" class="p-2 bg-white dark:bg-slate-800 text-dark dark:text-white border-2 border-dark dark:border-slate-500 rounded-lg shadow-hard-sm hover:-translate-y-0.5 active:translate-y-0.5 active:shadow-none transition-all">
+                        <span id="sound-icon-on" class="inline-flex"><i data-lucide="volume-2" class="w-4 h-4"></i></span>
+                        <span id="sound-icon-off" class="hidden inline-flex"><i data-lucide="volume-x" class="w-4 h-4 text-slate-400"></i></span>
+                    </button>
+                    <button id="help-btn" type="button" title="How to Use &amp; Tips" class="p-2 bg-orange/20 text-orange border-2 border-dark dark:border-slate-500 rounded-lg shadow-hard-sm hover:-translate-y-0.5 active:translate-y-0.5 active:shadow-none transition-all">
+                        <i data-lucide="help-circle" class="w-4 h-4"></i>
+                    </button>
+                    <button id="theme-btn" type="button" aria-pressed="false" aria-label="Toggle dark mode" title="Toggle Dark Mode" class="p-2 bg-white dark:bg-slate-800 text-dark dark:text-white border-2 border-dark dark:border-slate-500 rounded-lg shadow-hard-sm hover:-translate-y-0.5 active:translate-y-0.5 active:shadow-none transition-all">
+                        <i data-lucide="moon" class="w-4 h-4 dark:hidden"></i>
+                        <i data-lucide="sun" class="w-4 h-4 hidden dark:block text-orange"></i>
+                    </button>
+                    <button id="mobile-close-panel" type="button" class="md:hidden p-2 bg-pink/20 text-pink border-2 border-dark dark:border-slate-500 rounded-lg shadow-hard-sm active:translate-y-1 active:shadow-none transition-all">
+                        <i data-lucide="x" class="w-4 h-4"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Scrollable Controls -->
+            <div class="flex-1 p-4 overflow-y-auto custom-scrollbar space-y-5 bg-white dark:bg-slate-900">
+
+                <!-- Active Set Banner -->
+                <div id="active-set-banner" class="hidden animate-pop-in p-2.5 rounded-xl bg-blue/10 dark:bg-blue/20 border-2 border-blue flex items-center justify-between gap-2">
+                    <div class="flex items-center gap-2 min-w-0">
+                        <div class="w-7 h-7 rounded-lg bg-blue text-white flex items-center justify-center shrink-0 border-2 border-dark">
+                            <i data-lucide="bookmark-check" class="w-3.5 h-3.5"></i>
+                        </div>
+                        <div class="min-w-0">
+                            <p class="text-[9px] font-bold uppercase tracking-wider text-blue leading-none">Active Sheet</p>
+                            <p id="active-set-name" class="text-xs font-extrabold truncate mt-0.5"></p>
+                        </div>
+                    </div>
+                    <button id="close-set-btn" type="button" title="Detach from saved sheet" class="p-1 rounded-lg hover:bg-blue/20 text-slate-500 dark:text-slate-300">
+                        <i data-lucide="x" class="w-3.5 h-3.5"></i>
+                    </button>
+                </div>
+
+                <!-- Mode Selector -->
+                <div class="space-y-2">
+                    <label class="text-xs font-bold text-slate-400 uppercase tracking-widest block">Handout Mode</label>
+                    <div class="grid grid-cols-3 gap-1.5">
+                        <label class="seg" title="Standard lined handwriting rows"><input type="radio" name="trace-mode" value="rows" checked><span>📝 Rows</span></label>
+                        <label class="seg" title="Playful paths, shapes &amp; rainbow tracing"><input type="radio" name="trace-mode" value="fun"><span>🌈 Fun</span></label>
+                        <label class="seg" title="Fun warm-up paths + lined word rows"><input type="radio" name="trace-mode" value="combo"><span>✨ Combo</span></label>
+                    </div>
+                </div>
+
+                <!-- FUN TRACING OPTIONS (Shown in Fun & Combo modes) -->
+                <div id="fun-options-box" class="hidden space-y-3 pt-4 border-t-2 border-dashed border-slate-300 dark:border-slate-700">
+                    <div id="fun-submode-row" class="space-y-2">
+                        <label class="text-xs font-bold text-slate-400 uppercase tracking-widest block">Fun Tracing Style</label>
+                        <div class="grid grid-cols-3 gap-1.5">
+                            <label class="seg" title="Guide animals/vehicles along fun paths to goals"><input type="radio" name="fun-submode" value="paths" checked><span>🐝 Paths</span></label>
+                            <label class="seg" title="Trace words inside stepping clouds &amp; waves"><input type="radio" name="fun-submode" value="clouds"><span>☁️ Clouds</span></label>
+                            <label class="seg" title="Big hollow rainbow-trace word posters"><input type="radio" name="fun-submode" value="rainbow"><span>🌈 Jumbo</span></label>
+                        </div>
+                    </div>
+
+                    <div id="fun-path-pattern-row" class="space-y-1.5">
+                        <label for="path-pattern" class="text-[11px] font-bold text-slate-500 dark:text-slate-400 block">Path Pattern</label>
+                        <select id="path-pattern" class="w-full p-2 bg-slate-50 dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-lg text-dark dark:text-white font-bold text-xs focus:outline-none focus:border-blue cursor-pointer">
+                            <option value="mixed">Mixed (Zig-Zag, Waves, Hills, Loops)</option>
+                            <option value="zigzag">Sharp Zig-Zag</option>
+                            <option value="waves">Smooth Ocean Waves</option>
+                            <option value="hills">Bouncy Bunny Hills</option>
+                            <option value="castle">Castle Battlements (Square)</option>
+                            <option value="loops">Curly Loop-de-Loops</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- FONT & ROW CUSTOMIZATION -->
+                <div class="space-y-3 pt-4 border-t-2 border-dashed border-slate-300 dark:border-slate-700">
+                    <div class="flex justify-between items-end">
+                        <label for="font-size-slider" class="text-xs font-bold text-slate-400 uppercase tracking-widest">Font Size</label>
+                        <output id="font-size-val" class="font-heading text-base font-bold text-blue">46 px</output>
+                    </div>
+                    <input type="range" id="font-size-slider" min="24" max="76" step="2" value="46" class="w-full h-2.5 bg-slate-100 dark:bg-slate-800 rounded-full appearance-none cursor-pointer accent-blue border-2 border-dark dark:border-slate-500">
+                    <div class="flex justify-between text-[10px] font-bold text-slate-400">
+                        <span>SMALL (24)</span>
+                        <span>MEDIUM (46)</span>
+                        <span>JUMBO (76)</span>
+                    </div>
+
+                    <!-- Font Family -->
+                    <div class="space-y-1.5 pt-1">
+                        <label class="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Font Face</label>
+                        <div class="grid grid-cols-3 gap-1.5">
+                            <label class="seg" title="Clean primary print"><input type="radio" name="font-family" value="print" checked><span>Print</span></label>
+                            <label class="seg" title="Rounded bubbly letters"><input type="radio" name="font-family" value="rounded"><span>Bubble</span></label>
+                            <label class="seg" title="Handwritten cursive style"><input type="radio" name="font-family" value="cursive"><span>Cursive</span></label>
+                        </div>
+                    </div>
+
+                    <!-- Trace Style -->
+                    <div class="space-y-1.5">
+                        <label class="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Letter Trace Style</label>
+                        <div class="grid grid-cols-2 gap-1.5">
+                            <label class="seg" title="Crisp dashed tracing strokes"><input type="radio" name="trace-style" value="dashed" checked><span>Dashed Trace</span></label>
+                            <label class="seg" title="Fine dotted outlines"><input type="radio" name="trace-style" value="dotted"><span>Dotted Trace</span></label>
+                            <label class="seg" title="Hollow outline for coloring or tracing inside"><input type="radio" name="trace-style" value="hollow"><span>Hollow Bubble</span></label>
+                            <label class="seg" title="Starts solid, fades to ghost, ends blank"><input type="radio" name="trace-style" value="scaffold"><span>Fade Scaffold</span></label>
+                        </div>
+                    </div>
+
+                    <!-- Guide Lines & Repeats -->
+                    <div id="row-controls-box" class="space-y-3 pt-1">
+                        <div class="grid grid-cols-2 gap-2">
+                            <div>
+                                <label for="guide-style" class="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 block mb-1">Line Guides</label>
+                                <select id="guide-style" class="w-full p-2 bg-slate-50 dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-lg text-dark dark:text-white font-bold text-xs focus:outline-none focus:border-blue cursor-pointer">
+                                    <option value="3line">3-Line Primary</option>
+                                    <option value="4line">4-Line (Descender)</option>
+                                    <option value="single">Single Baseline</option>
+                                    <option value="boxes">Letter Boxes</option>
+                                    <option value="none">No Lines</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label for="repeat-mode" class="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 block mb-1">Repeats / Row</label>
+                                <select id="repeat-mode" class="w-full p-2 bg-slate-50 dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-lg text-dark dark:text-white font-bold text-xs focus:outline-none focus:border-blue cursor-pointer">
+                                    <option value="auto" selected>Auto-Fill Row</option>
+                                    <option value="1">1× (Write rest)</option>
+                                    <option value="2">2× per row</option>
+                                    <option value="3">3× per row</option>
+                                    <option value="4">4× per row</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-2">
+                            <label class="flex items-center gap-2 cursor-pointer text-xs font-bold text-slate-600 dark:text-slate-300">
+                                <input type="checkbox" id="start-dots" checked class="w-4 h-4 shrink-0 accent-green cursor-pointer">
+                                <span>Green start dots</span>
+                            </label>
+                            <label class="flex items-center gap-2 cursor-pointer text-xs font-bold text-slate-600 dark:text-slate-300">
+                                <input type="checkbox" id="extra-blank-row" class="w-4 h-4 shrink-0 accent-blue cursor-pointer">
+                                <span>+1 Blank row each</span>
+                            </label>
+                        </div>
+                        <label class="flex items-center gap-2 cursor-pointer text-xs font-bold text-slate-600 dark:text-slate-300">
+                            <input type="checkbox" id="show-stars-footer" checked class="w-4 h-4 shrink-0 accent-orange cursor-pointer">
+                            <span>Reward stars footer ("Color when done!")</span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Worksheet Header -->
+                <div class="space-y-2 pt-4 border-t-2 border-dashed border-slate-300 dark:border-slate-700">
+                    <label class="text-xs font-bold text-slate-400 uppercase tracking-widest block">Worksheet Header</label>
+                    <input id="custom-title" type="text" value="Tracing Practice" placeholder="Worksheet Title" class="w-full p-2 bg-slate-50 dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-lg text-dark dark:text-white font-bold text-xs focus:outline-none focus:border-blue">
+                    <input id="custom-subtitle" type="text" value="Trace carefully along the dotted lines, then write neatly on your own!" placeholder="Student instructions..." class="w-full p-2 bg-slate-50 dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-lg text-dark dark:text-white font-semibold text-xs focus:outline-none focus:border-blue">
+                </div>
+
+                <!-- Quick Presets -->
+                <div class="pt-4 border-t-2 border-dashed border-slate-300 dark:border-slate-700">
+                    <label class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2.5 block">Quick Presets</label>
+                    <div class="flex gap-1.5 flex-wrap">
+                        <button type="button" data-preset="cvc" class="preset-btn px-2.5 py-1.5 bg-white dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-full text-xs font-bold shadow-hard-sm hover:-translate-y-0.5 active:translate-y-0.5 active:shadow-none transition-all">✏️ CVC Words</button>
+                        <button type="button" data-preset="abc_upper" class="preset-btn px-2.5 py-1.5 bg-white dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-full text-xs font-bold shadow-hard-sm hover:-translate-y-0.5 active:translate-y-0.5 active:shadow-none transition-all">🔤 A–H</button>
+                        <button type="button" data-preset="abc_lower" class="preset-btn px-2.5 py-1.5 bg-white dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-full text-xs font-bold shadow-hard-sm hover:-translate-y-0.5 active:translate-y-0.5 active:shadow-none transition-all">🔡 a–h</button>
+                        <button type="button" data-preset="numbers" class="preset-btn px-2.5 py-1.5 bg-white dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-full text-xs font-bold shadow-hard-sm hover:-translate-y-0.5 active:translate-y-0.5 active:shadow-none transition-all">🔢 1–10</button>
+                        <button type="button" data-preset="sentences" class="preset-btn px-2.5 py-1.5 bg-white dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-full text-xs font-bold shadow-hard-sm hover:-translate-y-0.5 active:translate-y-0.5 active:shadow-none transition-all">💬 Sentences</button>
+                        <button type="button" data-preset="fun_paths" class="preset-btn px-2.5 py-1.5 bg-white dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-full text-xs font-bold shadow-hard-sm hover:-translate-y-0.5 active:translate-y-0.5 active:shadow-none transition-all">🐝 Fun Paths</button>
+                    </div>
+                </div>
+
+                <!-- Tracing Content Input -->
+                <div class="space-y-2 pt-4 border-t-2 border-dashed border-slate-300 dark:border-slate-700">
+                    <div class="flex items-center justify-between gap-2">
+                        <label for="trace-input" class="text-xs font-bold text-slate-400 uppercase tracking-widest">Lines to Trace</label>
+                        <div class="flex items-center gap-2">
+                            <span id="line-count-pill" class="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 border-2 border-dark dark:border-slate-500">6 rows</span>
+                            <button type="button" id="clear-input-btn" class="text-[11px] font-extrabold text-pink hover:underline">Clear</button>
+                        </div>
+                    </div>
+                    <textarea id="trace-input" spellcheck="false" class="w-full h-32 p-3 bg-slate-50 dark:bg-slate-800 text-dark dark:text-white font-mono text-xs border-2 border-dark dark:border-slate-500 rounded-xl focus:border-blue focus:ring-0 outline-none resize-none shadow-inner-hard" placeholder="One word, letter, or sentence per line..."></textarea>
+                </div>
+
+                <!-- Primary Build CTA -->
+                <button id="rebuild-btn" type="button" class="w-full btn-chunky bg-green text-dark py-3 rounded-xl text-lg tracking-wide flex items-center justify-center gap-2">
+                    <i data-lucide="wand-sparkles" class="w-5 h-5"></i> UPDATE SHEET
+                </button>
+            </div>
+
+            <!-- Footer Print Actions -->
+            <div class="p-3 border-t-4 border-dark dark:border-slate-500 bg-slate-100 dark:bg-slate-800 space-y-2 shrink-0">
+                <div class="grid grid-cols-2 gap-2">
+                    <label class="seg"><input type="radio" name="page-orient" value="portrait" checked><span><i data-lucide="rectangle-vertical" class="w-3.5 h-3.5"></i> Portrait</span></label>
+                    <label class="seg"><input type="radio" name="page-orient" value="landscape"><span><i data-lucide="rectangle-horizontal" class="w-3.5 h-3.5"></i> Landscape</span></label>
+                </div>
+                <div class="flex gap-2">
+                    <button id="print-btn" type="button" class="flex-1 btn-chunky bg-blue text-white py-2 rounded-lg text-xs border-2 border-dark flex items-center justify-center gap-1.5" title="Print Crisp A4 Worksheet">
+                        <i data-lucide="printer" class="w-4 h-4"></i> PRINT A4
+                    </button>
+                    <button id="download-svg-btn" type="button" class="flex-1 btn-chunky bg-white dark:bg-slate-900 text-dark dark:text-white py-2 rounded-lg text-xs border-2 border-dark dark:border-slate-500 flex items-center justify-center gap-1.5" title="Download Vector SVG">
+                        <i data-lucide="download" class="w-4 h-4"></i> SAVE SVG
+                    </button>
+                </div>
+            </div>
+        </aside>
+
+        <!-- MAIN VIEWPORT -->
+        <main class="flex-1 relative h-[52%] md:h-full bg-slate-50 dark:bg-slate-950 flex flex-col lg:flex-row overflow-hidden">
+
+            <!-- Dotted Backdrop -->
+            <div class="canvas-dots absolute inset-0 opacity-60 dark:opacity-50 pointer-events-none"></div>
+
+            <!-- CENTER LIVE A4 PREVIEW -->
+            <div class="flex-1 h-full relative flex items-center justify-center p-3 md:p-6 overflow-hidden">
+
+                <!-- Top-Left Floating Controls -->
+                <div class="absolute top-4 left-4 z-20 flex flex-wrap items-center gap-2">
+                    <button id="toggle-sidebar-btn" type="button" class="p-2 bg-white/90 dark:bg-slate-800/90 backdrop-blur-md border-2 border-dark dark:border-slate-500 rounded-lg shadow-hard-sm hover:-translate-y-0.5 active:translate-y-0.5 active:shadow-none transition-all text-slate-700 dark:text-slate-200" title="Toggle Setup Panel">
+                        <i data-lucide="settings" class="w-5 h-5"></i>
+                    </button>
+                    <button id="draw-toggle-btn" type="button" aria-pressed="false" class="px-2.5 py-2 bg-white/90 dark:bg-slate-800/90 backdrop-blur-md border-2 border-dark dark:border-slate-500 rounded-lg shadow-hard-sm hover:-translate-y-0.5 active:translate-y-0.5 active:shadow-none transition-all text-dark dark:text-white text-xs font-extrabold flex items-center gap-1.5" title="Practice tracing directly on the sheet with mouse or smartboard pen">
+                        <span id="draw-toggle-icon" class="inline-flex text-pink"><i data-lucide="pen-tool" class="w-4 h-4"></i></span>
+                        <span>Smartboard Pen</span>
+                    </button>
+                    <button id="clear-ink-btn" type="button" class="hidden p-2 bg-white/90 dark:bg-slate-800/90 backdrop-blur-md border-2 border-dark dark:border-slate-500 rounded-lg shadow-hard-sm hover:-translate-y-0.5 active:translate-y-0.5 active:shadow-none transition-all text-pink" title="Erase Smartboard Ink">
+                        <i data-lucide="eraser" class="w-5 h-5"></i>
+                    </button>
+                </div>
+
+                <!-- Live A4 Preview Sheet + Pen Canvas -->
+                <div id="sheet-stage" class="relative z-10 flex items-center justify-center max-w-full max-h-full">
+                    <div id="a4-paper" class="a4-paper">
+                        <div id="svg-preview" class="w-full h-full"></div>
+                        <canvas id="draw-canvas" class="pointer-events-none"></canvas>
+                    </div>
+                </div>
+
+                <!-- Bottom-Right Zoom Controls -->
+                <div class="absolute bottom-4 right-4 z-20 flex gap-2">
+                    <button id="zoom-out" type="button" title="Zoom Out" class="p-2 bg-white/90 dark:bg-slate-800/90 backdrop-blur-md border-2 border-dark dark:border-slate-500 rounded-lg shadow-hard-sm hover:bg-slate-50 dark:hover:bg-slate-700 active:translate-y-0.5 active:shadow-none transition-all">
+                        <i data-lucide="minus" class="w-4 h-4"></i>
+                    </button>
+                    <button id="zoom-reset" type="button" title="Reset Zoom" class="px-2.5 py-2 bg-white/90 dark:bg-slate-800/90 backdrop-blur-md border-2 border-dark dark:border-slate-500 rounded-lg shadow-hard-sm text-[11px] font-mono font-bold active:translate-y-0.5 active:shadow-none transition-all">
+                        100%
+                    </button>
+                    <button id="zoom-in" type="button" title="Zoom In" class="p-2 bg-white/90 dark:bg-slate-800/90 backdrop-blur-md border-2 border-dark dark:border-slate-500 rounded-lg shadow-hard-sm hover:bg-slate-50 dark:hover:bg-slate-700 active:translate-y-0.5 active:shadow-none transition-all">
+                        <i data-lucide="plus" class="w-4 h-4"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- RIGHT PANEL: SMARTBOARD PEN & SAVED SHEETS -->
+            <div class="w-full lg:w-80 h-[40%] lg:h-full bg-white dark:bg-slate-900 border-t-4 lg:border-t-0 lg:border-l-4 border-dark dark:border-slate-500 flex flex-col z-10 shrink-0">
+
+                <!-- Pink Header -->
+                <div class="p-3 bg-pink border-b-4 border-dark dark:border-slate-500 text-white font-heading font-bold text-lg tracking-wide flex items-center justify-between gap-2 shrink-0">
+                    <div class="flex items-center gap-2">
+                        <i data-lucide="paintbrush" class="w-5 h-5"></i> STUDIO &amp; PEN
+                    </div>
+                    <span id="sheet-mode-pill" class="bg-white/20 px-2.5 py-0.5 rounded-full text-[11px] font-extrabold uppercase">Rows</span>
+                </div>
+
+                <!-- Scrollable Studio Panel -->
+                <div class="flex-1 overflow-y-auto custom-scrollbar p-3.5 space-y-4">
+
+                    <!-- Smartboard Tracing Pen -->
+                    <div class="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/80 border-2 border-dark dark:border-slate-500 space-y-2.5">
+                        <div class="flex items-center justify-between">
+                            <span class="text-[10px] font-extrabold uppercase tracking-widest text-slate-400">Live Smartboard Trace</span>
+                            <span id="pen-status-badge" class="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-500">OFF</span>
+                        </div>
+                        <p class="text-[11px] font-bold text-slate-500 dark:text-slate-300 leading-snug">
+                            Turn on the pen to let students trace directly on the worksheet preview!
+                        </p>
+                        <div class="flex items-center justify-between gap-1.5 pt-0.5">
+                            <div class="flex gap-1.5" id="pen-colors">
+                                <button type="button" data-pen-color="#ff4785" class="pen-swatch w-7 h-7 rounded-full border-3 border-dark shadow-hard-sm scale-110" style="background:#ff4785" title="Pink Marker"></button>
+                                <button type="button" data-pen-color="#1ea7fd" class="pen-swatch w-7 h-7 rounded-full border-2 border-dark" style="background:#1ea7fd" title="Blue Marker"></button>
+                                <button type="button" data-pen-color="#00d063" class="pen-swatch w-7 h-7 rounded-full border-2 border-dark" style="background:#00d063" title="Green Marker"></button>
+                                <button type="button" data-pen-color="#ff7e33" class="pen-swatch w-7 h-7 rounded-full border-2 border-dark" style="background:#ff7e33" title="Orange Marker"></button>
+                                <button type="button" data-pen-color="rainbow" class="pen-swatch w-7 h-7 rounded-full border-2 border-dark" style="background:conic-gradient(#ff4785,#ff7e33,#facc15,#00d063,#1ea7fd,#a855f7,#ff4785)" title="Rainbow Crayon"></button>
+                            </div>
+                            <button id="panel-clear-ink" type="button" class="px-2.5 py-1 bg-white dark:bg-slate-900 border-2 border-dark dark:border-slate-500 rounded-lg text-[10px] font-extrabold hover:bg-pink/10">Clear</button>
+                        </div>
+                        <div class="flex items-center gap-2 pt-1">
+                            <span class="text-[10px] font-extrabold text-slate-400 uppercase">Size</span>
+                            <input type="range" id="pen-size-slider" min="3" max="16" value="7" class="flex-1 h-2 bg-slate-200 dark:bg-slate-700 rounded-full appearance-none cursor-pointer accent-pink">
+                            <span id="pen-size-val" class="text-[11px] font-mono font-bold w-6 text-right">7</span>
+                        </div>
+                    </div>
+
+                    <!-- Color & Print Ink Controls -->
+                    <div class="p-3 rounded-2xl bg-blue/10 dark:bg-slate-800 border-2 border-dark dark:border-slate-500 space-y-2.5">
+                        <span class="text-[10px] font-extrabold uppercase tracking-widest text-blue block">Worksheet Palette</span>
+                        <div class="grid grid-cols-3 gap-1.5">
+                            <label class="seg" title="Soft classroom colors"><input type="radio" name="sheet-palette" value="color" checked><span>Color</span></label>
+                            <label class="seg" title="Classic blue-and-red handwriting lines"><input type="radio" name="sheet-palette" value="classic"><span>School</span></label>
+                            <label class="seg" title="Crisp ink-saving black &amp; gray"><input type="radio" name="sheet-palette" value="bw"><span>B&amp;W</span></label>
+                        </div>
+                        <div class="flex items-center justify-between text-[11px] font-bold pt-1">
+                            <span class="text-slate-500 dark:text-slate-300">Trace Darkness</span>
+                            <output id="darkness-val" class="font-mono text-dark dark:text-white">55%</output>
+                        </div>
+                        <input type="range" id="darkness-slider" min="20" max="90" step="5" value="55" class="w-full h-2 bg-white dark:bg-slate-700 rounded-full appearance-none cursor-pointer accent-blue border border-dark">
+                    </div>
+
+                    <!-- Sheet Summary -->
+                    <div class="grid grid-cols-2 gap-2 text-center">
+                        <div class="p-2 rounded-xl bg-green/10 border-2 border-dark dark:border-slate-600">
+                            <p class="text-[9px] font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400">Page Format</p>
+                            <p id="stat-orient" class="font-heading text-sm font-bold text-dark dark:text-white mt-0.5">A4 Portrait</p>
+                        </div>
+                        <div class="p-2 rounded-xl bg-orange/10 border-2 border-dark dark:border-slate-600">
+                            <p class="text-[9px] font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400">Font Size</p>
+                            <p id="stat-fontsize" class="font-heading text-sm font-bold text-dark dark:text-white mt-0.5">46 px</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Saved Sheets Drawer -->
+                <div class="p-3 border-t-2 border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/40 shrink-0">
+                    <button id="saved-sets-toggle-btn" type="button" class="w-full flex items-center justify-between text-[10px] font-extrabold text-slate-400 uppercase tracking-widest mb-1 hover:text-dark dark:hover:text-white">
+                        <span>Saved Sheets (<span id="saved-count">0</span>)</span>
+                        <span id="saved-sets-toggle-icon" class="inline-flex transition-transform"><i data-lucide="chevron-up" class="w-3.5 h-3.5"></i></span>
+                    </button>
+                    <div id="saved-sets-controls" class="space-y-2">
+                        <div class="flex items-center gap-1.5">
+                            <select id="library-sort" aria-label="Sort saved sheets" class="flex-1 p-1.5 bg-white dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-lg text-dark dark:text-white font-bold text-[10px] focus:outline-none">
+                                <option value="recent">Recent</option>
+                                <option value="alpha">A–Z</option>
+                            </select>
+                            <button id="new-set-btn" type="button" title="New Blank Sheet" class="p-1.5 bg-white dark:bg-slate-800 text-dark dark:text-white border-2 border-dark dark:border-slate-500 rounded-lg hover:brightness-95 font-bold text-[10px] flex items-center gap-1">
+                                <i data-lucide="plus" class="w-3 h-3"></i> NEW
+                            </button>
+                            <button id="save-set-btn" type="button" title="Save Current Sheet" class="p-1.5 bg-blue text-white border-2 border-dark rounded-lg hover:brightness-110 font-bold text-[10px] flex items-center gap-1">
+                                <i data-lucide="save" class="w-3 h-3"></i> SAVE
+                            </button>
+                        </div>
+                        <div id="library-list" class="space-y-1.5 max-h-32 overflow-y-auto custom-scrollbar pr-1"></div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- HELP MODAL -->
+    <div id="helpModal" class="hidden fixed inset-0 bg-dark/60 backdrop-blur-md z-[500] flex items-center justify-center p-4">
+        <div class="bg-white dark:bg-slate-800 w-full max-w-lg rounded-[2rem] border-4 border-dark dark:border-slate-500 shadow-hard-lg animate-pop-in overflow-hidden">
+            <div class="p-5 border-b-4 border-dark dark:border-slate-500 bg-orange/15 flex items-center justify-between gap-3">
+                <div class="flex items-center gap-3">
+                    <div class="w-11 h-11 rounded-2xl bg-orange flex items-center justify-center border-3 border-dark shadow-hard-sm shrink-0">
+                        <i data-lucide="lightbulb" class="w-6 h-6 text-dark"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-xl font-heading font-bold text-dark dark:text-white uppercase leading-tight">Tracing Handout Maker</h3>
+                        <p class="text-xs font-semibold text-slate-500 dark:text-slate-400">Normal Rows, Fun Tracing &amp; Live Smartboard Pen</p>
+                    </div>
+                </div>
+                <button id="help-close-btn" type="button" class="btn-chunky w-9 h-9 rounded-xl bg-white dark:bg-slate-700 text-dark dark:text-white">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
+            </div>
+            <div class="p-5 space-y-3.5 text-sm font-semibold text-slate-600 dark:text-slate-300 max-h-[68vh] overflow-y-auto custom-scrollbar">
+                <div class="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-900 border-2 border-dark dark:border-slate-600">
+                    <h4 class="font-heading text-sm uppercase text-dark dark:text-white mb-1 flex items-center gap-1.5">
+                        <i data-lucide="align-justify" class="w-4 h-4 text-blue"></i> 1. Normal Rows &amp; Font Controls
+                    </h4>
+                    <p class="text-xs leading-relaxed">Type one word, letter, or sentence per line. Adjust <b>Font Size (24–76px)</b>, choose <b>3-Line Primary</b>, <b>4-Line</b>, or <b>Letter Boxes</b>, and try <b>Fade Scaffold</b> to gradually reduce tracing support across each row.</p>
+                </div>
+                <div class="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-900 border-2 border-dark dark:border-slate-600">
+                    <h4 class="font-heading text-sm uppercase text-dark dark:text-white mb-1 flex items-center gap-1.5">
+                        <i data-lucide="sparkles" class="w-4 h-4 text-pink"></i> 2. Fun Tracing &amp; Combo Sheets
+                    </h4>
+                    <p class="text-xs leading-relaxed">Switch to <b>Fun</b> for pre-writing zig-zag/wavy/loop paths (🐝 ➔ 🍯), <b>Stepping Clouds</b>, or <b>Jumbo Rainbow</b> bubble words—or pick <b>Combo</b> to pair fun motor-skill warm-ups at the top with lined writing rows underneath.</p>
+                </div>
+                <div class="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-900 border-2 border-dark dark:border-slate-600">
+                    <h4 class="font-heading text-sm uppercase text-dark dark:text-white mb-1 flex items-center gap-1.5">
+                        <i data-lucide="pen-tool" class="w-4 h-4 text-green"></i> 3. Smartboard Demo &amp; A4 Print
+                    </h4>
+                    <p class="text-xs leading-relaxed">Toggle <b>Smartboard Pen</b> to model letter strokes right on the preview with rainbow or colored markers, then click <b>PRINT A4</b> or <b>SAVE SVG</b> for crisp, zero-blur handouts.</p>
+                </div>
+                <div class="flex justify-end pt-1">
+                    <button id="help-got-it-btn" type="button" class="btn-chunky px-6 py-2.5 rounded-xl text-xs bg-green text-dark">Got It!</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- SAVE MODAL -->
+    <div id="saveModal" class="hidden fixed inset-0 bg-dark/60 backdrop-blur-md z-[500] flex items-center justify-center p-4">
+        <div class="bg-white dark:bg-slate-800 w-full max-w-sm rounded-[2rem] border-4 border-dark dark:border-slate-500 shadow-hard-lg animate-pop-in overflow-hidden">
+            <div class="p-5 border-b-4 border-dark dark:border-slate-500 bg-blue/10 flex items-center gap-3">
+                <div class="w-11 h-11 rounded-2xl bg-blue flex items-center justify-center border-3 border-dark shadow-hard-sm shrink-0">
+                    <i data-lucide="bookmark-plus" class="w-5 h-5 text-white"></i>
+                </div>
+                <div>
+                    <h3 class="text-lg font-heading font-bold text-dark dark:text-white uppercase leading-tight">Save Tracing Sheet</h3>
+                    <p class="text-xs font-semibold text-slate-500 dark:text-slate-400">Keep this worksheet in your library</p>
+                </div>
+            </div>
+            <div class="p-5 space-y-4">
+                <div>
+                    <label for="save-set-input" class="text-[11px] font-extrabold uppercase tracking-wider text-slate-400 block mb-1.5">Sheet Name</label>
+                    <input id="save-set-input" type="text" placeholder="e.g., Unit 1 CVC Tracing" class="input-chunky w-full px-3.5 py-2.5 text-sm font-bold bg-slate-50 dark:bg-slate-900 text-dark dark:text-white">
+                </div>
+                <div class="flex gap-3">
+                    <button id="save-modal-cancel" type="button" class="flex-1 btn-chunky bg-white dark:bg-slate-700 text-dark dark:text-white py-2.5 rounded-xl text-xs">Cancel</button>
+                    <button id="save-modal-confirm" type="button" class="flex-1 btn-chunky bg-green text-dark py-2.5 rounded-xl text-xs">Save Sheet</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- CONFIRM MODAL -->
+    <div id="confirmModal" class="hidden fixed inset-0 bg-dark/60 backdrop-blur-md z-[500] flex items-center justify-center p-4">
+        <div class="bg-white dark:bg-slate-800 w-full max-w-sm rounded-[2rem] border-4 border-dark dark:border-slate-500 shadow-hard-lg animate-pop-in overflow-hidden">
+            <div class="p-6 text-center">
+                <div class="w-14 h-14 rounded-2xl bg-pink/15 flex items-center justify-center border-3 border-dark shadow-hard-sm mx-auto mb-3">
+                    <i data-lucide="alert-triangle" class="w-7 h-7 text-pink"></i>
+                </div>
+                <h3 id="confirmTitle" class="text-xl font-heading font-bold text-dark dark:text-white uppercase mb-1.5">Are you sure?</h3>
+                <p id="confirmMessage" class="text-sm font-semibold text-slate-500 dark:text-slate-400 mb-5">This action cannot be undone.</p>
+                <div class="flex gap-3">
+                    <button id="confirmBtnNo" type="button" class="flex-1 btn-chunky bg-white dark:bg-slate-700 text-dark dark:text-white py-2.5 rounded-xl text-xs">Cancel</button>
+                    <button id="confirmBtnYes" type="button" class="flex-1 btn-chunky bg-pink text-white py-2.5 rounded-xl text-xs">Yes, Continue</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- STRICT A4 PRINT CONTAINER -->
+    <div id="print-area" class="hidden"></div>
+
+    <script>
+        // ============================
+        // PRESETS & CONSTANTS
+        // ============================
+        const PRESETS = {
+            cvc: {
+                mode: 'rows',
+                title: 'CVC Word Tracing',
+                subtitle: 'Trace each word carefully along the dotted lines, then try writing it neatly!',
+                fontSize: 48,
+                lines: ['cat', 'dog', 'sun', 'hat', 'pig', 'bus']
+            },
+            abc_upper: {
+                mode: 'rows',
+                title: 'Uppercase Letters A–H',
+                subtitle: 'Start at the green dot and trace each capital letter neatly.',
+                fontSize: 52,
+                lines: ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H']
+            },
+            abc_lower: {
+                mode: 'rows',
+                title: 'Lowercase Letters a–h',
+                subtitle: 'Keep small letters under the dashed middle line!',
+                fontSize: 52,
+                lines: ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']
+            },
+            numbers: {
+                mode: 'rows',
+                title: 'Number Tracing 1–10',
+                subtitle: 'Trace each number and count aloud as you write!',
+                fontSize: 50,
+                lines: ['1  2  3  4  5', '6  7  8  9  10', 'one', 'two', 'three', 'four']
+            },
+            sentences: {
+                mode: 'rows',
+                title: 'Sentence Tracing Practice',
+                subtitle: 'Trace each sentence carefully and remember spaces and full stops.',
+                fontSize: 34,
+                lines: [
+                    'I like apples.',
+                    'The cat is big.',
+                    'My dog can run.',
+                    'We go to school.',
+                    'It is a sunny day.'
+                ]
+            },
+            fun_paths: {
+                mode: 'fun',
+                funSubmode: 'paths',
+                title: 'Fun Path Tracing!',
+                subtitle: 'Help each friend follow the dotted path all the way to the goal!',
+                fontSize: 44,
+                lines: ['bee', 'rocket', 'puppy', 'car', 'butterfly', 'frog']
+            }
+        };
+
+        const FUN_PAIRS = [
+            { start: '🐝', end: '🍯', color: '#ff7e33', label: 'Bee to Honey' },
+            { start: '🚀', end: '🪐', color: '#1ea7fd', label: 'Rocket to Planet' },
+            { start: '🐶', end: '🦴', color: '#ff4785', label: 'Puppy to Bone' },
+            { start: '🚗', end: '🏁', color: '#00d063', label: 'Car to Finish' },
+            { start: '🦋', end: '🌸', color: '#a855f7', label: 'Butterfly to Flower' },
+            { start: '🐸', end: '🪷', color: '#14b8a6', label: 'Frog to Lily' }
+        ];
+
+        const WS_STORAGE_KEY = 'klasskit_tracing_maker_v1';
+        const SETS_STORAGE_KEY = 'klasskit_tracing_maker_sets_v1';
+        const CLOUD_TOOL_KEY = 'tracing-maker';
+        const THEME_KEY = 'theme_tracing-maker';
+
+        const state = {
+            mode: 'rows',              // 'rows' | 'fun' | 'combo'
+            funSubmode: 'paths',       // 'paths' | 'clouds' | 'rainbow'
+            pathPattern: 'mixed',      // 'mixed' | 'zigzag' | 'waves' | 'hills' | 'castle' | 'loops'
+            fontSize: 46,
+            fontFamily: 'print',       // 'print' | 'rounded' | 'cursive'
+            traceStyle: 'dashed',      // 'dashed' | 'dotted' | 'hollow' | 'scaffold'
+            guideStyle: '3line',       // '3line' | '4line' | 'single' | 'boxes' | 'none'
+            repeatMode: 'auto',        // 'auto' | '1' | '2' | '3' | '4'
+            startDots: true,
+            extraBlankRow: false,
+            showStarsFooter: true,
+            palette: 'color',          // 'color' | 'classic' | 'bw'
+            darkness: 55,              // 20..90
+            orient: 'portrait',        // 'portrait' | 'landscape'
+            title: PRESETS.cvc.title,
+            subtitle: PRESETS.cvc.subtitle,
+            lines: PRESETS.cvc.lines.slice(),
+            zoom: 1,
+            penActive: false,
+            penColor: '#ff4785',
+            penSize: 7,
+            soundOn: true,
+            activeSetId: null,
+            savedSets: []
+        };
+
+        let cloudSaveTimer = null;
+
+        function hydrateIcons(root) {
+            if (typeof lucide === 'undefined') return;
+            try {
+                lucide.createIcons(root ? { root } : undefined);
+            } catch (e) {
+                lucide.createIcons();
+            }
+        }
+
+        // ============================
+        // SOUND & TOASTS
+        // ============================
+        let synth = null;
+        function applySoundUI() {
+            const onEl = document.getElementById('sound-icon-on');
+            const offEl = document.getElementById('sound-icon-off');
+            const btn = document.getElementById('sound-btn');
+            if (onEl) onEl.classList.toggle('hidden', !state.soundOn);
+            if (offEl) offEl.classList.toggle('hidden', state.soundOn);
+            if (btn) btn.setAttribute('aria-pressed', String(state.soundOn));
+        }
+
+        function initSoundState() {
+            try {
+                state.soundOn = localStorage.getItem('soundMuted') !== 'true';
+            } catch (e) {
+                state.soundOn = true;
+            }
+            applySoundUI();
+        }
+
+        function playPop() {
+            if (!state.soundOn || typeof Tone === 'undefined') return;
+            try {
+                if (Tone.context && Tone.context.state !== 'running') Tone.start();
+                if (!synth) {
+                    synth = new Tone.Synth({ oscillator: { type: 'triangle' }, envelope: { attack: 0.01, decay: 0.09, sustain: 0, release: 0.1 } }).toDestination();
+                    synth.volume.value = -14;
+                }
+                synth.triggerAttackRelease('E5', '32n');
+            } catch (e) {}
+        }
+
+        function showToast(msg, type = 'info') {
+            const container = document.getElementById('toast-container');
+            const colors = {
+                info: 'bg-blue text-white',
+                success: 'bg-green text-dark',
+                warning: 'bg-orange text-dark',
+                error: 'bg-pink text-white'
+            };
+            const icons = {
+                info: 'info',
+                success: 'check-circle',
+                warning: 'alert-triangle',
+                error: 'alert-circle'
+            };
+            const el = document.createElement('div');
+            el.className = `pointer-events-auto px-5 py-3 rounded-2xl border-3 border-dark shadow-hard font-extrabold text-xs uppercase tracking-wider flex items-center gap-2 animate-pop-in ${colors[type] || colors.info}`;
+            el.innerHTML = `<i data-lucide="${icons[type] || 'info'}" class="w-4 h-4 shrink-0"></i><span></span>`;
+            el.querySelector('span').textContent = msg;
+            container.appendChild(el);
+            hydrateIcons(el);
+            setTimeout(() => {
+                el.style.opacity = '0';
+                el.style.transform = 'translateY(10px)';
+                el.style.transition = 'all 0.25s ease';
+                setTimeout(() => el.remove(), 260);
+            }, 2500);
+        }
+
+        let confirmCallback = null;
+        function openConfirm(title, message, onYes) {
+            document.getElementById('confirmTitle').textContent = title;
+            document.getElementById('confirmMessage').textContent = message;
+            confirmCallback = onYes;
+            document.getElementById('confirmModal').classList.remove('hidden');
+        }
+        function closeConfirm() {
+            document.getElementById('confirmModal').classList.add('hidden');
+            confirmCallback = null;
+        }
+
+        // ============================
+        // SVG HELPERS
+        // ============================
+        function escapeXml(str) {
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;');
+        }
+
+        function getFontStack() {
+            if (state.fontFamily === 'rounded') return "'Fredoka', 'Quicksand', sans-serif";
+            if (state.fontFamily === 'cursive') return "'Caveat', cursive";
+            return "'Quicksand', 'Nunito', sans-serif";
+        }
+
+        function getPaletteColors() {
+            if (state.palette === 'bw') {
+                return {
+                    accent: '#1e293b',
+                    topLine: '#64748b',
+                    midLine: '#94a3b8',
+                    baseLine: '#1e293b',
+                    descLine: '#cbd5e1',
+                    dot: '#1e293b',
+                    boxFill: '#f8fafc',
+                    funColors: ['#334155', '#475569', '#1e293b', '#64748b', '#334155', '#475569'],
+                    rainbowFills: ['#ffffff', '#f8fafc', '#ffffff', '#f8fafc']
+                };
+            }
+            if (state.palette === 'classic') {
+                return {
+                    accent: '#1e293b',
+                    topLine: '#60a5fa',
+                    midLine: '#f87171',
+                    baseLine: '#2563eb',
+                    descLine: '#93c5fd',
+                    dot: '#16a34a',
+                    boxFill: '#eff6ff',
+                    funColors: ['#2563eb', '#dc2626', '#16a34a', '#ea580c', '#7c3aed', '#0891b2'],
+                    rainbowFills: ['#eff6ff', '#fef2f2', '#f0fdf4', '#fff7ed']
+                };
+            }
+            return {
+                accent: '#1ea7fd',
+                topLine: '#94a3b8',
+                midLine: '#ff7e33',
+                baseLine: '#1e293b',
+                descLine: '#cbd5e1',
+                dot: '#00d063',
+                boxFill: '#f0f9ff',
+                funColors: ['#ff7e33', '#1ea7fd', '#ff4785', '#00d063', '#a855f7', '#06b6d4'],
+                rainbowFills: ['#fef9c3', '#e0f2fe', '#fce7f3', '#dcfce7']
+            };
+        }
+
+        function getTraceTextAttrs(styleOverride, scaffoldStep = 0) {
+            const style = styleOverride || state.traceStyle;
+            const alpha = (state.darkness / 100).toFixed(2);
+            const ink = `rgba(30, 41, 59, ${alpha})`;
+            const faint = `rgba(30, 41, 59, ${(state.darkness / 240).toFixed(2)})`;
+
+            if (style === 'scaffold') {
+                if (scaffoldStep === 0) {
+                    return `fill="#1e293b" stroke="none"`;
+                }
+                if (scaffoldStep === 1) {
+                    return `fill="${faint}" stroke="${ink}" stroke-width="1.6" stroke-dasharray="4 3.5" stroke-linecap="round"`;
+                }
+                if (scaffoldStep === 2) {
+                    return `fill="none" stroke="${ink}" stroke-width="1.4" stroke-dasharray="2.5 4.5" stroke-linecap="round"`;
+                }
+                return `fill="none" stroke="none"`;
+            }
+            if (style === 'dotted') {
+                return `fill="${faint}" stroke="${ink}" stroke-width="1.8" stroke-dasharray="1.5 4.2" stroke-linecap="round"`;
+            }
+            if (style === 'hollow') {
+                return `fill="#ffffff" stroke="#1e293b" stroke-width="2" stroke-linejoin="round"`;
+            }
+            return `fill="${faint}" stroke="${ink}" stroke-width="1.7" stroke-dasharray="5 3.5" stroke-linecap="round"`;
+        }
+
+        function buildFunPathD(pattern, x1, x2, cy, amp) {
+            const w = x2 - x1;
+            if (pattern === 'zigzag') {
+                const steps = 10;
+                const dx = w / steps;
+                let d = `M ${x1} ${cy}`;
+                for (let i = 1; i <= steps; i++) {
+                    const px = x1 + i * dx;
+                    const py = (i === steps) ? cy : (i % 2 === 1 ? cy - amp : cy + amp);
+                    d += ` L ${px.toFixed(1)} ${py.toFixed(1)}`;
+                }
+                return d;
+            }
+            if (pattern === 'waves') {
+                const cycles = 4;
+                const cw = w / cycles;
+                let d = `M ${x1} ${cy}`;
+                for (let i = 0; i < cycles; i++) {
+                    const sx = x1 + i * cw;
+                    d += ` C ${(sx + cw * 0.25).toFixed(1)} ${(cy - amp * 1.4).toFixed(1)}, ${(sx + cw * 0.25).toFixed(1)} ${(cy - amp * 1.4).toFixed(1)}, ${(sx + cw * 0.5).toFixed(1)} ${cy}`;
+                    d += ` C ${(sx + cw * 0.75).toFixed(1)} ${(cy + amp * 1.4).toFixed(1)}, ${(sx + cw * 0.75).toFixed(1)} ${(cy + amp * 1.4).toFixed(1)}, ${(sx + cw).toFixed(1)} ${cy}`;
+                }
+                return d;
+            }
+            if (pattern === 'hills') {
+                const hops = 5;
+                const hw = w / hops;
+                const base = cy + amp * 0.55;
+                let d = `M ${x1} ${base}`;
+                for (let i = 0; i < hops; i++) {
+                    const sx = x1 + i * hw;
+                    d += ` Q ${(sx + hw / 2).toFixed(1)} ${(cy - amp * 1.55).toFixed(1)} ${(sx + hw).toFixed(1)} ${base}`;
+                }
+                return d;
+            }
+            if (pattern === 'castle') {
+                const segs = 5;
+                const sw = w / segs;
+                const top = cy - amp * 0.8;
+                const bot = cy + amp * 0.8;
+                let d = `M ${x1} ${bot}`;
+                for (let i = 0; i < segs; i++) {
+                    const sx = x1 + i * sw;
+                    d += ` L ${(sx + sw * 0.25).toFixed(1)} ${bot} L ${(sx + sw * 0.25).toFixed(1)} ${top} L ${(sx + sw * 0.75).toFixed(1)} ${top} L ${(sx + sw * 0.75).toFixed(1)} ${bot} L ${(sx + sw).toFixed(1)} ${bot}`;
+                }
+                return d;
+            }
+            const loops = 5;
+            const lw = w / loops;
+            const base = cy + amp * 0.45;
+            let d = `M ${x1} ${base}`;
+            for (let i = 0; i < loops; i++) {
+                const sx = x1 + i * lw;
+                const mx = sx + lw * 0.5;
+                d += ` C ${(sx + lw * 0.85).toFixed(1)} ${base}, ${(mx + lw * 0.25).toFixed(1)} ${(cy - amp * 1.35).toFixed(1)}, ${mx.toFixed(1)} ${(cy - amp * 1.35).toFixed(1)}`;
+                d += ` C ${(mx - lw * 0.25).toFixed(1)} ${(cy - amp * 1.35).toFixed(1)}, ${(sx + lw * 0.15).toFixed(1)} ${base}, ${(sx + lw).toFixed(1)} ${base}`;
+            }
+            return d;
+        }
+
+        function renderLinedRowSVG(text, x, y, width, rowH, fontSize, pal, fontStack, isBlank = false) {
+            const topY = y + rowH * 0.16;
+            const midY = y + rowH * 0.48;
+            const baseY = y + rowH * 0.78;
+            const descY = y + rowH * 0.94;
+            let svg = '';
+
+            if (state.guideStyle === '3line' || state.guideStyle === '4line') {
+                svg += `<line x1="${x}" y1="${topY.toFixed(1)}" x2="${x + width}" y2="${topY.toFixed(1)}" stroke="${pal.topLine}" stroke-width="1.6"/>`;
+                svg += `<line x1="${x}" y1="${midY.toFixed(1)}" x2="${x + width}" y2="${midY.toFixed(1)}" stroke="${pal.midLine}" stroke-width="1.5" stroke-dasharray="6 5"/>`;
+                svg += `<line x1="${x}" y1="${baseY.toFixed(1)}" x2="${x + width}" y2="${baseY.toFixed(1)}" stroke="${pal.baseLine}" stroke-width="2.1"/>`;
+                if (state.guideStyle === '4line') {
+                    svg += `<line x1="${x}" y1="${descY.toFixed(1)}" x2="${x + width}" y2="${descY.toFixed(1)}" stroke="${pal.descLine}" stroke-width="1.3" stroke-dasharray="3 4"/>`;
+                }
+            } else if (state.guideStyle === 'single') {
+                svg += `<line x1="${x}" y1="${baseY.toFixed(1)}" x2="${x + width}" y2="${baseY.toFixed(1)}" stroke="${pal.baseLine}" stroke-width="2.1"/>`;
+            } else if (state.guideStyle === 'boxes') {
+                const boxSize = Math.min(rowH * 0.84, Math.max(36, fontSize * 1.12));
+                const gap = 8;
+                const count = Math.floor((width + gap) / (boxSize + gap));
+                const boxY = y + (rowH - boxSize) / 2;
+                const chars = isBlank ? [] : text.replace(/\s+/g, ' ').split('');
+                const repeatUnit = chars.length > 0 ? [...chars, ' '] : [];
+                for (let i = 0; i < count; i++) {
+                    const bx = x + i * (boxSize + gap);
+                    svg += `<rect x="${bx.toFixed(1)}" y="${boxY.toFixed(1)}" width="${boxSize.toFixed(1)}" height="${boxSize.toFixed(1)}" rx="8" fill="${pal.boxFill}" stroke="${pal.topLine}" stroke-width="1.8"/>`;
+                    svg += `<line x1="${bx.toFixed(1)}" y1="${(boxY + boxSize * 0.52).toFixed(1)}" x2="${(bx + boxSize).toFixed(1)}" y2="${(boxY + boxSize * 0.52).toFixed(1)}" stroke="${pal.midLine}" stroke-width="1.2" stroke-dasharray="4 4"/>`;
+                    if (!isBlank && repeatUnit.length > 0) {
+                        const ch = repeatUnit[i % repeatUnit.length];
+                        const repIdx = Math.floor(i / repeatUnit.length);
+                        const allowRep = state.repeatMode === 'auto' || repIdx < Number(state.repeatMode);
+                        if (allowRep && ch && ch !== ' ') {
+                            const attrs = getTraceTextAttrs(null, Math.min(3, repIdx));
+                            svg += `<text x="${(bx + boxSize / 2).toFixed(1)}" y="${(boxY + boxSize * 0.74).toFixed(1)}" text-anchor="middle" font-family="${fontStack}" font-weight="700" font-size="${(boxSize * 0.66).toFixed(1)}" ${attrs}>${escapeXml(ch)}</text>`;
+                            if (state.startDots && !(state.traceStyle === 'scaffold' && repIdx >= 3)) {
+                                svg += `<circle cx="${(bx + boxSize * 0.24).toFixed(1)}" cy="${(boxY + boxSize * 0.24).toFixed(1)}" r="3.2" fill="${pal.dot}"/>`;
+                            }
+                        }
+                    }
+                }
+                return svg;
+            }
+
+            if (isBlank || !text) return svg;
+
+            const approxCharW = fontSize * (state.fontFamily === 'cursive' ? 0.50 : 0.60);
+            const wordW = Math.max(fontSize * 0.9, text.length * approxCharW);
+            const gapW = Math.max(26, fontSize * 0.65);
+            const maxFit = Math.max(1, Math.floor((width + gapW) / (wordW + gapW)));
+            const reps = state.repeatMode === 'auto'
+                ? maxFit
+                : Math.min(maxFit, Number(state.repeatMode));
+
+            const stepW = reps > 1 ? Math.min(wordW + gapW * 1.4, (width - wordW) / (reps - 1)) : 0;
+
+            for (let r = 0; r < reps; r++) {
+                const tx = x + 8 + r * stepW;
+                if (tx + wordW * 0.6 > x + width) break;
+                const attrs = getTraceTextAttrs(null, Math.min(3, r));
+                if (state.traceStyle === 'scaffold' && r >= 3) break;
+                svg += `<text x="${tx.toFixed(1)}" y="${(baseY - 2).toFixed(1)}" font-family="${fontStack}" font-weight="700" font-size="${fontSize}" letter-spacing="1.5" ${attrs}>${escapeXml(text)}</text>`;
+                if (state.startDots) {
+                    svg += `<circle cx="${(tx - 1).toFixed(1)}" cy="${(midY - fontSize * 0.12).toFixed(1)}" r="3.6" fill="${pal.dot}"/>`;
+                }
+            }
+            return svg;
+        }
+
+        function buildWorksheetSVG() {
+            const isLand = state.orient === 'landscape';
+            const W = isLand ? 1123 : 794;
+            const H = isLand ? 794 : 1123;
+            const marginX = 44;
+            const marginTop = 36;
+            const contentW = W - marginX * 2;
+            const pal = getPaletteColors();
+            const fontStack = getFontStack();
+
+            const headerH = 88;
+            let body = `
+                <rect x="0" y="0" width="${W}" height="${H}" fill="#ffffff"/>
+                <g id="ws-header">
+                    <text x="${marginX}" y="${marginTop + 32}" font-family="Fredoka, sans-serif" font-weight="700" font-size="32" fill="#1e293b">${escapeXml(state.title || 'Tracing Practice')}</text>
+                    <text x="${marginX}" y="${marginTop + 56}" font-family="Nunito, sans-serif" font-weight="700" font-size="13.5" fill="#475569">${escapeXml(state.subtitle || '')}</text>
+
+                    <text x="${W - marginX - 210}" y="${marginTop + 22}" font-family="Nunito, sans-serif" font-weight="800" font-size="13" fill="#1e293b">Name:</text>
+                    <line x1="${W - marginX - 162}" y1="${marginTop + 24}" x2="${W - marginX}" y2="${marginTop + 24}" stroke="#1e293b" stroke-width="2"/>
+                    <text x="${W - marginX - 210}" y="${marginTop + 50}" font-family="Nunito, sans-serif" font-weight="800" font-size="13" fill="#1e293b">Date:</text>
+                    <line x1="${W - marginX - 162}" y1="${marginTop + 52}" x2="${W - marginX}" y2="${marginTop + 52}" stroke="#1e293b" stroke-width="2"/>
+
+                    <line x1="${marginX}" y1="${marginTop + 72}" x2="${W - marginX}" y2="${marginTop + 72}" stroke="#1e293b" stroke-width="4" stroke-linecap="round"/>
+                </g>
+            `;
+
+            const footerH = state.showStarsFooter ? 52 : 24;
+            const bodyStartY = marginTop + headerH;
+            const availH = H - bodyStartY - footerH - 16;
+
+            const activeLines = state.lines.length > 0 ? state.lines : ['A', 'B', 'C', 'D', 'E', 'F'];
+            const patternsCycle = ['zigzag', 'waves', 'hills', 'castle', 'loops'];
+
+            const renderFunPathsBlock = (startY, blockH, count) => {
+                const rowH = blockH / count;
+                const amp = Math.min(28, rowH * 0.28);
+                let out = '';
+                for (let i = 0; i < count; i++) {
+                    const pair = FUN_PAIRS[i % FUN_PAIRS.length];
+                    const cy = startY + i * rowH + rowH / 2;
+                    const pat = state.pathPattern === 'mixed' ? patternsCycle[i % patternsCycle.length] : state.pathPattern;
+                    const strokeCol = pal.funColors[i % pal.funColors.length];
+                    const pathX1 = marginX + 68;
+                    const pathX2 = W - marginX - 68;
+                    const d = buildFunPathD(pat, pathX1, pathX2, cy, amp);
+
+                    out += `<rect x="${marginX}" y="${(startY + i * rowH + 6).toFixed(1)}" width="${contentW}" height="${(rowH - 12).toFixed(1)}" rx="16" fill="${state.palette === 'bw' ? '#ffffff' : '#f8fafc'}" stroke="#cbd5e1" stroke-width="1.5"/>`;
+                    out += `<circle cx="${marginX + 34}" cy="${cy.toFixed(1)}" r="24" fill="#ffffff" stroke="#1e293b" stroke-width="2.5"/>`;
+                    out += `<text x="${marginX + 34}" y="${(cy + 9).toFixed(1)}" text-anchor="middle" font-size="24">${pair.start}</text>`;
+                    out += `<circle cx="${W - marginX - 34}" cy="${cy.toFixed(1)}" r="24" fill="#ffffff" stroke="#1e293b" stroke-width="2.5"/>`;
+                    out += `<text x="${W - marginX - 34}" y="${(cy + 9).toFixed(1)}" text-anchor="middle" font-size="24">${pair.end}</text>`;
+                    out += `<path d="${d}" fill="none" stroke="${strokeCol}" stroke-width="3.6" stroke-dasharray="9 8" stroke-linecap="round" stroke-linejoin="round" opacity="${Math.min(1, state.darkness / 100 + 0.15).toFixed(2)}"/>`;
+                    if (state.startDots) {
+                        out += `<circle cx="${pathX1}" cy="${cy.toFixed(1)}" r="5" fill="${pal.dot}" stroke="#1e293b" stroke-width="1.5"/>`;
+                    }
+                    if (state.lines[i]) {
+                        out += `<text x="${marginX + 74}" y="${(startY + i * rowH + 22).toFixed(1)}" font-family="Fredoka, sans-serif" font-weight="600" font-size="12" fill="#94a3b8">${escapeXml(state.lines[i])}</text>`;
+                    }
+                }
+                return out;
+            };
+
+            if (state.mode === 'fun') {
+                if (state.funSubmode === 'paths') {
+                    const count = isLand ? 4 : 6;
+                    body += renderFunPathsBlock(bodyStartY, availH, count);
+                } else if (state.funSubmode === 'clouds') {
+                    const cols = isLand ? 3 : 2;
+                    const rows = Math.min(4, Math.max(2, Math.ceil(activeLines.length / cols)));
+                    const cellW = contentW / cols;
+                    const cellH = availH / rows;
+                    const fs = Math.min(state.fontSize, cellH * 0.42);
+                    const attrs = getTraceTextAttrs();
+
+                    for (let r = 0; r < rows; r++) {
+                        for (let c = 0; c < cols; c++) {
+                            const idx = r * cols + c;
+                            const word = activeLines[idx % activeLines.length];
+                            const cx = marginX + c * cellW + cellW / 2;
+                            const cy = bodyStartY + r * cellH + cellH / 2;
+                            const bw = cellW - 28;
+                            const bh = cellH - 28;
+                            const fill = pal.rainbowFills[idx % pal.rainbowFills.length];
+
+                            body += `
+                                <rect x="${(cx - bw / 2).toFixed(1)}" y="${(cy - bh / 2).toFixed(1)}" width="${bw.toFixed(1)}" height="${bh.toFixed(1)}" rx="36" fill="${fill}" stroke="#1e293b" stroke-width="3" stroke-dasharray="10 6"/>
+                                <text x="${cx.toFixed(1)}" y="${(cy + fs * 0.34).toFixed(1)}" text-anchor="middle" font-family="${fontStack}" font-weight="700" font-size="${fs.toFixed(1)}" ${attrs}>${escapeXml(word)}</text>
+                            `;
+                            if (state.startDots) {
+                                body += `<circle cx="${(cx - bw / 2 + 22).toFixed(1)}" cy="${cy.toFixed(1)}" r="5" fill="${pal.dot}"/>`;
+                            }
+                        }
+                    }
+                } else {
+                    const count = Math.min(isLand ? 3 : 4, Math.max(1, activeLines.length));
+                    const cardH = availH / count;
+                    const fs = Math.min(state.fontSize * 1.65, cardH * 0.56);
+                    const attrs = getTraceTextAttrs(state.traceStyle === 'dashed' ? 'hollow' : state.traceStyle);
+
+                    for (let i = 0; i < count; i++) {
+                        const y = bodyStartY + i * cardH + 8;
+                        const h = cardH - 16;
+                        const fill = pal.rainbowFills[i % pal.rainbowFills.length];
+                        const word = activeLines[i];
+                        body += `
+                            <rect x="${marginX}" y="${y.toFixed(1)}" width="${contentW}" height="${h.toFixed(1)}" rx="24" fill="${fill}" stroke="#1e293b" stroke-width="3"/>
+                            <text x="${marginX + 20}" y="${(y + 26).toFixed(1)}" font-family="Fredoka, sans-serif" font-weight="700" font-size="13" fill="#64748b">🌈 Trace 3× with different colors!</text>
+                            <text x="${W / 2}" y="${(y + h * 0.72).toFixed(1)}" text-anchor="middle" font-family="${fontStack}" font-weight="700" font-size="${fs.toFixed(1)}" letter-spacing="4" ${attrs}>${escapeXml(word)}</text>
+                        `;
+                    }
+                }
+            } else if (state.mode === 'combo') {
+                const topH = availH * 0.35;
+                const botY = bodyStartY + topH + 14;
+                const botH = availH - topH - 14;
+
+                body += renderFunPathsBlock(bodyStartY, topH, 2);
+
+                const rowTargetH = Math.max(58, state.fontSize * 1.65);
+                const maxRows = Math.max(2, Math.floor(botH / rowTargetH));
+                const actualRowH = botH / maxRows;
+                let rowIdx = 0;
+                for (let i = 0; i < activeLines.length && rowIdx < maxRows; i++) {
+                    body += renderLinedRowSVG(activeLines[i], marginX, botY + rowIdx * actualRowH, contentW, actualRowH, state.fontSize, pal, fontStack, false);
+                    rowIdx++;
+                    if (state.extraBlankRow && rowIdx < maxRows) {
+                        body += renderLinedRowSVG('', marginX, botY + rowIdx * actualRowH, contentW, actualRowH, state.fontSize, pal, fontStack, true);
+                        rowIdx++;
+                    }
+                }
+                while (rowIdx < maxRows) {
+                    body += renderLinedRowSVG('', marginX, botY + rowIdx * actualRowH, contentW, actualRowH, state.fontSize, pal, fontStack, true);
+                    rowIdx++;
+                }
+            } else {
+                const rowTargetH = Math.max(58, state.fontSize * 1.65);
+                const maxRows = Math.max(2, Math.floor(availH / rowTargetH));
+                const actualRowH = availH / maxRows;
+
+                let rowIdx = 0;
+                for (let i = 0; i < activeLines.length && rowIdx < maxRows; i++) {
+                    body += renderLinedRowSVG(activeLines[i], marginX, bodyStartY + rowIdx * actualRowH, contentW, actualRowH, state.fontSize, pal, fontStack, false);
+                    rowIdx++;
+                    if (state.extraBlankRow && rowIdx < maxRows) {
+                        body += renderLinedRowSVG('', marginX, bodyStartY + rowIdx * actualRowH, contentW, actualRowH, state.fontSize, pal, fontStack, true);
+                        rowIdx++;
+                    }
+                }
+                while (rowIdx < maxRows) {
+                    body += renderLinedRowSVG('', marginX, bodyStartY + rowIdx * actualRowH, contentW, actualRowH, state.fontSize, pal, fontStack, true);
+                    rowIdx++;
+                }
+            }
+
+            if (state.showStarsFooter) {
+                const fy = H - 24;
+                body += `
+                    <line x1="${marginX}" y1="${fy - 26}" x2="${W - marginX}" y2="${fy - 26}" stroke="#cbd5e1" stroke-width="2" stroke-dasharray="5 5"/>
+                    <text x="${marginX}" y="${fy}" font-family="Fredoka, sans-serif" font-weight="600" font-size="14" fill="#475569">Color the stars when you finish:  ☆  ☆  ☆  ☆  ☆</text>
+                    <text x="${W - marginX}" y="${fy}" text-anchor="end" font-family="Fredoka, sans-serif" font-weight="700" font-size="13" fill="#94a3b8">KlassKit</text>
+                `;
+            }
+
+            return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Printable tracing worksheet">${body}</svg>`;
+        }
+
+        function sizePaperFrame() {
+            const paper = document.getElementById('a4-paper');
+            const stageParent = document.getElementById('sheet-stage').parentElement;
+            const availW = Math.max(140, stageParent.clientWidth - 36);
+            const availH = Math.max(140, stageParent.clientHeight - 88);
+            const ratio = state.orient === 'landscape' ? (297 / 210) : (210 / 297);
+
+            let w = availW;
+            let h = w / ratio;
+            if (h > availH) {
+                h = availH;
+                w = h * ratio;
+            }
+            paper.style.width = `${Math.floor(w)}px`;
+            paper.style.height = `${Math.floor(h)}px`;
+
+            const canvas = document.getElementById('draw-canvas');
+            const dpr = window.devicePixelRatio || 1;
+            const newW = Math.floor(w * dpr);
+            const newH = Math.floor(h * dpr);
+            if (canvas.width !== newW || canvas.height !== newH) {
+                let snapshot = null;
+                if (canvas.width > 0 && canvas.height > 0) {
+                    snapshot = document.createElement('canvas');
+                    snapshot.width = canvas.width;
+                    snapshot.height = canvas.height;
+                    snapshot.getContext('2d').drawImage(canvas, 0, 0);
+                }
+                canvas.width = newW;
+                canvas.height = newH;
+                const ctx = canvas.getContext('2d');
+                ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+                if (snapshot) ctx.drawImage(snapshot, 0, 0, w, h);
+            }
+        }
+
+        // ============================
+        // PERSISTENCE (LocalStorage + Supabase Cloud)
+        // ============================
+        function getWorkspaceData() {
+            return {
+                mode: state.mode,
+                funSubmode: state.funSubmode,
+                pathPattern: state.pathPattern,
+                fontSize: state.fontSize,
+                fontFamily: state.fontFamily,
+                traceStyle: state.traceStyle,
+                guideStyle: state.guideStyle,
+                repeatMode: state.repeatMode,
+                startDots: state.startDots,
+                extraBlankRow: state.extraBlankRow,
+                showStarsFooter: state.showStarsFooter,
+                palette: state.palette,
+                darkness: state.darkness,
+                orient: state.orient,
+                penColor: state.penColor,
+                penSize: state.penSize,
+                title: document.getElementById('custom-title').value,
+                subtitle: document.getElementById('custom-subtitle').value,
+                linesRaw: document.getElementById('trace-input').value,
+                activeSetId: state.activeSetId
+            };
+        }
+
+        function setRadioVal(name, val) {
+            const el = document.querySelector(`input[name="${name}"][value="${val}"]`);
+            if (el) el.checked = true;
+        }
+
+        function applyWorkspaceData(data) {
+            if (!data) return;
+            if (data.mode) { state.mode = data.mode; setRadioVal('trace-mode', data.mode); }
+            if (data.funSubmode) { state.funSubmode = data.funSubmode; setRadioVal('fun-submode', data.funSubmode); }
+            if (data.pathPattern) {
+                state.pathPattern = data.pathPattern;
+                document.getElementById('path-pattern').value = data.pathPattern;
+            }
+            if (typeof data.fontSize === 'number') {
+                state.fontSize = data.fontSize;
+                document.getElementById('font-size-slider').value = data.fontSize;
+                document.getElementById('font-size-val').textContent = `${data.fontSize} px`;
+            }
+            if (data.fontFamily) { state.fontFamily = data.fontFamily; setRadioVal('font-family', data.fontFamily); }
+            if (data.traceStyle) { state.traceStyle = data.traceStyle; setRadioVal('trace-style', data.traceStyle); }
+            if (data.guideStyle) {
+                state.guideStyle = data.guideStyle;
+                document.getElementById('guide-style').value = data.guideStyle;
+            }
+            if (data.repeatMode !== undefined) {
+                state.repeatMode = String(data.repeatMode);
+                document.getElementById('repeat-mode').value = state.repeatMode;
+            }
+            if (typeof data.startDots === 'boolean') {
+                state.startDots = data.startDots;
+                document.getElementById('start-dots').checked = data.startDots;
+            }
+            if (typeof data.extraBlankRow === 'boolean') {
+                state.extraBlankRow = data.extraBlankRow;
+                document.getElementById('extra-blank-row').checked = data.extraBlankRow;
+            }
+            if (typeof data.showStarsFooter === 'boolean') {
+                state.showStarsFooter = data.showStarsFooter;
+                document.getElementById('show-stars-footer').checked = data.showStarsFooter;
+            }
+            if (data.palette) { state.palette = data.palette; setRadioVal('sheet-palette', data.palette); }
+            if (typeof data.darkness === 'number') {
+                state.darkness = data.darkness;
+                document.getElementById('darkness-slider').value = data.darkness;
+                document.getElementById('darkness-val').textContent = `${data.darkness}%`;
+            }
+            if (data.orient) { state.orient = data.orient; setRadioVal('page-orient', data.orient); }
+            if (data.penColor) {
+                state.penColor = data.penColor;
+                document.querySelectorAll('.pen-swatch').forEach(b => {
+                    const active = b.dataset.penColor === data.penColor;
+                    b.classList.toggle('border-3', active);
+                    b.classList.toggle('shadow-hard-sm', active);
+                    b.classList.toggle('scale-110', active);
+                    b.classList.toggle('border-2', !active);
+                });
+            }
+            if (typeof data.penSize === 'number') {
+                state.penSize = data.penSize;
+                document.getElementById('pen-size-slider').value = data.penSize;
+                document.getElementById('pen-size-val').textContent = data.penSize;
+            }
+            if (typeof data.title === 'string') document.getElementById('custom-title').value = data.title;
+            if (typeof data.subtitle === 'string') document.getElementById('custom-subtitle').value = data.subtitle;
+            if (typeof data.linesRaw === 'string') document.getElementById('trace-input').value = data.linesRaw;
+            if (data.activeSetId !== undefined) state.activeSetId = data.activeSetId;
+        }
+
+        function updateActiveSetBanner() {
+            const current = state.savedSets.find(s => s.id === state.activeSetId);
+            if (current) {
+                document.getElementById('active-set-name').textContent = current.name;
+                document.getElementById('active-set-banner').classList.remove('hidden');
+            } else {
+                state.activeSetId = null;
+                document.getElementById('active-set-banner').classList.add('hidden');
+            }
+        }
+
+        function persistState() {
+            const ws = getWorkspaceData();
+            try { localStorage.setItem(WS_STORAGE_KEY, JSON.stringify(ws)); } catch (e) {}
+
+            if (state.activeSetId) {
+                const idx = state.savedSets.findIndex(s => s.id === state.activeSetId);
+                if (idx >= 0) {
+                    state.savedSets[idx] = {
+                        ...state.savedSets[idx],
+                        ...ws,
+                        updatedAt: Date.now()
+                    };
+                    try { localStorage.setItem(SETS_STORAGE_KEY, JSON.stringify(state.savedSets)); } catch (e) {}
+                    renderSavedSetsList();
+                }
+            }
+
+            clearTimeout(cloudSaveTimer);
+            cloudSaveTimer = setTimeout(() => {
+                if (typeof window.saveProgress === 'function') {
+                    window.saveProgress(CLOUD_TOOL_KEY, {
+                        workspace: ws,
+                        sets: state.savedSets
+                    }).catch(() => {});
+                }
+            }, 700);
+        }
+
+        async function loadPersistedState() {
+            let hasLocalSets = false;
+            try {
+                const rawSets = localStorage.getItem(SETS_STORAGE_KEY);
+                if (rawSets) {
+                    const parsedSets = JSON.parse(rawSets);
+                    if (Array.isArray(parsedSets)) {
+                        state.savedSets = parsedSets;
+                        hasLocalSets = true;
+                    }
+                }
+            } catch (e) { state.savedSets = []; }
+
+            if (!hasLocalSets) {
+                state.savedSets = [
+                    {
+                        id: 'seed_cvc',
+                        name: 'CVC Words (Primary)',
+                        updatedAt: Date.now() - 86400000,
+                        mode: 'rows',
+                        fontSize: 48,
+                        traceStyle: 'dashed',
+                        guideStyle: '3line',
+                        title: PRESETS.cvc.title,
+                        subtitle: PRESETS.cvc.subtitle,
+                        linesRaw: PRESETS.cvc.lines.join('\n')
+                    },
+                    {
+                        id: 'seed_fun',
+                        name: 'Kindy Fun Paths',
+                        updatedAt: Date.now() - 172800000,
+                        mode: 'fun',
+                        funSubmode: 'paths',
+                        fontSize: 44,
+                        traceStyle: 'dashed',
+                        guideStyle: '3line',
+                        title: PRESETS.fun_paths.title,
+                        subtitle: PRESETS.fun_paths.subtitle,
+                        linesRaw: PRESETS.fun_paths.lines.join('\n')
+                    }
+                ];
+                try { localStorage.setItem(SETS_STORAGE_KEY, JSON.stringify(state.savedSets)); } catch (e) {}
+            }
+
+            let hasWorkspace = false;
+            try {
+                const rawWs = localStorage.getItem(WS_STORAGE_KEY);
+                if (rawWs) {
+                    applyWorkspaceData(JSON.parse(rawWs));
+                    hasWorkspace = true;
+                }
+            } catch (e) {}
+
+            if (typeof window.loadProgress === 'function') {
+                try {
+                    const cloud = await window.loadProgress(CLOUD_TOOL_KEY);
+                    if (cloud) {
+                        if (cloud.workspace) {
+                            applyWorkspaceData(cloud.workspace);
+                            try { localStorage.setItem(WS_STORAGE_KEY, JSON.stringify(cloud.workspace)); } catch (e) {}
+                            hasWorkspace = true;
+                        }
+                        if (Array.isArray(cloud.sets) && cloud.sets.length > 0 && (!hasLocalSets || state.savedSets.length === 0)) {
+                            state.savedSets = cloud.sets;
+                            try { localStorage.setItem(SETS_STORAGE_KEY, JSON.stringify(cloud.sets)); } catch (e) {}
+                        }
+                    }
+                } catch (e) {}
+            }
+
+            if (!hasWorkspace) {
+                document.getElementById('custom-title').value = PRESETS.cvc.title;
+                document.getElementById('custom-subtitle').value = PRESETS.cvc.subtitle;
+                document.getElementById('trace-input').value = PRESETS.cvc.lines.join('\n');
+            }
+
+            updateActiveSetBanner();
+            renderSavedSetsList();
+        }
+
+        function renderSheet({ skipPersist = false } = {}) {
+            const linesRaw = document.getElementById('trace-input').value;
+            state.lines = linesRaw.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+            state.title = document.getElementById('custom-title').value.trim() || 'Tracing Practice';
+            state.subtitle = document.getElementById('custom-subtitle').value.trim();
+
+            document.getElementById('line-count-pill').textContent = `${state.lines.length} row${state.lines.length === 1 ? '' : 's'}`;
+            document.getElementById('sheet-mode-pill').textContent = state.mode === 'rows' ? 'Rows' : (state.mode === 'fun' ? 'Fun' : 'Combo');
+            document.getElementById('stat-orient').textContent = state.orient === 'landscape' ? 'A4 Landscape' : 'A4 Portrait';
+            document.getElementById('stat-fontsize').textContent = `${state.fontSize} px`;
+
+            document.getElementById('fun-options-box').classList.toggle('hidden', state.mode === 'rows');
+            document.getElementById('fun-submode-row').classList.toggle('hidden', state.mode !== 'fun');
+            document.getElementById('fun-path-pattern-row').classList.toggle('hidden', state.mode === 'fun' && state.funSubmode !== 'paths');
+            document.getElementById('row-controls-box').classList.toggle('hidden', state.mode === 'fun' && state.funSubmode === 'paths');
+
+            applyPage();
+            sizePaperFrame();
+            document.getElementById('svg-preview').innerHTML = buildWorksheetSVG();
+            document.getElementById('sheet-stage').style.transform = `scale(${state.zoom})`;
+            document.getElementById('zoom-reset').textContent = `${Math.round(state.zoom * 100)}%`;
+
+            if (!skipPersist) persistState();
+        }
+
+        // ============================
+        // SMARTBOARD TRACING PEN
+        // ============================
+        let drawing = false;
+        let rainbowHue = 0;
+
+        function setPenActive(on) {
+            state.penActive = on;
+            const canvas = document.getElementById('draw-canvas');
+            const btn = document.getElementById('draw-toggle-btn');
+            const clearBtn = document.getElementById('clear-ink-btn');
+            const badge = document.getElementById('pen-status-badge');
+
+            canvas.classList.toggle('pointer-events-none', !on);
+            canvas.style.cursor = on ? 'crosshair' : 'default';
+            btn.setAttribute('aria-pressed', String(on));
+            btn.classList.toggle('bg-white/90', !on);
+            btn.classList.toggle('dark:bg-slate-800/90', !on);
+            btn.classList.toggle('text-dark', !on);
+            btn.classList.toggle('dark:text-white', !on);
+            btn.classList.toggle('bg-pink', on);
+            btn.classList.toggle('text-white', on);
+            const drawIcon = document.getElementById('draw-toggle-icon');
+            if (drawIcon) {
+                drawIcon.classList.toggle('text-pink', !on);
+                drawIcon.classList.toggle('text-white', on);
+            }
+            clearBtn.classList.toggle('hidden', !on);
+            badge.textContent = on ? 'ON' : 'OFF';
+            badge.className = `text-[10px] font-extrabold px-2 py-0.5 rounded-full ${on ? 'bg-green text-dark' : 'bg-slate-200 dark:bg-slate-700 text-slate-500'}`;
+            playPop();
+        }
+
+        function clearInk() {
+            const canvas = document.getElementById('draw-canvas');
+            const ctx = canvas.getContext('2d');
+            ctx.save();
+            ctx.setTransform(1, 0, 0, 1, 0, 0);
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.restore();
+            playPop();
+        }
+
+        function initPenCanvas() {
+            const canvas = document.getElementById('draw-canvas');
+            const ctx = canvas.getContext('2d');
+
+            const getPos = (e) => {
+                const rect = canvas.getBoundingClientRect();
+                const dpr = window.devicePixelRatio || 1;
+                const logicalW = (canvas.width / dpr) || rect.width;
+                const logicalH = (canvas.height / dpr) || rect.height;
+                return {
+                    x: ((e.clientX - rect.left) / Math.max(1, rect.width)) * logicalW,
+                    y: ((e.clientY - rect.top) / Math.max(1, rect.height)) * logicalH
+                };
+            };
+
+            canvas.addEventListener('pointerdown', (e) => {
+                if (!state.penActive) return;
+                drawing = true;
+                canvas.setPointerCapture(e.pointerId);
+                const p = getPos(e);
+                ctx.beginPath();
+                ctx.moveTo(p.x, p.y);
+            });
+
+            canvas.addEventListener('pointermove', (e) => {
+                if (!drawing || !state.penActive) return;
+                const p = getPos(e);
+                ctx.lineWidth = state.penSize;
+                ctx.lineCap = 'round';
+                ctx.lineJoin = 'round';
+                if (state.penColor === 'rainbow') {
+                    rainbowHue = (rainbowHue + 5) % 360;
+                    ctx.strokeStyle = `hsl(${rainbowHue}, 92%, 55%)`;
+                } else {
+                    ctx.strokeStyle = state.penColor;
+                }
+                ctx.lineTo(p.x, p.y);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(p.x, p.y);
+            });
+
+            const stopDraw = () => { drawing = false; };
+            canvas.addEventListener('pointerup', stopDraw);
+            canvas.addEventListener('pointercancel', stopDraw);
+        }
+
+        // ============================
+        // PRINT & SVG DOWNLOAD
+        // ============================
+        function applyPage() {
+            document.documentElement.setAttribute('data-orient', state.orient);
+            const pageStyle = document.getElementById('page-style');
+            if (pageStyle) {
+                pageStyle.textContent = `@page { size: A4 ${state.orient}; margin: 0; }`;
+            }
+        }
+
+        function preparePrint() {
+            applyPage();
+            document.getElementById('print-area').innerHTML = buildWorksheetSVG();
+        }
+
+        function triggerPrint() {
+            preparePrint();
+            setTimeout(() => window.print(), 80);
+        }
+
+        function downloadSVG() {
+            const svgStr = buildWorksheetSVG();
+            const blob = new Blob([svgStr], { type: 'image/svg+xml;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            const slug = (state.title || 'tracing-sheet').toLowerCase().replace(/[^a-z0-9]+/g, '-');
+            a.href = url;
+            a.download = `${slug}.svg`;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            URL.revokeObjectURL(url);
+            playPop();
+            showToast('Downloaded crisp vector SVG!', 'success');
+        }
+
+        // ============================
+        // SAVED SHEETS UI
+        // ============================
+        function persistSavedSets() {
+            try { localStorage.setItem(SETS_STORAGE_KEY, JSON.stringify(state.savedSets)); } catch (e) {}
+            renderSavedSetsList();
+            persistState();
+        }
+
+        function renderSavedSetsList() {
+            const list = document.getElementById('library-list');
+            const sort = document.getElementById('library-sort').value;
+            document.getElementById('saved-count').textContent = state.savedSets.length;
+            updateActiveSetBanner();
+
+            const sorted = state.savedSets.slice().sort((a, b) => {
+                if (sort === 'alpha') return a.name.localeCompare(b.name);
+                return (b.updatedAt || 0) - (a.updatedAt || 0);
+            });
+
+            if (sorted.length === 0) {
+                list.innerHTML = `<p class="text-[11px] font-bold text-slate-400 text-center py-3">No saved sheets yet.</p>`;
+                return;
+            }
+
+            list.innerHTML = sorted.map(item => {
+                const isActive = item.id === state.activeSetId;
+                return `
+                    <div class="flex items-center gap-2 p-2 rounded-xl border-2 ${isActive ? 'border-blue bg-blue/10' : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/70'} hover:border-blue transition-colors">
+                        <button type="button" data-load-id="${item.id}" class="flex-1 text-left min-w-0">
+                            <p class="text-xs font-extrabold truncate text-dark dark:text-white flex items-center gap-1.5">
+                                <span class="truncate">${escapeXml(item.name)}</span>
+                                ${isActive ? '<span class="px-1.5 py-0.5 rounded bg-blue text-white text-[9px] uppercase shrink-0">Active</span>' : ''}
+                            </p>
+                            <p class="text-[10px] font-bold text-slate-400">${item.mode || 'rows'} · ${item.fontSize || 46}px</p>
+                        </button>
+                        <button type="button" data-delete-id="${item.id}" class="p-1.5 rounded-lg text-slate-400 hover:text-pink hover:bg-pink/10 transition-colors" title="Delete sheet">
+                            <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                        </button>
+                    </div>
+                `;
+            }).join('');
+
+            hydrateIcons(list);
+
+            list.querySelectorAll('[data-load-id]').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const item = state.savedSets.find(s => s.id === btn.dataset.loadId);
+                    if (!item) return;
+                    applySavedSet(item);
+                });
+            });
+
+            list.querySelectorAll('[data-delete-id]').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const id = btn.dataset.deleteId;
+                    const item = state.savedSets.find(s => s.id === id);
+                    openConfirm('Delete Sheet?', `Remove "${item?.name || 'this sheet'}" from your library?`, () => {
+                        state.savedSets = state.savedSets.filter(s => s.id !== id);
+                        if (state.activeSetId === id) {
+                            state.activeSetId = null;
+                        }
+                        persistSavedSets();
+                        showToast('Sheet deleted.', 'info');
+                    });
+                });
+            });
+        }
+
+        function applySavedSet(item) {
+            applyWorkspaceData({ ...item, activeSetId: item.id });
+            item.updatedAt = Date.now();
+            clearInk();
+            renderSheet();
+            playPop();
+            showToast(`Loaded "${item.name}"`, 'success');
+        }
+
+        function loadPreset(key) {
+            const p = PRESETS[key];
+            if (!p) return;
+            state.mode = p.mode || 'rows';
+            setRadioVal('trace-mode', state.mode);
+
+            if (p.funSubmode) {
+                state.funSubmode = p.funSubmode;
+                setRadioVal('fun-submode', p.funSubmode);
+            }
+
+            state.fontSize = p.fontSize || 46;
+            document.getElementById('font-size-slider').value = state.fontSize;
+            document.getElementById('font-size-val').textContent = `${state.fontSize} px`;
+
+            document.getElementById('custom-title').value = p.title;
+            document.getElementById('custom-subtitle').value = p.subtitle;
+            document.getElementById('trace-input').value = p.lines.join('\n');
+
+            state.activeSetId = null;
+            updateActiveSetBanner();
+            renderSavedSetsList();
+            clearInk();
+            renderSheet();
+            playPop();
+            showToast(`Loaded "${p.title}" preset`, 'info');
+        }
+
+        function syncThemeButtonAria() {
+            const isDark = document.documentElement.classList.contains('dark');
+            document.getElementById('theme-btn').setAttribute('aria-pressed', String(isDark));
+        }
+
+        // ============================
+        // INIT & EVENT LISTENERS
+        // ============================
+        document.addEventListener('DOMContentLoaded', async () => {
+            syncThemeButtonAria();
+            initSoundState();
+            if (typeof requireAuth === 'function') await requireAuth();
+            document.body.classList.remove('opacity-0');
+
+            await loadPersistedState();
+            applyPage();
+            initPenCanvas();
+            renderSheet({ skipPersist: true });
+            hydrateIcons();
+            window.addEventListener('beforeprint', preparePrint);
+
+            const stageParent = document.getElementById('sheet-stage').parentElement;
+            if (typeof ResizeObserver === 'function' && stageParent) {
+                new ResizeObserver(() => sizePaperFrame()).observe(stageParent);
+            }
+            window.addEventListener('resize', sizePaperFrame);
+
+            // Sound toggle & Dark mode
+            document.getElementById('sound-btn').addEventListener('click', () => {
+                state.soundOn = !state.soundOn;
+                try { localStorage.setItem('soundMuted', String(!state.soundOn)); } catch (e) {}
+                applySoundUI();
+                if (state.soundOn) playPop();
+            });
+            document.getElementById('theme-btn').addEventListener('click', () => {
+                const isDark = document.documentElement.classList.toggle('dark');
+                document.getElementById('theme-btn').setAttribute('aria-pressed', String(isDark));
+                try {
+                    localStorage.setItem(THEME_KEY, isDark ? 'dark' : 'light');
+                    localStorage.setItem('klasskit-theme', isDark ? 'dark' : 'light');
+                } catch (e) {}
+                playPop();
+            });
+
+            // Sidebar toggle
+            const sidebar = document.getElementById('sidebar');
+            document.getElementById('toggle-sidebar-btn').addEventListener('click', () => {
+                if (window.innerWidth < 768) sidebar.classList.toggle('hidden-panel-mobile');
+                else sidebar.classList.toggle('hidden-panel-desktop');
+                setTimeout(sizePaperFrame, 320);
+            });
+            document.getElementById('mobile-close-panel').addEventListener('click', () => {
+                sidebar.classList.add('hidden-panel-mobile');
+            });
+
+            // Mode & Fun submode radios
+            document.querySelectorAll('input[name="trace-mode"]').forEach(r => {
+                r.addEventListener('change', (e) => { state.mode = e.target.value; renderSheet(); playPop(); });
+            });
+            document.querySelectorAll('input[name="fun-submode"]').forEach(r => {
+                r.addEventListener('change', (e) => { state.funSubmode = e.target.value; renderSheet(); playPop(); });
+            });
+            document.getElementById('path-pattern').addEventListener('change', (e) => {
+                state.pathPattern = e.target.value;
+                renderSheet();
+            });
+
+            // Font size slider
+            document.getElementById('font-size-slider').addEventListener('input', (e) => {
+                state.fontSize = Number(e.target.value);
+                document.getElementById('font-size-val').textContent = `${state.fontSize} px`;
+                renderSheet();
+            });
+
+            // Font family & trace style
+            document.querySelectorAll('input[name="font-family"]').forEach(r => {
+                r.addEventListener('change', (e) => { state.fontFamily = e.target.value; renderSheet(); playPop(); });
+            });
+            document.querySelectorAll('input[name="trace-style"]').forEach(r => {
+                r.addEventListener('change', (e) => { state.traceStyle = e.target.value; renderSheet(); playPop(); });
+            });
+
+            // Guide style, repeats, checkboxes
+            document.getElementById('guide-style').addEventListener('change', (e) => { state.guideStyle = e.target.value; renderSheet(); });
+            document.getElementById('repeat-mode').addEventListener('change', (e) => { state.repeatMode = e.target.value; renderSheet(); });
+            document.getElementById('start-dots').addEventListener('change', (e) => { state.startDots = e.target.checked; renderSheet(); });
+            document.getElementById('extra-blank-row').addEventListener('change', (e) => { state.extraBlankRow = e.target.checked; renderSheet(); });
+            document.getElementById('show-stars-footer').addEventListener('change', (e) => { state.showStarsFooter = e.target.checked; renderSheet(); });
+
+            // Palette & darkness
+            document.querySelectorAll('input[name="sheet-palette"]').forEach(r => {
+                r.addEventListener('change', (e) => { state.palette = e.target.value; renderSheet(); playPop(); });
+            });
+            document.getElementById('darkness-slider').addEventListener('input', (e) => {
+                state.darkness = Number(e.target.value);
+                document.getElementById('darkness-val').textContent = `${state.darkness}%`;
+                renderSheet();
+            });
+
+            // Title / subtitle / input live sync
+            document.getElementById('custom-title').addEventListener('input', () => renderSheet());
+            document.getElementById('custom-subtitle').addEventListener('input', () => renderSheet());
+            document.getElementById('trace-input').addEventListener('input', () => renderSheet());
+            document.getElementById('clear-input-btn').addEventListener('click', () => {
+                document.getElementById('trace-input').value = '';
+                renderSheet();
+                playPop();
+            });
+            document.getElementById('rebuild-btn').addEventListener('click', () => {
+                renderSheet();
+                playPop();
+                showToast('Tracing sheet updated!', 'success');
+            });
+
+            // Presets
+            document.querySelectorAll('.preset-btn').forEach(btn => {
+                btn.addEventListener('click', () => loadPreset(btn.dataset.preset));
+            });
+
+            // Orientation & Print / SVG
+            document.querySelectorAll('input[name="page-orient"]').forEach(r => {
+                r.addEventListener('change', (e) => {
+                    state.orient = e.target.value;
+                    clearInk();
+                    renderSheet();
+                    playPop();
+                });
+            });
+            document.getElementById('print-btn').addEventListener('click', triggerPrint);
+            document.getElementById('download-svg-btn').addEventListener('click', downloadSVG);
+
+            // Zoom
+            document.getElementById('zoom-in').addEventListener('click', () => {
+                state.zoom = Math.min(1.5, +(state.zoom + 0.1).toFixed(2));
+                renderSheet({ skipPersist: true });
+            });
+            document.getElementById('zoom-out').addEventListener('click', () => {
+                state.zoom = Math.max(0.6, +(state.zoom - 0.1).toFixed(2));
+                renderSheet({ skipPersist: true });
+            });
+            document.getElementById('zoom-reset').addEventListener('click', () => {
+                state.zoom = 1;
+                renderSheet({ skipPersist: true });
+            });
+
+            // Pen controls
+            document.getElementById('draw-toggle-btn').addEventListener('click', () => setPenActive(!state.penActive));
+            document.getElementById('clear-ink-btn').addEventListener('click', clearInk);
+            document.getElementById('panel-clear-ink').addEventListener('click', clearInk);
+
+            document.querySelectorAll('.pen-swatch').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    state.penColor = btn.dataset.penColor;
+                    document.querySelectorAll('.pen-swatch').forEach(b => {
+                        b.classList.remove('border-3', 'shadow-hard-sm', 'scale-110');
+                        b.classList.add('border-2');
+                    });
+                    btn.classList.remove('border-2');
+                    btn.classList.add('border-3', 'shadow-hard-sm', 'scale-110');
+                    if (!state.penActive) setPenActive(true);
+                    persistState();
+                });
+            });
+            document.getElementById('pen-size-slider').addEventListener('input', (e) => {
+                state.penSize = Number(e.target.value);
+                document.getElementById('pen-size-val').textContent = state.penSize;
+                persistState();
+            });
+
+            // Help modal
+            const helpModal = document.getElementById('helpModal');
+            document.getElementById('help-btn').addEventListener('click', () => helpModal.classList.remove('hidden'));
+            document.getElementById('help-close-btn').addEventListener('click', () => helpModal.classList.add('hidden'));
+            document.getElementById('help-got-it-btn').addEventListener('click', () => helpModal.classList.add('hidden'));
+            helpModal.addEventListener('click', (e) => { if (e.target === helpModal) helpModal.classList.add('hidden'); });
+
+            // Saved sheets drawer
+            document.getElementById('saved-sets-toggle-btn').addEventListener('click', () => {
+                document.getElementById('saved-sets-controls').classList.toggle('active');
+                document.getElementById('saved-sets-toggle-icon').classList.toggle('active');
+            });
+            document.getElementById('library-sort').addEventListener('change', renderSavedSetsList);
+            document.getElementById('close-set-btn').addEventListener('click', () => {
+                state.activeSetId = null;
+                updateActiveSetBanner();
+                renderSavedSetsList();
+                persistState();
+            });
+            document.getElementById('new-set-btn').addEventListener('click', () => {
+                openConfirm('Start Fresh Sheet?', 'Clear current text and smartboard ink to start a blank worksheet?', () => {
+                    state.activeSetId = null;
+                    updateActiveSetBanner();
+                    renderSavedSetsList();
+                    document.getElementById('custom-title').value = 'New Tracing Sheet';
+                    document.getElementById('custom-subtitle').value = 'Trace neatly along the lines!';
+                    document.getElementById('trace-input').value = '';
+                    clearInk();
+                    renderSheet();
+                    showToast('Started a fresh blank tracing sheet', 'info');
+                });
+            });
+
+            const saveModal = document.getElementById('saveModal');
+            const saveInput = document.getElementById('save-set-input');
+            const confirmSave = () => {
+                const name = saveInput.value.trim();
+                if (!name) { showToast('Please enter a sheet name.', 'warning'); return; }
+                const ws = getWorkspaceData();
+                const existing = state.activeSetId ? state.savedSets.find(s => s.id === state.activeSetId) : null;
+                const isUpdating = Boolean(existing && existing.name.toLowerCase() === name.toLowerCase());
+                const id = isUpdating ? existing.id : ('tr_' + Date.now());
+                const payload = {
+                    ...ws,
+                    id,
+                    name,
+                    updatedAt: Date.now(),
+                    activeSetId: id
+                };
+                const idx = state.savedSets.findIndex(s => s.id === id);
+                if (idx >= 0) state.savedSets[idx] = payload;
+                else state.savedSets.unshift(payload);
+                state.activeSetId = id;
+                saveModal.classList.add('hidden');
+                persistSavedSets();
+                playPop();
+                showToast(isUpdating ? `Updated "${name}"!` : `Saved "${name}"!`, 'success');
+            };
+
+            document.getElementById('save-set-btn').addEventListener('click', () => {
+                const existing = state.savedSets.find(s => s.id === state.activeSetId);
+                saveInput.value = existing
+                    ? existing.name
+                    : (document.getElementById('custom-title').value.trim() || 'My Tracing Sheet');
+                saveModal.classList.remove('hidden');
+                saveInput.focus();
+            });
+            document.getElementById('save-modal-cancel').addEventListener('click', () => saveModal.classList.add('hidden'));
+            saveModal.addEventListener('click', (e) => { if (e.target === saveModal) saveModal.classList.add('hidden'); });
+            document.getElementById('save-modal-confirm').addEventListener('click', confirmSave);
+            saveInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') { e.preventDefault(); confirmSave(); }
+                if (e.key === 'Escape') saveModal.classList.add('hidden');
+            });
+
+            const confirmModal = document.getElementById('confirmModal');
+            document.getElementById('confirmBtnNo').addEventListener('click', closeConfirm);
+            confirmModal.addEventListener('click', (e) => { if (e.target === confirmModal) closeConfirm(); });
+            document.getElementById('confirmBtnYes').addEventListener('click', () => {
+                if (typeof confirmCallback === 'function') confirmCallback();
+                closeConfirm();
+            });
+
+            document.addEventListener('keydown', (e) => {
+                if (e.code === 'Escape') {
+                    helpModal.classList.add('hidden');
+                    saveModal.classList.add('hidden');
+                    closeConfirm();
+                }
+            });
+        });
+    </script>
+</body>
+
+</html>

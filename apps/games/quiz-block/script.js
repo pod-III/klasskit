@@ -214,8 +214,18 @@ const Jeopardy = (function() {
 
     // --- BroadcastChannel Student View ---
     const BROADCAST_CHANNEL = 'quiz-block-sync';
+    const STORAGE_KEY_STUDENT_SYNC = 'quiz_block_student_sync';
     const IS_PLAYER_WINDOW = new URLSearchParams(location.search).has('player');
     const bc = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel(BROADCAST_CHANNEL) : null;
+    const SYNC_SESSION_ID = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    let syncSeq = 0;
+    let timerEndAt = null;
+    let studentLastSid = null;
+    let studentLastSeq = 0;
+    let studentTimerInterval = null;
+    let studentTimerState = null;
+    let studentLastBoardSig = '';
+    let studentLastScoreSig = '';
     let _broadcastThrottle = null;
     let _lastBroadcastTime = 0;
     let playModalState = {
@@ -336,8 +346,23 @@ const Jeopardy = (function() {
     }
 
     // --- BroadcastChannel Sync Helpers ---
+    function publishStudentMessage(msg) {
+        if (IS_PLAYER_WINDOW || !msg) return;
+        const envelope = {
+            ...msg,
+            _sid: SYNC_SESSION_ID,
+            _seq: ++syncSeq
+        };
+        if (bc) {
+            try { bc.postMessage(envelope); } catch (_) {}
+        }
+        try {
+            localStorage.setItem(STORAGE_KEY_STUDENT_SYNC, JSON.stringify(envelope));
+        } catch (_) {}
+    }
+
     function broadcastState(options = {}) {
-        if (!bc || IS_PLAYER_WINDOW) return;
+        if (IS_PLAYER_WINDOW) return;
 
         const now = performance.now();
         const minInterval = options.immediate ? 0 : 16;
@@ -358,11 +383,11 @@ const Jeopardy = (function() {
     }
 
     function _performBroadcast() {
-        if (!bc || IS_PLAYER_WINDOW) return;
+        if (IS_PLAYER_WINDOW) return;
         const isOnLanding = Boolean(els.landing.page && !els.landing.page.classList.contains('hidden'));
         const duration = Number(state.timerDuration) > 0 ? Number(state.timerDuration) : 15;
 
-        bc.postMessage({
+        publishStudentMessage({
             type: 'state-update',
             view: isOnLanding ? 'landing' : 'board',
             isDark: document.documentElement.classList.contains('dark'),
@@ -380,12 +405,26 @@ const Jeopardy = (function() {
                 timerRunning: playModalState.timerRunning,
                 timerRemaining,
                 timerTotal: duration,
+                timerEndAt: playModalState.timerRunning ? timerEndAt : null,
                 cat: playModalState.cat,
                 points: playModalState.points,
                 q: playModalState.open ? playModalState.q : '',
                 a: playModalState.open && playModalState.answerRevealed ? playModalState.a : '',
                 bonus: playModalState.bonus
             }
+        });
+    }
+
+    function broadcastTimerTick() {
+        if (IS_PLAYER_WINDOW) return;
+        const duration = Number(state.timerDuration) > 0 ? Number(state.timerDuration) : 15;
+        publishStudentMessage({
+            type: 'timer-tick',
+            timerRunning: playModalState.timerRunning,
+            timerRemaining,
+            timerTotal: duration,
+            timerEndAt: playModalState.timerRunning ? timerEndAt : null,
+            answerRevealed: playModalState.answerRevealed
         });
     }
 
@@ -435,13 +474,102 @@ const Jeopardy = (function() {
         if (waiting) waiting.classList.remove('hidden');
     }
 
+    function stopStudentTimer() {
+        if (studentTimerInterval) {
+            clearInterval(studentTimerInterval);
+            studentTimerInterval = null;
+        }
+        studentTimerState = null;
+    }
+
+    function applyStudentTimerUI(timerData) {
+        if (!timerData) return;
+        const total = Number(timerData.timerTotal) > 0 ? Number(timerData.timerTotal) : 15;
+        const rawRem = (timerData.timerRunning && timerData.timerEndAt)
+            ? Math.ceil((Number(timerData.timerEndAt) - Date.now()) / 1000)
+            : Number(timerData.timerRemaining ?? total);
+        const rem = Math.max(0, Math.min(total, Number.isFinite(rawRem) ? rawRem : total));
+        const running = Boolean(timerData.timerRunning && rem > 0);
+        const answerRevealed = Boolean(timerData.answerRevealed);
+
+        if (els.play.timerReadout) {
+            if (rem <= 0 && !running && !answerRevealed && total > 0) {
+                els.play.timerReadout.textContent = "TIME'S UP!";
+            } else {
+                els.play.timerReadout.textContent = `${rem}s`;
+            }
+            const urgent = rem > 0 ? (rem <= 5 && running) : (!answerRevealed && rem === 0);
+            els.play.timerReadout.classList.toggle('bg-brand-red', urgent);
+            els.play.timerReadout.classList.toggle('text-white', urgent);
+            els.play.timerReadout.classList.toggle('timer-urgent', urgent);
+        }
+
+        if (els.play.timerBar) {
+            const pct = running
+                ? Math.max(0, Math.min(100, (rem / total) * 100))
+                : (rem === 0 && !answerRevealed ? 0 : 100);
+            els.play.timerBar.style.transition = running ? 'width 1s linear' : 'none';
+            els.play.timerBar.style.width = `${pct}%`;
+            els.play.timerBar.className = `h-full w-full ${rem <= 5 && (running || (rem === 0 && !answerRevealed)) ? 'bg-brand-red' : 'bg-brand-orange'}`;
+        }
+    }
+
+    function syncStudentTimerInterval(timerData) {
+        if (studentTimerInterval) {
+            clearInterval(studentTimerInterval);
+            studentTimerInterval = null;
+        }
+        if (timerData && timerData.timerRunning && timerData.timerEndAt) {
+            studentTimerState = {
+                timerEndAt: Number(timerData.timerEndAt),
+                timerTotal: Number(timerData.timerTotal) || 15,
+                answerRevealed: Boolean(timerData.answerRevealed)
+            };
+            studentTimerInterval = setInterval(() => {
+                if (!studentTimerState) {
+                    stopStudentTimer();
+                    return;
+                }
+                const rem = Math.max(0, Math.ceil((studentTimerState.timerEndAt - Date.now()) / 1000));
+                applyStudentTimerUI({
+                    ...studentTimerState,
+                    timerRunning: rem > 0,
+                    timerRemaining: rem
+                });
+                if (rem <= 0) {
+                    stopStudentTimer();
+                }
+            }, 250);
+        } else {
+            studentTimerState = null;
+        }
+    }
+
     function applyStudentPayload(payload) {
-        if (!payload || payload.type !== 'state-update') return;
+        if (!payload || typeof payload !== 'object') return;
+        if (payload._sid && payload._sid === studentLastSid && Number(payload._seq) <= studentLastSeq) return;
+        if (payload._sid) {
+            studentLastSid = payload._sid;
+            studentLastSeq = Number(payload._seq) || 0;
+        }
+
+        if (payload.type === 'timer-tick') {
+            if (els.modals.play && !els.modals.play.classList.contains('hidden')) {
+                applyStudentTimerUI(payload);
+                syncStudentTimerInterval(payload);
+            }
+            return;
+        }
+
+        if (payload.type !== 'state-update') return;
 
         document.documentElement.classList.toggle('dark', Boolean(payload.isDark));
 
         const waiting = document.getElementById('student-waiting-overlay');
         if (payload.view === 'landing') {
+            stopStudentTimer();
+            studentLastBoardSig = '';
+            studentLastScoreSig = '';
             if (waiting) waiting.classList.remove('hidden');
             els.gameWrappers.forEach(el => el && el.classList.add('hidden'));
             els.modals.play.classList.add('hidden');
@@ -480,8 +608,19 @@ const Jeopardy = (function() {
         }
         if (els.saveText) els.saveText.textContent = 'Synced with Host';
 
-        renderBoard();
-        renderScoreboard();
+        const boardSig = JSON.stringify([state.gameName, state.categories, state.visited, state.pointMultiplier, payload.tilePoints]);
+        const scoreSig = JSON.stringify([state.teams, state.scores, state.pointMultiplier]);
+        const boardChanged = boardSig !== studentLastBoardSig;
+        const scoreChanged = scoreSig !== studentLastScoreSig;
+
+        if (boardChanged) {
+            studentLastBoardSig = boardSig;
+            renderBoard();
+        }
+        if (scoreChanged) {
+            studentLastScoreSig = scoreSig;
+            renderScoreboard();
+        }
 
         const play = payload.play;
         if (play && play.open) {
@@ -503,33 +642,18 @@ const Jeopardy = (function() {
                 els.play.q.classList.remove('hidden');
             }
 
-            if (els.play.timerReadout) {
-                const rem = Number(play.timerRemaining);
-                if (rem <= 0 && play.timerRunning === false && play.answerRevealed === false && play.timerTotal > 0) {
-                    els.play.timerReadout.textContent = "TIME'S UP!";
-                } else {
-                    els.play.timerReadout.textContent = `${Math.max(0, rem)}s`;
-                }
-                const urgent = rem > 0 ? rem <= 5 && play.timerRunning : !play.answerRevealed && rem === 0;
-                els.play.timerReadout.classList.toggle('bg-brand-red', urgent);
-                els.play.timerReadout.classList.toggle('text-white', urgent);
-                els.play.timerReadout.classList.toggle('timer-urgent', urgent);
-            }
-
-            if (els.play.timerBar) {
-                const total = Number(play.timerTotal) || 15;
-                const pct = play.timerRunning ? Math.max(0, Math.min(100, (Number(play.timerRemaining) / total) * 100)) : 100;
-                els.play.timerBar.style.transition = play.timerRunning ? 'width 1s linear' : 'none';
-                els.play.timerBar.style.width = `${pct}%`;
-                els.play.timerBar.className = `h-full w-full ${Number(play.timerRemaining) <= 5 && play.timerRunning ? 'bg-brand-red' : 'bg-brand-orange'}`;
-            }
+            applyStudentTimerUI(play);
+            syncStudentTimerInterval(play);
 
             els.modals.play.classList.remove('hidden');
         } else {
+            stopStudentTimer();
             els.modals.play.classList.add('hidden');
         }
 
-        safeCreateIcons();
+        if (boardChanged || scoreChanged) {
+            safeCreateIcons();
+        }
     }
 
     // --- Core Init ---
@@ -546,6 +670,27 @@ const Jeopardy = (function() {
                 bc.onmessage = (event) => applyStudentPayload(event.data);
                 bc.postMessage({ type: 'player-ready' });
             }
+            window.addEventListener('storage', (event) => {
+                if (event.key === STORAGE_KEY_STUDENT_SYNC && event.newValue) {
+                    try { applyStudentPayload(JSON.parse(event.newValue)); } catch (_) {}
+                }
+            });
+            document.addEventListener('visibilitychange', () => {
+                if (document.hidden) return;
+                if (studentTimerState) {
+                    const rem = Math.max(0, Math.ceil((studentTimerState.timerEndAt - Date.now()) / 1000));
+                    applyStudentTimerUI({
+                        ...studentTimerState,
+                        timerRunning: rem > 0,
+                        timerRemaining: rem
+                    });
+                }
+                try {
+                    const raw = localStorage.getItem(STORAGE_KEY_STUDENT_SYNC);
+                    if (raw && studentLastSid) applyStudentPayload(JSON.parse(raw));
+                } catch (_) {}
+                if (bc) bc.postMessage({ type: 'player-ready' });
+            });
             return;
         }
 
@@ -1768,6 +1913,7 @@ const Jeopardy = (function() {
 
         els.play.timerBar.style.transition = `width ${duration}s linear`;
         els.play.timerBar.style.width = '0%';
+        timerEndAt = Date.now() + duration * 1000;
         playModalState.timerRunning = true;
         broadcastState({ immediate: true });
 
@@ -1781,16 +1927,17 @@ const Jeopardy = (function() {
                         els.play.timerBar.classList.replace('bg-brand-orange', 'bg-brand-red');
                     }
                 }
-                broadcastState({ immediate: true });
+                broadcastTimerTick();
             } else {
                 clearInterval(timerInterval);
                 timerInterval = null;
+                timerEndAt = null;
                 playModalState.timerRunning = false;
                 if (els.play.timerReadout) {
                     els.play.timerReadout.textContent = "TIME'S UP!";
                     els.play.timerReadout.classList.add('bg-brand-red', 'text-white', 'timer-urgent');
                 }
-                broadcastState({ immediate: true });
+                broadcastTimerTick();
             }
         }, 1000);
     }
@@ -1800,6 +1947,7 @@ const Jeopardy = (function() {
             clearInterval(timerInterval);
             timerInterval = null;
         }
+        timerEndAt = null;
         playModalState.timerRunning = false;
         const duration = Number(state.timerDuration) > 0 ? Number(state.timerDuration) : 15;
         timerRemaining = duration;

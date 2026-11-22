@@ -20,6 +20,7 @@ test.describe('KlassKit Hub & Landing', () => {
     await page.addInitScript(() => {
       localStorage.setItem('kk_mode', 'sandbox');
     });
+    await page.route(/^https:\/\/fonts\.(googleapis|gstatic)\.com\//, (route) => route.abort());
 
     await page.goto('/hub.html', { waitUntil: 'domcontentloaded' });
     await expect(page.locator('#hub-loading-state')).toBeHidden({ timeout: 15000 });

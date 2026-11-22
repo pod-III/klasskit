@@ -211,6 +211,10 @@ const RAW_TOOL_TO_CATALOG_ID = {
     'info-gap': 'info-gap',
     'running-dictation': 'running-dictation',
     'interview-maker': 'interview-maker',
+    'path-board': 'path-board',
+    'chutes-ladders': 'chutes-ladders',
+    'tracing-maker': 'tracing-maker',
+    'dice-maker': 'dice-maker',
 
     // Workshop
     'workshop_analyzer': 'text-workshop',
