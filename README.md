@@ -1,11 +1,11 @@
 # 🍎 KlassKit: The Ultimate Classroom Command Center
 
-![Version](https://img.shields.io/badge/version-1.6.0-blue?style=for-the-badge)
-![Activities](https://img.shields.io/badge/activities-71%20Active-green?style=for-the-badge)
+![Version](https://img.shields.io/badge/version-1.7.0-blue?style=for-the-badge)
+![Activities](https://img.shields.io/badge/activities-78%20Active-green?style=for-the-badge)
 ![Status](https://img.shields.io/badge/status-Active%20Development-orange?style=for-the-badge)
 ![Aesthetic](https://img.shields.io/badge/aesthetic-Soft%20Brutalism-pink?style=for-the-badge)
 
-KlassKit is a curated, **no-build ecosystem of 71 active interactive tools, printables, and classroom games** (plus 15 modules in active development) built for ELT and modern classrooms. Tailored for students aged 3–18, it turns any browser into a fast, zero-installation teaching dashboard optimized for classroom projectors and 1366×768 Chromebooks.
+KlassKit is a curated, **no-build ecosystem of 78 active interactive tools, printables, and classroom games** (plus 15 modules in active development) built for ELT and modern classrooms. Tailored for students aged 3–18, it turns any browser into a fast, zero-installation teaching dashboard optimized for classroom projectors and 1366×768 Chromebooks.
 
 > **Explore the Hub:** [klasskit.fun](https://klasskit.fun)
 
@@ -79,9 +79,9 @@ Educational software should be as joyful as it is reliable. KlassKit follows a c
 
 ## 🧩 The KlassKit Library
 
-The catalog in `games.json` organizes **71 active modules** into five core zones, plus **15 Work in Progress** modules:
+The catalog in `games.json` organizes **78 active modules** into five core zones, plus **15 Work in Progress** modules:
 
-### 🖨️ Printables (11)
+### 🖨️ Printables (18)
 *Ready-to-print A4 worksheets, handouts, flashcards, and classroom puzzles.*
 
 | Printable | Description |
@@ -97,6 +97,13 @@ The catalog in `games.json` organizes **71 active modules** into five core zones
 | **Info Gap Maker** | Paired Speaking & Reading Handout Builder |
 | **Running Dictation** | Wall Reading & Cloze Worksheet Generator |
 | **Interview Maker** | Customizable Class Survey & Interview Sheet |
+| **Paper Grass** | Tear-Strip Sentence Puzzles |
+| **Path Board** | Printable Path Board Game Maker |
+| **Chutes & Ladders** | Printable Chutes & Ladders Board Maker |
+| **Tracing Maker** | Handwriting & Fun Path Tracing Sheet Maker |
+| **Dice Maker** | Printable 3D Paper Dice & Cube Net Maker |
+| **Maze Maker** | Word Path & Wall Maze Handout Generator |
+| **Labyrinth Quest** | Point-Hunting Classroom Maze & Prompt Maker |
 
 ### 🧰 Teaching Tools (17)
 *Essential utilities for real-time classroom management and live instruction.*
@@ -225,7 +232,7 @@ klasskit/
 ├── hub.html                # Main activity hub & workspace shell
 ├── login.html              # Authentication gateway (OAuth, Email, Sandbox)
 ├── 404.html                # Custom fallback page
-├── games.json              # Central catalog registry (86 entries, 71 active)
+├── games.json              # Central catalog registry (93 entries, 78 active)
 ├── manifest.json           # PWA manifest
 ├── sw.js                   # Service Worker for offline caching
 ├── supabase.js             # Supabase client, auth helpers, and role guards
@@ -237,7 +244,7 @@ klasskit/
 ├── playwright.config.js    # Cross-browser E2E test configuration
 │
 ├── apps/                   # Self-contained activity modules
-│   ├── printables/         # A4 printable generators & word puzzle makers (11)
+│   ├── printables/         # A4 printable generators & word puzzle makers (18)
 │   ├── tools/              # Live teaching tools & classroom utilities (17)
 │   ├── games/              # Interactive classroom games (33)
 │   ├── workshop/           # Text, image, lesson parser, & report utilities (5)
@@ -298,7 +305,7 @@ npx playwright test
 Use the built-in version bumper to keep version numbers synchronized across `games.json`, `README.md`, `sw.js`, and `package.json`:
 
 ```bash
-node bump.js 1.5.8
+node bump.js 1.7.0
 ```
 
 ### Contributing a New Activity
@@ -313,4 +320,4 @@ node bump.js 1.5.8
 Built with ❤️ by **Fahrul Ahyan**.
 KlassKit is a passion project dedicated to teachers everywhere. It is, and always will be, **100% Free**.
 
-*Current Version: 1.6.0 — Active Development.*
+*Current Version: 1.7.0 — Active Development.*
