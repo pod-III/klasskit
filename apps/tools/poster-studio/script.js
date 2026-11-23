@@ -488,15 +488,13 @@ const Store = {
         }
         
         let imgId;
-        if (!isSandbox()) {
-            try {
-                const { data: { user } } = await db.auth.getUser();
-                if (user) {
-                    imgId = await uploadMedia(file, 'poster_studio', Store.current.id);
-                }
-            } catch (err) {
-                console.error("Cloud upload failed", err);
+        try {
+            const user = await getCloudUser();
+            if (user) {
+                imgId = await uploadMedia(file, 'poster_studio', Store.current.id);
             }
+        } catch (err) {
+            console.error("Cloud upload failed", err);
         }
         
         if (!imgId) {
@@ -554,9 +552,9 @@ const Store = {
         }
 
         // 2. Cloud Storage (if not sandbox)
-        if (!isSandbox() && Store.current) {
+        if (Store.current) {
             try {
-                const { data: { user } } = await db.auth.getUser();
+                const user = await getCloudUser();
                 if (user) {
                     const dir = `${user.id}/poster_studio/${Store.current.id}`;
                     const { data: files } = await db.storage.from(STORAGE_CONFIG.bucket).list(dir);
@@ -983,14 +981,12 @@ const App = {
     },
     async deletePoster(id) { 
         App.showConfirm('Delete Project?', async () => { 
-            if (!isSandbox()) {
-                try {
-                    const { data: { user } } = await db.auth.getUser();
-                    if (user) {
-                        deleteFolder(`${user.id}/poster_studio/${id}`).catch(e => console.warn("Cloud folder delete failed", e));
-                    }
-                } catch (e) { console.warn("Auth lookup failed", e); }
-            }
+            try {
+                const user = await getCloudUser();
+                if (user) {
+                    deleteFolder(`${user.id}/poster_studio/${id}`).catch(e => console.warn("Cloud folder delete failed", e));
+                }
+            } catch (e) { console.warn("Auth lookup failed", e); }
 
             Store.state.posters = Store.state.posters.filter(p => p.id !== id);
             if (!Store.state.posters.length) {

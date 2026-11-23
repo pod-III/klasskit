@@ -225,12 +225,43 @@
   }
 
   async function cloudReplaceAllScheduleEvents(userId, events) {
-    // Delete all then insert fresh (for full sync)
-    await db.from('myspace_events').delete().eq('user_id', userId);
     const rows = events.map(e => sanitiseForCloud(e, userId)).filter(r => r !== null);
-    if (rows.length > 0) {
-      const { error } = await db.from('myspace_events').insert(rows);
-      if (error) console.error('[Sync] Replace events error:', error);
+    if (rows.length === 0) {
+      const { error } = await db.from('myspace_events').delete().eq('user_id', userId);
+      if (error) console.error('[Sync] Clear events error:', error);
+      return;
+    }
+
+    // Sort masters before non-masters to satisfy original_event_id FK ordering
+    const sortedRows = rows.slice().sort(
+      (a, b) => Number(Boolean(b.is_master)) - Number(Boolean(a.is_master))
+    );
+
+    const { error: upsertErr } = await db.from('myspace_events')
+      .upsert(sortedRows, { onConflict: 'id' });
+    if (upsertErr) {
+      console.error('[Sync] Replace events upsert error:', upsertErr);
+      return;
+    }
+
+    const keptIds = new Set(sortedRows.map(r => r.id));
+    const { data: existing, error: listErr } = await db.from('myspace_events')
+      .select('id')
+      .eq('user_id', userId);
+    if (listErr) {
+      console.error('[Sync] Replace events prune list error:', listErr);
+      return;
+    }
+
+    const staleIds = (existing || []).map(r => r.id).filter(id => !keptIds.has(id));
+    const CHUNK_SIZE = 100;
+    for (let i = 0; i < staleIds.length; i += CHUNK_SIZE) {
+      const chunk = staleIds.slice(i, i + CHUNK_SIZE);
+      const { error: delErr } = await db.from('myspace_events')
+        .delete()
+        .eq('user_id', userId)
+        .in('id', chunk);
+      if (delErr) console.error('[Sync] Replace events prune delete error:', delErr);
     }
   }
 

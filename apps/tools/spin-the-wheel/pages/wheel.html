@@ -889,19 +889,29 @@
         // ── Resolve expired signed URLs for all wheel options after loading ──
         async function resolveWheelImages() {
             if (isSandbox()) return; // base64 URLs don't need resolving
-            let changed = false;
+            const pending = [];
             for (const wheel of appState.data.wheels) {
                 for (const opt of wheel.options) {
                     const img = optImg(opt);
-                    if (img && !img.startsWith('data:')) {
-                        const fresh = await resolveMediaUrl(img).catch(() => img);
-                        if (fresh !== img && typeof opt === 'object') {
-                            opt.img = fresh;
-                            changed = true;
-                        }
+                    if (img && !img.startsWith('data:') && typeof opt === 'object') {
+                        pending.push({ opt, img });
                     }
                 }
             }
+            if (pending.length === 0) return;
+
+            const signedUrls = (typeof resolveMediaUrls === 'function')
+                ? await resolveMediaUrls(pending.map(p => p.img)).catch(() => pending.map(p => p.img))
+                : await Promise.all(pending.map(p => resolveMediaUrl(p.img).catch(() => p.img)));
+
+            let changed = false;
+            pending.forEach((item, idx) => {
+                const fresh = signedUrls[idx];
+                if (fresh && fresh !== item.img) {
+                    item.opt.img = fresh;
+                    changed = true;
+                }
+            });
             if (changed) {
                 // Persist refreshed URLs locally (don't cloud-sync just for URL refresh)
                 localStorage.setItem('multispin_session', JSON.stringify(appState.data));

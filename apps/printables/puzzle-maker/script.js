@@ -132,7 +132,7 @@ async function deleteImageFromDB(id) {
 
 async function savePuzzleSetToDB(name, stateData, existingId = null) {
   if (!isSandbox()) {
-    const { data: { user } } = await db.auth.getUser();
+    const user = await getCloudUser();
     if (!user) return null;
 
     const set = {
@@ -147,6 +147,7 @@ async function savePuzzleSetToDB(name, stateData, existingId = null) {
       const { data, error } = await db.from('tools_puzzlemaker')
         .update({ name, state_data: set.state_data, last_used: set.last_used })
         .eq('id', existingId)
+        .eq('user_id', user.id)
         .select('id').single();
       if (error) { console.error('[PuzzleSet] Update failed:', error); return null; }
       return data.id;
@@ -197,6 +198,8 @@ async function savePuzzleSetToDB(name, stateData, existingId = null) {
 
 async function updatePuzzleSetMetadata(id, data) {
   if (!isSandbox()) {
+    const user = await getCloudUser();
+    if (!user) return;
     const updateData = {};
     if (data.lastUsed) updateData.last_used = new Date().toISOString();
     if (data.stateData) updateData.state_data = sanitizeCloudPayload(data.stateData);
@@ -206,7 +209,10 @@ async function updatePuzzleSetMetadata(id, data) {
       updateData.last_used = new Date().toISOString();
     }
 
-    const { error } = await db.from('tools_puzzlemaker').update(updateData).eq('id', id);
+    const { error } = await db.from('tools_puzzlemaker')
+      .update(updateData)
+      .eq('id', id)
+      .eq('user_id', user.id);
     if (error) console.error('[PuzzleSet] Update metadata failed:', error);
     return;
   }
@@ -230,8 +236,11 @@ async function updatePuzzleSetMetadata(id, data) {
 
 async function getAllPuzzleSets() {
   if (!isSandbox()) {
+    const user = await getCloudUser();
+    if (!user) return [];
     const { data, error } = await db.from('tools_puzzlemaker')
       .select('*')
+      .eq('user_id', user.id)
       .order('last_used', { ascending: false });
     if (error) { console.error(error); return []; }
     return data.map(d => ({
@@ -264,12 +273,12 @@ async function getAllPuzzleSets() {
 
 async function deletePuzzleSet(id) {
   if (!isSandbox()) {
-    const { data: { user } } = await db.auth.getUser();
+    const user = await getCloudUser();
     if (user) {
       // Delete cloud images folder
       deleteFolder(`${user.id}/puzzle_maker/${id}`).catch(e => console.warn("Cloud folder delete failed", e));
       // Delete from database
-      await db.from('tools_puzzlemaker').delete().eq('id', id);
+      await db.from('tools_puzzlemaker').delete().eq('id', id).eq('user_id', user.id);
     }
     return;
   }
@@ -515,11 +524,12 @@ async function loadSetFromList(id) {
   
   if (!isSandbox() && typeof db !== 'undefined') {
     try {
-      const { data: { user } } = await db.auth.getUser();
+      const user = await getCloudUser();
       if (user) {
         const { data, error } = await db.from('tools_puzzlemaker')
           .select('*')
           .eq('id', id)
+          .eq('user_id', user.id)
           .single();
         if (data) {
           stateData = data.state_data;

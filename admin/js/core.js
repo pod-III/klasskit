@@ -1,28 +1,12 @@
-// KlassKit Admin — State, Data Fetching & Event Aggregation
+// KlassKit Admin — State, RPC Helpers & Catalog Initialization
 
-let allProgress = []
-let allNotes = []
-let allMyClass = []
-let allMySpaceTasks = []
-let allProfiles = {}
+let allProfiles = {} // Incremental cache for display names/emails across views & modals
 let allAnnouncements = []
-let allScheduleEvents = []
-let allClassAdmin = []
-let allClassUnits = []
-let allRedDays = {}
-let allNoteFolders = {}
-let allSpreadsheets = []
-let allLessonParser = []
-let allCardMaker = []
-let allPuzzleMaker = []
-let allWorksheetMaker = []
-let allToolsDnd = []
-let allVttMaps = []
-let allVttCampaigns = []
-let allClockLogs = []
+let dashboardSummary = null
 let allGamesCatalog = []
+let catalogLoaded = false
 let healthyTablesCount = 0
-let totalQueriedTables = 18
+let totalQueriedTables = 21
 
 let scheduleClassTab = 'admin'
 let currentDataTab = 'progress'
@@ -37,6 +21,17 @@ let topToolsMode = 'week' // 'week' | 'all'
 let toolsChartMetric = 'saves' // 'saves' | 'users'
 let pendingDelete = null
 let currentView = 'dashboard'
+
+let reqSeq = {
+    dashboard: 0,
+    users: 0,
+    cloud: 0,
+    data: 0,
+    logs: 0,
+    announcements: 0,
+    exclusions: 0
+}
+
 let sortConfig = {
     users: { col: 'active', dir: 'desc' },
     progress: { col: 'updated_at', dir: 'desc' },
@@ -49,6 +44,7 @@ let sortConfig = {
     myclass: { col: 'updated_at', dir: 'desc' },
     studio: { col: 'updated_at', dir: 'desc' }
 }
+
 let pagination = {
     users: 1,
     progress: 1,
@@ -65,9 +61,9 @@ let pagination = {
 const PAGE_SIZE = 25
 let settingsTimeout = null
 let searchTimeout = null
+let _missingRpcWarned = false
 
 // ── CANONICAL TOOL KEY MAPPING ──
-// Maps raw user_progress tool_keys and dedicated table keys to official games.json IDs
 const RAW_TOOL_TO_CATALOG_ID = {
     // Games
     'magic_cups': 'findball',
@@ -267,7 +263,7 @@ async function init() {
         setTimeout(() => overlay.remove(), 400)
     }
     lucide.createIcons()
-    loadSettings()
+    loadSettings({ fetchExclusions: false })
     await fetchData()
 }
 
@@ -280,25 +276,29 @@ if ('serviceWorker' in navigator) {
     });
 }
 
-async function safeQuery(promise, tableName) {
-    try {
-        const res = await promise
-        if (res.error) {
-            console.warn(`[Admin] Query warning on ${tableName}:`, res.error.message)
-            return { data: [], error: res.error, ok: false }
-        }
-        return { data: res.data || [], error: null, ok: true }
-    } catch (err) {
-        console.warn(`[Admin] Query exception on ${tableName}:`, err)
-        return { data: [], error: err, ok: false }
-    }
+function getValidExcludedUserIds() {
+    return getExcludedUserIds().filter(id => {
+        if (typeof isValidUuid === 'function') return isValidUuid(id)
+        return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
+    })
 }
 
-// ── FETCH ──
-async function fetchData() {
-    document.querySelectorAll('.refreshIcon').forEach(i => i.classList.add('animate-spin'))
+async function callAdminRpc(fnName, params = {}) {
+    const { data, error } = await db.rpc(fnName, params)
+    if (error) {
+        console.error(`[AdminRPC] ${fnName} failed:`, error)
+        const isMissing = error.code === '42883' || error.code === 'PGRST202' || String(error.message || '').includes('Could not find the function')
+        if (isMissing && !_missingRpcWarned) {
+            _missingRpcWarned = true
+            showToast('Admin RPC missing — run supabase/sql/phase3_admin_rpcs.sql in SQL Editor', 'error')
+        }
+        return { data: null, error }
+    }
+    return { data, error: null }
+}
 
-    // Fetch Games Registry first so tool metadata is ready
+async function loadGamesCatalog() {
+    if (catalogLoaded) return
     try {
         const gamesRes = await fetch('../games.json')
         const gamesData = await gamesRes.json()
@@ -315,8 +315,6 @@ async function fetchData() {
         const toolTitleMap = {}
         const toolIconMap = {}
         allGamesCatalog.forEach(g => {
-            // Note: lessonnotes is categorized under My Space in teacher workflows or Tools in games.json;
-            // keep official category mapping consistent
             const cat = g.id === 'lessonnotes' ? 'My Space' : (catDisplayNames[g.category] || 'Tools')
             toolCategoryMap[g.id] = cat
             toolTitleMap[g.id] = g.title
@@ -325,185 +323,82 @@ async function fetchData() {
         window.toolCategoryMap = toolCategoryMap
         window.toolTitleMap = toolTitleMap
         window.toolIconMap = toolIconMap
+        catalogLoaded = true
     } catch (e) {
         console.warn('[Admin] Failed to load games.json:', e)
     }
+}
 
-    const queries = [
-        safeQuery(db.from('user_progress').select('*').order('updated_at', { ascending: false }), 'user_progress'),
-        safeQuery(db.from('notes').select('*').order('updated_at', { ascending: false }), 'notes'),
-        safeQuery(db.from('profiles').select('*'), 'profiles'),
-        safeQuery(db.from('storage_quotas').select('*'), 'storage_quotas'),
-        safeQuery(db.from('myspace_events').select('id,user_id,name,type_id,color,date,recurrence,recurrence_days,graduation_class,is_master,created_at,updated_at').eq('is_master', true).order('date', { ascending: false }), 'myspace_events'),
-        safeQuery(db.from('myspace_class_admin').select('*').order('created_at', { ascending: false }), 'myspace_class_admin'),
-        safeQuery(db.from('myspace_class_units').select('*').order('created_at', { ascending: false }), 'myspace_class_units'),
-        safeQuery(db.from('myspace_settings').select('*'), 'myspace_settings'),
-        safeQuery(db.from('note_folders').select('*'), 'note_folders'),
-        safeQuery(db.from('myspace_my_class').select('*').order('updated_at', { ascending: false }), 'myspace_my_class'),
-        safeQuery(db.from('myspace_tasks').select('*').order('updated_at', { ascending: false }), 'myspace_tasks'),
-        safeQuery(db.from('spreadsheets').select('id,user_id,title,rows_count,cols_count,updated_at,created_at').order('updated_at', { ascending: false }), 'spreadsheets'),
-        safeQuery(db.from('workshop_lessonparser').select('id,user_id,name,unit_aims,modules,last_used,created_at,usage_count').order('last_used', { ascending: false }), 'workshop_lessonparser'),
-        safeQuery(db.from('tools_cardmaker').select('id,user_id,name,usage_count,created_at,last_used').order('last_used', { ascending: false }), 'tools_cardmaker'),
-        safeQuery(db.from('tools_puzzlemaker').select('id,user_id,name,usage_count,created_at,last_used').order('last_used', { ascending: false }), 'tools_puzzlemaker'),
-        safeQuery(db.from('tools_worksheetmaker').select('id,user_id,name,usage_count,created_at,last_used').order('last_used', { ascending: false }), 'tools_worksheetmaker'),
-        safeQuery(db.from('tools_dnd').select('id,user_id,tool_type,name,usage_count,created_at,last_used').order('last_used', { ascending: false }), 'tools_dnd'),
-        safeQuery(db.from('vtt_maps').select('id,user_id,name,campaign_id,grid_cols,grid_rows,created_at,updated_at').order('updated_at', { ascending: false }), 'vtt_maps'),
-        safeQuery(db.from('vtt_campaigns').select('id,user_id,name,created_at,updated_at').order('updated_at', { ascending: false }), 'vtt_campaigns'),
-        safeQuery(db.from('myspace_clock').select('*').order('updated_at', { ascending: false }), 'myspace_clock'),
-        safeQuery(db.from('announcements').select('*').order('created_at', { ascending: false }), 'announcements')
-    ]
-
-    const results = await Promise.all(queries)
-    const [
-        progressRes, notesRes, profilesRes, quotasRes, schedEventsRes,
-        classAdminRes, classUnitsRes, redDaysRes, noteFoldersRes, myClassRes,
-        tasksRes, spreadsheetsRes, lessonParserRes, cardMakerRes, puzzleMakerRes,
-        worksheetMakerRes, toolsDndRes, vttMapsRes, vttCampaignsRes, clockRes, annRes
-    ] = results
-
-    totalQueriedTables = results.length
-    healthyTablesCount = results.filter(r => r.ok).length
-
-    document.querySelectorAll('.refreshIcon').forEach(i => i.classList.remove('animate-spin'))
-    const lastRefreshed = document.getElementById('lastRefreshed')
-    if (lastRefreshed) lastRefreshed.textContent = 'Updated ' + new Date().toLocaleTimeString()
-
-    const quotaMap = {}
-    quotasRes.data.forEach(q => { quotaMap[q.user_id] = q })
-
-    const DEFAULT_LIMIT = 50 * 1024 * 1024 // 50 MB standard quota
-    allProfiles = {}
-    profilesRes.data.forEach(p => {
-        const quota = quotaMap[p.id] || {}
-        allProfiles[p.id] = {
-            ...p,
-            storage_usage: Number(quota.storage_usage) || 0,
-            storage_limit: Number(quota.storage_limit) || DEFAULT_LIMIT,
-            last_active_ts: p.updated_at ? new Date(p.updated_at).getTime() : (p.created_at ? new Date(p.created_at).getTime() : 0),
-            last_tool_used: null,
-            last_tool_ts: 0,
-            tools_set: new Set(),
-            records_count: 0
-        }
+async function loadDashboardSummary() {
+    const seq = ++reqSeq.dashboard
+    const excludedIds = getValidExcludedUserIds()
+    const { data, error } = await callAdminRpc('admin_dashboard_summary', {
+        p_excluded_ids: excludedIds,
+        p_days: chartDaysWindow || 14,
+        p_tz_offset_min: new Date().getTimezoneOffset()
     })
 
-    allProgress = progressRes.data
-    allNotes = notesRes.data
-    allMyClass = myClassRes.data
-    allMySpaceTasks = tasksRes.data
-    allScheduleEvents = schedEventsRes.data
-    allClassAdmin = classAdminRes.data
-    allClassUnits = classUnitsRes.data
-    allSpreadsheets = spreadsheetsRes.data
-    allLessonParser = lessonParserRes.data
-    allCardMaker = cardMakerRes.data
-    allPuzzleMaker = puzzleMakerRes.data
-    allWorksheetMaker = worksheetMakerRes.data
-    allToolsDnd = toolsDndRes.data
-    allVttMaps = vttMapsRes.data
-    allVttCampaigns = vttCampaignsRes.data
-    allClockLogs = clockRes.data
-    allAnnouncements = annRes.data
-
-    allRedDays = {}
-    redDaysRes.data.forEach(r => { allRedDays[r.user_id] = r.dates || [] })
-    allNoteFolders = {}
-    noteFoldersRes.data.forEach(f => { allNoteFolders[f.user_id] = f.folders || [] })
-
-    // Ensure any user_id referenced in data tables has a profile entry and accurate last_active_ts + tools_set
-    const registerUserActivity = (userId, tsMs, canonicalToolId, countIncrement = 1) => {
-        if (!userId) return
-        if (!allProfiles[userId]) {
-            const quota = quotaMap[userId] || {}
-            allProfiles[userId] = {
-                id: userId,
-                display_name: `User ${userId.slice(0, 6)}`,
-                role: 'user',
-                storage_usage: Number(quota.storage_usage) || 0,
-                storage_limit: Number(quota.storage_limit) || DEFAULT_LIMIT,
-                last_active_ts: 0,
-                last_tool_used: null,
-                last_tool_ts: 0,
-                tools_set: new Set(),
-                records_count: 0
-            }
-        }
-        const prof = allProfiles[userId]
-        const validTs = (tsMs && !isNaN(tsMs) && tsMs <= Date.now() + 86400000) ? tsMs : 0
-        if (validTs > prof.last_active_ts) {
-            prof.last_active_ts = validTs
-        }
-        if (canonicalToolId && canonicalToolId !== 'klasskit_hub' && canonicalToolId !== 'hub') {
-            prof.tools_set.add(canonicalToolId)
-            prof.records_count += countIncrement
-            if (validTs > prof.last_tool_ts || (!prof.last_tool_used && validTs === 0)) {
-                prof.last_tool_ts = Math.max(prof.last_tool_ts || 0, validTs)
-                prof.last_tool_used = canonicalToolId
-            }
-        }
+    if (seq !== reqSeq.dashboard) return false
+    if (error || !data) {
+        healthyTablesCount = 0
+        updateStats()
+        return false
     }
 
-    allProgress.forEach(r => {
-        const ts = parseTimestampMs(r.updated_at || r.created_at)
-        const isHub = r.tool_key === 'klasskit_hub' || r.tool_key === 'hub'
-        const canonical = isHub ? null : resolveCanonicalToolId(r.tool_key)
-        const entryCount = isHub ? 0 : extractLogEntries(r).length
-        registerUserActivity(r.user_id, ts, canonical, entryCount)
-    })
-    allNotes.forEach(n => {
-        if (!n.deleted) registerUserActivity(n.user_id, parseTimestampMs(n.updated_at), 'lessonnotes', 1)
-    })
-    allScheduleEvents.forEach(e => {
-        registerUserActivity(e.user_id, parseTimestampMs(e.updated_at || e.created_at || e.date), 'schedule', 1)
-    })
-    allClassAdmin.forEach(c => {
-        registerUserActivity(c.user_id, parseTimestampMs(c.created_at), 'admin-tracker', 1)
-    })
-    allClassUnits.forEach(u => {
-        registerUserActivity(u.user_id, parseTimestampMs(u.created_at), 'admin-tracker', 1)
-    })
-    allMySpaceTasks.forEach(t => {
-        registerUserActivity(t.user_id, parseTimestampMs(t.updated_at || t.created_at), 'tasks', 1)
-    })
-    allMyClass.forEach(c => {
-        registerUserActivity(c.user_id, parseTimestampMs(c.updated_at), 'my-class', 1)
-    })
-    allSpreadsheets.forEach(s => {
-        registerUserActivity(s.user_id, parseTimestampMs(s.updated_at || s.created_at), 'spreadsheet', 1)
-    })
-    allLessonParser.forEach(lp => {
-        registerUserActivity(lp.user_id, parseTimestampMs(lp.last_used || lp.created_at), 'lesson-parser', 1)
-    })
-    allCardMaker.forEach(cm => {
-        registerUserActivity(cm.user_id, parseTimestampMs(cm.last_used || cm.created_at), 'card-maker', 1)
-    })
-    allPuzzleMaker.forEach(pm => {
-        registerUserActivity(pm.user_id, parseTimestampMs(pm.last_used || pm.created_at), 'puzzle-maker', 1)
-    })
-    allWorksheetMaker.forEach(wm => {
-        registerUserActivity(wm.user_id, parseTimestampMs(wm.last_used || wm.created_at), 'worksheet-maker', 1)
-    })
-    allToolsDnd.forEach(d => {
-        registerUserActivity(d.user_id, parseTimestampMs(d.last_used || d.created_at), 'dnd-hub', 1)
-    })
-    allVttMaps.forEach(m => {
-        registerUserActivity(m.user_id || m.owner_id, parseTimestampMs(m.updated_at || m.created_at), 'dnd-hub', 1)
-    })
-    allVttCampaigns.forEach(c => {
-        registerUserActivity(c.user_id || c.owner_id, parseTimestampMs(c.updated_at || c.created_at), 'dnd-hub', 1)
-    })
-    allClockLogs.forEach(cl => {
-        registerUserActivity(cl.user_id, parseTimestampMs(cl.updated_at || cl.created_at || cl.date), 'clockcalendar', 1)
-    })
+    dashboardSummary = data
+    totalQueriedTables = data.healthy_tables || 21
+    healthyTablesCount = data.healthy_tables || 21
+
+    if (Array.isArray(data.top_teachers)) {
+        data.top_teachers.forEach(t => {
+            if (t.user_id) {
+                allProfiles[t.user_id] = {
+                    ...(allProfiles[t.user_id] || {}),
+                    id: t.user_id,
+                    display_name: t.display_name,
+                    role: t.role
+                }
+            }
+        })
+    }
 
     updateStats()
-    populateToolFilter()
-    applyFilters()
-    renderAnnouncements()
-    if (currentView === 'cloud') renderCloudTable()
-    if (currentView === 'logs') renderLogsTable()
-    renderExcludedUserPicker()
-    showToast('Data refreshed')
+    if (typeof populateToolFilter === 'function') {
+        populateToolFilter(data.distinct_tool_keys || [])
+    }
+    return true
+}
+
+async function refreshCurrentView() {
+    if (currentView === 'users' && typeof loadUsersView === 'function') {
+        await loadUsersView()
+    } else if (currentView === 'data-details' && typeof loadDataDetailsTab === 'function') {
+        await loadDataDetailsTab(true)
+    } else if (currentView === 'cloud' && typeof renderCloudTable === 'function') {
+        await renderCloudTable()
+    } else if (currentView === 'logs' && typeof renderLogsTable === 'function') {
+        await renderLogsTable()
+    } else if (currentView === 'announcements' && typeof loadAnnouncements === 'function') {
+        await loadAnnouncements()
+    } else if (currentView === 'settings' && typeof renderExcludedUserPicker === 'function') {
+        await renderExcludedUserPicker()
+    }
+}
+
+// ── FETCH ──
+async function fetchData() {
+    document.querySelectorAll('.refreshIcon').forEach(i => i.classList.add('animate-spin'))
+    try {
+        await loadGamesCatalog()
+        const ok = await loadDashboardSummary()
+        await refreshCurrentView()
+
+        const lastRefreshed = document.getElementById('lastRefreshed')
+        if (lastRefreshed) lastRefreshed.textContent = 'Updated ' + new Date().toLocaleTimeString()
+        if (ok) showToast('Data refreshed')
+    } finally {
+        document.querySelectorAll('.refreshIcon').forEach(i => i.classList.remove('animate-spin'))
+    }
 }
 
 // ── TIMESTAMP & TOOL RESOLUTION HELPERS ──
@@ -512,7 +407,6 @@ function parseTimestampMs(raw) {
     if (raw instanceof Date) return isNaN(raw.getTime()) ? 0 : raw.getTime()
     const num = Number(raw)
     if (!isNaN(num) && num > 0) {
-        // Handle unix seconds vs unix milliseconds
         const ms = num < 1e11 ? num * 1000 : num
         return ms
     }
@@ -572,7 +466,7 @@ function debouncedSearch() {
     }, 300)
 }
 
-// ── STATS ──
+// ── STATS HELPERS ──
 function getExcludedUserIds() {
     const saved = localStorage.getItem('kk_admin_settings')
     if (saved) {
@@ -619,329 +513,11 @@ function getToolMeta(toolKey) {
         name: displayName,
         category: cat,
         color: categories[cat]?.color || '#1ea7fd',
-        icon: iconMap[canonicalId] || categories[cat]?.icon || 'settings'
+        icon: iconMap[canonicalId] || categories[cat]?.icon || 'box'
     }
 }
 
-// ── ACCURATE LOG ENTRY EXTRACTOR ──
-// Extracts saved sets/collections/presets from user_progress rows without falsely inflating
-// workspace arrays (like whiteboard strokes, word lists, or student arrays) into separate saves.
 const SET_COLLECTION_KEYS = ['sets', 'word_sets', 'wordSets', 'presets', 'collections', 'reports', 'activities', 'library', 'playlists']
-
-function extractLogEntries(row) {
-    const entries = []
-    const rowTsMs = parseTimestampMs(row.updated_at || row.created_at) || Date.now()
-    const fallbackTs = new Date(rowTsMs)
-    const data = row.data
-    const canonicalTool = resolveCanonicalToolId(row.tool_key)
-
-    let items = null
-    if (Array.isArray(data)) {
-        // Top-level array (e.g. youtube-library, spinwheel libraries, fc-play library)
-        // Only treat elements as individual saved items if they are objects (not raw strings/numbers)
-        if (data.length > 0 && typeof data[0] === 'object' && data[0] !== null) {
-            items = data
-        }
-    } else if (data && typeof data === 'object') {
-        // Look specifically for known saved-set collection keys
-        for (const key of SET_COLLECTION_KEYS) {
-            if (Array.isArray(data[key]) && data[key].length > 0) {
-                items = data[key]
-                break
-            }
-        }
-    }
-
-    if (items && items.length > 0) {
-        let newestItemTsMs = 0
-        for (const item of items) {
-            if (!item || typeof item !== 'object') continue
-            let rawTs = item.created_at ?? item.createdAt ?? item.updated_at ?? item.updatedAt
-                ?? item.last_used ?? item.lastUsed ?? item.savedAt ?? item.timestamp ?? item.date ?? item.time
-            // Some tools use Date.now() as item.id (13-digit epoch ms)
-            if (rawTs === undefined && typeof item.id === 'number' && item.id >= 1600000000000 && item.id <= 2500000000000) {
-                rawTs = item.id
-            }
-            const parsedMs = parseTimestampMs(rawTs)
-            const finalMs = (parsedMs > 1577836800000 && parsedMs <= Date.now() + 86400000) ? parsedMs : rowTsMs
-            if (finalMs > newestItemTsMs) newestItemTsMs = finalMs
-            entries.push({
-                user_id: row.user_id,
-                tool_key: row.tool_key,
-                canonical_tool: canonicalTool,
-                timestamp: new Date(finalMs),
-                action_type: 'Saved_Set',
-                label: item.name || item.title || canonicalTool
-            })
-        }
-    }
-
-    // If no set objects were found, treat the progress row as 1 workspace save
-    if (entries.length === 0) {
-        let workspaceTsMs = rowTsMs
-        if (data && typeof data === 'object' && !Array.isArray(data)) {
-            const innerTs = parseTimestampMs(data.updatedAt ?? data.updated_at ?? data.lastUsed ?? data.timestamp)
-            if (innerTs > 1577836800000 && innerTs <= Date.now() + 86400000) {
-                workspaceTsMs = Math.max(rowTsMs, innerTs)
-            }
-        }
-        entries.push({
-            user_id: row.user_id,
-            tool_key: row.tool_key,
-            canonical_tool: canonicalTool,
-            timestamp: new Date(workspaceTsMs),
-            action_type: 'Workspace_Save',
-            label: canonicalTool
-        })
-    }
-
-    return entries
-}
-
-// Builds a unified chronological array of all platform events across all tables
-function buildUnifiedEvents(excludedIds = []) {
-    const events = []
-
-    // 1. user_progress (excluding hub state)
-    allProgress.forEach(r => {
-        if (excludedIds.includes(r.user_id)) return
-        if (r.tool_key === 'klasskit_hub' || r.tool_key === 'hub') return
-        const extracted = extractLogEntries(r)
-        extracted.forEach(e => events.push({ ...e, source: 'progress', refId: r.tool_key }))
-    })
-
-    // 2. Lesson Notes (active notes)
-    allNotes.forEach(n => {
-        if (excludedIds.includes(n.user_id) || n.deleted) return
-        const tsMs = parseTimestampMs(n.updated_at)
-        if (!tsMs) return
-        events.push({
-            user_id: n.user_id,
-            tool_key: 'lesson-note',
-            canonical_tool: 'lessonnotes',
-            timestamp: new Date(tsMs),
-            action_type: 'Lesson_Note',
-            label: n.title || 'Untitled Note',
-            source: 'note',
-            refId: n.id
-        })
-    })
-
-    // 3. Master Schedule Events
-    allScheduleEvents.forEach(ev => {
-        if (excludedIds.includes(ev.user_id)) return
-        const tsMs = parseTimestampMs(ev.updated_at || ev.created_at || ev.date)
-        if (!tsMs) return
-        events.push({
-            user_id: ev.user_id,
-            tool_key: 'schedule',
-            canonical_tool: 'schedule',
-            timestamp: new Date(tsMs),
-            action_type: 'Schedule_Event',
-            label: ev.name || 'Schedule Event',
-            source: 'schedule',
-            refId: ev.id
-        })
-    })
-
-    // 4. Admin Tracker Classes & Unit Syllabi
-    allClassAdmin.forEach(cls => {
-        if (excludedIds.includes(cls.user_id)) return
-        const tsMs = parseTimestampMs(cls.created_at)
-        if (!tsMs) return
-        events.push({
-            user_id: cls.user_id,
-            tool_key: 'admin-tracker',
-            canonical_tool: 'admin-tracker',
-            timestamp: new Date(tsMs),
-            action_type: 'Admin_Tracker',
-            label: cls.class_name || 'Class Tracker',
-            source: 'class_admin',
-            refId: cls.id
-        })
-    })
-    allClassUnits.forEach(cls => {
-        if (excludedIds.includes(cls.user_id)) return
-        const tsMs = parseTimestampMs(cls.created_at)
-        if (!tsMs) return
-        events.push({
-            user_id: cls.user_id,
-            tool_key: 'admin-tracker',
-            canonical_tool: 'admin-tracker',
-            timestamp: new Date(tsMs),
-            action_type: 'Unit_Syllabus',
-            label: cls.class_name || 'Unit Plan',
-            source: 'class_units',
-            refId: cls.id
-        })
-    })
-
-    // 5. My Space Tasks
-    allMySpaceTasks.forEach(t => {
-        if (excludedIds.includes(t.user_id)) return
-        const tsMs = parseTimestampMs(t.updated_at || t.created_at)
-        if (!tsMs) return
-        events.push({
-            user_id: t.user_id,
-            tool_key: 'tasks',
-            canonical_tool: 'tasks',
-            timestamp: new Date(tsMs),
-            action_type: t.completed ? 'Task_Completed' : 'Task_Created',
-            label: t.text || 'Task',
-            source: 'task',
-            refId: t.id
-        })
-    })
-
-    // 6. My Class
-    allMyClass.forEach(cls => {
-        if (excludedIds.includes(cls.user_id)) return
-        const tsMs = parseTimestampMs(cls.updated_at)
-        if (!tsMs) return
-        events.push({
-            user_id: cls.user_id,
-            tool_key: 'my-class',
-            canonical_tool: 'my-class',
-            timestamp: new Date(tsMs),
-            action_type: 'My_Class_Sync',
-            label: cls.class_name || 'Class Roster',
-            source: 'myclass',
-            refId: cls.id
-        })
-    })
-
-    // 7. Spreadsheets (Class Sheet)
-    allSpreadsheets.forEach(s => {
-        if (excludedIds.includes(s.user_id)) return
-        const tsMs = parseTimestampMs(s.updated_at || s.created_at)
-        if (!tsMs) return
-        events.push({
-            user_id: s.user_id,
-            tool_key: 'spreadsheet',
-            canonical_tool: 'spreadsheet',
-            timestamp: new Date(tsMs),
-            action_type: 'Class_Sheet',
-            label: s.title || 'Untitled Sheet',
-            source: 'studio',
-            refId: `spreadsheets:${s.id}`
-        })
-    })
-
-    // 8. Lesson Parser (Workshop)
-    allLessonParser.forEach(lp => {
-        if (excludedIds.includes(lp.user_id)) return
-        const tsMs = parseTimestampMs(lp.last_used || lp.created_at)
-        if (!tsMs) return
-        events.push({
-            user_id: lp.user_id,
-            tool_key: 'lesson-parser',
-            canonical_tool: 'lesson-parser',
-            timestamp: new Date(tsMs),
-            action_type: 'Lesson_Parser',
-            label: lp.name || 'Parsed Lesson',
-            source: 'studio',
-            refId: `workshop_lessonparser:${lp.id}`
-        })
-    })
-
-    // 9. Maker Tables (Cards Maker, Puzzle Maker, Worksheet Maker)
-    allCardMaker.forEach(cm => {
-        if (excludedIds.includes(cm.user_id)) return
-        const tsMs = parseTimestampMs(cm.last_used || cm.created_at)
-        if (!tsMs) return
-        events.push({
-            user_id: cm.user_id,
-            tool_key: 'card-maker',
-            canonical_tool: 'card-maker',
-            timestamp: new Date(tsMs),
-            action_type: 'Card_Set',
-            label: cm.name || 'Flashcard Set',
-            source: 'studio',
-            refId: `tools_cardmaker:${cm.id}`
-        })
-    })
-    allPuzzleMaker.forEach(pm => {
-        if (excludedIds.includes(pm.user_id)) return
-        const tsMs = parseTimestampMs(pm.last_used || pm.created_at)
-        if (!tsMs) return
-        events.push({
-            user_id: pm.user_id,
-            tool_key: 'puzzle-maker',
-            canonical_tool: 'puzzle-maker',
-            timestamp: new Date(tsMs),
-            action_type: 'Puzzle_Set',
-            label: pm.name || 'Puzzle Set',
-            source: 'studio',
-            refId: `tools_puzzlemaker:${pm.id}`
-        })
-    })
-    allWorksheetMaker.forEach(wm => {
-        if (excludedIds.includes(wm.user_id)) return
-        const tsMs = parseTimestampMs(wm.last_used || wm.created_at)
-        if (!tsMs) return
-        events.push({
-            user_id: wm.user_id,
-            tool_key: 'worksheet-maker',
-            canonical_tool: 'worksheet-maker',
-            timestamp: new Date(tsMs),
-            action_type: 'Worksheet_Set',
-            label: wm.name || 'Worksheet',
-            source: 'studio',
-            refId: `tools_worksheetmaker:${wm.id}`
-        })
-    })
-
-    // 10. D&D & VTT
-    allToolsDnd.forEach(d => {
-        if (excludedIds.includes(d.user_id)) return
-        const tsMs = parseTimestampMs(d.last_used || d.created_at)
-        if (!tsMs) return
-        events.push({
-            user_id: d.user_id,
-            tool_key: 'dnd-hub',
-            canonical_tool: 'dnd-hub',
-            timestamp: new Date(tsMs),
-            action_type: 'DnD_Save',
-            label: d.name || 'D&D Entry',
-            source: 'studio',
-            refId: `tools_dnd:${d.id}`
-        })
-    })
-    allVttMaps.forEach(m => {
-        const uid = m.user_id || m.owner_id
-        if (!uid || excludedIds.includes(uid)) return
-        const tsMs = parseTimestampMs(m.updated_at || m.created_at)
-        if (!tsMs) return
-        events.push({
-            user_id: uid,
-            tool_key: 'dnd-hub',
-            canonical_tool: 'dnd-hub',
-            timestamp: new Date(tsMs),
-            action_type: 'VTT_Map',
-            label: m.name || m.title || 'VTT Map',
-            source: 'studio',
-            refId: `vtt_maps:${m.id}`
-        })
-    })
-    allVttCampaigns.forEach(c => {
-        const uid = c.user_id || c.owner_id
-        if (!uid || excludedIds.includes(uid)) return
-        const tsMs = parseTimestampMs(c.updated_at || c.created_at)
-        if (!tsMs) return
-        events.push({
-            user_id: uid,
-            tool_key: 'dnd-hub',
-            canonical_tool: 'dnd-hub',
-            timestamp: new Date(tsMs),
-            action_type: 'VTT_Campaign',
-            label: c.name || c.title || 'VTT Campaign',
-            source: 'studio',
-            refId: `vtt_campaigns:${c.id}`
-        })
-    })
-
-    return events.filter(ev => Boolean(ev.user_id))
-}
 
 function setChartDays(days) {
     chartDaysWindow = days
@@ -949,7 +525,7 @@ function setChartDays(days) {
         const btn = document.getElementById(`range-${d}`)
         if (btn) btn.classList.toggle('active', d === days)
     })
-    updateStats()
+    loadDashboardSummary()
 }
 
 function setTopToolsMode(mode) {
@@ -971,8 +547,7 @@ function setToolsChartMetric(metric) {
 }
 
 function countStudentsInClassRow(cls) {
-    if (Array.isArray(cls.students) && cls.students.length > 0) return cls.students.length
-    if (cls.data && Array.isArray(cls.data.students)) return cls.data.students.length
+    if (typeof cls.student_count === 'number') return cls.student_count
+    if (Array.isArray(cls.students)) return cls.students.length
     return 0
 }
-

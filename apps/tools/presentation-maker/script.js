@@ -228,8 +228,8 @@
                     localStorage.setItem('e1_rapid_library_v1', JSON.stringify(this.library));
 
                     // Cloud Cleanup
-                    const { data: { user } } = await db.auth.getUser();
-                    if (!isSandbox() && user) {
+                    const user = await getCloudUser();
+                    if (user) {
                         deleteFolder(`${user.id}/presentation_maker/${id}`).catch(e => console.warn("Cloud folder delete failed", e));
                     }
 
@@ -432,16 +432,30 @@
             },
 
             async hydrateThumbnails() {
-                const thumbs = document.querySelectorAll('.slide-thumb img, .grid-card img');
-                for (const img of thumbs) {
-                    if (img.src) {
-                        if (img.src.includes('klasskit-media')) {
-                            img.src = await resolveMediaUrl(img.src);
-                        } else if (img.src.startsWith('klasskit-local:')) {
-                            img.src = await resolveLocalMedia(img.src);
+                const thumbs = Array.from(document.querySelectorAll('.slide-thumb img, .grid-card img'));
+                const cloudImgs = thumbs.filter(img => img.src && img.src.includes('klasskit-media'));
+                const localImgs = thumbs.filter(img => img.src && img.src.startsWith('klasskit-local:'));
+
+                const tasks = [];
+                if (cloudImgs.length > 0) {
+                    if (typeof resolveMediaUrls === 'function') {
+                        tasks.push(
+                            resolveMediaUrls(cloudImgs.map(img => img.src)).then(signedUrls => {
+                                cloudImgs.forEach((img, idx) => {
+                                    if (signedUrls[idx]) img.src = signedUrls[idx];
+                                });
+                            })
+                        );
+                    } else {
+                        for (const img of cloudImgs) {
+                            tasks.push(resolveMediaUrl(img.src).then(url => { if (url) img.src = url; }));
                         }
                     }
                 }
+                for (const img of localImgs) {
+                    tasks.push(resolveLocalMedia(img.src).then(url => { if (url) img.src = url; }));
+                }
+                await Promise.all(tasks);
             },
 
             renderList() {
@@ -629,9 +643,9 @@
                     if (!file) return;
                     
                     try {
-                        const { data: { user } } = await db.auth.getUser();
+                        const user = await getCloudUser();
                         let imgSource;
-                        if (!isSandbox() && user) {
+                        if (user) {
                             imgSource = await uploadMedia(file, 'presentation_maker', this.currentDeckId || 'unsaved');
                         } else {
                             // Sandbox Mode: Use IDB

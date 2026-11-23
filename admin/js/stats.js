@@ -1,4 +1,4 @@
-// KlassKit Admin — Dashboard Stats, Charts & Insights
+// KlassKit Admin — Dashboard Stats, Charts & Insights (RPC-backed)
 
 function updateStats() {
     const excludedIds = getExcludedUserIds()
@@ -13,63 +13,25 @@ function updateStats() {
         }
     }
 
-    // Filtered collections (excluding test accounts)
-    const metricsProgress = allProgress.filter(r => !excludedIds.includes(r.user_id))
-    const metricsNotesAll = allNotes.filter(n => !excludedIds.includes(n.user_id))
-    const metricsNotes = metricsNotesAll.filter(n => !n.deleted)
-    const trashedNotesCount = metricsNotesAll.filter(n => n.deleted).length
-    const metricsProfiles = Object.fromEntries(Object.entries(allProfiles).filter(([id]) => !excludedIds.includes(id)))
-    const metricsSched = allScheduleEvents.filter(e => !excludedIds.includes(e.user_id))
-    const metricsClasses = allClassAdmin.filter(c => !excludedIds.includes(c.user_id))
-    const metricsClassUnits = allClassUnits.filter(u => !excludedIds.includes(u.user_id))
-    const metricsTasks = allMySpaceTasks.filter(t => !excludedIds.includes(t.user_id))
-    const metricsMyClass = allMyClass.filter(c => !excludedIds.includes(c.user_id))
-    const metricsSpreadsheets = allSpreadsheets.filter(s => !excludedIds.includes(s.user_id))
-    const metricsLessonParser = allLessonParser.filter(lp => !excludedIds.includes(lp.user_id))
-    const metricsCardMaker = allCardMaker.filter(cm => !excludedIds.includes(cm.user_id))
-    const metricsPuzzleMaker = allPuzzleMaker.filter(pm => !excludedIds.includes(pm.user_id))
-    const metricsWorksheetMaker = allWorksheetMaker.filter(wm => !excludedIds.includes(wm.user_id))
-    const metricsToolsDnd = allToolsDnd.filter(d => !excludedIds.includes(d.user_id))
-    const metricsVttMaps = allVttMaps.filter(m => !excludedIds.includes(m.user_id))
-    const metricsVttCampaigns = allVttCampaigns.filter(c => !excludedIds.includes(c.user_id))
+    const summary = dashboardSummary
+    if (!summary) return
 
-    const unifiedEvents = buildUnifiedEvents(excludedIds)
-
-    // 1. Community & Active Cohorts (DAU / WAU / MAU)
-    const profileList = Object.values(metricsProfiles)
-    const totalTeachers = profileList.length
-    const now = Date.now()
-    const dayAgo = now - 24 * 60 * 60 * 1000
-    const weekAgo = now - 7 * 24 * 60 * 60 * 1000
-    const monthAgo = now - 30 * 24 * 60 * 60 * 1000
-
-    const dauUsers = new Set()
-    const wauUsers = new Set()
-    const mauUsers = new Set()
-
-    unifiedEvents.forEach(ev => {
-        const ts = ev.timestamp.getTime()
-        if (ts >= dayAgo) dauUsers.add(ev.user_id)
-        if (ts >= weekAgo) wauUsers.add(ev.user_id)
-        if (ts >= monthAgo) mauUsers.add(ev.user_id)
-    })
-
-    // Also check profile last_active_ts in case hub visit was the most recent action
-    profileList.forEach(p => {
-        if (p.last_active_ts >= dayAgo) dauUsers.add(p.id)
-        if (p.last_active_ts >= weekAgo) wauUsers.add(p.id)
-        if (p.last_active_ts >= monthAgo) mauUsers.add(p.id)
-    })
-
-    const dauCount = dauUsers.size
-    const wauCount = wauUsers.size
-    const mauCount = mauUsers.size
-    const stickiness = mauCount > 0 ? Math.round((dauCount / mauCount) * 100) : 0
+    const community = summary.community || {}
+    const engagement = summary.engagement || {}
+    const storage = summary.storage || {}
+    const ecosystem = summary.ecosystem || {}
 
     const setElText = (id, val) => {
         const el = document.getElementById(id)
         if (el) el.textContent = val
     }
+
+    // 1. Community & Active Cohorts (DAU / WAU / MAU)
+    const totalTeachers = Number(community.total_users) || 0
+    const dauCount = Number(community.dau) || 0
+    const wauCount = Number(community.wau) || 0
+    const mauCount = Number(community.mau) || 0
+    const stickiness = mauCount > 0 ? Math.round((dauCount / mauCount) * 100) : 0
 
     setElText('statUsers', totalTeachers)
     setElText('statDAU', dauCount)
@@ -77,8 +39,8 @@ function updateStats() {
     setElText('statMAU', mauCount)
     setElText('statStickiness', `${stickiness}% DAU/MAU`)
 
-    const proCount = profileList.filter(p => p.role === 'pro').length
-    const adminCount = profileList.filter(p => p.role === 'admin').length
+    const proCount = Number(community.pro_users) || 0
+    const adminCount = Number(community.admin_users) || 0
     setElText('statPro', proCount)
     setElText('statAdmins', adminCount)
 
@@ -93,13 +55,13 @@ function updateStats() {
     if (statAdminBar) statAdminBar.style.width = `${adminPercent}%`
 
     // 2. Engagement Metrics
-    const progressSaveCount = unifiedEvents.filter(e => e.source === 'progress').length
-    const dbRecordsCount = unifiedEvents.length - progressSaveCount
-    const totalInteractions = unifiedEvents.length
-    const activeTeacherCount = profileList.filter(p => (p.records_count || 0) > 0).length || 1
-    const avgSavesPerTeacher = (totalInteractions / activeTeacherCount).toFixed(1)
+    const totalInteractions = Number(engagement.total_interactions) || 0
+    const progressSaveCount = Number(engagement.progress_saves) || 0
+    const dbRecordsCount = Number(engagement.db_records) || 0
+    const avgSavesPerTeacher = Number(engagement.avg_per_active_user ?? 0).toFixed(1)
 
-    const adoptedCanonicalTools = new Set(unifiedEvents.map(e => e.canonical_tool))
+    const allToolStats = Array.isArray(summary.tool_stats) ? summary.tool_stats : []
+    const adoptedCanonicalTools = new Set(allToolStats.map(t => resolveCanonicalToolId(t.canonical_tool)))
     const activeCatalogGames = allGamesCatalog.filter(g => g.category !== 'under-construction' && g.id !== 'myspace-home')
     const catalogTotalCount = activeCatalogGames.length || 59
 
@@ -110,12 +72,12 @@ function updateStats() {
     setElText('statTools', `${adoptedCanonicalTools.size} / ${catalogTotalCount} tools`)
 
     // 3. Cloud Sync & Storage Health
-    const totalUsed = profileList.reduce((sum, p) => sum + (Number(p.storage_usage) || 0), 0)
-    const totalLimit = profileList.reduce((sum, p) => sum + (Number(p.storage_limit) || 50 * 1024 * 1024), 0)
+    const totalUsed = Number(storage.total_used_bytes) || 0
+    const totalLimit = Number(storage.total_limit_bytes) || 0
     const totalUsedMB = (totalUsed / (1024 * 1024)).toFixed(1)
     const totalLimitMB = Math.round(totalLimit / (1024 * 1024))
     const storagePercent = totalLimit > 0 ? Math.min(100, Math.round((totalUsed / totalLimit) * 100)) : 0
-    const mediaNodesCount = profileList.filter(p => (Number(p.storage_usage) || 0) > 0).length
+    const mediaNodesCount = Number(storage.active_nodes) || 0
 
     setElText('statStorage', `${totalUsedMB} MB`)
     setElText('statStorageQuotaInfo', `/ ${totalLimitMB} MB (${storagePercent}%)`)
@@ -125,70 +87,45 @@ function updateStats() {
     const statStorageMiniBar = document.getElementById('statStorageMiniBar')
     if (statStorageMiniBar) statStorageMiniBar.style.width = `${storagePercent}%`
 
-    let latestTsMs = 0
-    unifiedEvents.forEach(ev => {
-        const ms = ev.timestamp.getTime()
-        if (ms > latestTsMs && ms <= Date.now() + 86400000) latestTsMs = ms
-    })
+    const latestTsMs = parseTimestampMs(engagement.latest_ts)
     const latestStr = latestTsMs > 0
         ? `${formatRelativeTime(latestTsMs)} (${new Date(latestTsMs).toLocaleDateString()})`
         : '—'
     setElText('statLatest', latestStr)
 
     // 4. Secondary Ecosystem Pulse Strip (6 Mini Cards)
-    const totalFoldersCount = Object.entries(allNoteFolders)
-        .filter(([uid]) => !excludedIds.includes(uid))
-        .reduce((sum, [, f]) => sum + (Array.isArray(f) ? f.length : 0), 0)
-    setElText('statNotes', metricsNotes.length)
-    setElText('statNotesSub', `${totalFoldersCount} folders · ${trashedNotesCount} trashed`)
+    setElText('statNotes', Number(ecosystem.active_notes) || 0)
+    setElText('statNotesSub', `${Number(ecosystem.total_folders) || 0} folders · ${Number(ecosystem.trashed_notes) || 0} trashed`)
 
-    const totalStudentsCount = metricsMyClass.reduce((sum, c) => sum + countStudentsInClassRow(c), 0)
-    setElText('statMyClasses', metricsMyClass.length)
-    setElText('statStudentsCount', `${totalStudentsCount} students tracked`)
+    setElText('statMyClasses', Number(ecosystem.my_classes) || 0)
+    setElText('statStudentsCount', `${Number(ecosystem.total_students) || 0} students tracked`)
 
-    setElText('statEvents', metricsSched.length)
-    setElText('statClassesSub', `${metricsClasses.length} tracker · ${metricsClassUnits.length} syllabi`)
+    setElText('statEvents', Number(ecosystem.schedule_events) || 0)
+    setElText('statClassesSub', `${Number(ecosystem.class_admin_count) || 0} tracker · ${Number(ecosystem.class_units_count) || 0} syllabi`)
 
-    const completedTasksCount = metricsTasks.filter(t => t.completed).length
-    const taskCompletionRate = metricsTasks.length > 0 ? Math.round((completedTasksCount / metricsTasks.length) * 100) : 0
-    setElText('statTasks', metricsTasks.length)
+    const tasksTotal = Number(ecosystem.tasks_total) || 0
+    const completedTasksCount = Number(ecosystem.tasks_completed) || 0
+    const taskCompletionRate = tasksTotal > 0 ? Math.round((completedTasksCount / tasksTotal) * 100) : 0
+    setElText('statTasks', tasksTotal)
     setElText('statTasksSub', `${completedTasksCount} done (${taskCompletionRate}%)`)
 
-    const makerSetsCount = metricsCardMaker.length + metricsPuzzleMaker.length + metricsWorksheetMaker.length
-    setElText('statStudio', metricsSpreadsheets.length + makerSetsCount)
-    setElText('statStudioSub', `${metricsSpreadsheets.length} sheets · ${makerSetsCount} maker sets`)
+    const spreadsheetsCount = Number(ecosystem.spreadsheets_count) || 0
+    const makerSetsCount = Number(ecosystem.maker_sets_count) || 0
+    setElText('statStudio', spreadsheetsCount + makerSetsCount)
+    setElText('statStudioSub', `${spreadsheetsCount} sheets · ${makerSetsCount} maker sets`)
 
-    const dndTotalCount = metricsToolsDnd.length + metricsVttMaps.length + metricsVttCampaigns.length
-    setElText('statWorkshop', metricsLessonParser.length + dndTotalCount)
-    setElText('statWorkshopSub', `${metricsLessonParser.length} parser · ${dndTotalCount} D&D/VTT`)
+    const lessonParserCount = Number(ecosystem.lesson_parser_count) || 0
+    const dndTotalCount = Number(ecosystem.dnd_vtt_count) || 0
+    setElText('statWorkshop', lessonParserCount + dndTotalCount)
+    setElText('statWorkshopSub', `${lessonParserCount} parser · ${dndTotalCount} D&D/VTT`)
 
     // 5. Render Top Tools Card (7D vs All Time)
     const topToolsList = document.getElementById('topToolsList')
     const topToolsTitle = document.getElementById('topToolsTitle')
     if (topToolsList) {
-        const toolStats = {}
-        const recordTool = (canonicalKey, userId) => {
-            if (!toolStats[canonicalKey]) toolStats[canonicalKey] = { count: 0, users: new Set() }
-            toolStats[canonicalKey].count += 1
-            if (userId) toolStats[canonicalKey].users.add(userId)
-        }
-
-        unifiedEvents.forEach(ev => {
-            if (topToolsMode === 'week') {
-                if (ev.timestamp.getTime() >= weekAgo) recordTool(ev.canonical_tool, ev.user_id)
-            } else {
-                recordTool(ev.canonical_tool, ev.user_id)
-            }
-        })
-
-        let topTools = Object.entries(toolStats).sort((a, b) => b[1].count - a[1].count)
-        let isFallback = false
-
-        if (topToolsMode === 'week' && topTools.length === 0 && unifiedEvents.length > 0) {
-            unifiedEvents.forEach(ev => recordTool(ev.canonical_tool, ev.user_id))
-            topTools = Object.entries(toolStats).sort((a, b) => b[1].count - a[1].count)
-            isFallback = true
-        }
+        const weekTools = Array.isArray(summary.top_tools_week) ? summary.top_tools_week : []
+        const isFallback = topToolsMode === 'week' && weekTools.length === 0 && allToolStats.length > 0
+        const sourceList = (topToolsMode === 'week' && !isFallback) ? weekTools : allToolStats
 
         if (topToolsTitle) {
             topToolsTitle.textContent = (topToolsMode === 'all' || isFallback)
@@ -196,12 +133,12 @@ function updateStats() {
                 : 'Top Tools This Week (7D)'
         }
 
-        const sliced = topTools.slice(0, 4)
+        const sliced = sourceList.slice(0, 4)
         if (sliced.length === 0) {
             topToolsList.innerHTML = '<div class="text-center py-6 text-slate-500 font-bold text-xs">No activity yet</div>'
         } else {
-            topToolsList.innerHTML = sliced.map(([toolKey, info]) => {
-                const meta = getToolMeta(toolKey)
+            topToolsList.innerHTML = sliced.map(info => {
+                const meta = getToolMeta(info.canonical_tool)
                 return `
                     <div class="flex items-center justify-between p-2 bg-slate-900/60 rounded-xl border border-slate-700/40">
                         <span class="text-xs text-slate-200 font-bold flex items-center gap-2 truncate pr-2">
@@ -209,8 +146,8 @@ function updateStats() {
                             <span class="truncate">${escapeHtml(meta.name)}</span>
                         </span>
                         <div class="flex items-center gap-2 flex-shrink-0">
-                            <span class="text-[10px] text-slate-400 font-mono">${info.users.size}u</span>
-                            <span class="text-xs font-bold text-white font-mono bg-slate-800 px-2 py-0.5 rounded-lg border border-slate-700">${info.count}</span>
+                            <span class="text-[10px] text-slate-400 font-mono">${Number(info.users) || 0}u</span>
+                            <span class="text-xs font-bold text-white font-mono bg-slate-800 px-2 py-0.5 rounded-lg border border-slate-700">${Number(info.saves) || 0}</span>
                         </div>
                     </div>
                 `
@@ -219,11 +156,11 @@ function updateStats() {
         }
     }
 
-    updateCharts(unifiedEvents, metricsProfiles)
-    renderDashboardInsights(unifiedEvents, metricsProfiles, adoptedCanonicalTools)
+    updateCharts(summary)
+    renderDashboardInsights(summary, adoptedCanonicalTools)
 }
 
-function updateCharts(unifiedEvents, metricsProfiles) {
+function updateCharts(summary) {
     const ctxActivity = document.getElementById('activityChart')?.getContext('2d')
     const ctxCategory = document.getElementById('categoryChart')?.getContext('2d')
     const ctxTools = document.getElementById('toolsChart')?.getContext('2d')
@@ -231,45 +168,21 @@ function updateCharts(unifiedEvents, metricsProfiles) {
 
     if (!ctxActivity || !ctxCategory || !ctxTools || !ctxActiveUsers) return
 
-    // 1. Activity & DAU Charts (using configurable chartDaysWindow: 7, 14, 30, 90)
     const days = chartDaysWindow || 14
+    const series = Array.isArray(summary.daily_series) ? summary.daily_series : []
+    const activityLabels = series.map(pt =>
+        new Date(`${pt.date}T12:00:00`).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+    )
+    const activityData = series.map(pt => Number(pt.actions) || 0)
+    const dauData = series.map(pt => Number(pt.active_users) || 0)
 
-    const getLocalDateKey = (dateVal) => {
-        const d = new Date(dateVal)
-        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-    }
-
-    const dateKeys = []
-    const activityLabels = []
-    for (let i = days - 1; i >= 0; i--) {
-        const d = new Date()
-        d.setHours(12, 0, 0, 0)
-        d.setDate(d.getDate() - i)
-        dateKeys.push(getLocalDateKey(d))
-        activityLabels.push(d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }))
-    }
-
-    const activityByDate = {}
-    const usersByDate = {}
-
-    unifiedEvents.forEach(entry => {
-        const key = getLocalDateKey(entry.timestamp)
-        activityByDate[key] = (activityByDate[key] || 0) + 1
-        if (!usersByDate[key]) usersByDate[key] = new Set()
-        usersByDate[key].add(entry.user_id)
-    })
-
-    const activityData = dateKeys.map(k => activityByDate[k] || 0)
-    const dauData = dateKeys.map(k => usersByDate[k]?.size || 0)
-
-    // Summary chips for Activity & DAU charts
     const windowTotalActions = activityData.reduce((a, b) => a + b, 0)
-    const maxActivity = Math.max(0, ...activityData)
+    const maxActivity = activityData.length ? Math.max(0, ...activityData) : 0
     const maxActivityIdx = activityData.indexOf(maxActivity)
     const peakActivityLabel = maxActivity > 0 ? `${maxActivity} (${activityLabels[maxActivityIdx]})` : '0'
 
-    const maxDau = Math.max(0, ...dauData)
-    const avgDau = (dauData.reduce((a, b) => a + b, 0) / days).toFixed(1)
+    const maxDau = dauData.length ? Math.max(0, ...dauData) : 0
+    const avgDau = (dauData.reduce((a, b) => a + b, 0) / (days || 1)).toFixed(1)
 
     const activitySummaryEl = document.getElementById('activitySummaryText')
     if (activitySummaryEl) activitySummaryEl.textContent = `${windowTotalActions.toLocaleString()} actions in the last ${days} days`
@@ -358,7 +271,7 @@ function updateCharts(unifiedEvents, metricsProfiles) {
                 backgroundColor: greenGradient,
                 borderColor: '#020617',
                 borderWidth: 2,
-                borderRadius: 6,
+                borderRadius: 6
             }]
         },
         options: {
@@ -401,7 +314,7 @@ function updateCharts(unifiedEvents, metricsProfiles) {
         }
     })
 
-    // 2. Canonical Tool Aggregation & Category Distribution (strictly using excluded-filtered unifiedEvents)
+    // 2. Canonical Tool Aggregation & Category Distribution
     const canonicalStats = {}
     const categories = {
         'My Space': { count: 0, color: '#ff7e33' },
@@ -410,22 +323,20 @@ function updateCharts(unifiedEvents, metricsProfiles) {
         'Games': { count: 0, color: '#00d063' }
     }
 
-    unifiedEvents.forEach(ev => {
-        const meta = getToolMeta(ev.canonical_tool)
+    ;(summary.tool_stats || []).forEach(row => {
+        const meta = getToolMeta(row.canonical_tool)
+        const saves = Number(row.saves) || 0
+        const users = Number(row.users) || 0
         if (!canonicalStats[meta.id]) {
-            canonicalStats[meta.id] = {
-                meta,
-                saves: 0,
-                users: new Set()
-            }
+            canonicalStats[meta.id] = { meta, saves: 0, users: 0 }
         }
-        canonicalStats[meta.id].saves += 1
-        if (ev.user_id) canonicalStats[meta.id].users.add(ev.user_id)
+        canonicalStats[meta.id].saves += saves
+        canonicalStats[meta.id].users = Math.max(canonicalStats[meta.id].users, users)
 
         if (categories[meta.category]) {
-            categories[meta.category].count += 1
+            categories[meta.category].count += saves
         } else {
-            categories['Tools'].count += 1
+            categories['Tools'].count += saves
         }
     })
 
@@ -499,9 +410,9 @@ function updateCharts(unifiedEvents, metricsProfiles) {
     // 3. Top Performing Tools Bar Chart (by saves OR by unique teachers)
     const allToolsStats = Object.values(canonicalStats).sort((a, b) => {
         if (toolsChartMetric === 'users') {
-            return (b.users.size - a.users.size) || (b.saves - a.saves)
+            return (b.users - a.users) || (b.saves - a.saves)
         }
-        return (b.saves - a.saves) || (b.users.size - a.users.size)
+        return (b.saves - a.saves) || (b.users - a.users)
     })
     const top10Tools = allToolsStats.slice(0, 10)
 
@@ -512,7 +423,7 @@ function updateCharts(unifiedEvents, metricsProfiles) {
             labels: top10Tools.map(t => t.meta.name),
             datasets: [{
                 label: toolsChartMetric === 'users' ? 'Unique Teachers' : 'Total Saves',
-                data: top10Tools.map(t => toolsChartMetric === 'users' ? t.users.size : t.saves),
+                data: top10Tools.map(t => toolsChartMetric === 'users' ? t.users : t.saves),
                 backgroundColor: top10Tools.map(t => t.meta.color),
                 borderColor: '#020617',
                 borderWidth: 2,
@@ -540,7 +451,7 @@ function updateCharts(unifiedEvents, metricsProfiles) {
                         label: (ctx) => {
                             const item = top10Tools[ctx.dataIndex]
                             if (!item) return ''
-                            return ` ${item.saves} saves · ${item.users.size} teacher${item.users.size === 1 ? '' : 's'} (${item.meta.category})`
+                            return ` ${item.saves} saves · ${item.users} teacher${item.users === 1 ? '' : 's'} (${item.meta.category})`
                         }
                     }
                 }
@@ -562,21 +473,21 @@ function updateCharts(unifiedEvents, metricsProfiles) {
         }
     })
 
-    // 4. Full Tool Breakdown List (shows all active tools with category badge, teacher count, and save volume)
+    // 4. Full Tool Breakdown List
     const breakdownEl = document.getElementById('toolBreakdown')
     const breakdownCountChip = document.getElementById('breakdownCountChip')
     if (breakdownCountChip) breakdownCountChip.textContent = `${allToolsStats.length} active`
 
     if (breakdownEl) {
         const maxVal = allToolsStats.length > 0
-            ? (toolsChartMetric === 'users' ? allToolsStats[0].users.size : allToolsStats[0].saves) || 1
+            ? (toolsChartMetric === 'users' ? allToolsStats[0].users : allToolsStats[0].saves) || 1
             : 1
 
         if (allToolsStats.length === 0) {
             breakdownEl.innerHTML = '<div class="text-center py-8 text-slate-500 font-bold text-xs">No tool activity recorded</div>'
         } else {
             breakdownEl.innerHTML = allToolsStats.map(item => {
-                const metricVal = toolsChartMetric === 'users' ? item.users.size : item.saves
+                const metricVal = toolsChartMetric === 'users' ? item.users : item.saves
                 const percent = Math.max(4, Math.round((metricVal / maxVal) * 100))
                 return `
                     <div class="group p-2.5 bg-slate-900/40 hover:bg-slate-700/30 border border-slate-700/40 rounded-xl transition-colors cursor-default">
@@ -585,7 +496,7 @@ function updateCharts(unifiedEvents, metricsProfiles) {
                                 <i data-lucide="${item.meta.icon}" class="w-3.5 h-3.5 flex-shrink-0" style="color: ${item.meta.color}"></i>
                                 <span class="font-bold text-white truncate">${escapeHtml(item.meta.name)}</span>
                             </div>
-                            <span class="text-slate-400 font-mono font-bold text-[10px] flex-shrink-0">${item.saves} saves · ${item.users.size}u</span>
+                            <span class="text-slate-400 font-mono font-bold text-[10px] flex-shrink-0">${item.saves} saves · ${item.users}u</span>
                         </div>
                         <div class="h-2 bg-slate-950 border border-slate-800 rounded-full overflow-hidden p-[1px]">
                             <div class="h-full rounded-full transition-all duration-700" style="width: ${percent}%; background: ${item.meta.color}"></div>
@@ -597,47 +508,25 @@ function updateCharts(unifiedEvents, metricsProfiles) {
     }
 }
 
-function renderDashboardInsights(unifiedEvents, metricsProfiles, adoptedCanonicalTools) {
+function renderDashboardInsights(summary, adoptedCanonicalTools) {
     // 1. Top Active Teachers Leaderboard
     const topTeachersEl = document.getElementById('topTeachersList')
     if (topTeachersEl) {
-        const userStats = {}
-        Object.values(metricsProfiles).forEach(p => {
-            userStats[p.id] = {
-                profile: p,
-                saves: 0,
-                tools: new Set(),
-                latestTs: p.last_active_ts || 0
-            }
-        })
-        unifiedEvents.forEach(ev => {
-            if (!userStats[ev.user_id]) return
-            userStats[ev.user_id].saves += 1
-            userStats[ev.user_id].tools.add(ev.canonical_tool)
-            if (ev.timestamp.getTime() > userStats[ev.user_id].latestTs) {
-                userStats[ev.user_id].latestTs = ev.timestamp.getTime()
-            }
-        })
-
-        const rankedTeachers = Object.values(userStats)
-            .filter(u => u.saves > 0 || u.latestTs > 0)
-            .sort((a, b) => (b.saves - a.saves) || (b.tools.size - a.tools.size) || (b.latestTs - a.latestTs))
-            .slice(0, 6)
-
+        const rankedTeachers = Array.isArray(summary.top_teachers) ? summary.top_teachers : []
         if (!rankedTeachers.length) {
             topTeachersEl.innerHTML = '<div class="text-center py-8 text-slate-500 font-bold text-xs">No active teachers yet</div>'
         } else {
             topTeachersEl.innerHTML = rankedTeachers.map((u, idx) => {
-                const p = u.profile
-                const name = p.display_name || p.id.slice(0, 8)
-                const role = p.role || 'user'
+                const name = u.display_name || String(u.user_id || '').slice(0, 8)
+                const role = u.role || 'user'
+                const latestTs = parseTimestampMs(u.latest_ts)
                 const roleBadge = role === 'admin'
                     ? '<span class="px-1.5 py-0.5 rounded bg-pink/20 text-pink text-[9px] font-black uppercase">Admin</span>'
                     : role === 'pro'
                         ? '<span class="px-1.5 py-0.5 rounded bg-orange/20 text-orange text-[9px] font-black uppercase">⭐ Pro</span>'
                         : ''
                 return `
-                    <div onclick="viewUser('${p.id}')" class="flex items-center justify-between p-2.5 bg-slate-900/60 hover:bg-slate-900 border border-slate-700/50 hover:border-blue/50 rounded-xl cursor-pointer transition-all">
+                    <div onclick="viewUser('${escapeJsAttr(u.user_id)}')" class="flex items-center justify-between p-2.5 bg-slate-900/60 hover:bg-slate-900 border border-slate-700/50 hover:border-blue/50 rounded-xl cursor-pointer transition-all">
                         <div class="flex items-center gap-3 min-w-0">
                             <div class="w-7 h-7 rounded-lg bg-blue/15 border border-blue/40 flex items-center justify-center font-heading text-xs text-blue flex-shrink-0">#${idx + 1}</div>
                             <div class="min-w-0">
@@ -645,11 +534,11 @@ function renderDashboardInsights(unifiedEvents, metricsProfiles, adoptedCanonica
                                     <span class="font-bold text-white text-xs truncate">${escapeHtml(name)}</span>
                                     ${roleBadge}
                                 </div>
-                                <div class="text-[10px] text-slate-400 font-mono">${u.tools.size} tools · ${formatRelativeTime(u.latestTs)}</div>
+                                <div class="text-[10px] text-slate-400 font-mono">${Number(u.tool_count) || 0} tools · ${formatRelativeTime(latestTs)}</div>
                             </div>
                         </div>
                         <div class="text-right flex-shrink-0 ml-2">
-                            <div class="font-heading text-sm text-white">${u.saves}</div>
+                            <div class="font-heading text-sm text-white">${Number(u.saves) || 0}</div>
                             <div class="text-[9px] text-slate-500 uppercase font-bold">records</div>
                         </div>
                     </div>
@@ -661,29 +550,26 @@ function renderDashboardInsights(unifiedEvents, metricsProfiles, adoptedCanonica
     // 2. Recent Live Activity Stream
     const recentFeedEl = document.getElementById('recentActivityFeed')
     if (recentFeedEl) {
-        const recent = [...unifiedEvents]
-            .sort((a, b) => b.timestamp - a.timestamp)
-            .slice(0, 6)
-
+        const recent = Array.isArray(summary.recent_activity) ? summary.recent_activity : []
         if (!recent.length) {
             recentFeedEl.innerHTML = '<div class="text-center py-8 text-slate-500 font-bold text-xs">No recent activity</div>'
         } else {
             recentFeedEl.innerHTML = recent.map(ev => {
-                const p = allProfiles[ev.user_id]
-                const name = p?.display_name || ev.user_id.slice(0, 8)
-                const meta = getToolMeta(ev.canonical_tool)
+                const name = ev.display_name || String(ev.user_id || '').slice(0, 8)
+                const meta = getToolMeta(ev.canonical_tool || ev.tool_key)
+                const tsMs = parseTimestampMs(ev.event_ts)
                 return `
-                    <div onclick="viewUser('${ev.user_id}')" class="flex items-center justify-between p-2.5 bg-slate-900/60 hover:bg-slate-900 border border-slate-700/50 hover:border-green/50 rounded-xl cursor-pointer transition-all gap-2">
+                    <div onclick="viewUser('${escapeJsAttr(ev.user_id)}')" class="flex items-center justify-between p-2.5 bg-slate-900/60 hover:bg-slate-900 border border-slate-700/50 hover:border-green/50 rounded-xl cursor-pointer transition-all gap-2">
                         <div class="flex items-center gap-2.5 min-w-0">
                             <div class="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0" style="background:${meta.color}20; border:1px solid ${meta.color}50">
                                 <i data-lucide="${meta.icon}" class="w-3.5 h-3.5" style="color:${meta.color}"></i>
                             </div>
                             <div class="min-w-0">
                                 <div class="text-xs font-bold text-white truncate">${escapeHtml(name)} <span class="text-slate-400 font-normal">→</span> <span style="color:${meta.color}">${escapeHtml(meta.name)}</span></div>
-                                <div class="text-[10px] text-slate-400 truncate font-mono">${escapeHtml(ev.action_type.replace(/_/g, ' '))}: ${escapeHtml(String(ev.label).slice(0, 32))}</div>
+                                <div class="text-[10px] text-slate-400 truncate font-mono">${escapeHtml(String(ev.action_type || 'Save').replace(/_/g, ' '))}: ${escapeHtml(String(ev.label || '').slice(0, 32))}</div>
                             </div>
                         </div>
-                        <span class="text-[10px] font-mono text-slate-400 whitespace-nowrap flex-shrink-0">${formatRelativeTime(ev.timestamp.getTime())}</span>
+                        <span class="text-[10px] font-mono text-slate-400 whitespace-nowrap flex-shrink-0">${formatRelativeTime(tsMs)}</span>
                     </div>
                 `
             }).join('')
@@ -744,5 +630,3 @@ function renderDashboardInsights(unifiedEvents, metricsProfiles, adoptedCanonica
         }
     }
 }
-
-// ── FILTERS ──

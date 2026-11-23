@@ -376,8 +376,8 @@
                 
                 showToast(`Saving ${files.length} image${files.length > 1 ? 's' : ''}...`, "info");
 
-                const { data: { user } } = await db.auth.getUser();
-                const canUpload = !isSandbox() && user;
+                const user = await getCloudUser();
+                const canUpload = Boolean(user);
 
                 let successCount = 0;
                 for (const file of Array.from(files)) {
@@ -421,8 +421,8 @@
                 });
                 if (!confirmed) return;
                 
-                const { data: { user } } = await db.auth.getUser();
-                if (!isSandbox() && user) {
+                const user = await getCloudUser();
+                if (user) {
                     showToast("Purging cloud folder...", "info");
                     await deleteFolder(`${user.id}/presentation_simple`).catch(e => console.warn(e));
                 }

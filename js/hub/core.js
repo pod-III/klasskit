@@ -33,7 +33,8 @@ const CONFIG = {
     reduceMotion: "klasskit_reduceMotion",
     defaultHome: "klasskit_defaultHome",
     showRecent: "klasskit_showRecent",
-    autoExpandGroup: "klasskit_autoExpandGroup"
+    autoExpandGroup: "klasskit_autoExpandGroup",
+    tabHistory: "kk_tab_history"
   }
 };
 
@@ -189,7 +190,11 @@ const Storage = {
 
   set(key, value) {
     try {
-      localStorage.setItem(key, JSON.stringify(value));
+      const serialized = JSON.stringify(value);
+      if (localStorage.getItem(key) === serialized) {
+        return true;
+      }
+      localStorage.setItem(key, serialized);
 
       // If this is a hub key, trigger a cloud save in background
       const hubKeys = Object.values(CONFIG.storageKeys);

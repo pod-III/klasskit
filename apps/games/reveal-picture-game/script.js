@@ -60,8 +60,8 @@ const DB = {
         if (!this.dataBase) await this.init();
         
         // Cloud Cleanup
-        const { data: { user } } = await db.auth.getUser();
-        if (!isSandbox() && user) {
+        const user = await getCloudUser();
+        if (user) {
             deleteFolder(`${user.id}/reveal_picture/${id}`).catch(e => console.warn("Cloud folder delete failed", e));
         }
 
@@ -1088,12 +1088,11 @@ if (soundToggle) {
 const handleFiles = async (files) => {
     const list = [];
     UI.toggleLoader(true);
+    const user = await getCloudUser();
 
     for (const f of Array.from(files)) {
         try {
-            // Check if we should upload to cloud
-            const { data: { user } } = await db.auth.getUser();
-            if (!isSandbox() && user) {
+            if (user) {
                 const url = await uploadMedia(f, 'reveal_picture', app.activePresetId);
                 list.push(url);
             } else {

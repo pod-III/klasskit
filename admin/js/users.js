@@ -1,4 +1,6 @@
-// KlassKit Admin — Users, Data Details, Studio & Modals
+// KlassKit Admin — Users, Data Details, Studio & On-Demand Inspection Modals
+
+const USER_DEFAULT_STORAGE_LIMIT = 10 * 1024 * 1024
 
 // ── SHARED UI & CLIPBOARD HELPERS ──
 function updateSearchClearBtn() {
@@ -24,7 +26,7 @@ function onToolFilterChange() {
 }
 
 function resetPagination(keys) {
-    const targetKeys = keys || ['users', 'progress', 'notes', 'schedule', 'classes', 'classesUnits', 'tasks', 'myclass', 'studio']
+    const targetKeys = keys || ['users', 'progress', 'notes', 'schedule', 'classes', 'classesUnits', 'tasks', 'myclass', 'studio', 'cloud']
     targetKeys.forEach(k => {
         if (k in pagination) pagination[k] = 1
     })
@@ -89,54 +91,40 @@ function setStudioTypeFilter(type) {
     applyFilters()
 }
 
-function sortItems(items, conf, accessors) {
-    const accessor = accessors[conf.col] || accessors._default
-    if (!accessor) return items
-    return items.sort((a, b) => {
-        const valA = accessor(a)
-        const valB = accessor(b)
-        if (valA < valB) return conf.dir === 'asc' ? -1 : 1
-        if (valA > valB) return conf.dir === 'asc' ? 1 : -1
-        return 0
-    })
-}
-
-function paginateAndUpdateBar(key, items) {
-    const total = items.length
-    const totalPages = Math.ceil(total / PAGE_SIZE) || 1
-    if (pagination[key] > totalPages) pagination[key] = totalPages
-    if (pagination[key] < 1) pagination[key] = 1
-
-    const start = (pagination[key] - 1) * PAGE_SIZE
-    const end = Math.min(start + PAGE_SIZE, total)
-    const paged = items.slice(start, start + PAGE_SIZE)
+function updatePaginationBar(key, total, page, pageSize) {
+    const totalCount = Number(total) || 0
+    const size = Number(pageSize) || PAGE_SIZE
+    const totalPages = Math.ceil(totalCount / size) || 1
+    const safePage = Math.min(Math.max(Number(page) || 1, 1), totalPages)
+    pagination[key] = safePage
 
     if (!pagination.lastFilteredCounts) pagination.lastFilteredCounts = {}
-    pagination.lastFilteredCounts[key] = total
+    pagination.lastFilteredCounts[key] = totalCount
+
+    const start = (safePage - 1) * size
+    const end = Math.min(start + size, totalCount)
 
     const infoEl = document.getElementById(`${key}-page-info`)
     if (infoEl) {
-        infoEl.textContent = total > 0
-            ? `Showing ${start + 1}–${end} of ${total} · Page ${pagination[key]} of ${totalPages}`
+        infoEl.textContent = totalCount > 0
+            ? `Showing ${start + 1}–${end} of ${totalCount} · Page ${safePage} of ${totalPages}`
             : `0 items · Page 1 of 1`
     }
 
     const prevBtn = document.getElementById(`${key}-prev-btn`)
     const nextBtn = document.getElementById(`${key}-next-btn`)
     if (prevBtn) {
-        const atStart = pagination[key] <= 1
+        const atStart = safePage <= 1
         prevBtn.disabled = atStart
         prevBtn.classList.toggle('opacity-40', atStart)
         prevBtn.classList.toggle('cursor-not-allowed', atStart)
     }
     if (nextBtn) {
-        const atEnd = pagination[key] >= totalPages
+        const atEnd = safePage >= totalPages
         nextBtn.disabled = atEnd
         nextBtn.classList.toggle('opacity-40', atEnd)
         nextBtn.classList.toggle('cursor-not-allowed', atEnd)
     }
-
-    return paged
 }
 
 const USER_CELL_STYLES = {
@@ -162,47 +150,24 @@ function escapeJsAttr(val) {
     return escapeHtml(jsEscaped).replace(/"/g, '&quot;')
 }
 
-function renderUserCell(userId, color = 'blue', showSubId = true) {
-    const profile = allProfiles[userId]
-    const name = profile?.display_name || '—'
+function renderUserCell(userId, color = 'blue', showSubId = true, displayNameFallback = null) {
+    const uid = String(userId || '')
+    const profile = allProfiles[uid]
+    const name = displayNameFallback || profile?.display_name || '—'
     const initial = name[0]?.toUpperCase() || '?'
     const badgeCls = USER_CELL_STYLES[color] || USER_CELL_STYLES.blue
     return `
-        <button type="button" onclick="viewUser('${escapeJsAttr(userId)}')" title="Inspect user profile"
+        <button type="button" onclick="viewUser('${escapeJsAttr(uid)}')" title="Inspect user profile"
             class="flex items-center gap-2 text-left group/user rounded-lg focus:outline-none">
             <div class="w-7 h-7 rounded-lg border-2 flex items-center justify-center text-xs font-heading flex-shrink-0 transition-colors ${badgeCls}">${escapeHtml(initial)}</div>
             <div class="min-w-0">
                 <div class="font-bold text-white text-sm truncate group-hover/user:text-blue transition-colors">${escapeHtml(name)}</div>
-                ${showSubId ? `<div class="font-mono text-[10px] text-slate-600">${escapeHtml(userId.slice(0, 8))}...</div>` : ''}
+                ${showSubId ? `<div class="font-mono text-[10px] text-slate-600">${escapeHtml(uid.slice(0, 8))}...</div>` : ''}
             </div>
         </button>`
 }
 
-function formatProgressPreview(data) {
-    if (data == null) return 'Empty'
-    if (Array.isArray(data)) {
-        const named = data.slice(0, 2).map(x => (x && typeof x === 'object' ? (x.name || x.title) : null)).filter(Boolean)
-        return named.length
-            ? `${data.length} item${data.length === 1 ? '' : 's'} (${named.join(', ')}${data.length > 2 ? '…' : ''})`
-            : `${data.length} item${data.length === 1 ? '' : 's'}`
-    }
-    if (typeof data === 'object') {
-        for (const key of SET_COLLECTION_KEYS) {
-            if (Array.isArray(data[key])) {
-                const arr = data[key]
-                const titles = arr.slice(0, 2).map(x => (x && typeof x === 'object' ? (x.name || x.title) : null)).filter(Boolean)
-                const suffix = titles.length ? ` (${titles.join(', ')}${arr.length > 2 ? '…' : ''})` : ''
-                return `${arr.length} ${key.replace(/_/g, ' ')}${suffix}`
-            }
-        }
-        const keys = Object.keys(data)
-        if (!keys.length) return 'Empty object'
-        return `${keys.length} field${keys.length === 1 ? '' : 's'}: ${keys.slice(0, 3).join(', ')}${keys.length > 3 ? '…' : ''}`
-    }
-    return String(data).slice(0, 60)
-}
-
-function filterDataByUser(userId, preferredTool = '') {
+async function filterDataByUser(userId, preferredTool = '') {
     const searchInput = document.getElementById('searchInput')
     const toolFilter = document.getElementById('toolFilter')
     if (searchInput) searchInput.value = userId
@@ -220,9 +185,7 @@ function filterDataByUser(userId, preferredTool = '') {
     updateSearchClearBtn()
     closeViewModal()
     resetPagination()
-    setView('data-details')
 
-    // Auto-select the most relevant Data Details tab that actually has records
     const toolTabMap = {
         lessonnotes: 'notes',
         'lesson-note': 'notes',
@@ -237,23 +200,21 @@ function filterDataByUser(userId, preferredTool = '') {
         'lesson-parser': 'studio',
         'dnd-hub': 'studio'
     }
+
     if (preferredTool && toolTabMap[preferredTool]) {
-        setDataTab(toolTabMap[preferredTool])
+        setDataTab(toolTabMap[preferredTool], { load: false })
+        setView('data-details')
         return
     }
 
-    const tabOrder = ['progress', 'notes', 'schedule', 'classes', 'tasks', 'myclass', 'studio']
-    const nonEmptyTab = tabOrder.find(t => {
-        const countEl = document.getElementById(`datatab-count-${t}`)
-        return countEl && Number(countEl.textContent) > 0
-    })
-    setDataTab(nonEmptyTab || 'progress')
+    setDataTab('progress', { load: false })
+    setView('data-details')
 }
 
-// ── TOOL FILTER & MAIN FILTER PIPELINE ──
-function populateToolFilter() {
+// ── TOOL FILTER & SERVER DISPATCH PIPELINE ──
+function populateToolFilter(distinctKeys = []) {
     const toolsSet = new Set([
-        ...allProgress.map(r => r.tool_key).filter(k => k !== 'klasskit_hub' && k !== 'hub'),
+        ...(Array.isArray(distinctKeys) ? distinctKeys.filter(k => k && k !== 'klasskit_hub' && k !== 'hub') : []),
         'lesson-note',
         'schedule',
         'admin-tracker',
@@ -278,286 +239,27 @@ function populateToolFilter() {
     if (previous && tools.includes(previous)) sel.value = previous
 }
 
-function applyFilters() {
-    updateSearchClearBtn()
+function getGlobalFilterParams() {
     const searchInput = document.getElementById('searchInput')
     const toolFilter = document.getElementById('toolFilter')
-    const search = searchInput ? searchInput.value.toLowerCase().trim() : ''
-    const tool = toolFilter ? toolFilter.value : ''
-    const canonicalSelectedTool = tool ? resolveCanonicalToolId(tool) : ''
-    const excludedIds = getExcludedUserIds()
-    const sevenDaysAgoMs = Date.now() - (7 * 24 * 60 * 60 * 1000)
-
-    const matchesToolKey = (rawKey) => {
-        if (!tool) return true
-        return rawKey === tool || resolveCanonicalToolId(rawKey) === canonicalSelectedTool
+    return {
+        search: searchInput ? searchInput.value.trim() : '',
+        tool: toolFilter ? toolFilter.value : '',
+        excludedIds: getValidExcludedUserIds()
     }
+}
 
-    let filteredRows = allProgress.filter(r => {
-        if (excludedIds.includes(r.user_id)) return false
-        const prof = allProfiles[r.user_id]
-        const name = (prof?.display_name || '').toLowerCase()
-        const email = (prof?.email || '').toLowerCase()
-        const meta = getToolMeta(r.tool_key)
-        const matchSearch = !search
-            || name.includes(search)
-            || email.includes(search)
-            || r.user_id.toLowerCase().includes(search)
-            || r.tool_key.toLowerCase().includes(search)
-            || meta.name.toLowerCase().includes(search)
-        return matchSearch && matchesToolKey(r.tool_key)
-    })
-
-    // Base matching users (before role/recency pill filter, for accurate role pill counts)
-    const baseUserIds = Object.keys(allProfiles).filter(uid => {
-        if (excludedIds.includes(uid)) return false
-        const prof = allProfiles[uid] || {}
-        const name = (prof.display_name || '').toLowerCase()
-        const email = (prof.email || '').toLowerCase()
-        const matchSearch = !search || name.includes(search) || email.includes(search) || uid.toLowerCase().includes(search)
-        const hasUsedTool = !tool
-            || (prof.tools_set && (prof.tools_set.has(tool) || prof.tools_set.has(canonicalSelectedTool)))
-            || allProgress.some(r => r.user_id === uid && matchesToolKey(r.tool_key))
-        return matchSearch && hasUsedTool
-    })
-
-    const roleCounts = { all: baseUserIds.length, user: 0, pro: 0, admin: 0, active7d: 0 }
-    baseUserIds.forEach(uid => {
-        const prof = allProfiles[uid] || {}
-        const r = prof.role || 'user'
-        if (r === 'admin') roleCounts.admin++
-        else if (r === 'pro') roleCounts.pro++
-        else roleCounts.user++
-        if ((prof.last_active_ts || 0) >= sevenDaysAgoMs) roleCounts.active7d++
-    })
-    Object.entries(roleCounts).forEach(([k, val]) => {
-        const el = document.getElementById(`userfilter-count-${k}`)
-        if (el) el.textContent = val
-    })
-
-    let filteredUserIds = baseUserIds.filter(uid => {
-        const prof = allProfiles[uid] || {}
-        const r = prof.role || 'user'
-        if (userRoleFilter === 'all') return true
-        if (userRoleFilter === 'active7d') return (prof.last_active_ts || 0) >= sevenDaysAgoMs
-        return r === userRoleFilter
-    })
-
-    let filteredNotes = allNotes.filter(n => {
-        if (excludedIds.includes(n.user_id)) return false
-        if (notesStatusFilter === 'active' && n.deleted) return false
-        if (notesStatusFilter === 'trashed' && !n.deleted) return false
-        const prof = allProfiles[n.user_id]
-        const name = (prof?.display_name || '').toLowerCase()
-        const email = (prof?.email || '').toLowerCase()
-        const matchSearch = !search
-            || name.includes(search)
-            || email.includes(search)
-            || n.user_id.toLowerCase().includes(search)
-            || (n.title || '').toLowerCase().includes(search)
-            || (n.content || '').toLowerCase().includes(search)
-        return matchSearch && matchesToolKey('lesson-note')
-    })
-
-    let filteredScheduleEvents = allScheduleEvents.filter(e => {
-        if (excludedIds.includes(e.user_id)) return false
-        const prof = allProfiles[e.user_id]
-        const name = (prof?.display_name || '').toLowerCase()
-        const email = (prof?.email || '').toLowerCase()
-        const matchSearch = !search
-            || name.includes(search)
-            || email.includes(search)
-            || e.user_id.toLowerCase().includes(search)
-            || (e.name || '').toLowerCase().includes(search)
-            || (e.type_id || '').toLowerCase().includes(search)
-        return matchSearch && matchesToolKey('schedule')
-    })
-
-    let filteredClassAdmin = allClassAdmin.filter(c => {
-        if (excludedIds.includes(c.user_id)) return false
-        const prof = allProfiles[c.user_id]
-        const name = (prof?.display_name || '').toLowerCase()
-        const email = (prof?.email || '').toLowerCase()
-        const matchSearch = !search
-            || name.includes(search)
-            || email.includes(search)
-            || c.user_id.toLowerCase().includes(search)
-            || (c.class_name || '').toLowerCase().includes(search)
-        return matchSearch && matchesToolKey('admin-tracker')
-    })
-
-    let filteredClassUnits = allClassUnits.filter(u => {
-        if (excludedIds.includes(u.user_id)) return false
-        const prof = allProfiles[u.user_id]
-        const name = (prof?.display_name || '').toLowerCase()
-        const email = (prof?.email || '').toLowerCase()
-        const matchSearch = !search
-            || name.includes(search)
-            || email.includes(search)
-            || u.user_id.toLowerCase().includes(search)
-            || (u.class_name || '').toLowerCase().includes(search)
-        return matchSearch && matchesToolKey('admin-tracker')
-    })
-
-    let filteredMySpaceTasks = allMySpaceTasks.filter(t => {
-        if (excludedIds.includes(t.user_id)) return false
-        if (tasksStatusFilter === 'pending' && t.completed) return false
-        if (tasksStatusFilter === 'completed' && !t.completed) return false
-        const prof = allProfiles[t.user_id]
-        const name = (prof?.display_name || '').toLowerCase()
-        const email = (prof?.email || '').toLowerCase()
-        const matchSearch = !search
-            || name.includes(search)
-            || email.includes(search)
-            || t.user_id.toLowerCase().includes(search)
-            || (t.text || '').toLowerCase().includes(search)
-            || (t.category || '').toLowerCase().includes(search)
-        return matchSearch && matchesToolKey('tasks')
-    })
-
-    let filteredMyClass = allMyClass.filter(c => {
-        if (excludedIds.includes(c.user_id)) return false
-        const prof = allProfiles[c.user_id]
-        const name = (prof?.display_name || '').toLowerCase()
-        const email = (prof?.email || '').toLowerCase()
-        const matchSearch = !search
-            || name.includes(search)
-            || email.includes(search)
-            || c.user_id.toLowerCase().includes(search)
-            || (c.class_name || '').toLowerCase().includes(search)
-        return matchSearch && matchesToolKey('my-class')
-    })
-
-    let allStudioItems = buildStudioItemsList(excludedIds).filter(item => {
-        if (studioTypeFilter !== 'all' && item.tool_key !== studioTypeFilter) return false
-        const prof = allProfiles[item.user_id]
-        const name = (prof?.display_name || '').toLowerCase()
-        const email = (prof?.email || '').toLowerCase()
-        const matchSearch = !search
-            || name.includes(search)
-            || email.includes(search)
-            || item.user_id.toLowerCase().includes(search)
-            || (item.title || '').toLowerCase().includes(search)
-            || (item.type_label || '').toLowerCase().includes(search)
-        return matchSearch && matchesToolKey(item.tool_key)
-    })
-
-    // Sorting across all tables
-    const roleOrder = { admin: 0, pro: 1, user: 2 }
-    sortItems(filteredUserIds, sortConfig.users, {
-        name: uid => (allProfiles[uid]?.display_name || '').toLowerCase(),
-        role: uid => roleOrder[allProfiles[uid]?.role] ?? 2,
-        storage: uid => allProfiles[uid]?.storage_usage || 0,
-        records: uid => allProfiles[uid]?.records_count || 0,
-        last_tool: uid => (allProfiles[uid]?.last_tool_used ? getToolMeta(allProfiles[uid].last_tool_used).name.toLowerCase() : ''),
-        active: uid => allProfiles[uid]?.last_active_ts || 0
-    })
-
-    sortItems(filteredRows, sortConfig.progress, {
-        user: r => (allProfiles[r.user_id]?.display_name || '').toLowerCase(),
-        tool: r => r.tool_key || '',
-        updated_at: r => new Date(r.updated_at).getTime() || 0
-    })
-
-    sortItems(filteredNotes, sortConfig.notes, {
-        user: n => (allProfiles[n.user_id]?.display_name || '').toLowerCase(),
-        title: n => (n.title || '').toLowerCase(),
-        updated_at: n => Number(n.updated_at) || 0
-    })
-
-    sortItems(filteredScheduleEvents, sortConfig.schedule, {
-        user: e => (allProfiles[e.user_id]?.display_name || '').toLowerCase(),
-        name: e => (e.name || '').toLowerCase(),
-        date: e => e.date || ''
-    })
-
-    sortItems(filteredClassAdmin, sortConfig.classes, {
-        user: c => (allProfiles[c.user_id]?.display_name || '').toLowerCase(),
-        class_name: c => (c.class_name || '').toLowerCase(),
-        created_at: c => c.created_at || ''
-    })
-
-    sortItems(filteredClassUnits, sortConfig.classesUnits, {
-        user: c => (allProfiles[c.user_id]?.display_name || '').toLowerCase(),
-        class_name: c => (c.class_name || '').toLowerCase(),
-        created_at: c => c.created_at || ''
-    })
-
-    sortItems(filteredMySpaceTasks, sortConfig.tasks, {
-        user: t => (allProfiles[t.user_id]?.display_name || '').toLowerCase(),
-        text: t => (t.text || '').toLowerCase(),
-        category: t => (t.category || 'general').toLowerCase(),
-        status: t => (t.completed ? 2 : t.priority === 'high' ? 0 : 1),
-        created_at: t => parseTimestampMs(t.created_at)
-    })
-
-    sortItems(filteredMyClass, sortConfig.myclass, {
-        user: c => (allProfiles[c.user_id]?.display_name || '').toLowerCase(),
-        class_name: c => (c.class_name || '').toLowerCase(),
-        updated_at: c => parseTimestampMs(c.updated_at)
-    })
-
-    sortItems(allStudioItems, sortConfig.studio, {
-        user: item => (allProfiles[item.user_id]?.display_name || '').toLowerCase(),
-        type: item => (item.type_label || '').toLowerCase(),
-        title: item => (item.title || '').toLowerCase(),
-        updated_at: item => item.ts || 0
-    })
-
-    // Paginate every view uniformly
-    const pagedUserIds = paginateAndUpdateBar('users', filteredUserIds)
-    const pagedRows = paginateAndUpdateBar('progress', filteredRows)
-    const pagedNotes = paginateAndUpdateBar('notes', filteredNotes)
-    const pagedSched = paginateAndUpdateBar('schedule', filteredScheduleEvents)
-    const pagedClasses = paginateAndUpdateBar('classes', filteredClassAdmin)
-    const pagedClassUnits = paginateAndUpdateBar('classesUnits', filteredClassUnits)
-    const pagedTasks = paginateAndUpdateBar('tasks', filteredMySpaceTasks)
-    const pagedMyClass = paginateAndUpdateBar('myclass', filteredMyClass)
-    const pagedStudio = paginateAndUpdateBar('studio', allStudioItems)
-
-    renderUsersTable(pagedUserIds)
-    renderProgressTable(pagedRows)
-    renderNotesTable(pagedNotes)
-    renderScheduleTable(pagedSched)
-    renderClassesView(pagedClasses, pagedClassUnits)
-    renderTasksTable(pagedTasks)
-    renderMyClassTable(pagedMyClass)
-    renderStudioTable(pagedStudio)
-    if (currentView === 'logs') renderLogsTable()
-    updateSortIcons()
-
-    // Header chips & tab count badges
-    const countMap = {
-        userCount: `${filteredUserIds.length} user${filteredUserIds.length === 1 ? '' : 's'}`,
-        progressCount: `${filteredRows.length} row${filteredRows.length === 1 ? '' : 's'}`,
-        notesCount: `${filteredNotes.length} note${filteredNotes.length === 1 ? '' : 's'}`,
-        scheduleCount: `${filteredScheduleEvents.length} event${filteredScheduleEvents.length === 1 ? '' : 's'}`,
-        classAdminCount: `${filteredClassAdmin.length} class${filteredClassAdmin.length === 1 ? '' : 'es'}`,
-        classUnitsCount: `${filteredClassUnits.length} class${filteredClassUnits.length === 1 ? '' : 'es'}`,
-        tasksCount: `${filteredMySpaceTasks.length} task${filteredMySpaceTasks.length === 1 ? '' : 's'}`,
-        myclassCount: `${filteredMyClass.length} class${filteredMyClass.length === 1 ? '' : 'es'}`,
-        studioCount: `${allStudioItems.length} item${allStudioItems.length === 1 ? '' : 's'}`
+async function applyFilters() {
+    updateSearchClearBtn()
+    if (currentView === 'users') {
+        await loadUsersView()
+    } else if (currentView === 'data-details') {
+        await loadDataDetailsTab(true)
+    } else if (currentView === 'logs') {
+        if (typeof renderLogsTable === 'function') await renderLogsTable()
+    } else if (currentView === 'cloud') {
+        if (typeof renderCloudTable === 'function') await renderCloudTable()
     }
-    Object.entries(countMap).forEach(([id, text]) => {
-        const el = document.getElementById(id)
-        if (el) el.textContent = text
-    })
-
-    const tabBadgeCounts = {
-        'datatab-count-progress': filteredRows.length,
-        'datatab-count-notes': filteredNotes.length,
-        'datatab-count-schedule': filteredScheduleEvents.length,
-        'datatab-count-classes': filteredClassAdmin.length + filteredClassUnits.length,
-        'datatab-count-tasks': filteredMySpaceTasks.length,
-        'datatab-count-myclass': filteredMyClass.length,
-        'datatab-count-studio': allStudioItems.length,
-        'classtab-count-admin': filteredClassAdmin.length,
-        'classtab-count-units': filteredClassUnits.length
-    }
-    Object.entries(tabBadgeCounts).forEach(([id, count]) => {
-        const el = document.getElementById(id)
-        if (el) el.textContent = count
-    })
 }
 
 function clearFilters() {
@@ -579,25 +281,77 @@ function clearFilters() {
     applyFilters()
 }
 
-// ── USERS TABLE ──
-function renderUsersTable(userIds) {
+// ── USERS VIEW (Server-Paginated) ──
+async function loadUsersView() {
     const body = document.getElementById('usersTableBody')
     if (!body) return
-    if (!userIds.length) {
+
+    const seq = ++reqSeq.users
+    const { search, tool, excludedIds } = getGlobalFilterParams()
+    const conf = sortConfig.users || { col: 'active', dir: 'desc' }
+
+    const { data, error } = await callAdminRpc('admin_list_users', {
+        p_excluded_ids: excludedIds,
+        p_search: search,
+        p_role_filter: userRoleFilter,
+        p_tool_filter: tool,
+        p_sort_col: conf.col,
+        p_sort_dir: conf.dir,
+        p_page: pagination.users || 1,
+        p_page_size: PAGE_SIZE
+    })
+
+    if (seq !== reqSeq.users) return
+    if (error || !data) {
+        body.innerHTML = '<tr><td colspan="8" class="text-center py-12 text-pink font-bold">Failed to load users</td></tr>'
+        return
+    }
+
+    const total = Number(data.total) || 0
+    const totalPages = Math.ceil(total / PAGE_SIZE) || 1
+    if ((pagination.users || 1) > totalPages) {
+        pagination.users = totalPages
+        return loadUsersView()
+    }
+
+    const roleCounts = data.role_counts || {}
+    Object.entries(roleCounts).forEach(([k, val]) => {
+        const el = document.getElementById(`userfilter-count-${k}`)
+        if (el) el.textContent = Number(val) || 0
+    })
+
+    const countEl = document.getElementById('userCount')
+    if (countEl) countEl.textContent = `${total} user${total === 1 ? '' : 's'}`
+
+    updatePaginationBar('users', total, pagination.users, PAGE_SIZE)
+
+    const items = Array.isArray(data.items) ? data.items : []
+    items.forEach(p => {
+        allProfiles[p.id] = { ...(allProfiles[p.id] || {}), ...p }
+    })
+
+    renderUsersTable(items)
+    updateSortIcons()
+}
+
+function renderUsersTable(users) {
+    const body = document.getElementById('usersTableBody')
+    if (!body) return
+    if (!users.length) {
         body.innerHTML = '<tr><td colspan="8" class="text-center py-12 text-slate-500 font-bold">No users match the current filter</td></tr>'
         return
     }
 
-    body.innerHTML = userIds.map(uid => {
-        const profile = allProfiles[uid]
-        const name = profile?.display_name || '—'
-        const email = profile?.email || ''
-        const role = profile?.role || 'user'
-        const userToolIds = profile?.tools_set ? [...profile.tools_set] : []
-        const recordsCount = profile?.records_count || 0
+    body.innerHTML = users.map(profile => {
+        const uid = profile.id
+        const name = profile.display_name || '—'
+        const email = profile.email || ''
+        const role = profile.role || 'user'
+        const userToolIds = Array.isArray(profile.tools_list) ? profile.tools_list : []
+        const recordsCount = Number(profile.records_count) || 0
         let activeDate = 'Never'
         let activeDotClass = 'bg-slate-600'
-        const latestTs = profile?.last_active_ts || 0
+        const latestTs = parseTimestampMs(profile.last_active_ts)
         const activeTitle = latestTs > 0 ? new Date(latestTs).toLocaleString() : 'No recorded activity'
 
         if (latestTs > 0) {
@@ -629,12 +383,12 @@ function renderUsersTable(userIds) {
 
         const displayTools = userToolIds.slice(0, 4)
         const extraToolsCount = Math.max(0, userToolIds.length - displayTools.length)
-        const usedBytes = profile?.storage_usage || 0
-        const limitBytes = profile?.storage_limit || 50 * 1024 * 1024
+        const usedBytes = Number(profile.storage_usage) || 0
+        const limitBytes = Number(profile.storage_limit) || USER_DEFAULT_STORAGE_LIMIT
         const storagePct = Math.min(100, Math.round((usedBytes / limitBytes) * 100))
         const barColor = storagePct < 60 ? 'bg-green' : (storagePct < 85 ? 'bg-orange' : 'bg-pink')
-        const lastToolId = profile?.last_tool_used || ''
-        const lastToolTs = profile?.last_tool_ts || 0
+        const lastToolId = profile.last_tool_used || ''
+        const lastToolTs = parseTimestampMs(profile.last_tool_ts)
         const lastToolMeta = lastToolId ? getToolMeta(lastToolId) : null
         const lastToolTimeLabel = lastToolTs > 0 ? formatRelativeTime(lastToolTs) : ''
         const lastToolTimeTitle = lastToolTs > 0 ? new Date(lastToolTs).toLocaleString() : ''
@@ -727,6 +481,107 @@ function renderUsersTable(userIds) {
     lucide.createIcons({ root: body })
 }
 
+// ── DATA DETAILS VIEW (Lazy Tab Queries) ──
+async function loadDataDetailsTab(includeTabCounts = true) {
+    const seq = ++reqSeq.data
+    const { search, tool, excludedIds } = getGlobalFilterParams()
+    const activeTab = currentDataTab === 'classes'
+        ? (scheduleClassTab === 'units' ? 'classesUnits' : 'classes')
+        : currentDataTab
+
+    const statusFilter = activeTab === 'notes'
+        ? notesStatusFilter
+        : activeTab === 'tasks'
+            ? tasksStatusFilter
+            : activeTab === 'studio'
+                ? studioTypeFilter
+                : 'all'
+
+    const conf = sortConfig[activeTab] || { col: 'updated_at', dir: 'desc' }
+
+    const { data, error } = await callAdminRpc('admin_list_records', {
+        p_tab: activeTab,
+        p_excluded_ids: excludedIds,
+        p_search: search,
+        p_tool_filter: tool,
+        p_status_filter: statusFilter,
+        p_sort_col: conf.col,
+        p_sort_dir: conf.dir,
+        p_page: pagination[activeTab] || 1,
+        p_page_size: PAGE_SIZE,
+        p_include_tab_counts: includeTabCounts
+    })
+
+    if (seq !== reqSeq.data) return
+    if (error || !data) {
+        showToast('Failed to load records', 'error')
+        return
+    }
+
+    const total = Number(data.total) || 0
+    const totalPages = Math.ceil(total / PAGE_SIZE) || 1
+    if ((pagination[activeTab] || 1) > totalPages) {
+        pagination[activeTab] = totalPages
+        return loadDataDetailsTab(includeTabCounts)
+    }
+
+    const items = Array.isArray(data.items) ? data.items : []
+    items.forEach(item => {
+        if (item.user_id && item.display_name) {
+            allProfiles[item.user_id] = { ...(allProfiles[item.user_id] || {}), id: item.user_id, display_name: item.display_name }
+        }
+    })
+
+    if (data.tab_counts) {
+        const tc = data.tab_counts
+        const classAdminLen = Number(tc.classesAdmin) || 0
+        const classUnitsLen = Number(tc.classesUnits) || 0
+        const countMap = {
+            progressCount: `${Number(tc.progress) || 0} row${tc.progress === 1 ? '' : 's'}`,
+            notesCount: `${Number(tc.notes) || 0} note${tc.notes === 1 ? '' : 's'}`,
+            scheduleCount: `${Number(tc.schedule) || 0} event${tc.schedule === 1 ? '' : 's'}`,
+            classAdminCount: `${classAdminLen} class${classAdminLen === 1 ? '' : 'es'}`,
+            classUnitsCount: `${classUnitsLen} class${classUnitsLen === 1 ? '' : 'es'}`,
+            tasksCount: `${Number(tc.tasks) || 0} task${tc.tasks === 1 ? '' : 's'}`,
+            myclassCount: `${Number(tc.myclass) || 0} class${tc.myclass === 1 ? '' : 'es'}`,
+            studioCount: `${Number(tc.studio) || 0} item${tc.studio === 1 ? '' : 's'}`
+        }
+        Object.entries(countMap).forEach(([id, text]) => {
+            const el = document.getElementById(id)
+            if (el) el.textContent = text
+        })
+
+        const tabBadgeCounts = {
+            'datatab-count-progress': Number(tc.progress) || 0,
+            'datatab-count-notes': Number(tc.notes) || 0,
+            'datatab-count-schedule': Number(tc.schedule) || 0,
+            'datatab-count-classes': classAdminLen + classUnitsLen,
+            'datatab-count-tasks': Number(tc.tasks) || 0,
+            'datatab-count-myclass': Number(tc.myclass) || 0,
+            'datatab-count-studio': Number(tc.studio) || 0,
+            'classtab-count-admin': classAdminLen,
+            'classtab-count-units': classUnitsLen
+        }
+        Object.entries(tabBadgeCounts).forEach(([id, count]) => {
+            const el = document.getElementById(id)
+            if (el) el.textContent = count
+        })
+    }
+
+    updatePaginationBar(activeTab, total, pagination[activeTab], PAGE_SIZE)
+
+    if (activeTab === 'progress') renderProgressTable(items)
+    else if (activeTab === 'notes') renderNotesTable(items)
+    else if (activeTab === 'schedule') renderScheduleTable(items)
+    else if (activeTab === 'classes') renderClassesView(items, 'admin')
+    else if (activeTab === 'classesUnits') renderClassesView(items, 'units')
+    else if (activeTab === 'tasks') renderTasksTable(items)
+    else if (activeTab === 'myclass') renderMyClassTable(items)
+    else if (activeTab === 'studio') renderStudioTable(items)
+
+    updateSortIcons()
+}
+
 // ── PROGRESS TABLE ──
 function renderProgressTable(rows) {
     const body = document.getElementById('progressTableBody')
@@ -738,11 +593,11 @@ function renderProgressTable(rows) {
 
     body.innerHTML = rows.map(row => {
         const meta = getToolMeta(row.tool_key)
-        const preview = formatProgressPreview(row.data)
-        const date = new Date(row.updated_at).toLocaleString()
+        const preview = row.preview || 'Saved workspace'
+        const date = row.updated_at ? new Date(row.updated_at).toLocaleString() : '—'
 
         return `<tr class="group transition-colors hover:bg-slate-900/40">
-          <td class="px-5 py-3">${renderUserCell(row.user_id, 'blue', true)}</td>
+          <td class="px-5 py-3">${renderUserCell(row.user_id, 'blue', true, row.display_name)}</td>
           <td class="px-5 py-3">
             <div class="flex flex-col gap-0.5">
               <span class="chip bg-orange/10 text-orange border-orange/30 w-fit">${escapeHtml(meta.name)}</span>
@@ -759,7 +614,7 @@ function renderProgressTable(rows) {
                 class="neo-btn px-3 py-1.5 bg-blue text-white rounded-xl text-xs">
                 <i data-lucide="eye" class="w-3 h-3"></i> View
               </button>
-              <button type="button" onclick="openDeleteModal('${escapeJsAttr(row.user_id)}','${escapeJsAttr(row.tool_key)}')" title="Delete progress row"
+              <button type="button" onclick="openDeleteModal('${escapeJsAttr(row.user_id)}','${escapeJsAttr(row.tool_key)}','','${escapeJsAttr(row.display_name || '')}')" title="Delete progress row"
                 class="neo-btn px-3 py-1.5 bg-red-500 text-white rounded-xl text-xs">
                 <i data-lucide="trash-2" class="w-3 h-3"></i>
               </button>
@@ -780,18 +635,13 @@ function renderNotesTable(rows) {
     }
 
     body.innerHTML = rows.map(note => {
-        const ts = Number(note.updated_at)
+        const ts = parseTimestampMs(note.updated_at)
         const date = ts ? new Date(ts).toLocaleString() : '—'
-        let folderName = '—'
-        if (note.folder_id) {
-            const userFolders = allNoteFolders[note.user_id] || []
-            const folder = userFolders.find(f => f.id === note.folder_id)
-            if (folder) folderName = folder.name || folder.id
-        }
-        const snippet = (note.content || '').replace(/\s+/g, ' ').trim().slice(0, 70)
+        const folderName = note.folder_name || note.folder_id || '—'
+        const snippet = note.snippet || ''
 
         return `<tr class="group transition-colors hover:bg-slate-900/40">
-          <td class="px-5 py-3">${renderUserCell(note.user_id, 'orange', true)}</td>
+          <td class="px-5 py-3">${renderUserCell(note.user_id, 'orange', true, note.display_name)}</td>
           <td class="px-5 py-3 max-w-[280px]">
             <div class="flex items-center gap-2">
               <span class="font-bold text-slate-200 truncate">${escapeHtml(note.title || 'Untitled')}</span>
@@ -805,11 +655,11 @@ function renderNotesTable(rows) {
           <td class="hidden sm:table-cell px-5 py-3 text-xs text-slate-500 whitespace-nowrap">${date}</td>
           <td class="px-5 py-3">
             <div class="flex items-center justify-end gap-2 opacity-100 md:opacity-75 md:group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity">
-              <button type="button" onclick="openNoteModal('${escapeHtml(note.id)}')"
+              <button type="button" onclick="openNoteModal('${escapeJsAttr(note.id)}','${escapeJsAttr(note.user_id)}')"
                 class="neo-btn px-3 py-1.5 bg-blue text-white rounded-xl text-xs">
                 <i data-lucide="eye" class="w-3 h-3"></i> View
               </button>
-              <button type="button" onclick="openDeleteModal('${escapeHtml(note.id)}','note')" title="Delete note"
+              <button type="button" onclick="openDeleteModal('${escapeJsAttr(note.id)}','note','${escapeJsAttr(note.user_id)}','${escapeJsAttr(note.title || 'Untitled')}')" title="Delete note"
                 class="neo-btn px-3 py-1.5 bg-red-500 text-white rounded-xl text-xs">
                 <i data-lucide="trash-2" class="w-3 h-3"></i>
               </button>
@@ -833,7 +683,7 @@ function renderScheduleTable(rows) {
         const recLabel = recurrenceLabels[ev.recurrence] || ev.recurrence || 'One-time'
         const isRecurring = ev.recurrence && ev.recurrence !== 'none'
         return `<tr class="group transition-colors hover:bg-slate-900/40">
-          <td class="px-5 py-3">${renderUserCell(ev.user_id, 'orange', true)}</td>
+          <td class="px-5 py-3">${renderUserCell(ev.user_id, 'orange', true, ev.display_name)}</td>
           <td class="px-5 py-3">
             <div class="flex items-center gap-2">
               <div class="w-3 h-3 rounded-full flex-shrink-0" style="background:${escapeHtml(ev.color || '#FF8C42')}"></div>
@@ -849,7 +699,7 @@ function renderScheduleTable(rows) {
           </td>
           <td class="px-5 py-3">
             <div class="flex items-center justify-end gap-2 opacity-100 md:opacity-75 md:group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity">
-              <button type="button" onclick="openScheduleModal('${escapeHtml(ev.id)}')"
+              <button type="button" onclick="openScheduleModal('${escapeJsAttr(ev.id)}')"
                 class="neo-btn px-3 py-1.5 bg-blue text-white rounded-xl text-xs">
                 <i data-lucide="eye" class="w-3 h-3"></i> View
               </button>
@@ -861,65 +711,59 @@ function renderScheduleTable(rows) {
 }
 
 // ── SCHEDULE CLASSES VIEW ──
-function renderClassesView(pagedClasses, pagedUnits) {
-    const adminBody = document.getElementById('classAdminTableBody')
-    if (adminBody) {
-        if (!pagedClasses || !pagedClasses.length) {
+function renderClassesView(rows, subTab = 'admin') {
+    if (subTab === 'admin') {
+        const adminBody = document.getElementById('classAdminTableBody')
+        if (!adminBody) return
+        if (!rows || !rows.length) {
             adminBody.innerHTML = '<tr><td colspan="5" class="text-center py-12 text-slate-500 font-bold">No admin classes found</td></tr>'
-        } else {
-            adminBody.innerHTML = pagedClasses.map(cls => {
-                let tasks = cls.tasks
-                if (typeof tasks === 'string') {
-                    try { tasks = JSON.parse(tasks) } catch (e) { tasks = [] }
-                }
-                const taskCount = Array.isArray(tasks) ? tasks.length : 0
-                const created = new Date(cls.created_at).toLocaleDateString()
-                return `<tr class="group transition-colors hover:bg-slate-900/40">
-                  <td class="px-5 py-3">${renderUserCell(cls.user_id, 'orange', false)}</td>
-                  <td class="px-5 py-3"><span class="font-bold text-slate-200">${escapeHtml(cls.class_name || 'Untitled Class')}</span></td>
-                  <td class="px-5 py-3"><span class="chip bg-orange/10 text-orange border-orange/30">${taskCount} task${taskCount !== 1 ? 's' : ''}</span></td>
-                  <td class="hidden sm:table-cell px-5 py-3 text-xs text-slate-500">${created}</td>
-                  <td class="px-5 py-3">
-                    <div class="flex items-center justify-end gap-2 opacity-100 md:opacity-75 md:group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity">
-                      <button type="button" onclick="openClassModal('${escapeHtml(cls.id)}','admin')" class="neo-btn px-3 py-1.5 bg-blue text-white rounded-xl text-xs">
-                        <i data-lucide="eye" class="w-3 h-3"></i> View
-                      </button>
-                    </div>
-                  </td>
-                </tr>`
-            }).join('')
+            return
         }
+        adminBody.innerHTML = rows.map(cls => {
+            const taskCount = Number(cls.task_count) || 0
+            const created = cls.created_at ? new Date(cls.created_at).toLocaleDateString() : '—'
+            return `<tr class="group transition-colors hover:bg-slate-900/40">
+              <td class="px-5 py-3">${renderUserCell(cls.user_id, 'orange', false, cls.display_name)}</td>
+              <td class="px-5 py-3"><span class="font-bold text-slate-200">${escapeHtml(cls.class_name || 'Untitled Class')}</span></td>
+              <td class="px-5 py-3"><span class="chip bg-orange/10 text-orange border-orange/30">${taskCount} task${taskCount !== 1 ? 's' : ''}</span></td>
+              <td class="hidden sm:table-cell px-5 py-3 text-xs text-slate-500">${created}</td>
+              <td class="px-5 py-3">
+                <div class="flex items-center justify-end gap-2 opacity-100 md:opacity-75 md:group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity">
+                  <button type="button" onclick="openClassModal('${escapeJsAttr(cls.id)}','admin')" class="neo-btn px-3 py-1.5 bg-blue text-white rounded-xl text-xs">
+                    <i data-lucide="eye" class="w-3 h-3"></i> View
+                  </button>
+                </div>
+              </td>
+            </tr>`
+        }).join('')
+        lucide.createIcons({ root: adminBody })
+        return
     }
 
     const unitsBody = document.getElementById('classUnitsTableBody')
-    if (unitsBody) {
-        if (!pagedUnits || !pagedUnits.length) {
-            unitsBody.innerHTML = '<tr><td colspan="5" class="text-center py-12 text-slate-500 font-bold">No class units found</td></tr>'
-        } else {
-            unitsBody.innerHTML = pagedUnits.map(cls => {
-                let syllabus = cls.syllabus
-                if (typeof syllabus === 'string') {
-                    try { syllabus = JSON.parse(syllabus) } catch (e) { syllabus = [] }
-                }
-                const unitCount = Array.isArray(syllabus) ? syllabus.length : 0
-                const created = new Date(cls.created_at).toLocaleDateString()
-                return `<tr class="group transition-colors hover:bg-slate-900/40">
-                  <td class="px-5 py-3">${renderUserCell(cls.user_id, 'orange', false)}</td>
-                  <td class="px-5 py-3"><span class="font-bold text-slate-200">${escapeHtml(cls.class_name || 'Untitled Class')}</span></td>
-                  <td class="px-5 py-3"><span class="chip bg-orange/10 text-orange border-orange/30">${unitCount} unit${unitCount !== 1 ? 's' : ''}</span></td>
-                  <td class="hidden sm:table-cell px-5 py-3 text-xs text-slate-500">${created}</td>
-                  <td class="px-5 py-3">
-                    <div class="flex items-center justify-end gap-2 opacity-100 md:opacity-75 md:group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity">
-                      <button type="button" onclick="openClassModal('${escapeHtml(cls.id)}','units')" class="neo-btn px-3 py-1.5 bg-blue text-white rounded-xl text-xs">
-                        <i data-lucide="eye" class="w-3 h-3"></i> View
-                      </button>
-                    </div>
-                  </td>
-                </tr>`
-            }).join('')
-        }
+    if (!unitsBody) return
+    if (!rows || !rows.length) {
+        unitsBody.innerHTML = '<tr><td colspan="5" class="text-center py-12 text-slate-500 font-bold">No class units found</td></tr>'
+        return
     }
-    lucide.createIcons()
+    unitsBody.innerHTML = rows.map(cls => {
+        const unitCount = Number(cls.unit_count) || 0
+        const created = cls.created_at ? new Date(cls.created_at).toLocaleDateString() : '—'
+        return `<tr class="group transition-colors hover:bg-slate-900/40">
+          <td class="px-5 py-3">${renderUserCell(cls.user_id, 'orange', false, cls.display_name)}</td>
+          <td class="px-5 py-3"><span class="font-bold text-slate-200">${escapeHtml(cls.class_name || 'Untitled Class')}</span></td>
+          <td class="px-5 py-3"><span class="chip bg-orange/10 text-orange border-orange/30">${unitCount} unit${unitCount !== 1 ? 's' : ''}</span></td>
+          <td class="hidden sm:table-cell px-5 py-3 text-xs text-slate-500">${created}</td>
+          <td class="px-5 py-3">
+            <div class="flex items-center justify-end gap-2 opacity-100 md:opacity-75 md:group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity">
+              <button type="button" onclick="openClassModal('${escapeJsAttr(cls.id)}','units')" class="neo-btn px-3 py-1.5 bg-blue text-white rounded-xl text-xs">
+                <i data-lucide="eye" class="w-3 h-3"></i> View
+              </button>
+            </div>
+          </td>
+        </tr>`
+    }).join('')
+    lucide.createIcons({ root: unitsBody })
 }
 
 function setClassTab(tab) {
@@ -930,9 +774,12 @@ function setClassTab(tab) {
     const unitsBtn = document.getElementById('classtab-units')
     adminBtn.className = `neo-btn px-4 py-2 ${tab === 'admin' ? 'bg-orange text-white font-bold' : 'bg-slate-700 text-slate-300'} rounded-xl text-sm`
     unitsBtn.className = `neo-btn px-4 py-2 ${tab === 'units' ? 'bg-orange text-white font-bold' : 'bg-slate-700 text-slate-300'} rounded-xl text-sm`
+    if (currentView === 'data-details' && currentDataTab === 'classes') {
+        loadDataDetailsTab(false)
+    }
 }
 
-function setDataTab(tab) {
+function setDataTab(tab, { load = true } = {}) {
     currentDataTab = tab
     const tabs = ['progress', 'notes', 'schedule', 'classes', 'tasks', 'myclass', 'studio']
     tabs.forEach(t => {
@@ -946,9 +793,12 @@ function setDataTab(tab) {
         }
     })
     lucide.createIcons()
+    if (load && currentView === 'data-details') {
+        loadDataDetailsTab(false)
+    }
 }
 
-// ── VIEW MODAL HELPERS ──
+// ── VIEW MODAL HELPERS & ON-DEMAND DETAIL INSPECTORS ──
 function setViewModalState({ title, sub, html, copyText = '' }) {
     lastViewModalCopyText = copyText
     document.getElementById('viewModalTitle').textContent = title
@@ -965,65 +815,114 @@ function copyViewModalContent() {
     copyTextToClipboard(lastViewModalCopyText, 'Modal content copied')
 }
 
-function openClassModal(id, type) {
-    const item = type === 'admin'
-        ? allClassAdmin.find(c => String(c.id) === String(id))
-        : allClassUnits.find(c => String(c.id) === String(id))
-    if (!item) return
-    const profile = allProfiles[item.user_id]
+function showModalLoading(title, sub) {
+    setViewModalState({
+        title,
+        sub,
+        html: '<div class="text-slate-400 text-xs font-mono py-6 text-center">Loading full payload from Supabase…</div>',
+        copyText: ''
+    })
+}
+
+function showModalError(title, sub, msg) {
+    setViewModalState({
+        title,
+        sub,
+        html: `<div class="text-pink text-xs font-mono">${escapeHtml(msg)}</div>`,
+        copyText: ''
+    })
+}
+
+async function openClassModal(id, type) {
+    const table = type === 'admin' ? 'myspace_class_admin' : 'myspace_class_units'
     const label = type === 'admin' ? 'Admin Tasks' : 'Syllabus Units'
+    showModalLoading(`Loading ${label}…`, `ID: ${id}`)
+
+    const { data, error } = await callAdminRpc('admin_get_record_detail', {
+        p_table: table,
+        p_id: String(id),
+        p_user_id: null
+    })
+    if (error || !data?.record) {
+        return showModalError(label, `ID: ${id}`, error?.message || 'Record not found')
+    }
+    const item = data.record
+    const owner = data.owner_name || String(item.user_id || '').slice(0, 8)
     const payload = type === 'admin' ? item.tasks : item.syllabus
     const jsonText = JSON.stringify(payload, null, 2)
     setViewModalState({
         title: `${item.class_name} — ${label}`,
-        sub: `${profile?.display_name || item.user_id.slice(0, 8)} · ${new Date(item.created_at).toLocaleDateString()}`,
+        sub: `${owner} · ${item.created_at ? new Date(item.created_at).toLocaleDateString() : '—'}`,
         html: `<pre class="text-green whitespace-pre-wrap font-mono text-xs">${escapeHtml(jsonText)}</pre>`,
         copyText: jsonText
     })
 }
 
-function openNoteModal(noteId) {
-    const note = allNotes.find(n => String(n.id) === String(noteId))
-    if (!note) return
-    const profile = allProfiles[note.user_id]
-    let folderLabel = 'Root'
-    if (note.folder_id) {
-        const folder = (allNoteFolders[note.user_id] || []).find(f => f.id === note.folder_id)
-        if (folder) folderLabel = folder.name || folder.id
+async function openNoteModal(noteId, userId = null) {
+    showModalLoading('Loading Note…', `ID: ${noteId}`)
+
+    const { data, error } = await callAdminRpc('admin_get_record_detail', {
+        p_table: 'notes',
+        p_id: String(noteId),
+        p_user_id: userId || null
+    })
+    if (error || !data?.record) {
+        return showModalError('Lesson Note', `ID: ${noteId}`, error?.message || 'Note not found')
     }
+    const note = data.record
+    const owner = data.owner_name || String(note.user_id || '').slice(0, 8)
+    const folderLabel = note.folder_id ? (data.folder_name || note.folder_id) : 'Root'
     const content = note.content || ''
+    const ts = parseTimestampMs(note.updated_at)
     setViewModalState({
-        title: `${profile?.display_name || note.user_id.slice(0, 8)} — ${note.title || 'Untitled'}`,
-        sub: `Folder: ${folderLabel}${note.deleted ? ' · TRASHED' : ''} · Updated ${Number(note.updated_at) ? new Date(Number(note.updated_at)).toLocaleString() : '—'}`,
+        title: `${owner} — ${note.title || 'Untitled'}`,
+        sub: `Folder: ${folderLabel}${note.deleted ? ' · TRASHED' : ''} · Updated ${ts ? new Date(ts).toLocaleString() : '—'}`,
         html: `<pre class="text-green whitespace-pre-wrap font-mono text-xs">${escapeHtml(content || '(Empty note)')}</pre>`,
         copyText: content
     })
 }
 
-function openScheduleModal(id) {
-    const ev = allScheduleEvents.find(e => String(e.id) === String(id))
-    if (!ev) return
-    const profile = allProfiles[ev.user_id]
+async function openScheduleModal(id) {
+    showModalLoading('Loading Schedule Event…', `ID: ${id}`)
+
+    const { data, error } = await callAdminRpc('admin_get_record_detail', {
+        p_table: 'myspace_events',
+        p_id: String(id),
+        p_user_id: null
+    })
+    if (error || !data?.record) {
+        return showModalError('Schedule Event', `ID: ${id}`, error?.message || 'Event not found')
+    }
+    const ev = data.record
+    const owner = data.owner_name || String(ev.user_id || '').slice(0, 8)
     const jsonText = JSON.stringify(ev, null, 2)
     setViewModalState({
         title: `Schedule Event — ${ev.name || 'Untitled Event'}`,
-        sub: `Owner: ${profile?.display_name || ev.user_id.slice(0, 8)} · Date: ${ev.date || '—'} · Type: ${ev.type_id || 'other'}`,
+        sub: `Owner: ${owner} · Date: ${ev.date || '—'} · Type: ${ev.type_id || 'other'}`,
         html: `<pre class="text-green whitespace-pre-wrap font-mono text-xs">${escapeHtml(jsonText)}</pre>`,
         copyText: jsonText
     })
 }
 
-// ── VIEW MODAL ──
-function openViewModal(userId, toolKey) {
-    const row = allProgress.find(r => r.user_id === userId && r.tool_key === toolKey)
-    const profile = allProfiles[userId]
-    if (!row) return
-
+async function openViewModal(userId, toolKey) {
     const meta = getToolMeta(toolKey)
+    const profile = allProfiles[userId]
+    showModalLoading(`${profile?.display_name || String(userId).slice(0, 8)} — ${meta.name}`, `Tool key: ${toolKey}`)
+
+    const { data, error } = await callAdminRpc('admin_get_record_detail', {
+        p_table: 'user_progress',
+        p_id: String(toolKey),
+        p_user_id: userId
+    })
+    if (error || !data?.record) {
+        return showModalError(`${meta.name} (${toolKey})`, `User: ${userId}`, error?.message || 'Progress record not found')
+    }
+    const row = data.record
+    const owner = data.owner_name || profile?.display_name || String(userId).slice(0, 8)
     const jsonText = JSON.stringify(row.data, null, 2)
     setViewModalState({
-        title: `${profile?.display_name || userId.slice(0, 8)} — ${meta.name} (${toolKey})`,
-        sub: `Updated ${new Date(row.updated_at).toLocaleString()}`,
+        title: `${owner} — ${meta.name} (${toolKey})`,
+        sub: `Updated ${row.updated_at ? new Date(row.updated_at).toLocaleString() : '—'}`,
         html: `<pre class="text-green whitespace-pre-wrap font-mono text-xs">${escapeHtml(jsonText)}</pre>`,
         copyText: jsonText
     })
@@ -1034,64 +933,36 @@ function closeViewModal() {
     lastViewModalCopyText = ''
 }
 
-// ── VIEW USER ──
-function viewUser(userId) {
-    const profile = allProfiles[userId] || {}
-    const name = profile.display_name || userId.slice(0, 8)
-    const email = profile.email || '—'
-    const role = profile.role || 'user'
-    const userProgress = allProgress.filter(r => r.user_id === userId)
-    const userNotes = allNotes.filter(n => n.user_id === userId)
-    const userTasks = allMySpaceTasks.filter(t => t.user_id === userId)
-    const completedTasksCount = userTasks.filter(t => t.completed).length
-    const userClasses = allMyClass.filter(c => c.user_id === userId)
-    const userEvents = allScheduleEvents.filter(e => e.user_id === userId)
-    const userSpreadsheets = allSpreadsheets.filter(s => s.user_id === userId)
-    const userCardMaker = allCardMaker.filter(c => c.user_id === userId)
-    const userPuzzleMaker = allPuzzleMaker.filter(p => p.user_id === userId)
-    const userWorksheetMaker = allWorksheetMaker.filter(w => w.user_id === userId)
-    const userLessonParser = allLessonParser.filter(l => l.user_id === userId)
-    const userDnd = allToolsDnd.filter(d => d.user_id === userId)
-    const userVttMaps = allVttMaps.filter(m => (m.user_id || m.owner_id) === userId)
-    const userVttCampaigns = allVttCampaigns.filter(c => (c.user_id || c.owner_id) === userId)
+// ── VIEW USER (On-Demand RPC) ──
+async function viewUser(userId) {
+    const cached = allProfiles[userId] || {}
+    showModalLoading(`${cached.display_name || String(userId).slice(0, 8)} — Profile Details`, `UID: ${userId}`)
 
-    const studioTotal = userSpreadsheets.length + userCardMaker.length + userPuzzleMaker.length + userWorksheetMaker.length
-    const workshopTotal = userLessonParser.length + userDnd.length + userVttMaps.length + userVttCampaigns.length
-
-    let totalStudents = 0
-    userClasses.forEach(cls => {
-        const d = typeof cls.data === 'string' ? (() => { try { return JSON.parse(cls.data) } catch (e) { return {} } })() : (cls.data || {})
-        if (Array.isArray(d.students)) totalStudents += d.students.length
-    })
-
-    const formatTs = (ts) => ts ? new Date(ts).toLocaleString() : '—'
-    const usedMB = ((profile.storage_usage || 0) / (1024 * 1024)).toFixed(2)
-    const limitMB = ((profile.storage_limit || 50 * 1024 * 1024) / (1024 * 1024)).toFixed(0)
-    const storagePct = Math.min(100, Math.round(((profile.storage_usage || 0) / (profile.storage_limit || 50 * 1024 * 1024)) * 100))
-
-    // Aggregate canonical tools used by this user across all tables
-    const canonicalCounts = {}
-    userProgress.forEach(r => {
-        if (r.tool_key === 'klasskit_hub' || r.tool_key === 'hub') return
-        const cid = resolveCanonicalToolId(r.tool_key)
-        const entries = extractLogEntries(r)
-        canonicalCounts[cid] = (canonicalCounts[cid] || 0) + entries.length
-    })
-    if (userNotes.length) canonicalCounts['lessonnotes'] = (canonicalCounts['lessonnotes'] || 0) + userNotes.length
-    if (userEvents.length) canonicalCounts['schedule'] = (canonicalCounts['schedule'] || 0) + userEvents.length
-    if (userClasses.length) canonicalCounts['my-class'] = (canonicalCounts['my-class'] || 0) + userClasses.length
-    if (userTasks.length) canonicalCounts['tasks'] = (canonicalCounts['tasks'] || 0) + userTasks.length
-    if (userSpreadsheets.length) canonicalCounts['spreadsheet'] = (canonicalCounts['spreadsheet'] || 0) + userSpreadsheets.length
-    if (userCardMaker.length) canonicalCounts['card-maker'] = (canonicalCounts['card-maker'] || 0) + userCardMaker.length
-    if (userPuzzleMaker.length) canonicalCounts['puzzle-maker'] = (canonicalCounts['puzzle-maker'] || 0) + userPuzzleMaker.length
-    if (userWorksheetMaker.length) canonicalCounts['worksheet-maker'] = (canonicalCounts['worksheet-maker'] || 0) + userWorksheetMaker.length
-    if (userLessonParser.length) canonicalCounts['lesson-parser'] = (canonicalCounts['lesson-parser'] || 0) + userLessonParser.length
-    if (userDnd.length || userVttMaps.length || userVttCampaigns.length) {
-        canonicalCounts['dnd-hub'] = (canonicalCounts['dnd-hub'] || 0) + userDnd.length + userVttMaps.length + userVttCampaigns.length
+    const { data, error } = await callAdminRpc('admin_get_user_detail', { p_user_id: userId })
+    if (error || !data?.profile) {
+        return showModalError('User Profile', `UID: ${userId}`, error?.message || 'Profile not found')
     }
 
-    const sortedToolKeys = Object.keys(canonicalCounts).sort((a, b) => canonicalCounts[b] - canonicalCounts[a])
-    const recentNotes = [...userNotes].sort((a, b) => (Number(b.updated_at) || 0) - (Number(a.updated_at) || 0)).slice(0, 5)
+    const profile = data.profile
+    allProfiles[userId] = { ...(allProfiles[userId] || {}), ...profile }
+
+    const counts = data.counts || {}
+    const canonicalList = Array.isArray(data.canonical_counts) ? data.canonical_counts : []
+    const recentNotes = Array.isArray(data.recent_notes) ? data.recent_notes : []
+
+    const name = profile.display_name || String(userId).slice(0, 8)
+    const email = profile.email || '—'
+    const role = profile.role || 'user'
+    const formatTs = (ts) => {
+        const ms = parseTimestampMs(ts)
+        return ms ? new Date(ms).toLocaleString() : '—'
+    }
+
+    const usedBytes = Number(profile.storage_usage) || 0
+    const limitBytes = Number(profile.storage_limit) || USER_DEFAULT_STORAGE_LIMIT
+    const usedMB = (usedBytes / (1024 * 1024)).toFixed(2)
+    const limitMB = (limitBytes / (1024 * 1024)).toFixed(0)
+    const storagePct = Math.min(100, Math.round((usedBytes / limitBytes) * 100))
 
     const html = `
         <div class="space-y-5 text-slate-300">
@@ -1136,27 +1007,27 @@ function viewUser(userId) {
 
             <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
                 <div class="neo bg-slate-800 p-3 text-center border-2 border-slate-600">
-                    <div class="text-xl font-heading text-blue mb-0.5">${userProgress.length}</div>
+                    <div class="text-xl font-heading text-blue mb-0.5">${Number(counts.progress_rows) || 0}</div>
                     <div class="text-[9px] uppercase font-bold text-slate-400">Tool Rows</div>
                 </div>
                 <div class="neo bg-slate-800 p-3 text-center border-2 border-slate-600">
-                    <div class="text-xl font-heading text-orange mb-0.5">${userNotes.length}</div>
+                    <div class="text-xl font-heading text-orange mb-0.5">${Number(counts.notes) || 0}</div>
                     <div class="text-[9px] uppercase font-bold text-slate-400">Notes</div>
                 </div>
                 <div class="neo bg-slate-800 p-3 text-center border-2 border-slate-600">
-                    <div class="text-xl font-heading text-green mb-0.5">${userClasses.length}</div>
-                    <div class="text-[9px] uppercase font-bold text-slate-400">Classes (${totalStudents} stu)</div>
+                    <div class="text-xl font-heading text-green mb-0.5">${Number(counts.classes) || 0}</div>
+                    <div class="text-[9px] uppercase font-bold text-slate-400">Classes (${Number(counts.total_students) || 0} stu)</div>
                 </div>
                 <div class="neo bg-slate-800 p-3 text-center border-2 border-slate-600">
-                    <div class="text-xl font-heading text-pink mb-0.5">${userEvents.length}</div>
+                    <div class="text-xl font-heading text-pink mb-0.5">${Number(counts.events) || 0}</div>
                     <div class="text-[9px] uppercase font-bold text-slate-400">Events</div>
                 </div>
                 <div class="neo bg-slate-800 p-3 text-center border-2 border-slate-600">
-                    <div class="text-xl font-heading text-blue mb-0.5">${completedTasksCount}/${userTasks.length}</div>
+                    <div class="text-xl font-heading text-blue mb-0.5">${Number(counts.tasks_completed) || 0}/${Number(counts.tasks) || 0}</div>
                     <div class="text-[9px] uppercase font-bold text-slate-400">Tasks Done</div>
                 </div>
                 <div class="neo bg-slate-800 p-3 text-center border-2 border-slate-600">
-                    <div class="text-xl font-heading text-orange mb-0.5">${studioTotal + workshopTotal}</div>
+                    <div class="text-xl font-heading text-orange mb-0.5">${Number(counts.studio_workshop) || 0}</div>
                     <div class="text-[9px] uppercase font-bold text-slate-400">Studio & Workshop</div>
                 </div>
             </div>
@@ -1164,15 +1035,16 @@ function viewUser(userId) {
             <div class="neo bg-slate-950 p-4 border-2 border-slate-700">
                 <h3 class="font-heading text-sm text-white mb-3 flex items-center gap-2">
                     <i data-lucide="grid-2x2" class="w-4 h-4 text-blue"></i>
-                    Adopted Tools & Activity Volume (${sortedToolKeys.length})
+                    Adopted Tools & Activity Volume (${canonicalList.length})
                     <span class="text-[10px] font-body font-normal text-slate-500 ml-auto">Click tool to inspect</span>
                 </h3>
-                ${sortedToolKeys.length ? `
+                ${canonicalList.length ? `
                 <div class="flex flex-wrap gap-2">
-                    ${sortedToolKeys.map(cid => {
+                    ${canonicalList.map(item => {
+                        const cid = item.canonical_tool
                         const meta = getToolMeta(cid)
                         return `<button type="button" onclick="filterDataByUser('${escapeJsAttr(userId)}', '${escapeJsAttr(cid)}')"
-                            class="chip bg-blue/10 text-blue border-blue/40 hover:bg-blue/20 transition-colors cursor-pointer">${escapeHtml(meta.name)} <span class="ml-1 opacity-70">(${canonicalCounts[cid]})</span></button>`
+                            class="chip bg-blue/10 text-blue border-blue/40 hover:bg-blue/20 transition-colors cursor-pointer">${escapeHtml(meta.name)} <span class="ml-1 opacity-70">(${Number(item.count) || 0})</span></button>`
                     }).join('')}
                 </div>
                 ` : '<div class="text-xs text-slate-500 italic">No tool activity</div>'}
@@ -1184,14 +1056,14 @@ function viewUser(userId) {
                 <ul class="space-y-1.5 text-xs">
                     ${recentNotes.map(n => `
                         <li>
-                            <button type="button" onclick="openNoteModal('${escapeHtml(n.id)}')"
+                            <button type="button" onclick="openNoteModal('${escapeJsAttr(n.id)}', '${escapeJsAttr(userId)}')"
                                 class="w-full flex justify-between items-center border-b border-slate-800 pb-2 pt-1 px-2 rounded-lg hover:bg-slate-900 transition-colors text-left">
                                 <span class="font-bold text-slate-300 truncate mr-4 flex items-center gap-2">
                                     ${escapeHtml(n.title || 'Untitled')}
                                     ${n.deleted ? '<span class="px-1.5 py-0.5 rounded bg-pink/20 text-pink text-[9px] font-black uppercase">Trash</span>' : ''}
                                 </span>
                                 <span class="text-slate-500 font-mono whitespace-nowrap flex items-center gap-2">
-                                    ${formatTs(Number(n.updated_at))}
+                                    ${formatTs(n.updated_at)}
                                     <i data-lucide="external-link" class="w-3 h-3 text-blue"></i>
                                 </span>
                             </button>
@@ -1203,40 +1075,40 @@ function viewUser(userId) {
     `
 
     const roleLabel = role === 'pro' ? '⭐ PRO USER' : role === 'admin' ? '🛡️ ADMIN' : '👤 USER'
+    const lastActiveStr = profile.last_active_ts ? formatTs(profile.last_active_ts) : 'Never'
     setViewModalState({
         title: `${name} — Profile Details`,
-        sub: `Role: ${roleLabel} · Last Active: ${profile.last_active_ts ? formatTs(profile.last_active_ts) : 'Never'}`,
+        sub: `Role: ${roleLabel} · Last Active: ${lastActiveStr}`,
         html,
         copyText: ''
     })
 }
 
 // ── DELETE MODAL ──
-function openDeleteModal(idOrUser, toolOrType) {
-    let title = "Delete Item?"
-    let msg = "This action cannot be undone."
+function openDeleteModal(idOrUser, toolOrType, extraUserId = '', extraTitle = '') {
+    let title = 'Delete Item?'
+    let msg = 'This action cannot be undone.'
 
     if (toolOrType === 'announcement') {
         const ann = allAnnouncements.find(a => String(a.id) === String(idOrUser))
-        title = "Delete Announcement?"
-        msg = `Permanently delete "${ann?.title || 'this announcement'}"?`
+        title = 'Delete Announcement?'
+        msg = `Permanently delete "${ann?.title || extraTitle || 'this announcement'}"?`
         pendingDelete = { id: idOrUser, type: 'announcement' }
     } else if (toolOrType === 'note') {
-        const note = allNotes.find(n => String(n.id) === String(idOrUser))
-        title = "Delete Note?"
-        msg = `Permanently delete note "${note?.title || 'Untitled'}"?`
-        pendingDelete = { id: idOrUser, type: 'note' }
+        title = 'Delete Note?'
+        msg = `Permanently delete note "${extraTitle || 'Untitled'}"?`
+        pendingDelete = { id: idOrUser, userId: extraUserId || null, type: 'note' }
     } else if (toolOrType === 'cloud-storage') {
         const profile = allProfiles[idOrUser]
-        const name = profile?.display_name || idOrUser.slice(0, 8)
+        const name = profile?.display_name || extraTitle || String(idOrUser).slice(0, 8)
         const usedMB = ((profile?.storage_usage || 0) / (1024 * 1024)).toFixed(1)
-        title = "Clear Cloud Storage?"
+        title = 'Clear Cloud Storage?'
         msg = `Permanently delete all cloud media files (${usedMB} MB) for "${name}"? This cannot be undone.`
         pendingDelete = { userId: idOrUser, type: 'cloud-storage' }
     } else {
         const profile = allProfiles[idOrUser]
-        const name = profile?.display_name || idOrUser.slice(0, 8)
-        title = "Delete Progress?"
+        const name = extraTitle || profile?.display_name || String(idOrUser).slice(0, 8)
+        title = 'Delete Progress?'
         msg = `This will permanently delete "${toolOrType}" data for ${name}.`
         pendingDelete = { userId: idOrUser, toolKey: toolOrType, type: 'progress' }
     }
@@ -1262,16 +1134,17 @@ async function executeDelete() {
             if (error) showToast('Error: ' + error.message, 'error')
             else {
                 showToast('Announcement deleted')
-                fetchData()
+                if (typeof loadAnnouncements === 'function') await loadAnnouncements()
             }
         } else if (pendingDelete.type === 'note') {
-            const { error } = await db.from('notes').delete().eq('id', pendingDelete.id)
+            let query = db.from('notes').delete().eq('id', pendingDelete.id)
+            if (pendingDelete.userId) query = query.eq('user_id', pendingDelete.userId)
+            const { error } = await query
             if (error) showToast('Error: ' + error.message, 'error')
             else {
                 showToast('Note deleted')
-                allNotes = allNotes.filter(n => String(n.id) !== String(pendingDelete.id))
-                updateStats()
-                applyFilters()
+                await loadDashboardSummary()
+                if (currentView === 'data-details') await loadDataDetailsTab(true)
             }
         } else if (pendingDelete.type === 'cloud-storage') {
             const { userId } = pendingDelete
@@ -1286,12 +1159,11 @@ async function executeDelete() {
                 .delete()
                 .match({ user_id: userId, tool_key: toolKey })
 
-            if (error) { showToast('Error: ' + error.message, 'error') }
+            if (error) showToast('Error: ' + error.message, 'error')
             else {
                 showToast('Progress data deleted')
-                allProgress = allProgress.filter(r => !(r.user_id === userId && r.tool_key === toolKey))
-                updateStats()
-                applyFilters()
+                await loadDashboardSummary()
+                if (currentView === 'data-details') await loadDataDetailsTab(true)
             }
         }
     } finally {
@@ -1299,34 +1171,28 @@ async function executeDelete() {
     }
 }
 
-
 // ── MY SPACE TASKS VIEW ──
-function renderTasksTable(filteredTasks) {
+function renderTasksTable(tasks) {
     const body = document.getElementById('tasksTableBody')
     if (!body) return
 
-    if (!filteredTasks) {
-        const excludedIds = getExcludedUserIds()
-        filteredTasks = allMySpaceTasks.filter(task => !excludedIds.includes(task.user_id))
-    }
-
-    if (!filteredTasks.length) {
+    if (!tasks || !tasks.length) {
         body.innerHTML = '<tr><td colspan="5" class="text-center py-12 text-slate-500 font-bold">No tasks found</td></tr>'
         return
     }
 
-    body.innerHTML = filteredTasks.map(task => {
+    body.innerHTML = tasks.map(task => {
         const statusColor = task.completed ? 'green' : (task.priority === 'high' ? 'pink' : 'blue')
         const statusLabel = task.completed ? 'Completed' : (task.priority || 'Medium')
         const statusCls = CHIP_COLOR_STYLES[statusColor] || CHIP_COLOR_STYLES.blue
 
         return `<tr class="group transition-colors hover:bg-slate-800/50">
-            <td class="px-5 py-3">${renderUserCell(task.user_id, 'blue', false)}</td>
+            <td class="px-5 py-3">${renderUserCell(task.user_id, 'blue', false, task.display_name)}</td>
             <td class="px-5 py-3"><span class="font-bold text-slate-200 ${task.completed ? 'line-through opacity-60' : ''}">${escapeHtml(task.text)}</span></td>
             <td class="px-5 py-3"><span class="chip bg-slate-700 text-slate-400 border-slate-600">${escapeHtml(task.category || 'General')}</span></td>
             <td class="px-5 py-3"><span class="chip ${statusCls}">${escapeHtml(statusLabel)}</span></td>
             <td class="px-5 py-3 text-right">
-                <button type="button" onclick="openTaskModal('${escapeHtml(task.id)}')" class="neo-btn px-3 py-1.5 bg-slate-800 text-slate-300 rounded-xl text-xs opacity-100 md:opacity-75 md:group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity">
+                <button type="button" onclick="openTaskModal('${escapeJsAttr(task.id)}')" class="neo-btn px-3 py-1.5 bg-slate-800 text-slate-300 rounded-xl text-xs opacity-100 md:opacity-75 md:group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity">
                     <i data-lucide="eye" class="w-3 h-3"></i> View
                 </button>
             </td>
@@ -1335,57 +1201,57 @@ function renderTasksTable(filteredTasks) {
     lucide.createIcons({ root: body })
 }
 
-function openTaskModal(id) {
-    const task = allMySpaceTasks.find(t => String(t.id) === String(id))
-    if (!task) return
-    const profile = allProfiles[task.user_id]
+async function openTaskModal(id) {
+    showModalLoading('Loading Task Detail…', `ID: ${id}`)
+
+    const { data, error } = await callAdminRpc('admin_get_record_detail', {
+        p_table: 'myspace_tasks',
+        p_id: String(id),
+        p_user_id: null
+    })
+    if (error || !data?.record) {
+        return showModalError('Task Detail', `ID: ${id}`, error?.message || 'Task not found')
+    }
+    const task = data.record
+    const owner = data.owner_name || 'User'
     const jsonText = JSON.stringify(task, null, 2)
     setViewModalState({
-        title: `Task Detail — ${profile?.display_name || 'User'}`,
-        sub: `ID: ${task.id} · Created: ${new Date(task.created_at).toLocaleString()}`,
+        title: `Task Detail — ${owner}`,
+        sub: `ID: ${task.id} · Created: ${task.created_at ? new Date(task.created_at).toLocaleString() : '—'}`,
         html: `<pre class="text-green whitespace-pre-wrap font-mono text-xs">${escapeHtml(jsonText)}</pre>`,
         copyText: jsonText
     })
 }
 
 // ── MY CLASS VIEW ──
-function renderMyClassTable(filteredMyClass) {
+function renderMyClassTable(rows) {
     const body = document.getElementById('myclassTableBody')
     if (!body) return
 
-    if (!filteredMyClass) {
-        const excludedIds = getExcludedUserIds()
-        filteredMyClass = allMyClass.filter(cls => !excludedIds.includes(cls.user_id))
-    }
-
-    if (!filteredMyClass.length) {
+    if (!rows || !rows.length) {
         body.innerHTML = '<tr><td colspan="5" class="text-center py-12 text-slate-500 font-bold">No class records found</td></tr>'
         return
     }
 
-    body.innerHTML = filteredMyClass.map(cls => {
+    body.innerHTML = rows.map(cls => {
         const updated = cls.updated_at ? new Date(cls.updated_at).toLocaleDateString() : '—'
-
-        const d = typeof cls.data === 'string'
-            ? (() => { try { return JSON.parse(cls.data) } catch (e) { return {} } })()
-            : (cls.data || {})
-        const stuCount = Array.isArray(d.students) ? d.students.length : 0
-        const logDays = d.logs && typeof d.logs === 'object' ? Object.keys(d.logs).length : 0
-        const refDays = d.reflections && typeof d.reflections === 'object' ? Object.keys(d.reflections).length : 0
+        const stuCount = Number(cls.student_count) || 0
+        const attDays = Number(cls.att_days) || 0
+        const refCount = Number(cls.ref_count) || 0
 
         return `<tr class="group transition-colors hover:bg-slate-800/50">
-            <td class="px-5 py-3">${renderUserCell(cls.user_id, 'orange', false)}</td>
+            <td class="px-5 py-3">${renderUserCell(cls.user_id, 'orange', false, cls.display_name)}</td>
             <td class="px-5 py-3"><span class="font-bold text-slate-200">${escapeHtml(cls.class_name)}</span></td>
             <td class="px-5 py-3">
                 <div class="flex flex-wrap gap-1.5">
                     <span class="chip bg-green/10 text-green border-green/30">${stuCount} student${stuCount === 1 ? '' : 's'}</span>
-                    ${logDays > 0 ? `<span class="chip bg-blue/10 text-blue border-blue/30">${logDays} log day${logDays === 1 ? '' : 's'}</span>` : ''}
-                    ${refDays > 0 ? `<span class="chip bg-orange/10 text-orange border-orange/30">${refDays} refl</span>` : ''}
+                    ${attDays > 0 ? `<span class="chip bg-blue/10 text-blue border-blue/30">${attDays} att day${attDays === 1 ? '' : 's'}</span>` : ''}
+                    ${refCount > 0 ? `<span class="chip bg-orange/10 text-orange border-orange/30">${refCount} refl</span>` : ''}
                 </div>
             </td>
             <td class="px-5 py-3 text-xs text-slate-500 font-mono">${updated}</td>
             <td class="px-5 py-3 text-right">
-                <button type="button" onclick="openMyClassRowModal('${escapeHtml(cls.id)}')" class="neo-btn px-3 py-1.5 bg-slate-800 text-slate-300 rounded-xl text-xs opacity-100 md:opacity-75 md:group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity">
+                <button type="button" onclick="openMyClassRowModal('${escapeJsAttr(cls.id)}')" class="neo-btn px-3 py-1.5 bg-slate-800 text-slate-300 rounded-xl text-xs opacity-100 md:opacity-75 md:group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity">
                     <i data-lucide="eye" class="w-3 h-3"></i> View
                 </button>
             </td>
@@ -1394,165 +1260,52 @@ function renderMyClassTable(filteredMyClass) {
     lucide.createIcons({ root: body })
 }
 
-function openMyClassRowModal(id) {
-    const cls = allMyClass.find(c => String(c.id) === String(id))
-    if (!cls) return
-    const profile = allProfiles[cls.user_id]
-    const jsonText = JSON.stringify(cls.data, null, 2)
+async function openMyClassRowModal(id) {
+    showModalLoading('Loading Class Data…', `ID: ${id}`)
+
+    const { data, error } = await callAdminRpc('admin_get_record_detail', {
+        p_table: 'myspace_my_class',
+        p_id: String(id),
+        p_user_id: null
+    })
+    if (error || !data?.record) {
+        return showModalError('Class Data', `ID: ${id}`, error?.message || 'Class record not found')
+    }
+    const cls = data.record
+    const owner = data.owner_name || 'Unknown'
+    const classPayload = {
+        students: cls.students ?? [],
+        attendance: cls.attendance ?? {},
+        skills: cls.skills ?? [],
+        student_skills: cls.student_skills ?? {},
+        reflections: cls.reflections ?? []
+    }
+    const jsonText = JSON.stringify(classPayload, null, 2)
     setViewModalState({
         title: `Class Data — ${cls.class_name}`,
-        sub: `Teacher: ${profile?.display_name || 'Unknown'} · Updated: ${new Date(cls.updated_at).toLocaleString()}`,
+        sub: `Teacher: ${owner} · Updated: ${cls.updated_at ? new Date(cls.updated_at).toLocaleString() : '—'}`,
         html: `<pre class="text-green whitespace-pre-wrap font-mono text-xs">${escapeHtml(jsonText)}</pre>`,
         copyText: jsonText
     })
 }
 
 // ── STUDIO, MAKERS & WORKSHOP VIEW ──
-function buildStudioItemsList(excludedIds) {
-    const items = []
-
-    allSpreadsheets.forEach(s => {
-        const uid = s.user_id || ''
-        if (!uid || excludedIds.includes(uid)) return
-        items.push({
-            id: s.id,
-            table: 'spreadsheets',
-            user_id: uid,
-            tool_key: 'spreadsheet',
-            type_label: 'Spreadsheet',
-            color: 'blue',
-            title: s.title || s.name || 'Untitled Spreadsheet',
-            ts: parseTimestampMs(s.updated_at || s.created_at)
-        })
-    })
-
-    allCardMaker.forEach(c => {
-        const uid = c.user_id || ''
-        if (!uid || excludedIds.includes(uid)) return
-        items.push({
-            id: c.id,
-            table: 'tools_cardmaker',
-            user_id: uid,
-            tool_key: 'card-maker',
-            type_label: 'Card Maker Set',
-            color: 'pink',
-            title: c.name || c.title || 'Card Set',
-            ts: parseTimestampMs(c.last_used || c.updated_at || c.created_at)
-        })
-    })
-
-    allPuzzleMaker.forEach(p => {
-        const uid = p.user_id || ''
-        if (!uid || excludedIds.includes(uid)) return
-        items.push({
-            id: p.id,
-            table: 'tools_puzzlemaker',
-            user_id: uid,
-            tool_key: 'puzzle-maker',
-            type_label: 'Puzzle Maker Set',
-            color: 'orange',
-            title: p.name || p.title || 'Puzzle Set',
-            ts: parseTimestampMs(p.last_used || p.updated_at || p.created_at)
-        })
-    })
-
-    allWorksheetMaker.forEach(w => {
-        const uid = w.user_id || ''
-        if (!uid || excludedIds.includes(uid)) return
-        items.push({
-            id: w.id,
-            table: 'tools_worksheetmaker',
-            user_id: uid,
-            tool_key: 'worksheet-maker',
-            type_label: 'Worksheet Set',
-            color: 'green',
-            title: w.name || w.title || 'Worksheet',
-            ts: parseTimestampMs(w.last_used || w.updated_at || w.created_at)
-        })
-    })
-
-    allLessonParser.forEach(l => {
-        const uid = l.user_id || ''
-        if (!uid || excludedIds.includes(uid)) return
-        items.push({
-            id: l.id,
-            table: 'workshop_lessonparser',
-            user_id: uid,
-            tool_key: 'lesson-parser',
-            type_label: `Lesson Parser (${l.subject || 'Unit'})`,
-            color: 'pink',
-            title: l.name || l.unit_title || 'Lesson Unit',
-            ts: parseTimestampMs(l.last_used || l.updated_at || l.created_at)
-        })
-    })
-
-    allToolsDnd.forEach(d => {
-        const uid = d.user_id || ''
-        if (!uid || excludedIds.includes(uid)) return
-        items.push({
-            id: d.id,
-            table: 'tools_dnd',
-            user_id: uid,
-            tool_key: 'dnd-hub',
-            type_label: `D&D (${d.tool_type || d.type || 'Item'})`,
-            color: 'orange',
-            title: d.name || d.title || 'D&D Record',
-            ts: parseTimestampMs(d.last_used || d.updated_at || d.created_at)
-        })
-    })
-
-    allVttMaps.forEach(m => {
-        const uid = m.user_id || m.owner_id || ''
-        if (!uid || excludedIds.includes(uid)) return
-        items.push({
-            id: m.id,
-            table: 'vtt_maps',
-            user_id: uid,
-            tool_key: 'dnd-hub',
-            type_label: 'VTT Map',
-            color: 'green',
-            title: m.name || m.title || 'Battlemap',
-            ts: parseTimestampMs(m.updated_at || m.created_at)
-        })
-    })
-
-    allVttCampaigns.forEach(c => {
-        const uid = c.user_id || c.owner_id || ''
-        if (!uid || excludedIds.includes(uid)) return
-        items.push({
-            id: c.id,
-            table: 'vtt_campaigns',
-            user_id: uid,
-            tool_key: 'dnd-hub',
-            type_label: 'VTT Campaign',
-            color: 'blue',
-            title: c.name || c.title || 'Campaign',
-            ts: parseTimestampMs(c.updated_at || c.created_at)
-        })
-    })
-
-    return items.sort((a, b) => b.ts - a.ts)
-}
-
 function renderStudioTable(items) {
     const body = document.getElementById('studioTableBody')
     if (!body) return
 
-    if (!items) {
-        items = buildStudioItemsList(getExcludedUserIds())
-    }
-
-    if (!items.length) {
+    if (!items || !items.length) {
         body.innerHTML = '<tr><td colspan="5" class="text-center py-12 text-slate-500 font-bold">No studio, maker, or workshop items found</td></tr>'
         return
     }
 
     body.innerHTML = items.map(item => {
-        const dateStr = item.ts ? new Date(item.ts).toLocaleString() : '—'
+        const tsMs = parseTimestampMs(item.ts)
+        const dateStr = tsMs ? new Date(tsMs).toLocaleString() : '—'
         const chipCls = CHIP_COLOR_STYLES[item.color] || CHIP_COLOR_STYLES.blue
 
         return `<tr class="group transition-colors hover:bg-slate-800/50">
-            <td class="px-5 py-3">${renderUserCell(item.user_id, item.color, true)}</td>
+            <td class="px-5 py-3">${renderUserCell(item.user_id, item.color, true, item.display_name)}</td>
             <td class="px-5 py-3">
                 <span class="chip ${chipCls}">${escapeHtml(item.type_label)}</span>
             </td>
@@ -1561,7 +1314,7 @@ function renderStudioTable(items) {
             </td>
             <td class="px-5 py-3 text-xs text-slate-500 font-mono whitespace-nowrap">${dateStr}</td>
             <td class="px-5 py-3 text-right">
-                <button type="button" onclick="openStudioModal('${escapeHtml(item.table)}', '${escapeHtml(item.id)}')" class="neo-btn px-3 py-1.5 bg-blue text-white rounded-xl text-xs opacity-100 md:opacity-75 md:group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity">
+                <button type="button" onclick="openStudioModal('${escapeJsAttr(item.table)}', '${escapeJsAttr(item.id)}')" class="neo-btn px-3 py-1.5 bg-blue text-white rounded-xl text-xs opacity-100 md:opacity-75 md:group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity">
                     <i data-lucide="eye" class="w-3 h-3"></i> Inspect
                 </button>
             </td>
@@ -1571,30 +1324,24 @@ function renderStudioTable(items) {
 }
 
 async function openStudioModal(table, id) {
-    setViewModalState({
-        title: `Inspecting ${table}…`,
-        sub: `ID: ${id}`,
-        html: '<div class="text-slate-400 text-xs font-mono">Loading full payload from Supabase…</div>',
-        copyText: ''
-    })
+    showModalLoading(`Inspecting ${table}…`, `ID: ${id}`)
 
-    const { data, error } = await db.from(table).select('*').eq('id', id).maybeSingle()
-    if (error || !data) {
-        setViewModalState({
-            title: `Inspecting ${table}`,
-            sub: `ID: ${id}`,
-            html: `<div class="text-pink text-xs font-mono">Failed to load record: ${escapeHtml(error?.message || 'Record not found')}</div>`,
-            copyText: ''
-        })
-        return
+    const { data, error } = await callAdminRpc('admin_get_record_detail', {
+        p_table: table,
+        p_id: String(id),
+        p_user_id: null
+    })
+    if (error || !data?.record) {
+        return showModalError(`Inspecting ${table}`, `ID: ${id}`, error?.message || 'Record not found')
     }
-    const uid = data.user_id || data.owner_id
-    const profile = allProfiles[uid]
-    const title = data.title || data.unit_title || data.name || id
-    const jsonText = JSON.stringify(data, null, 2)
+    const rec = data.record
+    const uid = data.owner_id || rec.user_id || rec.owner_id
+    const owner = data.owner_name || uid || 'Unknown'
+    const title = rec.title || rec.unit_title || rec.name || id
+    const jsonText = JSON.stringify(rec, null, 2)
     setViewModalState({
         title: `${title} (${table})`,
-        sub: `Owner: ${profile?.display_name || uid || 'Unknown'}`,
+        sub: `Owner: ${owner}`,
         html: `<pre class="text-green whitespace-pre-wrap font-mono text-xs">${escapeHtml(jsonText)}</pre>`,
         copyText: jsonText
     })

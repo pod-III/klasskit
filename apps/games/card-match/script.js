@@ -570,7 +570,7 @@ const app = {
 
         try {
             let imgSource;
-            const user = !isSandbox() ? (await db.auth.getUser()).data?.user : null;
+            const user = await getCloudUser();
             if (user) {
                 imgSource = await uploadMedia(file, 'card_match', this.activePresetId);
             } else {
@@ -619,7 +619,7 @@ const app = {
         lucide.createIcons();
 
         try {
-            const user = !isSandbox() ? (await db.auth.getUser()).data?.user : null;
+            const user = await getCloudUser();
             const canUpload = Boolean(user);
 
             const processFile = async (file) => {
@@ -840,11 +840,9 @@ const app = {
     },
 
     executeDeletePreset: async function () {
-        if (!isSandbox()) {
-            const { data: { user } } = await db.auth.getUser();
-            if (user) {
-                deleteFolder(`${user.id}/card_match/${this.activePresetId}`).catch(e => console.warn("Cloud folder delete failed", e));
-            }
+        const user = await getCloudUser();
+        if (user) {
+            deleteFolder(`${user.id}/card_match/${this.activePresetId}`).catch(e => console.warn("Cloud folder delete failed", e));
         }
 
         await deletePresetFromDB(this.activePresetId);
@@ -932,12 +930,15 @@ const app = {
     },
 
     async hydrateThumbnails() {
-        const thumbs = document.querySelectorAll('.card-preview img, #game-grid img');
-        for (const img of thumbs) {
-            if (img.src && img.src.includes('klasskit-media')) {
-                img.src = await resolveMediaUrl(img.src);
-            }
-        }
+        const cloudThumbs = Array.from(document.querySelectorAll('.card-preview img, #game-grid img'))
+            .filter(img => img.src && img.src.includes('klasskit-media'));
+        if (cloudThumbs.length === 0) return;
+        const signedUrls = (typeof resolveMediaUrls === 'function')
+            ? await resolveMediaUrls(cloudThumbs.map(img => img.src))
+            : await Promise.all(cloudThumbs.map(img => resolveMediaUrl(img.src)));
+        cloudThumbs.forEach((img, idx) => {
+            if (signedUrls[idx]) img.src = signedUrls[idx];
+        });
     },
 
     removePair: function (idx) {
@@ -983,8 +984,14 @@ const app = {
             });
         });
 
-        for (let card of cards) {
-            if (card.type === 'image') card.content = await resolveMediaUrl(card.content);
+        const imageCards = cards.filter(c => c.type === 'image');
+        if (imageCards.length > 0) {
+            const signedUrls = (typeof resolveMediaUrls === 'function')
+                ? await resolveMediaUrls(imageCards.map(c => c.content))
+                : await Promise.all(imageCards.map(c => resolveMediaUrl(c.content)));
+            imageCards.forEach((card, idx) => {
+                if (signedUrls[idx]) card.content = signedUrls[idx];
+            });
         }
 
         cards = shuffleArray(cards);

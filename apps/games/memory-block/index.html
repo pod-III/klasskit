@@ -777,8 +777,8 @@
             saveBtn.innerHTML = `<i data-lucide="loader-2" class="animate-spin w-5 h-5"></i> Saving...`;
             lucide.createIcons();
 
-            const { data: { user } } = await db.auth.getUser();
-            const canUpload = !isSandbox() && user;
+            const user = await getCloudUser();
+            const canUpload = Boolean(user);
 
             const promises = currentColors.map(key => {
                 return new Promise(async (resolve) => {
@@ -838,8 +838,8 @@
                 iconColor: "red"
             });
             if (confirmed) {
-                const { data: { user } } = await db.auth.getUser();
-                if (!isSandbox() && user) {
+                const user = await getCloudUser();
+                if (user) {
                     // Purge cloud folder for this specific mode
                     await deleteFolder(`${user.id}/memory_block/${gridSize}`).catch(e => console.warn(e));
                 }

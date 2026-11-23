@@ -1069,7 +1069,7 @@
 
       if (!isSandbox() && typeof db !== 'undefined') {
         try {
-          const { data: { user } } = await db.auth.getUser();
+          const user = await getCloudUser();
           if (user) {
             const set = {
               user_id: user.id,
@@ -1082,6 +1082,7 @@
               const { data, error } = await db.from('tools_worksheetmaker')
                 .update({ name, state_data: set.state_data, last_used: set.last_used })
                 .eq('id', existingId)
+                .eq('user_id', user.id)
                 .select('id').single();
               if (!error && data) {
                 await saveSetLocallyToIDB({
@@ -1167,19 +1168,25 @@
       const normalizedState = data.stateData ? normalizeWorksheetState(data.stateData) : null;
       if (!isSandbox() && typeof db !== 'undefined' && checkValidUuid(id)) {
         try {
-          const updateData = {};
-          if (data.lastUsed) updateData.last_used = new Date().toISOString();
-          if (normalizedState) {
-            updateData.state_data = typeof sanitizeCloudPayload === 'function' ? sanitizeCloudPayload(normalizedState) : normalizedState;
-          }
-          if (data.name) updateData.name = data.name;
-          if (data.usageCount !== undefined) {
-            updateData.usage_count = data.usageCount;
-            updateData.last_used = new Date().toISOString();
-          }
+          const user = await getCloudUser();
+          if (user) {
+            const updateData = {};
+            if (data.lastUsed) updateData.last_used = new Date().toISOString();
+            if (normalizedState) {
+              updateData.state_data = typeof sanitizeCloudPayload === 'function' ? sanitizeCloudPayload(normalizedState) : normalizedState;
+            }
+            if (data.name) updateData.name = data.name;
+            if (data.usageCount !== undefined) {
+              updateData.usage_count = data.usageCount;
+              updateData.last_used = new Date().toISOString();
+            }
 
-          const { error } = await db.from('tools_worksheetmaker').update(updateData).eq('id', id);
-          if (error) console.error('[WorksheetSet] Update metadata failed:', error);
+            const { error } = await db.from('tools_worksheetmaker')
+              .update(updateData)
+              .eq('id', id)
+              .eq('user_id', user.id);
+            if (error) console.error('[WorksheetSet] Update metadata failed:', error);
+          }
         } catch (err) {
           console.error('[WorksheetSet] Update metadata exception:', err);
         }
@@ -1238,20 +1245,24 @@
 
       if (!isSandbox() && typeof db !== 'undefined') {
         try {
-          const { data, error } = await db.from('tools_worksheetmaker')
-            .select('*')
-            .order('last_used', { ascending: false });
-          if (!error && Array.isArray(data)) {
-            cloudSets = data.map(d => ({
-              id: d.id,
-              name: d.name,
-              stateData: d.state_data,
-              usageCount: d.usage_count || 0,
-              lastUsed: new Date(d.last_used).getTime() || Date.now(),
-              createdAt: new Date(d.created_at).getTime() || Date.now()
-            }));
-          } else if (error) {
-            console.error('[WorksheetSet] Cloud fetch error:', error);
+          const user = await getCloudUser();
+          if (user) {
+            const { data, error } = await db.from('tools_worksheetmaker')
+              .select('*')
+              .eq('user_id', user.id)
+              .order('last_used', { ascending: false });
+            if (!error && Array.isArray(data)) {
+              cloudSets = data.map(d => ({
+                id: d.id,
+                name: d.name,
+                stateData: d.state_data,
+                usageCount: d.usage_count || 0,
+                lastUsed: new Date(d.last_used).getTime() || Date.now(),
+                createdAt: new Date(d.created_at).getTime() || Date.now()
+              }));
+            } else if (error) {
+              console.error('[WorksheetSet] Cloud fetch error:', error);
+            }
           }
         } catch (err) {
           console.error('[WorksheetSet] Cloud fetch exception:', err);
@@ -1276,9 +1287,9 @@
     async function deleteWorksheetSet(id) {
       if (!isSandbox() && typeof db !== 'undefined' && checkValidUuid(id)) {
         try {
-          const { data: { user } } = await db.auth.getUser();
+          const user = await getCloudUser();
           if (user) {
-            await db.from('tools_worksheetmaker').delete().eq('id', id);
+            await db.from('tools_worksheetmaker').delete().eq('id', id).eq('user_id', user.id);
           }
         } catch (err) {
           console.error('[WorksheetSet] Cloud delete error:', err);
@@ -1460,11 +1471,12 @@
 
       if (!isSandbox() && typeof db !== 'undefined' && checkValidUuid(id)) {
         try {
-          const { data: { user } } = await db.auth.getUser();
+          const user = await getCloudUser();
           if (user) {
             const { data } = await db.from('tools_worksheetmaker')
               .select('*')
               .eq('id', id)
+              .eq('user_id', user.id)
               .single();
             if (data) {
               stateData = data.state_data;

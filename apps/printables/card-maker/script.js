@@ -117,7 +117,7 @@ async function dbGet(key) {
 // Card Sets CRUD
 async function saveCardSetToDB(name, stateData, existingId = null) {
     if (!isSandbox()) {
-        const { data: { user } } = await db.auth.getUser();
+        const user = await getCloudUser();
         if (!user) return null;
         
         const set = {
@@ -132,6 +132,7 @@ async function saveCardSetToDB(name, stateData, existingId = null) {
             const { data, error } = await db.from('tools_cardmaker')
                 .update({ name, state_data: set.state_data, last_used: set.last_used })
                 .eq('id', existingId)
+                .eq('user_id', user.id)
                 .select('id').single();
             if (error) { console.error(error); return null; }
             return data.id;
@@ -182,6 +183,8 @@ async function saveCardSetToDB(name, stateData, existingId = null) {
 
 async function updateLibraryItem(id, data) {
     if (!isSandbox()) {
+        const user = await getCloudUser();
+        if (!user) return;
         const updateData = {};
         if (data.usageCount !== undefined) {
             // We fetch current usage count and increment, but for simplicity let's just do a direct call or rely on an RPC. 
@@ -191,7 +194,10 @@ async function updateLibraryItem(id, data) {
         if (data.stateData) updateData.state_data = sanitizeCloudPayload(data.stateData);
         if (data.name) updateData.name = data.name;
 
-        await db.from('tools_cardmaker').update(updateData).eq('id', id);
+        await db.from('tools_cardmaker')
+            .update(updateData)
+            .eq('id', id)
+            .eq('user_id', user.id);
         return;
     }
 
@@ -214,8 +220,11 @@ async function updateLibraryItem(id, data) {
 
 async function getAllCardSets() {
     if (!isSandbox()) {
+        const user = await getCloudUser();
+        if (!user) return [];
         const { data, error } = await db.from('tools_cardmaker')
             .select('*')
+            .eq('user_id', user.id)
             .order('last_used', { ascending: false });
         if (error) { console.error(error); return []; }
         return data.map(d => ({
@@ -247,10 +256,10 @@ async function getAllCardSets() {
 }
 async function deleteCardSet(id) {
     if (!isSandbox()) {
-        const { data: { user } } = await db.auth.getUser();
+        const user = await getCloudUser();
         if (user) {
             deleteFolder(`${user.id}/card_maker/${id}`).catch(e => console.warn("Cloud folder delete failed", e));
-            await db.from('tools_cardmaker').delete().eq('id', id);
+            await db.from('tools_cardmaker').delete().eq('id', id).eq('user_id', user.id);
         }
         return;
     }
@@ -313,7 +322,13 @@ async function renderCardSets() {
 
 async function loadCardSetFromList(id) {
     if (!isSandbox()) {
-        const { data, error } = await db.from('tools_cardmaker').select('*').eq('id', id).single();
+        const user = await getCloudUser();
+        if (!user) return;
+        const { data, error } = await db.from('tools_cardmaker')
+            .select('*')
+            .eq('id', id)
+            .eq('user_id', user.id)
+            .single();
         if (data) {
             await updateLibraryItem(id, { usageCount: 1 }); // Just to update lastUsed
             loadCardSet(data.state_data, id, data.name);
@@ -467,7 +482,7 @@ async function loadState() {
             // Migration script: if old sets exist in user_progress, move them to tools_cardmaker
             const cloudSetsOld = await loadProgress('card_maker_sets');
             if (cloudSetsOld && cloudSetsOld.length > 0) {
-                const { data: { user } } = await db.auth.getUser();
+                const user = await getCloudUser();
                 if (user) {
                     for (const s of cloudSetsOld) {
                         await db.from('tools_cardmaker').insert({
@@ -852,12 +867,12 @@ async function handleBulkImageImport(input) {
     const cardsPerPage = state.gridCols * state.gridRows;
 
     // Process all images
+    const user = await getCloudUser();
     const newCards = [];
     for (const file of files) {
         try {
             let imgSource;
-            const { data: { user } } = await db.auth.getUser();
-            if (!isSandbox() && user) {
+            if (user) {
                 imgSource = await uploadMedia(file, 'card_maker', state.id);
             } else {
                 imgSource = await new Promise((resolve, reject) => {
@@ -1419,8 +1434,8 @@ async function handleFileSelect(file, uid, pageIndex) {
 
     try {
         let imgSource;
-        const { data: { user } } = await db.auth.getUser();
-        if (!isSandbox() && user) {
+        const user = await getCloudUser();
+        if (user) {
             imgSource = await uploadMedia(file, 'card_maker', state.id);
         } else {
             imgSource = await new Promise((resolve) => {

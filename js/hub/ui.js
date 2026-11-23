@@ -826,22 +826,25 @@ const HistoryManager = {
 
   async init() {
     this.loadLocalHistory();
-    await this.syncWithCloud();
+    // Only backfill from legacy user_progress rows once if kk_tab_history isn't in klasskit_hub yet
+    if (localStorage.getItem(CONFIG.storageKeys.tabHistory) === null) {
+      await this.syncWithCloud();
+    }
   },
 
   loadLocalHistory() {
-    const local = Storage.get('kk_tab_history', {});
+    const local = Storage.get(CONFIG.storageKeys.tabHistory, {});
     this.historyMap = new Map(Object.entries(local));
   },
 
   saveLocalHistory() {
-    Storage.set('kk_tab_history', Object.fromEntries(this.historyMap));
+    Storage.set(CONFIG.storageKeys.tabHistory, Object.fromEntries(this.historyMap));
   },
 
   async syncWithCloud() {
     if (typeof isSandbox === 'function' && isSandbox()) return;
     const user = await (typeof getUser === 'function' ? getUser() : null);
-    if (!user) return;
+    if (!user || user.is_sandbox) return;
 
     try {
       const { data, error } = await db
@@ -850,30 +853,27 @@ const HistoryManager = {
         .eq('user_id', user.id);
 
       if (error) {
-        console.warn('[HistoryManager] Cloud sync error:', error);
+        console.warn('[HistoryManager] Cloud backfill error:', error);
         return;
       }
 
       if (data) {
-        let changed = false;
         data.forEach(row => {
           const game = State.getGameById(row.tool_key);
-          if (game) { // Only track valid games/tools
+          const cloudTime = row.updated_at;
+          if (game && cloudTime && new Date(cloudTime).getFullYear() > 1970) {
             const existingTime = this.historyMap.get(row.tool_key);
-            const cloudTime = row.updated_at;
             if (!existingTime || new Date(cloudTime) > new Date(existingTime)) {
               this.historyMap.set(row.tool_key, cloudTime);
-              changed = true;
             }
           }
         });
-
-        if (changed) {
-          this.saveLocalHistory();
-        }
       }
+
+      // Always persist kk_tab_history (even if empty {}) into klasskit_hub so future boots skip this query
+      this.saveLocalHistory();
     } catch (e) {
-      console.warn('[HistoryManager] Sync failed:', e);
+      console.warn('[HistoryManager] Backfill failed:', e);
     }
   },
 
@@ -884,31 +884,6 @@ const HistoryManager = {
     const now = new Date().toISOString();
     this.historyMap.set(gameId, now);
     this.saveLocalHistory();
-
-    if (typeof isSandbox === 'function' && isSandbox()) return;
-    const user = await (typeof getUser === 'function' ? getUser() : null);
-    if (!user) return;
-
-    try {
-      // First try updating existing row
-      const { data, error } = await db.from('user_progress')
-        .update({ updated_at: now })
-        .eq('user_id', user.id)
-        .eq('tool_key', gameId)
-        .select();
-
-      if (!error && (!data || data.length === 0)) {
-        // If no row existed, insert a clean empty data row
-        await db.from('user_progress').insert({
-          user_id: user.id,
-          tool_key: gameId,
-          data: {},
-          updated_at: now
-        });
-      }
-    } catch (e) {
-      console.warn('[HistoryManager] Cloud track failed:', e);
-    }
   },
 
   openUI() {
@@ -916,7 +891,8 @@ const HistoryManager = {
     this.searchTerm = '';
     const searchInput = document.getElementById('history-search');
     if (searchInput) searchInput.value = '';
-    this.syncWithCloud().then(() => this.render());
+    this.loadLocalHistory();
+    this.render();
     this.togglePanel(true);
   },
 
@@ -958,19 +934,6 @@ const HistoryManager = {
 
     this.historyMap.clear();
     this.saveLocalHistory();
-
-    if (typeof isSandbox !== 'function' || !isSandbox()) {
-      const user = await (typeof getUser === 'function' ? getUser() : null);
-      if (user) {
-        try {
-          await db.from('user_progress')
-            .update({ updated_at: new Date(0).toISOString() })
-            .eq('user_id', user.id);
-        } catch (e) {
-          console.warn('[HistoryManager] Cloud clear failed:', e);
-        }
-      }
-    }
 
     this.render();
     UI.showToast('Tab history cleared', 'success');

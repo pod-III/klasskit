@@ -237,21 +237,23 @@ const App = {
     await requireAuth();
     try {
       FloatingTooltip.init();
-      State.userProfile = await getUserProfile();
       Theme.load();
-      UI.updateGreeting();
-      UI.updateUserUI();
       UI.showLoading();
 
-      // Cloud Persistence: Sync with cloud BEFORE loading games or initialization
-      // This ensures pinned/recent items are up to date
-      const dataChanged = await Storage.syncWithCloud();
+      // Run independent bootstrap fetches in parallel
+      const [profile, dataChanged, data] = await Promise.all([
+        getUserProfile(),
+        Storage.syncWithCloud(),
+        DataLoader.loadGames()
+      ]);
+      State.userProfile = profile;
       if (dataChanged) {
         console.log('[CloudPersistence] Local state updated from cloud. Refreshing theme...');
         Theme.load();
       }
+      UI.updateGreeting();
+      UI.updateUserUI();
 
-      const data = await DataLoader.loadGames();
       State.setGames(data);
       // Store top-level metadata for footer
       if (data.version) State.metadata = { ...(State.metadata || {}), version: data.version, lastUpdated: data.lastUpdated };
@@ -263,7 +265,11 @@ const App = {
       Hero.init();
       Footer.render();
       Search.setup();
-      const activity = await (typeof checkUserActivity === 'function' ? checkUserActivity() : Promise.resolve(null));
+      const defaultHome = window.HubSettings?.get('defaultHome') || 'auto';
+      const savedHomeView = Storage.get(CONFIG.storageKeys.homeView);
+      const activity = (defaultHome === 'auto' && !savedHomeView && typeof checkUserActivity === 'function')
+        ? await checkUserActivity()
+        : null;
       LandingPage.init(activity);
 
       if (typeof checkAndOfferSandboxImport === 'function') {
@@ -857,17 +863,8 @@ async function initAuthIndicator() {
     const displayName = user.user_metadata?.display_name || user.email?.split('@')[0] || 'User';
     if (usernameEl) usernameEl.textContent = displayName;
 
-    // Check if admin and show link
-    console.log('[HubAuth] Querying role for UID:', user.id);
-    const { data: profile, error: roleError } = await db
-      .from('profiles').select('role, display_name').eq('id', user.id).maybeSingle();
-    
-    if (roleError) {
-      console.error('[HubAuth] ERROR CODE:', roleError.code);
-      console.error('[HubAuth] ERROR MESSAGE:', roleError.message);
-      console.error('[HubAuth] FULL ERROR OBJECT:', roleError);
-    }
-    
+    // Reuse cached/deduplicated profile lookup instead of firing a duplicate profiles query
+    const profile = await getUserProfile();
     console.log('[HubAuth] RAW PROFILE DATA:', profile);
     console.log('[HubAuth] FINAL DETECTED ROLE:', profile?.role);
 

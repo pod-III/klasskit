@@ -1,41 +1,38 @@
-// KlassKit Admin — Audit Logs & Announcements
+// KlassKit Admin — Audit Logs & Announcements (RPC / Bounded Queries)
 
 // ── LOGS ──
-function renderLogsTable() {
+async function renderLogsTable() {
     const body = document.getElementById('logsTableBody')
     if (!body) return
 
-    const excludedIds = getExcludedUserIds()
+    const seq = ++reqSeq.logs
+    const excludedIds = getValidExcludedUserIds()
     const searchInput = document.getElementById('searchInput')
     const toolFilter = document.getElementById('toolFilter')
-    const search = searchInput ? searchInput.value.toLowerCase().trim() : ''
+    const search = searchInput ? searchInput.value.trim() : ''
     const tool = toolFilter ? toolFilter.value : ''
-    const canonicalSelectedTool = tool ? resolveCanonicalToolId(tool) : ''
 
-    // Build unified chronological audit trail across all tables
-    const allEvents = buildUnifiedEvents(excludedIds)
-        .filter(ev => {
-            const p = allProfiles[ev.user_id]
-            const name = (p?.display_name || '').toLowerCase()
-            const meta = getToolMeta(ev.canonical_tool)
-            const matchSearch = !search
-                || name.includes(search)
-                || ev.user_id.toLowerCase().includes(search)
-                || ev.tool_key.toLowerCase().includes(search)
-                || meta.name.toLowerCase().includes(search)
-                || String(ev.label || '').toLowerCase().includes(search)
-                || String(ev.action_type || '').toLowerCase().includes(search)
-            const matchTool = !tool || ev.tool_key === tool || ev.canonical_tool === canonicalSelectedTool
-            return matchSearch && matchTool
-        })
-        .sort((a, b) => b.timestamp - a.timestamp)
+    const { data, error } = await callAdminRpc('admin_list_audit_events', {
+        p_excluded_ids: excludedIds,
+        p_search: search,
+        p_tool_filter: tool,
+        p_limit: 250,
+        p_offset: 0
+    })
+
+    if (seq !== reqSeq.logs) return
+    if (error || !data) {
+        body.innerHTML = '<tr><td colspan="4" class="px-6 py-12 text-center text-pink font-bold">Failed to load audit events</td></tr>'
+        return
+    }
+
+    const total = Number(data.total) || 0
+    const logEntries = Array.isArray(data.items) ? data.items : []
 
     const logsCountChip = document.getElementById('logsCountChip')
     if (logsCountChip) {
-        logsCountChip.textContent = `${Math.min(250, allEvents.length)} of ${allEvents.length} events`
+        logsCountChip.textContent = `${logEntries.length} of ${total} events`
     }
-
-    const logEntries = allEvents.slice(0, 250)
 
     if (!logEntries.length) {
         body.innerHTML = '<tr><td colspan="4" class="px-6 py-12 text-center text-slate-500 font-bold">No log entries found</td></tr>'
@@ -43,12 +40,12 @@ function renderLogsTable() {
     }
 
     body.innerHTML = logEntries.map(entry => {
-        const profile = allProfiles[entry.user_id]
-        const name = profile?.display_name || entry.user_id.slice(0, 8)
-        const time = entry.timestamp.toLocaleTimeString()
-        const date = entry.timestamp.toLocaleDateString()
+        const name = entry.display_name || String(entry.user_id || '').slice(0, 8)
+        const tsDate = new Date(entry.event_ts)
+        const time = tsDate.toLocaleTimeString()
+        const date = tsDate.toLocaleDateString()
         const initial = name[0]?.toUpperCase() || '?'
-        const meta = getToolMeta(entry.canonical_tool)
+        const meta = getToolMeta(entry.canonical_tool || entry.tool_key)
 
         return `<tr class="group transition-all hover:bg-white/5 border-l-4 border-transparent hover:border-blue">
             <td class="px-6 py-4">
@@ -58,11 +55,11 @@ function renderLogsTable() {
                 </div>
             </td>
             <td class="px-6 py-4">
-              <div class="flex items-center gap-3 cursor-pointer" onclick="viewUser('${entry.user_id}')">
+              <div class="flex items-center gap-3 cursor-pointer" onclick="viewUser('${escapeJsAttr(entry.user_id)}')">
                 <div class="w-8 h-8 rounded-lg bg-slate-800 border-2 border-slate-700 flex items-center justify-center text-[10px] font-black text-slate-400 group-hover:border-blue group-hover:text-blue transition-colors">${escapeHtml(initial)}</div>
                 <div class="flex flex-col">
                     <span class="text-white font-bold text-xs tracking-tight group-hover:text-blue transition-colors">${escapeHtml(name)}</span>
-                    <span class="text-[9px] text-slate-500 font-mono">UID: ${escapeHtml(entry.user_id.slice(0, 8))}</span>
+                    <span class="text-[9px] text-slate-500 font-mono">UID: ${escapeHtml(String(entry.user_id || '').slice(0, 8))}</span>
                 </div>
               </div>
             </td>
@@ -85,8 +82,24 @@ function renderLogsTable() {
     }).join('')
 }
 
-
 // ── ANNOUNCEMENTS LOGIC ──
+async function loadAnnouncements() {
+    const seq = ++reqSeq.announcements
+    const { data, error } = await db
+        .from('announcements')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(100)
+
+    if (seq !== reqSeq.announcements) return
+    if (error) {
+        console.warn('[Admin] Failed to load announcements:', error.message)
+        return
+    }
+    allAnnouncements = data || []
+    renderAnnouncements()
+}
+
 async function saveAnnouncement(e) {
     e.preventDefault()
     const id = document.getElementById('announcementId').value
@@ -109,7 +122,7 @@ async function saveAnnouncement(e) {
     } else {
         showToast('Announcement saved')
         resetAnnForm()
-        fetchData()
+        await loadAnnouncements()
     }
 }
 
@@ -154,9 +167,9 @@ function renderAnnouncements() {
                                     ${date}
                                 </div>
                                 <div class="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                    <button onclick="editAnnouncement('${ann.id}')" class="text-[10px] font-black text-blue hover:underline uppercase tracking-widest">Modify</button>
+                                    <button onclick="editAnnouncement('${escapeJsAttr(ann.id)}')" class="text-[10px] font-black text-blue hover:underline uppercase tracking-widest">Modify</button>
                                     <span class="text-slate-700">|</span>
-                                    <button onclick="openDeleteModal('${ann.id}', 'announcement')" class="text-[10px] font-black text-pink hover:underline uppercase tracking-widest">Terminate</button>
+                                    <button onclick="openDeleteModal('${escapeJsAttr(ann.id)}', 'announcement')" class="text-[10px] font-black text-pink hover:underline uppercase tracking-widest">Terminate</button>
                                 </div>
                             </div>
                         </div>
@@ -179,11 +192,9 @@ function editAnnouncement(id) {
     window.scrollTo({ top: 0, behavior: 'smooth' })
 }
 
-
 function resetAnnForm() {
     const form = document.getElementById('announcementForm')
     const id = document.getElementById('announcementId')
     if (form) form.reset()
     if (id) id.value = ''
 }
-

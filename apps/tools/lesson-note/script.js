@@ -554,9 +554,9 @@ async function processImageInput(inputEl) {
     const file = inputEl.files[0];
     if (!file) return;
     try {
-        const { data: { user } } = await db.auth.getUser();
+        const user = await getCloudUser();
         
-        if (!isSandbox() && user) {
+        if (user) {
             // Upload to Cloud
             const url = await uploadMedia(file, 'lesson_note', currentNoteId);
             const range = quill.getSelection(true);
@@ -585,8 +585,8 @@ async function processImageInput(inputEl) {
 
 async function convertBase64ImagesToIDB() {
     const images = quill.root.querySelectorAll('img[src^="data:"]');
-    const { data: { user } } = await db.auth.getUser();
-    const canUpload = !isSandbox() && user;
+    const user = await getCloudUser();
+    const canUpload = Boolean(user);
 
     for (const img of images) {
         const src = img.getAttribute('src');
@@ -658,20 +658,34 @@ async function resolveImagesInHtml(html) {
         } catch (e) { console.warn('Failed to load local image', id); }
     }
 
-    // 2. Resolve Supabase URLs (klasskit-media bucket)
+    // 2. Resolve Supabase URLs (klasskit-media bucket) in one batched request
     const doc = new DOMParser().parseFromString(html, 'text/html');
     const imgs = doc.querySelectorAll('img');
     const cloudImgs = Array.from(imgs).filter(img => img.src.includes('klasskit-media'));
 
-    for (const imgEl of cloudImgs) {
-        const originalUrl = imgEl.src;
+    if (cloudImgs.length > 0 && typeof resolveMediaUrls === 'function') {
         try {
-            const signedUrl = await resolveMediaUrl(originalUrl);
-            if (signedUrl !== originalUrl) {
-                cloudUrlMap[signedUrl] = originalUrl;
-                html = html.split(originalUrl).join(signedUrl);
-            }
-        } catch (e) { console.warn('Failed to resolve cloud image', originalUrl); }
+            const originalUrls = cloudImgs.map(imgEl => imgEl.src);
+            const signedUrls = await resolveMediaUrls(originalUrls);
+            originalUrls.forEach((originalUrl, idx) => {
+                const signedUrl = signedUrls[idx];
+                if (signedUrl && signedUrl !== originalUrl) {
+                    cloudUrlMap[signedUrl] = originalUrl;
+                    html = html.split(originalUrl).join(signedUrl);
+                }
+            });
+        } catch (e) { console.warn('Failed to resolve cloud images', e); }
+    } else {
+        for (const imgEl of cloudImgs) {
+            const originalUrl = imgEl.src;
+            try {
+                const signedUrl = await resolveMediaUrl(originalUrl);
+                if (signedUrl !== originalUrl) {
+                    cloudUrlMap[signedUrl] = originalUrl;
+                    html = html.split(originalUrl).join(signedUrl);
+                }
+            } catch (e) { console.warn('Failed to resolve cloud image', originalUrl); }
+        }
     }
 
     return html;

@@ -654,8 +654,8 @@
 
         async function deleteUserPreset(id) {
             // Cloud Cleanup
-            const { data: { user } } = await db.auth.getUser();
-            if (!isSandbox() && user) {
+            const user = await getCloudUser();
+            if (user) {
                 deleteFolder(`${user.id}/this_or_that/${id}`).catch(e => console.warn("Cloud folder delete failed", e));
             }
 
@@ -785,8 +785,8 @@
             
             // Migration Logic: If we saved from "states" or "custom" to a real ID
             if (oldId === "states" || oldId === "custom") {
-                const { data: { user } } = await db.auth.getUser();
-                if (!isSandbox() && user) {
+                const user = await getCloudUser();
+                if (user) {
                     console.log("Finalizing cloud folder...");
                     
                     const oldDir = `${user.id}/this_or_that/${oldId}`;
@@ -1287,9 +1287,9 @@
             }
 
             try {
-                const { data: { user } } = await db.auth.getUser();
+                const user = await getCloudUser();
                 let imgSource;
-                if (!isSandbox() && user) {
+                if (user) {
                     imgSource = await uploadMedia(file, 'this_or_that', currentPresetId);
                 } else {
                     imgSource = await new Promise((resolve, reject) => {

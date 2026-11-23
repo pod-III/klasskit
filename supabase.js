@@ -423,6 +423,8 @@ async function teardownCloudSession({ redirectUrl = null, skipAuthSignOut = fals
     }
 
     clearAppLocalStorageEntries();
+    _resetProfileCache();
+    _clearSignedUrlCache();
     localStorage.removeItem('kk_current_user_id');
     localStorage.removeItem('kk_storage_owner');
     localStorage.removeItem('migrated_to_cloud');
@@ -468,23 +470,69 @@ async function getUser() {
   return session?.user ?? null
 }
 
-async function getUserProfile() {
+async function getCloudUser() {
+  if (isSandbox()) return null;
   const user = await getUser();
-  if (!user) return null;
-  if (user.is_sandbox) return { role: 'teacher', display_name: 'Guest Teacher' };
+  return (user && !user.is_sandbox) ? user : null;
+}
 
-  const { data: profile, error } = await db
-    .from('profiles')
-    .select('role, display_name')
-    .eq('id', user.id)
-    .maybeSingle();
-  
-  if (error) {
-    console.error('[Profile] Fetch error:', error);
+const PROFILE_CACHE_TTL_MS = 5 * 60 * 1000;
+let _profileCache = { userId: null, data: null, fetchedAt: 0 };
+let _profileInFlight = { userId: null, promise: null };
+
+function _resetProfileCache() {
+  _profileCache = { userId: null, data: null, fetchedAt: 0 };
+  _profileInFlight = { userId: null, promise: null };
+}
+
+async function getUserProfile(forceRefresh = false) {
+  const user = await getUser();
+  if (!user) {
+    _resetProfileCache();
     return null;
   }
-  
-  return profile;
+  if (user.is_sandbox) return { role: 'teacher', display_name: 'Guest Teacher' };
+
+  const now = Date.now();
+  if (
+    !forceRefresh &&
+    _profileCache.userId === user.id &&
+    _profileCache.data &&
+    (now - _profileCache.fetchedAt) < PROFILE_CACHE_TTL_MS
+  ) {
+    return _profileCache.data;
+  }
+
+  if (!forceRefresh && _profileInFlight.userId === user.id && _profileInFlight.promise) {
+    return await _profileInFlight.promise;
+  }
+
+  const fetchPromise = (async () => {
+    const { data: profile, error } = await db
+      .from('profiles')
+      .select('role, display_name')
+      .eq('id', user.id)
+      .maybeSingle();
+
+    if (error) {
+      console.error('[Profile] Fetch error:', error);
+      return null;
+    }
+
+    if (profile) {
+      _profileCache = { userId: user.id, data: profile, fetchedAt: Date.now() };
+    }
+    return profile;
+  })();
+
+  _profileInFlight = { userId: user.id, promise: fetchPromise };
+  try {
+    return await fetchPromise;
+  } finally {
+    if (_profileInFlight.promise === fetchPromise) {
+      _profileInFlight = { userId: null, promise: null };
+    }
+  }
 }
 
 async function ensureSandboxStorageClean() {
@@ -937,6 +985,10 @@ async function updateDisplayName(displayName) {
 
   if (dbError) return { error: dbError.message }
 
+  if (_profileCache.userId === user.id && _profileCache.data) {
+    _profileCache.data = { ..._profileCache.data, display_name: displayName };
+  }
+
   return { success: true }
 }
 
@@ -1113,7 +1165,7 @@ async function checkAndOfferSandboxImport() {
 /* ── STORAGE HELPERS ── */
 const STORAGE_CONFIG = {
   bucket: 'klasskit-media',
-  defaultLimit: 50 * 1024 * 1024, // 50MB
+  defaultLimit: 10 * 1024 * 1024, // 10MB (matches public.storage_quotas default)
   quality: 0.8
 };
 
@@ -1152,7 +1204,7 @@ async function getUserStorageUsage() {
       try {
         const estimate = await navigator.storage.estimate();
         const used = estimate.usage || 0;
-        const limit = STORAGE_CONFIG.defaultLimit; // Use fixed 50MB for sandbox UI consistency
+        const limit = STORAGE_CONFIG.defaultLimit; // Use fixed 10MB for sandbox UI consistency
         const percent = Math.min(100, Math.round((used / limit) * 100));
         return { used, limit, percent, isSandbox: true };
       } catch (e) { }
@@ -1180,12 +1232,13 @@ async function getUserStorageUsage() {
 
 /**
  * Uploads a media file with compression and quota checks.
+ * Quota accounting in public.storage_quotas is maintained atomically by DB triggers.
  */
 async function uploadMedia(file, toolId, setId = null) {
   if (isSandbox()) throw new Error('Storage not available in Sandbox.');
 
   const user = await getUser();
-  if (!user) throw new Error('Not authenticated');
+  if (!user || user.is_sandbox) throw new Error('Not authenticated');
 
   // 1. Compress
   const compressedFile = await compressImage(file);
@@ -1193,26 +1246,14 @@ async function uploadMedia(file, toolId, setId = null) {
 
   // 2. Check quota
   const usage = await getUserStorageUsage();
-  
+  if (usage.used + fileSize > usage.limit) {
+    throw new Error('Storage quota exceeded');
+  }
+
   const filename = file.name.replace(/\.[^/.]+$/, "").replace(/[^a-z0-9]/gi, '_').toLowerCase();
   const subPath = setId ? `${toolId}/${setId}` : toolId;
   const dirPath = `${user.id}/${subPath}`;
   const filePath = `${dirPath}/${filename}.webp`;
-  
-  let oldSize = 0;
-  try {
-    const { data: existingFiles } = await db.storage.from(STORAGE_CONFIG.bucket).list(dirPath);
-    const existing = existingFiles?.find(f => f.name === `${filename}.webp`);
-    if (existing) {
-      oldSize = existing.metadata.size;
-    }
-  } catch (e) {
-    console.warn('[Storage] Could not check existing file size:', e);
-  }
-
-  if (usage.used - oldSize + fileSize > usage.limit) {
-    throw new Error('Storage quota exceeded');
-  }
 
   // 3. Upload
   const { error: uploadError } = await db.storage
@@ -1224,19 +1265,15 @@ async function uploadMedia(file, toolId, setId = null) {
 
   if (uploadError) throw uploadError;
 
-  // 4. Update usage in profile
-  const newUsage = usage.used - oldSize + fileSize;
-  await db
-    .from('storage_quotas')
-    .update({ storage_usage: newUsage })
-    .eq('user_id', user.id);
-
-  // 5. Return Signed URL (Bucket is private)
+  // 4. Return Signed URL (Bucket is private)
   const { data, error: signError } = await db.storage
     .from(STORAGE_CONFIG.bucket)
-    .createSignedUrl(filePath, 3600); // 1 hour expiry
+    .createSignedUrl(filePath, SIGNED_URL_TTL_SEC);
 
   if (signError) throw signError;
+  if (data?.signedUrl) {
+    _cacheSignedUrl(filePath, data.signedUrl);
+  }
   return data.signedUrl;
 }
 
@@ -1251,46 +1288,174 @@ async function copyMedia(fromPath, toPath) {
   if (error) throw error;
 }
 
-/**
- * Resolves a stored media URL to a signed URL if it belongs to our private bucket.
- */
-async function resolveMediaUrl(url) {
-  if (!url || typeof url !== 'string' || !url.includes(STORAGE_CONFIG.bucket)) return url;
-  
+const SIGNED_URL_TTL_SEC = 3600;
+const SIGNED_URL_CACHE_MS = 50 * 60 * 1000;
+const _signedUrlCache = new Map();
+let _pendingSignQueue = [];
+let _pendingSignTimer = null;
+
+function _extractStoragePath(url) {
+  if (!url || typeof url !== 'string' || !url.includes(STORAGE_CONFIG.bucket)) return null;
+  const parts = url.split(STORAGE_CONFIG.bucket + '/');
+  if (parts.length < 2 || !parts[1]) return null;
+  const rawPath = parts[1].split('?')[0];
   try {
-    const parts = url.split(STORAGE_CONFIG.bucket + '/');
-    if (parts.length < 2) return url;
-    
-    // Extract path and remove any existing query params/tokens
-    const filePath = parts[1].split('?')[0];
-    
-    const { data, error } = await db.storage
-      .from(STORAGE_CONFIG.bucket)
-      .createSignedUrl(filePath, 3600);
-      
-    return data?.signedUrl || url;
-  } catch (e) {
-    console.error('[Storage] URL resolution failed:', e);
-    return url;
+    return decodeURIComponent(rawPath);
+  } catch (_) {
+    return rawPath;
+  }
+}
+
+function _cacheSignedUrl(filePath, signedUrl) {
+  if (!filePath || !signedUrl) return;
+  _signedUrlCache.set(filePath, {
+    signedUrl,
+    expiresAt: Date.now() + SIGNED_URL_CACHE_MS
+  });
+}
+
+function _getCachedSignedUrl(filePath) {
+  const entry = _signedUrlCache.get(filePath);
+  if (!entry) return null;
+  if (Date.now() >= entry.expiresAt) {
+    _signedUrlCache.delete(filePath);
+    return null;
+  }
+  return entry.signedUrl;
+}
+
+function _invalidateSignedUrlCache(pathOrPrefix) {
+  if (!pathOrPrefix) return;
+  if (pathOrPrefix.endsWith('/')) {
+    for (const key of _signedUrlCache.keys()) {
+      if (key.startsWith(pathOrPrefix)) {
+        _signedUrlCache.delete(key);
+      }
+    }
+  } else {
+    _signedUrlCache.delete(pathOrPrefix);
+  }
+}
+
+function _clearSignedUrlCache() {
+  _signedUrlCache.clear();
+}
+
+async function _signStoragePathsBatch(paths) {
+  const resolvedMap = new Map();
+  const missing = [];
+  const seen = new Set();
+
+  for (const filePath of paths) {
+    if (!filePath || seen.has(filePath)) continue;
+    seen.add(filePath);
+    const cached = _getCachedSignedUrl(filePath);
+    if (cached) {
+      resolvedMap.set(filePath, cached);
+    } else {
+      missing.push(filePath);
+    }
+  }
+
+  const CHUNK_SIZE = 100;
+  for (let i = 0; i < missing.length; i += CHUNK_SIZE) {
+    const chunk = missing.slice(i, i + CHUNK_SIZE);
+    try {
+      const { data, error } = await db.storage
+        .from(STORAGE_CONFIG.bucket)
+        .createSignedUrls(chunk, SIGNED_URL_TTL_SEC);
+
+      if (error) {
+        console.error('[Storage] Batch URL resolution failed:', error);
+        continue;
+      }
+
+      if (Array.isArray(data)) {
+        data.forEach((item, idx) => {
+          const itemPath = item?.path || chunk[idx];
+          if (item && !item.error && item.signedUrl && itemPath) {
+            _cacheSignedUrl(itemPath, item.signedUrl);
+            resolvedMap.set(itemPath, item.signedUrl);
+          }
+        });
+      }
+    } catch (e) {
+      console.error('[Storage] Batch URL resolution error:', e);
+    }
+  }
+
+  return resolvedMap;
+}
+
+async function _flushSignedUrlQueue() {
+  _pendingSignTimer = null;
+  const queue = _pendingSignQueue;
+  _pendingSignQueue = [];
+  if (queue.length === 0) return;
+
+  const uniquePaths = Array.from(new Set(queue.map(item => item.filePath)));
+  const resolvedMap = await _signStoragePathsBatch(uniquePaths);
+
+  for (const item of queue) {
+    item.resolve(resolvedMap.get(item.filePath) || item.url);
   }
 }
 
 /**
- * Deletes a media file and updates storage usage.
- * Note: deletion fires DB trigger sync_storage_on_delete() — must target storage_quotas
- * (see supabase/sql/fix_sync_storage_triggers.sql if you get a schema mismatch 400).
+ * Resolves an array of media URLs in batched createSignedUrls calls (cached for 50 min).
+ */
+async function resolveMediaUrls(urls) {
+  if (!Array.isArray(urls) || urls.length === 0) return [];
+  const paths = [];
+  const extracted = urls.map(url => {
+    const filePath = _extractStoragePath(url);
+    if (filePath) paths.push(filePath);
+    return { url, filePath };
+  });
+
+  if (paths.length === 0) return urls.slice();
+
+  const resolvedMap = await _signStoragePathsBatch(paths);
+  return extracted.map(({ url, filePath }) => {
+    if (!filePath) return url;
+    return resolvedMap.get(filePath) || url;
+  });
+}
+
+/**
+ * Resolves a stored media URL to a signed URL if it belongs to our private bucket.
+ * Coalesces same-tick concurrent calls into batched createSignedUrls requests and caches results.
+ */
+async function resolveMediaUrl(url) {
+  const filePath = _extractStoragePath(url);
+  if (!filePath) return url;
+
+  const cached = _getCachedSignedUrl(filePath);
+  if (cached) return cached;
+
+  return new Promise(resolve => {
+    _pendingSignQueue.push({ filePath, url, resolve });
+    if (!_pendingSignTimer) {
+      _pendingSignTimer = setTimeout(_flushSignedUrlQueue, 0);
+    }
+  });
+}
+
+/**
+ * Deletes a media file; DB trigger sync_storage_on_delete() updates storage_quotas atomically.
+ * (see supabase/sql/phase1_scale_hygiene.sql if you get a schema mismatch 400).
  */
 async function deleteMedia(filePath) {
   if (isSandbox()) return;
 
   const user = await getUser();
-  if (!user) return;
+  if (!user || user.is_sandbox) return;
 
   const { error } = await db.storage.from(STORAGE_CONFIG.bucket).remove([filePath]);
   if (error) {
     if (error.message?.includes('sync_storage_on_delete') || error.message?.includes('schema mismatch')) {
       const fix = new Error(
-        'Storage delete blocked by an outdated database trigger. Run supabase/sql/fix_sync_storage_triggers.sql in the Supabase SQL Editor.'
+        'Storage delete blocked by an outdated database trigger. Run supabase/sql/phase1_scale_hygiene.sql in the Supabase SQL Editor.'
       );
       fix.cause = error;
       throw fix;
@@ -1298,13 +1463,7 @@ async function deleteMedia(filePath) {
     throw error;
   }
 
-  // Reconcile quota with actual bucket contents (accurate even if trigger also adjusted usage)
-  try {
-    await recalculateUserStorage(user.id);
-  } catch (e) {
-    console.warn('[Storage] Quota recalculation after delete failed:', e);
-  }
-
+  _invalidateSignedUrlCache(filePath);
   return { success: true };
 }
 
@@ -1312,9 +1471,9 @@ async function deleteMedia(filePath) {
  * Helper to delete media file from its Supabase URL.
  */
 async function deleteMediaFromUrl(url) {
-  if (!url || typeof url !== 'string' || !url.includes(STORAGE_CONFIG.bucket)) return;
+  const path = _extractStoragePath(url);
+  if (!path) return;
   try {
-    const path = url.split(STORAGE_CONFIG.bucket + '/')[1].split('?')[0];
     await deleteMedia(path);
   } catch (e) {
     console.warn('[Storage] URL-based deletion failed:', e);
@@ -1322,37 +1481,39 @@ async function deleteMediaFromUrl(url) {
 }
 
 /**
- * Deletes an entire folder and updates usage.
+ * Deletes all files inside a storage folder; DB triggers update storage_quotas atomically.
  */
 async function deleteFolder(folderPath) {
   if (isSandbox()) return;
   const user = await getUser();
-  if (!user) return;
+  if (!user || user.is_sandbox) return;
 
   try {
-    // 1. List all files in folder
-    const { data: files, error: listError } = await db.storage
+    // 1. List files in folder
+    const { data: items, error: listError } = await db.storage
       .from(STORAGE_CONFIG.bucket)
-      .list(folderPath);
-    
-    if (listError || !files || files.length === 0) return;
+      .list(folderPath, { limit: 1000 });
 
-    // 2. Calculate total size
+    if (listError || !items || items.length === 0) return;
+
+    const files = items.filter(f => f.id !== null && f.name !== '.emptyFolderPlaceholder');
+    if (files.length === 0) return;
+
+    // 2. Remove in chunks of 100
     const totalSize = files.reduce((sum, f) => sum + (f.metadata?.size || 0), 0);
     const filePaths = files.map(f => `${folderPath}/${f.name}`);
 
-    const { error: delError } = await db.storage
-      .from(STORAGE_CONFIG.bucket)
-      .remove(filePaths);
-
-    if (delError) throw delError;
-
-    try {
-      await recalculateUserStorage(user.id);
-    } catch (e) {
-      console.warn('[Storage] Quota recalculation after folder delete failed:', e);
+    const CHUNK_SIZE = 100;
+    for (let i = 0; i < filePaths.length; i += CHUNK_SIZE) {
+      const chunk = filePaths.slice(i, i + CHUNK_SIZE);
+      const { error: delError } = await db.storage
+        .from(STORAGE_CONFIG.bucket)
+        .remove(chunk);
+      if (delError) throw delError;
     }
 
+    const prefix = folderPath.endsWith('/') ? folderPath : `${folderPath}/`;
+    _invalidateSignedUrlCache(prefix);
     return { success: true, freed: totalSize };
   } catch (e) {
     console.error('[Storage] Folder deletion failed:', e);
@@ -1452,6 +1613,7 @@ async function clearUserStorage(userId) {
 
     if (updateError) throw updateError;
 
+    _invalidateSignedUrlCache(`${userId}/`);
     return { deletedCount: filePaths.length };
   } catch (err) {
     console.error(`[Storage] Clear storage failed for ${userId}:`, err);
@@ -1647,24 +1809,70 @@ async function vttLoadTokens(mapId) {
   return data || [];
 }
 
+function _generateUuidV4() {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+    const r = (Math.random() * 16) | 0;
+    return (c === 'x' ? r : ((r & 0x3) | 0x8)).toString(16);
+  });
+}
+
 async function vttSaveTokens(mapId, tokens) {
   if (isSandbox()) {
     localStorage.setItem(`vtt_tokens_${mapId}`, JSON.stringify(tokens));
     return { success: true };
   }
   const user = await getUser();
-  if (!user) return { error: 'Not authenticated' };
-  await db.from('vtt_tokens').delete().eq('map_id', mapId).eq('user_id', user.id);
-  if (tokens.length === 0) return { success: true };
+  if (!user || user.is_sandbox) return { error: 'Not authenticated' };
+
+  if (!Array.isArray(tokens) || tokens.length === 0) {
+    const { error } = await db.from('vtt_tokens')
+      .delete()
+      .eq('map_id', mapId)
+      .eq('user_id', user.id);
+    if (error) { console.error('[VTT] saveTokens delete:', error); return { error }; }
+    return { success: true };
+  }
+
+  // Upsert all current tokens first so a network/validation failure never destroys existing data
   const rows = tokens.map(t => ({
-    ...(isValidUuid(t.id) ? { id: t.id } : {}),
-    map_id: mapId, user_id: user.id,
-    name: t.name || '', image_url: t.imageUrl || t.image_url || null,
-    x: t.x ?? null, y: t.y ?? null,
-    size: t.size || 1, is_pc: t.isPC !== false
+    id: isValidUuid(t.id) ? t.id : _generateUuidV4(),
+    map_id: mapId,
+    user_id: user.id,
+    name: t.name || '',
+    image_url: t.imageUrl || t.image_url || null,
+    x: t.x ?? null,
+    y: t.y ?? null,
+    size: t.size || 1,
+    is_pc: t.isPC !== false
   }));
-  const { error } = await db.from('vtt_tokens').insert(rows);
-  if (error) { console.error('[VTT] saveTokens:', error); return { error }; }
+
+  const { error: upsertErr } = await db.from('vtt_tokens')
+    .upsert(rows, { onConflict: 'id' });
+  if (upsertErr) { console.error('[VTT] saveTokens upsert:', upsertErr); return { error: upsertErr }; }
+
+  // Prune any tokens removed from this map
+  const keptIds = new Set(rows.map(r => r.id));
+  const { data: existing, error: listErr } = await db.from('vtt_tokens')
+    .select('id')
+    .eq('map_id', mapId)
+    .eq('user_id', user.id);
+  if (listErr) { console.error('[VTT] saveTokens prune list:', listErr); return { error: listErr }; }
+
+  const staleIds = (existing || []).map(r => r.id).filter(id => !keptIds.has(id));
+  const CHUNK_SIZE = 100;
+  for (let i = 0; i < staleIds.length; i += CHUNK_SIZE) {
+    const chunk = staleIds.slice(i, i + CHUNK_SIZE);
+    const { error: delErr } = await db.from('vtt_tokens')
+      .delete()
+      .eq('map_id', mapId)
+      .eq('user_id', user.id)
+      .in('id', chunk);
+    if (delErr) { console.error('[VTT] saveTokens prune delete:', delErr); return { error: delErr }; }
+  }
+
   return { success: true };
 }
 
