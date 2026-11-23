@@ -1,12 +1,12 @@
-// Be sure to bump this version number whenever you change this file
-// so the browser knows to run the 'install' and 'activate' steps again.
-const CACHE_NAME = 'klasskit-v1.7.2';
+// Bump version whenever sw.js changes
+const CACHE_NAME = 'klasskit-v1.7.3';
 
 // 1. Pre-cache Core Assets (Static)
+// Note: Use clean paths or keep consistent with how your app navigates
 const PRE_CACHE_ASSETS = [
   './',
   './index.html',
-  './hub.html',
+  './hub',
   './login.html',
   './404.html',
   './admin/index.html',
@@ -41,7 +41,6 @@ const PRE_CACHE_ASSETS = [
   './media/icon-512.png',
   './media/icon.ico',
   './media/icon.webp',
-  // Optimized Previews (webp)
   './media/card_match_preview.webp',
   './media/classtally_preview.webp',
   './media/connect_four_preview.webp',
@@ -55,67 +54,74 @@ const PRE_CACHE_ASSETS = [
   './media/word_search_preview.webp'
 ];
 
-// Install Event - Pre-cache static assets
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      console.log('[SW] Pre-caching core assets');
-      return cache.addAll(PRE_CACHE_ASSETS);
-    })
+    caches.open(CACHE_NAME).then((cache) => cache.addAll(PRE_CACHE_ASSETS))
   );
   self.skipWaiting();
 });
 
-// Activate Event - Clean up old caches
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.keys().then((cacheNames) => {
-      return Promise.all(
-        cacheNames.map((cache) => {
-          if (cache !== CACHE_NAME) {
-            console.log('[SW] Deleting old cache:', cache);
-            return caches.delete(cache);
-          }
-        })
-      );
-    })
+    caches.keys().then((cacheNames) =>
+      Promise.all(
+        cacheNames
+          .filter((cache) => cache !== CACHE_NAME)
+          .map((cache) => caches.delete(cache))
+      )
+    )
   );
   self.clients.claim();
 });
 
-// Fetch Event
 self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
 
-  // 1. Ignore non-GET and non-HTTP requests
   if (request.method !== 'GET' || !url.protocol.startsWith('http')) return;
-
-  // 2. Strategy: Network-Only for Supabase/API calls
-  // We don't want to cache database responses here as they are handled by the app's sync logic.
   if (url.hostname.includes('supabase.co')) return;
-
-  // Network-Only for Cloudflare Web Analytics (beacon script + RUM reports)
   if (url.hostname.includes('cloudflareinsights.com')) return;
 
-  // 3. Strategy: Stale-While-Revalidate for all other assets
-  // This gives the fastest load time while keeping assets fresh in the background.
+  // Navigation requests (HTML pages): Network-First so Cloudflare redirects & fresh HTML work cleanly
+  if (request.mode === 'navigate') {
+    event.respondWith(
+      fetch(request)
+        .then((networkResponse) => {
+          if (networkResponse && networkResponse.ok && !networkResponse.redirected) {
+            const copy = networkResponse.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
+          }
+          return networkResponse;
+        })
+        .catch(async () => {
+          const cache = await caches.open(CACHE_NAME);
+          return (
+            (await cache.match(request)) ||
+            (await cache.match('./hub')) ||
+            (await cache.match('./index.html')) ||
+            (await cache.match('./404.html')) ||
+            new Response('Offline', { status: 503, statusText: 'Service Unavailable' })
+          );
+        })
+    );
+    return;
+  }
+
+  // Static assets (JS, CSS, JSON, images): Stale-While-Revalidate
   event.respondWith(
-    caches.open(CACHE_NAME).then((cache) => {
-      return cache.match(request).then((cachedResponse) => {
-        const fetchPromise = fetch(request).then((networkResponse) => {
-          // If network call succeeds, update cache
+    caches.open(CACHE_NAME).then(async (cache) => {
+      const cachedResponse = await cache.match(request);
+
+      const fetchPromise = fetch(request)
+        .then((networkResponse) => {
           if (networkResponse && networkResponse.status === 200) {
             cache.put(request, networkResponse.clone());
           }
           return networkResponse;
-        }).catch(() => {
-          // If network fails completely, we already returned cachedResponse
-        });
+        })
+        .catch(() => null);
 
-        // Return cached if available, otherwise wait for network
-        return cachedResponse || fetchPromise;
-      });
+      return cachedResponse || (await fetchPromise) || new Response('', { status: 504 });
     })
   );
 });
