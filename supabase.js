@@ -1263,7 +1263,12 @@ async function uploadMedia(file, toolId, setId = null) {
       upsert: true
     });
 
-  if (uploadError) throw uploadError;
+  if (uploadError) {
+    if (uploadError.message?.toLowerCase().includes('storage quota exceeded')) {
+      throw new Error('Storage quota exceeded');
+    }
+    throw uploadError;
+  }
 
   // 4. Return Signed URL (Bucket is private)
   const { data, error: signError } = await db.storage
@@ -1522,54 +1527,75 @@ async function deleteFolder(folderPath) {
 }
 
 /**
- * Recalculates total storage usage for a user by walking their bucket path.
- * This is used to re-sync the database counter with reality.
+ * Lists all cloud media files for the signed-in user via single indexed SQL RPC.
+ * Returns null if the RPC hasn't been deployed yet so callers can fall back cleanly.
  */
-async function recalculateUserStorage(userId) {
-  if (isSandbox()) return { used: 0, fileCount: 0 };
+async function listUserMediaFiles() {
+  if (isSandbox()) return [];
+  const user = await getCloudUser();
+  if (!user) return [];
 
-  let totalSize = 0;
-  let fileCount = 0;
-
-  async function walk(path) {
-    const { data: items, error } = await db.storage.from(STORAGE_CONFIG.bucket).list(path);
-    if (error) {
-      if (error.message?.includes('not found')) return;
-      throw error;
+  const { data, error } = await db.rpc('user_list_my_media');
+  if (error) {
+    if (
+      error.code === '42883' ||
+      error.code === 'PGRST202' ||
+      error.message?.includes('user_list_my_media')
+    ) {
+      return null;
     }
-
-    for (const item of items) {
-      if (item.id === null) {
-        // Folder
-        await walk(`${path}/${item.name}`);
-      } else {
-        // File
-        totalSize += (item.metadata?.size || 0);
-        fileCount++;
-      }
-    }
+    throw error;
   }
 
+  return (data || []).map(row => ({
+    name: row.file_name,
+    fullPath: row.full_path,
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+    metadata: { size: Number(row.size_bytes) || 0 }
+  }));
+}
+
+/**
+ * Resolves raw bucket object paths to signed URLs using chunked batches and 50-min cache.
+ */
+async function signStoragePaths(filePaths) {
+  if (isSandbox() || !Array.isArray(filePaths) || filePaths.length === 0) return {};
+  const resolvedMap = await _signStoragePathsBatch(filePaths);
+  return Object.fromEntries(resolvedMap);
+}
+
+/**
+ * Reconciles total storage usage for the current user (or target user for admins)
+ * directly on Postgres via RPC, avoiding recursive storage.list() browser walks.
+ */
+async function recalculateUserStorage(userId) {
+  if (isSandbox()) return { used: 0, limit: STORAGE_CONFIG.defaultLimit, fileCount: 0 };
+
+  const currentUser = await getCloudUser();
+  if (!currentUser) return { used: 0, limit: STORAGE_CONFIG.defaultLimit, fileCount: 0 };
+
   try {
-    await walk(userId);
+    const isTargetingOtherUser = Boolean(userId && userId !== currentUser.id);
+    const { data, error } = isTargetingOtherUser
+      ? await db.rpc('admin_reconcile_storage_quotas', { p_user_id: userId })
+      : await db.rpc('user_reconcile_my_storage');
 
-    // Update storage_quotas table
-    const { error: updateError } = await db
-      .from('storage_quotas')
-      .update({ storage_usage: totalSize })
-      .eq('user_id', userId);
+    if (error) throw error;
 
-    if (updateError) throw updateError;
-
-    return { used: totalSize, fileCount };
+    return {
+      used: Number(data?.used ?? data?.storage_usage) || 0,
+      limit: Number(data?.limit) || STORAGE_CONFIG.defaultLimit,
+      fileCount: Number(data?.file_count) || 0
+    };
   } catch (err) {
-    console.error(`[Storage] Recalculate failed for ${userId}:`, err);
+    console.error(`[Storage] Recalculate failed for ${userId || currentUser.id}:`, err);
     throw err;
   }
 }
 
 /**
- * Deletes all cloud media files for a user and resets their storage_usage to 0.
+ * Deletes all cloud media files for a user; DB triggers update storage_quotas atomically.
  */
 async function clearUserStorage(userId) {
   if (isSandbox()) return { deletedCount: 0 };
@@ -1605,13 +1631,6 @@ async function clearUserStorage(userId) {
         if (removeError) throw removeError;
       }
     }
-
-    const { error: updateError } = await db
-      .from('storage_quotas')
-      .update({ storage_usage: 0 })
-      .eq('user_id', userId);
-
-    if (updateError) throw updateError;
 
     _invalidateSignedUrlCache(`${userId}/`);
     return { deletedCount: filePaths.length };

@@ -297,7 +297,12 @@ const MediaManager = {
         this.grid.className = 'h-full overflow-y-auto p-6 flex flex-col gap-8 custom-scrollbar';
         this.breadcrumbs.innerHTML = '<span class="text-dark dark:text-white font-bold">All Cloud Media (Grouped by Tool/Set)</span>';
 
-        const allFiles = await this.fetchAllCloudFiles(user.id);
+        let allFiles = (typeof listUserMediaFiles === 'function')
+            ? await listUserMediaFiles()
+            : null;
+        if (allFiles === null) {
+            allFiles = await this.fetchAllCloudFiles(user.id);
+        }
 
         if (allFiles.length === 0) {
             this.cachedGroups = null;
@@ -307,12 +312,20 @@ const MediaManager = {
         }
 
         const filePaths = allFiles.map(f => f.fullPath);
-        const { data: signedData } = await db.storage.from('klasskit-media').createSignedUrls(filePaths, 3600);
-        const urlMap = {};
-        if (signedData) {
-            signedData.forEach(item => {
-                urlMap[item.path] = item.signedUrl;
-            });
+        let urlMap = {};
+        if (typeof signStoragePaths === 'function') {
+            urlMap = await signStoragePaths(filePaths);
+        } else {
+            const CHUNK_SIZE = 100;
+            for (let i = 0; i < filePaths.length; i += CHUNK_SIZE) {
+                const chunk = filePaths.slice(i, i + CHUNK_SIZE);
+                const { data: signedData } = await db.storage.from('klasskit-media').createSignedUrls(chunk, 3600);
+                if (signedData) {
+                    signedData.forEach(item => {
+                        if (item?.path && item?.signedUrl) urlMap[item.path] = item.signedUrl;
+                    });
+                }
+            }
         }
 
         this.cachedGroups = this.buildCloudGroups(allFiles, urlMap);
@@ -446,14 +459,22 @@ const MediaManager = {
             console.error('Cloud delete failed:', error);
             cardEl.classList.remove('opacity-50', 'pointer-events-none');
             const msg = error.message?.includes('database trigger')
-                ? 'Delete blocked by a server config issue. Ask the admin to run fix_sync_storage_triggers.sql in Supabase.'
+                ? 'Delete blocked by a server config issue. Ask the admin to run phase4_storage_and_db_hardening.sql in Supabase.'
                 : 'Failed to delete file';
             this.showToast(msg, 'error');
         }
     },
     
     async loadCloudPreview(imgEl, fullPath) {
-        const { data } = await db.storage.from('klasskit-media').createSignedUrl(fullPath, 60);
+        if (typeof signStoragePaths === 'function') {
+            const urlMap = await signStoragePaths([fullPath]);
+            if (urlMap[fullPath]) {
+                imgEl.src = urlMap[fullPath];
+                imgEl.onload = () => imgEl.classList.remove('opacity-0');
+                return;
+            }
+        }
+        const { data } = await db.storage.from('klasskit-media').createSignedUrl(fullPath, 3600);
         if (data && data.signedUrl) {
             imgEl.src = data.signedUrl;
             imgEl.onload = () => imgEl.classList.remove('opacity-0');
@@ -847,12 +868,16 @@ const MediaManager = {
         });
 
         try {
-            const { error } = await db.storage.from('klasskit-media').remove(toDelete);
-            if (error) throw error;
+            const CHUNK_SIZE = 100;
+            for (let i = 0; i < toDelete.length; i += CHUNK_SIZE) {
+                const chunk = toDelete.slice(i, i + CHUNK_SIZE);
+                const { error } = await db.storage.from('klasskit-media').remove(chunk);
+                if (error) throw error;
+            }
 
-            // Recalculate once
-            const user = await getUser();
-            if (user) await recalculateUserStorage(user.id);
+            if (typeof _invalidateSignedUrlCache === 'function') {
+                toDelete.forEach(path => _invalidateSignedUrlCache(path));
+            }
 
             toDelete.forEach(path => this.removeItemFromCache(path));
             this.cleanupEmptySections();
@@ -862,7 +887,7 @@ const MediaManager = {
         } catch (error) {
             console.error('Batch cloud delete failed:', error);
             const msg = error.message?.includes('database trigger')
-                ? 'Delete blocked by a server config issue. Ask the admin to run fix_sync_storage_triggers.sql in Supabase.'
+                ? 'Delete blocked by a server config issue. Ask the admin to run phase4_storage_and_db_hardening.sql in Supabase.'
                 : 'Failed to delete some files';
             this.showToast(msg, 'error');
             await this.loadData(); // Refresh to restore accurate state

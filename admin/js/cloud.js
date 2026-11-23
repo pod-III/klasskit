@@ -193,8 +193,16 @@ async function deleteUserCloudStorage(userId) {
     try {
         const result = await clearUserStorage(userId)
 
+        let nextUsage = 0
+        try {
+            const { data: reconciled } = await callAdminRpc('admin_reconcile_storage_quotas', { p_user_id: userId })
+            if (reconciled) {
+                nextUsage = Number(reconciled.storage_usage) || 0
+            }
+        } catch (_) { /* non-fatal; triggers already decremented storage_usage */ }
+
         if (allProfiles[userId]) {
-            allProfiles[userId].storage_usage = 0
+            allProfiles[userId].storage_usage = nextUsage
         }
 
         if (currentView === 'cloud') await renderCloudTable()
