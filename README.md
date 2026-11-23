@@ -22,7 +22,7 @@ KlassKit isn't just a collection of apps; it's a unified teaching workspace desi
 - **⏱️ Universal Floating Timer & Focus Mode**: Launch a draggable countdown timer across any activity and toggle distraction-free Focus Mode when presenting.
 - **⌨️ Unified Keyboard Shortcuts**: Navigate fast with `/`, `Esc` (layered modal/drawer dismissal), `Alt+H` (Home), `Ctrl/Cmd+R` (reload active tab), `Ctrl/Cmd+W` (close tab), `Alt+1–8` (switch tabs), and `F` (My Space fullscreen)—bridged seamlessly into same-origin activity iframes.
 - **📥 Guided Bulk Import & CEFR Presets**: Paste plain text with live parser previews, one-click templates, and A1–B2 starter packs (`KlassKitBulkImport`) across supported games and printable makers.
-- **🖥️ Dual-Window Student View**: Selected tools (such as **Flashcard Displayer** and **D&D Hub**'s Arcane VTT) support a dedicated `?player` presentation window synced in real time via `BroadcastChannel`.
+- **🖥️ Dual-Window Student View**: Selected tools (such as **Flashcard Displayer** and **RPG Hub**'s Arcane VTT) support a dedicated `?player` presentation window synced in real time via `BroadcastChannel`.
 - **🌓 OLED-Ready Dark Mode & Audio Feedback**: Deep slate dark mode paired with synthesized Web Audio API sound effects and an integrated **Media Manager** for local IndexedDB and cloud assets.
 
 ---
@@ -99,7 +99,7 @@ The catalog in `games.json` organizes **76 active modules** into five core zones
 | **Interview Maker** | Customizable Class Survey & Interview Sheet |
 | **Paper Grass** | Tear-Strip Sentence Puzzles |
 | **Path Board** | Printable Path Board Game Maker |
-| **Chutes & Ladders** | Printable Chutes & Ladders Board Maker |
+| **Slides & Ladders** | Printable Slides & Ladders Board Maker |
 | **Tracing Maker** | Handwriting & Fun Path Tracing Sheet Maker |
 | **Dice Maker** | Printable 3D Paper Dice & Cube Net Maker |
 | **Maze Maker** | Word Path & Wall Maze Handout Generator |
@@ -134,15 +134,15 @@ The catalog in `games.json` organizes **76 active modules** into five core zones
 | Game | Description |
 |:--- |:--- |
 | **Card Match** | Visual Memory Challenge |
-| **Connect Four** | Strategic Team Battle |
-| **D&D Hub** | Fantasy RPG toolkit with character roster, arcane tabletop VTT, and dungeon printer |
+| **Four in a Row** | Strategic Team Battle |
+| **RPG Hub** | Fantasy RPG toolkit with character roster, arcane tabletop VTT, and dungeon printer |
 | **Fill in The Blank** | Grammar Mastery Tool |
 | **Fix-Em** | Grammar Error Detective |
 | **Flashcard Displayer** | Interactive Flashcard Display Board |
 | **Flashcards** | Digital Flashcard Suite |
 | **Freeze Dance** | High-Energy Movement Game |
 | **Guess the Emoji** | Emoji Decryption Quiz |
-| **Guess Who?** | Character Deduction Battle |
+| **Who Is It?** | Character Deduction Battle |
 | **Hangman** | The Ultimate Word Rescue |
 | **Hot Seat** | The Pressure Guessing Game |
 | **Magic Cups** | The Great Cup Shuffle |

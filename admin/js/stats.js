@@ -117,7 +117,7 @@ function updateStats() {
     const lessonParserCount = Number(ecosystem.lesson_parser_count) || 0
     const dndTotalCount = Number(ecosystem.dnd_vtt_count) || 0
     setElText('statWorkshop', lessonParserCount + dndTotalCount)
-    setElText('statWorkshopSub', `${lessonParserCount} parser · ${dndTotalCount} D&D/VTT`)
+    setElText('statWorkshopSub', `${lessonParserCount} parser · ${dndTotalCount} RPG/VTT`)
 
     // 5. Render Top Tools Card (7D vs All Time)
     const topToolsList = document.getElementById('topToolsList')

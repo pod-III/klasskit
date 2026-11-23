@@ -33,7 +33,7 @@ if (typeof tailwind !== 'undefined') {
 }
 
 // --- Quiz Block Game Logic ---
-const Jeopardy = (function() {
+const QuizBlock = (function() {
 
     // --- Helper: Create fresh 2D questions array without shared object references ---
     function createQuestionsGrid(rows, cols, pointMultiplier = 100) {
@@ -1682,19 +1682,19 @@ const Jeopardy = (function() {
                 
                 <div class="flex items-center justify-center gap-1 mt-1 max-w-full z-10">
                     ${isLeader ? '<span class="text-xs" title="Current Leader">👑</span>' : ''}
-                    <button onclick="Jeopardy.renameTeam(${idx})" class="font-heading font-bold text-xs sm:text-sm dark:text-white ${style.textHover} hover:underline decoration-2 underline-offset-2 truncate max-w-full opacity-90" title="Click to rename team">
+                    <button onclick="QuizBlock.renameTeam(${idx})" class="font-heading font-bold text-xs sm:text-sm dark:text-white ${style.textHover} hover:underline decoration-2 underline-offset-2 truncate max-w-full opacity-90" title="Click to rename team">
                         ${escapeHtml(teamName)}
                     </button>
                 </div>
                 
                 <div class="flex items-center justify-between w-full mt-1 z-10 px-0.5">
-                    <button onclick="Jeopardy.modScore(${idx}, -${step})" class="btn-chunky w-7 h-7 shrink-0 rounded-md bg-brand-pink text-white border-2 border-brand-dark font-bold text-xs sm:text-sm shadow-sm flex items-center justify-center hover:bg-pink-400 leading-none" title="Subtract ${step}">-</button>
+                    <button onclick="QuizBlock.modScore(${idx}, -${step})" class="btn-chunky w-7 h-7 shrink-0 rounded-md bg-brand-pink text-white border-2 border-brand-dark font-bold text-xs sm:text-sm shadow-sm flex items-center justify-center hover:bg-pink-400 leading-none" title="Subtract ${step}">-</button>
                     
-                    <button onclick="Jeopardy.editScore(${idx})" class="text-lg sm:text-xl font-black font-sans text-brand-dark dark:text-brand-chalk hover:scale-110 transition-transform cursor-pointer leading-none px-1.5" title="Click to set score manually">
+                    <button onclick="QuizBlock.editScore(${idx})" class="text-lg sm:text-xl font-black font-sans text-brand-dark dark:text-brand-chalk hover:scale-110 transition-transform cursor-pointer leading-none px-1.5" title="Click to set score manually">
                         ${score}
                     </button>
                     
-                    <button onclick="Jeopardy.modScore(${idx}, ${step})" class="btn-chunky w-7 h-7 shrink-0 rounded-md bg-brand-green text-white border-2 border-brand-dark font-bold text-xs sm:text-sm shadow-sm flex items-center justify-center hover:bg-green-400 leading-none" title="Add ${step}">+</button>
+                    <button onclick="QuizBlock.modScore(${idx}, ${step})" class="btn-chunky w-7 h-7 shrink-0 rounded-md bg-brand-green text-white border-2 border-brand-dark font-bold text-xs sm:text-sm shadow-sm flex items-center justify-center hover:bg-green-400 leading-none" title="Add ${step}">+</button>
                 </div>
             `;
             els.scores.appendChild(div);
@@ -1881,10 +1881,10 @@ const Jeopardy = (function() {
                     <span class="font-mono font-black text-xs text-brand-blue dark:text-brand-chalk">${score}</span>
                 </div>
                 <div class="flex gap-1.5 w-full">
-                    <button onclick="Jeopardy.modScore(${idx}, -${pts})" class="btn-chunky flex-1 py-1 bg-brand-pink text-white rounded-lg border-2 border-brand-dark font-heading font-bold text-xs">
+                    <button onclick="QuizBlock.modScore(${idx}, -${pts})" class="btn-chunky flex-1 py-1 bg-brand-pink text-white rounded-lg border-2 border-brand-dark font-heading font-bold text-xs">
                         -${pts}
                     </button>
-                    <button onclick="Jeopardy.modScore(${idx}, ${pts})" class="btn-chunky flex-1 py-1 bg-brand-green text-white rounded-lg border-2 border-brand-dark font-heading font-bold text-xs">
+                    <button onclick="QuizBlock.modScore(${idx}, ${pts})" class="btn-chunky flex-1 py-1 bg-brand-green text-white rounded-lg border-2 border-brand-dark font-heading font-bold text-xs">
                         +${pts}
                     </button>
                 </div>
@@ -2343,7 +2343,7 @@ const Jeopardy = (function() {
         bulkImportModal = window.KlassKitBulkImport.create({
             id: 'qb-bulk-import-overlay',
             title: 'BULK IMPORT QUIZ BOARD',
-            subtitle: 'Paste plain text or AI-generated categories & Q/A pairs to build a full Jeopardy board instantly.',
+            subtitle: 'Paste plain text or AI-generated categories & Q/A pairs to build a full Quiz Block board instantly.',
             accentColor: 'pink',
             unitLabel: 'tile',
             unitLabelPlural: 'tiles',
@@ -2354,7 +2354,7 @@ const Jeopardy = (function() {
                 { label: 'Points & Bonus', syntax: '@400 or *bonus', color: 'orange', desc: 'Optional custom points or ★ surprise bonus tile anywhere on the line.' }
             ],
             tips: [
-                '<strong>AI Prompt Shortcut:</strong> Ask any AI to output a 4×4 Jeopardy quiz using <code class="px-1 rounded bg-slate-200 dark:bg-slate-700 font-mono">== Category</code> headings, <code class="px-1 rounded bg-slate-200 dark:bg-slate-700 font-mono">- Question</code>, and <code class="px-1 rounded bg-slate-200 dark:bg-slate-700 font-mono">= Answer</code>.',
+                '<strong>AI Prompt Shortcut:</strong> Ask any AI to output a 4×4 quiz board using <code class="px-1 rounded bg-slate-200 dark:bg-slate-700 font-mono">== Category</code> headings, <code class="px-1 rounded bg-slate-200 dark:bg-slate-700 font-mono">- Question</code>, and <code class="px-1 rounded bg-slate-200 dark:bg-slate-700 font-mono">= Answer</code>.',
                 'Row points default automatically to <code class="px-1 rounded bg-slate-200 dark:bg-slate-700 font-mono">$100, $200, $300...</code> unless you override a tile with <code class="px-1 rounded bg-slate-200 dark:bg-slate-700 font-mono">@500</code>.'
             ],
             placeholder: '## Classroom Review\n\n== Grammar\n- Past tense of "go"?\n= Went\n\n== Vocabulary\n- Opposite of "hot"?\n= Cold *bonus',
@@ -2481,4 +2481,4 @@ const Jeopardy = (function() {
 })();
 
 // Initialize Game
-Jeopardy.init();
+QuizBlock.init();
