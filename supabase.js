@@ -18,7 +18,7 @@ const SANDBOX_VAULT_DB = 'KlassKit_SandboxVault';
 const SANDBOX_VAULT_STORE = 'vault';
 const CLOUD_IDB_REGISTRY_KEY = 'kk_cloud_idb_registry';
 const KNOWN_APP_IDB_NAMES = [
-  'PosterStudioDB', 'PresentationDB', 'KlassKit_Resources', 'KlassKitRevealDB',
+  'PosterStudioDB', 'PresentationDB', 'SpeedySlidesDB', 'KlassKit_Resources', 'KlassKitRevealDB',
   'KlassKitMemoryDB_V3', 'KlassKitMemoryDB_V2', 'KKThisOrThatDB', 'SimonGameKlassKitDB_V2',
   'FlashcardDB', 'MysteryBoxDB', 'WordSearchDB', 'WordSortDB', 'CrosswordDB', 'HangmanDB',
   'BingoDB', 'KlassKitBingoDB', 'CardMakerDB', 'LessonExtractorDB_v3',

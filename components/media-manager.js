@@ -32,7 +32,8 @@ const MediaManager = {
     
     KNOWN_DB_NAMES: [
         { name: 'PosterStudioDB', label: 'Poster Studio', store: 'imgs' },
-        { name: 'PresentationDB', label: 'Speedy Slides', store: 'images' },
+        { name: 'SpeedySlidesDB', label: 'Speedy Slides', store: 'images' },
+        { name: 'PresentationDB', label: 'Slides', store: 'images' },
         { name: 'KlassKit_Resources', label: 'Poster Display', store: 'posters' },
         { name: 'KlassKitRevealDB', label: 'Reveal Picture', store: 'Presets' },
         { name: 'KlassKitMemoryDB_V3', label: 'Card Match (V3)', store: 'Presets' },
