@@ -12,78 +12,290 @@
     <link rel="icon" type="image/x-icon" href="../../../../media/icon.ico" />
     <link rel="icon" type="image/webp" href="../../../../media/icon.webp" />
 
+    <!-- Early Synchronous Theme Init -->
+    <script>
+        (function () {
+            try {
+                var st = localStorage.getItem('theme_speedy-slides');
+                var hub = localStorage.getItem('theme_hub');
+                try { if (hub) hub = JSON.parse(hub); } catch (_) {}
+                var isDark = st === 'dark' || (!st && (hub === 'dark' || (hub !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches)));
+                if (isDark) document.documentElement.classList.add('dark');
+
+                var rawColor = localStorage.getItem('klasskit_colorTheme');
+                var colorTheme = rawColor;
+                try { colorTheme = rawColor ? JSON.parse(rawColor) : null; } catch (_) {}
+                if (colorTheme && colorTheme !== 'classic') {
+                    document.documentElement.setAttribute('data-theme', colorTheme);
+                }
+            } catch (e) {}
+        })();
+    </script>
+
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
 
     <link rel="stylesheet" href="../../../../css/tailwind.generated.css" />
-
     <script src="https://unpkg.com/lucide@1.16.0"></script>
     <script src="../../../../components/input-modal.js"></script>
-
 
     <link rel="stylesheet" href="../../../../css/base.css" />
     <link rel="stylesheet" href="../../../../css/components.css" />
     <link rel="stylesheet" href="./style.css" />
-  <script defer src="/js/analytics.js"></script>
+    <script defer src="/js/analytics.js"></script>
 </head>
 
-<body class="bg-grid min-h-screen flex flex-col items-center justify-center text-dark dark:text-chalk p-2.5 sm:p-3 overflow-y-auto lg:overflow-hidden">
+<body class="min-h-screen flex flex-col items-center justify-center text-dark dark:text-chalk p-2.5 sm:p-3 overflow-y-auto lg:overflow-hidden">
 
-    <div class="w-full flex flex-col lg:flex-row gap-4 items-stretch app-container animate-pop-in">
-        
-        <!-- Left Section: Input & Strip -->
-        <div class="flex-[2.4] bg-white/85 dark:bg-slate-900/85 backdrop-blur-xl border-[3px] sm:border-4 border-dark dark:border-slate-500 rounded-2xl shadow-hard dark:shadow-hard-dark overflow-hidden flex flex-col">
-            
+    <div class="w-full flex flex-col lg:flex-row gap-3.5 items-stretch app-container animate-pop-in">
+
+        <!-- Left Section: Authoring Studio & Slide Strip -->
+        <div class="flex-[2.35] min-w-0 bg-white/85 dark:bg-slate-900/85 backdrop-blur-xl border-[3px] sm:border-4 border-dark dark:border-slate-500 rounded-2xl shadow-hard dark:shadow-hard-dark overflow-hidden flex flex-col">
+
             <!-- Header Bar -->
-            <div class="bg-pink border-b-[3px] sm:border-b-4 border-dark dark:border-slate-500 px-4 py-2.5 flex items-center justify-between shrink-0">
-                <div class="flex items-center gap-3 text-white">
-                    <div class="bg-white/25 p-1.5 rounded-xl border-2 border-dark/80 shadow-[2px_2px_0px_0px_#0f172a] -rotate-3">
+            <div class="bg-pink border-b-[3px] sm:border-b-4 border-dark dark:border-slate-500 px-3.5 sm:px-4 py-2.5 flex items-center justify-between gap-2 shrink-0 relative z-30">
+                <div class="flex items-center gap-2.5 sm:gap-3 text-white min-w-0">
+                    <div class="bg-white/25 p-1.5 rounded-xl border-2 border-dark/80 shadow-hard-xs -rotate-3 shrink-0 hover:rotate-0 transition-transform">
                         <i data-lucide="monitor-play" class="w-5 h-5"></i>
                     </div>
-                    <h1 class="text-lg sm:text-xl font-bold font-title tracking-wide uppercase drop-shadow-[1px_1px_0px_#0f172a]">Speedy Slides</h1>
-                </div>
-                <div class="flex items-center gap-2.5">
-                    <div class="bg-white/90 dark:bg-slate-900/90 border-2 border-dark dark:border-slate-500 px-2.5 py-1 rounded-xl shadow-[2px_2px_0px_0px_#0f172a]">
-                        <span id="item-count" class="font-bold font-title text-dark dark:text-chalk text-xs uppercase">0 items</span>
+                    <div class="min-w-0">
+                        <h1 class="text-lg sm:text-xl font-bold font-heading tracking-wide uppercase drop-shadow-[1px_1px_0px_#0f172a] truncate leading-none">
+                            Speedy Slides
+                        </h1>
+                        <p class="text-[10px] font-bold text-white/90 uppercase tracking-wider hidden sm:block mt-0.5">
+                            Instant Classroom Flashcards &amp; Drills
+                        </p>
                     </div>
+                </div>
+
+                <div class="flex items-center gap-2 shrink-0">
+                    <div class="bg-white/95 dark:bg-slate-900/90 border-2 border-dark dark:border-slate-500 px-2.5 py-1 rounded-xl shadow-hard-xs flex items-center gap-1.5">
+                        <span id="item-count" class="font-bold font-title text-dark dark:text-chalk text-xs uppercase">0 slides</span>
+                        <span class="text-dark/30 dark:text-chalk/30 text-xs">&bull;</span>
+                        <span id="est-time" class="font-bold font-title text-orange text-xs uppercase" title="Estimated drill time">0m</span>
+                    </div>
+
+                    <!-- Starter Packs Dropdown -->
+                    <div class="relative" id="starter-packs-wrap">
+                        <button id="starter-packs-btn" onclick="app.toggleStarterPacks(event)"
+                            class="btn-chunky py-1.5 px-2.5 bg-white dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-xl text-dark dark:text-chalk text-[11px] flex items-center gap-1.5"
+                            title="Load Ready-Made ELT Starter Packs" aria-haspopup="true" aria-expanded="false">
+                            <i data-lucide="sparkles" class="w-3.5 h-3.5 text-orange"></i>
+                            <span class="hidden sm:inline">Packs</span>
+                        </button>
+                        <div id="starter-packs-menu"
+                            class="hidden absolute right-0 top-full mt-2 w-72 bg-white dark:bg-slate-900 border-[3px] border-dark dark:border-slate-500 rounded-2xl shadow-hard dark:shadow-hard-dark p-2.5 z-50 animate-slide-down">
+                            <div class="flex items-center justify-between px-1.5 pb-2 mb-2 border-b-2 border-dark/10 dark:border-slate-700">
+                                <span class="font-title font-bold text-xs uppercase tracking-wider text-dark dark:text-chalk flex items-center gap-1.5">
+                                    <i data-lucide="sparkles" class="w-3.5 h-3.5 text-orange"></i> ELT Starter Packs
+                                </span>
+                                <span class="text-[10px] font-bold text-dark/50 dark:text-chalk/50">Click to load</span>
+                            </div>
+                            <div id="starter-packs-list" class="space-y-1.5 max-h-64 overflow-y-auto custom-scrollbar"></div>
+                        </div>
+                    </div>
+
+                    <button onclick="app.openShortcutsModal()"
+                        class="btn-chunky p-2 bg-white dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-xl text-dark dark:text-chalk"
+                        title="Shortcuts &amp; Syntax Guide" aria-label="Shortcuts and syntax guide">
+                        <i data-lucide="keyboard" class="w-4 h-4 text-blue"></i>
+                    </button>
+
                     <button onclick="app.toggleDarkMode()"
-                        class="btn-chunky p-2 bg-chalk dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-xl shadow-[0_3px_0_#0f172a] dark:shadow-[0_3px_0_#000] text-dark dark:text-chalk"
-                        title="Toggle Theme" aria-label="Toggle dark mode">
+                        class="btn-chunky p-2 bg-chalk dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-xl text-dark dark:text-chalk"
+                        title="Toggle Light / Dark Theme" aria-label="Toggle dark mode">
                         <i data-lucide="moon" class="w-4 h-4 dark:hidden"></i>
                         <i data-lucide="sun" class="w-4 h-4 hidden dark:block text-yellow-400"></i>
                     </button>
                 </div>
             </div>
 
-            <div class="p-3.5 sm:p-4 flex flex-col flex-1 overflow-hidden gap-3">
-                <!-- Input Form -->
-                <div class="flex-1 flex flex-col min-h-[160px]">
-                    <label class="block font-title font-bold mb-1.5 text-xs sm:text-sm uppercase tracking-wider flex items-center gap-2 text-dark dark:text-chalk">
-                        <i data-lucide="type" class="w-4 h-4 text-pink"></i>
-                        Content Input (One Slide Per Line)
-                    </label>
-                    
-                    <textarea id="word-input"
-                        class="w-full flex-1 p-3.5 bg-white dark:bg-slate-800/90 border-[3px] border-dark dark:border-slate-500 rounded-2xl focus:outline-none focus:border-blue text-base font-semibold resize-none text-dark dark:text-chalk placeholder-dark/35 dark:placeholder-chalk/35 shadow-[inset_0_3px_0_rgba(15,23,42,0.06)] transition-colors"
-                        placeholder="Type each slide on a new line..."></textarea>
+            <!-- Studio Workspace -->
+            <div class="p-3 sm:p-3.5 flex flex-col flex-1 overflow-hidden gap-2.5">
+
+                <!-- Editor Utility Toolbar -->
+                <div class="flex flex-wrap items-center justify-between gap-2 shrink-0">
+                    <div class="flex items-center gap-2 flex-wrap">
+                        <label for="word-input"
+                            class="font-title font-bold text-xs sm:text-sm uppercase tracking-wider flex items-center gap-1.5 text-dark dark:text-chalk">
+                            <i data-lucide="type" class="w-4 h-4 text-pink"></i>
+                            Slide Content
+                        </label>
+                        <button type="button" onclick="app.insertRevealExample()"
+                            class="px-2 py-0.5 rounded-lg bg-pink/10 border border-pink/30 text-[10px] font-title font-bold text-pink uppercase hover:bg-pink/20 transition-colors flex items-center gap-1"
+                            title="Click to append a Front | Back reveal card example">
+                            <i data-lucide="eye" class="w-3 h-3"></i> Front | Back = Reveal
+                        </button>
+                    </div>
+
+                    <div class="flex flex-wrap items-center gap-1.5">
+                        <input type="file" id="txt-import-input" class="hidden" accept=".txt,.csv,text/plain" onchange="app.importTextFile(event)">
+                        <button type="button" onclick="app.cleanText()"
+                            class="btn-chunky py-1 px-2 bg-white dark:bg-slate-800 text-dark dark:text-chalk rounded-lg text-[10px] flex items-center gap-1"
+                            title="Trim spaces, expand semicolons, remove blank &amp; duplicate lines">
+                            <i data-lucide="wand-2" class="w-3 h-3 text-pink"></i> Clean
+                        </button>
+                        <button type="button" onclick="app.sortLines()"
+                            class="btn-chunky py-1 px-2 bg-white dark:bg-slate-800 text-dark dark:text-chalk rounded-lg text-[10px] flex items-center gap-1"
+                            title="Sort lines alphabetically">
+                            <i data-lucide="arrow-down-a-z" class="w-3 h-3 text-blue"></i> A-Z
+                        </button>
+                        <button type="button" onclick="app.shuffleLines()"
+                            class="btn-chunky py-1 px-2 bg-white dark:bg-slate-800 text-dark dark:text-chalk rounded-lg text-[10px] flex items-center gap-1"
+                            title="Shuffle lines in editor">
+                            <i data-lucide="shuffle" class="w-3 h-3 text-orange"></i> Mix
+                        </button>
+                        <button type="button" onclick="document.getElementById('txt-import-input').click()"
+                            class="btn-chunky py-1 px-2 bg-white dark:bg-slate-800 text-dark dark:text-chalk rounded-lg text-[10px] flex items-center gap-1"
+                            title="Import lines from a .txt file">
+                            <i data-lucide="file-up" class="w-3 h-3 text-green"></i> Import
+                        </button>
+                        <button type="button" onclick="app.exportTextFile()"
+                            class="btn-chunky py-1 px-2 bg-white dark:bg-slate-800 text-dark dark:text-chalk rounded-lg text-[10px] flex items-center gap-1"
+                            title="Download lines as a .txt file">
+                            <i data-lucide="file-down" class="w-3 h-3 text-blue"></i> Export
+                        </button>
+                    </div>
                 </div>
 
-                <!-- Bottom Section: Images & Slide Strip -->
-                <div class="shrink-0 flex flex-col gap-2.5">
-                    <div id="image-upload-area" class="p-2.5 border-[3px] border-dashed border-dark/25 dark:border-slate-600 rounded-xl flex items-center justify-between bg-slate-50/90 dark:bg-slate-800/60 transition-colors gap-2">
-                        <div class="flex items-center gap-2.5">
-                            <div class="bg-blue/15 p-1.5 rounded-lg border-2 border-blue/40">
+                <!-- Textarea + Drag/Drop Overlay -->
+                <div id="editor-dropzone" class="relative flex-1 flex flex-col min-h-[140px]">
+                    <textarea id="word-input"
+                        class="w-full flex-1 p-3 sm:p-3.5 bg-white dark:bg-slate-800/90 border-[3px] border-dark dark:border-slate-500 rounded-2xl focus:outline-none focus:border-blue text-base font-semibold resize-none text-dark dark:text-chalk placeholder-dark/35 dark:placeholder-chalk/35 shadow-inner-hard transition-colors custom-scrollbar"
+                        placeholder="Type one slide per line (or separate with ;)&#10;Tip: Use 'Question | Answer' or 'Word :: Definition' for 2-step reveal cards!&#10;Paste (Ctrl+V) or drag &amp; drop images anywhere here."></textarea>
+
+                    <div id="drop-overlay"
+                        class="hidden absolute inset-0 bg-blue/15 dark:bg-blue/25 backdrop-blur-sm border-[3px] border-dashed border-blue rounded-2xl flex-col items-center justify-center gap-2 pointer-events-none z-20 drop-active">
+                        <div class="bg-white dark:bg-slate-900 p-3 rounded-2xl border-2 border-dark shadow-hard-sm">
+                            <i data-lucide="image-plus" class="w-8 h-8 text-blue"></i>
+                        </div>
+                        <span class="font-title font-bold text-sm uppercase tracking-wider text-blue bg-white/90 dark:bg-slate-900/90 px-3 py-1 rounded-xl border border-blue/40">
+                            Drop images to attach slides
+                        </span>
+                    </div>
+                </div>
+
+                <!-- Compact Stage Settings Strip -->
+                <div class="flex flex-wrap items-center gap-x-3 gap-y-1.5 px-2.5 py-2 bg-slate-100/85 dark:bg-slate-800/70 border-2 border-dark/20 dark:border-slate-600 rounded-xl shrink-0">
+                    <!-- Stage Theme -->
+                    <div class="flex items-center gap-1" role="group" aria-label="Stage theme">
+                        <span class="text-[10px] font-title font-bold uppercase text-dark/60 dark:text-chalk/60 mr-0.5">Stage:</span>
+                        <button type="button" data-theme-opt="vivid" onclick="app.setSetting('theme', 'vivid')"
+                            class="px-2 py-1 rounded-lg border-2 border-dark/25 dark:border-slate-500 bg-white dark:bg-slate-900 text-[10px] font-title font-bold uppercase flex items-center gap-1 transition-all"
+                            title="Vivid KlassKit rotating colors">
+                            <span class="w-2.5 h-2.5 rounded-full bg-pink border border-dark/40 inline-block"></span>
+                            <span class="hidden sm:inline">Vivid</span>
+                        </button>
+                        <button type="button" data-theme-opt="chalkboard" onclick="app.setSetting('theme', 'chalkboard')"
+                            class="px-2 py-1 rounded-lg border-2 border-dark/25 dark:border-slate-500 bg-white dark:bg-slate-900 text-[10px] font-title font-bold uppercase flex items-center gap-1 transition-all"
+                            title="Dark chalkboard grid">
+                            <span class="w-2.5 h-2.5 rounded-full bg-slate-900 border border-white/40 inline-block"></span>
+                            <span class="hidden sm:inline">Chalk</span>
+                        </button>
+                        <button type="button" data-theme-opt="paper" onclick="app.setSetting('theme', 'paper')"
+                            class="px-2 py-1 rounded-lg border-2 border-dark/25 dark:border-slate-500 bg-white dark:bg-slate-900 text-[10px] font-title font-bold uppercase flex items-center gap-1 transition-all"
+                            title="Light notebook paper grid">
+                            <span class="w-2.5 h-2.5 rounded-full bg-slate-50 border border-dark/50 inline-block"></span>
+                            <span class="hidden sm:inline">Paper</span>
+                        </button>
+                        <button type="button" data-theme-opt="contrast" onclick="app.setSetting('theme', 'contrast')"
+                            class="px-2 py-1 rounded-lg border-2 border-dark/25 dark:border-slate-500 bg-white dark:bg-slate-900 text-[10px] font-title font-bold uppercase flex items-center gap-1 transition-all"
+                            title="High-contrast yellow on black">
+                            <span class="w-2.5 h-2.5 rounded-full bg-yellow-400 border border-dark/60 inline-block"></span>
+                            <span class="hidden sm:inline">High</span>
+                        </button>
+                    </div>
+
+                    <!-- Text Case -->
+                    <div class="flex items-center gap-1" role="group" aria-label="Text case">
+                        <button type="button" data-case-opt="original" onclick="app.setSetting('textCase', 'original')"
+                            class="px-2 py-1 rounded-lg border-2 border-dark/25 dark:border-slate-500 bg-white dark:bg-slate-900 text-[10px] font-title font-bold transition-all"
+                            title="Original text casing">Aa</button>
+                        <button type="button" data-case-opt="upper" onclick="app.setSetting('textCase', 'upper')"
+                            class="px-2 py-1 rounded-lg border-2 border-dark/25 dark:border-slate-500 bg-white dark:bg-slate-900 text-[10px] font-title font-bold transition-all"
+                            title="Force UPPERCASE">AA</button>
+                        <button type="button" data-case-opt="lower" onclick="app.setSetting('textCase', 'lower')"
+                            class="px-2 py-1 rounded-lg border-2 border-dark/25 dark:border-slate-500 bg-white dark:bg-slate-900 text-[10px] font-title font-bold transition-all"
+                            title="Force lowercase">aa</button>
+                    </div>
+
+                    <!-- Image Order -->
+                    <div class="flex items-center gap-1">
+                        <label for="setting-image-order" class="text-[10px] font-title font-bold uppercase text-dark/60 dark:text-chalk/60">Imgs:</label>
+                        <select id="setting-image-order" onchange="app.setSetting('imageOrder', this.value)"
+                            class="bg-white dark:bg-slate-900 border-2 border-dark/25 dark:border-slate-500 rounded-lg text-[10px] font-title font-bold py-0.5 px-1.5 text-dark dark:text-chalk cursor-pointer">
+                            <option value="after">After Text</option>
+                            <option value="before">Before Text</option>
+                            <option value="interleave">Interleave</option>
+                            <option value="pair">Pair Side-by-Side</option>
+                        </select>
+                    </div>
+
+                    <!-- Auto-Play Timer -->
+                    <div class="flex items-center gap-1">
+                        <label for="setting-autoplay" class="text-[10px] font-title font-bold uppercase text-dark/60 dark:text-chalk/60">Auto:</label>
+                        <select id="setting-autoplay" onchange="app.setSetting('autoPlaySec', Number(this.value))"
+                            class="bg-white dark:bg-slate-900 border-2 border-dark/25 dark:border-slate-500 rounded-lg text-[10px] font-title font-bold py-0.5 px-1.5 text-dark dark:text-chalk cursor-pointer">
+                            <option value="0">Off</option>
+                            <option value="2">2s</option>
+                            <option value="3">3s</option>
+                            <option value="5">5s</option>
+                            <option value="10">10s</option>
+                        </select>
+                    </div>
+
+                    <!-- Transition -->
+                    <div class="flex items-center gap-1">
+                        <label for="setting-transition" class="text-[10px] font-title font-bold uppercase text-dark/60 dark:text-chalk/60">FX:</label>
+                        <select id="setting-transition" onchange="app.setSetting('transition', this.value)"
+                            class="bg-white dark:bg-slate-900 border-2 border-dark/25 dark:border-slate-500 rounded-lg text-[10px] font-title font-bold py-0.5 px-1.5 text-dark dark:text-chalk cursor-pointer">
+                            <option value="pop">Pop</option>
+                            <option value="slide">Slide</option>
+                            <option value="instant">Instant</option>
+                        </select>
+                    </div>
+
+                    <!-- Loop & Auto-Speak Toggles -->
+                    <div class="flex items-center gap-1 ml-auto">
+                        <button type="button" id="setting-loop-btn" onclick="app.toggleSetting('loop')"
+                            class="px-2 py-1 rounded-lg border-2 border-dark/25 dark:border-slate-500 bg-white dark:bg-slate-900 text-[10px] font-title font-bold uppercase flex items-center gap-1 transition-all"
+                            title="Loop back to slide 1 at end">
+                            <i data-lucide="repeat" class="w-3 h-3"></i> Loop
+                        </button>
+                        <button type="button" id="setting-autospeak-btn" onclick="app.toggleSetting('autoSpeak')"
+                            class="px-2 py-1 rounded-lg border-2 border-dark/25 dark:border-slate-500 bg-white dark:bg-slate-900 text-[10px] font-title font-bold uppercase flex items-center gap-1 transition-all"
+                            title="Auto-pronounce each slide when displayed">
+                            <i data-lucide="volume-2" class="w-3 h-3"></i> Speak
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Image Attachment Bar & Slide Strip -->
+                <div class="shrink-0 flex flex-col gap-2">
+                    <div id="image-upload-area"
+                        class="p-2 sm:p-2.5 border-[3px] border-dashed border-dark/25 dark:border-slate-600 rounded-xl flex flex-wrap items-center justify-between bg-slate-50/90 dark:bg-slate-800/60 transition-colors gap-2">
+                        <div class="flex items-center gap-2.5 min-w-0">
+                            <div class="bg-blue/15 p-1.5 rounded-lg border-2 border-blue/40 shrink-0">
                                 <i data-lucide="image" class="w-4 h-4 text-blue"></i>
                             </div>
-                            <span id="image-count-text" class="font-bold text-dark/80 dark:text-chalk/80 font-title text-xs uppercase tracking-wide transition-colors">0 images</span>
+                            <span id="image-count-text"
+                                class="font-bold text-dark/80 dark:text-chalk/80 font-title text-xs uppercase tracking-wide transition-colors">
+                                0 images attached
+                            </span>
+                            <div id="image-mini-thumbs" class="hidden sm:flex items-center -space-x-1.5"></div>
+                            <span class="hidden md:inline text-[10px] font-bold text-dark/45 dark:text-chalk/45">
+                                &bull; Paste (Ctrl+V) or Drop
+                            </span>
                         </div>
-                        <div class="flex gap-2">
+                        <div class="flex items-center gap-2">
                             <input type="file" id="image-input" class="hidden" multiple accept="image/*" onchange="app.handleImages(event)">
-                            <button onclick="app.openImageManager()" class="btn-chunky bg-blue text-white font-title font-bold py-1.5 px-3 border-2 border-dark dark:border-slate-500 rounded-xl shadow-[0_3px_0_#0f172a] dark:shadow-[0_3px_0_#000] text-[11px] hidden" id="manage-images-btn">
-                                Manage
+                            <button type="button" onclick="app.openImageManager()" id="manage-images-btn"
+                                class="btn-chunky bg-blue text-white font-title font-bold py-1.5 px-3 rounded-xl text-[11px] hidden items-center gap-1">
+                                <i data-lucide="sliders-horizontal" class="w-3.5 h-3.5"></i> Manage
                             </button>
-                            <button onclick="document.getElementById('image-input').click()" class="btn-chunky bg-white dark:bg-slate-800 text-dark dark:text-chalk font-title font-bold py-1.5 px-3 border-2 border-dark dark:border-slate-500 rounded-xl shadow-[0_3px_0_#0f172a] dark:shadow-[0_3px_0_#000] text-[11px] flex items-center gap-1">
+                            <button type="button" onclick="document.getElementById('image-input').click()"
+                                class="btn-chunky bg-white dark:bg-slate-800 text-dark dark:text-chalk font-title font-bold py-1.5 px-3 rounded-xl text-[11px] flex items-center gap-1">
                                 <i data-lucide="plus" class="w-3.5 h-3.5 text-blue"></i> Add Images
                             </button>
                         </div>
@@ -91,28 +303,40 @@
 
                     <div class="flex flex-col gap-1">
                         <div class="flex justify-between items-center px-1">
-                            <label class="text-[10px] font-title font-bold uppercase tracking-widest text-dark/50 dark:text-chalk/50">Slide Strip Overview</label>
-                            <span id="preview-count" class="text-[10px] font-title font-bold text-blue uppercase tracking-wider bg-blue/10 border border-blue/30 px-2 py-0.5 rounded-full">0 Slides</span>
+                            <span class="text-[10px] font-title font-bold uppercase tracking-widest text-dark/55 dark:text-chalk/55">
+                                Slide Strip Overview <span class="hidden sm:inline opacity-75">&bull; Click any slide to present</span>
+                            </span>
+                            <span id="preview-count"
+                                class="text-[10px] font-title font-bold text-blue uppercase tracking-wider bg-blue/10 border border-blue/30 px-2 py-0.5 rounded-full">
+                                0 Slides
+                            </span>
                         </div>
-                        <div id="slide-strip" class="flex gap-3 overflow-x-auto py-2 px-3 custom-scrollbar min-h-[88px] items-center bg-slate-100/80 dark:bg-slate-800/60 rounded-2xl border-2 border-dark/20 dark:border-slate-600 shadow-inner">
-                            <div class="text-[11px] italic opacity-40 px-2 font-bold font-title uppercase tracking-widest">Workspace is empty</div>
+                        <div id="slide-strip"
+                            class="flex gap-2.5 overflow-x-auto py-2 px-2.5 custom-scrollbar min-h-[84px] items-center bg-slate-100/80 dark:bg-slate-800/60 rounded-2xl border-2 border-dark/20 dark:border-slate-600 shadow-inner">
+                            <div class="text-[11px] italic opacity-45 px-2 font-bold font-title uppercase tracking-widest">
+                                Workspace is empty
+                            </div>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- Right Section: Sidebar -->
-        <div class="flex-1 flex flex-col gap-4 min-w-[290px]">
-            <!-- Sets Saver Card -->
+        <!-- Right Section: Saved Library & Launchpad -->
+        <div class="flex-1 flex flex-col gap-3.5 min-w-[290px] lg:max-w-[390px]">
+
+            <!-- Saved Slides Library Card -->
             <div class="flex-1 bg-white/85 dark:bg-slate-900/85 backdrop-blur-xl border-[3px] sm:border-4 border-dark dark:border-slate-500 rounded-2xl shadow-hard dark:shadow-hard-dark flex flex-col overflow-hidden">
-                <div class="bg-orange border-b-[3px] sm:border-b-4 border-dark dark:border-slate-500 px-3.5 py-2.5 shrink-0 flex items-center justify-between">
-                    <h2 class="text-base font-bold font-title flex items-center gap-2 text-white uppercase tracking-wide drop-shadow-[1px_1px_0px_#0f172a]">
-                        <i data-lucide="library" class="w-4 h-4"></i> Saved Slides
+                <div class="bg-orange border-b-[3px] sm:border-b-4 border-dark dark:border-slate-500 px-3.5 py-2.5 shrink-0 flex items-center justify-between gap-2">
+                    <h2 class="text-base font-bold font-heading flex items-center gap-2 text-white uppercase tracking-wide drop-shadow-[1px_1px_0px_#0f172a]">
+                        <i data-lucide="library" class="w-4 h-4"></i>
+                        <span>Saved Slides</span>
+                        <span id="sets-count" class="px-1.5 py-0.5 rounded-md bg-black/20 text-[10px] font-black">0</span>
                     </h2>
                     <div class="flex items-center gap-1.5">
-                        <label class="text-[9px] font-title font-bold text-white/90 uppercase tracking-wider">Sort:</label>
-                        <select id="sets-sort" onchange="app.renderSets()" class="bg-white/90 border-2 border-dark rounded-lg text-[10px] font-title font-bold py-0.5 px-1.5 outline-none text-dark cursor-pointer">
+                        <label for="sets-sort" class="text-[9px] font-title font-bold text-white/90 uppercase tracking-wider">Sort:</label>
+                        <select id="sets-sort" onchange="app.renderSets()"
+                            class="bg-white/95 border-2 border-dark rounded-lg text-[10px] font-title font-bold py-0.5 px-1.5 outline-none text-dark cursor-pointer">
                             <option value="recent">RECENT</option>
                             <option value="alpha">A-Z</option>
                             <option value="used">POPULAR</option>
@@ -120,148 +344,410 @@
                     </div>
                 </div>
 
-                <div class="p-3.5 flex-1 flex flex-col overflow-hidden">
-                    <div id="active-set-indicator" class="hidden mb-2 p-2 bg-orange/15 border-2 border-orange/40 rounded-xl flex items-center justify-between">
-                        <div class="flex items-center gap-2 overflow-hidden">
-                            <i data-lucide="pen-tool" class="w-3.5 h-3.5 text-orange shrink-0"></i>
-                            <span id="active-set-name" class="text-[11px] font-title font-bold text-orange uppercase truncate">Editing: Slide Name</span>
+                <div class="p-3 sm:p-3.5 flex-1 flex flex-col overflow-hidden gap-2.5">
+
+                    <!-- Active Set Indicator -->
+                    <div id="active-set-indicator"
+                        class="hidden p-2 bg-orange/15 border-2 border-orange/45 rounded-xl flex items-center justify-between gap-2 shrink-0">
+                        <div class="flex items-center gap-1.5 overflow-hidden min-w-0">
+                            <i data-lucide="pencil" class="w-3.5 h-3.5 text-orange shrink-0"></i>
+                            <span id="active-set-name" class="text-[11px] font-title font-bold text-orange uppercase truncate">
+                                Editing: Set Name
+                            </span>
                         </div>
-                        <span class="text-[9px] font-title font-bold text-orange bg-orange/10 px-1.5 py-0.5 rounded-md">AUTO-SAVING</span>
+                        <div class="flex items-center gap-1.5 shrink-0">
+                            <span id="sync-status-badge"
+                                class="text-[9px] font-title font-bold text-orange bg-orange/15 px-1.5 py-0.5 rounded-md uppercase">
+                                AUTO-SAVED
+                            </span>
+                            <button type="button" onclick="app.detachActiveSet()"
+                                class="p-1 rounded-lg hover:bg-orange/20 text-orange transition-colors"
+                                title="Detach active set (keep editor content)" aria-label="Detach active set">
+                                <i data-lucide="x" class="w-3.5 h-3.5"></i>
+                            </button>
+                        </div>
                     </div>
 
-                    <div class="flex flex-col gap-2 mb-3 shrink-0">
-                        <input id="set-name-input" type="text" placeholder="Slide set name..."
+                    <!-- Set Name & Save Actions -->
+                    <div class="flex flex-col gap-2 shrink-0">
+                        <input id="set-name-input" type="text" placeholder="Set name (Enter to save)..."
                             class="w-full px-3 py-2 bg-white dark:bg-slate-800 text-dark dark:text-chalk font-bold text-xs border-2 border-dark dark:border-slate-500 rounded-xl focus:border-orange outline-none transition-colors" />
-                        <div class="grid grid-cols-2 gap-2">
-                            <button onclick="app.newSet()"
-                                class="btn-chunky bg-chalk dark:bg-slate-800 text-dark dark:text-chalk font-title font-bold py-2 px-2.5 border-2 border-dark dark:border-slate-500 rounded-xl shadow-[0_3px_0_#0f172a] dark:shadow-[0_3px_0_#000] text-[11px] flex items-center justify-center gap-1.5">
-                                <i data-lucide="plus-circle" class="w-3.5 h-3.5"></i> NEW SLIDES
+                        <div class="flex gap-2">
+                            <button type="button" onclick="app.newSet()"
+                                class="btn-chunky flex-1 bg-chalk dark:bg-slate-800 text-dark dark:text-chalk font-title font-bold py-2 px-2.5 rounded-xl text-[11px] flex items-center justify-center gap-1"
+                                title="Start a fresh blank set">
+                                <i data-lucide="plus-circle" class="w-3.5 h-3.5"></i> NEW
                             </button>
-                            <button onclick="app.saveCurrentSet()"
-                                class="btn-chunky bg-orange text-white font-title font-bold py-2 px-2.5 border-2 border-dark dark:border-slate-500 rounded-xl shadow-[0_3px_0_#0f172a] dark:shadow-[0_3px_0_#000] text-[11px] flex items-center justify-center gap-1.5">
-                                <i data-lucide="save" class="w-3.5 h-3.5"></i> SAVE AS
+                            <button type="button" id="save-set-btn" onclick="app.saveCurrentSet()"
+                                class="btn-chunky flex-1 bg-orange text-white font-title font-bold py-2 px-2.5 rounded-xl text-[11px] flex items-center justify-center gap-1"
+                                title="Save set (Ctrl+S)">
+                                <i data-lucide="save" class="w-3.5 h-3.5"></i> SAVE
+                            </button>
+                            <button type="button" id="save-as-btn" onclick="app.saveSetAs()"
+                                class="btn-chunky hidden bg-blue text-white font-title font-bold py-2 px-2.5 rounded-xl text-[11px] items-center justify-center gap-1"
+                                title="Save a copy under a new name">
+                                <i data-lucide="copy" class="w-3.5 h-3.5"></i> AS
                             </button>
                         </div>
                     </div>
-                    
-                    <div id="sets-list" class="flex-1 space-y-2 overflow-y-auto pr-1 custom-scrollbar">
+
+                    <!-- Search Filter -->
+                    <div class="relative shrink-0">
+                        <i data-lucide="search" class="w-3.5 h-3.5 text-dark/40 dark:text-chalk/40 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none"></i>
+                        <input id="sets-search" type="text" oninput="app.renderSets()" placeholder="Search saved sets..."
+                            class="w-full pl-8 pr-7 py-1.5 bg-slate-50 dark:bg-slate-800 border-2 border-dark/20 dark:border-slate-600 rounded-xl text-xs font-bold text-dark dark:text-chalk focus:border-orange outline-none transition-colors" />
+                        <button type="button" id="sets-search-clear" onclick="app.clearSetsSearch()"
+                            class="hidden absolute right-2 top-1/2 -translate-y-1/2 text-dark/40 dark:text-chalk/40 hover:text-pink transition-colors"
+                            aria-label="Clear search">
+                            <i data-lucide="x" class="w-3.5 h-3.5"></i>
+                        </button>
+                    </div>
+
+                    <!-- Sets List -->
+                    <div id="sets-list" class="flex-1 space-y-2 overflow-y-auto pr-1 custom-scrollbar min-h-[120px]">
                         <div class="flex flex-col items-center justify-center h-full text-dark/35 dark:text-chalk/35 gap-1.5 py-2">
-                            <i data-lucide="folder-search" class="w-5 h-5 opacity-60"></i>
+                            <i data-lucide="folder-open" class="w-5 h-5 opacity-60"></i>
                             <p class="text-[11px] font-bold font-title italic">No saved sets yet.</p>
                         </div>
                     </div>
                 </div>
             </div>
-            
-            <!-- Actions Card -->
-            <div class="bg-white/85 dark:bg-slate-900/85 backdrop-blur-xl border-[3px] sm:border-4 border-dark dark:border-slate-500 rounded-2xl shadow-hard dark:shadow-hard-dark p-3.5 space-y-2.5 shrink-0">
+
+            <!-- Launchpad Card -->
+            <div class="bg-white/85 dark:bg-slate-900/85 backdrop-blur-xl border-[3px] sm:border-4 border-dark dark:border-slate-500 rounded-2xl shadow-hard dark:shadow-hard-dark p-3 space-y-2 shrink-0">
                 <div class="grid grid-cols-2 gap-2.5">
-                    <button onclick="app.startPresentation(false)"
-                        class="btn-chunky bg-green text-white font-title font-bold text-base py-2.5 px-3 border-[3px] border-dark dark:border-slate-500 rounded-xl shadow-[0_4px_0_#0f172a] dark:shadow-[0_4px_0_#000] flex items-center justify-center gap-2">
+                    <button type="button" onclick="app.startPresentation(false)"
+                        class="btn-chunky bg-green text-white font-title font-bold text-base py-2.5 px-3 rounded-xl flex items-center justify-center gap-2"
+                        title="Start Presentation (Ctrl+Enter)">
                         <i data-lucide="play" class="w-5 h-5 fill-current"></i> START
                     </button>
 
-                    <button onclick="app.startPresentation(true)"
-                        class="btn-chunky bg-blue text-white font-title font-bold text-base py-2.5 px-3 border-[3px] border-dark dark:border-slate-500 rounded-xl shadow-[0_4px_0_#0f172a] dark:shadow-[0_4px_0_#000] flex items-center justify-center gap-2">
+                    <button type="button" onclick="app.startPresentation(true)"
+                        class="btn-chunky bg-blue text-white font-title font-bold text-base py-2.5 px-3 rounded-xl flex items-center justify-center gap-2"
+                        title="Shuffle &amp; Present">
                         <i data-lucide="shuffle" class="w-5 h-5"></i> SHUFFLE
                     </button>
                 </div>
 
-                <button onclick="app.openClearModal()"
-                    class="btn-chunky w-full bg-slate-100 dark:bg-slate-800 text-dark dark:text-chalk font-title font-bold text-xs py-2 px-4 border-2 border-dark dark:border-slate-500 rounded-xl shadow-[0_3px_0_#0f172a] dark:shadow-[0_3px_0_#000] flex items-center justify-center gap-2">
+                <button type="button" onclick="app.openClearModal()"
+                    class="btn-chunky w-full bg-slate-100 dark:bg-slate-800 text-dark dark:text-chalk font-title font-bold text-xs py-2 px-4 rounded-xl flex items-center justify-center gap-2">
                     <i data-lucide="trash-2" class="w-3.5 h-3.5 text-pink"></i> CLEAR WORKSPACE
                 </button>
             </div>
         </div>
     </div>
 
-    <!-- PRESENTATION MODE -->
-    <div id="presentation-mode" tabindex="0">
+    <!-- PRESENTATION STAGE -->
+    <div id="presentation-mode" data-stage-theme="vivid" tabindex="0">
+        <!-- Top Progress Rail -->
         <div class="absolute top-0 left-0 w-full h-1.5 bg-black/20 z-50 pointer-events-none">
             <div id="slide-progress" class="h-full bg-chalk/90 transition-all duration-300" style="width: 0%;"></div>
         </div>
-        <div id="slide-content" class="text-center p-6 sm:p-10 max-w-[90vw] flex flex-col items-center justify-center">
-            <h1 id="display-word" class="text-chalk font-title slide-text break-words leading-tight"
-                style="font-size: 10vw;">
-                Word
-            </h1>
-            <img id="display-image" class="max-w-full max-h-[78vh] object-contain hidden slide-text rounded-2xl shadow-[6px_6px_0px_0px_#0f172a] border-4 border-chalk transition-all duration-300" />
+        <!-- Secondary Autoplay Countdown Bar -->
+        <div id="autoplay-bar-wrap" class="hidden absolute top-1.5 left-0 w-full h-1 bg-black/15 z-50 pointer-events-none">
+            <div id="autoplay-bar" class="h-full bg-yellow-300 autoplay-progress" style="width: 100%;"></div>
         </div>
 
-        <div class="absolute bottom-5 left-0 w-full text-center pointer-events-none z-50">
-            <div class="inline-flex items-center gap-2 bg-dark/90 backdrop-blur-md text-chalk border-[3px] border-white/25 px-3 py-2 rounded-2xl text-sm sm:text-base font-title font-bold shadow-[4px_4px_0px_0px_#000] pointer-events-auto">
-                <button onclick="event.stopPropagation(); app.prevSlide()" class="p-1.5 rounded-xl hover:bg-white/15 text-chalk transition-colors" title="Previous Slide (Left Arrow)">
+        <!-- Top-Left HUD -->
+        <div id="stage-hud-top-left" class="absolute top-4 left-4 flex items-center gap-2 z-40 pointer-events-auto">
+            <button type="button" onclick="event.stopPropagation(); app.toggleOverviewGrid()"
+                class="btn-chunky bg-chalk/95 dark:bg-slate-800/95 text-dark dark:text-chalk rounded-xl p-2.5"
+                title="Overview Grid (G)" aria-label="Open slide grid">
+                <i data-lucide="layout-grid" class="w-5 h-5"></i>
+            </button>
+            <button type="button" onclick="event.stopPropagation(); app.cycleStageTheme()"
+                class="btn-chunky bg-chalk/95 dark:bg-slate-800/95 text-dark dark:text-chalk rounded-xl p-2.5"
+                title="Cycle Stage Theme (T)" aria-label="Cycle stage theme">
+                <i data-lucide="palette" class="w-5 h-5"></i>
+            </button>
+            <button type="button" id="img-fullscreen-btn" onclick="event.stopPropagation(); app.toggleImageFullscreen()"
+                class="btn-chunky hidden bg-chalk/95 dark:bg-slate-800/95 text-dark dark:text-chalk rounded-xl p-2.5"
+                title="Toggle Fullscreen Image (F)" aria-label="Toggle fullscreen image">
+                <i data-lucide="maximize" class="w-5 h-5" id="img-fullscreen-icon"></i>
+            </button>
+        </div>
+
+        <!-- Top-Right HUD -->
+        <div id="stage-hud-top-right" class="absolute top-4 right-4 flex items-center gap-2 z-40 pointer-events-auto">
+            <button type="button" onclick="event.stopPropagation(); app.openShortcutsModal()"
+                class="btn-chunky bg-chalk/95 dark:bg-slate-800/95 text-dark dark:text-chalk rounded-xl p-2.5"
+                title="Keyboard Shortcuts (?)" aria-label="Keyboard shortcuts">
+                <i data-lucide="help-circle" class="w-5 h-5"></i>
+            </button>
+            <button type="button" onclick="event.stopPropagation(); app.stopPresentation()"
+                class="btn-chunky bg-pink text-white rounded-xl p-2.5"
+                title="Exit Presentation (Esc)" aria-label="Exit presentation">
+                <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+        </div>
+
+        <!-- Stage Toast Pill -->
+        <div id="stage-toast"
+            class="hidden fixed top-16 left-1/2 -translate-x-1/2 z-[58] px-4 py-1.5 rounded-xl bg-dark/90 text-chalk border-2 border-white/25 font-title font-bold text-xs uppercase tracking-wider shadow-hard pointer-events-none">
+        </div>
+
+        <!-- Main Slide Display -->
+        <div id="slide-content" class="w-full max-w-[92vw] max-h-[78vh] px-4 sm:px-10 flex flex-col items-center justify-center gap-6 relative z-20">
+            <!-- Text / Reveal Container -->
+            <div id="stage-text-wrap" class="flex flex-col items-center justify-center text-center max-w-full stage-blur-target">
+                <h1 id="display-word" class="font-title font-bold break-words leading-tight max-w-full" style="font-size: 10vw;">
+                    Word
+                </h1>
+                <button type="button" id="reveal-prompt" onclick="event.stopPropagation(); app.revealCurrentSlide()"
+                    class="hidden mt-4 px-5 py-2 rounded-full bg-black/25 hover:bg-black/35 text-chalk border-2 border-white/30 font-title font-bold text-sm sm:text-base uppercase tracking-wider items-center gap-2 transition-all cursor-pointer">
+                    <i data-lucide="eye" class="w-4 h-4"></i> Tap or Space to Reveal
+                </button>
+                <div id="display-back"
+                    class="hidden mt-4 px-7 py-4 sm:px-10 sm:py-5 rounded-3xl bg-white/95 text-dark border-4 border-dark shadow-[6px_6px_0px_0px_#0f172a] font-title font-bold text-2xl sm:text-4xl lg:text-5xl max-w-[85vw] break-words leading-snug reveal-pop">
+                </div>
+            </div>
+
+            <!-- Image Container -->
+            <div id="stage-image-wrap" class="hidden flex-col items-center justify-center gap-3 max-w-full stage-blur-target">
+                <img id="display-image" alt="Slide visual"
+                    class="max-w-full max-h-[66vh] object-contain rounded-2xl shadow-[6px_6px_0px_0px_#0f172a] border-4 border-chalk transition-all duration-200" />
+                <div id="display-caption"
+                    class="hidden px-5 py-2 rounded-2xl bg-dark/90 text-chalk border-[3px] border-white/30 font-title font-bold text-lg sm:text-2xl shadow-[4px_4px_0px_0px_#000] max-w-[85vw] text-center">
+                </div>
+            </div>
+
+            <!-- Peek / Blur Hint -->
+            <div id="peek-hint" class="hidden absolute inset-0 items-center justify-center pointer-events-none z-30">
+                <div class="bg-dark/90 text-chalk border-[3px] border-white/30 px-5 py-3 rounded-2xl shadow-[4px_4px_0px_0px_#000] flex items-center gap-2.5 font-title font-bold text-sm sm:text-base uppercase tracking-wider">
+                    <i data-lucide="eye-off" class="w-5 h-5 text-orange"></i>
+                    <span>Hidden &mdash; Press H or Click Eye to Peek</span>
+                </div>
+            </div>
+
+            <!-- End-of-Deck Completion Card (when Loop is OFF) -->
+            <div id="deck-complete-card" onclick="event.stopPropagation()"
+                class="hidden flex-col items-center justify-center text-center bg-white/95 dark:bg-slate-900/95 text-dark dark:text-chalk border-4 border-dark dark:border-slate-500 rounded-[2rem] p-6 sm:p-8 shadow-[8px_8px_0px_0px_#0f172a] max-w-md w-full animate-pop-in z-30">
+                <div class="w-16 h-16 rounded-2xl bg-green/15 border-[3px] border-green flex items-center justify-center mb-4 -rotate-3">
+                    <i data-lucide="trophy" class="w-8 h-8 text-green"></i>
+                </div>
+                <h2 class="text-2xl sm:text-3xl font-heading font-bold uppercase tracking-tight mb-1">Deck Complete!</h2>
+                <p id="deck-complete-stats" class="text-sm font-bold text-dark/65 dark:text-chalk/65 mb-6">0 slides finished</p>
+                <div class="flex flex-col sm:flex-row gap-2.5 w-full">
+                    <button type="button" onclick="app.restartDeck(false)"
+                        class="btn-chunky flex-1 bg-green text-white py-2.5 px-4 rounded-xl text-xs flex items-center justify-center gap-1.5">
+                        <i data-lucide="rotate-ccw" class="w-4 h-4"></i> Restart
+                    </button>
+                    <button type="button" onclick="app.restartDeck(true)"
+                        class="btn-chunky flex-1 bg-blue text-white py-2.5 px-4 rounded-xl text-xs flex items-center justify-center gap-1.5">
+                        <i data-lucide="shuffle" class="w-4 h-4"></i> Shuffle
+                    </button>
+                </div>
+                <button type="button" onclick="app.stopPresentation()"
+                    class="btn-chunky w-full mt-2.5 bg-slate-100 dark:bg-slate-800 text-dark dark:text-chalk py-2.5 px-4 rounded-xl text-xs flex items-center justify-center gap-1.5">
+                    <i data-lucide="arrow-left" class="w-4 h-4"></i> Back to Editor
+                </button>
+            </div>
+        </div>
+
+        <!-- Blackout Curtain -->
+        <div id="blackout-overlay" onclick="event.stopPropagation(); app.toggleBlackout(false)"
+            class="hidden fixed inset-0 bg-slate-950/[0.98] z-[55] flex-col items-center justify-center gap-3 text-chalk cursor-pointer">
+            <div class="p-4 rounded-2xl bg-white/10 border-2 border-white/20">
+                <i data-lucide="moon" class="w-10 h-10 text-yellow-400"></i>
+            </div>
+            <p class="font-heading font-bold text-2xl uppercase tracking-wide">Screen Paused</p>
+            <p class="text-xs font-bold text-white/60 uppercase tracking-widest">Press B or click anywhere to resume</p>
+        </div>
+
+        <!-- Overview Jump Grid Overlay -->
+        <div id="stage-grid-overlay" onclick="event.stopPropagation()"
+            class="hidden fixed inset-0 bg-slate-950/80 backdrop-blur-md z-[52] flex-col p-4 sm:p-8">
+            <div class="flex items-center justify-between mb-4 shrink-0">
+                <h2 class="text-xl sm:text-2xl font-heading font-bold text-white uppercase tracking-wide flex items-center gap-2.5">
+                    <i data-lucide="layout-grid" class="w-6 h-6 text-blue"></i> Jump to Slide
+                </h2>
+                <button type="button" onclick="app.toggleOverviewGrid(false)"
+                    class="btn-chunky bg-pink text-white rounded-xl p-2" aria-label="Close slide grid">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            <div id="stage-grid-list"
+                class="flex-1 overflow-y-auto custom-scrollbar grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3.5 p-1 content-start">
+            </div>
+        </div>
+
+        <!-- Floating Bottom Control Dock -->
+        <div id="stage-dock" class="absolute bottom-4 left-0 w-full flex justify-center px-3 pointer-events-none z-40">
+            <div onclick="event.stopPropagation()"
+                class="inline-flex flex-wrap items-center justify-center gap-1 sm:gap-1.5 bg-dark/90 backdrop-blur-md text-chalk border-[3px] border-white/25 px-2.5 py-1.5 rounded-2xl text-sm font-title font-bold shadow-[4px_4px_0px_0px_#000] pointer-events-auto">
+                <button type="button" onclick="app.prevSlide()"
+                    class="p-1.5 rounded-xl hover:bg-white/15 text-chalk transition-colors"
+                    title="Previous Slide (Left Arrow)" aria-label="Previous slide">
                     <i data-lucide="chevron-left" class="w-4 h-4"></i>
                 </button>
-                <span class="px-1">Slide <span id="slide-number" class="text-blue">1</span> / <span id="total-slides">1</span></span>
-                <button onclick="event.stopPropagation(); app.nextSlide()" class="p-1.5 rounded-xl hover:bg-white/15 text-chalk transition-colors" title="Next Slide (Right Arrow / Space)">
+                <button type="button" onclick="app.toggleOverviewGrid()"
+                    class="px-2 py-1 rounded-xl hover:bg-white/15 transition-colors text-xs sm:text-sm"
+                    title="Open Slide Grid (G)">
+                    Slide <span id="slide-number" class="text-blue">1</span> / <span id="total-slides">1</span>
+                </button>
+                <button type="button" onclick="app.nextSlide()"
+                    class="p-1.5 rounded-xl hover:bg-white/15 text-chalk transition-colors"
+                    title="Next Slide (Right Arrow / Space)" aria-label="Next slide">
                     <i data-lucide="chevron-right" class="w-4 h-4"></i>
                 </button>
-                <span class="mx-1 opacity-40 hidden sm:inline">|</span>
-                <span class="hidden sm:flex items-center gap-1.5 text-xs font-nunito pr-1.5"><i data-lucide="arrow-left-right" class="w-3.5 h-3.5 text-orange"></i> Arrows or Click</span>
-            </div>
-        </div>
 
-        <button onclick="event.stopPropagation(); app.stopPresentation()"
-            class="btn-chunky absolute top-5 right-5 bg-pink text-white border-[3px] border-dark rounded-xl p-2.5 shadow-[0_4px_0_#0f172a] z-50 pointer-events-auto"
-            title="Exit Presentation (Esc)" aria-label="Exit presentation">
-            <i data-lucide="x" class="w-7 h-7"></i>
-        </button>
+                <span class="h-5 w-px bg-white/20 mx-0.5"></span>
 
-        <button onclick="event.stopPropagation(); app.toggleImageFullscreen()" id="img-fullscreen-btn"
-            class="btn-chunky absolute top-5 left-5 bg-chalk text-dark border-[3px] border-dark dark:border-slate-500 dark:text-chalk dark:bg-slate-800 rounded-xl p-2.5 shadow-[0_4px_0_#0f172a] z-50 pointer-events-auto hidden"
-            title="Toggle Fullscreen Image" aria-label="Toggle fullscreen image">
-            <i data-lucide="maximize" class="w-6 h-6" id="img-fullscreen-icon"></i>
-        </button>
-    </div>
-
-    <!-- CLEAR MODAL -->
-    <div id="clear-modal" class="fixed inset-0 bg-dark/80 backdrop-blur-md z-50 hidden items-center justify-center p-4">
-        <div class="bg-chalk dark:bg-slate-900 border-4 border-dark dark:border-slate-500 rounded-[2rem] shadow-hard dark:shadow-hard-dark max-w-sm w-full p-6 animate-pop-in">
-            <div class="flex items-center gap-3 mb-3">
-                <div class="bg-pink p-2.5 rounded-xl border-2 border-dark text-white">
-                    <i data-lucide="alert-triangle" class="w-5 h-5"></i>
+                <div class="inline-flex items-center rounded-xl bg-white/5 border border-white/15 overflow-hidden">
+                    <button type="button" id="stage-autoplay-btn" onclick="app.toggleAutoPlay()"
+                        class="p-1.5 hover:bg-white/15 text-chalk transition-colors"
+                        title="Toggle Auto-Play (P)" aria-label="Toggle auto-play">
+                        <i data-lucide="timer" class="w-4 h-4"></i>
+                    </button>
+                    <button type="button" id="stage-autoplay-speed-btn" onclick="app.cycleAutoPlaySpeed()"
+                        class="px-2 py-1 hover:bg-white/15 text-chalk transition-colors text-[11px] font-title font-bold border-l border-white/15"
+                        title="Cycle Auto-Play Speed">
+                        <span id="stage-autoplay-label">Off</span>
+                    </button>
                 </div>
-                <h2 class="text-2xl font-title font-bold text-dark dark:text-chalk uppercase">Clear Text?</h2>
-            </div>
-            <p class="mb-6 text-dark/70 dark:text-chalk/70 font-semibold text-sm">Are you sure you want to delete all entered content? This cannot be undone.</p>
-            <div class="flex gap-3">
-                <button onclick="app.closeClearModal()"
-                    class="btn-chunky flex-1 bg-white dark:bg-slate-800 text-dark dark:text-chalk font-title font-bold py-2.5 px-4 border-[3px] border-dark dark:border-slate-500 rounded-xl shadow-[0_4px_0_#0f172a] dark:shadow-[0_4px_0_#000]">
-                    Cancel
+                <button type="button" id="stage-speak-btn" onclick="app.speakCurrentSlide()"
+                    class="p-1.5 rounded-xl hover:bg-white/15 text-chalk transition-colors"
+                    title="Read Aloud (S)" aria-label="Read slide aloud">
+                    <i data-lucide="volume-2" class="w-4 h-4"></i>
                 </button>
-                <button onclick="app.confirmClear()"
-                    class="btn-chunky flex-1 bg-pink text-white font-title font-bold py-2.5 px-4 border-[3px] border-dark dark:border-slate-500 rounded-xl shadow-[0_4px_0_#0f172a] dark:shadow-[0_4px_0_#000]">
-                    Yes, Clear
+                <button type="button" id="stage-blur-btn" onclick="app.toggleBlur()"
+                    class="p-1.5 rounded-xl hover:bg-white/15 text-chalk transition-colors"
+                    title="Blur / Peek Mode (H)" aria-label="Toggle blur mode">
+                    <i data-lucide="eye" class="w-4 h-4" id="stage-blur-icon"></i>
                 </button>
+                <button type="button" id="stage-blackout-btn" onclick="app.toggleBlackout()"
+                    class="p-1.5 rounded-xl hover:bg-white/15 text-chalk transition-colors"
+                    title="Blackout Screen (B)" aria-label="Toggle blackout curtain">
+                    <i data-lucide="moon" class="w-4 h-4"></i>
+                </button>
+                <button type="button" id="stage-shuffle-btn" onclick="app.shuffleLiveDeck()"
+                    class="p-1.5 rounded-xl hover:bg-white/15 text-chalk transition-colors"
+                    title="Shuffle Deck Live (R)" aria-label="Shuffle live deck">
+                    <i data-lucide="shuffle" class="w-4 h-4"></i>
+                </button>
+
+                <span class="hidden sm:inline-block h-5 w-px bg-white/20 mx-0.5"></span>
+
+                <div class="hidden sm:flex items-center gap-0.5">
+                    <button type="button" onclick="app.adjustFontScale(-0.1)"
+                        class="p-1.5 rounded-xl hover:bg-white/15 text-chalk transition-colors"
+                        title="Smaller Text (-)" aria-label="Decrease font size">
+                        <i data-lucide="minus" class="w-3.5 h-3.5"></i>
+                    </button>
+                    <button type="button" onclick="app.adjustFontScale(0.1)"
+                        class="p-1.5 rounded-xl hover:bg-white/15 text-chalk transition-colors"
+                        title="Larger Text (+)" aria-label="Increase font size">
+                        <i data-lucide="plus" class="w-3.5 h-3.5"></i>
+                    </button>
+                </div>
             </div>
         </div>
     </div>
 
     <!-- IMAGE MANAGER MODAL -->
-    <div id="image-manager-modal" class="fixed inset-0 bg-dark/80 backdrop-blur-md z-[60] hidden items-center justify-center p-4">
-        <div class="bg-chalk dark:bg-slate-900 border-4 border-dark dark:border-slate-500 rounded-[2rem] shadow-hard dark:shadow-hard-dark max-w-4xl w-full p-5 sm:p-6 flex flex-col max-h-[85vh] animate-pop-in">
-            <div class="flex justify-between items-center mb-4 shrink-0">
+    <div id="image-manager-modal"
+        class="fixed inset-0 bg-dark/80 backdrop-blur-md z-[60] hidden items-center justify-center p-4"
+        onclick="if (event.target === this) app.closeImageManager()">
+        <div class="bg-chalk dark:bg-slate-900 border-4 border-dark dark:border-slate-500 rounded-[2rem] shadow-hard dark:shadow-hard-dark max-w-4xl w-full p-5 sm:p-6 flex flex-col max-h-[88vh] animate-pop-in">
+            <div class="flex justify-between items-center mb-4 shrink-0 gap-2">
                 <div class="flex items-center gap-3">
                     <div class="bg-blue/15 p-2.5 rounded-xl border-2 border-blue">
                         <i data-lucide="images" class="w-5 h-5 text-blue"></i>
                     </div>
-                    <h2 class="text-xl sm:text-2xl font-title font-bold text-dark dark:text-chalk uppercase">Manage Images</h2>
+                    <div>
+                        <h2 class="text-xl sm:text-2xl font-heading font-bold text-dark dark:text-chalk uppercase leading-none">
+                            Manage Images
+                        </h2>
+                        <p class="text-xs font-bold text-dark/55 dark:text-chalk/55 mt-0.5">
+                            Reorder, add captions, or remove slide images
+                        </p>
+                    </div>
                 </div>
-                <button onclick="app.closeImageManager()" class="btn-chunky p-2 bg-white dark:bg-slate-800 text-dark dark:text-chalk rounded-xl border-2 border-dark dark:border-slate-500 shadow-[0_3px_0_#0f172a] dark:shadow-[0_3px_0_#000]">
+                <div class="flex items-center gap-2">
+                    <button type="button" onclick="document.getElementById('image-input').click()"
+                        class="btn-chunky py-2 px-3 bg-blue text-white rounded-xl text-xs flex items-center gap-1.5">
+                        <i data-lucide="plus" class="w-4 h-4"></i> Add More
+                    </button>
+                    <button type="button" onclick="app.closeImageManager()"
+                        class="btn-chunky p-2 bg-white dark:bg-slate-800 text-dark dark:text-chalk rounded-xl"
+                        aria-label="Close image manager">
+                        <i data-lucide="x" class="w-5 h-5"></i>
+                    </button>
+                </div>
+            </div>
+
+            <div id="image-manager-list"
+                class="flex-1 overflow-y-auto custom-scrollbar grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3.5 p-3 mb-4 bg-white dark:bg-slate-800 rounded-2xl border-[3px] border-dark dark:border-slate-600">
+            </div>
+
+            <div class="pt-3 border-t-2 border-dark/10 dark:border-slate-700 shrink-0 flex flex-wrap justify-between items-center gap-2">
+                <span class="text-sm font-bold font-title text-dark/65 dark:text-chalk/65 uppercase" id="image-manager-count">
+                    0 Images
+                </span>
+                <div class="flex items-center gap-2.5">
+                    <button type="button" onclick="app.clearImages()"
+                        class="btn-chunky bg-pink text-white font-title font-bold py-2 px-4 rounded-xl flex items-center gap-1.5 text-xs">
+                        <i data-lucide="trash-2" class="w-4 h-4"></i> CLEAR ALL
+                    </button>
+                    <button type="button" onclick="app.closeImageManager()"
+                        class="btn-chunky bg-green text-white font-title font-bold py-2 px-5 rounded-xl text-xs">
+                        DONE
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- SHORTCUTS & SYNTAX MODAL -->
+    <div id="shortcuts-modal"
+        class="fixed inset-0 bg-dark/80 backdrop-blur-md z-[70] hidden items-center justify-center p-4"
+        onclick="if (event.target === this) app.closeShortcutsModal()">
+        <div class="bg-chalk dark:bg-slate-900 border-4 border-dark dark:border-slate-500 rounded-[2rem] shadow-hard dark:shadow-hard-dark max-w-2xl w-full p-5 sm:p-6 animate-pop-in max-h-[88vh] overflow-y-auto custom-scrollbar">
+            <div class="flex items-center justify-between mb-4">
+                <div class="flex items-center gap-3">
+                    <div class="bg-blue/15 p-2.5 rounded-xl border-2 border-blue">
+                        <i data-lucide="keyboard" class="w-5 h-5 text-blue"></i>
+                    </div>
+                    <h2 class="text-xl sm:text-2xl font-heading font-bold text-dark dark:text-chalk uppercase">
+                        Shortcuts &amp; Tips
+                    </h2>
+                </div>
+                <button type="button" onclick="app.closeShortcutsModal()"
+                    class="btn-chunky p-2 bg-white dark:bg-slate-800 text-dark dark:text-chalk rounded-xl"
+                    aria-label="Close shortcuts modal">
                     <i data-lucide="x" class="w-5 h-5"></i>
                 </button>
             </div>
-            
-            <div id="image-manager-list" class="flex-1 overflow-y-auto custom-scrollbar grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 p-3 mb-4 bg-white dark:bg-slate-800 rounded-2xl border-[3px] border-dark dark:border-slate-600">
-                <!-- Images injected here -->
-            </div>
-            
-            <div class="pt-3 border-t-2 border-dark/10 dark:border-slate-700 shrink-0 flex justify-between items-center">
-                <span class="text-sm font-bold font-title text-dark/60 dark:text-chalk/60 uppercase" id="image-manager-count">0 Images</span>
-                <button onclick="app.clearImages()" class="btn-chunky bg-pink text-white font-title font-bold py-2 px-5 border-2 border-dark dark:border-slate-500 rounded-xl shadow-[0_3px_0_#0f172a] dark:shadow-[0_3px_0_#000] flex items-center gap-2 text-xs">
-                    <i data-lucide="trash-2" class="w-4 h-4"></i> CLEAR ALL
-                </button>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                <div class="bg-white dark:bg-slate-800 border-2 border-dark/20 dark:border-slate-600 rounded-2xl p-4 space-y-2.5">
+                    <h3 class="font-title font-bold text-sm uppercase text-pink flex items-center gap-1.5">
+                        <i data-lucide="pencil" class="w-4 h-4"></i> Authoring Studio
+                    </h3>
+                    <div class="flex justify-between items-center gap-2"><span class="font-bold">Start Presentation</span><kbd class="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-700 border border-dark/20 font-title">Ctrl + Enter</kbd></div>
+                    <div class="flex justify-between items-center gap-2"><span class="font-bold">Save Set</span><kbd class="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-700 border border-dark/20 font-title">Ctrl + S</kbd></div>
+                    <div class="flex justify-between items-center gap-2"><span class="font-bold">Paste Image Slide</span><kbd class="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-700 border border-dark/20 font-title">Ctrl + V</kbd></div>
+                    <div class="pt-2 border-t border-dark/10 dark:border-slate-700 space-y-1 text-dark/75 dark:text-chalk/75 font-semibold">
+                        <p><strong class="text-pink">Reveal Flashcards:</strong> Write <code class="px-1 bg-slate-100 dark:bg-slate-700 rounded">Front | Back</code> or <code class="px-1 bg-slate-100 dark:bg-slate-700 rounded">Q :: A</code></p>
+                        <p><strong class="text-blue">Quick Lists:</strong> Separate slides with new lines or semicolons (<code class="px-1 bg-slate-100 dark:bg-slate-700 rounded">;</code>)</p>
+                        <p><strong class="text-orange">Pair Mode:</strong> Set <em>Imgs: Pair</em> to pair image #1 with line #1.</p>
+                    </div>
+                </div>
+
+                <div class="bg-white dark:bg-slate-800 border-2 border-dark/20 dark:border-slate-600 rounded-2xl p-4 space-y-2">
+                    <h3 class="font-title font-bold text-sm uppercase text-blue flex items-center gap-1.5">
+                        <i data-lucide="monitor-play" class="w-4 h-4"></i> Presentation Stage
+                    </h3>
+                    <div class="flex justify-between items-center gap-2"><span class="font-bold">Next / Reveal</span><kbd class="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-700 border border-dark/20 font-title">Space / &rarr;</kbd></div>
+                    <div class="flex justify-between items-center gap-2"><span class="font-bold">Previous Slide</span><kbd class="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-700 border border-dark/20 font-title">&larr; / Backspace</kbd></div>
+                    <div class="flex justify-between items-center gap-2"><span class="font-bold">Jump Grid Overview</span><kbd class="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-700 border border-dark/20 font-title">G</kbd></div>
+                    <div class="flex justify-between items-center gap-2"><span class="font-bold">Toggle Auto-Play</span><kbd class="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-700 border border-dark/20 font-title">P</kbd></div>
+                    <div class="flex justify-between items-center gap-2"><span class="font-bold">Read Aloud (TTS)</span><kbd class="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-700 border border-dark/20 font-title">S</kbd></div>
+                    <div class="flex justify-between items-center gap-2"><span class="font-bold">Blur / Peek Mode</span><kbd class="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-700 border border-dark/20 font-title">H</kbd></div>
+                    <div class="flex justify-between items-center gap-2"><span class="font-bold">Blackout Curtain</span><kbd class="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-700 border border-dark/20 font-title">B</kbd></div>
+                    <div class="flex justify-between items-center gap-2"><span class="font-bold">Shuffle Live / Theme</span><kbd class="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-700 border border-dark/20 font-title">R / T</kbd></div>
+                    <div class="flex justify-between items-center gap-2"><span class="font-bold">Text Scale / Img Full</span><kbd class="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-700 border border-dark/20 font-title">+ - / F</kbd></div>
+                </div>
             </div>
         </div>
     </div>
