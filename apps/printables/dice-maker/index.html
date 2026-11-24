@@ -306,7 +306,7 @@
         .custom-scrollbar { scrollbar-color: #cbd5e1 transparent; scrollbar-width: thin; }
 
         #saved-sets-controls { max-height: 0; overflow: hidden; transition: 0.25s ease-out; opacity: 0; }
-        #saved-sets-controls.active { max-height: 360px; opacity: 1; margin-top: 8px; }
+        #saved-sets-controls.active { max-height: 440px; opacity: 1; margin-top: 8px; }
         #saved-sets-toggle-icon.active { transform: rotate(180deg); }
 
         #sheet-stage {
@@ -628,15 +628,19 @@
                 </button>
                 <div id="saved-sets-controls" class="active space-y-2">
                     <div class="flex items-center gap-1.5">
+                        <input id="set-name-input" type="text" placeholder="Die name..." aria-label="Die name" class="input-chunky flex-1 py-1.5 px-2.5 text-xs min-w-0">
+                        <button id="save-set-btn" type="button" title="Save Current Die" class="btn-chunky bg-brand-pink text-white px-3 py-1.5 rounded-xl text-[10px] flex items-center gap-1 shrink-0">
+                            <i data-lucide="save" class="w-3 h-3"></i> SAVE
+                        </button>
+                    </div>
+                    <div class="flex items-center gap-1.5">
                         <select id="library-sort" aria-label="Sort saved dice" class="input-chunky flex-1 py-1.5 px-2 text-[11px]">
                             <option value="recent">Recent</option>
                             <option value="alpha">A–Z</option>
+                            <option value="popular">Popular</option>
                         </select>
                         <button id="new-set-btn" type="button" title="New Blank Die" class="btn-chunky bg-white dark:bg-slate-700 px-2.5 py-1.5 rounded-xl text-[10px] flex items-center gap-1 dark:text-white">
                             <i data-lucide="sparkles" class="w-3 h-3"></i> NEW
-                        </button>
-                        <button id="save-set-btn" type="button" title="Save Current Die" class="btn-chunky bg-brand-pink text-white px-2.5 py-1.5 rounded-xl text-[10px] flex items-center gap-1">
-                            <i data-lucide="save" class="w-3 h-3"></i> SAVE
                         </button>
                     </div>
                     <div id="library-list" class="space-y-1.5 max-h-48 overflow-y-auto custom-scrollbar pr-1"></div>
@@ -1860,8 +1864,12 @@
             updateActiveSetBanner();
 
             const sorted = state.savedSets.slice().sort((a, b) => {
-                if (sort === 'alpha') return a.name.localeCompare(b.name);
-                return (b.updatedAt || 0) - (a.updatedAt || 0);
+                if (sort === 'alpha') return (a.name || '').localeCompare(b.name || '');
+                if (sort === 'popular') {
+                    return (b.usageCount || 0) - (a.usageCount || 0)
+                        || ((b.lastUsed || b.updatedAt || 0) - (a.lastUsed || a.updatedAt || 0));
+                }
+                return (b.lastUsed || b.updatedAt || 0) - (a.lastUsed || a.updatedAt || 0);
             });
 
             if (sorted.length === 0) {
@@ -1905,6 +1913,8 @@
                         state.savedSets = state.savedSets.filter(s => s.id !== id);
                         if (state.activeSetId === id) {
                             state.activeSetId = null;
+                            const setNameInput = document.getElementById('set-name-input');
+                            if (setNameInput) setNameInput.value = '';
                         }
                         persistSavedSets();
                         showToast('Die deleted.', 'info');
@@ -1916,7 +1926,14 @@
         async function applySavedSet(item) {
             applyWorkspaceData({ ...item, activeSetId: item.id, editingDie: 'A' });
             await hydrateAllDiceImages();
-            item.updatedAt = Date.now();
+            const now = Date.now();
+            item.updatedAt = now;
+            item.lastUsed = now;
+            item.usageCount = (item.usageCount || 0) + 1;
+            const setNameInput = document.getElementById('set-name-input');
+            if (setNameInput) setNameInput.value = item.name || '';
+            try { localStorage.setItem(SETS_STORAGE_KEY, JSON.stringify(state.savedSets)); } catch (e) {}
+            renderSavedSetsList();
             syncABTabsUI();
             renderFacesEditor();
             renderAllPreviews();
@@ -1942,6 +1959,8 @@
             document.getElementById('custom-subtitle').value = p.subtitle;
 
             state.activeSetId = null;
+            const setNameInput = document.getElementById('set-name-input');
+            if (setNameInput) setNameInput.value = '';
             updateActiveSetBanner();
             renderSavedSetsList();
             syncABTabsUI();
@@ -1975,6 +1994,11 @@
             document.body.classList.remove('opacity-0');
 
             await loadPersistedState();
+            const initialActiveDie = state.activeSetId ? state.savedSets.find(s => s.id === state.activeSetId) : null;
+            const initialSetNameInput = document.getElementById('set-name-input');
+            if (initialSetNameInput && initialActiveDie) {
+                initialSetNameInput.value = initialActiveDie.name || '';
+            }
             await hydrateAllDiceImages();
             applyPage();
             syncABTabsUI();
@@ -2223,6 +2247,8 @@
             document.getElementById('library-sort').addEventListener('change', renderSavedSetsList);
             document.getElementById('close-set-btn').addEventListener('click', () => {
                 state.activeSetId = null;
+                const setNameInput = document.getElementById('set-name-input');
+                if (setNameInput) setNameInput.value = '';
                 updateActiveSetBanner();
                 renderSavedSetsList();
                 persistState();
@@ -2339,24 +2365,30 @@
 
             const saveModal = document.getElementById('saveModal');
             const saveInput = document.getElementById('save-set-input');
-            const confirmSave = () => {
-                const name = saveInput.value.trim();
+            const setNameInput = document.getElementById('set-name-input');
+            const confirmSave = (explicitName) => {
+                const name = (typeof explicitName === 'string' ? explicitName : saveInput.value).trim();
                 if (!name) { showToast('Please enter a die name.', 'warning'); return; }
+                const now = Date.now();
                 const ws = getWorkspaceData();
                 const existing = state.activeSetId ? state.savedSets.find(s => s.id === state.activeSetId) : null;
-                const isUpdating = Boolean(existing && existing.name.toLowerCase() === name.toLowerCase());
-                const id = isUpdating ? existing.id : ('dice_' + Date.now());
+                const isUpdating = Boolean(existing && (existing.name || '').trim().toLowerCase() === name.toLowerCase());
+                const id = isUpdating ? existing.id : ('dice_' + now);
                 const payload = {
                     ...ws,
                     id,
                     name,
-                    updatedAt: Date.now(),
+                    createdAt: isUpdating ? (existing.createdAt || existing.updatedAt || now) : now,
+                    updatedAt: now,
+                    lastUsed: now,
+                    usageCount: isUpdating ? ((existing.usageCount || 0) + 1) : 1,
                     activeSetId: id
                 };
                 const idx = state.savedSets.findIndex(s => s.id === id);
                 if (idx >= 0) state.savedSets[idx] = payload;
                 else state.savedSets.unshift(payload);
                 state.activeSetId = id;
+                if (setNameInput) setNameInput.value = name;
                 saveModal.classList.add('hidden');
                 persistSavedSets();
                 playSound('pop');
@@ -2364,6 +2396,11 @@
             };
 
             document.getElementById('save-set-btn').addEventListener('click', () => {
+                const inlineName = setNameInput ? setNameInput.value.trim() : '';
+                if (inlineName) {
+                    confirmSave(inlineName);
+                    return;
+                }
                 const existing = state.savedSets.find(s => s.id === state.activeSetId);
                 saveInput.value = existing
                     ? existing.name
@@ -2371,9 +2408,17 @@
                 saveModal.classList.remove('hidden');
                 saveInput.focus();
             });
+            if (setNameInput) {
+                setNameInput.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        document.getElementById('save-set-btn').click();
+                    }
+                });
+            }
             document.getElementById('save-modal-cancel').addEventListener('click', () => saveModal.classList.add('hidden'));
             saveModal.addEventListener('click', (e) => { if (e.target === saveModal) saveModal.classList.add('hidden'); });
-            document.getElementById('save-modal-confirm').addEventListener('click', confirmSave);
+            document.getElementById('save-modal-confirm').addEventListener('click', () => confirmSave());
             saveInput.addEventListener('keydown', (e) => {
                 if (e.key === 'Enter') { e.preventDefault(); confirmSave(); }
                 if (e.key === 'Escape') saveModal.classList.add('hidden');

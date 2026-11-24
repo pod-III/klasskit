@@ -272,24 +272,6 @@
             }
         }
 
-        /* Saved Sets Collapsible Drawer (matches Word Search Saved Puzzles) */
-        #saved-sets-controls {
-            max-height: 0;
-            overflow: hidden;
-            transition: all 0.3s ease-out;
-            opacity: 0;
-        }
-
-        #saved-sets-controls.active {
-            max-height: 260px;
-            opacity: 1;
-            margin-top: 8px;
-        }
-
-        #saved-sets-toggle-icon.active {
-            transform: rotate(180deg);
-        }
-
         /* ---------- Snake artwork & Interactive Smartboard Letters ---------- */
         #svg-wrapper {
             display: flex;
@@ -692,6 +674,34 @@
                     class="w-full btn-chunky bg-green text-dark py-3 rounded-xl text-xl tracking-wide flex items-center justify-center gap-2 hover:brightness-105">
                     <i data-lucide="waypoints" class="w-5 h-5"></i> BUILD SNAKE
                 </button>
+
+                <!-- Library (Saved Sets) -->
+                <div class="pt-4 border-t-2 border-dashed border-slate-300 dark:border-slate-700 space-y-2">
+                    <div class="flex items-center justify-between gap-2">
+                        <label for="library-sort" class="text-xs font-bold text-slate-400 uppercase tracking-widest">Library (<span id="saved-count">0</span>)</label>
+                        <div class="flex items-center gap-1.5">
+                            <select id="library-sort" aria-label="Sort saved sets"
+                                class="p-1 bg-slate-50 dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-lg text-dark dark:text-white font-bold text-[10px] focus:outline-none">
+                                <option value="recent">Recent</option>
+                                <option value="alpha">A–Z</option>
+                                <option value="popular">Popular</option>
+                            </select>
+                            <button id="new-set-btn" type="button" title="New Workspace"
+                                class="p-1.5 bg-white dark:bg-slate-800 text-dark dark:text-white border-2 border-dark dark:border-slate-500 rounded-lg hover:brightness-95 active:translate-y-0.5 font-bold text-[10px] flex items-center gap-1">
+                                <i data-lucide="plus" class="w-3 h-3"></i> NEW
+                            </button>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-1.5">
+                        <input id="set-name-input" type="text" placeholder="Set name..." aria-label="Word snake set name"
+                            class="flex-1 min-w-0 p-2 bg-slate-50 dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-lg text-dark dark:text-white font-bold text-xs focus:outline-none focus:border-blue" />
+                        <button id="save-set-btn" type="button" title="Save Set"
+                            class="btn-chunky bg-pink text-white px-3 py-2 rounded-lg text-xs flex items-center gap-1 shrink-0">
+                            <i data-lucide="save" class="w-3.5 h-3.5"></i> SAVE
+                        </button>
+                    </div>
+                    <div id="library-list" class="space-y-1.5 max-h-44 overflow-y-auto custom-scrollbar pr-1"></div>
+                </div>
             </div>
 
             <!-- Footer Actions -->
@@ -790,34 +800,6 @@
                     class="flex-1 overflow-y-auto p-4 custom-scrollbar flex flex-wrap gap-2 content-start list-none">
                     <p id="word-bank-empty" class="text-slate-400 text-sm text-center w-full mt-4">No words loaded yet.</p>
                 </ul>
-
-                <!-- Saved Sets (Mini Collapsible Drawer, matches Word Search Saved Puzzles) -->
-                <div class="p-3 border-t-2 border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/40">
-                    <button type="button" onclick="toggleSavedSetsControls()"
-                        class="w-full flex items-center justify-between text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 hover:text-dark dark:hover:text-white">
-                        <span>Saved Sets</span>
-                        <i data-lucide="chevron-up" id="saved-sets-toggle-icon" class="w-3 h-3 transition-transform"></i>
-                    </button>
-                    <div id="saved-sets-controls" class="space-y-2 mt-2">
-                        <div class="flex items-center gap-1.5">
-                            <select id="library-sort" aria-label="Sort saved sets"
-                                class="flex-1 p-1.5 bg-white dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-lg text-dark dark:text-white font-bold text-[10px] focus:outline-none">
-                                <option value="recent">Recent</option>
-                                <option value="alpha">A–Z</option>
-                                <option value="popular">Popular</option>
-                            </select>
-                            <button id="new-set-btn" type="button" title="New Workspace"
-                                class="p-1.5 bg-white dark:bg-slate-800 text-dark dark:text-white border-2 border-dark dark:border-slate-500 rounded-lg hover:brightness-95 active:translate-y-0.5 font-bold text-[10px] flex items-center gap-1">
-                                <i data-lucide="plus" class="w-3 h-3"></i> NEW
-                            </button>
-                            <button id="save-set-btn" type="button" title="Save Set"
-                                class="p-1.5 bg-blue text-white border-2 border-dark rounded-lg hover:brightness-110 active:translate-y-0.5 font-bold text-[10px] flex items-center gap-1">
-                                <i data-lucide="save" class="w-3 h-3"></i> SAVE
-                            </button>
-                        </div>
-                        <div id="library-list" class="space-y-1.5 max-h-36 overflow-y-auto custom-scrollbar pr-1"></div>
-                    </div>
-                </div>
             </div>
 
         </main>
@@ -1294,7 +1276,9 @@
                 answerToggle: $('answer-toggle-btn'),
                 clearWords: $('clear-words-btn'),
                 newSet: $('new-set-btn'),
+                setNameInput: $('set-name-input'),
                 saveSet: $('save-set-btn'),
+                savedCount: $('saved-count'),
                 librarySort: $('library-sort'),
                 libraryList: $('library-list'),
                 activeSetBanner: $('active-set-banner'),
@@ -1487,6 +1471,7 @@
 
             function renderLibrary() {
                 const sets = readSets();
+                if (el.savedCount) el.savedCount.textContent = String(sets.length);
                 const sort = el.librarySort.value;
                 if (sort === 'recent') sets.sort((a, b) => (b.lastUsed || 0) - (a.lastUsed || 0));
                 else if (sort === 'alpha') sets.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
@@ -1729,15 +1714,6 @@
                 }
             };
 
-            window.toggleSavedSetsControls = function () {
-                const controls = $('saved-sets-controls');
-                const icon = $('saved-sets-toggle-icon');
-                if (controls && icon) {
-                    controls.classList.toggle('active');
-                    icon.classList.toggle('active');
-                }
-            };
-
             function onShapeChange() {
                 setRadio('page-orient', DEFAULT_ORIENT[choice('shape', 'circle')] || 'portrait');
                 applyPage();
@@ -1841,8 +1817,11 @@
                 btn.addEventListener('click', () => {
                     const key = btn.getAttribute('data-preset');
                     if (PRESETS[key]) {
+                        activeSetId = null;
+                        if (el.setNameInput) el.setNameInput.value = '';
                         el.input.value = PRESETS[key];
                         updateCapacity();
+                        renderLibrary();
                         generate(false);
                         showToast(`Loaded ${key} preset`, 'info');
                     }
@@ -1861,6 +1840,7 @@
                 const ok = await showConfirm('Start New Workspace?', 'This will detach from any active saved set and load default settings.');
                 if (!ok) return;
                 activeSetId = null;
+                if (el.setNameInput) el.setNameInput.value = '';
                 el.input.value = PRESETS.fruits;
                 setRadio('shape', 'circle');
                 el.slider.value = '3.5';
@@ -1880,14 +1860,28 @@
             });
 
             el.saveSet.addEventListener('click', () => {
+                const inlineName = el.setNameInput ? el.setNameInput.value.trim() : '';
+                if (inlineName) {
+                    confirmSaveSet(inlineName);
+                    return;
+                }
                 const modal = $('saveModal');
                 const input = $('save-set-input');
                 const current = readSets().find((s) => s.id === activeSetId);
-                input.value = current ? current.name : '';
+                input.value = current ? current.name : (el.customTitle.value.trim() || '');
                 modal.classList.remove('hidden');
                 modal.classList.add('flex');
                 setTimeout(() => input.focus(), 50);
             });
+
+            if (el.setNameInput) {
+                el.setNameInput.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        el.saveSet.click();
+                    }
+                });
+            }
 
             const closeSaveModal = () => {
                 const modal = $('saveModal');
@@ -1898,32 +1892,52 @@
             $('save-modal-cancel').addEventListener('click', closeSaveModal);
             $('saveModal').addEventListener('click', (e) => { if (e.target === $('saveModal')) closeSaveModal(); });
 
-            const confirmSaveSet = () => {
-                const name = $('save-set-input').value.trim();
+            const confirmSaveSet = (explicitName) => {
+                const name = (typeof explicitName === 'string' ? explicitName : $('save-set-input').value).trim();
                 if (!name) {
                     showToast('Please enter a set name', 'warning');
                     return;
                 }
                 const sets = readSets();
                 const now = Date.now();
-                const id = 'ws_' + now;
-                sets.push({
-                    id,
-                    name,
-                    ...getWorkspaceData(),
-                    createdAt: now,
-                    lastUsed: now,
-                    usageCount: 1
-                });
-                activeSetId = id;
-                writeSets(sets);
-                closeSaveModal();
-                renderLibrary();
-                persistState();
-                showToast(`Saved "${name}"`, 'success');
+                const existingIdx = activeSetId ? sets.findIndex((s) => s.id === activeSetId) : -1;
+                const isSameName = existingIdx !== -1 && (sets[existingIdx].name || '').trim().toLowerCase() === name.toLowerCase();
+
+                if (isSameName) {
+                    sets[existingIdx] = {
+                        ...sets[existingIdx],
+                        ...getWorkspaceData(),
+                        name,
+                        lastUsed: now,
+                        usageCount: (sets[existingIdx].usageCount || 0) + 1
+                    };
+                    if (el.setNameInput) el.setNameInput.value = name;
+                    writeSets(sets);
+                    closeSaveModal();
+                    renderLibrary();
+                    persistState();
+                    showToast(`Updated "${name}"`, 'success');
+                } else {
+                    const id = 'ws_' + now;
+                    sets.push({
+                        id,
+                        name,
+                        ...getWorkspaceData(),
+                        createdAt: now,
+                        lastUsed: now,
+                        usageCount: 1
+                    });
+                    activeSetId = id;
+                    if (el.setNameInput) el.setNameInput.value = name;
+                    writeSets(sets);
+                    closeSaveModal();
+                    renderLibrary();
+                    persistState();
+                    showToast(`Saved "${name}"`, 'success');
+                }
             };
 
-            $('save-modal-confirm').addEventListener('click', confirmSaveSet);
+            $('save-modal-confirm').addEventListener('click', () => confirmSaveSet());
             $('save-set-input').addEventListener('keydown', (e) => {
                 if (e.key === 'Enter') { e.preventDefault(); confirmSaveSet(); }
                 if (e.key === 'Escape') closeSaveModal();
@@ -1931,6 +1945,7 @@
 
             el.closeSet.addEventListener('click', () => {
                 activeSetId = null;
+                if (el.setNameInput) el.setNameInput.value = '';
                 renderLibrary();
                 persistState();
             });
@@ -1949,6 +1964,7 @@
                     item.usageCount = (item.usageCount || 0) + 1;
                     writeSets(sets);
                     applyWorkspaceData(item);
+                    if (el.setNameInput) el.setNameInput.value = item.name || '';
                     applyPage();
                     updateSizeLabel();
                     updateCapacity();
@@ -1967,7 +1983,10 @@
                     const ok = await showConfirm('Delete Saved Set?', `Delete "${item.name}" from your saved sets?`);
                     if (!ok) return;
                     writeSets(sets.filter((s) => s.id !== id));
-                    if (activeSetId === id) activeSetId = null;
+                    if (activeSetId === id) {
+                        activeSetId = null;
+                        if (el.setNameInput) el.setNameInput.value = '';
+                    }
                     renderLibrary();
                     persistState();
                     showToast('Set deleted', 'info');
@@ -2064,6 +2083,10 @@
                 updateSizeLabel();
                 updateCapacity();
                 renderLibrary();
+                if (activeSetId && el.setNameInput) {
+                    const activeInitialSet = readSets().find((s) => s.id === activeSetId);
+                    if (activeInitialSet) el.setNameInput.value = activeInitialSet.name || '';
+                }
                 generate(true);
                 if (window.lucide) window.lucide.createIcons();
             })();

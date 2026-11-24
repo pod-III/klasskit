@@ -242,22 +242,6 @@
             .hidden-panel-desktop { margin-left: -24rem; }
         }
 
-        /* Saved Sets Collapsible Drawer */
-        #saved-sets-controls {
-            max-height: 0;
-            overflow: hidden;
-            transition: all 0.3s ease-out;
-            opacity: 0;
-        }
-        #saved-sets-controls.active {
-            max-height: 260px;
-            opacity: 1;
-            margin-top: 8px;
-        }
-        #saved-sets-toggle-icon.active {
-            transform: rotate(180deg);
-        }
-
         .canvas-dots {
             background-image: radial-gradient(var(--dots) 1.8px, transparent 1.8px);
             background-size: 24px 24px;
@@ -682,6 +666,34 @@
                     class="w-full btn-chunky bg-green text-dark py-3 rounded-xl text-lg tracking-wide flex items-center justify-center gap-2 hover:brightness-105">
                     <i data-lucide="dices" class="w-5 h-5"></i> BUILD BOARD
                 </button>
+
+                <!-- Library (Saved Boards) -->
+                <div class="pt-4 border-t-2 border-dashed border-slate-300 dark:border-slate-700 space-y-2">
+                    <div class="flex items-center justify-between gap-2">
+                        <label for="library-sort" class="text-xs font-bold text-slate-400 uppercase tracking-widest">Library (<span id="saved-count">0</span>)</label>
+                        <div class="flex items-center gap-1.5">
+                            <select id="library-sort" aria-label="Sort saved boards"
+                                class="p-1 bg-slate-50 dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-lg text-dark dark:text-white font-bold text-[10px] focus:outline-none">
+                                <option value="recent">Recent</option>
+                                <option value="alpha">A–Z</option>
+                                <option value="popular">Popular</option>
+                            </select>
+                            <button id="new-set-btn" type="button" title="New Board"
+                                class="p-1.5 bg-white dark:bg-slate-800 text-dark dark:text-white border-2 border-dark dark:border-slate-500 rounded-lg hover:brightness-95 font-bold text-[10px] flex items-center gap-1">
+                                <i data-lucide="plus" class="w-3 h-3"></i> NEW
+                            </button>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-1.5">
+                        <input id="set-name-input" type="text" placeholder="Board name..." aria-label="Board preset name"
+                            class="flex-1 min-w-0 p-2 bg-slate-50 dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-lg text-dark dark:text-white font-bold text-xs focus:outline-none focus:border-blue" />
+                        <button id="save-set-btn" type="button" title="Save Board"
+                            class="btn-chunky bg-pink text-white px-3 py-2 rounded-lg text-xs flex items-center gap-1 shrink-0">
+                            <i data-lucide="save" class="w-3.5 h-3.5"></i> SAVE
+                        </button>
+                    </div>
+                    <div id="library-list" class="space-y-1.5 max-h-44 overflow-y-auto custom-scrollbar pr-1"></div>
+                </div>
             </div>
 
             <!-- Footer Print Actions -->
@@ -808,34 +820,6 @@
 
                     <!-- Team Cards -->
                     <div id="team-list" class="grid grid-cols-2 lg:grid-cols-1 gap-2"></div>
-                </div>
-
-                <!-- Saved Sets (Collapsible Drawer) -->
-                <div class="p-3 border-t-2 border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/40 shrink-0">
-                    <button type="button" id="toggle-saved-sets-btn"
-                        class="w-full flex items-center justify-between text-[10px] font-extrabold text-slate-400 uppercase tracking-widest mb-1 hover:text-dark dark:hover:text-white">
-                        <span>Saved Boards (<span id="saved-count">0</span>)</span>
-                        <span id="saved-sets-toggle-icon" class="inline-flex transition-transform"><i data-lucide="chevron-up" class="w-3.5 h-3.5"></i></span>
-                    </button>
-                    <div id="saved-sets-controls" class="space-y-2 mt-2">
-                        <div class="flex items-center gap-1.5">
-                            <select id="library-sort" aria-label="Sort saved boards"
-                                class="flex-1 p-1.5 bg-white dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-lg text-dark dark:text-white font-bold text-[10px] focus:outline-none">
-                                <option value="recent">Recent</option>
-                                <option value="alpha">A–Z</option>
-                                <option value="popular">Popular</option>
-                            </select>
-                            <button id="new-set-btn" type="button" title="New Board"
-                                class="p-1.5 bg-white dark:bg-slate-800 text-dark dark:text-white border-2 border-dark dark:border-slate-500 rounded-lg hover:brightness-95 active:translate-y-0.5 font-bold text-[10px] flex items-center gap-1">
-                                <i data-lucide="plus" class="w-3 h-3"></i> NEW
-                            </button>
-                            <button id="save-set-btn" type="button" title="Save Board"
-                                class="p-1.5 bg-blue text-white border-2 border-dark rounded-lg hover:brightness-110 active:translate-y-0.5 font-bold text-[10px] flex items-center gap-1">
-                                <i data-lucide="save" class="w-3 h-3"></i> SAVE
-                            </button>
-                        </div>
-                        <div id="library-list" class="space-y-1.5 max-h-36 overflow-y-auto custom-scrollbar pr-1"></div>
-                    </div>
                 </div>
             </div>
 
@@ -1431,8 +1415,8 @@
                 diceSvg: $('dice-svg'),
                 turnTeamName: $('turn-team-name'),
                 clearPrompts: $('clear-prompts-btn'),
-                toggleSavedSets: $('toggle-saved-sets-btn'),
                 newSet: $('new-set-btn'),
+                setNameInput: $('set-name-input'),
                 saveSet: $('save-set-btn'),
                 librarySort: $('library-sort'),
                 libraryList: $('library-list'),
@@ -2148,6 +2132,7 @@
                     const preset = PRESETS[key];
                     if (!preset) return;
                     activeSetId = null;
+                    if (el.setNameInput) el.setNameInput.value = '';
                     el.input.value = preset.prompts;
                     el.customTitle.value = preset.title;
                     el.customSubtitle.value = preset.subtitle;
@@ -2193,16 +2178,12 @@
             $('help-got-it-btn').addEventListener('click', closeHelp);
             $('helpModal').addEventListener('click', (e) => { if (e.target === $('helpModal')) closeHelp(); });
 
-            // Saved Sets Drawer & Modals
-            el.toggleSavedSets.addEventListener('click', () => {
-                $('saved-sets-controls').classList.toggle('active');
-                $('saved-sets-toggle-icon').classList.toggle('active');
-            });
-
+            // Saved Sets Library Controls & Modals
             el.newSet.addEventListener('click', async () => {
                 const ok = await showConfirm('Start New Board?', 'This will detach from any active saved board and load default settings.');
                 if (!ok) return;
                 activeSetId = null;
+                if (el.setNameInput) el.setNameInput.value = '';
                 el.input.value = PRESETS.speaking.prompts;
                 el.customTitle.value = PRESETS.speaking.title;
                 el.customSubtitle.value = PRESETS.speaking.subtitle;
@@ -2226,6 +2207,11 @@
             };
 
             el.saveSet.addEventListener('click', () => {
+                const inlineName = el.setNameInput ? el.setNameInput.value.trim() : '';
+                if (inlineName) {
+                    confirmSaveSet(inlineName);
+                    return;
+                }
                 const input = $('save-set-input');
                 const current = readSets().find((s) => s.id === activeSetId);
                 input.value = current ? current.name : el.customTitle.value.trim();
@@ -2234,11 +2220,20 @@
                 setTimeout(() => input.focus(), 50);
             });
 
+            if (el.setNameInput) {
+                el.setNameInput.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        el.saveSet.click();
+                    }
+                });
+            }
+
             $('save-modal-cancel').addEventListener('click', closeSaveModal);
             $('saveModal').addEventListener('click', (e) => { if (e.target === $('saveModal')) closeSaveModal(); });
 
-            function confirmSaveSet() {
-                const name = $('save-set-input').value.trim();
+            function confirmSaveSet(explicitName) {
+                const name = (typeof explicitName === 'string' ? explicitName : $('save-set-input').value).trim();
                 if (!name) {
                     showToast('Please enter a board name', 'warning');
                     return;
@@ -2246,15 +2241,17 @@
                 const sets = readSets();
                 const now = Date.now();
                 const existingIdx = activeSetId ? sets.findIndex((s) => s.id === activeSetId) : -1;
-                const isSameName = existingIdx !== -1 && (sets[existingIdx].name || '').trim() === name;
+                const isSameName = existingIdx !== -1 && (sets[existingIdx].name || '').trim().toLowerCase() === name.toLowerCase();
 
                 if (isSameName) {
                     sets[existingIdx] = {
                         ...sets[existingIdx],
                         ...getWorkspaceData(),
                         name,
-                        lastUsed: now
+                        lastUsed: now,
+                        usageCount: (sets[existingIdx].usageCount || 0) + 1
                     };
+                    if (el.setNameInput) el.setNameInput.value = name;
                     writeSets(sets);
                     closeSaveModal();
                     renderLibrary();
@@ -2272,6 +2269,7 @@
                         usageCount: 1
                     });
                     activeSetId = id;
+                    if (el.setNameInput) el.setNameInput.value = name;
                     writeSets(sets);
                     closeSaveModal();
                     renderLibrary();
@@ -2280,7 +2278,7 @@
                 }
             }
 
-            $('save-modal-confirm').addEventListener('click', confirmSaveSet);
+            $('save-modal-confirm').addEventListener('click', () => confirmSaveSet());
             $('save-set-input').addEventListener('keydown', (e) => {
                 if (e.key === 'Enter') { e.preventDefault(); confirmSaveSet(); }
                 if (e.key === 'Escape') closeSaveModal();
@@ -2288,6 +2286,7 @@
 
             el.closeSet.addEventListener('click', () => {
                 activeSetId = null;
+                if (el.setNameInput) el.setNameInput.value = '';
                 renderLibrary();
                 persistState();
             });
@@ -2306,6 +2305,7 @@
                     item.usageCount = (item.usageCount || 0) + 1;
                     writeSets(sets);
                     applyWorkspaceData(item);
+                    if (el.setNameInput) el.setNameInput.value = item.name || '';
                     syncTeamCount();
                     applyPage();
                     updateSizeLabel();
@@ -2325,7 +2325,10 @@
                     const ok = await showConfirm('Delete Saved Board?', `Delete "${item.name}" from your saved boards?`);
                     if (!ok) return;
                     writeSets(sets.filter((s) => s.id !== id));
-                    if (activeSetId === id) activeSetId = null;
+                    if (activeSetId === id) {
+                        activeSetId = null;
+                        if (el.setNameInput) el.setNameInput.value = '';
+                    }
                     renderLibrary();
                     persistState();
                     showToast('Board deleted', 'info');
@@ -2437,6 +2440,10 @@
                 document.body.classList.remove('opacity-0');
                 initSoundState();
                 await loadPersistedState();
+                if (activeSetId && el.setNameInput) {
+                    const currentSet = readSets().find((s) => s.id === activeSetId);
+                    if (currentSet) el.setNameInput.value = currentSet.name || '';
+                }
                 syncTeamCount();
                 el.diceSvg.innerHTML = renderDiceSVG(diceValue);
                 el.theme.setAttribute('aria-pressed', String(document.documentElement.classList.contains('dark')));

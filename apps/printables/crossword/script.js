@@ -112,6 +112,10 @@ async function saveGameState() {
     await saveToDB('word_input', els.input.value);
     await saveToDB('grid_rows', GRID_ROWS);
     await saveToDB('grid_cols', GRID_COLS);
+    await saveToDB('word_input', els.input.value);
+    await saveToDB('grid_rows', GRID_ROWS);
+    await saveToDB('grid_cols', GRID_COLS);
+    await saveToDB('active_set_id', activeWordSetId);
     if (puzzle) await saveToDB('puzzle_data', puzzle);
     syncToCloud();
 }
@@ -127,6 +131,11 @@ async function loadGameState() {
         GRID_COLS = cols;
     }
 
+    const savedActiveSetId = await getFromDB('active_set_id');
+    if (savedActiveSetId !== undefined && savedActiveSetId !== null) {
+        activeWordSetId = savedActiveSetId;
+    }
+
     const savedPuzzle = await getFromDB('puzzle_data');
     if (savedPuzzle) {
         puzzle = savedPuzzle;
@@ -137,18 +146,61 @@ async function loadGameState() {
 }
 
 // --- WORD SETS (IndexedDB) ---
-async function saveWordSet(name, content) {
+async function saveWordSet(name, content, options = {}) {
     try {
         const db = await initDB();
+        const existingSets = await getAllWordSets();
+        const now = Date.now();
+        const activate = Boolean(options.activate);
+        const updateActive = Boolean(options.updateActive);
+
+        let targetExisting = null;
+        if (updateActive && activeWordSetId !== null && activeWordSetId !== undefined) {
+            const match = existingSets.find(s => String(s.id) === String(activeWordSetId));
+            if (match && (match.name || '').trim().toLowerCase() === name.trim().toLowerCase()) {
+                targetExisting = match;
+            }
+        }
+
         const tx = db.transaction(SETS_STORE, 'readwrite');
         const store = tx.objectStore(SETS_STORE);
-        store.put({ name, content, createdAt: Date.now() });
+        let request;
+        if (targetExisting) {
+            request = store.put({
+                ...targetExisting,
+                id: targetExisting.id,
+                name: name.trim(),
+                content,
+                updatedAt: now,
+                lastUsed: now,
+                usageCount: (targetExisting.usageCount || 0) + 1
+            });
+        } else {
+            request = store.add({
+                name: name.trim(),
+                content,
+                createdAt: now,
+                updatedAt: now,
+                lastUsed: now,
+                usageCount: 1
+            });
+        }
+
         return new Promise((resolve, reject) => {
-            tx.oncomplete = () => { syncToCloud(); resolve(); };
+            tx.oncomplete = () => {
+                const savedId = targetExisting ? targetExisting.id : request.result;
+                if (activate && savedId !== undefined) {
+                    activeWordSetId = savedId;
+                    saveToDB('active_set_id', activeWordSetId);
+                }
+                syncToCloud();
+                resolve({ id: savedId, updated: Boolean(targetExisting) });
+            };
             tx.onerror = () => reject(tx.error);
         });
     } catch (err) {
         console.error('Save word set error:', err);
+        return null;
     }
 }
 
@@ -197,7 +249,14 @@ async function loadFromCloud() {
             await new Promise((resolve, reject) => {
                 const tx = db.transaction(SETS_STORE, 'readwrite');
                 const store = tx.objectStore(SETS_STORE);
-                const item = { name: set.name, content: set.content, createdAt: set.createdAt || Date.now() };
+                const item = {
+                    name: set.name,
+                    content: set.content,
+                    createdAt: set.createdAt || Date.now(),
+                    updatedAt: set.updatedAt || set.createdAt || Date.now(),
+                    lastUsed: set.lastUsed || set.createdAt || Date.now(),
+                    usageCount: set.usageCount || 1
+                };
                 store.add(item);
                 tx.oncomplete = resolve;
                 tx.onerror = () => reject(tx.error);
@@ -227,44 +286,107 @@ async function loadFromCloud() {
     }
 }
 
+async function markWordSetUsed(id) {
+    try {
+        const db = await initDB();
+        const existingSets = await getAllWordSets();
+        const match = existingSets.find(s => String(s.id) === String(id));
+        if (!match) return;
+        const tx = db.transaction(SETS_STORE, 'readwrite');
+        const store = tx.objectStore(SETS_STORE);
+        const now = Date.now();
+        store.put({
+            ...match,
+            id: match.id,
+            lastUsed: now,
+            usageCount: (match.usageCount || 0) + 1
+        });
+        return new Promise((resolve) => {
+            tx.oncomplete = () => { syncToCloud(); resolve(); };
+            tx.onerror = () => resolve();
+        });
+    } catch (err) {
+        console.error('Mark word set used error:', err);
+    }
+}
+
 async function renderWordSets() {
     const list = document.getElementById('sets-list');
+    const countEl = document.getElementById('saved-count');
+    const sortEl = document.getElementById('sets-sort');
     if (!list) return;
     const sets = await getAllWordSets();
-    
+    if (countEl) countEl.textContent = String(sets.length);
+
+    if (activeWordSetId !== null && activeWordSetId !== undefined) {
+        const stillExists = sets.some(s => String(s.id) === String(activeWordSetId));
+        if (!stillExists) activeWordSetId = null;
+    }
+
     if (sets.length === 0) {
         list.innerHTML = '<p class="text-slate-400 dark:text-slate-500 text-xs italic">No saved sets yet.</p>';
         return;
     }
-    
+
+    const sort = sortEl ? sortEl.value : 'recent';
+    const sorted = sets.slice().sort((a, b) => {
+        if (sort === 'alpha') return (a.name || '').localeCompare(b.name || '');
+        if (sort === 'popular') {
+            return (b.usageCount || 0) - (a.usageCount || 0)
+                || ((b.lastUsed || b.updatedAt || b.createdAt || 0) - (a.lastUsed || a.updatedAt || a.createdAt || 0));
+        }
+        return (b.lastUsed || b.updatedAt || b.createdAt || 0) - (a.lastUsed || a.updatedAt || a.createdAt || 0);
+    });
+
     list.innerHTML = '';
-    sets.forEach(set => {
+    sorted.forEach(set => {
+        const isActive = activeWordSetId !== null && activeWordSetId !== undefined && String(set.id) === String(activeWordSetId);
         const item = document.createElement('div');
-        item.className = 'flex items-center gap-2 p-2 bg-white/60 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-500/40 rounded-lg group hover:border-blue/40 transition-all';
+        item.className = `flex items-center gap-2 p-2 rounded-lg border transition-all ${isActive
+            ? 'border-blue bg-blue/10 dark:bg-blue/20'
+            : 'bg-white/60 dark:bg-slate-800/60 border-slate-200 dark:border-slate-500/40 hover:border-blue/40'}`;
         item.innerHTML = `
-            <div class="flex-1 min-w-0">
-                <p class="text-sm font-bold text-dark dark:text-slate-100 truncate">${escapeHTML(set.name)}</p>
+            <button type="button" class="set-row-load flex-1 min-w-0 text-left">
+                <p class="text-sm font-bold text-dark dark:text-slate-100 truncate flex items-center gap-1.5">
+                    <span class="truncate">${escapeHTML(set.name)}</span>
+                    ${isActive ? '<span class="px-1.5 py-0.5 rounded bg-blue text-white text-[9px] font-black uppercase shrink-0">Active</span>' : ''}
+                </p>
                 <p class="text-[10px] text-slate-400 dark:text-slate-500 truncate">${set.content.split('\n').filter(l => l.trim()).length} words</p>
-            </div>
-            <button class="set-load-btn p-1.5 bg-blue/10 dark:bg-blue/20 text-blue rounded-md border border-blue/20 hover:bg-blue hover:text-white hover:translate-y-[-1px] active:translate-y-[2px] transition-all" title="Load Set" aria-label="Load word set" data-id="${escapeHTML(set.id)}">
+            </button>
+            <button type="button" class="set-load-btn p-1.5 bg-blue/10 dark:bg-blue/20 text-blue rounded-md border border-blue/20 hover:bg-blue hover:text-white hover:translate-y-[-1px] active:translate-y-[2px] transition-all" title="Load Set" aria-label="Load word set" data-id="${escapeHTML(set.id)}">
                 <i data-lucide="upload" class="w-3.5 h-3.5 pointer-events-none"></i>
             </button>
-            <button class="set-delete-btn p-1.5 bg-pink/10 dark:bg-pink/20 text-pink rounded-md border border-pink/20 hover:bg-pink hover:text-white hover:translate-y-[-1px] active:translate-y-[2px] transition-all" title="Delete Set" aria-label="Delete word set" data-id="${escapeHTML(set.id)}">
+            <button type="button" class="set-delete-btn p-1.5 bg-pink/10 dark:bg-pink/20 text-pink rounded-md border border-pink/20 hover:bg-pink hover:text-white hover:translate-y-[-1px] active:translate-y-[2px] transition-all" title="Delete Set" aria-label="Delete word set" data-id="${escapeHTML(set.id)}">
                 <i data-lucide="trash-2" class="w-3.5 h-3.5 pointer-events-none"></i>
             </button>
         `;
 
-        // Load button
-        item.querySelector('.set-load-btn').addEventListener('click', async () => {
+        const handleLoadSet = async () => {
+            activeWordSetId = set.id;
             els.input.value = set.content;
+            const nameInput = document.getElementById('set-name-input');
+            if (nameInput) nameInput.value = set.name || '';
             showBuildFeedback('');
-            saveGameState();
+            await markWordSetUsed(set.id);
+            await saveGameState();
+            await renderWordSets();
             Sound.click();
-        });
+            if (typeof showCwToast === 'function') showCwToast(`Loaded "${set.name}"`, 'success');
+        };
+
+        // Load handlers
+        item.querySelector('.set-row-load').addEventListener('click', handleLoadSet);
+        item.querySelector('.set-load-btn').addEventListener('click', handleLoadSet);
 
         // Delete button
         item.querySelector('.set-delete-btn').addEventListener('click', async () => {
             await deleteWordSet(set.id);
+            if (String(activeWordSetId) === String(set.id)) {
+                activeWordSetId = null;
+                const nameInput = document.getElementById('set-name-input');
+                if (nameInput) nameInput.value = '';
+                await saveToDB('active_set_id', null);
+            }
             Sound.back();
             renderWordSets();
         });
@@ -300,6 +422,7 @@ let words = [];
 let puzzle = null;
 let currentFocus = { r: -1, c: -1 };
 let currentDir = 'across';
+let activeWordSetId = null;
 
 // --- AUDIO ---
 const SOUND_KEY = 'sound_crossword';
@@ -1242,10 +1365,12 @@ SUNSHINE : Warm bright light coming from the sun`;
         onSelect: async (preset) => {
             const lines = (preset.items || []).map(it => `${it.word} : ${it.clue}`).join('\n');
             if (!lines) return;
+            activeWordSetId = null;
             els.input.value = lines;
             const setNameEl = document.getElementById('set-name-input');
             if (setNameEl) setNameEl.value = preset.title || '';
             await saveGameState();
+            await renderWordSets();
             Sound.click();
             buildPuzzleFromInput({ autoCloseMobile: false, celebrate: false });
             showCwToast(`Loaded "${preset.title}" (${preset.level})`, 'success');
@@ -1281,16 +1406,41 @@ window.addEventListener('resize', autoFitGrid);
 
 els.input.addEventListener('input', () => saveGameState());
 
+document.getElementById('sets-sort')?.addEventListener('change', renderWordSets);
+
+document.getElementById('new-set-btn')?.addEventListener('click', async () => {
+    activeWordSetId = null;
+    const nameInput = document.getElementById('set-name-input');
+    if (nameInput) {
+        nameInput.value = '';
+        nameInput.focus();
+    }
+    await saveGameState();
+    await renderWordSets();
+    Sound.click();
+    if (typeof showCwToast === 'function') showCwToast('Detached — type a name and click SAVE for a new set', 'info');
+});
+
+document.getElementById('set-name-input')?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+        e.preventDefault();
+        document.getElementById('save-set-btn')?.click();
+    }
+});
+
 document.getElementById('save-set-btn').onclick = async () => {
     const nameInput = document.getElementById('set-name-input');
     const name = nameInput.value.trim();
     const content = els.input.value.trim();
     if (!name) { nameInput.focus(); Sound.error(); return; }
     if (!content) { els.input.focus(); Sound.error(); return; }
-    await saveWordSet(name, content);
-    nameInput.value = '';
+    const res = await saveWordSet(name, content, { activate: true, updateActive: true });
+    nameInput.value = name;
     Sound.success();
-    renderWordSets();
+    await renderWordSets();
+    if (typeof showCwToast === 'function' && res) {
+        showCwToast(res.updated ? `Updated "${name}"!` : `Saved "${name}"!`, 'success');
+    }
 };
 
 window.onload = async () => {
@@ -1326,6 +1476,12 @@ window.onload = async () => {
     await loadGameState();
     await loadFromCloud();
     await renderWordSets();
+    if (activeWordSetId !== null && activeWordSetId !== undefined) {
+        const sets = await getAllWordSets();
+        const activeSet = sets.find(s => String(s.id) === String(activeWordSetId));
+        const nameInput = document.getElementById('set-name-input');
+        if (nameInput && activeSet) nameInput.value = activeSet.name || '';
+    }
     initCrosswordImportAndPresets();
     if (window.innerWidth < 768) toggleControlPanel(true);
 

@@ -217,15 +217,21 @@
                             </div>
                         </div>
                         <div class="flex gap-2 w-full">
-                            <button onclick="createNewPreset()"
-                                class="btn-chunky bg-brand-green text-brand-dark px-3 py-1.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1 flex-1"
+                            <button type="button" onclick="openSaveAsPresetModal()"
+                                class="btn-chunky bg-brand-blue text-white px-2.5 py-1.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1 flex-1"
+                                title="Save Copy as New Preset">
+                                <i data-lucide="save" class="w-3 h-3"></i>
+                                Save As
+                            </button>
+                            <button type="button" onclick="createNewPreset()"
+                                class="btn-chunky bg-brand-green text-brand-dark px-2.5 py-1.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1 flex-1"
                                 title="Create New Preset">
                                 <i data-lucide="plus"
                                     class="w-3 h-3 text-brand-dark border-2 border-brand-dark rounded-full bg-white/50"></i>
                                 New
                             </button>
-                            <button onclick="deleteCurrentPreset()"
-                                class="btn-chunky bg-brand-pink text-white px-3 py-1.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1 flex-1"
+                            <button type="button" onclick="deleteCurrentPreset()"
+                                class="btn-chunky bg-brand-pink text-white px-2.5 py-1.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1 flex-1"
                                 title="Delete Preset">
                                 <i data-lucide="trash-2" class="w-3 h-3"></i> Delete
                             </button>
@@ -583,6 +589,27 @@
         </div>
     </div>
 
+    <!-- Save As Preset Modal -->
+    <div id="savePresetModal" onclick="if (event.target === this) closeSaveAsPresetModal()"
+        class="fixed inset-0 z-[115] flex items-center justify-center glass-panel hidden opacity-0 transition-opacity duration-300">
+        <div class="hub-card bg-white dark:bg-slate-800 p-6 sm:p-7 max-w-sm w-full transform scale-95 transition-transform duration-300 m-4"
+            id="savePresetModalContent">
+            <h3 class="font-heading text-2xl font-black mb-1 text-brand-dark dark:text-white flex items-center gap-2">
+                <i data-lucide="save" class="w-6 h-6 text-brand-blue"></i> Save Preset As
+            </h3>
+            <p class="font-body text-xs font-bold text-slate-500 dark:text-slate-400 mb-4">Save a snapshot of your current Bingo title, word list, grid size, and theme as a new saved preset.</p>
+            <input type="text" id="saveAsPresetNameInput" placeholder="e.g. Grade 3 Animals Bingo"
+                onkeydown="if (event.key === 'Enter') { event.preventDefault(); confirmSaveAsPreset(); }"
+                class="input-chunky w-full px-3 py-2.5 mb-5 font-heading text-brand-dark dark:text-white text-sm">
+            <div class="flex gap-3">
+                <button type="button" onclick="closeSaveAsPresetModal()"
+                    class="btn-chunky flex-1 py-2.5 bg-slate-200 dark:bg-slate-700 text-brand-dark dark:text-white rounded-xl text-sm">Cancel</button>
+                <button type="button" onclick="confirmSaveAsPreset()"
+                    class="btn-chunky flex-1 py-2.5 bg-brand-blue text-white rounded-xl text-sm">Save Preset</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Toast Notification -->
     <div id="toast"
         class="fixed bottom-4 left-1/2 transform -translate-x-1/2 z-[200] flex items-center gap-3 px-6 py-3 bg-brand-dark text-white rounded-2xl shadow-neo font-body font-bold transition-all duration-300 translate-y-20 opacity-0 pointer-events-none">
@@ -738,6 +765,70 @@
             await loadPreset(id);
             renderPresetDropdown();
             showToast("New preset created!", "success");
+        }
+
+        function openSaveAsPresetModal() {
+            const modal = document.getElementById('savePresetModal');
+            const content = document.getElementById('savePresetModalContent');
+            const nameInput = document.getElementById('saveAsPresetNameInput');
+            if (!modal || !content || !nameInput) return;
+
+            const currentTitle = (document.getElementById('bingoTitle')?.value || '').trim();
+            const active = state.presetsList.find(p => p.id === state.activePresetId);
+            nameInput.value = active && currentTitle && active.title.trim().toLowerCase() === currentTitle.toLowerCase()
+                ? `${currentTitle} Copy`
+                : (currentTitle || `Bingo Preset ${state.presetsList.length + 1}`);
+
+            modal.classList.remove('hidden');
+            requestAnimationFrame(() => {
+                modal.classList.remove('opacity-0');
+                content.classList.add('scale-100');
+                content.classList.remove('scale-95');
+                nameInput.focus();
+                nameInput.select();
+            });
+            lucide.createIcons();
+        }
+
+        function closeSaveAsPresetModal() {
+            const modal = document.getElementById('savePresetModal');
+            const content = document.getElementById('savePresetModalContent');
+            if (!modal || !content) return;
+            modal.classList.add('opacity-0');
+            content.classList.remove('scale-100');
+            content.classList.add('scale-95');
+            setTimeout(() => {
+                modal.classList.add('hidden');
+            }, 300);
+        }
+
+        async function confirmSaveAsPreset() {
+            const nameInput = document.getElementById('saveAsPresetNameInput');
+            const name = (nameInput?.value || '').trim();
+            if (!name) {
+                showToast("Please enter a preset name", "error");
+                nameInput?.focus();
+                return;
+            }
+            const id = 'preset_' + Date.now();
+            const newPreset = {
+                id,
+                title: name,
+                words: document.getElementById('wordInput')?.value || '',
+                gridSize: parseInt(document.getElementById('gridSize')?.value || '5', 10) || 5,
+                freeSpace: document.getElementById('freeSpace')?.value || 'center',
+                theme: state.theme || 'pink',
+                fontSize: clampFontSize(state.fontSize),
+                fontAutoFit: state.fontAutoFit !== false,
+                lastAccessed: Date.now()
+            };
+            await savePreset(newPreset);
+            state.presetsList.push(newPreset);
+            document.getElementById('bingoTitle').value = name;
+            await loadPreset(id);
+            renderPresetDropdown();
+            closeSaveAsPresetModal();
+            showToast(`Saved preset "${name}"!`, "success");
         }
 
         let presetToDeleteCallback = null;
@@ -1592,16 +1683,19 @@
         document.addEventListener('keydown', (e) => {
             const modalEl = document.getElementById('modal');
             const confirmEl = document.getElementById('confirmModal');
+            const saveAsEl = document.getElementById('savePresetModal');
             const isModalOpen = modalEl && !modalEl.classList.contains('hidden');
             const isConfirmOpen = confirmEl && !confirmEl.classList.contains('hidden');
+            const isSaveAsOpen = saveAsEl && !saveAsEl.classList.contains('hidden');
 
             if (e.key === 'Escape') {
-                if (isConfirmOpen) closeConfirmModal(false);
+                if (isSaveAsOpen) closeSaveAsPresetModal();
+                else if (isConfirmOpen) closeConfirmModal(false);
                 else if (isModalOpen) closeModal();
                 return;
             }
 
-            if (isModalOpen || isConfirmOpen) return;
+            if (isModalOpen || isConfirmOpen || isSaveAsOpen) return;
 
             const tag = (document.activeElement && document.activeElement.tagName || '').toLowerCase();
             if (tag === 'input' || tag === 'textarea' || tag === 'select') return;

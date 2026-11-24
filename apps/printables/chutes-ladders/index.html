@@ -224,10 +224,6 @@
             .hidden-panel-desktop { margin-left: -24rem; }
         }
 
-        #saved-sets-controls { max-height: 0; overflow: hidden; transition: 0.3s ease-out; opacity: 0; }
-        #saved-sets-controls.active { max-height: 260px; opacity: 1; margin-top: 8px; }
-        #saved-sets-toggle-icon.active { transform: rotate(180deg); }
-
         #svg-wrapper {
             display: flex;
             align-items: center;
@@ -553,6 +549,31 @@
                 <button id="build-btn" type="button" class="w-full btn-chunky bg-green text-dark py-3 rounded-xl text-lg tracking-wide flex items-center justify-center gap-2">
                     <i data-lucide="sparkles" class="w-5 h-5"></i> BUILD BOARD
                 </button>
+
+                <!-- Library (Saved Boards) -->
+                <div class="pt-4 border-t-2 border-dashed border-slate-300 dark:border-slate-700 space-y-2">
+                    <div class="flex items-center justify-between gap-2">
+                        <label for="library-sort" class="text-xs font-bold text-slate-400 uppercase tracking-widest">Library (<span id="saved-count">0</span>)</label>
+                        <div class="flex items-center gap-1.5">
+                            <select id="library-sort" aria-label="Sort saved boards" class="p-1 bg-slate-50 dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-lg text-dark dark:text-white font-bold text-[10px] focus:outline-none">
+                                <option value="recent">Recent</option>
+                                <option value="alpha">A–Z</option>
+                                <option value="popular">Popular</option>
+                            </select>
+                            <button id="new-set-btn" type="button" title="New Blank Board" class="p-1.5 bg-white dark:bg-slate-800 text-dark dark:text-white border-2 border-dark dark:border-slate-500 rounded-lg hover:brightness-95 font-bold text-[10px] flex items-center gap-1">
+                                <i data-lucide="plus" class="w-3 h-3"></i> NEW
+                            </button>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-1.5">
+                        <input id="set-name-input" type="text" placeholder="Board name..." aria-label="Board preset name"
+                            class="flex-1 min-w-0 p-2 bg-slate-50 dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-lg text-dark dark:text-white font-bold text-xs focus:outline-none focus:border-blue" />
+                        <button id="save-set-btn" type="button" title="Save Current Board" class="btn-chunky bg-pink text-white px-3 py-2 rounded-lg text-xs flex items-center gap-1 shrink-0">
+                            <i data-lucide="save" class="w-3.5 h-3.5"></i> SAVE
+                        </button>
+                    </div>
+                    <div id="library-list" class="space-y-1.5 max-h-44 overflow-y-auto custom-scrollbar pr-1"></div>
+                </div>
             </div>
 
             <!-- Footer Print Actions -->
@@ -693,29 +714,6 @@
                             <p class="text-[9px] font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400">Slides</p>
                             <p id="stat-chutes" class="font-heading text-lg font-bold text-pink leading-tight">4</p>
                         </div>
-                    </div>
-                </div>
-
-                <!-- Saved Sets Collapsible Drawer -->
-                <div class="p-3 border-t-2 border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/40 shrink-0">
-                    <button id="saved-sets-toggle-btn" type="button" class="w-full flex items-center justify-between text-[10px] font-extrabold text-slate-400 uppercase tracking-widest mb-1 hover:text-dark dark:hover:text-white">
-                        <span>Saved Boards (<span id="saved-count">0</span>)</span>
-                        <span id="saved-sets-toggle-icon" class="inline-flex transition-transform"><i data-lucide="chevron-up" class="w-3.5 h-3.5"></i></span>
-                    </button>
-                    <div id="saved-sets-controls" class="space-y-2">
-                        <div class="flex items-center gap-1.5">
-                            <select id="library-sort" aria-label="Sort saved boards" class="flex-1 p-1.5 bg-white dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-lg text-dark dark:text-white font-bold text-[10px] focus:outline-none">
-                                <option value="recent">Recent</option>
-                                <option value="alpha">A–Z</option>
-                            </select>
-                            <button id="new-set-btn" type="button" title="New Blank Board" class="p-1.5 bg-white dark:bg-slate-800 text-dark dark:text-white border-2 border-dark dark:border-slate-500 rounded-lg hover:brightness-95 font-bold text-[10px] flex items-center gap-1">
-                                <i data-lucide="plus" class="w-3 h-3"></i> NEW
-                            </button>
-                            <button id="save-set-btn" type="button" title="Save Current Board" class="p-1.5 bg-blue text-white border-2 border-dark rounded-lg hover:brightness-110 font-bold text-[10px] flex items-center gap-1">
-                                <i data-lucide="save" class="w-3 h-3"></i> SAVE
-                            </button>
-                        </div>
-                        <div id="library-list" class="space-y-1.5 max-h-32 overflow-y-auto custom-scrollbar pr-1"></div>
                     </div>
                 </div>
             </div>
@@ -1877,10 +1875,12 @@
             if (state.activeSetId) {
                 const idx = state.savedSets.findIndex(s => s.id === state.activeSetId);
                 if (idx >= 0) {
+                    const now = Date.now();
                     state.savedSets[idx] = {
                         ...state.savedSets[idx],
                         ...ws,
-                        updatedAt: Date.now()
+                        updatedAt: now,
+                        lastUsed: now
                     };
                     try { localStorage.setItem(SETS_STORAGE_KEY, JSON.stringify(state.savedSets)); } catch (e) {}
                     renderSavedSetsList();
@@ -2021,6 +2021,8 @@
             document.getElementById('custom-subtitle').value = p.subtitle;
             document.getElementById('prompt-input').value = p.prompts.join('\n');
             state.activeSetId = null;
+            const nameInput = document.getElementById('set-name-input');
+            if (nameInput) nameInput.value = '';
             updateActiveSetBanner();
             renderSavedSetsList();
             buildBoard({ keepLinks: false });
@@ -2099,8 +2101,9 @@
             updateActiveSetBanner();
 
             const sorted = state.savedSets.slice().sort((a, b) => {
-                if (sort === 'alpha') return a.name.localeCompare(b.name);
-                return (b.updatedAt || 0) - (a.updatedAt || 0);
+                if (sort === 'alpha') return (a.name || '').localeCompare(b.name || '');
+                if (sort === 'popular') return (b.usageCount || 0) - (a.usageCount || 0);
+                return (b.lastUsed || b.updatedAt || 0) - (a.lastUsed || a.updatedAt || 0);
             });
 
             if (sorted.length === 0) {
@@ -2144,6 +2147,8 @@
                         state.savedSets = state.savedSets.filter(s => s.id !== id);
                         if (state.activeSetId === id) {
                             state.activeSetId = null;
+                            const nameInput = document.getElementById('set-name-input');
+                            if (nameInput) nameInput.value = '';
                         }
                         persistSavedSets();
                         showToast('Board deleted.', 'info');
@@ -2156,10 +2161,17 @@
             state.savedPlayerNames = null;
             applyWorkspaceData({ ...item, activeSetId: item.id });
             initPlayers(state.playerCount, { names: state.savedPlayerNames, skipRender: true });
-            item.updatedAt = Date.now();
+            const now = Date.now();
+            item.updatedAt = now;
+            item.lastUsed = now;
+            item.usageCount = (item.usageCount || 0) + 1;
+            const nameInput = document.getElementById('set-name-input');
+            if (nameInput) nameInput.value = item.name || '';
+            try { localStorage.setItem(SETS_STORAGE_KEY, JSON.stringify(state.savedSets)); } catch (e) {}
             const hasCustomLinks = Array.isArray(item.links);
             applyPage();
             buildBoard({ keepLinks: hasCustomLinks });
+            renderSavedSetsList();
             playSound('pop');
             showToast(`Loaded "${item.name}"`, 'success');
         }
@@ -2222,6 +2234,11 @@
             document.body.classList.remove('opacity-0');
 
             await loadPersistedState();
+            const initialActiveSet = state.activeSetId ? state.savedSets.find(s => s.id === state.activeSetId) : null;
+            const initialSetNameInput = document.getElementById('set-name-input');
+            if (initialSetNameInput && initialActiveSet) {
+                initialSetNameInput.value = initialActiveSet.name || '';
+            }
             applyPage();
             renderDiceFace(6);
             initPlayers(state.playerCount, { names: state.savedPlayerNames, skipRender: true });
@@ -2453,14 +2470,12 @@
             document.getElementById('help-got-it-btn').addEventListener('click', () => helpModal.classList.add('hidden'));
             helpModal.addEventListener('click', (e) => { if (e.target === helpModal) helpModal.classList.add('hidden'); });
 
-            // Saved Sets Drawer
-            document.getElementById('saved-sets-toggle-btn').addEventListener('click', () => {
-                document.getElementById('saved-sets-controls').classList.toggle('active');
-                document.getElementById('saved-sets-toggle-icon').classList.toggle('active');
-            });
+            // Saved Sets Library Controls
             document.getElementById('library-sort').addEventListener('change', renderSavedSetsList);
             document.getElementById('close-set-btn').addEventListener('click', () => {
                 state.activeSetId = null;
+                const setNameInputEl = document.getElementById('set-name-input');
+                if (setNameInputEl) setNameInputEl.value = '';
                 updateActiveSetBanner();
                 renderSavedSetsList();
                 persistState();
@@ -2469,6 +2484,8 @@
             document.getElementById('new-set-btn').addEventListener('click', () => {
                 openConfirm('Start New Board?', 'This will detach from any active saved board and start a blank workspace.', () => {
                     state.activeSetId = null;
+                    const setNameInputEl = document.getElementById('set-name-input');
+                    if (setNameInputEl) setNameInputEl.value = '';
                     updateActiveSetBanner();
                     document.getElementById('custom-title').value = 'New Slides & Ladders';
                     document.getElementById('custom-subtitle').value = 'Roll the die, move your counter, and complete each square!';
@@ -2553,38 +2570,47 @@
 
             const saveModal = document.getElementById('saveModal');
             const saveInput = document.getElementById('save-set-input');
-            const confirmSave = () => {
-                const name = saveInput.value.trim();
+            const setNameInputEl = document.getElementById('set-name-input');
+            const confirmSave = (explicitName) => {
+                const name = (typeof explicitName === 'string' ? explicitName : saveInput.value).trim();
                 if (!name) {
                     showToast('Please enter a board name.', 'warning');
                     return;
                 }
+                const now = Date.now();
                 const ws = getWorkspaceData();
                 const existingIdx = state.activeSetId ? state.savedSets.findIndex(s => s.id === state.activeSetId) : -1;
-                const isSameName = existingIdx >= 0 && (state.savedSets[existingIdx].name || '').trim() === name;
+                const isSameName = existingIdx >= 0 && (state.savedSets[existingIdx].name || '').trim().toLowerCase() === name.toLowerCase();
 
                 if (isSameName) {
                     state.savedSets[existingIdx] = {
                         ...state.savedSets[existingIdx],
                         ...ws,
                         name,
-                        updatedAt: Date.now()
+                        updatedAt: now,
+                        lastUsed: now,
+                        usageCount: (state.savedSets[existingIdx].usageCount || 0) + 1
                     };
+                    if (setNameInputEl) setNameInputEl.value = name;
                     saveModal.classList.add('hidden');
                     persistSavedSets();
                     playSound('ladder');
                     showToast(`Updated "${name}"!`, 'success');
                 } else {
-                    const id = 'cl_' + Date.now();
+                    const id = 'cl_' + now;
                     const payload = {
                         id,
                         name,
-                        updatedAt: Date.now(),
+                        createdAt: now,
+                        updatedAt: now,
+                        lastUsed: now,
+                        usageCount: 1,
                         ...ws,
                         activeSetId: id
                     };
                     state.savedSets.unshift(payload);
                     state.activeSetId = id;
+                    if (setNameInputEl) setNameInputEl.value = name;
                     saveModal.classList.add('hidden');
                     persistSavedSets();
                     playSound('ladder');
@@ -2593,6 +2619,11 @@
             };
 
             document.getElementById('save-set-btn').addEventListener('click', () => {
+                const inlineName = setNameInputEl ? setNameInputEl.value.trim() : '';
+                if (inlineName) {
+                    confirmSave(inlineName);
+                    return;
+                }
                 const existing = state.savedSets.find(s => s.id === state.activeSetId);
                 saveInput.value = existing
                     ? existing.name
@@ -2600,9 +2631,23 @@
                 saveModal.classList.remove('hidden');
                 saveInput.focus();
             });
+            if (setNameInputEl) {
+                setNameInputEl.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        document.getElementById('save-set-btn').click();
+                    }
+                });
+            }
             document.getElementById('save-modal-cancel').addEventListener('click', () => saveModal.classList.add('hidden'));
             saveModal.addEventListener('click', (e) => { if (e.target === saveModal) saveModal.classList.add('hidden'); });
-            document.getElementById('save-modal-confirm').addEventListener('click', confirmSave);
+            document.getElementById('save-modal-confirm').addEventListener('click', () => confirmSave());
+            saveInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    confirmSave();
+                }
+            });
             saveInput.addEventListener('keydown', (e) => {
                 if (e.key === 'Enter') { e.preventDefault(); confirmSave(); }
                 if (e.key === 'Escape') saveModal.classList.add('hidden');
