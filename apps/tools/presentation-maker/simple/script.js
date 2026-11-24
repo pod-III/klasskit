@@ -247,7 +247,7 @@
                 if (dbText) {
                     textarea.value = dbText;
                 } else {
-                    const saved = localStorage.getItem('e1_rapid_text');
+                    const saved = localStorage.getItem('kk_rapid_text');
                     if (saved) textarea.value = saved;
                 }
                 
@@ -280,7 +280,7 @@
                 // Auto-save and count update on typing
                 textarea.addEventListener('input', (e) => {
                     const val = e.target.value;
-                    localStorage.setItem('e1_rapid_text', val);
+                    localStorage.setItem('kk_rapid_text', val);
                     dbPut('presentationText', val);
                     this.updateCount();
                     if (this.activeSetId) this.autoSaveActiveSet();
@@ -693,7 +693,7 @@
 
             confirmClear() {
                 document.getElementById('word-input').value = "";
-                localStorage.removeItem('e1_rapid_text');
+                localStorage.removeItem('kk_rapid_text');
                 dbPut('presentationText', '');
                 this.clearImages();
                 this.updateCount();
@@ -801,7 +801,7 @@
             async loadSet(set) {
                 const textarea = document.getElementById('word-input');
                 textarea.value = set.text || '';
-                localStorage.setItem('e1_rapid_text', textarea.value);
+                localStorage.setItem('kk_rapid_text', textarea.value);
                 dbPut('presentationText', textarea.value);
                 
                 this.images = set.images || [];

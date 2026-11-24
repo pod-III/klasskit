@@ -19,7 +19,7 @@ const SANDBOX_VAULT_STORE = 'vault';
 const CLOUD_IDB_REGISTRY_KEY = 'kk_cloud_idb_registry';
 const KNOWN_APP_IDB_NAMES = [
   'PosterStudioDB', 'PresentationDB', 'KlassKit_Resources', 'KlassKitRevealDB',
-  'KlassKitMemoryDB_V3', 'KlassKitMemoryDB_V2', 'KKThisOrThatDB', 'SimonGameKlassKitDB_V2',
+  'KlassKitMemoryDB_V3', 'KlassKitMemoryDB_V2', 'KKThisOrThatDB', 'MemoryBlockKlassKitDB_V2',
   'FlashcardDB', 'MysteryBoxDB', 'WordSearchDB', 'WordSortDB', 'CrosswordDB', 'HangmanDB',
   'BingoDB', 'KlassKitBingoDB', 'CardMakerDB', 'LessonExtractorDB_v3',
   'KlassKit_ImageWorkshop_DB', 'KlassKit_Editor_Images', 'klasskit_puzzle_db',
@@ -84,8 +84,8 @@ if (typeof window !== 'undefined' && _nativeIdbOpen && _nativeIdbDelete && !wind
 
 const DEVICE_PREF_EXACT_KEYS = new Set([
   'theme', 'klasskit-theme', 'klasskit_theme', 'klasskit_colorTheme',
-  'klasskit_reduceMotion', 'fcd_theme', 'quiz_block_theme', 'e1_dark',
-  'soundMuted', 'timetools_muted', 'e1_mute', 'mb_audio',
+  'klasskit_reduceMotion', 'fcd_theme', 'quiz_block_theme', 'kk_dark',
+  'soundMuted', 'timetools_muted', 'kk_mute', 'mb_audio',
   'dnd_sb_master_vol', 'dnd_sb_sfx_mute', 'multispin_isMuted'
 ]);
 
@@ -109,6 +109,86 @@ function isSystemStorageKey(key) {
 function isAppDataKey(key) {
   return !isDevicePreferenceKey(key) && !isSystemStorageKey(key);
 }
+
+// Backward-compatible localStorage migration from legacy internal keys (FNV-1a hashed)
+const LEGACY_LS_KEY_MAP = {
+  'a1c26bf9': 'kk_quiz_block_v3',
+  '4829b613': 'kk_stopbus_v3',
+  '504a00ed': 'kk_mute',
+  'c45827f8': 'kk_dark',
+  '0cd2fdab': 'kk_role_speak_state',
+  '64cba882': 'kk_legacy_bingo_title',
+  'c8b1b25d': 'kk_legacy_bingo_words',
+  'ecb9c3c2': 'kk_wordbank',
+  'd50039d8': 'kk_dictionary_categories',
+  'd450780a': 'kk_legacy_lesson_notes',
+  '86d7aae0': 'kk_legacy_last_active_note',
+  'c572c64a': 'kk_rapid_library_v1',
+  'cdcbccfc': 'kk_rapid_slides_v4',
+  '47fb3d62': 'kk_rapid_meta_v1',
+  '760f0b3c': 'kk_rapid_text',
+  '17865a6d': 'kk_randomizer_words',
+  '0f215e0a': 'kk_randomizer_results',
+  'cb58be77': 'kk_randomizer_format',
+  '8db8ebd4': 'kk_teampicker_appmode',
+  '9cf40b15': 'kk_teampicker_state',
+  '0236fcd0': 'kk_legacy_teampicker_names',
+  'bc819273': 'kk-neo-messenger-data-v2.3',
+  '6c68db09': 'kk_blitz_data_v2',
+  'b975d151': 'kk_blitz_time',
+  '43fd0a34': 'kk_legacy_students',
+  '44ee966d': 'kk_tracker_v2_students',
+  '1a7d3be5': 'kk_poster_wordSets',
+};
+const LEGACY_SCORE_PREFIX_HASH = '841acf03';
+
+function _fnv1aStorageKey(str) {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < str.length; i++) {
+    h ^= str.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
+  }
+  return (h >>> 0).toString(16).padStart(8, '0');
+}
+
+function resolveMigratedStorageKey(key) {
+  if (!key || typeof key !== 'string') return key;
+  const h = _fnv1aStorageKey(key);
+  if (Object.prototype.hasOwnProperty.call(LEGACY_LS_KEY_MAP, h)) {
+    return LEGACY_LS_KEY_MAP[h];
+  }
+  const scoreIdx = key.indexOf('_v2_scores_');
+  if (scoreIdx > 0 && _fnv1aStorageKey(key.slice(0, scoreIdx)) === LEGACY_SCORE_PREFIX_HASH) {
+    return 'kk_tracker_v2_scores_' + key.slice(scoreIdx + '_v2_scores_'.length);
+  }
+  return key;
+}
+
+function migrateLegacyLocalStorageKeys() {
+  try {
+    const keys = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k) keys.push(k);
+    }
+    for (const oldKey of keys) {
+      const newKey = resolveMigratedStorageKey(oldKey);
+      if (newKey && newKey !== oldKey) {
+        if (localStorage.getItem(newKey) === null) {
+          const val = localStorage.getItem(oldKey);
+          if (val !== null) {
+            localStorage.setItem(newKey, val);
+          }
+        }
+        localStorage.removeItem(oldKey);
+      }
+    }
+  } catch (err) {
+    console.warn('[StorageMigration] Failed:', err);
+  }
+}
+
+migrateLegacyLocalStorageKeys();
 
 function hasSupabaseAuthTokens() {
   try {
@@ -220,11 +300,15 @@ async function restoreSandboxVaultSnapshot() {
   const snapshot = await readSandboxVaultSnapshot();
   if (!snapshot || !snapshot.entries || typeof snapshot.entries !== 'object') return;
   for (const [key, val] of Object.entries(snapshot.entries)) {
-    if (isAppDataKey(key) && val !== null && val !== undefined) {
+    const targetKey = resolveMigratedStorageKey(key);
+    if (targetKey !== key && Object.prototype.hasOwnProperty.call(snapshot.entries, targetKey)) {
+      continue;
+    }
+    if (isAppDataKey(targetKey) && val !== null && val !== undefined) {
       try {
-        localStorage.setItem(key, val);
+        localStorage.setItem(targetKey, val);
       } catch (err) {
-        console.warn('[SandboxVault] Failed to restore key:', key, err);
+        console.warn('[SandboxVault] Failed to restore key:', targetKey, err);
       }
     }
   }

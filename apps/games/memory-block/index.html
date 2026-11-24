@@ -373,30 +373,113 @@
     </script>
 
     <script>
-        const DB_NAME = 'SimonGameKlassKitDB_V2';
+        const DB_NAME = 'MemoryBlockKlassKitDB_V2';
         const DB_VERSION = 2; // Bumped for images store
         const STORE_NAME = 'settings';
         const IMG_STORE = 'images';
+        const LEGACY_MB_IDB_HASH = '0f374bd6';
         let dataBase;
+        let dbInitPromise = null;
+
+        function _hashDbName(str) {
+            let h = 0x811c9dc5;
+            for (let i = 0; i < str.length; i++) {
+                h ^= str.charCodeAt(i);
+                h = Math.imul(h, 0x01000193);
+            }
+            return (h >>> 0).toString(16).padStart(8, '0');
+        }
+
+        async function migrateLegacyMemoryBlockDB(targetDb) {
+            try {
+                const migFlag = 'kk_mb_idb_migrated_' + targetDb.name;
+                if (localStorage.getItem(migFlag) === '1') return;
+                if (!indexedDB.databases) return;
+                const CLOUD_PREFIX = 'kk_cloud_';
+                const isCloudDb = targetDb.name.startsWith(CLOUD_PREFIX);
+                const dbs = await indexedDB.databases();
+                const legacyInfo = dbs.find((db) => {
+                    if (!db || !db.name) return false;
+                    if (isCloudDb) {
+                        return db.name.startsWith(CLOUD_PREFIX) &&
+                            _hashDbName(db.name.slice(CLOUD_PREFIX.length)) === LEGACY_MB_IDB_HASH;
+                    }
+                    return !db.name.startsWith(CLOUD_PREFIX) && _hashDbName(db.name) === LEGACY_MB_IDB_HASH;
+                });
+                if (!legacyInfo) {
+                    localStorage.setItem(migFlag, '1');
+                    return;
+                }
+                const nativeOpen = window.__kkNativeIdbOpen || indexedDB.open;
+                const oldDb = await new Promise((resolve, reject) => {
+                    const req = nativeOpen.call(indexedDB, legacyInfo.name);
+                    req.onsuccess = (ev) => resolve(ev.target.result);
+                    req.onerror = (ev) => reject(ev.target.error);
+                });
+                const stores = [STORE_NAME, IMG_STORE].filter(
+                    (s) => oldDb.objectStoreNames.contains(s) && targetDb.objectStoreNames.contains(s)
+                );
+                for (const storeName of stores) {
+                    const entries = await new Promise((resolve, reject) => {
+                        const tx = oldDb.transaction(storeName, 'readonly');
+                        const store = tx.objectStore(storeName);
+                        const keysReq = store.getAllKeys();
+                        const valsReq = store.getAll();
+                        tx.oncomplete = () => {
+                            const keys = keysReq.result || [];
+                            const vals = valsReq.result || [];
+                            resolve(keys.map((k, i) => [k, vals[i]]));
+                        };
+                        tx.onerror = (ev) => reject(ev.target.error);
+                    });
+                    if (entries.length > 0) {
+                        await new Promise((resolve, reject) => {
+                            const tx = targetDb.transaction(storeName, 'readwrite');
+                            const store = tx.objectStore(storeName);
+                            for (const [k, v] of entries) {
+                                const checkReq = store.getKey(k);
+                                checkReq.onsuccess = () => {
+                                    if (checkReq.result === undefined) {
+                                        store.put(v, k);
+                                    }
+                                };
+                            }
+                            tx.oncomplete = () => resolve();
+                            tx.onerror = (ev) => reject(ev.target.error);
+                        });
+                    }
+                }
+                oldDb.close();
+                localStorage.setItem(migFlag, '1');
+            } catch (err) {
+                console.warn('[MemoryBlock] Legacy DB migration skipped:', err);
+            }
+        }
 
         function initDB() {
-            return new Promise((resolve, reject) => {
+            if (dbInitPromise) return dbInitPromise;
+            dbInitPromise = new Promise((resolve, reject) => {
                 const request = indexedDB.open(DB_NAME, DB_VERSION);
                 request.onupgradeneeded = (e) => {
-                    const dataBase = e.target.result;
-                    if (!dataBase.objectStoreNames.contains(STORE_NAME)) {
-                        dataBase.createObjectStore(STORE_NAME);
+                    const db = e.target.result;
+                    if (!db.objectStoreNames.contains(STORE_NAME)) {
+                        db.createObjectStore(STORE_NAME);
                     }
-                    if (!dataBase.objectStoreNames.contains(IMG_STORE)) {
-                        dataBase.createObjectStore(IMG_STORE);
+                    if (!db.objectStoreNames.contains(IMG_STORE)) {
+                        db.createObjectStore(IMG_STORE);
                     }
                 };
-                request.onsuccess = (e) => {
+                request.onsuccess = async (e) => {
                     dataBase = e.target.result;
+                    await migrateLegacyMemoryBlockDB(dataBase);
                     resolve(dataBase);
                 };
-                request.onerror = (e) => reject(e.target.error);
+                request.onerror = (e) => {
+                    dbInitPromise = null;
+                    reject(e.target.error);
+                };
             });
+            return dbInitPromise;
         }
 
         async function getImg(url) {

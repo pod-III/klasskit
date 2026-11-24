@@ -126,7 +126,7 @@ The catalog in `games.json` organizes **76 active modules** into five core zones
 | **Tracer Whiteboard** | Interactive Handwriting & Shape Tracing Studio |
 | **Whiteboard** | Infinite Canvas for Ideas |
 | **Word List** | Precision Word Selector |
-| **YouTube Library** | Curated Video Resource Library |
+| **Video Library** | Curated Video Resource Library |
 
 ### 🎮 Classroom Games (33)
 *High-engagement battles, team challenges, and language games.*

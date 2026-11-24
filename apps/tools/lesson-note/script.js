@@ -167,7 +167,7 @@ function saveSetting(key, value) {
 
 // --- Migration ---
 async function migrateFromLocalStorage() {
-    const oldNotes = localStorage.getItem('e1_lesson_notes');
+    const oldNotes = localStorage.getItem('kk_legacy_lesson_notes');
     if (oldNotes) {
         try {
             const parsedNotes = JSON.parse(oldNotes);
@@ -180,7 +180,7 @@ async function migrateFromLocalStorage() {
                     });
                 }
             }
-            localStorage.removeItem('e1_lesson_notes');
+            localStorage.removeItem('kk_legacy_lesson_notes');
         } catch (e) {
             console.error('Migration failed:', e);
         }
@@ -188,10 +188,10 @@ async function migrateFromLocalStorage() {
 
 
 
-    const oldLastActive = localStorage.getItem('e1_last_active_note');
+    const oldLastActive = localStorage.getItem('kk_legacy_last_active_note');
     if (oldLastActive) {
         await saveSetting('lastActiveNoteId', oldLastActive);
-        localStorage.removeItem('e1_last_active_note');
+        localStorage.removeItem('kk_legacy_last_active_note');
     }
 }
 

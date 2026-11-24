@@ -74,11 +74,11 @@
                         }
                     } else {
                         // Fallback to local
-                        const libSaved = localStorage.getItem('e1_rapid_library_v1');
+                        const libSaved = localStorage.getItem('kk_rapid_library_v1');
                         if (libSaved) { try { this.library = JSON.parse(libSaved); } catch (e) { this.library = []; } }
 
-                        const saved = localStorage.getItem('e1_rapid_slides_v4');
-                        const metaSaved = localStorage.getItem('e1_rapid_meta_v1');
+                        const saved = localStorage.getItem('kk_rapid_slides_v4');
+                        const metaSaved = localStorage.getItem('kk_rapid_meta_v1');
 
                         if (saved) {
                             try {
@@ -225,7 +225,7 @@
                 const c = await this.showModal('Delete Deck?', 'This will permanently remove this deck from your library.', 'Delete', 'trash-2');
                 if (c) {
                     this.library = this.library.filter(d => d.id !== id);
-                    localStorage.setItem('e1_rapid_library_v1', JSON.stringify(this.library));
+                    localStorage.setItem('kk_rapid_library_v1', JSON.stringify(this.library));
 
                     // Cloud Cleanup
                     const user = await getCloudUser();
@@ -249,7 +249,7 @@
                         this.library[deckIdx].slides = this.slides;
                         this.library[deckIdx].count = this.slides.length;
                         this.library[deckIdx].updatedAt = Date.now();
-                        localStorage.setItem('e1_rapid_library_v1', JSON.stringify(this.library));
+                        localStorage.setItem('kk_rapid_library_v1', JSON.stringify(this.library));
                         this.showToast('Deck Updated', 'check');
                     } else {
                         // Id exists but not in lib? Treat as new
@@ -280,7 +280,7 @@
 
                         this.library.push(newDeck);
                         this.currentDeckId = newId;
-                        localStorage.setItem('e1_rapid_library_v1', JSON.stringify(this.library));
+                        localStorage.setItem('kk_rapid_library_v1', JSON.stringify(this.library));
 
                         this.updateDeckNameDisplay(name);
                         this.saveWorkspace(); // Update meta
@@ -373,13 +373,13 @@
 
             saveWorkspace() {
                 // Saves the current working state (scratchpad)
-                localStorage.setItem('e1_rapid_slides_v4', JSON.stringify(this.slides));
+                localStorage.setItem('kk_rapid_slides_v4', JSON.stringify(this.slides));
                 // Also save meta about which deck is active
                 if (this.currentDeckId) {
                     const deck = this.library.find(d => d.id === this.currentDeckId);
-                    localStorage.setItem('e1_rapid_meta_v1', JSON.stringify({ id: this.currentDeckId, title: deck ? deck.title : 'Unsaved' }));
+                    localStorage.setItem('kk_rapid_meta_v1', JSON.stringify({ id: this.currentDeckId, title: deck ? deck.title : 'Unsaved' }));
                 } else {
-                    localStorage.removeItem('e1_rapid_meta_v1');
+                    localStorage.removeItem('kk_rapid_meta_v1');
                 }
                 this.updateStats();
                 this.syncToCloud();

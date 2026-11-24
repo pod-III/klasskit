@@ -38,7 +38,7 @@ const MediaManager = {
         { name: 'KlassKitMemoryDB_V3', label: 'Card Match (V3)', store: 'Presets' },
         { name: 'KlassKitMemoryDB_V2', label: 'Card Match (V2)', store: 'Configs' },
         { name: 'KKThisOrThatDB', label: 'This or That', store: 'image_cache' },
-        { name: 'SimonGameKlassKitDB_V2', label: 'Memory Block', store: 'image_cache' },
+        { name: 'MemoryBlockKlassKitDB_V2', label: 'Memory Block', store: 'image_cache' },
         { name: 'FlashcardDB', label: 'Word Flashcards', store: 'flashcards' },
         { name: 'MysteryBoxDB', label: 'Mystery Box (Legacy)', store: 'images' },
         { name: 'WordSearchDB', label: 'Word Search', store: 'games' },
@@ -50,7 +50,7 @@ const MediaManager = {
     ],
 
     KNOWN_LS_KEYS: [
-        { key: 'e1_rapid_slides_v4', label: 'Speedy Slides (Legacy)' },
+        { key: 'kk_rapid_slides_v4', label: 'Speedy Slides (Legacy)' },
         { key: 'flashcard_klasskit_state_v5', label: 'Card Maker (Legacy)' },
         { key: 'prog_presentation_data', label: 'Slides Data' },
         { key: 'prog_card_maker_state', label: 'Card Maker Data' }

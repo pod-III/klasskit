@@ -36,7 +36,7 @@
             sheetId: null,     // Current loaded saved sheet ID
             savedSheets: [],
             
-            // Excel-like Range Selection and Fill States
+            // Spreadsheet-style Range Selection and Fill States
             selectionStart: null,
             selectionEnd: null,
             isSelecting: false,

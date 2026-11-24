@@ -153,10 +153,10 @@ function normalizeLoadedState(raw) {
 
 function migrateLegacyStudents() {
   try {
-    const oldStudents = JSON.parse(localStorage.getItem("e1_students") || "null");
+    const oldStudents = JSON.parse(localStorage.getItem("kk_legacy_students") || "null");
     if (oldStudents && Array.isArray(oldStudents) && oldStudents.length) {
       state.classes[0].students = oldStudents;
-      localStorage.removeItem("e1_students");
+      localStorage.removeItem("kk_legacy_students");
       saveLocal();
     }
   } catch (e) {
@@ -253,7 +253,7 @@ function toggleDark() {
   document.documentElement.classList.toggle("dark");
   const dark = document.documentElement.classList.contains("dark");
   localStorage.setItem("theme", dark ? "dark" : "light");
-  localStorage.setItem("e1_dark", dark ? "1" : "0");
+  localStorage.setItem("kk_dark", dark ? "1" : "0");
 }
 
 function showToast(msg, type = "success") {

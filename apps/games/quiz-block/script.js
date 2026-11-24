@@ -135,7 +135,7 @@ const QuizBlock = (function() {
     }
 
     // --- Storage Keys & State Initialization ---
-    const STORAGE_KEY_STATE = 'eng1_jeopardy_v3';
+    const STORAGE_KEY_STATE = 'kk_quiz_block_v3';
     const STORAGE_KEY_CUSTOM = 'quiz_block_custom_games';
     const STORAGE_KEY_PRESET_EDITS = 'quiz_block_preset_edits';
     const STORAGE_KEY_THEME = 'quiz_block_theme';
