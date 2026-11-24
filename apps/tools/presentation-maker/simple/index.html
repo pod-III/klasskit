@@ -36,13 +36,13 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
 
-    <link rel="stylesheet" href="../../../../css/tailwind.generated.css" />
+    <link rel="stylesheet" href="../../../../css/tailwind.generated.css?v=4" />
     <script src="https://unpkg.com/lucide@1.16.0"></script>
     <script src="../../../../components/input-modal.js"></script>
 
     <link rel="stylesheet" href="../../../../css/base.css" />
     <link rel="stylesheet" href="../../../../css/components.css" />
-    <link rel="stylesheet" href="./style.css" />
+    <link rel="stylesheet" href="./style.css?v=4" />
     <script defer src="/js/analytics.js"></script>
 </head>
 
@@ -69,12 +69,21 @@
                     </div>
                 </div>
 
-                <div class="flex items-center gap-2 shrink-0">
+                <div class="flex items-center gap-1.5 sm:gap-2 shrink-0">
                     <div class="bg-white/95 dark:bg-slate-900/90 border-2 border-dark dark:border-slate-500 px-2.5 py-1 rounded-xl shadow-hard-xs flex items-center gap-1.5">
                         <span id="item-count" class="font-bold font-title text-dark dark:text-chalk text-xs uppercase">0 slides</span>
                         <span class="text-dark/30 dark:text-chalk/30 text-xs">&bull;</span>
                         <span id="est-time" class="font-bold font-title text-orange text-xs uppercase" title="Estimated drill time">0m</span>
                     </div>
+
+                    <!-- Simple / Options Toggle -->
+                    <button type="button" id="toggle-advanced-btn" onclick="app.toggleAdvancedSettings()"
+                        class="btn-chunky py-1.5 px-2.5 bg-white dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-xl text-dark dark:text-chalk text-[11px] flex items-center gap-1.5"
+                        title="Show or hide styling &amp; playback options" aria-expanded="false" aria-controls="advanced-settings-panel">
+                        <i data-lucide="sliders-horizontal" class="w-3.5 h-3.5 text-blue"></i>
+                        <span id="toggle-advanced-label" class="hidden sm:inline">Options</span>
+                        <span id="custom-settings-dot" class="hidden w-2 h-2 rounded-full bg-blue shrink-0" title="Custom presentation options active"></span>
+                    </button>
 
                     <!-- Starter Packs Dropdown -->
                     <div class="relative" id="starter-packs-wrap">
@@ -122,15 +131,15 @@
                             <i data-lucide="type" class="w-4 h-4 text-pink"></i>
                             Slide Content
                         </label>
-                        <button type="button" onclick="app.insertRevealExample()"
+                        <button type="button" onclick="app.insertMultiLineExample()"
                             class="px-2 py-0.5 rounded-lg bg-pink/10 border border-pink/30 text-[10px] font-title font-bold text-pink uppercase hover:bg-pink/20 transition-colors flex items-center gap-1"
-                            title="Click to append a Front | Back reveal card example">
-                            <i data-lucide="eye" class="w-3 h-3"></i> Front | Back = Reveal
+                            title="Click to append a multi-line slide example (use | between lines)">
+                            <i data-lucide="rows-3" class="w-3 h-3"></i> Line 1 | Line 2 = Multi-line
                         </button>
                     </div>
 
-                    <div class="flex flex-wrap items-center gap-1.5">
-                        <input type="file" id="txt-import-input" class="hidden" accept=".txt,.csv,text/plain" onchange="app.importTextFile(event)">
+                    <input type="file" id="txt-import-input" class="hidden" accept=".txt,.csv,text/plain" onchange="app.importTextFile(event)">
+                    <div id="editor-tools-bar" class="hidden flex-wrap items-center gap-1.5 animate-slide-down">
                         <button type="button" onclick="app.cleanText()"
                             class="btn-chunky py-1 px-2 bg-white dark:bg-slate-800 text-dark dark:text-chalk rounded-lg text-[10px] flex items-center gap-1"
                             title="Trim spaces, expand semicolons, remove blank &amp; duplicate lines">
@@ -163,7 +172,7 @@
                 <div id="editor-dropzone" class="relative flex-1 flex flex-col min-h-[140px]">
                     <textarea id="word-input"
                         class="w-full flex-1 p-3 sm:p-3.5 bg-white dark:bg-slate-800/90 border-[3px] border-dark dark:border-slate-500 rounded-2xl focus:outline-none focus:border-blue text-base font-semibold resize-none text-dark dark:text-chalk placeholder-dark/35 dark:placeholder-chalk/35 shadow-inner-hard transition-colors custom-scrollbar"
-                        placeholder="Type one slide per line (or separate with ;)&#10;Tip: Use 'Question | Answer' or 'Word :: Definition' for 2-step reveal cards!&#10;Paste (Ctrl+V) or drag &amp; drop images anywhere here."></textarea>
+                        placeholder="Type one slide per line (or separate with ;)&#10;Use '|' for multiple lines on one slide (e.g. Apple | /ˈæp.əl/ | A red fruit)&#10;Use '::' for 2-step Q :: A reveal cards — or paste/drop images here!"></textarea>
 
                     <div id="drop-overlay"
                         class="hidden absolute inset-0 bg-blue/15 dark:bg-blue/25 backdrop-blur-sm border-[3px] border-dashed border-blue rounded-2xl flex-col items-center justify-center gap-2 pointer-events-none z-20 drop-active">
@@ -176,98 +185,147 @@
                     </div>
                 </div>
 
-                <!-- Compact Stage Settings Strip -->
-                <div class="flex flex-wrap items-center gap-x-3 gap-y-1.5 px-2.5 py-2 bg-slate-100/85 dark:bg-slate-800/70 border-2 border-dark/20 dark:border-slate-600 rounded-xl shrink-0">
-                    <!-- Stage Theme -->
-                    <div class="flex items-center gap-1" role="group" aria-label="Stage theme">
-                        <span class="text-[10px] font-title font-bold uppercase text-dark/60 dark:text-chalk/60 mr-0.5">Stage:</span>
-                        <button type="button" data-theme-opt="vivid" onclick="app.setSetting('theme', 'vivid')"
-                            class="px-2 py-1 rounded-lg border-2 border-dark/25 dark:border-slate-500 bg-white dark:bg-slate-900 text-[10px] font-title font-bold uppercase flex items-center gap-1 transition-all"
-                            title="Vivid KlassKit rotating colors">
-                            <span class="w-2.5 h-2.5 rounded-full bg-pink border border-dark/40 inline-block"></span>
-                            <span class="hidden sm:inline">Vivid</span>
-                        </button>
-                        <button type="button" data-theme-opt="chalkboard" onclick="app.setSetting('theme', 'chalkboard')"
-                            class="px-2 py-1 rounded-lg border-2 border-dark/25 dark:border-slate-500 bg-white dark:bg-slate-900 text-[10px] font-title font-bold uppercase flex items-center gap-1 transition-all"
-                            title="Dark chalkboard grid">
-                            <span class="w-2.5 h-2.5 rounded-full bg-slate-900 border border-white/40 inline-block"></span>
-                            <span class="hidden sm:inline">Chalk</span>
-                        </button>
-                        <button type="button" data-theme-opt="paper" onclick="app.setSetting('theme', 'paper')"
-                            class="px-2 py-1 rounded-lg border-2 border-dark/25 dark:border-slate-500 bg-white dark:bg-slate-900 text-[10px] font-title font-bold uppercase flex items-center gap-1 transition-all"
-                            title="Light notebook paper grid">
-                            <span class="w-2.5 h-2.5 rounded-full bg-slate-50 border border-dark/50 inline-block"></span>
-                            <span class="hidden sm:inline">Paper</span>
-                        </button>
-                        <button type="button" data-theme-opt="contrast" onclick="app.setSetting('theme', 'contrast')"
-                            class="px-2 py-1 rounded-lg border-2 border-dark/25 dark:border-slate-500 bg-white dark:bg-slate-900 text-[10px] font-title font-bold uppercase flex items-center gap-1 transition-all"
-                            title="High-contrast yellow on black">
-                            <span class="w-2.5 h-2.5 rounded-full bg-yellow-400 border border-dark/60 inline-block"></span>
-                            <span class="hidden sm:inline">High</span>
-                        </button>
+                <!-- Collapsible Advanced Styling & Playback Panel (Hidden by default in Simple Look) -->
+                <div id="advanced-settings-panel"
+                    class="hidden flex-col gap-2 px-2.5 py-2 bg-slate-100/85 dark:bg-slate-800/70 border-2 border-dark/20 dark:border-slate-600 rounded-xl shrink-0 animate-slide-down">
+                    <!-- Row 1: Stage & Playback -->
+                    <div class="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+                        <!-- Stage Theme -->
+                        <div class="flex items-center gap-1" role="group" aria-label="Stage theme">
+                            <span class="text-[10px] font-title font-bold uppercase text-dark/60 dark:text-chalk/60 mr-0.5">Stage:</span>
+                            <button type="button" data-theme-opt="vivid" onclick="app.setSetting('theme', 'vivid')"
+                                class="px-2 py-1 rounded-lg border-2 border-dark/25 dark:border-slate-500 bg-white dark:bg-slate-900 text-[10px] font-title font-bold uppercase flex items-center gap-1 transition-all"
+                                title="Vivid KlassKit rotating colors">
+                                <span class="w-2.5 h-2.5 rounded-full bg-pink border border-dark/40 inline-block"></span>
+                                <span class="hidden sm:inline">Vivid</span>
+                            </button>
+                            <button type="button" data-theme-opt="chalkboard" onclick="app.setSetting('theme', 'chalkboard')"
+                                class="px-2 py-1 rounded-lg border-2 border-dark/25 dark:border-slate-500 bg-white dark:bg-slate-900 text-[10px] font-title font-bold uppercase flex items-center gap-1 transition-all"
+                                title="Dark chalkboard grid">
+                                <span class="w-2.5 h-2.5 rounded-full bg-slate-900 border border-white/40 inline-block"></span>
+                                <span class="hidden sm:inline">Chalk</span>
+                            </button>
+                            <button type="button" data-theme-opt="paper" onclick="app.setSetting('theme', 'paper')"
+                                class="px-2 py-1 rounded-lg border-2 border-dark/25 dark:border-slate-500 bg-white dark:bg-slate-900 text-[10px] font-title font-bold uppercase flex items-center gap-1 transition-all"
+                                title="Light notebook paper grid">
+                                <span class="w-2.5 h-2.5 rounded-full bg-slate-50 border border-dark/50 inline-block"></span>
+                                <span class="hidden sm:inline">Paper</span>
+                            </button>
+                            <button type="button" data-theme-opt="contrast" onclick="app.setSetting('theme', 'contrast')"
+                                class="px-2 py-1 rounded-lg border-2 border-dark/25 dark:border-slate-500 bg-white dark:bg-slate-900 text-[10px] font-title font-bold uppercase flex items-center gap-1 transition-all"
+                                title="High-contrast yellow on black">
+                                <span class="w-2.5 h-2.5 rounded-full bg-yellow-400 border border-dark/60 inline-block"></span>
+                                <span class="hidden sm:inline">High</span>
+                            </button>
+                        </div>
+
+                        <!-- Text Case -->
+                        <div class="flex items-center gap-1" role="group" aria-label="Text case">
+                            <button type="button" data-case-opt="original" onclick="app.setSetting('textCase', 'original')"
+                                class="px-2 py-1 rounded-lg border-2 border-dark/25 dark:border-slate-500 bg-white dark:bg-slate-900 text-[10px] font-title font-bold transition-all"
+                                title="Original text casing">Aa</button>
+                            <button type="button" data-case-opt="upper" onclick="app.setSetting('textCase', 'upper')"
+                                class="px-2 py-1 rounded-lg border-2 border-dark/25 dark:border-slate-500 bg-white dark:bg-slate-900 text-[10px] font-title font-bold transition-all"
+                                title="Force UPPERCASE">AA</button>
+                            <button type="button" data-case-opt="lower" onclick="app.setSetting('textCase', 'lower')"
+                                class="px-2 py-1 rounded-lg border-2 border-dark/25 dark:border-slate-500 bg-white dark:bg-slate-900 text-[10px] font-title font-bold transition-all"
+                                title="Force lowercase">aa</button>
+                        </div>
+
+                        <!-- Image Order -->
+                        <div class="flex items-center gap-1">
+                            <label for="setting-image-order" class="text-[10px] font-title font-bold uppercase text-dark/60 dark:text-chalk/60">Imgs:</label>
+                            <select id="setting-image-order" onchange="app.setSetting('imageOrder', this.value)"
+                                class="bg-white dark:bg-slate-900 border-2 border-dark/25 dark:border-slate-500 rounded-lg text-[10px] font-title font-bold py-0.5 px-1.5 text-dark dark:text-chalk cursor-pointer">
+                                <option value="after">After Text</option>
+                                <option value="before">Before Text</option>
+                                <option value="interleave">Interleave</option>
+                                <option value="pair">Pair Side-by-Side</option>
+                            </select>
+                        </div>
+
+                        <!-- Auto-Play Timer -->
+                        <div class="flex items-center gap-1">
+                            <label for="setting-autoplay" class="text-[10px] font-title font-bold uppercase text-dark/60 dark:text-chalk/60">Auto:</label>
+                            <select id="setting-autoplay" onchange="app.setSetting('autoPlaySec', Number(this.value))"
+                                class="bg-white dark:bg-slate-900 border-2 border-dark/25 dark:border-slate-500 rounded-lg text-[10px] font-title font-bold py-0.5 px-1.5 text-dark dark:text-chalk cursor-pointer">
+                                <option value="0">Off</option>
+                                <option value="2">2s</option>
+                                <option value="3">3s</option>
+                                <option value="5">5s</option>
+                                <option value="10">10s</option>
+                            </select>
+                        </div>
+
+                        <!-- Transition -->
+                        <div class="flex items-center gap-1">
+                            <label for="setting-transition" class="text-[10px] font-title font-bold uppercase text-dark/60 dark:text-chalk/60">FX:</label>
+                            <select id="setting-transition" onchange="app.setSetting('transition', this.value)"
+                                class="bg-white dark:bg-slate-900 border-2 border-dark/25 dark:border-slate-500 rounded-lg text-[10px] font-title font-bold py-0.5 px-1.5 text-dark dark:text-chalk cursor-pointer">
+                                <option value="pop">Pop</option>
+                                <option value="slide">Slide</option>
+                                <option value="instant">Instant</option>
+                            </select>
+                        </div>
+
+                        <!-- Loop & Auto-Speak Toggles -->
+                        <div class="flex items-center gap-1 ml-auto">
+                            <button type="button" id="setting-loop-btn" onclick="app.toggleSetting('loop')"
+                                class="px-2 py-1 rounded-lg border-2 border-dark/25 dark:border-slate-500 bg-white dark:bg-slate-900 text-[10px] font-title font-bold uppercase flex items-center gap-1 transition-all"
+                                title="Loop back to slide 1 at end">
+                                <i data-lucide="repeat" class="w-3 h-3"></i> Loop
+                            </button>
+                            <button type="button" id="setting-autospeak-btn" onclick="app.toggleSetting('autoSpeak')"
+                                class="px-2 py-1 rounded-lg border-2 border-dark/25 dark:border-slate-500 bg-white dark:bg-slate-900 text-[10px] font-title font-bold uppercase flex items-center gap-1 transition-all"
+                                title="Auto-pronounce each slide when displayed">
+                                <i data-lucide="volume-2" class="w-3 h-3"></i> Speak
+                            </button>
+                        </div>
                     </div>
 
-                    <!-- Text Case -->
-                    <div class="flex items-center gap-1" role="group" aria-label="Text case">
-                        <button type="button" data-case-opt="original" onclick="app.setSetting('textCase', 'original')"
-                            class="px-2 py-1 rounded-lg border-2 border-dark/25 dark:border-slate-500 bg-white dark:bg-slate-900 text-[10px] font-title font-bold transition-all"
-                            title="Original text casing">Aa</button>
-                        <button type="button" data-case-opt="upper" onclick="app.setSetting('textCase', 'upper')"
-                            class="px-2 py-1 rounded-lg border-2 border-dark/25 dark:border-slate-500 bg-white dark:bg-slate-900 text-[10px] font-title font-bold transition-all"
-                            title="Force UPPERCASE">AA</button>
-                        <button type="button" data-case-opt="lower" onclick="app.setSetting('textCase', 'lower')"
-                            class="px-2 py-1 rounded-lg border-2 border-dark/25 dark:border-slate-500 bg-white dark:bg-slate-900 text-[10px] font-title font-bold transition-all"
-                            title="Force lowercase">aa</button>
-                    </div>
+                    <!-- Row 2: Multi-Line (|) Look -->
+                    <div class="pt-1.5 border-t border-dark/10 dark:border-slate-700 flex flex-wrap items-center gap-x-3 gap-y-1.5">
+                        <div class="flex flex-wrap items-center gap-1" role="group" aria-label="Multi-line style">
+                            <span class="text-[10px] font-title font-bold uppercase text-dark/60 dark:text-chalk/60 mr-0.5">Lines (|):</span>
+                            <button type="button" data-mline-opt="hero" onclick="app.setSetting('multiLineStyle', 'hero')"
+                                class="px-2 py-1 rounded-lg border-2 border-dark/25 dark:border-slate-500 bg-white dark:bg-slate-900 text-[10px] font-title font-bold uppercase transition-all"
+                                title="Big Line 1 title with smaller lines below">Title + Sub</button>
+                            <button type="button" data-mline-opt="stacked" onclick="app.setSetting('multiLineStyle', 'stacked')"
+                                class="px-2 py-1 rounded-lg border-2 border-dark/25 dark:border-slate-500 bg-white dark:bg-slate-900 text-[10px] font-title font-bold uppercase transition-all"
+                                title="Uniform stacked display lines">Equal</button>
+                            <button type="button" data-mline-opt="cards" onclick="app.setSetting('multiLineStyle', 'cards')"
+                                class="px-2 py-1 rounded-lg border-2 border-dark/25 dark:border-slate-500 bg-white dark:bg-slate-900 text-[10px] font-title font-bold uppercase transition-all"
+                                title="Each line in its own Neo-Brutalist card">Cards</button>
+                            <button type="button" data-mline-opt="contrast" onclick="app.setSetting('multiLineStyle', 'contrast')"
+                                class="px-2 py-1 rounded-lg border-2 border-dark/25 dark:border-slate-500 bg-white dark:bg-slate-900 text-[10px] font-title font-bold uppercase transition-all"
+                                title="Hero title, inverted badge line 2, italic quote line 3">Accent</button>
+                            <button type="button" data-mline-opt="bullets" onclick="app.setSetting('multiLineStyle', 'bullets')"
+                                class="px-2 py-1 rounded-lg border-2 border-dark/25 dark:border-slate-500 bg-white dark:bg-slate-900 text-[10px] font-title font-bold uppercase transition-all"
+                                title="Underlined header + colored bullet list">Bullets</button>
+                        </div>
 
-                    <!-- Image Order -->
-                    <div class="flex items-center gap-1">
-                        <label for="setting-image-order" class="text-[10px] font-title font-bold uppercase text-dark/60 dark:text-chalk/60">Imgs:</label>
-                        <select id="setting-image-order" onchange="app.setSetting('imageOrder', this.value)"
-                            class="bg-white dark:bg-slate-900 border-2 border-dark/25 dark:border-slate-500 rounded-lg text-[10px] font-title font-bold py-0.5 px-1.5 text-dark dark:text-chalk cursor-pointer">
-                            <option value="after">After Text</option>
-                            <option value="before">Before Text</option>
-                            <option value="interleave">Interleave</option>
-                            <option value="pair">Pair Side-by-Side</option>
-                        </select>
-                    </div>
+                        <div class="flex items-center gap-1" role="group" aria-label="Multi-line reveal mode">
+                            <span class="text-[10px] font-title font-bold uppercase text-dark/60 dark:text-chalk/60">Build:</span>
+                            <button type="button" data-mreveal-opt="all" onclick="app.setSetting('multiLineReveal', 'all')"
+                                class="px-2 py-1 rounded-lg border-2 border-dark/25 dark:border-slate-500 bg-white dark:bg-slate-900 text-[10px] font-title font-bold uppercase transition-all"
+                                title="Show all | lines at once">All</button>
+                            <button type="button" data-mreveal-opt="step" onclick="app.setSetting('multiLineReveal', 'step')"
+                                class="px-2 py-1 rounded-lg border-2 border-dark/25 dark:border-slate-500 bg-white dark:bg-slate-900 text-[10px] font-title font-bold uppercase transition-all"
+                                title="Reveal each | line 1-by-1 on click/Space">1-by-1</button>
+                        </div>
 
-                    <!-- Auto-Play Timer -->
-                    <div class="flex items-center gap-1">
-                        <label for="setting-autoplay" class="text-[10px] font-title font-bold uppercase text-dark/60 dark:text-chalk/60">Auto:</label>
-                        <select id="setting-autoplay" onchange="app.setSetting('autoPlaySec', Number(this.value))"
-                            class="bg-white dark:bg-slate-900 border-2 border-dark/25 dark:border-slate-500 rounded-lg text-[10px] font-title font-bold py-0.5 px-1.5 text-dark dark:text-chalk cursor-pointer">
-                            <option value="0">Off</option>
-                            <option value="2">2s</option>
-                            <option value="3">3s</option>
-                            <option value="5">5s</option>
-                            <option value="10">10s</option>
-                        </select>
-                    </div>
-
-                    <!-- Transition -->
-                    <div class="flex items-center gap-1">
-                        <label for="setting-transition" class="text-[10px] font-title font-bold uppercase text-dark/60 dark:text-chalk/60">FX:</label>
-                        <select id="setting-transition" onchange="app.setSetting('transition', this.value)"
-                            class="bg-white dark:bg-slate-900 border-2 border-dark/25 dark:border-slate-500 rounded-lg text-[10px] font-title font-bold py-0.5 px-1.5 text-dark dark:text-chalk cursor-pointer">
-                            <option value="pop">Pop</option>
-                            <option value="slide">Slide</option>
-                            <option value="instant">Instant</option>
-                        </select>
-                    </div>
-
-                    <!-- Loop & Auto-Speak Toggles -->
-                    <div class="flex items-center gap-1 ml-auto">
-                        <button type="button" id="setting-loop-btn" onclick="app.toggleSetting('loop')"
-                            class="px-2 py-1 rounded-lg border-2 border-dark/25 dark:border-slate-500 bg-white dark:bg-slate-900 text-[10px] font-title font-bold uppercase flex items-center gap-1 transition-all"
-                            title="Loop back to slide 1 at end">
-                            <i data-lucide="repeat" class="w-3 h-3"></i> Loop
-                        </button>
-                        <button type="button" id="setting-autospeak-btn" onclick="app.toggleSetting('autoSpeak')"
-                            class="px-2 py-1 rounded-lg border-2 border-dark/25 dark:border-slate-500 bg-white dark:bg-slate-900 text-[10px] font-title font-bold uppercase flex items-center gap-1 transition-all"
-                            title="Auto-pronounce each slide when displayed">
-                            <i data-lucide="volume-2" class="w-3 h-3"></i> Speak
-                        </button>
+                        <div class="flex items-center gap-1 ml-auto" role="group" aria-label="Multi-line alignment">
+                            <button type="button" data-align-opt="center" onclick="app.setSetting('textAlign', 'center')"
+                                class="px-2 py-1 rounded-lg border-2 border-dark/25 dark:border-slate-500 bg-white dark:bg-slate-900 text-[10px] font-title font-bold uppercase flex items-center gap-1 transition-all"
+                                title="Center align lines">
+                                <i data-lucide="align-center" class="w-3 h-3"></i>
+                            </button>
+                            <button type="button" data-align-opt="left" onclick="app.setSetting('textAlign', 'left')"
+                                class="px-2 py-1 rounded-lg border-2 border-dark/25 dark:border-slate-500 bg-white dark:bg-slate-900 text-[10px] font-title font-bold uppercase flex items-center gap-1 transition-all"
+                                title="Left align lines">
+                                <i data-lucide="align-left" class="w-3 h-3"></i>
+                            </button>
+                        </div>
                     </div>
                 </div>
 
@@ -348,7 +406,7 @@
 
                     <!-- Active Set Indicator -->
                     <div id="active-set-indicator"
-                        class="hidden p-2 bg-orange/15 border-2 border-orange/45 rounded-xl flex items-center justify-between gap-2 shrink-0">
+                        class="hidden p-2 bg-orange/15 border-2 border-orange/45 rounded-xl items-center justify-between gap-2 shrink-0">
                         <div class="flex items-center gap-1.5 overflow-hidden min-w-0">
                             <i data-lucide="pencil" class="w-3.5 h-3.5 text-orange shrink-0"></i>
                             <span id="active-set-name" class="text-[11px] font-title font-bold text-orange uppercase truncate">
@@ -460,10 +518,20 @@
                 title="Cycle Stage Theme (T)" aria-label="Cycle stage theme">
                 <i data-lucide="palette" class="w-5 h-5"></i>
             </button>
+            <button type="button" id="stage-mline-btn" onclick="event.stopPropagation(); app.cycleMultiLineStyle()"
+                class="btn-chunky hidden bg-chalk/95 dark:bg-slate-800/95 text-dark dark:text-chalk rounded-xl p-2.5"
+                title="Cycle Multi-Line Style (M)" aria-label="Cycle multi-line style">
+                <i data-lucide="rows-3" class="w-5 h-5"></i>
+            </button>
             <button type="button" id="img-fullscreen-btn" onclick="event.stopPropagation(); app.toggleImageFullscreen()"
                 class="btn-chunky hidden bg-chalk/95 dark:bg-slate-800/95 text-dark dark:text-chalk rounded-xl p-2.5"
                 title="Toggle Fullscreen Image (F)" aria-label="Toggle fullscreen image">
                 <i data-lucide="maximize" class="w-5 h-5" id="img-fullscreen-icon"></i>
+            </button>
+            <button type="button" id="img-fit-btn" onclick="event.stopPropagation(); app.toggleImageFitMode()"
+                class="btn-chunky hidden bg-chalk/95 dark:bg-slate-800/95 text-dark dark:text-chalk rounded-xl p-2.5"
+                title="Toggle Fit Full Image / Fill Screen" aria-label="Toggle image fit mode">
+                <i data-lucide="crop" class="w-5 h-5" id="img-fit-icon"></i>
             </button>
         </div>
 
@@ -490,9 +558,10 @@
         <div id="slide-content" class="w-full max-w-[92vw] max-h-[78vh] px-4 sm:px-10 flex flex-col items-center justify-center gap-6 relative z-20">
             <!-- Text / Reveal Container -->
             <div id="stage-text-wrap" class="flex flex-col items-center justify-center text-center max-w-full stage-blur-target">
-                <h1 id="display-word" class="font-title font-bold break-words leading-tight max-w-full" style="font-size: 10vw;">
+                <h1 id="display-word" class="w-full font-title font-bold break-words leading-tight max-w-full" style="font-size: 10vw;">
                     Word
                 </h1>
+                <div id="display-lines" class="hidden" data-ml-style="hero" data-ml-align="center"></div>
                 <button type="button" id="reveal-prompt" onclick="event.stopPropagation(); app.revealCurrentSlide()"
                     class="hidden mt-4 px-5 py-2 rounded-full bg-black/25 hover:bg-black/35 text-chalk border-2 border-white/30 font-title font-bold text-sm sm:text-base uppercase tracking-wider items-center gap-2 transition-all cursor-pointer">
                     <i data-lucide="eye" class="w-4 h-4"></i> Tap or Space to Reveal
@@ -508,14 +577,6 @@
                     class="max-w-full max-h-[66vh] object-contain rounded-2xl shadow-[6px_6px_0px_0px_#0f172a] border-4 border-chalk transition-all duration-200" />
                 <div id="display-caption"
                     class="hidden px-5 py-2 rounded-2xl bg-dark/90 text-chalk border-[3px] border-white/30 font-title font-bold text-lg sm:text-2xl shadow-[4px_4px_0px_0px_#000] max-w-[85vw] text-center">
-                </div>
-            </div>
-
-            <!-- Peek / Blur Hint -->
-            <div id="peek-hint" class="hidden absolute inset-0 items-center justify-center pointer-events-none z-30">
-                <div class="bg-dark/90 text-chalk border-[3px] border-white/30 px-5 py-3 rounded-2xl shadow-[4px_4px_0px_0px_#000] flex items-center gap-2.5 font-title font-bold text-sm sm:text-base uppercase tracking-wider">
-                    <i data-lucide="eye-off" class="w-5 h-5 text-orange"></i>
-                    <span>Hidden &mdash; Press H or Click Eye to Peek</span>
                 </div>
             </div>
 
@@ -541,6 +602,24 @@
                     class="btn-chunky w-full mt-2.5 bg-slate-100 dark:bg-slate-800 text-dark dark:text-chalk py-2.5 px-4 rounded-xl text-xs flex items-center justify-center gap-1.5">
                     <i data-lucide="arrow-left" class="w-4 h-4"></i> Back to Editor
                 </button>
+            </div>
+        </div>
+
+        <!-- Dedicated Fullscreen Image Layer (Outside #slide-content transforms) -->
+        <div id="stage-fs-image-wrap"
+            class="hidden fixed inset-0 w-screen h-screen bg-slate-950 z-30 items-center justify-center overflow-hidden">
+            <img id="display-image-fs" alt="Fullscreen slide visual"
+                class="w-full h-full object-contain select-none stage-blur-target" />
+            <div id="display-caption-fs"
+                class="hidden fixed bottom-20 left-1/2 -translate-x-1/2 z-[32] px-5 py-2 rounded-2xl bg-dark/90 backdrop-blur-md text-chalk border-[3px] border-white/30 font-title font-bold text-lg sm:text-2xl shadow-[4px_4px_0px_0px_#000] max-w-[88vw] text-center stage-blur-target">
+            </div>
+        </div>
+
+        <!-- Peek / Blur Hint -->
+        <div id="peek-hint" class="hidden fixed inset-0 items-center justify-center pointer-events-none z-[35]">
+            <div class="bg-dark/90 text-chalk border-[3px] border-white/30 px-5 py-3 rounded-2xl shadow-[4px_4px_0px_0px_#000] flex items-center gap-2.5 font-title font-bold text-sm sm:text-base uppercase tracking-wider">
+                <i data-lucide="eye-off" class="w-5 h-5 text-orange"></i>
+                <span>Hidden &mdash; Press H or Click Eye to Peek</span>
             </div>
         </div>
 
@@ -728,9 +807,10 @@
                     <div class="flex justify-between items-center gap-2"><span class="font-bold">Save Set</span><kbd class="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-700 border border-dark/20 font-title">Ctrl + S</kbd></div>
                     <div class="flex justify-between items-center gap-2"><span class="font-bold">Paste Image Slide</span><kbd class="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-700 border border-dark/20 font-title">Ctrl + V</kbd></div>
                     <div class="pt-2 border-t border-dark/10 dark:border-slate-700 space-y-1 text-dark/75 dark:text-chalk/75 font-semibold">
-                        <p><strong class="text-pink">Reveal Flashcards:</strong> Write <code class="px-1 bg-slate-100 dark:bg-slate-700 rounded">Front | Back</code> or <code class="px-1 bg-slate-100 dark:bg-slate-700 rounded">Q :: A</code></p>
-                        <p><strong class="text-blue">Quick Lists:</strong> Separate slides with new lines or semicolons (<code class="px-1 bg-slate-100 dark:bg-slate-700 rounded">;</code>)</p>
-                        <p><strong class="text-orange">Pair Mode:</strong> Set <em>Imgs: Pair</em> to pair image #1 with line #1.</p>
+                        <p><strong class="text-pink">Multi-line Slides:</strong> Use <code class="px-1 bg-slate-100 dark:bg-slate-700 rounded">Line 1 | Line 2 | Line 3</code></p>
+                        <p><strong class="text-blue">Reveal Flashcards:</strong> Write <code class="px-1 bg-slate-100 dark:bg-slate-700 rounded">Question :: Answer</code></p>
+                        <p><strong class="text-green">Quick Lists:</strong> Separate slides with new lines or semicolons (<code class="px-1 bg-slate-100 dark:bg-slate-700 rounded">;</code>)</p>
+                        <p><strong class="text-orange">Options Panel:</strong> Click <em>Options</em> in the header to style multi-line layouts &amp; playback.</p>
                     </div>
                 </div>
 
@@ -738,9 +818,10 @@
                     <h3 class="font-title font-bold text-sm uppercase text-blue flex items-center gap-1.5">
                         <i data-lucide="monitor-play" class="w-4 h-4"></i> Presentation Stage
                     </h3>
-                    <div class="flex justify-between items-center gap-2"><span class="font-bold">Next / Reveal</span><kbd class="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-700 border border-dark/20 font-title">Space / &rarr;</kbd></div>
+                    <div class="flex justify-between items-center gap-2"><span class="font-bold">Next / Line / Reveal</span><kbd class="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-700 border border-dark/20 font-title">Space / &rarr;</kbd></div>
                     <div class="flex justify-between items-center gap-2"><span class="font-bold">Previous Slide</span><kbd class="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-700 border border-dark/20 font-title">&larr; / Backspace</kbd></div>
                     <div class="flex justify-between items-center gap-2"><span class="font-bold">Jump Grid Overview</span><kbd class="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-700 border border-dark/20 font-title">G</kbd></div>
+                    <div class="flex justify-between items-center gap-2"><span class="font-bold">Cycle Multi-Line Style</span><kbd class="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-700 border border-dark/20 font-title">M</kbd></div>
                     <div class="flex justify-between items-center gap-2"><span class="font-bold">Toggle Auto-Play</span><kbd class="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-700 border border-dark/20 font-title">P</kbd></div>
                     <div class="flex justify-between items-center gap-2"><span class="font-bold">Read Aloud (TTS)</span><kbd class="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-700 border border-dark/20 font-title">S</kbd></div>
                     <div class="flex justify-between items-center gap-2"><span class="font-bold">Blur / Peek Mode</span><kbd class="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-700 border border-dark/20 font-title">H</kbd></div>
@@ -755,7 +836,7 @@
     <!-- Toast Container -->
     <div id="toast-container" class="fixed bottom-5 right-5 z-[100] flex flex-col gap-2.5 pointer-events-none"></div>
 
-    <script src="script.js"></script>
+    <script src="script.js?v=4"></script>
 </body>
 
 </html>

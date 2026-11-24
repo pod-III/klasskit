@@ -58,14 +58,18 @@ const SETS_STORE = 'slide_sets';
 const IMG_STORE = 'images';
 
 const DEFAULT_SETTINGS = {
-    theme: 'vivid',        // vivid | chalkboard | paper | contrast
-    textCase: 'original',  // original | upper | lower
-    imageOrder: 'after',   // after | before | interleave | pair
-    autoPlaySec: 0,        // 0 | 2 | 3 | 5 | 10
-    transition: 'pop',     // pop | slide | instant
+    theme: 'vivid',          // vivid | chalkboard | paper | contrast
+    textCase: 'original',    // original | upper | lower
+    imageOrder: 'after',     // after | before | interleave | pair
+    autoPlaySec: 0,          // 0 | 2 | 3 | 5 | 10
+    transition: 'pop',       // pop | slide | instant
     loop: true,
     autoSpeak: false,
-    fontScale: 1
+    fontScale: 1,
+    showAdvanced: false,     // false = Simple look, true = Options panel visible
+    multiLineStyle: 'hero',  // hero | stacked | cards | contrast | bullets
+    multiLineReveal: 'all',  // all | step
+    textAlign: 'center'      // center | left
 };
 
 const PACK_STYLE_MAP = {
@@ -93,11 +97,19 @@ const PACK_STYLE_MAP = {
 
 const STARTER_PACKS = [
     {
+        id: 'vocab-multiline',
+        name: 'Vocab Cards (| Multi-Line)',
+        desc: 'Word | IPA | Example sentence',
+        badge: 'Multi',
+        color: 'pink',
+        text: "Apple | /ˈæp.əl/ | I eat a red apple every day.\nElephant | /ˈel.ɪ.fənt/ | The elephant has a long trunk.\nLibrary | /ˈlaɪ.brər.i/ | Let's read quietly in the library.\nUmbrella | /ʌmˈbrel.ə/ | Bring an umbrella when it rains.\nBicycle | /ˈbaɪ.sɪ.kəl/ | She rides her bicycle to school."
+    },
+    {
         id: 'phonics-cvc',
         name: 'Phonics: CVC Words',
         desc: '10 short-vowel blending cards',
         badge: 'Phonics',
-        color: 'pink',
+        color: 'green',
         text: 'cat\ndog\npig\nhat\nsun\nbed\ncup\nbox\nfox\nred'
     },
     {
@@ -105,32 +117,24 @@ const STARTER_PACKS = [
         name: 'Action Verbs',
         desc: '10 high-energy TPR verbs',
         badge: 'Vocab',
-        color: 'green',
+        color: 'blue',
         text: 'run\njump\nswim\ndance\nclap\nsleep\nread\nwrite\nsing\nfly'
     },
     {
         id: 'irregular-verbs',
-        name: 'Irregular Verbs (Q | A)',
+        name: 'Irregular Verbs (Q :: A)',
         desc: 'Base verb -> Past tense reveal',
         badge: 'Reveal',
-        color: 'blue',
-        text: 'go | went\neat | ate\nsee | saw\ntake | took\nmake | made\ncome | came\ngive | gave\nwrite | wrote\nbuy | bought\nthink | thought'
+        color: 'orange',
+        text: 'go :: went\neat :: ate\nsee :: saw\ntake :: took\nmake :: made\ncome :: came\ngive :: gave\nwrite :: wrote\nbuy :: bought\nthink :: thought'
     },
     {
         id: 'daily-questions',
-        name: 'Speaking Prompts (Q | A)',
+        name: 'Speaking Prompts (Q :: A)',
         desc: 'Warm-up questions + sentence frames',
         badge: 'Speaking',
-        color: 'orange',
-        text: "What's your name? | My name is...\nHow old are you? | I am ... years old.\nHow's the weather? | It's sunny today!\nWhat's your favorite color? | My favorite color is...\nWhat do you like to eat? | I like eating..."
-    },
-    {
-        id: 'colors-numbers',
-        name: 'Colors & Numbers',
-        desc: 'Early years quick flash drill',
-        badge: 'Starter',
         color: 'pink',
-        text: 'red\nblue\ngreen\nyellow\norange\npink\none\ntwo\nthree\nfour\nfive'
+        text: "What's your name? :: My name is...\nHow old are you? :: I am ... years old.\nHow's the weather? :: It's sunny today!\nWhat's your favorite color? :: My favorite color is...\nWhat do you like to eat? :: I like eating..."
     }
 ];
 
@@ -377,18 +381,20 @@ let hasPendingCloudSave = false;
 function updateSyncBadge(status) {
     const badge = document.getElementById('sync-status-badge');
     if (!badge) return;
+    badge.classList.remove(
+        'text-green', 'bg-green/15',
+        'text-orange', 'bg-orange/15',
+        'text-pink', 'bg-pink/15'
+    );
     if (status === 'saving') {
         badge.textContent = 'SAVING...';
-        badge.classList.remove('text-green', 'bg-green/15');
         badge.classList.add('text-orange', 'bg-orange/15');
     } else if (status === 'error') {
         badge.textContent = 'LOCAL ONLY';
-        badge.classList.remove('text-green', 'bg-green/15');
         badge.classList.add('text-pink', 'bg-pink/15');
     } else {
         badge.textContent = 'AUTO-SAVED';
-        badge.classList.remove('text-pink', 'bg-pink/15');
-        badge.classList.add('text-orange', 'bg-orange/15');
+        badge.classList.add('text-green', 'bg-green/15');
     }
 }
 
@@ -483,19 +489,24 @@ async function loadFromCloud() {
 
         // 1. Merge settings
         if (data.settings && typeof data.settings === 'object') {
+            const localAdv = localStorage.getItem('speedy_show_advanced');
             app.settings = { ...DEFAULT_SETTINGS, ...data.settings };
+            if (localAdv === 'true' || localAdv === 'false') {
+                app.settings.showAdvanced = localAdv === 'true';
+            }
             await dbPut('presentationSettings', app.settings, { sync: false });
             app.applySettingsToUI();
         }
 
-        // 2. Merge text (without overwriting newer local edits)
+        // 2. Merge text (without overwriting newer local edits or active typing)
         const localText = (await dbGet('presentationText')) || '';
         const localUpdatedAt = (await dbGet('presentationUpdatedAt')) || 0;
         const cloudUpdatedAt = typeof data.updatedAt === 'number' ? data.updatedAt : 0;
         const textarea = document.getElementById('word-input');
+        const liveText = textarea ? textarea.value : localText;
 
-        if (typeof data.text === 'string' && data.text !== '') {
-            if (!localText.trim() || (cloudUpdatedAt > localUpdatedAt && data.text !== localText)) {
+        if (typeof data.text === 'string' && data.text !== '' && !app.textSaveTimer) {
+            if (!liveText.trim() || (cloudUpdatedAt > localUpdatedAt && data.text !== localText)) {
                 await dbPut('presentationText', data.text, { sync: false });
                 localStorage.setItem('kk_rapid_text', data.text);
                 if (textarea) textarea.value = data.text;
@@ -584,14 +595,17 @@ const app = {
 
     // Stage runtime state
     currentIndex: 0,
+    visibleLineCount: 1,
     isRevealed: false,
     isBlurred: false,
     isBlackout: false,
     isGridOpen: false,
     isComplete: false,
     imageFullscreen: false,
+    imageFitMode: 'contain',
     colors: ['#FF6B95', '#FF8C42', '#00E676', '#2979FF'],
     themeOrder: ['vivid', 'chalkboard', 'paper', 'contrast'],
+    multiLineStyleOrder: ['hero', 'stacked', 'cards', 'contrast', 'bullets'],
     autoPlaySpeeds: [0, 2, 3, 5, 10],
     lastAutoPlaySec: 3,
 
@@ -599,7 +613,12 @@ const app = {
     stripTimer: null,
     stripRenderToken: 0,
     slideRenderToken: 0,
+    imageUiToken: 0,
+    imageManagerToken: 0,
+    stageGridToken: 0,
+    setsRenderToken: 0,
     textSaveTimer: null,
+    captionSaveTimer: null,
     autoPlayTimer: null,
     autoPlayStartedAt: 0,
     dockIdleTimer: null,
@@ -610,10 +629,20 @@ const app = {
     async init() {
         this.renderStarterPacksMenu();
 
+        // Fast sync of Simple/Options toggle from localStorage before IDB resolves
+        const localAdv = localStorage.getItem('speedy_show_advanced');
+        if (localAdv === 'true' || localAdv === 'false') {
+            this.settings.showAdvanced = localAdv === 'true';
+        }
+        this.applySettingsToUI();
+
         // Hydrate saved settings
         const savedSettings = await dbGet('presentationSettings');
         if (savedSettings && typeof savedSettings === 'object') {
             this.settings = { ...DEFAULT_SETTINGS, ...savedSettings };
+            if (localAdv === 'true' || localAdv === 'false') {
+                this.settings.showAdvanced = localAdv === 'true';
+            }
             if (this.settings.autoPlaySec > 0) {
                 this.lastAutoPlaySec = this.settings.autoPlaySec;
             }
@@ -699,6 +728,12 @@ const app = {
         // Global Paste (Ctrl+V images anywhere in editor)
         window.addEventListener('paste', (e) => {
             if (this.isPresenting()) return;
+            const universalModal = document.getElementById('universalInputModal');
+            const shortcutsModal = document.getElementById('shortcuts-modal');
+            if ((universalModal && !universalModal.classList.contains('hidden')) ||
+                (shortcutsModal && !shortcutsModal.classList.contains('hidden'))) {
+                return;
+            }
             const items = e.clipboardData?.items;
             if (!items) return;
             const imageFiles = [];
@@ -784,6 +819,11 @@ const app = {
 
         // Presentation Touch Swipe Support
         stage.addEventListener('touchstart', (e) => {
+            if (e.target.closest('#stage-grid-overlay') || e.target.closest('#stage-dock') || e.target.closest('#deck-complete-card')) {
+                this.touchStartX = null;
+                this.touchStartY = null;
+                return;
+            }
             if (e.touches && e.touches.length === 1) {
                 this.touchStartX = e.touches[0].clientX;
                 this.touchStartY = e.touches[0].clientY;
@@ -833,22 +873,37 @@ const app = {
 
         if (isUniversalModalOpen) return;
 
-        // Shortcuts / Image Manager Escape handling
-        if (e.key === 'Escape') {
-            if (isShortcutsOpen) {
+        if (isShortcutsOpen) {
+            if (e.key === 'Escape' || e.key === '?') {
                 e.preventDefault();
                 this.closeShortcutsModal();
-                return;
             }
-            if (isImgManagerOpen && !this.isPresenting()) {
+            return;
+        }
+
+        if (isImgManagerOpen) {
+            if (e.key === 'Escape') {
                 e.preventDefault();
                 this.closeImageManager();
+            }
+            return;
+        }
+
+        if (!this.isPresenting() && e.key === 'Escape') {
+            const packMenu = document.getElementById('starter-packs-menu');
+            const packBtn = document.getElementById('starter-packs-btn');
+            if (packMenu && !packMenu.classList.contains('hidden')) {
+                e.preventDefault();
+                packMenu.classList.add('hidden');
+                if (packBtn) packBtn.setAttribute('aria-expanded', 'false');
                 return;
             }
         }
 
         if (this.isPresenting()) {
             this.resetDockIdle();
+            if (e.ctrlKey || e.metaKey || e.altKey) return;
+
             const key = e.key;
             const lower = key.toLowerCase();
 
@@ -868,6 +923,31 @@ const app = {
                 if (lower === 'g') {
                     e.preventDefault();
                     this.toggleOverviewGrid(false);
+                }
+                return;
+            }
+
+            if (this.isBlackout) {
+                if (lower === 'b' || key === ' ' || key === 'ArrowRight' || key === 'Enter') {
+                    e.preventDefault();
+                    this.toggleBlackout(false);
+                }
+                return;
+            }
+
+            if (this.isComplete) {
+                if (key === 'ArrowLeft' || key === 'PageUp' || key === 'Backspace') {
+                    e.preventDefault();
+                    this.prevSlide();
+                } else if (lower === 'g') {
+                    e.preventDefault();
+                    this.toggleOverviewGrid();
+                } else if (lower === 'r') {
+                    e.preventDefault();
+                    this.restartDeck(true);
+                } else if (key === '?') {
+                    e.preventDefault();
+                    this.openShortcutsModal();
                 }
                 return;
             }
@@ -892,7 +972,7 @@ const app = {
                 this.toggleOverviewGrid();
             } else if (lower === 'p') {
                 e.preventDefault();
-                this.toggleAutoPlay();
+                this.toggleAutoPlay(e);
             } else if (lower === 's') {
                 e.preventDefault();
                 this.speakCurrentSlide();
@@ -905,6 +985,9 @@ const app = {
             } else if (lower === 't') {
                 e.preventDefault();
                 this.cycleStageTheme();
+            } else if (lower === 'm') {
+                e.preventDefault();
+                this.cycleMultiLineStyle();
             } else if (lower === 'f') {
                 e.preventDefault();
                 this.toggleImageFullscreen();
@@ -950,14 +1033,33 @@ const app = {
         }, 280);
     },
 
-    async flushPendingTextSave({ sync = true } = {}) {
-        if (!this.textSaveTimer) return;
+    cancelPendingTextSave() {
         clearTimeout(this.textSaveTimer);
         this.textSaveTimer = null;
-        const val = document.getElementById('word-input')?.value || '';
-        localStorage.setItem('kk_rapid_text', val);
+        clearTimeout(this.captionSaveTimer);
+        this.captionSaveTimer = null;
+    },
+
+    async flushPendingTextSave({ sync = true } = {}) {
+        const hadTextTimer = Boolean(this.textSaveTimer);
+        const hadCaptionTimer = Boolean(this.captionSaveTimer);
+        if (!hadTextTimer && !hadCaptionTimer) return;
+
+        clearTimeout(this.textSaveTimer);
+        this.textSaveTimer = null;
+        clearTimeout(this.captionSaveTimer);
+        this.captionSaveTimer = null;
+
         await dbPut('presentationUpdatedAt', Date.now(), { sync: false });
-        await dbPut('presentationText', val, { sync });
+
+        if (hadTextTimer) {
+            const val = document.getElementById('word-input')?.value || '';
+            localStorage.setItem('kk_rapid_text', val);
+            await dbPut('presentationText', val, { sync });
+        }
+        if (hadCaptionTimer) {
+            await dbPut('presentationImageCaptions', this.imageCaptions, { sync });
+        }
         if (this.activeSetId) {
             await this.autoSaveActiveSet();
         }
@@ -969,6 +1071,28 @@ const app = {
     },
 
     // --- Settings Controls ---
+    toggleAdvancedSettings() {
+        this.settings.showAdvanced = !this.settings.showAdvanced;
+        localStorage.setItem('speedy_show_advanced', String(this.settings.showAdvanced));
+        this.applySettingsToUI();
+        this.persistSettings();
+    },
+
+    hasCustomSettings() {
+        return (
+            this.settings.theme !== DEFAULT_SETTINGS.theme ||
+            this.settings.textCase !== DEFAULT_SETTINGS.textCase ||
+            this.settings.imageOrder !== DEFAULT_SETTINGS.imageOrder ||
+            this.settings.autoPlaySec !== DEFAULT_SETTINGS.autoPlaySec ||
+            this.settings.transition !== DEFAULT_SETTINGS.transition ||
+            this.settings.loop !== DEFAULT_SETTINGS.loop ||
+            this.settings.autoSpeak !== DEFAULT_SETTINGS.autoSpeak ||
+            this.settings.multiLineStyle !== DEFAULT_SETTINGS.multiLineStyle ||
+            this.settings.multiLineReveal !== DEFAULT_SETTINGS.multiLineReveal ||
+            this.settings.textAlign !== DEFAULT_SETTINGS.textAlign
+        );
+    },
+
     setSetting(key, value) {
         this.settings[key] = value;
         if (key === 'autoPlaySec' && value > 0) {
@@ -977,7 +1101,14 @@ const app = {
         this.applySettingsToUI();
         this.persistSettings();
 
-        if (key === 'imageOrder' || key === 'textCase' || key === 'theme') {
+        if (
+            key === 'imageOrder' ||
+            key === 'textCase' ||
+            key === 'theme' ||
+            key === 'multiLineStyle' ||
+            key === 'multiLineReveal' ||
+            key === 'textAlign'
+        ) {
             this.updateCount();
         }
         if (this.isPresenting()) {
@@ -995,6 +1126,32 @@ const app = {
     },
 
     applySettingsToUI() {
+        const showAdv = Boolean(this.settings.showAdvanced);
+        const advPanel = document.getElementById('advanced-settings-panel');
+        const toolsBar = document.getElementById('editor-tools-bar');
+        const toggleBtn = document.getElementById('toggle-advanced-btn');
+        const toggleLabel = document.getElementById('toggle-advanced-label');
+        const customDot = document.getElementById('custom-settings-dot');
+
+        if (advPanel) {
+            advPanel.classList.toggle('hidden', !showAdv);
+            advPanel.classList.toggle('flex', showAdv);
+        }
+        if (toolsBar) {
+            toolsBar.classList.toggle('hidden', !showAdv);
+            toolsBar.classList.toggle('flex', showAdv);
+        }
+        if (toggleBtn) {
+            toggleBtn.setAttribute('aria-expanded', showAdv ? 'true' : 'false');
+            toggleBtn.classList.toggle('btn-pill-active', showAdv);
+        }
+        if (toggleLabel) {
+            toggleLabel.textContent = showAdv ? 'Simple' : 'Options';
+        }
+        if (customDot) {
+            customDot.classList.toggle('hidden', showAdv || !this.hasCustomSettings());
+        }
+
         // Theme pills
         document.querySelectorAll('[data-theme-opt]').forEach(btn => {
             const active = btn.getAttribute('data-theme-opt') === this.settings.theme;
@@ -1005,6 +1162,24 @@ const app = {
         document.querySelectorAll('[data-case-opt]').forEach(btn => {
             const active = btn.getAttribute('data-case-opt') === this.settings.textCase;
             btn.classList.toggle('btn-pill-active-pink', active);
+        });
+
+        // Multi-line style pills
+        document.querySelectorAll('[data-mline-opt]').forEach(btn => {
+            const active = btn.getAttribute('data-mline-opt') === this.settings.multiLineStyle;
+            btn.classList.toggle('btn-pill-active-pink', active);
+        });
+
+        // Multi-line reveal build pills
+        document.querySelectorAll('[data-mreveal-opt]').forEach(btn => {
+            const active = btn.getAttribute('data-mreveal-opt') === this.settings.multiLineReveal;
+            btn.classList.toggle('btn-pill-active-orange', active);
+        });
+
+        // Multi-line alignment pills
+        document.querySelectorAll('[data-align-opt]').forEach(btn => {
+            const active = btn.getAttribute('data-align-opt') === this.settings.textAlign;
+            btn.classList.toggle('btn-pill-active', active);
         });
 
         // Dropdowns
@@ -1082,14 +1257,16 @@ const app = {
             if (!confirmed) return;
         }
 
-        // Detach active set so starter pack doesn't accidentally overwrite an existing saved set
+        // Save pending edits to previously active set before detaching, or cancel stale timers
         if (this.activeSetId) {
+            await this.flushPendingTextSave({ sync: false });
             this.activeSetId = null;
             await dbPut('activeSetId', null, { sync: false });
             const nameInput = document.getElementById('set-name-input');
             if (nameInput) nameInput.value = pack.name;
             this.renderSets();
         } else {
+            this.cancelPendingTextSave();
             const nameInput = document.getElementById('set-name-input');
             if (nameInput && !nameInput.value.trim()) nameInput.value = pack.name;
         }
@@ -1112,23 +1289,33 @@ const app = {
     },
 
     parseLine(rawLine) {
+        let frontRaw = rawLine;
+        let backRaw = '';
         if (rawLine.includes('::')) {
             const idx = rawLine.indexOf('::');
-            return {
-                front: rawLine.slice(0, idx).trim(),
-                back: rawLine.slice(idx + 2).trim(),
-                raw: rawLine
-            };
+            const candidateFront = rawLine.slice(0, idx).trim();
+            const candidateBack = rawLine.slice(idx + 2).trim();
+            if (candidateFront) {
+                frontRaw = candidateFront;
+                backRaw = candidateBack;
+            }
         }
-        if (rawLine.includes('|')) {
-            const idx = rawLine.indexOf('|');
-            return {
-                front: rawLine.slice(0, idx).trim(),
-                back: rawLine.slice(idx + 1).trim(),
-                raw: rawLine
-            };
-        }
-        return { front: rawLine, back: '', raw: rawLine };
+
+        const splitPipe = (str) => str
+            .split('|')
+            .map(s => s.trim())
+            .filter(s => s.length > 0);
+
+        const frontLines = splitPipe(frontRaw);
+        const backLines = backRaw ? splitPipe(backRaw) : [];
+
+        return {
+            frontLines: frontLines.length > 0 ? frontLines : [rawLine.trim()],
+            backLines,
+            front: frontLines.join(' | ') || rawLine.trim(),
+            back: backLines.join(' | '),
+            raw: rawLine
+        };
     },
 
     formatCase(str) {
@@ -1144,7 +1331,9 @@ const app = {
             return {
                 type: 'text',
                 front: parsed.front,
-                back: parsed.back
+                back: parsed.back,
+                frontLines: parsed.frontLines,
+                backLines: parsed.backLines
             };
         });
 
@@ -1182,6 +1371,8 @@ const app = {
                         type: 'pair',
                         front: t.front,
                         back: t.back,
+                        frontLines: t.frontLines,
+                        backLines: t.backLines,
                         src: im.src,
                         imageIndex: im.imageIndex,
                         caption: im.caption
@@ -1199,10 +1390,10 @@ const app = {
     },
 
     // --- Text Utility Toolbar ---
-    insertRevealExample() {
+    insertMultiLineExample() {
         const textarea = document.getElementById('word-input');
         if (!textarea) return;
-        const example = 'Question or Word | Answer or Definition';
+        const example = 'Apple | /ˈæp.əl/ | A crunchy red fruit';
         const cur = textarea.value.trim();
         textarea.value = cur ? `${cur}\n${example}` : example;
         textarea.focus();
@@ -1210,7 +1401,11 @@ const app = {
         localStorage.setItem('kk_rapid_text', textarea.value);
         this.updateCount();
         this.scheduleTextPersist(textarea.value);
-        showToast('Added reveal slide example — edit Front | Back!', 'info');
+        showToast('Added multi-line slide — separate lines with |', 'info');
+    },
+
+    insertRevealExample() {
+        this.insertMultiLineExample();
     },
 
     cleanText() {
@@ -1354,6 +1549,59 @@ const app = {
         }, 70);
     },
 
+    renderSlideTextPreview(slide, textColor, isGrid = false) {
+        const lines = Array.isArray(slide.frontLines) && slide.frontLines.length > 0
+            ? slide.frontLines
+            : [slide.front || ''];
+        const hasBack = Array.isArray(slide.backLines) && slide.backLines.length > 0;
+        const backText = hasBack ? this.formatCase(slide.backLines.join(' · ')) : '';
+
+        if (lines.length === 1) {
+            if (isGrid) {
+                return `<div class="w-full h-full p-2.5 flex flex-col items-center justify-center text-center font-title font-bold text-sm leading-tight overflow-hidden break-words" style="color:${textColor};">
+                    <span>${escapeHtml(this.formatCase(lines[0]))}</span>
+                    ${backText ? `<span class="mt-1 text-[10px] opacity-75 border-t border-current/30 pt-0.5">${escapeHtml(backText)}</span>` : ''}
+                </div>`;
+            }
+            return `<div class="strip-text w-full h-full flex items-center justify-center p-1.5 font-title font-bold text-center leading-tight overflow-hidden break-words" style="font-size: 12px; color: ${textColor};">${escapeHtml(this.formatCase(lines[0]))}</div>`;
+        }
+
+        const style = this.settings.multiLineStyle || 'hero';
+        const alignLeft = this.settings.textAlign === 'left' || style === 'bullets';
+        const shown = lines.slice(0, isGrid ? 4 : 3).map(l => this.formatCase(l));
+        const dotColors = ['var(--color-pink)', 'var(--color-orange)', 'var(--color-green)', 'var(--color-blue)'];
+        const padCls = isGrid ? 'p-2 gap-1' : 'p-1.5 gap-0.5';
+        const alignCls = alignLeft ? 'items-start text-left' : 'items-center text-center';
+
+        const rows = shown.map((line, i) => {
+            const safe = escapeHtml(line);
+            if (style === 'cards') {
+                return `<div class="w-full truncate rounded px-1 ${isGrid ? 'py-0.5 text-[10px]' : 'text-[7px]'} font-bold bg-white/90 text-dark border border-dark/80 border-l-[3px]" style="border-left-color:${dotColors[i % 4]};">${safe}</div>`;
+            }
+            if (style === 'bullets') {
+                if (i === 0) {
+                    return `<div class="w-full truncate font-title font-bold ${isGrid ? 'text-xs' : 'text-[9px]'} border-b border-current/40 pb-0.5">${safe}</div>`;
+                }
+                return `<div class="w-full flex items-center gap-1 ${isGrid ? 'text-[10px]' : 'text-[7px]'} font-bold"><span class="w-1.5 h-1.5 rounded-full shrink-0" style="background-color:${dotColors[(i - 1) % 4]};"></span><span class="truncate">${safe}</span></div>`;
+            }
+            if (style === 'contrast') {
+                if (i === 0) return `<div class="w-full truncate font-title font-bold ${isGrid ? 'text-xs' : 'text-[9px]'} leading-tight">${safe}</div>`;
+                if (i === 1) return `<div class="max-w-full truncate rounded-full px-1.5 ${isGrid ? 'text-[9px]' : 'text-[6.5px]'} font-title font-bold bg-dark text-white border border-white/50">${safe}</div>`;
+                return `<div class="w-full truncate italic opacity-85 ${isGrid ? 'text-[9px]' : 'text-[6.5px]'} font-bold">${safe}</div>`;
+            }
+            if (style === 'stacked') {
+                return `<div class="w-full truncate font-title font-bold ${isGrid ? 'text-[11px]' : 'text-[8px]'} leading-tight">${safe}</div>`;
+            }
+            // hero (default)
+            return `<div class="w-full truncate leading-tight ${i === 0 ? `font-title font-bold ${isGrid ? 'text-xs' : 'text-[9.5px]'}` : `font-bold opacity-85 ${isGrid ? 'text-[10px]' : 'text-[7.5px]'}`}">${safe}</div>`;
+        }).join('');
+
+        return `<div class="w-full h-full flex flex-col justify-center ${alignCls} ${padCls} overflow-hidden" style="color: ${textColor};">
+            ${rows}
+            ${isGrid && backText ? `<div class="w-full truncate text-[9px] opacity-75 border-t border-current/30 pt-0.5 mt-0.5">${escapeHtml(backText)}</div>` : ''}
+        </div>`;
+    },
+
     async updateSlideStrip() {
         const strip = document.getElementById('slide-strip');
         if (!strip) return;
@@ -1388,8 +1636,8 @@ const app = {
                 const src = await resolveAndCache(slide.src);
                 inner = `
                     <div class="w-full h-full flex">
-                        <div class="w-1/2 h-full flex items-center justify-center p-1 overflow-hidden">
-                            <span class="strip-text font-bold leading-tight text-center break-words max-w-full" style="font-size: 10px; color: ${palette.text};">${escapeHtml(this.formatCase(slide.front))}</span>
+                        <div class="w-1/2 h-full overflow-hidden">
+                            ${this.renderSlideTextPreview(slide, palette.text, false)}
                         </div>
                         <div class="w-1/2 h-full border-l border-dark/25 overflow-hidden">
                             <img src="${escapeHtml(src)}" alt="Slide ${index + 1}" class="w-full h-full object-cover">
@@ -1398,10 +1646,12 @@ const app = {
                 `;
                 badgeHtml = `<div class="absolute top-0 right-0 bg-blue text-white text-[7px] px-1 py-0.5 font-title font-bold rounded-bl-md">PAIR</div>`;
             } else {
-                const textVal = this.formatCase(slide.front);
-                inner = `<div class="strip-text w-full h-full flex items-center justify-center p-1.5 font-title font-bold text-center leading-tight overflow-hidden break-words" style="font-size: 12px; color: ${palette.text};">${escapeHtml(textVal)}</div>`;
+                inner = this.renderSlideTextPreview(slide, palette.text, false);
+                const lineCount = slide.frontLines ? slide.frontLines.length : 1;
                 if (slide.back) {
-                    badgeHtml = `<div class="absolute top-0 right-0 bg-pink text-white text-[7px] px-1 py-0.5 font-title font-bold rounded-bl-md border-l border-b border-dark/40">Q|A</div>`;
+                    badgeHtml = `<div class="absolute top-0 right-0 bg-pink text-white text-[7px] px-1 py-0.5 font-title font-bold rounded-bl-md border-l border-b border-dark/40">${lineCount > 1 ? `${lineCount}L·` : ''}Q::A</div>`;
+                } else if (lineCount > 1) {
+                    badgeHtml = `<div class="absolute top-0 right-0 bg-blue text-white text-[7px] px-1 py-0.5 font-title font-bold rounded-bl-md border-l border-b border-dark/40">${lineCount}L</div>`;
                 }
             }
 
@@ -1521,7 +1771,11 @@ const app = {
                 }
             );
             if (!confirmed) return;
+            await this.flushPendingTextSave({ sync: false });
         }
+
+        clearTimeout(this.captionSaveTimer);
+        this.captionSaveTimer = null;
 
         const removed = [...this.images];
         this.images = [];
@@ -1551,6 +1805,7 @@ const app = {
     },
 
     async updateImageUI() {
+        const token = ++this.imageUiToken;
         const text = document.getElementById('image-count-text');
         const manageBtn = document.getElementById('manage-images-btn');
         const area = document.getElementById('image-upload-area');
@@ -1581,6 +1836,7 @@ const app = {
             } else {
                 const previewImgs = this.images.slice(0, 4);
                 const resolved = await Promise.all(previewImgs.map(src => resolveAndCache(src)));
+                if (token !== this.imageUiToken) return;
                 thumbs.innerHTML = resolved.map((src, idx) => `
                     <img src="${escapeHtml(src)}" alt="Preview ${idx + 1}" class="w-6 h-6 rounded-md object-cover border-2 border-dark dark:border-slate-500 shadow-hard-xs bg-white">
                 `).join('') + (this.images.length > 4 ? `<span class="pl-2 text-[10px] font-title font-bold text-blue">+${this.images.length - 4}</span>` : '');
@@ -1601,9 +1857,11 @@ const app = {
         if (!modal) return;
         modal.classList.add('hidden');
         modal.classList.remove('flex');
+        this.flushPendingTextSave({ sync: true });
     },
 
     async renderImageManagerList() {
+        const token = ++this.imageManagerToken;
         const list = document.getElementById('image-manager-list');
         const countEl = document.getElementById('image-manager-count');
         if (!list) return;
@@ -1622,9 +1880,11 @@ const app = {
             return;
         }
 
-        const resolvedSrcs = await Promise.all(this.images.map(src => resolveAndCache(src)));
+        const imgsSnapshot = [...this.images];
+        const resolvedSrcs = await Promise.all(imgsSnapshot.map(src => resolveAndCache(src)));
+        if (token !== this.imageManagerToken) return;
 
-        list.innerHTML = this.images.map((rawSrc, index) => {
+        list.innerHTML = imgsSnapshot.map((rawSrc, index) => {
             const displaySrc = resolvedSrcs[index] || rawSrc;
             const caption = this.imageCaptions[rawSrc] || '';
             return `
@@ -1636,7 +1896,7 @@ const app = {
                         </div>
                         <div class="absolute top-2 right-2 flex items-center gap-1">
                             ${index > 0 ? `<button type="button" onclick="app.moveImage(${index}, -1)" class="p-1 bg-white/90 text-dark border border-dark rounded-lg hover:bg-blue hover:text-white transition-colors" title="Move Earlier"><i data-lucide="arrow-left" class="w-3.5 h-3.5"></i></button>` : ''}
-                            ${index < this.images.length - 1 ? `<button type="button" onclick="app.moveImage(${index}, 1)" class="p-1 bg-white/90 text-dark border border-dark rounded-lg hover:bg-blue hover:text-white transition-colors" title="Move Later"><i data-lucide="arrow-right" class="w-3.5 h-3.5"></i></button>` : ''}
+                            ${index < imgsSnapshot.length - 1 ? `<button type="button" onclick="app.moveImage(${index}, 1)" class="p-1 bg-white/90 text-dark border border-dark rounded-lg hover:bg-blue hover:text-white transition-colors" title="Move Later"><i data-lucide="arrow-right" class="w-3.5 h-3.5"></i></button>` : ''}
                             <button type="button" onclick="app.deleteImage(${index})" class="p-1 bg-pink text-white border border-dark rounded-lg hover:scale-105 transition-transform" title="Delete Image"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
                         </div>
                     </div>
@@ -1654,6 +1914,7 @@ const app = {
     },
 
     async moveImage(index, delta) {
+        await this.flushPendingTextSave({ sync: false });
         const target = index + delta;
         if (target < 0 || target >= this.images.length) return;
         const [item] = this.images.splice(index, 1);
@@ -1675,13 +1936,21 @@ const app = {
         } else {
             this.imageCaptions[src] = caption;
         }
-        dbPut('presentationUpdatedAt', Date.now(), { sync: false });
-        dbPut('presentationImageCaptions', this.imageCaptions);
+        updateSyncBadge('saving');
         this.scheduleSlideStripRender();
-        if (this.activeSetId) this.autoSaveActiveSet();
+        clearTimeout(this.captionSaveTimer);
+        this.captionSaveTimer = setTimeout(async () => {
+            this.captionSaveTimer = null;
+            await dbPut('presentationUpdatedAt', Date.now(), { sync: false });
+            await dbPut('presentationImageCaptions', this.imageCaptions);
+            if (this.activeSetId) {
+                await this.autoSaveActiveSet();
+            }
+        }, 250);
     },
 
     async deleteImage(index) {
+        await this.flushPendingTextSave({ sync: false });
         if (index < 0 || index >= this.images.length) return;
         const src = this.images[index];
         this.images.splice(index, 1);
@@ -1729,11 +1998,12 @@ const app = {
         }
 
         if (this.activeSetId) {
-            this.updateSetStats(this.activeSetId);
+            this.updateSetStats(this.activeSetId).then(() => this.renderSets());
         }
 
         this.deck = shuffle ? this.shuffleArray([...slides]) : slides;
         this.currentIndex = Math.max(0, Math.min(startIndex, this.deck.length - 1));
+        this.visibleLineCount = 1;
         this.isRevealed = false;
         this.isBlurred = false;
         this.isBlackout = false;
@@ -1772,6 +2042,27 @@ const app = {
         this.isComplete = false;
         this.updateImageFullscreenUI();
 
+        const displayLines = document.getElementById('display-lines');
+        if (displayLines) {
+            displayLines.classList.add('hidden');
+            displayLines.classList.remove('flex');
+            displayLines.innerHTML = '';
+        }
+        const displayWord = document.getElementById('display-word');
+        if (displayWord) displayWord.innerText = '';
+        const displayBack = document.getElementById('display-back');
+        if (displayBack) {
+            displayBack.classList.add('hidden');
+            displayBack.innerHTML = '';
+        }
+        const revealPrompt = document.getElementById('reveal-prompt');
+        if (revealPrompt) {
+            revealPrompt.classList.add('hidden');
+            revealPrompt.classList.remove('inline-flex');
+        }
+        document.getElementById('display-image')?.removeAttribute('src');
+        document.getElementById('display-image-fs')?.removeAttribute('src');
+
         document.getElementById('blackout-overlay')?.classList.add('hidden');
         document.getElementById('blackout-overlay')?.classList.remove('flex');
         document.getElementById('stage-grid-overlay')?.classList.add('hidden');
@@ -1792,17 +2083,37 @@ const app = {
         if (this.isGridOpen || this.isComplete) return;
 
         const slide = this.deck[this.currentIndex];
-        if (slide && slide.back && !this.isRevealed) {
+        const hideTextBehindFs = Boolean(this.imageFullscreen && slide?.type === 'pair');
+        const frontCount = slide?.frontLines ? slide.frontLines.length : 1;
+        if (!hideTextBehindFs && this.settings.multiLineReveal === 'step' && frontCount > 1 && this.visibleLineCount < frontCount) {
+            this.visibleLineCount++;
+            const nextLineEl = document.querySelector(`#display-lines .ml-line[data-line-idx="${this.visibleLineCount - 1}"]`);
+            if (nextLineEl) {
+                nextLineEl.classList.remove('ml-line-hidden');
+                nextLineEl.classList.add('reveal-pop');
+            }
+            this.updateRevealPromptUI(slide);
+            if (this.settings.autoSpeak && !this.isBlurred && !this.isBlackout) {
+                const spokenLine = slide.frontLines[this.visibleLineCount - 1];
+                if (spokenLine) this.speakText(spokenLine);
+            }
+            this.resetAutoPlayTimer();
+            return;
+        }
+
+        if (!hideTextBehindFs && slide && slide.backLines?.length > 0 && !this.isRevealed) {
             this.revealCurrentSlide();
             return;
         }
 
         if (this.currentIndex < this.deck.length - 1) {
             this.currentIndex++;
+            this.visibleLineCount = 1;
             this.isRevealed = false;
             this.renderSlide();
         } else if (this.settings.loop) {
             this.currentIndex = 0;
+            this.visibleLineCount = 1;
             this.isRevealed = false;
             this.renderSlide();
         } else {
@@ -1826,23 +2137,41 @@ const app = {
         if (this.isComplete) {
             this.isComplete = false;
             this.currentIndex = Math.max(0, this.deck.length - 1);
+            this.visibleLineCount = 1;
             this.isRevealed = false;
             this.renderSlide();
             return;
         }
 
         const slide = this.deck[this.currentIndex];
-        if (slide && slide.back && this.isRevealed) {
+        const hideTextBehindFs = Boolean(this.imageFullscreen && slide?.type === 'pair');
+        if (!hideTextBehindFs && slide && slide.backLines?.length > 0 && this.isRevealed) {
             this.isRevealed = false;
-            this.renderSlide();
+            this.updateRevealPromptUI(slide);
+            requestAnimationFrame(() => this.fitCurrentSlideText());
+            return;
+        }
+
+        const frontCount = slide?.frontLines ? slide.frontLines.length : 1;
+        if (!hideTextBehindFs && this.settings.multiLineReveal === 'step' && frontCount > 1 && this.visibleLineCount > 1) {
+            const hideEl = document.querySelector(`#display-lines .ml-line[data-line-idx="${this.visibleLineCount - 1}"]`);
+            if (hideEl) {
+                hideEl.classList.remove('reveal-pop');
+                hideEl.classList.add('ml-line-hidden');
+            }
+            this.visibleLineCount--;
+            this.updateRevealPromptUI(slide);
             return;
         }
 
         if (this.currentIndex > 0) {
             this.currentIndex--;
+        } else if (this.settings.loop && this.deck.length > 1) {
+            this.currentIndex = this.deck.length - 1;
         } else {
-            this.currentIndex = Math.max(0, this.deck.length - 1);
+            return;
         }
+        this.visibleLineCount = 1;
         this.isRevealed = false;
         this.renderSlide();
     },
@@ -1852,33 +2181,79 @@ const app = {
             this.deck = this.shuffleArray([...this.deck]);
         }
         this.currentIndex = 0;
+        this.visibleLineCount = 1;
         this.isRevealed = false;
         this.isComplete = false;
         this.renderSlide();
     },
 
-    revealCurrentSlide() {
-        const slide = this.deck[this.currentIndex];
-        if (!slide || !slide.back) return;
-        this.isRevealed = true;
-
+    updateRevealPromptUI(slide) {
         const promptBtn = document.getElementById('reveal-prompt');
         const backEl = document.getElementById('display-back');
-        if (promptBtn) {
+        if (!promptBtn || !backEl || !slide) return;
+
+        if (slide.type === 'image') {
             promptBtn.classList.add('hidden');
             promptBtn.classList.remove('inline-flex');
+            backEl.classList.add('hidden');
+            return;
         }
-        if (backEl) {
-            backEl.innerText = this.formatCase(slide.back);
-            backEl.classList.remove('hidden', 'reveal-pop');
-            void backEl.offsetWidth;
-            backEl.classList.add('reveal-pop');
+
+        const frontCount = slide.frontLines ? slide.frontLines.length : 1;
+        const backLines = Array.isArray(slide.backLines) ? slide.backLines : [];
+
+        if (this.settings.multiLineReveal === 'step' && frontCount > 1 && this.visibleLineCount < frontCount) {
+            promptBtn.innerHTML = `<i data-lucide="chevron-down" class="w-4 h-4"></i> Next line (${this.visibleLineCount}/${frontCount})`;
+            promptBtn.classList.remove('hidden');
+            promptBtn.classList.add('inline-flex');
+            backEl.classList.add('hidden');
+            refreshIcons();
+            return;
         }
+
+        if (backLines.length > 0) {
+            if (this.isRevealed) {
+                promptBtn.classList.add('hidden');
+                promptBtn.classList.remove('inline-flex');
+                backEl.innerHTML = backLines
+                    .map(line => `<div class="leading-snug">${escapeHtml(this.formatCase(line))}</div>`)
+                    .join('');
+                backEl.classList.remove('hidden', 'reveal-pop');
+                void backEl.offsetWidth;
+                backEl.classList.add('reveal-pop');
+            } else {
+                promptBtn.innerHTML = `<i data-lucide="eye" class="w-4 h-4"></i> Tap or Space to Reveal`;
+                promptBtn.classList.remove('hidden');
+                promptBtn.classList.add('inline-flex');
+                backEl.classList.add('hidden');
+                refreshIcons();
+            }
+            return;
+        }
+
+        promptBtn.classList.add('hidden');
+        promptBtn.classList.remove('inline-flex');
+        backEl.classList.add('hidden');
+    },
+
+    revealCurrentSlide() {
+        const slide = this.deck[this.currentIndex];
+        if (!slide) return;
+
+        const frontCount = slide.frontLines ? slide.frontLines.length : 1;
+        if (this.settings.multiLineReveal === 'step' && frontCount > 1 && this.visibleLineCount < frontCount) {
+            this.advanceSlide();
+            return;
+        }
+
+        if (!slide.backLines || slide.backLines.length === 0) return;
+        this.isRevealed = true;
+        this.updateRevealPromptUI(slide);
 
         requestAnimationFrame(() => this.fitCurrentSlideText());
 
         if (this.settings.autoSpeak && !this.isBlurred && !this.isBlackout) {
-            this.speakText(slide.back);
+            this.speakText(slide.backLines.join('. '));
         }
         this.resetAutoPlayTimer();
     },
@@ -1892,11 +2267,13 @@ const app = {
         const textWrap = document.getElementById('stage-text-wrap');
         const imageWrap = document.getElementById('stage-image-wrap');
         const displayWord = document.getElementById('display-word');
-        const revealPrompt = document.getElementById('reveal-prompt');
+        const displayLines = document.getElementById('display-lines');
         const displayBack = document.getElementById('display-back');
+        const revealPrompt = document.getElementById('reveal-prompt');
         const displayImg = document.getElementById('display-image');
         const displayCaption = document.getElementById('display-caption');
         const imgFsBtn = document.getElementById('img-fullscreen-btn');
+        const mlineBtn = document.getElementById('stage-mline-btn');
         const completeCard = document.getElementById('deck-complete-card');
         const completeStats = document.getElementById('deck-complete-stats');
 
@@ -1914,14 +2291,30 @@ const app = {
         if (this.isComplete) {
             textWrap.classList.add('hidden');
             textWrap.classList.remove('flex');
+            displayWord?.classList.add('hidden');
+            if (displayLines) {
+                displayLines.classList.add('hidden');
+                displayLines.classList.remove('flex');
+                displayLines.innerHTML = '';
+            }
+            if (displayBack) {
+                displayBack.classList.add('hidden');
+                displayBack.innerHTML = '';
+            }
+            if (revealPrompt) {
+                revealPrompt.classList.add('hidden');
+                revealPrompt.classList.remove('inline-flex');
+            }
             imageWrap.classList.add('hidden');
             imageWrap.classList.remove('flex');
             imgFsBtn?.classList.add('hidden');
+            mlineBtn?.classList.add('hidden');
             completeCard?.classList.remove('hidden');
             completeCard?.classList.add('flex');
             if (completeStats) {
                 completeStats.textContent = `${this.deck.length} slide${this.deck.length !== 1 ? 's' : ''} reviewed`;
             }
+            this.updateImageFullscreenUI();
             this.applyBlurUI();
             return;
         }
@@ -1932,14 +2325,16 @@ const app = {
         const slide = this.deck[this.currentIndex];
         if (!slide) return;
 
-        // Layout class for pair vs single
+        // Layout class for pair vs single + text alignment
+        const isLeft = this.settings.textAlign === 'left';
+        const alignWrapCls = isLeft ? 'items-start text-left' : 'items-center text-center';
         if (slide.type === 'pair') {
             contentWrap.className = 'w-full max-w-[92vw] max-h-[78vh] px-4 sm:px-10 flex flex-col lg:flex-row items-center justify-center gap-6 lg:gap-10 relative z-20';
-            textWrap.className = 'flex flex-col items-center justify-center text-center max-w-full lg:w-1/2 stage-blur-target';
-            imageWrap.className = 'flex flex-col items-center justify-center gap-3 max-w-full lg:w-1/2 stage-blur-target';
+            textWrap.className = `flex flex-col justify-center ${alignWrapCls} w-full lg:w-1/2 min-w-0 stage-blur-target`;
+            imageWrap.className = 'flex flex-col items-center justify-center gap-3 w-full lg:w-1/2 min-w-0 stage-blur-target';
         } else {
             contentWrap.className = 'w-full max-w-[92vw] max-h-[78vh] px-4 sm:px-10 flex flex-col items-center justify-center gap-6 relative z-20';
-            textWrap.className = 'flex flex-col items-center justify-center text-center max-w-full stage-blur-target';
+            textWrap.className = `flex flex-col justify-center ${alignWrapCls} w-full min-w-0 stage-blur-target`;
             imageWrap.className = 'flex flex-col items-center justify-center gap-3 max-w-full stage-blur-target';
         }
 
@@ -1952,54 +2347,113 @@ const app = {
             contentWrap.classList.add('anim-instant');
         }
 
-        // Text / Reveal rendering
+        // Text / Multi-line / Reveal rendering
         if (slide.type === 'text' || slide.type === 'pair') {
             textWrap.classList.remove('hidden');
             textWrap.classList.add('flex');
-            displayWord.innerText = this.formatCase(slide.front);
 
-            if (slide.back) {
-                if (this.isRevealed) {
-                    revealPrompt.classList.add('hidden');
-                    revealPrompt.classList.remove('inline-flex');
-                    displayBack.innerText = this.formatCase(slide.back);
-                    displayBack.classList.remove('hidden');
-                } else {
-                    revealPrompt.classList.remove('hidden');
-                    revealPrompt.classList.add('inline-flex');
-                    displayBack.classList.add('hidden');
-                }
+            const frontLines = Array.isArray(slide.frontLines) && slide.frontLines.length > 0
+                ? slide.frontLines
+                : [slide.front || ''];
+
+            if (frontLines.length > 1 && displayLines) {
+                displayWord.classList.add('hidden');
+                displayWord.innerText = '';
+                displayLines.classList.remove('hidden');
+                displayLines.classList.add('flex');
+                displayLines.setAttribute('data-ml-style', this.settings.multiLineStyle);
+                displayLines.setAttribute('data-ml-align', this.settings.textAlign);
+                mlineBtn?.classList.remove('hidden');
+
+                const shownCount = this.settings.multiLineReveal === 'step'
+                    ? Math.min(this.visibleLineCount, frontLines.length)
+                    : frontLines.length;
+
+                displayLines.innerHTML = frontLines.map((rawLine, idx) => {
+                    const safeLine = escapeHtml(this.formatCase(rawLine));
+                    const hiddenCls = idx >= shownCount ? ' ml-line-hidden' : '';
+                    const content = this.settings.multiLineStyle === 'bullets' && idx > 0
+                        ? `<span class="ml-bullet-dot"></span><span>${safeLine}</span>`
+                        : safeLine;
+                    return `<div class="ml-line${hiddenCls}" data-line-idx="${idx}">${content}</div>`;
+                }).join('');
             } else {
-                revealPrompt.classList.add('hidden');
-                revealPrompt.classList.remove('inline-flex');
-                displayBack.classList.add('hidden');
+                if (displayLines) {
+                    displayLines.classList.add('hidden');
+                    displayLines.classList.remove('flex');
+                    displayLines.innerHTML = '';
+                }
+                displayWord.classList.remove('hidden');
+                mlineBtn?.classList.add('hidden');
+                displayWord.innerText = this.formatCase(frontLines[0]);
             }
+
+            this.updateRevealPromptUI(slide);
+            this.fitCurrentSlideText();
         } else {
             textWrap.classList.add('hidden');
             textWrap.classList.remove('flex');
+            displayWord?.classList.add('hidden');
+            if (displayLines) {
+                displayLines.classList.add('hidden');
+                displayLines.classList.remove('flex');
+                displayLines.innerHTML = '';
+            }
+            if (displayBack) {
+                displayBack.classList.add('hidden');
+                displayBack.innerHTML = '';
+            }
+            if (revealPrompt) {
+                revealPrompt.classList.add('hidden');
+                revealPrompt.classList.remove('inline-flex');
+            }
+            mlineBtn?.classList.add('hidden');
         }
 
         // Image rendering
+        const fsImg = document.getElementById('display-image-fs');
+        const fsCaption = document.getElementById('display-caption-fs');
         if (slide.type === 'image' || slide.type === 'pair') {
             imageWrap.classList.remove('hidden');
             imageWrap.classList.add('flex');
             imgFsBtn?.classList.remove('hidden');
-            this.updateImageFullscreenUI();
 
             if (slide.caption) {
-                displayCaption.innerText = this.formatCase(slide.caption);
+                const capText = this.formatCase(slide.caption);
+                displayCaption.innerText = capText;
                 displayCaption.classList.remove('hidden');
+                if (fsCaption) {
+                    fsCaption.innerText = capText;
+                    fsCaption.classList.remove('hidden');
+                }
             } else {
                 displayCaption.classList.add('hidden');
+                fsCaption?.classList.add('hidden');
+            }
+
+            const isInstant = !slide.src || slide.src.startsWith('data:image/') || slide.src.startsWith('blob:') || blobCache.has(slide.src);
+            if (!isInstant) {
+                displayImg.style.opacity = '0';
+                if (fsImg) fsImg.style.opacity = '0';
             }
 
             const resolved = await resolveAndCache(slide.src);
             if (token !== this.slideRenderToken) return;
-            displayImg.src = resolved;
+            if (resolved) {
+                displayImg.src = resolved;
+                if (fsImg) fsImg.src = resolved;
+            } else {
+                displayImg.removeAttribute('src');
+                if (fsImg) fsImg.removeAttribute('src');
+            }
+            displayImg.style.opacity = '';
+            if (fsImg) fsImg.style.opacity = '';
+            this.updateImageFullscreenUI();
         } else {
             imageWrap.classList.add('hidden');
             imageWrap.classList.remove('flex');
             imgFsBtn?.classList.add('hidden');
+            this.updateImageFullscreenUI();
         }
 
         this.applyBlurUI();
@@ -2019,7 +2473,17 @@ const app = {
         });
 
         if (this.settings.autoSpeak && !this.isBlurred && !this.isBlackout) {
-            const toSpeak = slide.type === 'image' ? slide.caption : (this.isRevealed && slide.back ? slide.back : slide.front);
+            const frontCount = slide.frontLines ? slide.frontLines.length : 1;
+            let toSpeak = '';
+            if (slide.type === 'image') {
+                toSpeak = slide.caption;
+            } else if (this.isRevealed && slide.backLines?.length > 0) {
+                toSpeak = slide.backLines.join('. ');
+            } else if (this.settings.multiLineReveal === 'step' && frontCount > 1) {
+                toSpeak = slide.frontLines.slice(0, this.visibleLineCount).join('. ');
+            } else {
+                toSpeak = (slide.frontLines || [slide.front]).join('. ');
+            }
             if (toSpeak) this.speakText(toSpeak);
         }
 
@@ -2028,32 +2492,70 @@ const app = {
 
     fitCurrentSlideText() {
         const slide = this.deck[this.currentIndex];
-        const el = document.getElementById('display-word');
-        if (!el || !slide || (slide.type !== 'text' && slide.type !== 'pair')) return;
+        const textWrap = document.getElementById('stage-text-wrap');
+        const wordEl = document.getElementById('display-word');
+        const linesEl = document.getElementById('display-lines');
+        if (!slide || (slide.type !== 'text' && slide.type !== 'pair')) return;
 
         const isDesktopPair = slide.type === 'pair' && window.innerWidth >= 1024;
-        const maxW = isDesktopPair
+        const fallbackMaxW = isDesktopPair
             ? Math.max(200, Math.min(window.innerWidth * 0.41, 600))
             : Math.max(240, Math.min(window.innerWidth * 0.86, 1320));
+        const availW = textWrap && textWrap.clientWidth > 100
+            ? Math.max(200, Math.floor(textWrap.clientWidth))
+            : fallbackMaxW;
+
+        const frontCount = slide.frontLines ? slide.frontLines.length : 1;
+        const hasBack = Array.isArray(slide.backLines) && slide.backLines.length > 0;
+        const hasStepPrompt = this.settings.multiLineReveal === 'step' && frontCount > 1;
 
         let maxH = window.innerHeight * 0.64;
-        if (slide.back) {
+        if (slide.type === 'pair' && !isDesktopPair) {
+            maxH = hasBack ? window.innerHeight * 0.22 : window.innerHeight * 0.28;
+        } else if (hasBack) {
             maxH = window.innerHeight * 0.42;
-        } else if (slide.type === 'pair' && !isDesktopPair) {
-            maxH = window.innerHeight * 0.28;
+        } else if (hasStepPrompt) {
+            maxH = window.innerHeight * 0.54;
         }
         maxH = Math.max(110, maxH);
 
+        if (frontCount > 1 && linesEl) {
+            const baseMaxPx = isDesktopPair ? 88 : Math.min(145, window.innerWidth * 0.12);
+            let lo = 14;
+            let hi = Math.max(lo + 4, Math.round(baseMaxPx * this.settings.fontScale));
+            let best = lo;
+
+            linesEl.style.overflowWrap = 'normal';
+            linesEl.style.wordBreak = 'normal';
+            while (lo <= hi) {
+                const mid = Math.floor((lo + hi) / 2);
+                linesEl.style.setProperty('--ml-base', `${mid}px`);
+                const fits = linesEl.scrollWidth <= availW + 2 && linesEl.offsetWidth <= availW + 2 && linesEl.scrollHeight <= maxH + 2 && linesEl.offsetHeight <= maxH + 2;
+                if (fits) {
+                    best = mid;
+                    lo = mid + 1;
+                } else {
+                    hi = mid - 1;
+                }
+            }
+            linesEl.style.overflowWrap = '';
+            linesEl.style.wordBreak = '';
+            linesEl.style.setProperty('--ml-base', `${best}px`);
+            return;
+        }
+
+        if (!wordEl) return;
         const baseMaxPx = isDesktopPair ? 120 : Math.min(185, window.innerWidth * 0.165);
         let lo = 18;
         let hi = Math.max(lo + 4, Math.round(baseMaxPx * this.settings.fontScale));
         let best = lo;
 
+        wordEl.style.overflowWrap = 'normal';
+        wordEl.style.wordBreak = 'normal';
         while (lo <= hi) {
             const mid = Math.floor((lo + hi) / 2);
-            el.style.fontSize = `${mid}px`;
-            const rect = el.getBoundingClientRect();
-            const fits = el.scrollWidth <= maxW + 2 && rect.width <= maxW + 2 && el.scrollHeight <= maxH + 2 && rect.height <= maxH + 2;
+            wordEl.style.fontSize = `${mid}px`;
+            const fits = wordEl.scrollWidth <= availW + 2 && wordEl.offsetWidth <= availW + 2 && wordEl.scrollHeight <= maxH + 2 && wordEl.offsetHeight <= maxH + 2;
             if (fits) {
                 best = mid;
                 lo = mid + 1;
@@ -2061,7 +2563,9 @@ const app = {
                 hi = mid - 1;
             }
         }
-        el.style.fontSize = `${best}px`;
+        wordEl.style.overflowWrap = '';
+        wordEl.style.wordBreak = '';
+        wordEl.style.fontSize = `${best}px`;
     },
 
     // --- Stage Controls & Superpowers ---
@@ -2078,32 +2582,62 @@ const app = {
 
     toggleImageFullscreen() {
         const slide = this.deck[this.currentIndex];
-        if (!slide || (slide.type !== 'image' && slide.type !== 'pair')) return;
+        if (!slide || (slide.type !== 'image' && slide.type !== 'pair') || this.isComplete) return;
         this.imageFullscreen = !this.imageFullscreen;
         this.updateImageFullscreenUI();
     },
 
+    toggleImageFitMode() {
+        this.imageFitMode = this.imageFitMode === 'contain' ? 'cover' : 'contain';
+        this.updateImageFullscreenUI();
+        this.showStageToast(this.imageFitMode === 'cover' ? 'Image: Fill Screen' : 'Image: Fit Full');
+    },
+
     updateImageFullscreenUI() {
         const btn = document.getElementById('img-fullscreen-btn');
+        const fitBtn = document.getElementById('img-fit-btn');
+        const fsWrap = document.getElementById('stage-fs-image-wrap');
+        const fsImg = document.getElementById('display-image-fs');
+        const fsCaption = document.getElementById('display-caption-fs');
         const img = document.getElementById('display-image');
-        const caption = document.getElementById('display-caption');
-        if (!btn || !img) return;
+        const slide = this.deck[this.currentIndex];
+        const isImageSlide = Boolean(slide && (slide.type === 'image' || slide.type === 'pair') && !this.isComplete);
+        const showFs = Boolean(this.imageFullscreen && isImageSlide);
 
-        const framedClasses = ['max-w-full', 'max-h-[66vh]', 'object-contain', 'rounded-2xl', 'shadow-[6px_6px_0px_0px_#0f172a]', 'border-4', 'border-chalk'];
-        const fsClasses = ['fixed', 'inset-0', 'w-screen', 'h-screen', 'object-cover', 'z-10', 'bg-black'];
-        const fsCaptionClasses = ['fixed', 'bottom-20', 'left-1/2', '-translate-x-1/2', 'z-30'];
+        if (fsWrap && fsImg) {
+            if (showFs) {
+                const curSrc = img?.getAttribute('src');
+                if (curSrc) fsImg.src = curSrc;
+                else fsImg.removeAttribute('src');
+                fsImg.classList.toggle('object-contain', this.imageFitMode !== 'cover');
+                fsImg.classList.toggle('object-cover', this.imageFitMode === 'cover');
 
-        if (this.imageFullscreen) {
-            img.classList.remove(...framedClasses);
-            img.classList.add(...fsClasses);
-            caption?.classList.add(...fsCaptionClasses);
-        } else {
-            img.classList.remove(...fsClasses);
-            img.classList.add(...framedClasses);
-            caption?.classList.remove(...fsCaptionClasses);
+                if (fsCaption) {
+                    if (slide.caption) {
+                        fsCaption.innerText = this.formatCase(slide.caption);
+                        fsCaption.classList.remove('hidden');
+                    } else {
+                        fsCaption.classList.add('hidden');
+                    }
+                }
+
+                fsWrap.classList.remove('hidden');
+                fsWrap.classList.add('flex');
+            } else {
+                fsWrap.classList.add('hidden');
+                fsWrap.classList.remove('flex');
+            }
         }
 
-        btn.innerHTML = `<i data-lucide="${this.imageFullscreen ? 'minimize' : 'maximize'}" class="w-5 h-5" id="img-fullscreen-icon"></i>`;
+        if (fitBtn) {
+            fitBtn.classList.toggle('hidden', !showFs);
+            fitBtn.innerHTML = `<i data-lucide="${this.imageFitMode === 'cover' ? 'scan' : 'crop'}" class="w-5 h-5" id="img-fit-icon"></i>`;
+            fitBtn.title = this.imageFitMode === 'cover' ? 'Switch to Fit Full Image' : 'Switch to Fill Screen';
+        }
+
+        if (btn) {
+            btn.innerHTML = `<i data-lucide="${showFs ? 'minimize' : 'maximize'}" class="w-5 h-5" id="img-fullscreen-icon"></i>`;
+        }
         refreshIcons();
     },
 
@@ -2167,6 +2701,7 @@ const app = {
             const remainingRatio = Math.max(0, 1 - elapsed / totalMs);
             if (bar) bar.style.width = `${(remainingRatio * 100).toFixed(1)}%`;
             if (elapsed >= totalMs) {
+                this.stopAutoPlayTimer();
                 this.advanceSlide();
             }
         }, 60);
@@ -2199,9 +2734,17 @@ const app = {
         }
         const slide = this.deck[this.currentIndex];
         if (!slide) return;
-        const text = slide.type === 'image'
-            ? slide.caption
-            : (this.isRevealed && slide.back ? slide.back : slide.front);
+        const frontCount = slide.frontLines ? slide.frontLines.length : 1;
+        let text = '';
+        if (slide.type === 'image') {
+            text = slide.caption;
+        } else if (this.isRevealed && slide.backLines?.length > 0) {
+            text = slide.backLines.join('. ');
+        } else if (this.settings.multiLineReveal === 'step' && frontCount > 1) {
+            text = slide.frontLines.slice(0, this.visibleLineCount).join('. ');
+        } else {
+            text = (slide.frontLines || [slide.front]).join('. ');
+        }
         if (!text) {
             this.showStageToast('No text to speak on this slide');
             return;
@@ -2219,11 +2762,15 @@ const app = {
     applyBlurUI() {
         const textWrap = document.getElementById('stage-text-wrap');
         const imageWrap = document.getElementById('stage-image-wrap');
+        const fsImg = document.getElementById('display-image-fs');
+        const fsCaption = document.getElementById('display-caption-fs');
         const hint = document.getElementById('peek-hint');
         const shouldBlur = this.isBlurred && !this.isComplete;
 
         textWrap?.classList.toggle('stage-blurred', shouldBlur);
         imageWrap?.classList.toggle('stage-blurred', shouldBlur);
+        fsImg?.classList.toggle('stage-blurred', shouldBlur);
+        fsCaption?.classList.toggle('stage-blurred', shouldBlur);
         if (hint) {
             hint.classList.toggle('hidden', !shouldBlur);
             hint.classList.toggle('flex', shouldBlur);
@@ -2263,6 +2810,7 @@ const app = {
     },
 
     async renderStageGrid() {
+        const token = ++this.stageGridToken;
         const list = document.getElementById('stage-grid-list');
         if (!list) return;
 
@@ -2289,14 +2837,11 @@ const app = {
                 const src = await resolveAndCache(slide.src);
                 body = `
                     <div class="w-full h-full flex">
-                        <div class="w-1/2 p-1.5 flex items-center justify-center text-center font-title font-bold text-xs overflow-hidden break-words" style="color:${textColor};">${escapeHtml(this.formatCase(slide.front))}</div>
+                        <div class="w-1/2 h-full overflow-hidden">${this.renderSlideTextPreview(slide, textColor, true)}</div>
                         <img src="${escapeHtml(src)}" alt="Slide ${idx + 1}" class="w-1/2 h-full object-cover">
                     </div>`;
             } else {
-                body = `<div class="w-full h-full p-2.5 flex flex-col items-center justify-center text-center font-title font-bold text-sm leading-tight overflow-hidden break-words" style="color:${textColor};">
-                    <span>${escapeHtml(this.formatCase(slide.front))}</span>
-                    ${slide.back ? `<span class="mt-1 text-[10px] opacity-75 border-t border-current/30 pt-0.5">${escapeHtml(this.formatCase(slide.back))}</span>` : ''}
-                </div>`;
+                body = this.renderSlideTextPreview(slide, textColor, true);
             }
 
             return `
@@ -2311,11 +2856,13 @@ const app = {
             `;
         }));
 
+        if (token !== this.stageGridToken || !this.isGridOpen) return;
         list.innerHTML = cards.join('');
     },
 
     jumpToStageSlide(index) {
         this.currentIndex = Math.max(0, Math.min(index, this.deck.length - 1));
+        this.visibleLineCount = 1;
         this.isRevealed = false;
         this.isComplete = false;
         this.toggleOverviewGrid(false);
@@ -2326,10 +2873,25 @@ const app = {
         if (!this.deck || this.deck.length < 2) return;
         this.deck = this.shuffleArray([...this.deck]);
         this.currentIndex = 0;
+        this.visibleLineCount = 1;
         this.isRevealed = false;
         this.isComplete = false;
         this.renderSlide();
         this.showStageToast('Deck Shuffled!');
+    },
+
+    cycleMultiLineStyle() {
+        const idx = this.multiLineStyleOrder.indexOf(this.settings.multiLineStyle);
+        const next = this.multiLineStyleOrder[(idx + 1) % this.multiLineStyleOrder.length];
+        this.setSetting('multiLineStyle', next);
+        const labels = {
+            hero: 'Lines: Title + Sub',
+            stacked: 'Lines: Equal Stack',
+            cards: 'Lines: Split Cards',
+            contrast: 'Lines: Accent Mix',
+            bullets: 'Lines: Bullet List'
+        };
+        this.showStageToast(labels[next] || next);
     },
 
     cycleStageTheme() {
@@ -2411,6 +2973,13 @@ const app = {
         );
         if (!confirmed) return;
 
+        this.cancelPendingTextSave();
+        // Detach any active saved set BEFORE clearing workspace so library sets & their images remain untouched
+        this.activeSetId = null;
+        await dbPut('activeSetId', null, { sync: false });
+        const nameInput = document.getElementById('set-name-input');
+        if (nameInput) nameInput.value = '';
+
         const textarea = document.getElementById('word-input');
         if (textarea) textarea.value = '';
         localStorage.removeItem('kk_rapid_text');
@@ -2419,10 +2988,8 @@ const app = {
 
         await this.clearImages({ skipConfirm: true });
 
-        if (this.activeSetId) {
-            await this.autoSaveActiveSet();
-        }
         this.updateCount();
+        await this.renderSets();
         showToast('Workspace cleared', 'info');
     },
 
@@ -2561,6 +3128,7 @@ const app = {
     },
 
     async saveSetAs() {
+        await this.flushPendingTextSave({ sync: false });
         const text = document.getElementById('word-input')?.value || '';
         if (!text.trim() && this.images.length === 0) {
             showToast('Add text or images first!', 'error');
@@ -2637,32 +3205,34 @@ const app = {
     },
 
     async loadSet(set) {
+        await this.flushPendingTextSave({ sync: false });
+        const freshSet = (await getSetById(set.id)) || set;
         const textarea = document.getElementById('word-input');
         const nameInput = document.getElementById('set-name-input');
-        const nextText = set.text || '';
+        const nextText = freshSet.text || '';
 
         if (textarea) textarea.value = nextText;
         localStorage.setItem('kk_rapid_text', nextText);
         await dbPut('presentationUpdatedAt', Date.now(), { sync: false });
         await dbPut('presentationText', nextText);
 
-        this.images = [...(set.images || [])];
-        if (set.imageCaptions && typeof set.imageCaptions === 'object') {
-            this.imageCaptions = { ...this.imageCaptions, ...set.imageCaptions };
-        }
+        this.images = [...(freshSet.images || [])];
+        this.imageCaptions = (freshSet.imageCaptions && typeof freshSet.imageCaptions === 'object')
+            ? { ...freshSet.imageCaptions }
+            : {};
         await dbPut('presentationImages', this.images);
         await dbPut('presentationImageCaptions', this.imageCaptions);
 
-        this.activeSetId = set.id;
+        this.activeSetId = freshSet.id;
         await dbPut('activeSetId', this.activeSetId, { sync: false });
-        if (nameInput) nameInput.value = set.name || '';
+        if (nameInput) nameInput.value = freshSet.name || '';
 
-        await this.updateSetStats(set.id);
+        await this.updateSetStats(freshSet.id);
 
         this.updateImageUI();
         this.updateCount();
         await this.renderSets();
-        showToast(`Loaded "${set.name}"`, 'success');
+        showToast(`Loaded "${freshSet.name}"`, 'success');
     },
 
     async quickPlaySet(set) {
@@ -2671,20 +3241,22 @@ const app = {
     },
 
     async duplicateSet(set) {
+        await this.flushPendingTextSave({ sync: false });
+        const freshSet = (await getSetById(set.id)) || set;
         const allSets = await getAllSets();
         const existingNames = new Set(allSets.map(s => (s.name || '').trim().toLowerCase()));
-        let candidate = `${set.name} (Copy)`;
+        let candidate = `${freshSet.name} (Copy)`;
         let n = 2;
         while (existingNames.has(candidate.toLowerCase())) {
-            candidate = `${set.name} (Copy ${n++})`;
+            candidate = `${freshSet.name} (Copy ${n++})`;
         }
 
         const now = Date.now();
         await saveSetToDB({
             name: candidate,
-            text: set.text || '',
-            images: [...(set.images || [])],
-            imageCaptions: { ...(set.imageCaptions || {}) },
+            text: freshSet.text || '',
+            images: [...(freshSet.images || [])],
+            imageCaptions: { ...(freshSet.imageCaptions || {}) },
             createdAt: now,
             updatedAt: now,
             lastUsed: now,
@@ -2705,6 +3277,7 @@ const app = {
     },
 
     async detachActiveSet() {
+        await this.flushPendingTextSave({ sync: false });
         this.activeSetId = null;
         await dbPut('activeSetId', null, { sync: false });
         const nameInput = document.getElementById('set-name-input');
@@ -2728,6 +3301,12 @@ const app = {
                 }
             );
             if (!confirmed) return;
+        }
+
+        if (this.activeSetId) {
+            await this.flushPendingTextSave({ sync: false });
+        } else {
+            this.cancelPendingTextSave();
         }
 
         const oldImages = [...this.images];
@@ -2767,6 +3346,7 @@ const app = {
     },
 
     async renderSets() {
+        const token = ++this.setsRenderToken;
         const list = document.getElementById('sets-list');
         const indicator = document.getElementById('active-set-indicator');
         const activeNameEl = document.getElementById('active-set-name');
@@ -2777,6 +3357,7 @@ const app = {
         if (!list) return;
 
         let sets = await getAllSets();
+        if (token !== this.setsRenderToken) return;
         if (countBadge) countBadge.textContent = String(sets.length);
 
         const sortType = document.getElementById('sets-sort')?.value || 'recent';
@@ -2883,6 +3464,7 @@ const app = {
 
                 const imgsToCheck = Array.isArray(set.images) ? [...set.images] : [];
                 if (String(this.activeSetId) === String(set.id)) {
+                    this.cancelPendingTextSave();
                     this.activeSetId = null;
                     await dbPut('activeSetId', null, { sync: false });
                     const nameInput = document.getElementById('set-name-input');
@@ -2902,6 +3484,8 @@ const app = {
         refreshIcons();
     }
 };
+
+window.app = app;
 
 window.onload = async () => {
     await requireAuth();
