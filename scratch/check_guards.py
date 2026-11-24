@@ -25,8 +25,8 @@ for root, dirs, files in os.walk(apps_dir):
             # Check if guards are in HTML
             has_guard = any(guard in html_content for guard in guards)
             
-            # Find associated JS files
-            js_files = re.findall(r'src="([^"]+\.js)"', html_content)
+            # Find associated JS files (ignoring optional cache-busting query strings)
+            js_files = re.findall(r'src="([^"]+\.js)(?:\?[^"]*)?"', html_content)
             for js_file in js_files:
                 if has_guard: break
                 
