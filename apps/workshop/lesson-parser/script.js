@@ -147,6 +147,54 @@ function deserializeCloudResult(rawModules) {
   };
 }
 
+function deserializeModuleRow(row) {
+  const src = row && typeof row === "object" ? row : {};
+  return normalizeModule({
+    title: src.title,
+    duration: src.duration,
+    isReview: src.is_review ?? src.isReview,
+    data: {
+      lang: src.lang,
+      recycledLang: src.recycled_lang ?? src.recycledLang,
+      phonics: src.phonics,
+      hfw: src.hfw,
+      gram: src.gram,
+      recycledGram: src.recycled_gram ?? src.recycledGram,
+      skill: src.skill,
+      materials: src.materials,
+      prep: src.prep,
+      will: src.will,
+      presentations: src.presentations,
+      pages: src.pages,
+    },
+  });
+}
+
+function hydrateCloudLessonRow(row, localCached = null) {
+  const modRows = Array.isArray(row?.workshop_lessonparser_modules)
+    ? row.workshop_lessonparser_modules
+        .slice()
+        .sort((a, b) => (a?.position ?? 0) - (b?.position ?? 0))
+    : [];
+  const modules = modRows.map(deserializeModuleRow);
+
+  return {
+    id: row.local_id,
+    name: row.name,
+    course: normalizeCourseName(row.course),
+    unitAims: row.unit_aims || "",
+    lessonAims: row.lesson_aims || "",
+    overview: normalizeOverview(row.overview),
+    modules,
+    moduleCount: typeof row.module_count === "number" ? row.module_count : modules.length,
+    rawText: localCached ? (localCached.rawText || "") : "", // Local-only cache
+    lastUsed: new Date(row.last_used || Date.now()).getTime(),
+    createdAt: new Date(row.created_at || Date.now()).getTime(),
+    usageCount: row.usage_count || 1,
+    _hydrated: true,
+  };
+}
+
 const appState = {
   activeId: null, // null means unsaved scratchpad
   current: {
@@ -204,22 +252,33 @@ function applyUiPrefs() {
 }
 
 // ── Initialization ────────────────────────────────────────────────────────────
+async function bootLessonParser() {
+  if (window.__lpBooted) return;
+  window.__lpBooted = true;
+
+  if (window.__lpAuthPromise) await window.__lpAuthPromise;
+  else if (typeof requirePro === "function") await requirePro();
+
+  if (window.pdfjsLib && pdfjsLib.GlobalWorkerOptions) {
+    pdfjsLib.GlobalWorkerOptions.workerSrc =
+      "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+  }
+  loadUiPrefs();
+  initQuill();
+  setupPdfDropzone();
+  setupKeyboardShortcuts();
+  applyUiPrefs();
+  await initDB();
+  await initializeData();
+  if (window.lucide) lucide.createIcons();
+}
+
 if (typeof window !== "undefined") {
-  window.addEventListener("load", async () => {
-    if (typeof requirePro === "function") await requirePro();
-    if (window.pdfjsLib && pdfjsLib.GlobalWorkerOptions) {
-      pdfjsLib.GlobalWorkerOptions.workerSrc =
-        "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
-    }
-    loadUiPrefs();
-    initQuill();
-    setupPdfDropzone();
-    setupKeyboardShortcuts();
-    applyUiPrefs();
-    await initDB();
-    await initializeData();
-    if (window.lucide) lucide.createIcons();
-  });
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", bootLessonParser, { once: true });
+  } else {
+    bootLessonParser();
+  }
 }
 
 function setupKeyboardShortcuts() {
@@ -277,9 +336,19 @@ function getAllLocalSets() {
   });
 }
 
+function getLocalSet(id) {
+  return new Promise((res) => {
+    if (!dataBase || id === null || id === undefined) return res(null);
+    const tx = dataBase.transaction("library", "readonly");
+    const req = tx.objectStore("library").get(id);
+    req.onsuccess = () => res(req.result || null);
+    req.onerror = () => res(null);
+  });
+}
+
 function putLocalSets(sets) {
   return new Promise((res) => {
-    if (!dataBase || !sets.length) return res();
+    if (!dataBase || !Array.isArray(sets) || !sets.length) return res();
     const tx = dataBase.transaction("library", "readwrite");
     const store = tx.objectStore("library");
     sets.forEach((s) => store.put(s));
@@ -288,110 +357,249 @@ function putLocalSets(sets) {
   });
 }
 
+function putLocalSet(set) {
+  return set ? putLocalSets([set]) : Promise.resolve();
+}
+
+function deleteLocalSets(ids) {
+  return new Promise((res) => {
+    if (!dataBase || !Array.isArray(ids) || !ids.length) return res();
+    const tx = dataBase.transaction("library", "readwrite");
+    const store = tx.objectStore("library");
+    ids.forEach((id) => store.delete(id));
+    tx.oncomplete = () => res();
+    tx.onerror = () => res();
+  });
+}
+
+async function getAuthenticatedCloudUser() {
+  if (typeof getCloudUser === "function") return await getCloudUser();
+  if (typeof isSandbox === "function" && isSandbox()) return null;
+  const user = typeof getUser === "function" ? await getUser() : null;
+  return user && !user.is_sandbox ? user : null;
+}
+
+async function fetchCloudLessonFull(userId, localId) {
+  const { data, error } = await db
+    .from("workshop_lessonparser")
+    .select(
+      "id, local_id, name, course, unit_aims, lesson_aims, overview, module_count, last_used, created_at, usage_count, active_set_id, workshop_lessonparser_modules(position, title, duration, is_review, lang, recycled_lang, phonics, hfw, gram, recycled_gram, skill, materials, prep, will, presentations, pages)"
+    )
+    .eq("user_id", userId)
+    .eq("local_id", localId)
+    .order("position", { referencedTable: "workshop_lessonparser_modules", ascending: true })
+    .maybeSingle();
+
+  if (error) throw error;
+  return data || null;
+}
+
+function persistSessionLocalSnapshot(lastSavedOverride = null) {
+  const snapshot = {
+    title: appState.current.title,
+    course: appState.current.course,
+    aims: appState.current.aims,
+    lessonAims: appState.current.lessonAims,
+    overview: appState.current.overview,
+    modules: appState.current.modules,
+  };
+
+  localStorage.setItem(
+    "lp_session",
+    JSON.stringify({
+      activeId: appState.activeId,
+      lastSaved: lastSavedOverride ?? Date.now(),
+      data: snapshot,
+    }),
+  );
+}
+
 async function initializeData() {
-  // Read existing local IndexedDB cache first so we can preserve local-only rawText
+  // 1. Paint immediately from local IndexedDB + localStorage snapshot
   const existingLocal = await getAllLocalSets();
   const localById = new Map(existingLocal.map((s) => [s.id, s]));
+  appState.library = existingLocal.filter((s) => s && s.id !== 0);
 
-  let cloudLoaded = false;
-  let cloudTime = 0;
-  let cloudActiveId = null;
-
-  try {
-    const user = await (typeof getUser === "function" ? getUser() : null);
-    if (user && typeof db !== "undefined") {
-      const { data, error } = await db
-        .from("workshop_lessonparser")
-        .select("*")
-        .eq("user_id", user.id);
-
-      if (!error && data) {
-        cloudLoaded = true;
-        const sessionRow = data.find((row) => row.local_id === 0);
-        const libraryRows = data.filter((row) => row.local_id !== 0);
-
-        if (sessionRow) {
-          cloudTime = new Date(sessionRow.last_used || 0).getTime();
-          cloudActiveId =
-            sessionRow.active_set_id ??
-            (sessionRow.usage_count > 0 ? sessionRow.usage_count : null);
-
-          const parsedSession = deserializeCloudResult(sessionRow.modules);
-          appState.current.title = sessionRow.name === "Session" ? "" : (sessionRow.name || "");
-          appState.current.aims = sessionRow.unit_aims || "";
-          appState.current.course = parsedSession.course;
-          appState.current.lessonAims = parsedSession.lessonAims;
-          appState.current.overview = parsedSession.overview;
-          appState.current.modules = parsedSession.modules;
-
-          // Keep any local-only rawText if the active set exists locally
-          const cachedActive = cloudActiveId ? localById.get(cloudActiveId) : null;
-          appState.current.rawText = cachedActive ? (cachedActive.rawText || "") : "";
-        }
-
-        const cloudLibrary = libraryRows.map((row) => {
-          const parsedRow = deserializeCloudResult(row.modules);
-          const localCached = localById.get(row.local_id);
-          return {
-            id: row.local_id,
-            name: row.name,
-            course: parsedRow.course,
-            unitAims: row.unit_aims || "",
-            lessonAims: parsedRow.lessonAims,
-            overview: parsedRow.overview,
-            modules: parsedRow.modules,
-            rawText: localCached ? (localCached.rawText || "") : "", // Local-only cache
-            lastUsed: new Date(row.last_used || Date.now()).getTime(),
-            createdAt: new Date(row.created_at || Date.now()).getTime(),
-            usageCount: row.usage_count || 1,
-          };
-        });
-
-        appState.library = cloudLibrary;
-        await putLocalSets(cloudLibrary);
-        updateSyncStatus("synced", "Cloud Synced");
-      }
-    }
-  } catch (e) {
-    console.warn("Cloud data load failed", e);
-    updateSyncStatus("local", "Local Cache");
-  }
-
-  // Fallback / Merge with localStorage session snapshot
-  const local = localStorage.getItem("lp_session");
-  if (local) {
+  let hasLocalSession = false;
+  let localTime = 0;
+  const localRaw = localStorage.getItem("lp_session");
+  if (localRaw) {
     try {
-      const session = JSON.parse(local);
-      const localTime = session.lastSaved || 0;
-      if (!cloudLoaded || cloudTime < localTime) {
-        const sData = session.data || {};
-        appState.current = {
-          ...appState.current,
-          title: sData.title ?? appState.current.title,
-          course: normalizeCourseName(sData.course ?? appState.current.course),
-          aims: sData.aims ?? appState.current.aims,
-          lessonAims: sData.lessonAims ?? appState.current.lessonAims,
-          overview: normalizeOverview(sData.overview || appState.current.overview),
-          modules: Array.isArray(sData.modules)
-            ? sData.modules.map(normalizeModule)
-            : appState.current.modules,
-        };
-        appState.activeId = session.activeId ?? null;
-        if (appState.activeId && localById.has(appState.activeId)) {
-          appState.current.rawText = localById.get(appState.activeId).rawText || "";
-        }
-      } else if (cloudLoaded) {
-        appState.activeId = cloudActiveId;
+      const session = JSON.parse(localRaw);
+      const sData = session.data || {};
+      hasLocalSession = true;
+      localTime = session.lastSaved || 0;
+      appState.current = {
+        ...appState.current,
+        title: sData.title ?? appState.current.title,
+        course: normalizeCourseName(sData.course ?? appState.current.course),
+        aims: sData.aims ?? appState.current.aims,
+        lessonAims: sData.lessonAims ?? appState.current.lessonAims,
+        overview: normalizeOverview(sData.overview || appState.current.overview),
+        modules: Array.isArray(sData.modules)
+          ? sData.modules.map(normalizeModule)
+          : appState.current.modules,
+      };
+      appState.activeId = session.activeId ?? null;
+      if (appState.activeId && localById.has(appState.activeId)) {
+        appState.current.rawText = localById.get(appState.activeId).rawText || "";
       }
     } catch (e) {
       console.warn("Local session parse failed", e);
     }
-  } else if (cloudLoaded) {
-    appState.activeId = cloudActiveId;
   }
 
   updateUIFromState();
   renderLibrary();
+
+  // 2. Sync lightweight metadata from Supabase & lazy-hydrate only if cloud is newer
+  try {
+    const user = await getAuthenticatedCloudUser();
+    if (!user || typeof db === "undefined") {
+      updateSyncStatus("local", "Local Only");
+      return;
+    }
+
+    const { data, error } = await db
+      .from("workshop_lessonparser")
+      .select("id, local_id, name, course, module_count, last_used, created_at, usage_count, active_set_id")
+      .eq("user_id", user.id)
+      .order("last_used", { ascending: false });
+
+    if (error) {
+      if (error.code === "42703" || error.code === "PGRST204") {
+        console.warn("[LessonParser] Schema missing Phase 5 columns:", error.message);
+        updateSyncStatus("local", "Migration Needed");
+        showToast("Run phase5_lesson_parser_normalization.sql in Supabase", "warn");
+        return;
+      }
+      throw error;
+    }
+
+    const rows = Array.isArray(data) ? data : [];
+    const sessionRow = rows.find((row) => row.local_id === 0);
+    const libraryRows = rows.filter((row) => row.local_id !== 0);
+
+    const cloudIds = new Set();
+    const libraryById = new Map();
+    const cloudLibrary = libraryRows.map((row) => {
+      cloudIds.add(row.local_id);
+      const localCached = localById.get(row.local_id);
+      const cloudLastUsed = new Date(row.last_used || Date.now()).getTime();
+      const cloudCreatedAt = new Date(row.created_at || Date.now()).getTime();
+      const hasFreshLocal = Boolean(
+        localCached &&
+        localCached._hydrated !== false &&
+        Array.isArray(localCached.modules) &&
+        (localCached.lastUsed || 0) >= cloudLastUsed
+      );
+
+      const entry = hasFreshLocal
+        ? {
+            ...localCached,
+            id: row.local_id,
+            name: row.name,
+            course: normalizeCourseName(row.course),
+            moduleCount:
+              typeof row.module_count === "number"
+                ? row.module_count
+                : localCached.modules.length,
+            lastUsed: cloudLastUsed,
+            createdAt: cloudCreatedAt,
+            usageCount: row.usage_count || 1,
+            _hydrated: true,
+          }
+        : {
+            id: row.local_id,
+            name: row.name,
+            course: normalizeCourseName(row.course),
+            unitAims: "",
+            lessonAims: "",
+            overview: emptyOverview(),
+            modules: [],
+            moduleCount: typeof row.module_count === "number" ? row.module_count : 0,
+            rawText: localCached ? (localCached.rawText || "") : "", // Local-only cache
+            lastUsed: cloudLastUsed,
+            createdAt: cloudCreatedAt,
+            usageCount: row.usage_count || 1,
+            _hydrated: false,
+          };
+
+      libraryById.set(entry.id, entry);
+      return entry;
+    });
+
+    const removedIds = existingLocal
+      .filter((s) => s && s.id !== 0 && !cloudIds.has(s.id))
+      .map((s) => s.id);
+    if (removedIds.length > 0) await deleteLocalSets(removedIds);
+    await putLocalSets(cloudLibrary);
+    appState.library = cloudLibrary;
+    renderLibrary();
+
+    const rawCloudActiveId = sessionRow?.active_set_id ?? null;
+    const cloudActiveId =
+      rawCloudActiveId && libraryById.has(rawCloudActiveId) ? rawCloudActiveId : null;
+    const cloudTime = new Date(sessionRow?.last_used || 0).getTime();
+    const activeMeta = cloudActiveId ? libraryById.get(cloudActiveId) : sessionRow;
+    const expectedModCount = activeMeta?.module_count ?? activeMeta?.moduleCount ?? 0;
+
+    const shouldLoadFromCloud =
+      Boolean(sessionRow) &&
+      (!hasLocalSession ||
+        cloudTime > localTime ||
+        ((appState.current.modules || []).length === 0 && expectedModCount > 0));
+
+    if (shouldLoadFromCloud) {
+      const targetLocalId = cloudActiveId || 0;
+      const localCandidate = targetLocalId !== 0 ? libraryById.get(targetLocalId) : null;
+      let hydratedSet =
+        localCandidate && localCandidate._hydrated === true ? localCandidate : null;
+
+      if (!hydratedSet) {
+        const fullRow = await fetchCloudLessonFull(user.id, targetLocalId);
+        if (fullRow) {
+          hydratedSet = hydrateCloudLessonRow(fullRow, localById.get(targetLocalId));
+          if (targetLocalId !== 0) {
+            libraryById.set(targetLocalId, hydratedSet);
+            appState.library = Array.from(libraryById.values());
+            await putLocalSet(hydratedSet);
+          }
+        }
+      }
+
+      if (hydratedSet) {
+        appState.activeId = cloudActiveId;
+        appState.current = {
+          title: targetLocalId === 0 && hydratedSet.name === "Session" ? "" : (hydratedSet.name || ""),
+          course: hydratedSet.course || "",
+          aims: hydratedSet.unitAims || "",
+          lessonAims: hydratedSet.lessonAims || "",
+          overview: normalizeOverview(hydratedSet.overview),
+          modules: Array.isArray(hydratedSet.modules) ? hydratedSet.modules : [],
+          rawText:
+            hydratedSet.rawText ||
+            (cloudActiveId && localById.get(cloudActiveId)
+              ? localById.get(cloudActiveId).rawText || ""
+              : ""),
+        };
+        persistSessionLocalSnapshot(cloudTime || Date.now());
+        updateUIFromState();
+        renderLibrary();
+      } else if (!hasLocalSession) {
+        appState.activeId = cloudActiveId;
+        updateActiveIndicator();
+      }
+    } else if (appState.activeId && !libraryById.has(appState.activeId)) {
+      appState.activeId = null;
+      updateActiveIndicator();
+    }
+
+    updateSyncStatus("synced", "Cloud Synced");
+  } catch (e) {
+    console.warn("Cloud data load failed", e);
+    updateSyncStatus("local", "Local Cache");
+  }
 }
 
 function updateUIFromState() {
@@ -557,7 +765,12 @@ function buildCloudPayloadRows(userId, library, activeId, current) {
   return rows;
 }
 
-function updateSessionPersistence() {
+let cloudSyncTimeout;
+let _pendingModulesDirty = false;
+let _syncVersion = 0;
+
+function updateSessionPersistence(options = {}) {
+  const { modulesDirty = false, immediate = false } = options;
   const titleEl = document.getElementById("unit-title-input");
   const courseEl = document.getElementById("unit-course-select");
   const aimsEl = document.getElementById("unit-aims-input");
@@ -574,94 +787,107 @@ function updateSessionPersistence() {
   };
 
   // Persist parsed result locally in localStorage (Rule #7) without bulky rawText
-  const snapshot = {
-    title: appState.current.title,
-    course: appState.current.course,
-    aims: appState.current.aims,
-    lessonAims: appState.current.lessonAims,
-    overview: appState.current.overview,
-    modules: appState.current.modules,
-  };
-
-  localStorage.setItem(
-    "lp_session",
-    JSON.stringify({
-      activeId: appState.activeId,
-      lastSaved: Date.now(),
-      data: snapshot,
-    }),
-  );
+  persistSessionLocalSnapshot();
 
   if (appState.activeId) {
     autoSaveToLibrary();
   }
 
+  if (modulesDirty) _pendingModulesDirty = true;
+  _syncVersion++;
   updateSyncStatus("saving", "Syncing...");
-  syncToCloud();
+  syncToCloud(immediate);
 }
 
-let cloudSyncTimeout;
-function syncToCloud() {
+function syncToCloud(immediate = false) {
   clearTimeout(cloudSyncTimeout);
   cloudSyncTimeout = setTimeout(async () => {
-    if (!dataBase) return;
-    const allSets = await getAllLocalSets();
-    appState.library = allSets.filter((s) => s.id !== 0);
+    const versionAtStart = _syncVersion;
+    const sendModules = _pendingModulesDirty;
+    _pendingModulesDirty = false;
 
     try {
-      const user = await (typeof getUser === "function" ? getUser() : null);
-      if (user && typeof db !== "undefined") {
-        // NOTE: raw_text is intentionally NEVER sent to Supabase
-        const rows = buildCloudPayloadRows(
-          user.id,
-          appState.library,
-          appState.activeId,
-          appState.current,
-        );
-
-        if (rows.length > 0) {
-          const { error } = await db
-            .from("workshop_lessonparser")
-            .upsert(rows, { onConflict: "user_id,local_id" });
-          if (error) {
-            console.error("[Sync] Cloud sync error:", error);
-            updateSyncStatus("error", "Sync Failed");
-            showToast("Sync failed - check connection", "error");
-            return;
-          }
-        }
-        updateSyncStatus("synced", "Cloud Synced");
-      } else {
+      const user = await getAuthenticatedCloudUser();
+      if (!user || typeof db === "undefined") {
+        _pendingModulesDirty = _pendingModulesDirty || sendModules;
         updateSyncStatus("local", "Local Only");
+        return;
+      }
+
+      const activeSet = appState.activeId
+        ? appState.library.find((s) => s.id === appState.activeId)
+        : null;
+      const isSavedSet = Boolean(appState.activeId);
+
+      // NOTE: raw_text is intentionally NEVER sent to Supabase
+      const { error } = await db.rpc("lp_save_lesson", {
+        p_local_id: isSavedSet ? appState.activeId : 0,
+        p_name: isSavedSet
+          ? (appState.current.title || "Untitled Lesson")
+          : (appState.current.title || "Session"),
+        p_course: normalizeCourseName(appState.current.course),
+        p_unit_aims: appState.current.aims || "",
+        p_lesson_aims: appState.current.lessonAims || "",
+        p_overview: normalizeOverview(appState.current.overview),
+        p_modules: sendModules
+          ? (appState.current.modules || []).map(normalizeModule)
+          : null,
+        p_last_used: new Date().toISOString(),
+        p_usage_count: isSavedSet ? (activeSet?.usageCount || 1) : 1,
+        p_active_set_id: isSavedSet ? appState.activeId : null,
+        p_update_session_pointer: isSavedSet,
+      });
+
+      if (error) {
+        _pendingModulesDirty = _pendingModulesDirty || sendModules;
+        console.error("[Sync] Cloud sync error:", error);
+        updateSyncStatus("error", "Sync Failed");
+        showToast("Sync failed - check connection", "error");
+        return;
+      }
+
+      if (_syncVersion === versionAtStart) {
+        updateSyncStatus("synced", "Cloud Synced");
       }
     } catch (err) {
+      _pendingModulesDirty = _pendingModulesDirty || sendModules;
       console.error("[Sync] Cloud exception:", err);
       updateSyncStatus("error", "Sync Error");
     }
-  }, 1500);
+  }, immediate ? 0 : 1500);
 }
 
 async function autoSaveToLibrary() {
   if (!appState.activeId || !dataBase) return;
 
+  const updatedFields = {
+    name: appState.current.title || "Untitled Lesson",
+    course: normalizeCourseName(appState.current.course),
+    unitAims: appState.current.aims || "",
+    lessonAims: appState.current.lessonAims || "",
+    overview: normalizeOverview(appState.current.overview),
+    modules: appState.current.modules || [],
+    moduleCount: (appState.current.modules || []).length,
+    rawText: appState.current.rawText || "", // Local IndexedDB cache only
+    lastUsed: Date.now(),
+    _hydrated: true,
+  };
+
+  const idx = appState.library.findIndex((s) => s.id === appState.activeId);
+  if (idx !== -1) {
+    appState.library[idx] = { ...appState.library[idx], ...updatedFields };
+  }
+
   const tx = dataBase.transaction("library", "readwrite");
   const store = tx.objectStore("library");
   const req = store.get(appState.activeId);
   req.onsuccess = () => {
-    const set = req.result;
-    if (set) {
-      set.name = appState.current.title || "Untitled Lesson";
-      set.course = normalizeCourseName(appState.current.course);
-      set.unitAims = appState.current.aims || "";
-      set.lessonAims = appState.current.lessonAims || "";
-      set.overview = normalizeOverview(appState.current.overview);
-      set.modules = appState.current.modules || [];
-      set.rawText = appState.current.rawText || ""; // Local IndexedDB cache only
-      set.lastUsed = Date.now();
-      store.put(set);
-
-      const idx = appState.library.findIndex((s) => s.id === appState.activeId);
-      if (idx !== -1) appState.library[idx] = { ...set };
+    const existing = req.result;
+    if (existing) {
+      const merged = { ...existing, ...updatedFields };
+      store.put(merged);
+      const libIdx = appState.library.findIndex((s) => s.id === appState.activeId);
+      if (libIdx !== -1) appState.library[libIdx] = { ...merged };
     }
   };
 }
@@ -692,7 +918,7 @@ async function clearData() {
   if (msInput) msInput.value = "";
   updateUIFromState();
   showToast("Session cleared");
-  updateSessionPersistence();
+  updateSessionPersistence({ modulesDirty: true, immediate: true });
 }
 
 // ── Toast ─────────────────────────────────────────────────────────────────────
@@ -972,7 +1198,7 @@ async function updateUnitMetadata() {
       lessonAimsGroup.classList.toggle("flex", show);
     }
   }
-  updateSessionPersistence();
+  updateSessionPersistence({ modulesDirty: false });
   renderOverview(appState.current.modules || []);
 }
 
@@ -1366,7 +1592,7 @@ function runExtraction(fullText, boldText, opts = {}) {
   appState.current.rawText = fullText;
 
   updateUIFromState();
-  updateSessionPersistence();
+  updateSessionPersistence({ modulesDirty: true });
 
   const count = parsed.modules.length;
   showToast(
@@ -3158,7 +3384,10 @@ async function renderLibrary() {
     el.className = `group p-3.5 bg-white dark:bg-slate-800 border-3 border-dark dark:border-slate-500 rounded-2xl shadow-hard-sm cursor-pointer hover:border-blue transition-all ${appState.activeId === set.id ? "ring-4 ring-blue/40 border-blue" : ""}`;
 
     const date = new Date(set.lastUsed || Date.now()).toLocaleDateString();
-    const modCount = Array.isArray(set.modules) ? set.modules.length : 0;
+    const modCount =
+      typeof set.moduleCount === "number"
+        ? set.moduleCount
+        : (Array.isArray(set.modules) ? set.modules.length : 0);
 
     el.innerHTML = `
       <div class="flex justify-between items-start gap-2">
@@ -3208,6 +3437,7 @@ async function createNewSet() {
   if (msInput) msInput.value = "";
   updateUIFromState();
   showToast("New lesson started");
+  updateSessionPersistence({ modulesDirty: true, immediate: true });
 }
 
 function showSaveModal() {
@@ -3235,10 +3465,12 @@ async function confirmSaveSet() {
     lessonAims: appState.current.lessonAims || "",
     overview: normalizeOverview(appState.current.overview),
     modules: appState.current.modules || [],
+    moduleCount: (appState.current.modules || []).length,
     rawText: appState.current.rawText || "", // Local IndexedDB cache only
     createdAt: Date.now(),
     lastUsed: Date.now(),
     usageCount: 1,
+    _hydrated: true,
   };
 
   const tx = dataBase.transaction("library", "readwrite");
@@ -3246,46 +3478,69 @@ async function confirmSaveSet() {
   const req = store.add(set);
   req.onsuccess = (e) => {
     appState.activeId = e.target.result;
+    set.id = appState.activeId;
     appState.current.title = name;
+    appState.library = [set, ...appState.library.filter((s) => s.id !== set.id)];
     closeSaveModal();
     updateUIFromState();
     renderLibrary();
     showToast("Lesson saved to library");
-    updateSessionPersistence();
+    updateSessionPersistence({ modulesDirty: true, immediate: true });
   };
 }
 
 async function loadSet(id) {
   if (!dataBase) return;
-  const tx = dataBase.transaction("library", "readwrite");
-  const store = tx.objectStore("library");
-  const req = store.get(id);
+  let set = await getLocalSet(id);
 
-  req.onsuccess = () => {
-    const set = req.result;
-    if (!set) return;
+  if (!set || set._hydrated === false) {
+    try {
+      const user = await getAuthenticatedCloudUser();
+      if (user && typeof db !== "undefined") {
+        updateSyncStatus("saving", "Loading...");
+        const fullRow = await fetchCloudLessonFull(user.id, id);
+        if (fullRow) {
+          set = hydrateCloudLessonRow(fullRow, set);
+          await putLocalSet(set);
+        }
+      }
+    } catch (err) {
+      console.warn("[LoadSet] Cloud hydration failed:", err);
+      updateSyncStatus("error", "Load Failed");
+    }
+  }
 
-    appState.activeId = set.id;
-    appState.current = {
-      title: set.name || "",
-      course: normalizeCourseName(set.course),
-      aims: set.unitAims || "",
-      lessonAims: set.lessonAims || "",
-      overview: normalizeOverview(set.overview),
-      modules: Array.isArray(set.modules) ? set.modules.map(normalizeModule) : [],
-      rawText: set.rawText || "",
-    };
+  if (!set) {
+    showToast("Could not load lesson", "error");
+    return;
+  }
 
-    set.lastUsed = Date.now();
-    set.usageCount = (set.usageCount || 0) + 1;
-    store.put(set);
-
-    clearPdfBadge();
-    updateUIFromState();
-    toggleLibrary();
-    showToast(`Loaded: ${set.name}`);
-    updateSessionPersistence();
+  appState.activeId = set.id;
+  appState.current = {
+    title: set.name || "",
+    course: normalizeCourseName(set.course),
+    aims: set.unitAims || "",
+    lessonAims: set.lessonAims || "",
+    overview: normalizeOverview(set.overview),
+    modules: Array.isArray(set.modules) ? set.modules.map(normalizeModule) : [],
+    rawText: set.rawText || "",
   };
+
+  set.lastUsed = Date.now();
+  set.usageCount = (set.usageCount || 0) + 1;
+  set.moduleCount = appState.current.modules.length;
+  set._hydrated = true;
+  await putLocalSet(set);
+
+  const idx = appState.library.findIndex((s) => s.id === set.id);
+  if (idx !== -1) appState.library[idx] = { ...set };
+  else appState.library.unshift({ ...set });
+
+  clearPdfBadge();
+  updateUIFromState();
+  toggleLibrary();
+  showToast(`Loaded: ${set.name}`);
+  updateSessionPersistence({ modulesDirty: false });
 }
 
 async function deleteSet(e, id) {
@@ -3302,7 +3557,7 @@ async function deleteSet(e, id) {
   tx.objectStore("library").delete(id);
   tx.oncomplete = async () => {
     try {
-      const user = await (typeof getUser === "function" ? getUser() : null);
+      const user = await getAuthenticatedCloudUser();
       if (user && typeof db !== "undefined") {
         await db
           .from("workshop_lessonparser")
@@ -3314,13 +3569,17 @@ async function deleteSet(e, id) {
       console.warn("Cloud deletion failed", err);
     }
 
-    if (appState.activeId === id) {
+    appState.library = appState.library.filter((s) => s.id !== id);
+    const wasActive = appState.activeId === id;
+    if (wasActive) {
       appState.activeId = null;
       updateActiveIndicator();
     }
     renderLibrary();
     showToast("Set deleted");
-    updateSessionPersistence();
+    if (wasActive) {
+      updateSessionPersistence({ modulesDirty: true, immediate: true });
+    }
   };
 }
 
@@ -3364,6 +3623,8 @@ if (typeof module !== "undefined" && module.exports) {
     parseExtractedText,
     serializeCloudResult,
     deserializeCloudResult,
+    deserializeModuleRow,
+    hydrateCloudLessonRow,
     buildCloudPayloadRows,
     tokenizeRefs,
     buildRefsState,

@@ -711,11 +711,7 @@ async function requirePro() {
 
   await prepareCloudSession(user)
 
-  const { data: profile, error } = await db
-    .from('profiles')
-    .select('role')
-    .eq('id', user.id)
-    .maybeSingle()
+  const profile = await getUserProfile()
 
   if (profile?.role !== 'admin' && profile?.role !== 'pro') {
     console.warn('[ProGuard] Access Denied. User requires Pro tier.')
