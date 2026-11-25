@@ -555,7 +555,7 @@ const Announcements = {
 
       return `
         <div onclick="Announcements.viewDetail('${ann.id}')" role="button" tabindex="0"
-          class="ann-card bg-white dark:bg-slate-800 p-4 rounded-xl border-2 border-dark dark:border-slate-600 shadow-sm hover:border-blue dark:hover:border-blue transition-all cursor-pointer group animate-pop-in" 
+          class="ann-card bg-card p-4 rounded-xl border-2 border-line shadow-sm hover:border-blue dark:hover:border-blue transition-all cursor-pointer group animate-pop-in" 
           style="animation-delay: ${i * 0.1}s">
           
           <div class="flex items-start justify-between mb-2">
@@ -637,7 +637,7 @@ const Announcements = {
 
       return `
         <div onclick="Announcements.viewDetail('${ann.id}')" role="button" tabindex="0"
-          class="p-5 bg-white dark:bg-slate-800 rounded-2xl border-2 border-dark dark:border-slate-700 hover:border-blue dark:hover:border-blue transition-all cursor-pointer group animate-pop-in relative overflow-hidden shadow-sm hover:shadow-md"
+          class="p-5 bg-card rounded-2xl border-2 border-line hover:border-blue dark:hover:border-blue transition-all cursor-pointer group animate-pop-in relative overflow-hidden shadow-sm hover:shadow-md"
           style="animation-delay: ${i * 0.05}s">
           
           ${isUnread ? '<div class="absolute top-0 right-0 w-3 h-3 bg-blue rounded-bl-lg"></div>' : ''}
@@ -804,13 +804,13 @@ const RecentGames = {
 
     container.innerHTML = visibleGames.map(game => `
         <button data-action="openGame" data-param="${game.id}"
-          class="recent-pill bg-white dark:bg-slate-800 flex items-center gap-2 px-2 py-1.5 rounded-xl shrink-0 min-w-[120px] group hover:bg-slate-50 dark:hover:bg-slate-700 border-2 border-dark dark:border-slate-500 shadow-hard-sm animate-pop-in"
+          class="recent-pill bg-card flex items-center gap-2 px-2 py-1.5 rounded-xl shrink-0 min-w-[120px] group hover:bg-surface-muted border-2 border-line shadow-hard-sm animate-pop-in"
           aria-label="Resume ${game.title}">
-          <div class="w-8 h-8 rounded-lg ${Utils.getColorClass(game.color)} flex items-center justify-center text-white border-2 border-dark dark:border-slate-300 shadow-sm">
+          <div class="w-8 h-8 rounded-lg ${Utils.getColorClass(game.color)} flex items-center justify-center text-white border-2 border-line shadow-sm">
             <i data-lucide="${game.icon}" class="w-4 h-4"></i>
           </div>
           <div class="text-left">
-            <div class="text-[10px] font-black text-dark dark:text-white truncate w-20 leading-tight">${game.title}</div>
+            <div class="text-[10px] font-black text-ink truncate w-20 leading-tight">${game.title}</div>
             <div class="text-[8px] text-slate-400 font-black uppercase tracking-tighter">RESUME</div>
           </div>
         </button>
@@ -997,24 +997,24 @@ const HistoryManager = {
     }
 
     container.innerHTML = filtered.map(({ game, timeStr }) => `
-      <div class="card p-3 flex items-center justify-between gap-3 bg-white dark:bg-slate-800 border-2 border-dark dark:border-slate-700 rounded-xl shadow-hard-sm hover:translate-y-[-2px] transition-all group cursor-pointer"
+      <div class="card p-3 flex items-center justify-between gap-3 bg-card border-2 border-line rounded-xl shadow-hard-sm hover:translate-y-[-2px] transition-all group cursor-pointer"
            role="button" tabindex="0" aria-label="Open ${game.title} (${this.formatTimeAgo(timeStr)})"
            onclick="HistoryManager.togglePanel(false, false); GameModal.open('${game.id}')">
         <div class="flex items-center gap-3 min-w-0">
-          <div class="w-10 h-10 rounded-xl ${Utils.getColorClass(game.color)} flex items-center justify-center text-white border-2 border-dark dark:border-slate-600 shadow-sm shrink-0 group-hover:scale-110 transition-transform">
+          <div class="w-10 h-10 rounded-xl ${Utils.getColorClass(game.color)} flex items-center justify-center text-white border-2 border-line shadow-sm shrink-0 group-hover:scale-110 transition-transform">
             <i data-lucide="${game.icon}" class="w-5 h-5" aria-hidden="true"></i>
           </div>
           <div class="min-w-0 text-left">
             <div class="flex items-center gap-1.5">
-              <h4 class="font-heading font-bold text-sm text-dark dark:text-white truncate group-hover:text-blue transition-colors">${game.title}</h4>
+              <h4 class="font-heading font-bold text-sm text-ink truncate group-hover:text-blue transition-colors">${game.title}</h4>
               ${game.pro ? '<span class="pro-badge px-1.5 py-0.5 bg-gradient-to-r from-orange to-pink text-[8px] font-black text-white rounded shadow-sm shrink-0">PRO</span>' : ''}
               ${game.new ? '<span class="new-badge px-1.5 py-0.5 bg-gradient-to-r from-green to-blue text-[8px] font-black text-white rounded shadow-sm shrink-0">NEW</span>' : ''}
             </div>
-            <p class="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">${game.category}</p>
+            <p class="text-[10px] font-bold text-ink-muted uppercase tracking-wider">${game.category}</p>
           </div>
         </div>
         <div class="shrink-0 text-right">
-          <span class="badge bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 border-none text-[10px] font-bold py-1 px-2">
+          <span class="badge bg-surface-muted text-ink-muted border-none text-[10px] font-bold py-1 px-2">
             ${this.formatTimeAgo(timeStr)}
           </span>
         </div>
@@ -1077,15 +1077,15 @@ const PinnedGames = {
     container.innerHTML = visibleGames.map(game => {
       const catLabel = categoryLabels[game.category] || game.category;
       return `
-        <article class="pinned-card group relative bg-white dark:bg-slate-800 rounded-2xl border-3 border-dark dark:border-slate-500 shadow-hard-sm hover:shadow-hard hover:-translate-y-1 active:translate-y-[2px] active:shadow-none cursor-pointer transition-all duration-200 animate-pop-in overflow-hidden"
+        <article class="pinned-card group relative bg-card rounded-2xl border-3 border-line shadow-hard-sm hover:shadow-hard hover:-translate-y-1 active:translate-y-[2px] active:shadow-none cursor-pointer transition-all duration-200 animate-pop-in overflow-hidden"
           data-action="openGame" data-param="${game.id}" role="button" tabindex="0" aria-label="Open ${game.title}">
           <div class="flex items-center gap-3 p-3">
-            <div class="w-10 h-10 rounded-xl ${Utils.getColorClass(game.color)} flex items-center justify-center text-white border-2 border-dark dark:border-slate-300 shadow-sm shrink-0">
+            <div class="w-10 h-10 rounded-xl ${Utils.getColorClass(game.color)} flex items-center justify-center text-white border-2 border-line shadow-sm shrink-0">
               <i data-lucide="${game.icon}" class="w-5 h-5" aria-hidden="true"></i>
             </div>
             <div class="flex-1 min-w-0">
               <div class="flex items-center gap-1.5 min-w-0">
-                <div class="text-sm font-black text-dark dark:text-white truncate leading-tight">${game.title}</div>
+                <div class="text-sm font-black text-ink truncate leading-tight">${game.title}</div>
                 ${game.pro ? '<span class="pro-badge px-1.5 py-0.5 bg-gradient-to-r from-orange to-pink text-[8px] font-black text-white rounded shadow-sm shrink-0">PRO</span>' : ''}
                 ${game.new ? '<span class="new-badge px-1.5 py-0.5 bg-gradient-to-r from-green to-blue text-[8px] font-black text-white rounded shadow-sm shrink-0">NEW</span>' : ''}
               </div>

@@ -34,9 +34,20 @@
     return Boolean(global.matchMedia && global.matchMedia('(prefers-color-scheme: dark)').matches);
   }
 
-  function applyTheme(toolKey) {
-    const isDark = resolveIsDark(toolKey);
+  function applyColorTheme(overrideTheme) {
+    const colorTheme = overrideTheme !== undefined ? overrideTheme : readStoredTheme('klasskit_colorTheme');
+    if (colorTheme && colorTheme !== 'classic') {
+      document.documentElement.setAttribute('data-theme', colorTheme);
+    } else {
+      document.documentElement.removeAttribute('data-theme');
+    }
+    return colorTheme || 'classic';
+  }
+
+  function applyTheme(toolKey, overrideDark, overrideColorTheme) {
+    const isDark = typeof overrideDark === 'boolean' ? overrideDark : resolveIsDark(toolKey);
     document.documentElement.classList.toggle('dark', isDark);
+    applyColorTheme(overrideColorTheme);
     return isDark;
   }
 
@@ -48,7 +59,19 @@
       if (e.key === 'theme_hub' || (toolKey && e.key === toolKey) || e.key === 'klasskit-theme') {
         const nextDark = applyTheme(toolKey);
         if (typeof onChange === 'function') onChange(nextDark);
+      } else if (e.key === 'klasskit_colorTheme') {
+        applyColorTheme();
       }
+    });
+
+    global.addEventListener('message', (e) => {
+      if (e.origin !== global.location.origin || !e.data || e.data.type !== 'klasskit:theme-sync') return;
+      const nextDark = applyTheme(
+        toolKey,
+        typeof e.data.dark === 'boolean' ? e.data.dark : undefined,
+        e.data.colorTheme
+      );
+      if (typeof onChange === 'function') onChange(nextDark);
     });
 
     return isDark;

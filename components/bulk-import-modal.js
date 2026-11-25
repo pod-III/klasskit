@@ -32,49 +32,49 @@
     const STYLE_ID = 'kk-bulk-import-styles';
     const ACCENTS = {
         orange: {
-            bar: 'bg-[#ff7e33]',
-            iconBg: 'bg-[#ff7e33]',
-            subtitle: 'text-[#ff7e33]',
-            focusBorder: 'focus:border-[#ff7e33]',
-            copyBtn: 'bg-[#ff7e33]/15 hover:bg-[#ff7e33] text-[#c2410c] dark:text-[#ff7e33] hover:text-white',
-            badgeText: 'text-[#c2410c] dark:text-[#ff7e33]',
-            codeBg: 'bg-[#ff7e33]/15 text-[#c2410c] dark:text-[#ff9c60]',
+            bar: 'bg-orange',
+            iconBg: 'bg-orange',
+            subtitle: 'text-orange',
+            focusBorder: 'focus:border-orange',
+            copyBtn: 'bg-orange/15 hover:bg-orange text-orange hover:text-white',
+            badgeText: 'text-orange',
+            codeBg: 'bg-orange/15 text-orange',
         },
         pink: {
-            bar: 'bg-[#ff4785]',
-            iconBg: 'bg-[#ff4785]',
-            subtitle: 'text-[#ff4785]',
-            focusBorder: 'focus:border-[#ff4785]',
-            copyBtn: 'bg-[#ff4785]/15 hover:bg-[#ff4785] text-[#be185d] dark:text-[#ff4785] hover:text-white',
-            badgeText: 'text-[#be185d] dark:text-[#ff4785]',
-            codeBg: 'bg-[#ff4785]/15 text-[#be185d] dark:text-[#ff70a0]',
+            bar: 'bg-pink',
+            iconBg: 'bg-pink',
+            subtitle: 'text-pink',
+            focusBorder: 'focus:border-pink',
+            copyBtn: 'bg-pink/15 hover:bg-pink text-pink hover:text-white',
+            badgeText: 'text-pink',
+            codeBg: 'bg-pink/15 text-pink',
         },
         blue: {
-            bar: 'bg-[#1ea7fd]',
-            iconBg: 'bg-[#1ea7fd]',
-            subtitle: 'text-[#1ea7fd]',
-            focusBorder: 'focus:border-[#1ea7fd]',
-            copyBtn: 'bg-[#1ea7fd]/15 hover:bg-[#1ea7fd] text-[#0369a1] dark:text-[#1ea7fd] hover:text-white',
-            badgeText: 'text-[#0369a1] dark:text-[#1ea7fd]',
-            codeBg: 'bg-[#1ea7fd]/15 text-[#0369a1] dark:text-[#5cc0ff]',
+            bar: 'bg-blue',
+            iconBg: 'bg-blue',
+            subtitle: 'text-blue',
+            focusBorder: 'focus:border-blue',
+            copyBtn: 'bg-blue/15 hover:bg-blue text-blue hover:text-white',
+            badgeText: 'text-blue',
+            codeBg: 'bg-blue/15 text-blue',
         },
         green: {
-            bar: 'bg-[#00d063]',
-            iconBg: 'bg-[#00d063]',
-            subtitle: 'text-[#059669] dark:text-[#00d063]',
-            focusBorder: 'focus:border-[#00d063]',
-            copyBtn: 'bg-[#00d063]/15 hover:bg-[#00d063] text-[#047857] dark:text-[#00d063] hover:text-[#1e293b]',
-            badgeText: 'text-[#047857] dark:text-[#00d063]',
-            codeBg: 'bg-[#00d063]/15 text-[#047857] dark:text-[#34e585]',
+            bar: 'bg-green',
+            iconBg: 'bg-green',
+            subtitle: 'text-green',
+            focusBorder: 'focus:border-green',
+            copyBtn: 'bg-green/15 hover:bg-green text-green hover:text-white',
+            badgeText: 'text-green',
+            codeBg: 'bg-green/15 text-green',
         },
     };
 
     const BADGE_TONES = {
-        orange: 'bg-[#ff7e33]/15 text-[#c2410c] dark:text-[#ff9c60] border-[#ff7e33]/35',
-        pink: 'bg-[#ff4785]/15 text-[#be185d] dark:text-[#ff70a0] border-[#ff4785]/35',
-        blue: 'bg-[#1ea7fd]/15 text-[#0369a1] dark:text-[#5cc0ff] border-[#1ea7fd]/35',
-        green: 'bg-[#00d063]/15 text-[#047857] dark:text-[#34e585] border-[#00d063]/35',
-        slate: 'bg-slate-200/70 dark:bg-slate-700/70 text-slate-700 dark:text-slate-200 border-slate-300 dark:border-slate-600',
+        orange: 'bg-orange/15 text-orange border-orange/35',
+        pink: 'bg-pink/15 text-pink border-pink/35',
+        blue: 'bg-blue/15 text-blue border-blue/35',
+        green: 'bg-green/15 text-green border-green/35',
+        slate: 'bg-surface-muted text-ink border-line-muted',
     };
 
     function escapeHtml(str) {
@@ -133,29 +133,19 @@
                 font-weight: 700;
                 text-transform: uppercase;
                 letter-spacing: 0.05em;
-                border: 3px solid #1e293b;
-                box-shadow: 0 4px 0 #1e293b;
+                border: 3px solid var(--border-primary, #1e293b);
+                box-shadow: 0 4px 0 var(--shadow-color, #1e293b);
                 transition: transform 0.12s ease, box-shadow 0.12s ease, background-color 0.15s ease, color 0.15s ease;
                 cursor: pointer;
                 user-select: none;
             }
-            html.dark .kk-import-btn {
-                border-color: #64748b;
-                box-shadow: 0 4px 0 #020617;
-            }
             .kk-import-btn:hover:not(:disabled) {
                 transform: translateY(-2px);
-                box-shadow: 0 6px 0 #1e293b;
-            }
-            html.dark .kk-import-btn:hover:not(:disabled) {
-                box-shadow: 0 6px 0 #020617;
+                box-shadow: 0 6px 0 var(--shadow-color, #1e293b);
             }
             .kk-import-btn:active:not(:disabled) {
                 transform: translateY(4px);
-                box-shadow: 0 0 0 #1e293b;
-            }
-            html.dark .kk-import-btn:active:not(:disabled) {
-                box-shadow: 0 0 0 #020617;
+                box-shadow: 0 0 0 var(--shadow-color, #1e293b);
             }
             .kk-import-btn:disabled {
                 opacity: 0.45;
@@ -164,7 +154,7 @@
             }
             .kk-import-btn:focus-visible,
             .kk-import-textarea:focus-visible {
-                outline: 3px solid #1ea7fd;
+                outline: 3px solid var(--color-blue, #1ea7fd);
                 outline-offset: 2px;
             }
             .kk-import-badge {
@@ -233,12 +223,12 @@
             const labelTone = ACCENTS[item.color] ? ACCENTS[item.color].badgeText : accent.badgeText;
             const codeTone = ACCENTS[item.color] ? ACCENTS[item.color].codeBg : accent.codeBg;
             return `
-                <div class="p-2.5 rounded-xl bg-white dark:bg-slate-800/90 border-2 border-slate-200 dark:border-slate-700">
+                <div class="p-2.5 rounded-xl bg-card border-2 border-line-muted">
                     <p class="text-[10px] font-black uppercase tracking-wider mb-1 ${labelTone}">${escapeHtml(item.label)}</p>
-                    <p class="text-xs text-slate-600 dark:text-slate-300 font-semibold leading-snug">
+                    <p class="text-xs text-ink-muted font-semibold leading-snug">
                         <code class="px-1.5 py-0.5 rounded font-mono text-[11px] font-bold ${codeTone}">${escapeHtml(item.syntax)}</code>
                     </p>
-                    ${item.desc ? `<p class="text-[11px] text-slate-500 dark:text-slate-400 mt-1 leading-snug">${item.desc}</p>` : ''}
+                    ${item.desc ? `<p class="text-[11px] text-ink-muted mt-1 leading-snug">${item.desc}</p>` : ''}
                 </div>
             `;
         }).join('');
@@ -248,8 +238,8 @@
         const optionsHtml = options.length ? `
             <div class="flex flex-wrap items-center gap-3 mb-2.5">
                 ${options.map((opt) => `
-                    <label class="inline-flex items-center gap-2 text-xs font-bold text-slate-600 dark:text-slate-300 cursor-pointer select-none">
-                        <input type="checkbox" data-import-opt="${escapeHtml(opt.id)}" class="w-4 h-4 rounded accent-[#1ea7fd] cursor-pointer" ${opt.defaultChecked ? 'checked' : ''} />
+                    <label class="inline-flex items-center gap-2 text-xs font-bold text-ink-muted cursor-pointer select-none">
+                        <input type="checkbox" data-import-opt="${escapeHtml(opt.id)}" class="w-4 h-4 rounded accent-blue cursor-pointer" ${opt.defaultChecked ? 'checked' : ''} />
                         <span>${escapeHtml(opt.label)}</span>
                     </label>
                 `).join('')}
@@ -257,31 +247,31 @@
         ` : '';
 
         overlay.innerHTML = `
-            <div class="kk-import-modal w-full max-w-4xl bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border-4 border-[#1e293b] dark:border-slate-500 rounded-[1.75rem] shadow-[0_8px_0_#1e293b] dark:shadow-[0_8px_0_#020617] flex flex-col overflow-hidden text-[#1e293b] dark:text-slate-100">
+            <div class="kk-import-modal w-full max-w-4xl bg-card/95 backdrop-blur-xl border-4 border-line rounded-[1.75rem] shadow-hard-lg flex flex-col overflow-hidden text-ink">
                 <div class="w-full h-2 ${accent.bar} shrink-0"></div>
-                <div class="flex items-center gap-3.5 px-5 sm:px-6 pt-4 pb-3.5 border-b-3 border-[#1e293b]/15 dark:border-slate-700 shrink-0">
-                    <div class="w-11 h-11 rounded-2xl ${accent.iconBg} flex items-center justify-center border-3 border-[#1e293b] dark:border-slate-500 shadow-[0_3px_0_#1e293b] dark:shadow-[0_3px_0_#020617] shrink-0 -rotate-2">
+                <div class="flex items-center gap-3.5 px-5 sm:px-6 pt-4 pb-3.5 border-b-3 border-line-muted shrink-0">
+                    <div class="w-11 h-11 rounded-2xl ${accent.iconBg} flex items-center justify-center border-3 border-line shadow-hard-sm shrink-0 -rotate-2">
                         <i data-lucide="file-up" class="w-5 h-5 text-white"></i>
                     </div>
                     <div class="flex-1 min-w-0">
-                        <h2 id="${modalId}-title" class="text-xl font-heading font-bold uppercase tracking-tight leading-none text-[#1e293b] dark:text-white">${escapeHtml(config.title || 'BULK IMPORT')}</h2>
+                        <h2 id="${modalId}-title" class="text-xl font-heading font-bold uppercase tracking-tight leading-none text-ink">${escapeHtml(config.title || 'BULK IMPORT')}</h2>
                         <p class="text-[10px] font-black tracking-[0.2em] uppercase mt-1 ${accent.subtitle}">${escapeHtml(config.subtitle || 'Copy template or paste content below')}</p>
                     </div>
-                    <button type="button" data-role="close" aria-label="Close bulk import modal" class="kk-import-btn bg-[#f8fafc] dark:bg-slate-800 text-[#1e293b] dark:text-white w-10 h-10 rounded-xl flex items-center justify-center shrink-0">
+                    <button type="button" data-role="close" aria-label="Close bulk import modal" class="kk-import-btn bg-canvas text-ink w-10 h-10 rounded-xl flex items-center justify-center shrink-0">
                         <i data-lucide="x" class="w-5 h-5"></i>
                     </button>
                 </div>
 
                 <div class="flex flex-col lg:flex-row flex-1 overflow-hidden min-h-0">
                     <!-- Format Guide + Copy Template -->
-                    <div class="lg:w-72 shrink-0 p-4 sm:p-5 border-b-3 lg:border-b-0 lg:border-r-3 border-[#1e293b]/15 dark:border-slate-700 overflow-y-auto custom-scrollbar bg-slate-50/90 dark:bg-slate-800/50 space-y-3">
+                    <div class="lg:w-72 shrink-0 p-4 sm:p-5 border-b-3 lg:border-b-0 lg:border-r-3 border-line-muted overflow-y-auto custom-scrollbar bg-surface-muted/80 space-y-3">
                         <div class="flex items-center justify-between">
-                            <p class="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.2em]">Format Guide</p>
-                            <span class="px-2 py-0.5 rounded-full text-[9px] font-extrabold uppercase bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300">AI-Ready</span>
+                            <p class="text-[10px] font-black text-ink-muted uppercase tracking-[0.2em]">Format Guide</p>
+                            <span class="px-2 py-0.5 rounded-full text-[9px] font-extrabold uppercase bg-surface-muted text-ink border border-line-muted">AI-Ready</span>
                         </div>
                         <div class="space-y-2">${guideHtml}</div>
                         ${tipsHtml ? `
-                            <div class="p-3 rounded-xl bg-white dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 text-[11px] text-slate-600 dark:text-slate-300 font-semibold space-y-1">
+                            <div class="p-3 rounded-xl bg-card border-2 border-line-muted text-[11px] text-ink-muted font-semibold space-y-1">
                                 ${tipsHtml}
                             </div>
                         ` : ''}
@@ -291,7 +281,7 @@
                                 <span>Copy Template</span>
                             </button>
                             ${config.sample ? `
-                                <button type="button" data-role="fill-sample" class="w-full py-1.5 px-3 rounded-xl text-[11px] font-extrabold text-slate-500 dark:text-slate-400 hover:text-[#1ea7fd] dark:hover:text-[#1ea7fd] hover:bg-slate-200/60 dark:hover:bg-slate-700/60 transition-colors flex items-center justify-center gap-1.5 cursor-pointer">
+                                <button type="button" data-role="fill-sample" class="w-full py-1.5 px-3 rounded-xl text-[11px] font-extrabold text-ink-muted hover:text-blue hover:bg-surface-muted transition-colors flex items-center justify-center gap-1.5 cursor-pointer">
                                     <i data-lucide="sparkles" class="w-3.5 h-3.5"></i>
                                     <span>Insert Sample Into Box</span>
                                 </button>
@@ -300,33 +290,33 @@
                     </div>
 
                     <!-- Paste Textarea + Live Preview -->
-                    <div class="flex-1 flex flex-col min-h-0 overflow-hidden bg-white dark:bg-slate-900">
+                    <div class="flex-1 flex flex-col min-h-0 overflow-hidden bg-card">
                         <div class="flex-1 flex flex-col min-h-0 p-4 sm:p-5 pb-3">
                             <div class="flex items-center justify-between mb-1.5">
-                                <label for="${modalId}-textarea" class="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">Paste Your Content</label>
-                                <button type="button" data-role="clear-textarea" class="text-[11px] font-extrabold text-slate-400 hover:text-[#ff4785] transition-colors cursor-pointer">Clear</button>
+                                <label for="${modalId}-textarea" class="text-[10px] font-black uppercase tracking-[0.2em] text-ink-muted">Paste Your Content</label>
+                                <button type="button" data-role="clear-textarea" class="text-[11px] font-extrabold text-ink-muted hover:text-pink transition-colors cursor-pointer">Clear</button>
                             </div>
                             <textarea id="${modalId}-textarea" spellcheck="false"
-                                class="kk-import-textarea w-full flex-1 bg-[#f8fafc] dark:bg-slate-800 border-3 border-[#1e293b]/20 dark:border-slate-600 rounded-2xl px-4 py-3 text-[#1e293b] dark:text-white ${accent.focusBorder} focus:outline-none resize-none custom-scrollbar min-h-[190px]"
+                                class="kk-import-textarea w-full flex-1 bg-canvas border-3 border-line-muted rounded-2xl px-4 py-3 text-ink ${accent.focusBorder} focus:outline-none resize-none custom-scrollbar min-h-[190px]"
                                 placeholder="${escapeHtml(config.placeholder || '')}"></textarea>
                         </div>
 
-                        <div class="shrink-0 px-4 sm:px-5 py-3.5 border-t-3 border-[#1e293b]/10 dark:border-slate-700 bg-slate-50/80 dark:bg-slate-800/40">
+                        <div class="shrink-0 px-4 sm:px-5 py-3.5 border-t-3 border-line-muted bg-surface-muted/70">
                             ${optionsHtml}
                             <div data-role="preview-panel" class="hidden mb-3 max-h-28 overflow-y-auto custom-scrollbar space-y-2">
                                 <div data-role="preview-list" class="flex flex-wrap gap-1.5"></div>
                                 <div data-role="warnings" class="space-y-1"></div>
                             </div>
                             <div class="flex flex-wrap items-center justify-between gap-3">
-                                <div data-role="preview-count" class="text-xs font-extrabold text-slate-500 dark:text-slate-400 flex items-center gap-2">
+                                <div data-role="preview-count" class="text-xs font-extrabold text-ink-muted flex items-center gap-2">
                                     <i data-lucide="info" class="w-4 h-4 shrink-0"></i>
                                     <span>0 ${escapeHtml(unitPlural)} detected</span>
                                 </div>
                                 <div class="flex items-center gap-2.5 ml-auto">
-                                    <button type="button" data-role="cancel" class="kk-import-btn bg-[#f8fafc] dark:bg-slate-700 text-[#1e293b] dark:text-white px-5 py-2 rounded-xl text-xs">
+                                    <button type="button" data-role="cancel" class="kk-import-btn bg-canvas text-ink px-5 py-2 rounded-xl text-xs">
                                         Cancel
                                     </button>
-                                    <button type="button" data-role="confirm" class="kk-import-btn bg-[#00d063] text-[#1e293b] px-6 py-2 rounded-xl text-xs flex items-center gap-1.5" disabled>
+                                    <button type="button" data-role="confirm" class="kk-import-btn bg-green text-white px-6 py-2 rounded-xl text-xs flex items-center gap-1.5" disabled>
                                         <i data-lucide="check-circle" class="w-4 h-4"></i>
                                         <span>${escapeHtml(config.confirmText || 'Import')}</span>
                                     </button>
@@ -625,17 +615,17 @@
 
         container.innerHTML = collapsible
             ? `
-                <div class="rounded-xl border-2 border-[#1e293b]/20 dark:border-slate-600 bg-white/80 dark:bg-slate-900/60 overflow-hidden">
+                <div class="rounded-xl border-2 border-line-muted bg-card/80 overflow-hidden">
                     <button type="button" data-presets-toggle aria-expanded="false"
-                        class="w-full px-3 py-2 flex items-center justify-between gap-2 text-left hover:bg-[#1ea7fd]/5 dark:hover:bg-[#1ea7fd]/10 transition-colors cursor-pointer">
-                        <span class="flex items-center gap-1.5 text-[11px] font-extrabold uppercase tracking-wider text-[#0369a1] dark:text-[#1ea7fd]">
+                        class="w-full px-3 py-2 flex items-center justify-between gap-2 text-left hover:bg-blue/5 dark:hover:bg-blue/10 transition-colors cursor-pointer">
+                        <span class="flex items-center gap-1.5 text-[11px] font-extrabold uppercase tracking-wider text-blue">
                             <i data-lucide="sparkles" class="w-3.5 h-3.5"></i>
                             <span>${escapeHtml(title)}</span>
-                            <span data-presets-count class="px-1.5 py-0.5 rounded-full bg-[#1ea7fd]/15 text-[#0369a1] dark:text-[#5cc0ff] text-[10px]">0</span>
+                            <span data-presets-count class="px-1.5 py-0.5 rounded-full bg-blue/15 text-blue text-[10px]">0</span>
                         </span>
-                        <i data-lucide="chevron-down" data-presets-chevron class="w-4 h-4 text-slate-400 transition-transform"></i>
+                        <i data-lucide="chevron-down" data-presets-chevron class="w-4 h-4 text-ink-muted transition-transform"></i>
                     </button>
-                    <div data-presets-drawer class="hidden px-2.5 pb-2.5 pt-2 border-t-2 border-slate-200 dark:border-slate-700 space-y-2 animate-slide-down">
+                    <div data-presets-drawer class="hidden px-2.5 pb-2.5 pt-2 border-t-2 border-line-muted space-y-2 animate-slide-down">
                         <div data-presets-tabs class="flex flex-wrap gap-1"></div>
                         <div data-presets-list class="grid grid-cols-1 gap-1.5 ${maxHeightClass} overflow-y-auto custom-scrollbar pr-0.5"></div>
                     </div>
@@ -661,7 +651,7 @@
             tabsEl.innerHTML = levels.length > 1
                 ? levels.map((lvl) => {
                     const active = lvl === activeLevel;
-                    return `<button type="button" data-preset-level="${escapeHtml(lvl)}" class="px-2 py-0.5 rounded-lg text-[10px] font-extrabold uppercase border-2 transition-colors cursor-pointer ${active ? 'bg-[#1ea7fd] text-white border-[#1e293b] dark:border-slate-400' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-300 dark:border-slate-600 hover:border-[#1ea7fd]'}">${escapeHtml(lvl)}</button>`;
+                    return `<button type="button" data-preset-level="${escapeHtml(lvl)}" class="px-2 py-0.5 rounded-lg text-[10px] font-extrabold uppercase border-2 transition-colors cursor-pointer ${active ? 'bg-blue text-white border-line' : 'bg-surface-muted text-ink-muted border-line-muted hover:border-blue'}">${escapeHtml(lvl)}</button>`;
                 }).join('')
                 : '';
 
@@ -670,7 +660,7 @@
                 : presets.filter((p) => p.level === activeLevel);
 
             if (!visible.length) {
-                listEl.innerHTML = `<p class="text-[11px] font-semibold text-slate-400 py-2 text-center">${escapeHtml(emptyText)}</p>`;
+                listEl.innerHTML = `<p class="text-[11px] font-semibold text-ink-muted py-2 text-center">${escapeHtml(emptyText)}</p>`;
                 if (window.lucide) window.lucide.createIcons();
                 return;
             }
@@ -679,14 +669,14 @@
                 const tone = BADGE_TONES[LEVEL_TONES[p.level]] || BADGE_TONES.slate;
                 const meta = config.getMeta ? config.getMeta(p) : null;
                 const metaHtml = meta
-                    ? `<span class="text-[10px] font-bold uppercase text-slate-400 shrink-0 flex items-center gap-1">${meta.icon ? `<i data-lucide="${escapeHtml(meta.icon)}" class="w-3 h-3"></i>` : ''}${escapeHtml(meta.label || '')}</span>`
+                    ? `<span class="text-[10px] font-bold uppercase text-ink-muted shrink-0 flex items-center gap-1">${meta.icon ? `<i data-lucide="${escapeHtml(meta.icon)}" class="w-3 h-3"></i>` : ''}${escapeHtml(meta.label || '')}</span>`
                     : '';
                 return `
                     <button type="button" data-preset-id="${escapeHtml(p.id)}"
-                        class="w-full text-left p-2 rounded-xl border-2 border-slate-200 dark:border-slate-700 bg-slate-50/90 dark:bg-slate-800/75 hover:border-[#1ea7fd] hover:bg-[#1ea7fd]/5 dark:hover:bg-[#1ea7fd]/15 transition-colors flex items-center justify-between gap-2 group cursor-pointer">
+                        class="w-full text-left p-2 rounded-xl border-2 border-line-muted bg-surface-muted/90 hover:border-blue hover:bg-blue/5 dark:hover:bg-blue/15 transition-colors flex items-center justify-between gap-2 group cursor-pointer">
                         <div class="flex items-center gap-2 min-w-0">
                             ${p.level ? `<span class="px-1.5 py-0.5 rounded-md border text-[10px] font-black uppercase shrink-0 ${tone}">${escapeHtml(p.level)}</span>` : ''}
-                            <span class="text-xs font-extrabold truncate text-[#1e293b] dark:text-white group-hover:text-[#1ea7fd] transition-colors">${escapeHtml(p.title)}</span>
+                            <span class="text-xs font-extrabold truncate text-ink group-hover:text-blue transition-colors">${escapeHtml(p.title)}</span>
                         </div>
                         ${metaHtml}
                     </button>

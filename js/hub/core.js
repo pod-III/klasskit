@@ -371,11 +371,17 @@ const Theme = {
     this.loadColorTheme();
   },
 
-  toggle() {
-    const isDark = document.documentElement.classList.toggle('dark');
-    Storage.set(CONFIG.storageKeys.theme, isDark ? 'dark' : 'light');
-    AudioEngine.click();
+  setDark(isDark) {
+    const nextDark = Boolean(isDark);
+    document.documentElement.classList.toggle('dark', nextDark);
+    Storage.set(CONFIG.storageKeys.theme, nextDark ? 'dark' : 'light');
+    this.syncAllIframes();
     window.SettingsModal?.syncControls?.();
+  },
+
+  toggle() {
+    this.setDark(!document.documentElement.classList.contains('dark'));
+    AudioEngine.click();
   },
 
   getColorTheme() {
@@ -396,7 +402,37 @@ const Theme = {
     const valid = this.colorThemes.some(t => t.id === themeId) ? themeId : 'classic';
     Storage.set(CONFIG.storageKeys.colorTheme, valid);
     this.loadColorTheme();
+    this.syncAllIframes();
     window.SettingsModal?.syncControls?.();
+  },
+
+  syncToIframe(iframe) {
+    if (!iframe) return;
+    const isDark = document.documentElement.classList.contains('dark');
+    const colorTheme = this.getColorTheme();
+    try {
+      const root = iframe.contentDocument?.documentElement;
+      if (root) {
+        root.classList.toggle('dark', isDark);
+        if (colorTheme === 'classic') {
+          root.removeAttribute('data-theme');
+        } else {
+          root.setAttribute('data-theme', colorTheme);
+        }
+      }
+    } catch (_) {}
+    try {
+      iframe.contentWindow?.postMessage(
+        { type: 'klasskit:theme-sync', dark: isDark, colorTheme },
+        window.location.origin
+      );
+    } catch (_) {}
+  },
+
+  syncAllIframes() {
+    document.querySelectorAll('#tab-content-area iframe, #myspace-iframe').forEach(iframe => {
+      this.syncToIframe(iframe);
+    });
   }
 };
 
@@ -512,10 +548,7 @@ const HubSettings = {
           label: 'Blackboard Dark Mode',
           description: 'High-contrast OLED slate theme designed for projectors and low-light rooms.',
           get: () => document.documentElement.classList.contains('dark'),
-          set: (val) => {
-            document.documentElement.classList.toggle('dark', Boolean(val));
-            Storage.set(CONFIG.storageKeys.theme, val ? 'dark' : 'light');
-          }
+          set: (val) => Theme.setDark(Boolean(val))
         },
         {
           id: 'color-theme',

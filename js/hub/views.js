@@ -142,25 +142,25 @@ const GameGrid = {
       : '';
 
     return `
-      <article class="hub-card group cursor-pointer dark:bg-slate-800 dark:border-slate-500" 
+      <article class="hub-card group cursor-pointer" 
         data-action="openGame" data-param="${game.id}" role="button" tabindex="0"
         aria-label="Launch ${safeTitle}: ${safeDesc}">
-        <div class="${bgClass} hub-card-visual p-6 border-b-4 border-dark dark:border-slate-500 h-40 flex items-center justify-center relative overflow-hidden transition-colors">
+        <div class="${bgClass} hub-card-visual p-6 border-b-4 border-line h-40 flex items-center justify-center relative overflow-hidden transition-colors">
           <button data-action="togglePin" data-param="${game.id}" type="button"
-            class="pin-btn ${isPinned ? 'is-pinned bg-pink text-white border-dark dark:border-slate-300 opacity-100' : 'bg-white/75 dark:bg-slate-900/60 text-dark dark:text-white border-dark/20 dark:border-white/20'} backdrop-blur-md border-2 absolute top-3 right-3 z-30 w-8 h-8 rounded-lg flex items-center justify-center transition-all hover:scale-110"
+            class="pin-btn ${isPinned ? 'is-pinned bg-pink text-white border-line opacity-100' : 'bg-glass/75 text-ink border-line/30'} backdrop-blur-md border-2 absolute top-3 right-3 z-30 w-8 h-8 rounded-lg flex items-center justify-center transition-all hover:scale-110"
             title="${pinTitle}" aria-label="${isPinned ? `Unpin ${safeTitle}` : `Pin ${safeTitle}`}" aria-pressed="${isPinned}">
             <i data-lucide="${pinIcon}" class="w-4 h-4" aria-hidden="true"></i>
           </button>
           <div class="absolute inset-0 opacity-10" style="background-image:radial-gradient(#000 2px,transparent 2px);background-size:12px 12px"></div>
           <i data-lucide="${game.icon}" class="absolute -right-6 -bottom-6 w-36 h-36 ${game.color} opacity-20 rotate-12 group-hover:scale-110 group-hover:rotate-6 transition-all duration-300"></i>
-          <div class="bg-white dark:bg-slate-700 p-4 rounded-2xl border-2 border-dark dark:border-slate-400 shadow-hard dark:shadow-neon-sm relative z-10 group-hover:scale-110 transition-transform duration-300">
+          <div class="bg-card p-4 rounded-2xl border-2 border-line shadow-hard dark:shadow-neon-sm relative z-10 group-hover:scale-110 transition-transform duration-300">
             <i data-lucide="${game.icon}" class="w-10 h-10 ${game.color} dark:text-white"></i>
           </div>
         </div>
-        <div class="p-6 flex-1 flex flex-col bg-white dark:bg-slate-800">
+        <div class="p-6 flex-1 flex flex-col bg-card">
           <div class="flex justify-between items-start mb-3">
             <div class="card-title-group flex flex-col gap-1">
-              <h2 class="text-2xl font-heading text-dark dark:text-white leading-none tracking-tight">${displayTitle}</h2>
+              <h2 class="text-2xl font-heading text-ink leading-none tracking-tight">${displayTitle}</h2>
               ${badgesHtml}
             </div>
             <div class="flex flex-col gap-1 items-end">
@@ -168,7 +168,7 @@ const GameGrid = {
               ${difficultyBadge}
             </div>
           </div>
-          <p class="text-slate-500 dark:text-slate-400 font-bold text-sm mb-6 flex-1 leading-relaxed">${displayDesc}</p>
+          <p class="text-ink-muted font-bold text-sm mb-6 flex-1 leading-relaxed">${displayDesc}</p>
           <button class="btn-chunky ${btnClass} text-white w-full py-3 rounded-xl flex items-center justify-center gap-2 text-lg group-hover:brightness-105" tabindex="-1">
             <i data-lucide="play" class="w-5 h-5 fill-current"></i> LAUNCH
           </button>
@@ -512,7 +512,7 @@ const ViewManager = {
             <button data-action="clearRecent" class="px-3 py-1.5 text-xs font-bold text-slate-500 hover:text-red-500 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors" title="Clear recent">
               Clear
             </button>
-            <button id="recent-toggle-btn" data-action="toggleRecentCollapse" class="p-1.5 rounded-lg border-2 border-dark dark:border-slate-600 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors" aria-label="Toggle Recent List">
+            <button id="recent-toggle-btn" data-action="toggleRecentCollapse" class="p-1.5 rounded-lg border-2 border-line bg-card text-ink hover:bg-surface-muted transition-colors" aria-label="Toggle Recent List">
               <i data-lucide="chevron-up" class="w-4 h-4"></i>
             </button>
           </div>
@@ -704,14 +704,14 @@ const ViewManager = {
           ? `<button data-action="filterGames" data-param="all" class="px-3 py-1.5 rounded-lg bg-blue text-white text-xs font-bold border-2 border-dark hover:brightness-110 transition-all">Search All Activities</button>`
           : '';
         bannerEl.innerHTML = `
-          <div class="flex flex-wrap items-center justify-between gap-3 px-4 py-3 rounded-2xl bg-white dark:bg-slate-800 border-[3px] border-dark dark:border-slate-600 shadow-hard-sm">
-            <div class="flex items-center gap-2 text-sm font-bold text-slate-700 dark:text-slate-200">
+          <div class="flex flex-wrap items-center justify-between gap-3 px-4 py-3 rounded-2xl bg-card border-[3px] border-line shadow-hard-sm">
+            <div class="flex items-center gap-2 text-sm font-bold text-ink">
               <i data-lucide="search" class="w-4 h-4 text-blue shrink-0"></i>
-              <span>Showing <strong>${games.length}</strong> ${games.length === 1 ? 'result' : 'results'} for "<span class="text-blue dark:text-blue-400">${safeTerm}</span>" in ${scopeLabel}</span>
+              <span>Showing <strong>${games.length}</strong> ${games.length === 1 ? 'result' : 'results'} for "<span class="text-blue">${safeTerm}</span>" in ${scopeLabel}</span>
             </div>
             <div class="flex items-center gap-2">
               ${searchAllBtn}
-              <button data-action="clearSearch" class="px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-700 text-dark dark:text-white text-xs font-bold border-2 border-dark dark:border-slate-500 hover:bg-red-50 hover:text-red-600 transition-colors flex items-center gap-1.5">
+              <button data-action="clearSearch" class="px-3 py-1.5 rounded-lg bg-surface-muted text-ink text-xs font-bold border-2 border-line hover:bg-red-50 hover:text-red-600 transition-colors flex items-center gap-1.5">
                 <i data-lucide="x" class="w-3.5 h-3.5"></i>
                 Clear Search
               </button>
@@ -737,15 +737,15 @@ const ViewManager = {
           : '';
         grid.innerHTML = `
           <div class="empty-state py-16 flex flex-col items-center text-center animate-pop-in">
-            <div class="w-16 h-16 rounded-2xl bg-slate-100 dark:bg-slate-800 border-[3px] border-dark dark:border-slate-600 flex items-center justify-center mb-4 shadow-hard-sm">
-              <i data-lucide="search-x" class="w-8 h-8 text-slate-400"></i>
+            <div class="w-16 h-16 rounded-2xl bg-surface-muted border-[3px] border-line flex items-center justify-center mb-4 shadow-hard-sm">
+              <i data-lucide="search-x" class="w-8 h-8 text-ink-muted"></i>
             </div>
-            <p class="font-heading font-bold text-2xl uppercase text-dark dark:text-white mb-1">No matches for "${safeTerm}"</p>
-            <p class="text-sm font-bold text-slate-500 dark:text-slate-400 mb-6">Try another keyword or clear your active filters.</p>
+            <p class="font-heading font-bold text-2xl uppercase text-ink mb-1">No matches for "${safeTerm}"</p>
+            <p class="text-sm font-bold text-ink-muted mb-6">Try another keyword or clear your active filters.</p>
             <div class="flex flex-wrap justify-center gap-3">
               ${searchAllCta}
               ${resetFiltersCta}
-              <button data-action="clearSearch" class="btn-chunky bg-white dark:bg-slate-800 text-dark dark:text-white px-5 py-2.5 rounded-xl text-sm font-heading font-bold uppercase tracking-wider flex items-center gap-2">
+              <button data-action="clearSearch" class="btn-chunky bg-card text-ink px-5 py-2.5 rounded-xl text-sm font-heading font-bold uppercase tracking-wider flex items-center gap-2">
                 <i data-lucide="x" class="w-4 h-4"></i> Clear Search
               </button>
             </div>
@@ -758,11 +758,11 @@ const ViewManager = {
           : 'Try switching difficulty or resetting your quick filters.';
         grid.innerHTML = `
           <div class="empty-state py-16 flex flex-col items-center text-center animate-pop-in">
-            <div class="w-16 h-16 rounded-2xl bg-slate-100 dark:bg-slate-800 border-[3px] border-dark dark:border-slate-600 flex items-center justify-center mb-4 shadow-hard-sm">
-              <i data-lucide="${quickFilter === 'pinned' ? 'pin' : 'filter'}" class="w-8 h-8 text-slate-400"></i>
+            <div class="w-16 h-16 rounded-2xl bg-surface-muted border-[3px] border-line flex items-center justify-center mb-4 shadow-hard-sm">
+              <i data-lucide="${quickFilter === 'pinned' ? 'pin' : 'filter'}" class="w-8 h-8 text-ink-muted"></i>
             </div>
-            <p class="font-heading font-bold text-2xl uppercase text-dark dark:text-white mb-1">${emptyTitle}</p>
-            <p class="text-sm font-bold text-slate-500 dark:text-slate-400 mb-6">${emptySub}</p>
+            <p class="font-heading font-bold text-2xl uppercase text-ink mb-1">${emptyTitle}</p>
+            <p class="text-sm font-bold text-ink-muted mb-6">${emptySub}</p>
             <button data-action="resetLibraryFilters" class="btn-chunky bg-blue text-white px-5 py-2.5 rounded-xl text-sm font-heading font-bold uppercase tracking-wider flex items-center gap-2">
               <i data-lucide="rotate-ccw" class="w-4 h-4"></i> Reset Filters
             </button>

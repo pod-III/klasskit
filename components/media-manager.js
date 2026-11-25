@@ -376,26 +376,26 @@ const MediaManager = {
 
     createCloudCard(file, signedUrl) {
         const card = document.createElement('div');
-        card.className = "media-card bg-white dark:bg-slate-800 rounded-2xl border-[3px] border-dark dark:border-slate-600 p-3 flex flex-col gap-2 relative group shadow-hard hover:-translate-y-1 hover:shadow-hard-lg transition-all duration-200 cursor-pointer";
+        card.className = "media-card bg-card rounded-2xl border-[3px] border-line p-3 flex flex-col gap-2 relative group shadow-hard hover:-translate-y-1 hover:shadow-hard-lg transition-all duration-200 cursor-pointer";
         card.dataset.path = file.fullPath;
 
         card.innerHTML = `
             <div class="media-card-check absolute top-2 left-2 z-30 hidden">
-                <div class="w-6 h-6 rounded-lg bg-white dark:bg-slate-800 border-2 border-dark dark:border-slate-500 flex items-center justify-center shadow-hard transition-all">
+                <div class="w-6 h-6 rounded-lg bg-card border-2 border-line flex items-center justify-center shadow-hard transition-all">
                     <i data-lucide="check" class="w-4 h-4 text-blue hidden"></i>
                 </div>
             </div>
-            <div class="flex-1 flex items-center justify-center bg-slate-100 dark:bg-slate-900 rounded-xl border-2 border-dark/20 dark:border-slate-700/50 aspect-square overflow-hidden relative">
+            <div class="flex-1 flex items-center justify-center bg-surface-muted rounded-xl border-2 border-line-muted aspect-square overflow-hidden relative">
                 <div class="absolute inset-0 flex items-center justify-center"><i data-lucide="image" class="w-8 h-8 text-slate-300"></i></div>
                 <img class="w-full h-full object-cover relative z-10 opacity-0 transition-opacity duration-300" />
             </div>
-            <div class="text-center font-bold text-xs text-slate-500 dark:text-slate-400 truncate w-full px-2" title="${file.name}">${file.name}</div>
+            <div class="text-center font-bold text-xs text-ink-muted truncate w-full px-2" title="${file.name}">${file.name}</div>
 
             <div class="media-card-actions absolute -top-3 -right-3 flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition-all z-20">
-                <button class="download-btn w-10 h-10 bg-blue text-white rounded-xl border-3 border-dark dark:border-slate-500 shadow-hard hover:bg-blue-600 transition-all flex items-center justify-center hover:scale-110 btn-chunky" title="Download Image">
+                <button class="download-btn w-10 h-10 bg-blue text-white rounded-xl border-3 border-line shadow-hard hover:bg-blue-600 transition-all flex items-center justify-center hover:scale-110 btn-chunky" title="Download Image">
                     <i data-lucide="download" class="w-4 h-4"></i>
                 </button>
-                <button class="delete-btn w-10 h-10 bg-red-500 text-white rounded-xl border-3 border-dark dark:border-slate-500 shadow-hard hover:bg-red-600 transition-all flex items-center justify-center hover:scale-110 btn-chunky" title="Delete Image">
+                <button class="delete-btn w-10 h-10 bg-red-500 text-white rounded-xl border-3 border-line shadow-hard hover:bg-red-600 transition-all flex items-center justify-center hover:scale-110 btn-chunky" title="Delete Image">
                     <i data-lucide="trash-2" class="w-4 h-4"></i>
                 </button>
             </div>
@@ -585,27 +585,27 @@ const MediaManager = {
         else if (item.value && item.value.dataUrl) srcUrl = item.value.dataUrl;
 
         const card = document.createElement('div');
-        card.className = "media-card bg-white dark:bg-slate-800 rounded-2xl border-[3px] border-dark dark:border-slate-600 p-3 flex flex-col gap-2 relative group shadow-hard hover:-translate-y-1 hover:shadow-hard-lg transition-all duration-200 cursor-pointer";
+        card.className = "media-card bg-card rounded-2xl border-[3px] border-line p-3 flex flex-col gap-2 relative group shadow-hard hover:-translate-y-1 hover:shadow-hard-lg transition-all duration-200 cursor-pointer";
         const uid = `${dbInfo.name}::${item.key}`;
         card.dataset.uid = uid;
 
         card.innerHTML = `
             <div class="media-card-check absolute top-2 left-2 z-30 hidden">
-                <div class="w-6 h-6 rounded-lg bg-white dark:bg-slate-800 border-2 border-dark dark:border-slate-500 flex items-center justify-center shadow-hard transition-all">
+                <div class="w-6 h-6 rounded-lg bg-card border-2 border-line flex items-center justify-center shadow-hard transition-all">
                     <i data-lucide="check" class="w-4 h-4 text-blue hidden"></i>
                 </div>
             </div>
-            <div class="flex-1 flex items-center justify-center bg-slate-100 dark:bg-slate-900 rounded-xl border-2 border-dark/20 dark:border-slate-700/50 aspect-square overflow-hidden relative">
+            <div class="flex-1 flex items-center justify-center bg-surface-muted rounded-xl border-2 border-line-muted aspect-square overflow-hidden relative">
                 <img src="${srcUrl}" class="w-full h-full object-cover relative z-10" />
             </div>
-            <div class="text-center font-bold text-[10px] text-slate-500 dark:text-slate-400 truncate w-full px-2" title="${item.key}">${item.key}</div>
+            <div class="text-center font-bold text-[10px] text-ink-muted truncate w-full px-2" title="${item.key}">${item.key}</div>
 
             <div class="media-card-actions absolute -top-3 -right-3 flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition-all z-20">
-                <button class="download-btn w-10 h-10 bg-blue text-white rounded-xl border-3 border-dark dark:border-slate-500 shadow-hard hover:bg-blue-600 transition-all flex items-center justify-center hover:scale-110 btn-chunky" title="Download Image">
+                <button class="download-btn w-10 h-10 bg-blue text-white rounded-xl border-3 border-line shadow-hard hover:bg-blue-600 transition-all flex items-center justify-center hover:scale-110 btn-chunky" title="Download Image">
                     <i data-lucide="download" class="w-4 h-4"></i>
                 </button>
                 ${dbInfo.name !== 'LocalStorage' ? `
-                <button class="delete-btn w-10 h-10 bg-red-500 text-white rounded-xl border-3 border-dark dark:border-slate-500 shadow-hard hover:bg-red-600 transition-all flex items-center justify-center hover:scale-110 btn-chunky" title="Delete Image">
+                <button class="delete-btn w-10 h-10 bg-red-500 text-white rounded-xl border-3 border-line shadow-hard hover:bg-red-600 transition-all flex items-center justify-center hover:scale-110 btn-chunky" title="Delete Image">
                     <i data-lucide="trash-2" class="w-4 h-4"></i>
                 </button>` : ''}
             </div>
@@ -1180,16 +1180,16 @@ const MediaManager = {
         section.dataset.sectionKey = groupKey;
         
         const header = document.createElement('div');
-        header.className = "flex items-center justify-between border-b-[4px] border-dark dark:border-slate-600 pb-4 mb-2";
+        header.className = "flex items-center justify-between border-b-[4px] border-line pb-4 mb-2";
         header.innerHTML = `
             <div class="flex items-center gap-3">
-                <div class="w-10 h-10 bg-blue text-white rounded-xl border-3 border-dark dark:border-slate-500 flex items-center justify-center shadow-hard-sm">
+                <div class="w-10 h-10 bg-blue text-white rounded-xl border-3 border-line flex items-center justify-center shadow-hard-sm">
                     <i data-lucide="folder" class="w-5 h-5"></i>
                 </div>
-                <h3 class="font-heading font-black text-2xl text-dark dark:text-white tracking-tight uppercase">${title}</h3>
+                <h3 class="font-heading font-black text-2xl text-ink tracking-tight uppercase">${title}</h3>
             </div>
             <div class="media-section-check hidden cursor-pointer select-none" title="Select folder">
-                <div class="section-check-box w-8 h-8 rounded-lg bg-white dark:bg-slate-800 border-2 border-dark dark:border-slate-500 flex items-center justify-center shadow-hard transition-all">
+                <div class="section-check-box w-8 h-8 rounded-lg bg-card border-2 border-line flex items-center justify-center shadow-hard transition-all">
                     <i data-lucide="check" class="w-5 h-5 text-blue hidden"></i>
                 </div>
             </div>

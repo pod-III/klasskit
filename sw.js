@@ -1,5 +1,5 @@
 // Bump version whenever sw.js changes
-const CACHE_NAME = 'klasskit-v1.7.3';
+const CACHE_NAME = 'klasskit-v1.8.0';
 
 // 1. Pre-cache Core Assets (Static)
 // Note: Use clean paths or keep consistent with how your app navigates
@@ -17,6 +17,7 @@ const PRE_CACHE_ASSETS = [
   './admin/js/audit.js',
   './admin/js/settings.js',
   './admin/js/cloud.js',
+  './js/theme-init.js',
   './js/hub/core.js',
   './js/hub/ui.js',
   './js/hub/views.js',
@@ -35,6 +36,7 @@ const PRE_CACHE_ASSETS = [
   './css/components.css',
   './css/home.css',
   './css/side-panel.css',
+  './css/api.css',
   './media/icon.png',
   './media/icon-180.png',
   './media/icon-192.png',

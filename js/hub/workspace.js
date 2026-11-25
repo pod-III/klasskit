@@ -675,13 +675,13 @@ const TabManager = {
     // Tab context menu
     this.contextMenu = document.createElement('div');
     this.contextMenu.id = 'tab-context-menu';
-    this.contextMenu.className = 'fixed z-[100] bg-white dark:bg-slate-800 border-2 border-dark dark:border-slate-600 rounded-xl shadow-hard p-2 hidden flex-col gap-1 min-w-[180px]';
+    this.contextMenu.className = 'fixed z-[100] bg-card border-2 border-line rounded-xl shadow-hard p-2 hidden flex-col gap-1 min-w-[180px]';
     document.body.appendChild(this.contextMenu);
 
     // Group submenu ("Add to Group")
     this.groupMenu = document.createElement('div');
     this.groupMenu.id = 'tab-group-submenu';
-    this.groupMenu.className = 'fixed z-[101] bg-white dark:bg-slate-800 border-2 border-dark dark:border-slate-600 rounded-xl shadow-hard p-2 hidden flex-col gap-1 min-w-[160px]';
+    this.groupMenu.className = 'fixed z-[101] bg-card border-2 border-line rounded-xl shadow-hard p-2 hidden flex-col gap-1 min-w-[160px]';
     document.body.appendChild(this.groupMenu);
 
     // Hide menus on click elsewhere

@@ -39,20 +39,66 @@
                 .animate-modal-shake {
                     animation: modal-shake 0.4s ease-in-out;
                 }
+                #universalInputModal .kk-input-card {
+                    background: var(--surface-card, #ffffff);
+                    border: 3px solid var(--border-primary, #334155);
+                    box-shadow: 4px 4px 0px var(--shadow-color, #334155);
+                }
+                #universalInputModal #inputModalTitle {
+                    color: var(--text-primary, #1e293b);
+                }
+                #universalInputModal #inputModalDesc {
+                    color: var(--text-secondary, #475569);
+                }
+                #universalInputModal #inputModalField {
+                    background: var(--bg-primary, #f8fafc);
+                    border: 3px solid var(--border-primary, #334155);
+                    color: var(--text-primary, #1e293b);
+                }
+                #universalInputModal #inputModalField::placeholder {
+                    color: var(--text-tertiary, #94a3b8);
+                }
+                #universalInputModal #inputModalField:focus {
+                    outline: none;
+                    border-color: var(--color-pink, #ff4785);
+                    box-shadow: 2px 2px 0px var(--color-pink, #ff4785);
+                }
+                #universalInputModal #inputModalCancel {
+                    background: var(--bg-tertiary, #e2e8f0);
+                    color: var(--text-primary, #1e293b);
+                    border: 3px solid var(--border-primary, #334155);
+                    box-shadow: 2px 2px 0px var(--shadow-color, #334155);
+                }
+                #universalInputModal #inputModalConfirm {
+                    background: var(--color-pink, #ff4785);
+                    color: #ffffff;
+                    border: 3px solid var(--border-primary, #334155);
+                    box-shadow: 2px 2px 0px var(--shadow-color, #334155);
+                }
+                #universalInputModal #inputModalCancel:hover,
+                #universalInputModal #inputModalConfirm:hover {
+                    transform: translateY(1px);
+                    box-shadow: 1px 1px 0px var(--shadow-color, #334155);
+                }
+                #universalInputModal #inputModalCancel:active,
+                #universalInputModal #inputModalConfirm:active {
+                    transform: translateY(2px);
+                    box-shadow: none;
+                }
             </style>
             <div id="universalInputModal" class="hidden fixed inset-0 z-[500] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-pop font-body">
-                <div class="max-w-sm w-full p-6 flex flex-col items-center bg-[#f8fafc] dark:bg-[#1e293b] rounded-2xl border-[3px] border-[#334155] dark:border-[#475569] shadow-[4px_4px_0px_#334155] dark:shadow-[4px_4px_0px_#475569]">
+                <div class="kk-input-card max-w-sm w-full p-6 flex flex-col items-center rounded-2xl">
                     <div id="inputModalIconWrapper" class="w-16 h-16 rounded-2xl bg-[#ff4785]/10 border-[3px] border-[#ff4785]/30 flex items-center justify-center mb-4">
                         <i id="inputModalIcon" data-lucide="edit-3" class="w-8 h-8 text-[#ff4785]"></i>
                     </div>
-                    <h3 id="inputModalTitle" class="text-2xl font-heading font-bold text-[#1e293b] dark:text-[#f8fafc] mb-2 text-center">Enter Value</h3>
-                    <p id="inputModalDesc" class="text-sm text-[#475569] dark:text-[#94a3b8] mb-5 text-center font-medium"></p>
-                    <input type="text" id="inputModalField" class="w-full px-4 py-3 mb-5 text-center text-base font-bold bg-white dark:bg-[#0f172a] border-[3px] border-[#334155] dark:border-[#475569] rounded-xl text-[#1e293b] dark:text-[#f8fafc] placeholder-[#94a3b8] focus:outline-none focus:border-[#ff4785] focus:shadow-[2px_2px_0px_#ff4785] transition-all" placeholder="Type here...">
+                    <h3 id="inputModalTitle" class="text-2xl font-heading font-bold mb-2 text-center">Enter Value</h3>
+                    <p id="inputModalDesc" class="text-sm mb-5 text-center font-medium"></p>
+                    <input type="text" id="inputModalField" class="w-full px-4 py-3 mb-5 text-center text-base font-bold rounded-xl transition-all" placeholder="Type here...">
                     <div class="flex gap-3 w-full">
-                        <button id="inputModalCancel" class="flex-1 py-3 rounded-xl text-sm font-heading font-bold bg-white dark:bg-[#334155] text-[#1e293b] dark:text-[#f8fafc] border-[3px] border-[#334155] dark:border-[#475569] shadow-[2px_2px_0px_#334155] dark:shadow-[2px_2px_0px_#475569] hover:translate-y-[1px] hover:shadow-[1px_1px_0px_#334155] active:translate-y-[2px] active:shadow-none transition-all">
+                        <button id="inputModalCancel" class="flex-1 py-3 rounded-xl text-sm font-heading font-bold transition-all">
                             Cancel
                         </button>
-                        <button id="inputModalConfirm" class="flex-1 py-3 rounded-xl text-sm font-heading font-bold bg-[#ff4785] text-white border-[3px] border-[#334155] dark:border-[#475569] shadow-[2px_2px_0px_#334155] dark:shadow-[2px_2px_0px_#475569] hover:translate-y-[1px] hover:shadow-[1px_1px_0px_#334155] active:translate-y-[2px] active:shadow-none transition-all">
+                        <button id="inputModalConfirm" class="flex-1 py-3 rounded-xl text-sm font-heading font-bold transition-all">
                             Confirm
                         </button>
                     </div>

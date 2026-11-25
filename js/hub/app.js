@@ -537,6 +537,9 @@ const App = {
 
   bridgeIframeKeyboard(iframe) {
     if (!iframe) return;
+    if (typeof Theme !== 'undefined' && Theme.syncToIframe) {
+      Theme.syncToIframe(iframe);
+    }
     try {
       const doc = iframe.contentDocument || iframe.contentWindow?.document;
       if (!doc || doc.__klasskitShortcutsAttached) return;
@@ -1224,7 +1227,7 @@ const SettingsModal = {
           btn.className = `btn-chunky flex flex-col items-start gap-1.5 p-2.5 rounded-xl border-2 text-left transition-all ${
             isSelected
               ? 'border-blue bg-blue/10 dark:bg-blue/20 shadow-hard-sm'
-              : 'border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 hover:border-dark dark:hover:border-slate-400'
+              : 'border-line-muted bg-card hover:border-line'
           }`;
 
           const dots = document.createElement('div');
@@ -1237,7 +1240,7 @@ const SettingsModal = {
           });
 
           const name = document.createElement('span');
-          name.className = 'font-heading font-bold text-xs text-dark dark:text-white leading-none';
+          name.className = 'font-heading font-bold text-xs text-ink leading-none';
           name.textContent = opt.label;
 
           btn.appendChild(dots);
@@ -1316,7 +1319,7 @@ const SettingsModal = {
           btn.className = `btn-chunky flex flex-col items-start gap-1.5 p-2.5 rounded-xl border-2 text-left transition-all ${
             active
               ? 'border-blue bg-blue/10 dark:bg-blue/20 shadow-hard-sm'
-              : 'border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 hover:border-dark dark:hover:border-slate-400'
+              : 'border-line-muted bg-card hover:border-line'
           }`;
         });
       }
