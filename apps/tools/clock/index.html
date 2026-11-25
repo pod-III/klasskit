@@ -2,76 +2,111 @@
 <html lang="en">
 
 <head>
-    <!-- Supabase Auth -->
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.105.4"></script>
-    <script src="/supabase.js"></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Clock | KlassKit</title>
     <link rel="icon" type="image/x-icon" href="../../../media/icon.ico" />
     <link rel="icon" type="image/webp" href="../../../media/icon.webp" />
+
+    <!-- Early Synchronous Theme & Hub Color-Theme Sync -->
     <script>
-        if (localStorage.getItem("theme_clock") === "dark" || (!localStorage.getItem("theme_clock") && window.matchMedia("(prefers-color-scheme:dark)").matches)) {
-            document.documentElement.classList.add("dark");
-        }
+        (function () {
+            function readStored(key) {
+                try {
+                    var raw = localStorage.getItem(key);
+                    if (raw == null) return null;
+                    try { return JSON.parse(raw); } catch (e) { return raw; }
+                } catch (e) { return null; }
+            }
+            function syncTheme(changedKey) {
+                var isDark;
+                if (changedKey === 'theme_hub') {
+                    var hubVal = readStored('theme_hub');
+                    isDark = hubVal ? hubVal === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
+                } else {
+                    var toolTheme = readStored('theme_clock') || readStored('klasskit-theme');
+                    var hubTheme = readStored('theme_hub');
+                    isDark = toolTheme
+                        ? toolTheme === 'dark'
+                        : hubTheme
+                            ? hubTheme === 'dark'
+                            : window.matchMedia('(prefers-color-scheme: dark)').matches;
+                }
+                document.documentElement.classList.toggle('dark', isDark);
+
+                var colorTheme = readStored('klasskit_colorTheme');
+                if (colorTheme && colorTheme !== 'classic') {
+                    document.documentElement.setAttribute('data-theme', colorTheme);
+                } else {
+                    document.documentElement.removeAttribute('data-theme');
+                }
+            }
+            syncTheme();
+            window.addEventListener('storage', function (e) {
+                if (
+                    e.key === 'theme_hub' ||
+                    e.key === 'theme_clock' ||
+                    e.key === 'klasskit-theme' ||
+                    e.key === 'klasskit_colorTheme'
+                ) {
+                    syncTheme(e.key);
+                }
+            });
+        })();
     </script>
 
-    <!-- Icons & Fonts -->
+    <!-- Supabase Auth -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.105.4"></script>
+    <script src="/supabase.js"></script>
+
+    <!-- Icons & Google Fonts -->
     <script src="https://unpkg.com/lucide@1.16.0"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Nunito:wght@400;600;700;800&family=Share+Tech+Mono&display=swap" rel="stylesheet">
 
-    <!-- Global Base & Components CSS -->
-    <link rel="stylesheet" href="../../../css/tailwind.generated.css" />
-    <link rel="stylesheet" href="../../../css/base.css" />
-    <link rel="stylesheet" href="../../../css/components.css" />
-
-    <!-- Tailwind CSS with KlassKit Extended Tokens -->
-    <link rel="stylesheet" href="./style.css">
-    <style>
-        .font-mono { font-family: "Share Tech Mono", monospace; }
-        .bg-float-icon {
-            color: #94a3b8;
-            opacity: 0.18;
-            position: absolute;
-            z-index: 0;
-            pointer-events: none;
-        }
-
-        .dark .bg-float-icon {
-            opacity: 0.08;
-            color: #ffffff;
-        }
-    </style>
-  <script defer src="/js/analytics.js"></script>
+    <!-- Global Base, Tailwind & Local Styles (Cache-busted ?v=3) -->
+    <link rel="stylesheet" href="../../../css/tailwind.generated.css?v=3" />
+    <link rel="stylesheet" href="../../../css/base.css?v=3" />
+    <link rel="stylesheet" href="../../../css/components.css?v=3" />
+    <link rel="stylesheet" href="./style.css?v=3">
+    <script defer src="/js/analytics.js"></script>
 </head>
 
 <body class="h-screen w-screen overflow-hidden flex flex-row font-body relative select-none">
 
     <!-- Subtle Floating Background Icons -->
-    <div class="absolute inset-0 overflow-hidden pointer-events-none z-0">
+    <div id="bg-floating-icons" class="absolute inset-0 overflow-hidden pointer-events-none z-0">
         <i data-lucide="sparkles" class="bg-float-icon w-28 h-28 top-[8%] left-[12%]"></i>
         <i data-lucide="book-open" class="bg-float-icon w-36 h-36 top-[65%] left-[4%]"></i>
-        <i data-lucide="gamepad-2" class="bg-float-icon w-40 h-40 top-[18%] right-[8%]"></i>
-        <i data-lucide="hourglass" class="bg-float-icon w-24 h-24 top-[72%] right-[18%]"></i>
+        <i data-lucide="clock" class="bg-float-icon w-36 h-36 top-[16%] right-[8%]"></i>
+        <i data-lucide="hourglass" class="bg-float-icon w-24 h-24 top-[72%] right-[16%]"></i>
     </div>
+
+    <!-- Floating Exit Focus Stage Pill -->
+    <button id="focus-exit-btn" onclick="toggleFocusStage()"
+        class="btn-chunky px-3.5 py-2 rounded-xl bg-white/95 dark:bg-slate-800/95 text-dark dark:text-white text-xs gap-2"
+        title="Exit Fullscreen (Esc)">
+        <i data-lucide="minimize-2" class="w-4 h-4 text-blue"></i>
+        <span>Exit Fullscreen</span>
+        <span class="px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-700 text-[10px]">ESC</span>
+    </button>
 
     <!-- SIDEBAR -->
     <aside id="app-sidebar"
-        class="app-sidebar h-full border-r-[3px] border-[#1e293b] dark:border-slate-700 bg-white/95 dark:bg-[#0f172a]/95 backdrop-blur-md flex flex-col z-50 flex-shrink-0 absolute md:relative transition-all -translate-x-full md:translate-x-0 shadow-xl md:shadow-none">
+        class="app-sidebar h-full border-r-[3px] border-[#1e293b] dark:border-slate-700 bg-white/95 dark:bg-[#0f172a]/95 backdrop-blur-md flex flex-col z-50 flex-shrink-0 absolute md:relative -translate-x-full md:translate-x-0 shadow-xl md:shadow-none">
 
-        <!-- Branding / Header -->
-        <div class="sidebar-header p-4 sm:p-5 border-b-[3px] border-[#1e293b] dark:border-slate-700 flex items-center gap-3 bg-white dark:bg-slate-900 relative z-10">
-            <!-- Desktop toggle -->
-            <button onclick="toggleSidebar()" class="sidebar-logo-icon flex-none cursor-pointer hidden md:flex items-center justify-center p-0.5 focus-visible:outline-none" title="Toggle Sidebar">
-                <div class="w-11 h-11 bg-blue text-white rounded-xl border-[2.5px] border-[#1e293b] dark:border-slate-400 flex items-center justify-center shadow-[3px_3px_0px_0px_#1e293b] dark:shadow-[3px_3px_0px_0px_#000] shrink-0 transform -rotate-3 hover:rotate-0 transition-transform">
+        <!-- Sidebar Header -->
+        <div class="sidebar-header p-4 border-b-[3px] border-[#1e293b] dark:border-slate-700 flex items-center gap-3 bg-white dark:bg-slate-900 relative z-10">
+            <button onclick="toggleSidebar()"
+                class="sidebar-logo-icon flex-none cursor-pointer hidden md:flex items-center justify-center p-0.5 rounded-xl"
+                title="Collapse / Expand Sidebar">
+                <div class="w-11 h-11 bg-blue text-white rounded-xl border-[2.5px] border-[#1e293b] dark:border-slate-400 flex items-center justify-center shadow-[3px_3px_0px_0px_#1e293b] dark:shadow-[3px_3px_0px_0px_#000] flex-shrink-0 -rotate-3 hover:rotate-0 transition-transform">
                     <i data-lucide="clock" class="w-6 h-6"></i>
                 </div>
             </button>
-            <!-- Mobile icon -->
             <div class="sidebar-logo-icon flex-none md:hidden">
-                <div class="w-11 h-11 bg-blue text-white rounded-xl border-[2.5px] border-[#1e293b] dark:border-slate-400 flex items-center justify-center shadow-[3px_3px_0px_0px_#1e293b] shrink-0 transform -rotate-3">
+                <div class="w-11 h-11 bg-blue text-white rounded-xl border-[2.5px] border-[#1e293b] dark:border-slate-400 flex items-center justify-center shadow-[3px_3px_0px_0px_#1e293b] flex-shrink-0 -rotate-3">
                     <i data-lucide="clock" class="w-6 h-6"></i>
                 </div>
             </div>
@@ -79,202 +114,344 @@
                 <h1 class="font-heading font-bold text-2xl tracking-tight text-dark dark:text-white leading-none uppercase truncate">Clock</h1>
                 <div class="text-[0.65rem] font-heading font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 mt-0.5">KlassKit</div>
             </div>
-            <!-- Mobile close button -->
-            <button onclick="toggleSidebar()" class="md:hidden p-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 transition-colors" title="Close">
+            <button onclick="toggleSidebar()" class="md:hidden p-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 transition-colors" title="Close Menu">
                 <i data-lucide="x" class="w-5 h-5"></i>
             </button>
+        </div>
+
+        <!-- Simple | Pro Mode Toggle Pill (Inspired by Team Picker) -->
+        <div id="ui-mode-bar" class="sidebar-mode-pill px-3 pt-3 pb-1">
+            <div class="flex items-center gap-1 p-1 rounded-xl border-2 border-[#1e293b] dark:border-slate-600 bg-slate-100 dark:bg-slate-800">
+                <button type="button" id="btn-uimode-simple" onclick="setUiMode('simple')"
+                    class="ui-mode-btn active flex-1 py-1.5 rounded-lg text-[11px] uppercase">Simple</button>
+                <button type="button" id="btn-uimode-pro" onclick="setUiMode('pro')"
+                    class="ui-mode-btn flex-1 py-1.5 rounded-lg text-[11px] uppercase">Pro</button>
+            </div>
         </div>
 
         <!-- Navigation Items -->
         <nav class="sidebar-nav flex-1 py-3 px-3 space-y-1.5 overflow-y-auto custom-scrollbar">
             <button onclick="switchTool('clock')" id="nav-clock" title="Clock (1)"
-                class="nav-item active w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors border-2 border-transparent font-heading font-bold text-sm">
-                <i data-lucide="clock" class="w-5 h-5 flex-shrink-0 icon-base"></i> <span class="sidebar-text">Clock</span>
+                class="nav-item active w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 border-2 border-transparent font-heading font-bold text-sm">
+                <i data-lucide="clock" class="w-5 h-5 flex-shrink-0 icon-base"></i>
+                <span class="sidebar-text flex-1 text-left">Clock</span>
+                <span id="nav-badge-clock" class="nav-badge px-1.5 py-0.5 rounded-md text-[10px] bg-orange text-white font-heading">TEACH</span>
             </button>
+
             <button onclick="switchTool('stopwatch')" id="nav-stopwatch" title="Stopwatch (2)"
-                class="nav-item w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors border-2 border-transparent font-heading font-bold text-sm">
-                <i data-lucide="timer" class="w-5 h-5 flex-shrink-0 icon-base"></i> <span class="sidebar-text">Stopwatch</span>
+                class="nav-item w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 border-2 border-transparent font-heading font-bold text-sm">
+                <i data-lucide="timer" class="w-5 h-5 flex-shrink-0 icon-base"></i>
+                <span class="sidebar-text flex-1 text-left">Stopwatch</span>
+                <span id="nav-badge-stopwatch" class="nav-badge px-1.5 py-0.5 rounded-md text-[10px] font-mono bg-blue text-white">00:00</span>
             </button>
+
             <button onclick="switchTool('timer')" id="nav-timer" title="Timer (3)"
-                class="nav-item w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors border-2 border-transparent font-heading font-bold text-sm">
-                <i data-lucide="hourglass" class="w-5 h-5 flex-shrink-0 icon-base"></i> <span class="sidebar-text">Timer</span>
+                class="nav-item w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 border-2 border-transparent font-heading font-bold text-sm">
+                <i data-lucide="hourglass" class="w-5 h-5 flex-shrink-0 icon-base"></i>
+                <span class="sidebar-text flex-1 text-left">Timer</span>
+                <span id="nav-badge-timer" class="nav-badge px-1.5 py-0.5 rounded-md text-[10px] font-mono bg-green text-white">05:00</span>
             </button>
+
             <button onclick="switchTool('alarm')" id="nav-alarm" title="Alarm (4)"
-                class="nav-item w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors border-2 border-transparent font-heading font-bold text-sm">
-                <i data-lucide="bell" class="w-5 h-5 flex-shrink-0 icon-base"></i> <span class="sidebar-text">Alarm</span>
+                class="nav-item w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 border-2 border-transparent font-heading font-bold text-sm">
+                <i data-lucide="bell" class="w-5 h-5 flex-shrink-0 icon-base"></i>
+                <span class="sidebar-text flex-1 text-left">Alarm</span>
+                <span id="nav-badge-alarm" class="nav-badge px-1.5 py-0.5 rounded-md text-[10px] font-heading bg-pink text-white">0</span>
             </button>
+
             <button onclick="switchTool('countdown')" id="nav-countdown" title="Countdown (5)"
-                class="nav-item w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors border-2 border-transparent font-heading font-bold text-sm">
-                <i data-lucide="timer-reset" class="w-5 h-5 flex-shrink-0 icon-base"></i> <span class="sidebar-text">Countdown</span>
+                class="nav-item w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 border-2 border-transparent font-heading font-bold text-sm">
+                <i data-lucide="timer-reset" class="w-5 h-5 flex-shrink-0 icon-base"></i>
+                <span class="sidebar-text flex-1 text-left">Countdown</span>
+                <span id="nav-badge-countdown" class="nav-badge px-1.5 py-0.5 rounded-md text-[10px] font-heading bg-blue text-white">ON</span>
             </button>
+
             <button onclick="switchTool('calendar')" id="nav-calendar" title="Calendar (6)"
-                class="nav-item w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors border-2 border-transparent font-heading font-bold text-sm">
-                <i data-lucide="calendar" class="w-5 h-5 flex-shrink-0 icon-base"></i> <span class="sidebar-text">Calendar</span>
+                class="nav-item w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 border-2 border-transparent font-heading font-bold text-sm">
+                <i data-lucide="calendar" class="w-5 h-5 flex-shrink-0 icon-base"></i>
+                <span class="sidebar-text flex-1 text-left">Calendar</span>
+                <span id="nav-badge-calendar" class="nav-badge px-1.5 py-0.5 rounded-md text-[10px] font-heading bg-pink text-white">0</span>
             </button>
         </nav>
 
         <!-- Sidebar Footer -->
         <div class="sidebar-footer p-3 border-t-[3px] border-[#1e293b] dark:border-slate-700 bg-slate-50 dark:bg-slate-900 flex flex-col gap-2 items-center">
-            <div class="flex items-center justify-center gap-2 w-full">
-                <button onclick="toggleDarkMode()"
+            <div class="sidebar-footer-actions flex items-center justify-center gap-2 w-full">
+                <button onclick="toggleDarkMode()" id="btn-theme-toggle"
                     class="btn-chunky w-10 h-10 rounded-xl bg-white dark:bg-slate-800 text-dark dark:text-white"
-                    title="Toggle Theme">
+                    title="Toggle Light / Dark Theme">
                     <i data-lucide="moon" class="w-4 h-4 text-dark dark:hidden"></i>
                     <i data-lucide="sun" class="w-4 h-4 text-yellow-400 hidden dark:block"></i>
                 </button>
                 <button onclick="toggleAudioMute()" id="btn-mute-toggle"
                     class="btn-chunky w-10 h-10 rounded-xl bg-white dark:bg-slate-800 text-dark dark:text-white"
-                    title="Mute / Unmute Sounds">
+                    title="Mute / Unmute Sounds (M)">
                     <i data-lucide="volume-2" class="w-4 h-4 text-blue"></i>
+                </button>
+                <button onclick="openShortcutsModal()" id="btn-shortcuts"
+                    class="btn-chunky w-10 h-10 rounded-xl bg-white dark:bg-slate-800 text-dark dark:text-white"
+                    title="Keyboard Shortcuts (?)">
+                    <i data-lucide="keyboard" class="w-4 h-4 text-slate-500 dark:text-slate-300"></i>
                 </button>
             </div>
             <div class="text-[9px] font-heading font-bold text-slate-400 uppercase tracking-widest text-center sidebar-label">
-                TIME TOOLS
+                KLASSKIT TIME TOOLS
             </div>
         </div>
     </aside>
 
-    <!-- MOBILE HEADER (visible on small screens) -->
-    <div class="md:hidden fixed top-0 left-0 right-0 h-14 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border-b-[3px] border-[#1e293b] dark:border-slate-700 z-40 flex items-center px-4 justify-between">
-        <div class="flex items-center gap-3">
-            <button onclick="toggleSidebar()" class="btn-chunky p-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-dark dark:text-white">
+    <!-- MOBILE HEADER -->
+    <header id="mobile-header"
+        class="md:hidden fixed top-0 left-0 right-0 h-14 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border-b-[3px] border-[#1e293b] dark:border-slate-700 z-40 flex items-center px-3 justify-between">
+        <div class="flex items-center gap-2.5">
+            <button onclick="toggleSidebar()" class="btn-chunky w-9 h-9 rounded-xl bg-slate-100 dark:bg-slate-800 text-dark dark:text-white" title="Open Menu">
                 <i data-lucide="menu" class="w-5 h-5"></i>
             </button>
-            <h1 class="font-heading font-bold text-xl tracking-tight text-dark dark:text-white uppercase leading-none">Clock</h1>
+            <h1 id="mobile-tool-title" class="font-heading font-bold text-lg tracking-tight text-dark dark:text-white uppercase leading-none">Clock</h1>
         </div>
-        <button onclick="toggleDarkMode()" class="btn-chunky w-9 h-9 rounded-xl bg-white dark:bg-slate-800 text-dark dark:text-white">
-            <i data-lucide="moon" class="w-4 h-4 text-dark dark:hidden"></i>
-            <i data-lucide="sun" class="w-4 h-4 text-yellow-400 hidden dark:block"></i>
-        </button>
-    </div>
+        <div class="flex items-center gap-2">
+            <button onclick="toggleUiMode()" id="btn-uimode-mobile"
+                class="btn-chunky px-2.5 h-9 rounded-xl bg-white dark:bg-slate-800 text-dark dark:text-white text-[11px]"
+                title="Switch Simple / Pro Mode">SIMPLE</button>
+            <button onclick="toggleAudioMute()" id="btn-mute-mobile"
+                class="btn-chunky w-9 h-9 rounded-xl bg-white dark:bg-slate-800 text-dark dark:text-white" title="Mute / Unmute">
+                <i data-lucide="volume-2" class="w-4 h-4 text-blue"></i>
+            </button>
+            <button onclick="toggleDarkMode()"
+                class="btn-chunky w-9 h-9 rounded-xl bg-white dark:bg-slate-800 text-dark dark:text-white" title="Toggle Theme">
+                <i data-lucide="moon" class="w-4 h-4 text-dark dark:hidden"></i>
+                <i data-lucide="sun" class="w-4 h-4 text-yellow-400 hidden dark:block"></i>
+            </button>
+        </div>
+    </header>
 
     <!-- SIDEBAR OVERLAY (Mobile only) -->
     <div id="sidebar-overlay" onclick="toggleSidebar()"
         class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-[45] hidden md:hidden transition-opacity duration-300 opacity-0">
     </div>
 
-    <!-- MAIN CONTENT AREA -->
-    <!-- Optimized for Chromebook Asus 1366x768 (centering and tight vertical padding) -->
+    <!-- MAIN CONTENT AREA (Chromebook 1366x768 Optimized) -->
     <main id="main-content-area"
-        class="flex-1 h-full relative overflow-y-auto custom-scrollbar flex flex-col items-center justify-center p-3 sm:p-5 md:p-6 pt-16 md:pt-6 transition-colors duration-300">
+        class="flex-1 h-full relative overflow-y-auto custom-scrollbar flex flex-col items-center justify-center p-3 sm:p-5 md:p-6 pt-16 md:pt-5 transition-colors duration-300">
 
         <!-- ========================================================
              1. CLOCK SECTION
              ======================================================== -->
-        <section id="tool-clock" class="w-full max-w-3xl flex flex-col items-center animate-pop-in">
-            <div class="tool-card w-full p-5 sm:p-8 flex flex-col items-center text-center relative overflow-hidden">
+        <section id="tool-clock" class="tool-section active w-full max-w-3xl flex-col items-center animate-pop-in">
+            <div class="tool-card w-full p-4 sm:p-6 flex flex-col items-center text-center relative overflow-hidden">
                 <!-- Soft Glow Accents -->
-                <div class="absolute -top-12 -right-12 w-48 h-48 bg-blue/10 rounded-full blur-3xl pointer-events-none"></div>
-                <div class="absolute -bottom-12 -left-12 w-48 h-48 bg-pink/10 rounded-full blur-3xl pointer-events-none"></div>
+                <div class="absolute -top-14 -right-14 w-48 h-48 bg-blue/10 rounded-full blur-3xl pointer-events-none"></div>
+                <div class="absolute -bottom-14 -left-14 w-48 h-48 bg-pink/10 rounded-full blur-3xl pointer-events-none"></div>
 
-                <!-- Top Controls -->
+                <!-- Top Control Bar -->
                 <div id="clock-controls-top"
-                    class="absolute top-4 sm:top-5 right-4 sm:right-6 flex items-center gap-2 z-20 transition-opacity duration-300">
-                    <button onclick="clockToggleFormat()" id="clock-btn-format"
-                        class="btn-chunky text-xs font-heading font-bold px-3 py-1.5 rounded-xl bg-white dark:bg-slate-800 text-dark dark:text-white"
-                        title="Toggle 12/24 Hour Format">12H</button>
-                    <button onclick="clockToggleView()" id="clock-btn-view"
-                        class="btn-chunky text-xs font-heading font-bold px-3 py-1.5 rounded-xl bg-white dark:bg-slate-800 text-dark dark:text-white"
-                        title="Switch Digital/Analog View">ANALOG</button>
-                    <button onclick="clockToggleZen()" id="clock-btn-zen"
-                        class="btn-chunky p-1.5 sm:px-2.5 sm:py-1.5 rounded-xl bg-green/15 text-green dark:bg-green/20"
-                        title="Toggle Zen Fullscreen Mode (Z)">
-                        <i data-lucide="maximize" class="w-4 h-4"></i>
-                    </button>
+                    class="focus-hide w-full flex flex-wrap items-center justify-between gap-2 pb-3 mb-3 border-b-2 border-[#1e293b]/15 dark:border-slate-700/70 z-20">
+                    <div class="pro-only flex items-center gap-2">
+                        <span id="clock-mode-badge"
+                            class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border-2 border-[#1e293b] dark:border-slate-600 bg-green/15 text-green font-heading font-bold text-[11px] uppercase tracking-wider">
+                            <i data-lucide="radio" class="w-3.5 h-3.5"></i>
+                            <span>LIVE CLOCK</span>
+                        </span>
+                    </div>
+                    <div class="ml-auto flex flex-wrap items-center justify-end gap-1.5">
+                        <button onclick="clockToggleFormat()" id="clock-btn-format"
+                            class="btn-chunky text-[11px] px-2.5 py-1 rounded-xl bg-white dark:bg-slate-800 text-dark dark:text-white"
+                            title="Toggle 12H / 24H Format (F)">12H</button>
+                        <button onclick="clockToggleView()" id="clock-btn-view"
+                            class="btn-chunky text-[11px] px-2.5 py-1 rounded-xl bg-white dark:bg-slate-800 text-dark dark:text-white"
+                            title="Switch Digital / Analog (V)">ANALOG</button>
+                        <button onclick="clockCycleWords()" id="clock-btn-words"
+                            class="pro-only btn-chunky text-[11px] px-2.5 py-1 rounded-xl bg-white dark:bg-slate-800 text-dark dark:text-white gap-1"
+                            title="Spoken English Time Readout (W)">
+                            <i data-lucide="message-square-quote" class="w-3.5 h-3.5 text-pink"></i>
+                            <span>WORDS: OFF</span>
+                        </button>
+                        <button onclick="clockToggleSeconds()" id="clock-btn-seconds"
+                            class="pro-only btn-chunky text-[11px] px-2.5 py-1 rounded-xl bg-blue text-white"
+                            title="Show / Hide Seconds">SEC: ON</button>
+                        <button onclick="clockToggleWorldPanel()" id="clock-btn-world"
+                            class="pro-only btn-chunky text-[11px] px-2.5 py-1 rounded-xl bg-white dark:bg-slate-800 text-dark dark:text-white gap-1"
+                            title="Toggle World Clocks">
+                            <i data-lucide="globe" class="w-3.5 h-3.5 text-blue"></i>
+                            <span>WORLD</span>
+                        </button>
+                        <button onclick="clockToggleZen()" id="clock-btn-zen"
+                            class="btn-chunky p-1.5 sm:px-2.5 sm:py-1 rounded-xl bg-green text-white"
+                            title="Fullscreen Focus Stage (Z)">
+                            <i data-lucide="maximize-2" class="w-4 h-4"></i>
+                        </button>
+                    </div>
                 </div>
 
-                <!-- DIGITAL VIEW -->
-                <div id="clock-digital" class="flex flex-col items-center w-full mt-4 sm:mt-2 transition-opacity duration-300">
-                    <!-- Date Pill Banner -->
-                    <div class="bg-blue text-white font-heading font-bold px-5 py-1.5 rounded-full border-2 border-[#1e293b] shadow-[3px_3px_0px_0px_#1e293b] dark:shadow-[3px_3px_0px_0px_#000] mb-5 sm:mb-6 z-10 text-sm sm:text-base tracking-wider uppercase">
+                <!-- DIGITAL CLOCK PANE -->
+                <div id="clock-digital" class="clock-pane active flex-col items-center w-full py-1">
+                    <div class="bg-blue text-white font-heading font-bold px-5 py-1.5 rounded-full border-2 border-[#1e293b] shadow-[3px_3px_0px_0px_#1e293b] dark:shadow-[3px_3px_0px_0px_#000] mb-4 z-10 text-xs sm:text-sm tracking-wider uppercase">
                         <span id="clock-date">LOADING...</span>
                     </div>
 
-                    <!-- Digital Time Container -->
-                    <div class="rounded-2xl sm:rounded-[2rem] border-3 border-[#1e293b] dark:border-slate-600 bg-slate-50/90 dark:bg-slate-800/80 p-5 sm:p-8 shadow-[inset_2px_2px_0px_0px_rgba(30,41,59,0.1)] w-full flex items-center justify-center relative max-w-2xl">
-                        <!-- Main Time -->
-                        <div class="relative z-10 py-1 sm:py-3">
+                    <div class="inset-surface rounded-2xl sm:rounded-[2rem] border-[3px] border-[#1e293b] dark:border-slate-600 p-5 sm:p-8 w-full flex items-center justify-center relative max-w-2xl">
+                        <div class="relative z-10 py-2">
                             <div id="clock-time"
                                 class="font-mono text-6xl sm:text-7xl md:text-8xl leading-none font-bold tracking-tight text-dark dark:text-white drop-shadow-sm">
                                 00:00
                             </div>
                         </div>
 
-                        <!-- Seconds Sticker Badge -->
-                        <div class="absolute top-3 sm:top-4 right-3 sm:right-5 bg-pink text-white font-mono text-base sm:text-xl font-bold px-2.5 py-0.5 sm:py-1 rounded-xl border-2 border-[#1e293b] shadow-[2px_2px_0px_0px_#1e293b] transform rotate-6">
+                        <div id="clock-sec-wrap"
+                            class="absolute top-3 sm:top-4 right-3 sm:right-5 bg-pink text-white font-mono text-base sm:text-xl font-bold px-2.5 py-0.5 sm:py-1 rounded-xl border-2 border-[#1e293b] shadow-[2px_2px_0px_0px_#1e293b] rotate-6">
                             <span id="clock-sec-dig">00</span>
                         </div>
 
-                        <!-- AM/PM Sticker Badge -->
                         <div id="clock-ampm"
-                            class="absolute bottom-3 sm:bottom-4 right-3 sm:right-5 bg-orange text-white font-heading font-bold text-xs sm:text-base px-2.5 py-0.5 sm:py-1 rounded-xl border-2 border-[#1e293b] shadow-[2px_2px_0px_0px_#1e293b] transform -rotate-3">
+                            class="absolute bottom-3 sm:bottom-4 right-3 sm:right-5 bg-orange text-white font-heading font-bold text-xs sm:text-base px-2.5 py-0.5 sm:py-1 rounded-xl border-2 border-[#1e293b] shadow-[2px_2px_0px_0px_#1e293b] -rotate-3">
                             PM
                         </div>
                     </div>
                 </div>
 
-                <!-- ANALOG VIEW (Hidden initially) -->
-                <div id="clock-analog" class="hidden flex-col items-center justify-center py-2 transition-opacity duration-300 w-full">
-                    <div class="p-3 sm:p-4 rounded-full border-3 border-[#1e293b] dark:border-slate-600 bg-slate-50 dark:bg-slate-800/80 shadow-[4px_4px_0px_0px_#1e293b] dark:shadow-[4px_4px_0px_0px_#000] mb-4">
-                        <div class="relative w-[210px] h-[210px] sm:w-[250px] sm:h-[250px] rounded-full border-4 border-[#1e293b] dark:border-slate-500 bg-white dark:bg-slate-900 flex items-center justify-center">
-                            <svg viewBox="0 0 100 100" class="w-full h-full">
-                                <g id="clock-face-markers" class="text-slate-400 dark:text-slate-500"></g>
-                                <!-- Minute Hand -->
-                                <line id="hand-min" x1="50" y1="50" x2="50" y2="18" stroke="#64748b" stroke-width="3" stroke-linecap="round" />
-                                <!-- Hour Hand -->
-                                <line id="hand-hour" x1="50" y1="50" x2="50" y2="28" stroke="currentColor" stroke-width="4" stroke-linecap="round" class="text-dark dark:text-white" />
-                                <!-- Center Pivot Outer -->
-                                <circle cx="50" cy="50" r="4.5" fill="currentColor" class="text-dark dark:text-white" />
-                                <!-- Second Hand -->
-                                <line id="hand-sec" x1="50" y1="62" x2="50" y2="14" stroke="#ff4785" stroke-width="1.8" stroke-linecap="round" />
-                                <!-- Center Pivot Inner -->
-                                <circle cx="50" cy="50" r="2" fill="#ff4785" />
-                            </svg>
+                <!-- ANALOG CLOCK PANE (Includes Interactive Teaching Clock) -->
+                <div id="clock-analog" class="clock-pane flex-col items-center justify-center w-full py-1 gap-3">
+                    <div class="flex flex-col sm:flex-row items-center justify-center gap-4 w-full">
+                        <div class="p-3 rounded-full border-[3px] border-[#1e293b] dark:border-slate-600 bg-slate-50 dark:bg-slate-800/80 shadow-[4px_4px_0px_0px_#1e293b] dark:shadow-[4px_4px_0px_0px_#000]">
+                            <div id="clock-analog-face" class="relative w-[205px] h-[205px] sm:w-[235px] sm:h-[235px] rounded-full border-4 border-[#1e293b] dark:border-slate-500 bg-white dark:bg-slate-900 flex items-center justify-center">
+                                <svg viewBox="0 0 200 200" class="w-full h-full">
+                                    <circle cx="100" cy="100" r="88" fill="none" stroke="currentColor" stroke-width="1" stroke-dasharray="3 4" class="text-slate-200 dark:text-slate-700" />
+                                    <g id="clock-face-markers" class="text-slate-400 dark:text-slate-500"></g>
+                                    <g id="clock-face-numbers" class="text-dark dark:text-white"></g>
+                                    <g id="clock-face-minutes" class="text-orange is-hidden"></g>
+                                    <!-- Color-Coded Hands for ELT Time Telling (Blue Hour, Orange Minute, Pink Second) -->
+                                    <line id="hand-hour" x1="100" y1="106" x2="100" y2="54" stroke="#1ea7fd" stroke-width="7" stroke-linecap="round" />
+                                    <line id="hand-min" x1="100" y1="108" x2="100" y2="30" stroke="#ff7e33" stroke-width="4.5" stroke-linecap="round" />
+                                    <circle cx="100" cy="100" r="6" fill="currentColor" class="text-dark dark:text-white" />
+                                    <line id="hand-sec" x1="100" y1="118" x2="100" y2="24" stroke="#ff4785" stroke-width="2.2" stroke-linecap="round" />
+                                    <circle cx="100" cy="100" r="3" fill="#ff4785" />
+                                </svg>
+                            </div>
                         </div>
-                    </div>
-                    <div id="clock-date-analog"
-                        class="text-base sm:text-xl font-heading font-bold px-6 py-2 border-2 border-[#1e293b] dark:border-slate-600 rounded-xl shadow-[3px_3px_0px_0px_#1e293b] dark:shadow-[3px_3px_0px_0px_#000] bg-white dark:bg-slate-800 text-dark dark:text-white uppercase tracking-wider">
-                        DATE
+
+                        <!-- Side / Below Info + Interactive Teaching Controls -->
+                        <div class="flex flex-col items-center sm:items-start gap-2.5 max-w-xs w-full sm:w-auto">
+                            <div class="flex items-center gap-2 flex-wrap justify-center sm:justify-start">
+                                <span id="clock-date-analog"
+                                    class="text-sm sm:text-base font-heading font-bold px-4 py-1.5 border-2 border-[#1e293b] dark:border-slate-600 rounded-xl shadow-[2px_2px_0px_0px_#1e293b] dark:shadow-[2px_2px_0px_0px_#000] bg-white dark:bg-slate-800 text-dark dark:text-white uppercase tracking-wider">
+                                    DATE
+                                </span>
+                                <span id="clock-teach-answer"
+                                    class="is-hidden text-lg font-mono font-bold px-3.5 py-1 border-2 border-[#1e293b] rounded-xl bg-blue text-white shadow-[2px_2px_0px_0px_#1e293b]">
+                                    03:15 PM
+                                </span>
+                            </div>
+
+                            <!-- Legend Pill -->
+                            <div class="pro-only focus-hide flex items-center gap-3 text-[11px] font-heading font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                                <span class="inline-flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-blue inline-block border border-[#1e293b]"></span> Hour</span>
+                                <span class="inline-flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-orange inline-block border border-[#1e293b]"></span> Minute</span>
+                            </div>
+
+                            <!-- Teach Mode Bar -->
+                            <div id="clock-teach-bar" class="pro-only focus-hide w-full flex flex-col gap-2 items-center sm:items-start">
+                                <div class="flex flex-wrap items-center gap-1.5 justify-center sm:justify-start">
+                                    <button onclick="clockToggleTeachMode()" id="clock-btn-teach"
+                                        class="btn-chunky px-3 py-1.5 rounded-xl text-xs bg-white dark:bg-slate-800 text-dark dark:text-white gap-1.5"
+                                        title="Interactive Classroom Teaching Clock">
+                                        <i data-lucide="graduation-cap" class="w-3.5 h-3.5 text-orange"></i>
+                                        <span>Teach Mode</span>
+                                    </button>
+                                    <button onclick="clockToggleMinuteHelpers()" id="clock-btn-min-helpers"
+                                        class="btn-chunky px-2.5 py-1.5 rounded-xl text-[11px] bg-white dark:bg-slate-800 text-dark dark:text-white"
+                                        title="Show 05-55 Minute Ring Numbers">05-55</button>
+                                </div>
+
+                                <div id="clock-teach-controls" class="is-hidden w-full flex flex-col gap-1.5 p-2.5 rounded-2xl border-2 border-[#1e293b] dark:border-slate-600 bg-slate-50/90 dark:bg-slate-800/80">
+                                    <div class="flex flex-wrap gap-1 justify-center sm:justify-start">
+                                        <button onclick="clockStepTeach(-60)" class="chip-pill px-2 py-1 rounded-lg bg-white dark:bg-slate-700 text-[11px] font-heading font-bold">-1h</button>
+                                        <button onclick="clockStepTeach(-15)" class="chip-pill px-2 py-1 rounded-lg bg-white dark:bg-slate-700 text-[11px] font-heading font-bold">-15m</button>
+                                        <button onclick="clockStepTeach(-5)" class="chip-pill px-2 py-1 rounded-lg bg-white dark:bg-slate-700 text-[11px] font-heading font-bold">-5m</button>
+                                        <button onclick="clockStepTeach(5)" class="chip-pill px-2 py-1 rounded-lg bg-white dark:bg-slate-700 text-[11px] font-heading font-bold">+5m</button>
+                                        <button onclick="clockStepTeach(15)" class="chip-pill px-2 py-1 rounded-lg bg-white dark:bg-slate-700 text-[11px] font-heading font-bold">+15m</button>
+                                        <button onclick="clockStepTeach(60)" class="chip-pill px-2 py-1 rounded-lg bg-white dark:bg-slate-700 text-[11px] font-heading font-bold">+1h</button>
+                                    </div>
+                                    <div class="flex flex-wrap gap-1.5 justify-center sm:justify-start pt-0.5">
+                                        <button onclick="clockRandomTeach()" class="chip-pill px-2.5 py-1 rounded-lg bg-orange text-white text-[11px] font-heading font-bold inline-flex items-center gap-1">
+                                            <i data-lucide="shuffle" class="w-3 h-3"></i> Random
+                                        </button>
+                                        <button onclick="clockToggleRevealAnswer()" id="clock-btn-reveal-answer" class="chip-pill px-2.5 py-1 rounded-lg bg-blue text-white text-[11px] font-heading font-bold inline-flex items-center gap-1">
+                                            <i data-lucide="eye" class="w-3 h-3"></i> Hide Answer
+                                        </button>
+                                        <button onclick="clockToggleTeachMode(false)" class="chip-pill px-2.5 py-1 rounded-lg bg-green text-white text-[11px] font-heading font-bold inline-flex items-center gap-1">
+                                            <i data-lucide="radio" class="w-3 h-3"></i> Live
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
-                <!-- Weather & Location Indicator -->
-                <div id="clock-location-marker" class="mt-5 pt-3 border-t-2 border-[#1e293b]/15 dark:border-slate-700/60 w-full flex justify-center">
-                    <div class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full border-2 border-[#1e293b] dark:border-slate-600 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 shadow-[2px_2px_0px_0px_#1e293b] dark:shadow-[2px_2px_0px_0px_#000]">
-                        <i data-lucide="map-pin" class="w-3.5 h-3.5 text-orange"></i>
-                        <span class="text-xs font-bold font-heading">Local Time</span>
+                <!-- SPOKEN ENGLISH TIME BANNER -->
+                <div id="clock-words-banner"
+                    class="pro-only is-hidden mt-3 px-4 py-2 rounded-2xl border-2 border-[#1e293b] dark:border-slate-600 bg-pink/10 dark:bg-pink/15 inline-flex items-center gap-2.5 max-w-xl">
+                    <span id="clock-words-mode-pill" class="px-2 py-0.5 rounded-lg bg-pink text-white font-heading font-bold text-[10px] uppercase tracking-wider">CLASSIC</span>
+                    <span id="clock-words-text" class="font-heading font-bold text-base sm:text-xl text-dark dark:text-white tracking-wide">Quarter past three</span>
+                </div>
+
+                <!-- WORLD CLOCKS PANEL -->
+                <div id="clock-world-panel" class="pro-only world-panel focus-hide w-full mt-3 pt-3 border-t-2 border-[#1e293b]/15 dark:border-slate-700/70">
+                    <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
+                        <span class="text-[11px] font-heading font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+                            <i data-lucide="globe" class="w-3.5 h-3.5 text-blue"></i> World Clocks (ELT Cities)
+                        </span>
+                        <select id="clock-world-select" onchange="clockAddWorldCity(this.value)"
+                            class="px-2.5 py-1 rounded-lg border-2 border-[#1e293b] dark:border-slate-600 bg-white dark:bg-slate-800 text-xs font-heading font-bold text-dark dark:text-white">
+                            <option value="">+ Add City...</option>
+                        </select>
                     </div>
+                    <div id="clock-world-grid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 text-left"></div>
+                </div>
+
+                <!-- LOCATION & WEATHER PILL -->
+                <div id="clock-location-marker" class="pro-only focus-hide mt-3 pt-2.5 border-t-2 border-[#1e293b]/10 dark:border-slate-700/50 w-full flex justify-center">
+                    <button onclick="clockRefreshWeather()"
+                        class="chip-pill inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-heading font-bold"
+                        title="Click to load local weather">
+                        <i data-lucide="map-pin" class="w-3.5 h-3.5 text-orange"></i>
+                        <span>Local Time · Tap for weather</span>
+                    </button>
                 </div>
             </div>
         </section>
 
         <!-- ========================================================
-             2. STOPWATCH SECTION (2-Column Landscape on Chromebook)
+             2. STOPWATCH SECTION (2-Column Chromebook Landscape)
              ======================================================== -->
-        <section id="tool-stopwatch" class="hidden w-full max-w-3xl flex-col items-center animate-pop-in">
+        <section id="tool-stopwatch" class="tool-section w-full max-w-3xl flex-col items-center animate-pop-in">
             <div class="tool-card w-full p-4 sm:p-6 flex flex-col gap-4 relative overflow-hidden">
                 <!-- Title Row -->
-                <div class="w-full flex justify-between items-center border-b-2 border-[#1e293b]/20 dark:border-slate-700 pb-3 z-10">
+                <div class="focus-hide w-full flex justify-between items-center border-b-2 border-[#1e293b]/20 dark:border-slate-700 pb-3 z-10">
                     <h2 class="text-lg sm:text-xl font-heading font-bold flex items-center gap-2 tracking-wide uppercase text-dark dark:text-white">
                         <i data-lucide="timer" class="text-blue w-5 h-5 sm:w-6 sm:h-6"></i> STOPWATCH
                     </h2>
-                    <div class="flex items-center gap-2">
-                        <span class="text-[10px] sm:text-xs font-heading font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">STATUS</span>
-                        <div id="sw-indicator" class="w-3 h-3 rounded-full border-2 border-[#1e293b] bg-slate-300 transition-colors"></div>
+                    <div class="flex items-center gap-2.5">
+                        <div class="flex items-center gap-1.5 px-2.5 py-1 rounded-full border-2 border-[#1e293b] dark:border-slate-600 bg-slate-50 dark:bg-slate-800">
+                            <div id="sw-indicator" class="w-2.5 h-2.5 rounded-full border border-[#1e293b] bg-slate-300 transition-colors"></div>
+                            <span id="sw-status-text" class="text-[10px] font-heading font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">READY</span>
+                        </div>
+                        <button onclick="toggleFocusStage('stopwatch')" id="sw-btn-focus"
+                            class="btn-chunky p-1.5 rounded-xl bg-blue text-white" title="Fullscreen Focus Mode (Z)">
+                            <i data-lucide="maximize-2" class="w-4 h-4"></i>
+                        </button>
                     </div>
                 </div>
 
-                <!-- Split Grid Layout -->
-                <div class="grid grid-cols-1 md:grid-cols-12 gap-5 items-center w-full z-10">
-                    <!-- Left: Dial Ring & Controls (md: 6 cols) -->
-                    <div class="md:col-span-6 flex flex-col items-center justify-center gap-4">
-                        <div class="relative w-44 h-44 sm:w-50 sm:h-50 flex items-center justify-center">
+                <!-- Split Grid -->
+                <div id="sw-grid" class="grid grid-cols-1 md:grid-cols-12 gap-5 items-center w-full z-10">
+                    <!-- Dial Ring & Controls -->
+                    <div id="sw-dial-col" class="md:col-span-6 flex flex-col items-center justify-center gap-4">
+                        <div id="sw-dial-wrap" class="relative w-48 h-48 sm:w-52 sm:h-52 flex items-center justify-center">
                             <svg class="absolute inset-0 w-full h-full -rotate-90 transform" viewBox="0 0 100 100">
-                                <circle cx="50" cy="50" r="45" fill="none" stroke-width="4.5"
-                                    style="stroke: var(--ring-track);" />
-                                <circle id="sw-ring" cx="50" cy="50" r="45" fill="none" stroke="#1ea7fd" stroke-width="4.5"
-                                    stroke-dasharray="283" stroke-dashoffset="0" stroke-linecap="round"
-                                    class="transition-all duration-75" />
+                                <circle cx="50" cy="50" r="45" fill="none" stroke-width="5" style="stroke: var(--ring-track);" />
+                                <circle id="sw-ring" cx="50" cy="50" r="45" fill="none" stroke="#1ea7fd" stroke-width="5"
+                                    stroke-dasharray="283" stroke-dashoffset="283" stroke-linecap="round" />
                             </svg>
                             <div class="relative z-10 flex flex-col items-center">
                                 <div id="sw-display" class="font-mono text-4xl sm:text-5xl font-bold tracking-tight text-dark dark:text-white">00:00</div>
@@ -282,7 +459,6 @@
                             </div>
                         </div>
 
-                        <!-- Buttons Row -->
                         <div class="flex items-center gap-3 justify-center">
                             <button onclick="swReset()"
                                 class="btn-chunky w-12 h-12 rounded-xl bg-white dark:bg-slate-800 text-dark dark:text-white"
@@ -294,7 +470,7 @@
                                 title="Start / Pause (Space)">
                                 <i data-lucide="play" class="w-7 h-7 fill-current ml-0.5"></i>
                             </button>
-                            <button onclick="swLap()"
+                            <button onclick="swLap()" id="sw-btn-lap"
                                 class="btn-chunky w-12 h-12 rounded-xl bg-white dark:bg-slate-800 text-dark dark:text-white"
                                 title="Record Lap (L)">
                                 <i data-lucide="flag" class="w-4 h-4"></i>
@@ -302,23 +478,48 @@
                         </div>
                     </div>
 
-                    <!-- Right: Laps Area (md: 6 cols) -->
-                    <div class="md:col-span-6 flex flex-col w-full">
-                        <div class="flex items-center justify-between mb-1.5">
+                    <!-- Laps Panel -->
+                    <div class="focus-hide md:col-span-6 flex flex-col w-full gap-2">
+                        <div class="flex items-center justify-between gap-2">
                             <span class="text-xs font-heading font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
-                                <i data-lucide="list-ordered" class="w-3.5 h-3.5"></i> Laps Recorded
+                                <i data-lucide="list-ordered" class="w-3.5 h-3.5 text-blue"></i>
+                                <span>Laps</span>
+                                <span id="sw-lap-count" class="px-1.5 py-0.5 rounded-md bg-slate-200 dark:bg-slate-700 text-dark dark:text-white text-[10px]">0</span>
                             </span>
-                            <button onclick="swCopyLaps()" id="sw-copy-btn"
-                                class="hidden px-2 py-0.5 rounded-lg border-2 border-[#1e293b] dark:border-slate-500 bg-white dark:bg-slate-800 text-[10px] font-heading font-bold uppercase text-dark dark:text-white hover:bg-blue hover:text-white transition-colors flex items-center gap-1"
-                                title="Copy Laps to Clipboard">
-                                <i data-lucide="copy" class="w-3 h-3"></i> Copy
-                            </button>
+                            <div class="flex items-center gap-1.5">
+                                <button onclick="swCopyLaps()" id="sw-copy-btn"
+                                    class="sw-action-btn is-hidden chip-pill px-2 py-0.5 rounded-lg bg-white dark:bg-slate-800 text-[10px] font-heading font-bold uppercase text-dark dark:text-white items-center gap-1"
+                                    title="Copy Laps to Clipboard">
+                                    <i data-lucide="copy" class="w-3 h-3 text-blue"></i> Copy
+                                </button>
+                                <button onclick="swClearLaps()" id="sw-clear-laps-btn"
+                                    class="pro-only sw-action-btn is-hidden chip-pill px-2 py-0.5 rounded-lg bg-white dark:bg-slate-800 text-[10px] font-heading font-bold uppercase text-pink items-center gap-1"
+                                    title="Clear Laps Only">
+                                    <i data-lucide="trash-2" class="w-3 h-3"></i> Clear
+                                </button>
+                            </div>
                         </div>
-                        <div class="w-full border-3 border-[#1e293b] dark:border-slate-600 rounded-2xl p-2.5 h-48 sm:h-56 overflow-y-auto custom-scrollbar text-left shadow-[inset_2px_2px_0px_0px_rgba(30,41,59,0.1)] bg-slate-50/90 dark:bg-slate-800/80">
+
+                        <input type="text" id="sw-lap-label" maxlength="24"
+                            placeholder="Optional lap label (e.g. Team Red)"
+                            class="pro-only w-full px-3 py-1.5 rounded-xl border-2 border-[#1e293b] dark:border-slate-600 bg-white dark:bg-slate-800 text-xs font-heading font-bold text-dark dark:text-white focus:outline-none focus:border-blue">
+
+                        <div id="sw-lap-stats" class="pro-only is-hidden grid grid-cols-2 gap-2 text-[11px] font-heading font-bold uppercase">
+                            <div class="px-2.5 py-1 rounded-xl border-2 border-[#1e293b] dark:border-slate-600 bg-green/10 text-green flex justify-between items-center">
+                                <span>Fastest</span>
+                                <span id="sw-stat-best" class="font-mono">--:--.--</span>
+                            </div>
+                            <div class="px-2.5 py-1 rounded-xl border-2 border-[#1e293b] dark:border-slate-600 bg-blue/10 text-blue flex justify-between items-center">
+                                <span>Average</span>
+                                <span id="sw-stat-avg" class="font-mono">--:--.--</span>
+                            </div>
+                        </div>
+
+                        <div class="inset-surface w-full border-[3px] border-[#1e293b] dark:border-slate-600 rounded-2xl p-2.5 h-44 sm:h-48 overflow-y-auto custom-scrollbar text-left">
                             <div id="sw-laps" class="space-y-1.5 h-full">
-                                <div class="flex flex-col items-center justify-center h-full gap-1.5 opacity-50 text-slate-500 dark:text-slate-400">
-                                    <i data-lucide="ghost" class="w-5 h-5"></i>
-                                    <span class="text-xs font-heading font-bold uppercase tracking-wider">No laps recorded</span>
+                                <div class="flex flex-col items-center justify-center h-full gap-1.5 opacity-55 text-slate-500 dark:text-slate-400">
+                                    <i data-lucide="flag" class="w-5 h-5"></i>
+                                    <span class="text-xs font-heading font-bold uppercase tracking-wider">Press Flag or L to mark a lap</span>
                                 </div>
                             </div>
                         </div>
@@ -328,101 +529,174 @@
         </section>
 
         <!-- ========================================================
-             3. TIMER SECTION
+             3. TIMER SECTION (Zen, Rush Bomb & Traffic Light)
              ======================================================== -->
-        <section id="tool-timer" class="hidden w-full max-w-2xl flex-col items-center animate-pop-in">
-            <div id="timer-card" class="tool-card w-full p-4 sm:p-6 text-center flex flex-col items-center gap-4 relative overflow-hidden">
+        <section id="tool-timer" class="tool-section w-full max-w-2xl flex-col items-center animate-pop-in">
+            <div id="timer-card" class="tool-card w-full p-4 sm:p-5 text-center flex flex-col items-center gap-3 relative overflow-hidden">
 
-                <!-- Mode Switcher -->
-                <div class="flex gap-2 p-1 border-2 border-[#1e293b] dark:border-slate-600 rounded-xl bg-slate-100 dark:bg-slate-800 relative z-10">
-                    <button onclick="timerSetMode('calm')" id="btn-mode-calm"
-                        class="btn-chunky px-4 sm:px-6 py-1.5 rounded-lg text-xs sm:text-sm font-heading font-bold uppercase flex items-center gap-1.5">
-                        <i data-lucide="leaf" class="w-3.5 h-3.5"></i> Zen
-                    </button>
-                    <button onclick="timerSetMode('bomb')" id="btn-mode-bomb"
-                        class="btn-chunky px-4 sm:px-6 py-1.5 rounded-lg text-xs sm:text-sm font-heading font-bold uppercase flex items-center gap-1.5">
-                        <i data-lucide="bomb" class="w-3.5 h-3.5"></i> Rush
-                    </button>
+                <!-- Top Row: Mode Switcher + Focus Stage -->
+                <div class="focus-hide w-full flex flex-wrap items-center justify-between gap-2 z-10">
+                    <div class="flex gap-1.5 p-1 border-2 border-[#1e293b] dark:border-slate-600 rounded-xl bg-slate-100 dark:bg-slate-800">
+                        <button onclick="timerSetMode('calm')" id="btn-mode-calm"
+                            class="btn-chunky px-3 sm:px-4 py-1.5 rounded-lg text-xs font-heading font-bold uppercase gap-1.5 bg-green text-white">
+                            <i data-lucide="leaf" class="w-3.5 h-3.5"></i> Zen
+                        </button>
+                        <button onclick="timerSetMode('bomb')" id="btn-mode-bomb"
+                            class="btn-chunky px-3 sm:px-4 py-1.5 rounded-lg text-xs font-heading font-bold uppercase gap-1.5 bg-white dark:bg-slate-800 text-dark dark:text-white">
+                            <i data-lucide="bomb" class="w-3.5 h-3.5"></i> Rush
+                        </button>
+                        <button onclick="timerSetMode('traffic')" id="btn-mode-traffic"
+                            class="btn-chunky px-3 sm:px-4 py-1.5 rounded-lg text-xs font-heading font-bold uppercase gap-1.5 bg-white dark:bg-slate-800 text-dark dark:text-white">
+                            <i data-lucide="traffic-cone" class="w-3.5 h-3.5"></i> Traffic
+                        </button>
+                    </div>
+
+                    <div class="flex items-center gap-1.5">
+                        <span id="timer-round-badge" class="pro-only is-hidden px-2.5 py-1 rounded-xl border-2 border-[#1e293b] bg-orange text-white font-heading font-bold text-[11px] uppercase">Round 1</span>
+                        <button onclick="timerToggleRepeat()" id="timer-repeat-btn"
+                            class="pro-only btn-chunky px-2.5 py-1.5 rounded-xl text-[11px] bg-white dark:bg-slate-800 text-dark dark:text-white gap-1"
+                            title="Station Auto-Repeat Loop">
+                            <i data-lucide="repeat" class="w-3.5 h-3.5 text-slate-400"></i>
+                            <span class="hidden sm:inline">Station Loop</span>
+                        </button>
+                        <button onclick="toggleFocusStage('timer')" id="timer-btn-focus"
+                            class="btn-chunky p-1.5 rounded-xl bg-green text-white" title="Fullscreen Focus Mode (Z)">
+                            <i data-lucide="maximize-2" class="w-4 h-4"></i>
+                        </button>
+                    </div>
                 </div>
 
-                <!-- Timer Visual Container (Height adjusted for 1366x768) -->
-                <div class="relative w-full h-[220px] sm:h-[250px] flex items-center justify-center">
+                <!-- Activity Label & Chips (Pro Mode) -->
+                <div id="timer-task-row" class="pro-only w-full flex flex-wrap items-center justify-center gap-1.5 z-10">
+                    <input type="text" id="timer-task-input" maxlength="32"
+                        placeholder="Activity label (e.g., Pair Speaking)"
+                        class="empty-in-focus px-3 py-1.5 rounded-xl border-2 border-[#1e293b] dark:border-slate-600 bg-white dark:bg-slate-800 text-center font-heading font-bold text-xs sm:text-sm text-dark dark:text-white w-56 sm:w-64 focus:outline-none focus:border-green">
+                    <div class="focus-hide flex flex-wrap gap-1 justify-center">
+                        <button onclick="timerSetTask('Reading')" class="chip-pill px-2 py-1 rounded-lg bg-white dark:bg-slate-800 text-[10px] font-heading font-bold">Reading</button>
+                        <button onclick="timerSetTask('Speaking')" class="chip-pill px-2 py-1 rounded-lg bg-white dark:bg-slate-800 text-[10px] font-heading font-bold">Speaking</button>
+                        <button onclick="timerSetTask('Writing')" class="chip-pill px-2 py-1 rounded-lg bg-white dark:bg-slate-800 text-[10px] font-heading font-bold">Writing</button>
+                        <button onclick="timerSetTask('Clean Up')" class="chip-pill px-2 py-1 rounded-lg bg-white dark:bg-slate-800 text-[10px] font-heading font-bold">Clean Up</button>
+                    </div>
+                </div>
 
-                    <!-- Calm Visual -->
-                    <div id="timer-visual-zen"
-                        class="absolute inset-0 flex flex-col items-center justify-center transition-all duration-300">
-                        <div class="relative w-48 h-48 sm:w-56 sm:h-56 flex items-center justify-center">
+                <!-- Timer Visual Stage -->
+                <div id="timer-visual-stage" class="relative w-full h-[200px] sm:h-[220px] flex items-center justify-center">
+
+                    <!-- 3A. ZEN VISUAL -->
+                    <div id="timer-visual-zen" class="timer-visual-pane active absolute inset-0 flex-col items-center justify-center">
+                        <div id="timer-zen-ring-wrap" class="relative w-44 h-44 sm:w-48 sm:h-48 flex items-center justify-center">
                             <svg class="absolute inset-0 w-full h-full -rotate-90 transform" viewBox="0 0 100 100">
-                                <circle cx="50" cy="50" r="45" fill="none" stroke-width="4"
-                                    style="stroke: var(--ring-track);" />
+                                <circle cx="50" cy="50" r="45" fill="none" stroke-width="5" style="stroke: var(--ring-track);" />
                                 <circle id="timer-ring-zen" cx="50" cy="50" r="45" fill="none" stroke="#00d063"
-                                    stroke-width="4" stroke-dasharray="283" stroke-dashoffset="0"
-                                    stroke-linecap="round" class="transition-all duration-1000 ease-linear" />
+                                    stroke-width="5" stroke-dasharray="283" stroke-dashoffset="0" stroke-linecap="round" />
                             </svg>
                             <div class="relative flex items-center justify-center gap-0.5 z-10">
-                                <input type="number" id="t-min" value="05"
-                                    class="w-20 sm:w-24 text-center text-5xl sm:text-6xl font-mono font-bold bg-transparent focus:outline-none focus:text-green placeholder-slate-300 p-0 text-dark dark:text-white"
+                                <input type="number" id="t-min" value="05" min="0" max="99"
+                                    class="w-16 sm:w-20 text-center text-5xl font-mono font-bold bg-transparent focus:outline-none focus:text-green placeholder-slate-300 p-0 text-dark dark:text-white"
                                     placeholder="00" onfocus="timerStop()">
-                                <span class="text-4xl sm:text-5xl font-mono font-black -mt-2 text-slate-400">:</span>
-                                <input type="number" id="t-sec" value="00"
-                                    class="w-20 sm:w-24 text-center text-5xl sm:text-6xl font-mono font-bold bg-transparent focus:outline-none focus:text-green placeholder-slate-300 p-0 text-dark dark:text-white"
+                                <span id="timer-zen-colon" class="text-4xl font-mono font-black -mt-1.5 text-slate-400">:</span>
+                                <input type="number" id="t-sec" value="00" min="0" max="59"
+                                    class="w-16 sm:w-20 text-center text-5xl font-mono font-bold bg-transparent focus:outline-none focus:text-green placeholder-slate-300 p-0 text-dark dark:text-white"
                                     placeholder="00" onfocus="timerStop()">
                             </div>
                         </div>
-                        <p class="font-heading font-bold text-[10px] sm:text-xs tracking-widest mt-1 uppercase text-slate-400 dark:text-slate-500">Tap numbers to edit</p>
+                        <p id="timer-zen-hint" class="focus-hide font-heading font-bold text-[10px] tracking-widest mt-1 uppercase text-slate-400 dark:text-slate-500">
+                            Tap numbers to set duration
+                        </p>
                     </div>
 
-                    <!-- Bomb Visual -->
-                    <div id="timer-visual-rush"
-                        class="absolute inset-0 flex flex-col items-center justify-center hidden opacity-0 transition-all duration-300">
-                        <svg viewBox="0 0 200 200" class="w-44 h-44 sm:w-48 sm:h-48 overflow-visible drop-shadow-md">
-                            <circle cx="100" cy="120" r="55" fill="#1e293b" />
-                            <circle cx="82" cy="102" r="14" fill="#334155" opacity="0.6" />
-                            <rect x="89" y="50" width="22" height="20" fill="#334155" rx="3" />
-                            <path d="M100,50 C100,20 135,10 160,25" fill="none" stroke="#94a3b8" stroke-width="5" stroke-linecap="round" />
-                            <path id="timer-fuse-rush" d="M100,50 C100,20 135,10 160,25" fill="none" stroke="#ff7e33"
-                                stroke-width="5" stroke-linecap="round" stroke-dasharray="100" stroke-dashoffset="0" />
-                            <circle id="timer-spark" cx="160" cy="25" r="7" fill="#fbbf24" class="shadow-[0_0_15px_#fbbf24]" />
+                    <!-- 3B. RUSH BOMB VISUAL -->
+                    <div id="timer-visual-rush" class="timer-visual-pane absolute inset-0 flex-col items-center justify-center">
+                        <svg id="timer-bomb-svg" viewBox="0 0 200 175" class="w-44 h-36 sm:w-48 sm:h-40 overflow-visible drop-shadow-md">
+                            <circle cx="95" cy="108" r="50" fill="#1e293b" stroke="#0f172a" stroke-width="4" />
+                            <circle cx="79" cy="91" r="13" fill="#334155" opacity="0.65" />
+                            <rect x="84" y="46" width="22" height="17" fill="#334155" rx="3" stroke="#0f172a" stroke-width="2" />
+                            <path id="timer-fuse-track" d="M95,46 C95,18 134,12 162,28" fill="none" stroke="#94a3b8" stroke-width="5" stroke-linecap="round" />
+                            <path id="timer-fuse-rush" pathLength="100" d="M95,46 C95,18 134,12 162,28" fill="none" stroke="#ff7e33" stroke-width="5" stroke-linecap="round" stroke-dasharray="100" stroke-dashoffset="0" />
+                            <g id="timer-spark" transform="translate(162, 28)">
+                                <g class="spark-inner">
+                                    <circle cx="0" cy="0" r="8" fill="#facc15" opacity="0.55" />
+                                    <circle cx="0" cy="0" r="5" fill="#fbbf24" stroke="#ffffff" stroke-width="1.5" />
+                                </g>
+                            </g>
                         </svg>
-                        <div class="px-5 py-1.5 rounded-xl border-3 border-[#1e293b] dark:border-slate-600 text-2xl sm:text-3xl font-mono font-bold shadow-[3px_3px_0px_0px_#1e293b] dark:shadow-[3px_3px_0px_0px_#000] bg-white dark:bg-slate-800 text-dark dark:text-white mt-1">
-                            <span id="t-rush-display">05:00</span>
+                        <button type="button" onclick="timerEditFromStage()" id="t-rush-display"
+                            class="px-5 py-1 rounded-xl border-[3px] border-[#1e293b] dark:border-slate-600 text-2xl sm:text-3xl font-mono font-bold shadow-[3px_3px_0px_0px_#1e293b] dark:shadow-[3px_3px_0px_0px_#000] bg-white dark:bg-slate-800 text-dark dark:text-white hover:border-orange transition-colors"
+                            title="Click to edit time in Zen view">05:00</button>
+                    </div>
+
+                    <!-- 3C. TRAFFIC LIGHT VISUAL -->
+                    <div id="timer-visual-traffic" class="timer-visual-pane absolute inset-0 flex-col items-center justify-center gap-3 px-4">
+                        <div class="flex items-center gap-4 px-5 py-2.5 rounded-2xl border-[3px] border-[#1e293b] dark:border-slate-600 bg-slate-900 shadow-[4px_4px_0px_0px_#1e293b]">
+                            <div id="traffic-lamp-green" class="traffic-lamp lit w-9 h-9 sm:w-11 sm:h-11 rounded-full bg-green border-2 border-white/40"></div>
+                            <div id="traffic-lamp-yellow" class="traffic-lamp dim w-9 h-9 sm:w-11 sm:h-11 rounded-full bg-yellow border-2 border-white/40"></div>
+                            <div id="traffic-lamp-pink" class="traffic-lamp dim w-9 h-9 sm:w-11 sm:h-11 rounded-full bg-pink border-2 border-white/40"></div>
+                        </div>
+
+                        <button type="button" onclick="timerEditFromStage()" id="t-traffic-display"
+                            class="font-mono text-5xl sm:text-6xl font-bold tracking-tight text-dark dark:text-white leading-none hover:text-blue transition-colors"
+                            title="Click to edit time in Zen view">05:00</button>
+
+                        <div id="timer-traffic-bar-wrap" class="w-full max-w-md flex flex-col gap-1.5">
+                            <div id="timer-traffic-track" class="w-full h-4 rounded-full border-2 border-[#1e293b] dark:border-slate-600 bg-slate-200 dark:bg-slate-800 overflow-hidden">
+                                <div id="timer-traffic-fill" class="traffic-bar-fill h-full bg-green" style="width: 100%"></div>
+                            </div>
+                            <div id="timer-traffic-status" class="font-heading font-bold text-xs uppercase tracking-widest text-green">
+                                WORK TIME
+                            </div>
                         </div>
                     </div>
                 </div>
 
                 <!-- Quick Presets -->
-                <div class="flex flex-wrap items-center justify-center gap-1.5 z-10">
-                    <button onclick="timerSetPreset(60)" class="btn-chunky px-2.5 py-1 text-[11px] rounded-lg bg-white dark:bg-slate-800 text-dark dark:text-white font-heading">1m</button>
-                    <button onclick="timerSetPreset(180)" class="btn-chunky px-2.5 py-1 text-[11px] rounded-lg bg-white dark:bg-slate-800 text-dark dark:text-white font-heading">3m</button>
-                    <button onclick="timerSetPreset(300)" class="btn-chunky px-2.5 py-1 text-[11px] rounded-lg bg-white dark:bg-slate-800 text-dark dark:text-white font-heading">5m</button>
-                    <button onclick="timerSetPreset(600)" class="btn-chunky px-2.5 py-1 text-[11px] rounded-lg bg-white dark:bg-slate-800 text-dark dark:text-white font-heading">10m</button>
-                    <button onclick="timerSetPreset(900)" class="btn-chunky px-2.5 py-1 text-[11px] rounded-lg bg-white dark:bg-slate-800 text-dark dark:text-white font-heading">15m</button>
+                <div class="focus-hide flex flex-wrap items-center justify-center gap-1.5 z-10 w-full">
+                    <button onclick="timerSetPreset(30)" class="pro-only btn-chunky px-2.5 py-1 text-[11px] rounded-lg bg-white dark:bg-slate-800 text-dark dark:text-white">30s</button>
+                    <button onclick="timerSetPreset(60)" class="btn-chunky px-2.5 py-1 text-[11px] rounded-lg bg-white dark:bg-slate-800 text-dark dark:text-white">1m</button>
+                    <button onclick="timerSetPreset(120)" class="pro-only btn-chunky px-2.5 py-1 text-[11px] rounded-lg bg-white dark:bg-slate-800 text-dark dark:text-white">2m</button>
+                    <button onclick="timerSetPreset(180)" class="btn-chunky px-2.5 py-1 text-[11px] rounded-lg bg-white dark:bg-slate-800 text-dark dark:text-white">3m</button>
+                    <button onclick="timerSetPreset(300)" class="btn-chunky px-2.5 py-1 text-[11px] rounded-lg bg-white dark:bg-slate-800 text-dark dark:text-white">5m</button>
+                    <button onclick="timerSetPreset(600)" class="btn-chunky px-2.5 py-1 text-[11px] rounded-lg bg-white dark:bg-slate-800 text-dark dark:text-white">10m</button>
+                    <button onclick="timerSetPreset(900)" class="btn-chunky px-2.5 py-1 text-[11px] rounded-lg bg-white dark:bg-slate-800 text-dark dark:text-white">15m</button>
+                    <button onclick="timerSetPreset(1200)" class="pro-only btn-chunky px-2.5 py-1 text-[11px] rounded-lg bg-white dark:bg-slate-800 text-dark dark:text-white">20m</button>
                 </div>
 
-                <!-- Controls -->
-                <div class="flex items-center gap-2 sm:gap-3 z-10 w-full justify-center">
-                    <div class="flex flex-col gap-1.5">
-                        <button onclick="timerAdjust(60)"
-                            class="btn-chunky px-3 py-1.5 text-xs rounded-xl bg-white dark:bg-slate-800 text-dark dark:text-white font-heading"
-                            title="Add 1 minute">+1m</button>
-                        <button onclick="timerAdjust(-60)"
-                            class="btn-chunky px-3 py-1.5 text-xs rounded-xl bg-white dark:bg-slate-800 text-dark dark:text-white font-heading"
-                            title="Subtract 1 minute">-1m</button>
+                <!-- Controls & Sound Picker -->
+                <div id="timer-controls-bar" class="w-full flex flex-wrap items-center justify-between gap-3 pt-1 z-10">
+                    <div id="timer-audio-controls" class="pro-only focus-hide flex items-center gap-1.5">
+                        <select id="timer-sound-select" onchange="timerSetSound(this.value)"
+                            class="px-2.5 py-1.5 rounded-xl border-2 border-[#1e293b] dark:border-slate-600 bg-white dark:bg-slate-800 text-xs font-heading font-bold text-dark dark:text-white"
+                            title="Timer Finish Sound">
+                            <option value="chime">Chime</option>
+                            <option value="bell">School Bell</option>
+                            <option value="fanfare">Fanfare</option>
+                            <option value="bomb">Boom</option>
+                        </select>
+                        <button onclick="timerPreviewSound()" id="timer-sound-test"
+                            class="btn-chunky p-1.5 rounded-xl bg-white dark:bg-slate-800 text-dark dark:text-white"
+                            title="Preview Timer Sound">
+                            <i data-lucide="play" class="w-3.5 h-3.5 text-blue"></i>
+                        </button>
+                        <button onclick="timerToggleTick()" id="timer-tick-btn"
+                            class="btn-chunky px-2.5 py-1.5 rounded-xl text-[11px] bg-blue text-white"
+                            title="Toggle 1-Second Tick Sound">TICK: ON</button>
                     </div>
 
-                    <button onclick="timerToggle()" id="timer-btn-start"
-                        class="btn-chunky w-[72px] h-[72px] sm:w-20 sm:h-20 rounded-3xl bg-green text-white flex items-center justify-center mx-2"
-                        title="Start / Pause (Space)">
-                        <i data-lucide="play" class="w-8 h-8 fill-current ml-0.5"></i>
-                    </button>
+                    <div id="timer-controls-group" class="flex items-center gap-2 justify-center mx-auto sm:mx-0">
+                        <div class="flex flex-col gap-1">
+                            <button onclick="timerAdjust(60)" class="btn-chunky px-3 py-1 text-[11px] rounded-lg bg-white dark:bg-slate-800 text-dark dark:text-white" title="Add 1 minute">+1m</button>
+                            <button onclick="timerAdjust(-60)" class="btn-chunky px-3 py-1 text-[11px] rounded-lg bg-white dark:bg-slate-800 text-dark dark:text-white" title="Subtract 1 minute">-1m</button>
+                        </div>
 
-                    <div class="flex flex-col gap-1.5">
-                        <button onclick="timerAdjust(30)"
-                            class="btn-chunky px-3 py-1.5 text-xs rounded-xl bg-white dark:bg-slate-800 text-dark dark:text-white font-heading"
-                            title="Add 30 seconds">+30s</button>
-                        <button onclick="timerReset()"
-                            class="btn-chunky px-3 py-1.5 text-xs rounded-xl bg-slate-200 dark:bg-slate-700 text-dark dark:text-white font-heading"
-                            title="Reset Timer (R)">RESET</button>
+                        <button onclick="timerToggle()" id="timer-btn-start"
+                            class="btn-chunky w-16 h-16 sm:w-[72px] sm:h-[72px] rounded-3xl bg-green text-white mx-1"
+                            title="Start / Pause (Space)">
+                            <i data-lucide="play" class="w-8 h-8 fill-current ml-0.5"></i>
+                        </button>
+
+                        <div class="flex flex-col gap-1">
+                            <button onclick="timerAdjust(30)" class="btn-chunky px-3 py-1 text-[11px] rounded-lg bg-white dark:bg-slate-800 text-dark dark:text-white" title="Add 30 seconds">+30s</button>
+                            <button onclick="timerReset()" class="btn-chunky px-3 py-1 text-[11px] rounded-lg bg-slate-200 dark:bg-slate-700 text-dark dark:text-white" title="Reset Timer (R)">RESET</button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -431,41 +705,55 @@
         <!-- ========================================================
              4. ALARM SECTION
              ======================================================== -->
-        <section id="tool-alarm" class="hidden w-full max-w-2xl flex-col items-center animate-pop-in">
-            <div class="tool-card w-full p-4 sm:p-6 text-center flex flex-col items-center gap-4 relative overflow-hidden max-h-[min(520px,calc(100vh-4rem))]">
+        <section id="tool-alarm" class="tool-section w-full max-w-2xl flex-col items-center animate-pop-in">
+            <div class="tool-card w-full p-4 sm:p-6 text-center flex flex-col items-center gap-3.5 relative overflow-hidden h-[min(560px,calc(100vh-5rem))]">
                 <!-- Title Row -->
-                <div class="w-full flex justify-between items-center border-b-2 border-[#1e293b]/20 dark:border-slate-700 pb-3 z-10">
-                    <h2 class="text-lg sm:text-xl font-heading font-bold flex items-center gap-2 tracking-wide uppercase text-dark dark:text-white">
-                        <i data-lucide="bell" class="text-pink w-5 h-5 sm:w-6 sm:h-6"></i> ALARMS
-                    </h2>
-                    <button onclick="alarmOpenAddForm()"
-                        class="btn-chunky px-3.5 py-1.5 bg-pink text-white rounded-xl text-xs sm:text-sm font-heading font-bold flex items-center gap-1.5">
+                <div class="w-full flex flex-wrap justify-between items-center gap-2 border-b-2 border-[#1e293b]/20 dark:border-slate-700 pb-3 z-10">
+                    <div class="flex items-center gap-2.5">
+                        <h2 class="text-lg sm:text-xl font-heading font-bold flex items-center gap-2 tracking-wide uppercase text-dark dark:text-white">
+                            <i data-lucide="bell" class="text-pink w-5 h-5 sm:w-6 sm:h-6"></i> ALARMS
+                        </h2>
+                        <span id="alarm-next-summary"
+                            class="px-2.5 py-0.5 rounded-full border-2 border-[#1e293b] dark:border-slate-600 bg-pink/10 text-pink font-heading font-bold text-[11px] uppercase">
+                            No active alarms
+                        </span>
+                    </div>
+                    <button onclick="alarmOpenAddForm()" id="alarm-btn-new"
+                        class="btn-chunky px-3.5 py-1.5 bg-pink text-white rounded-xl text-xs sm:text-sm gap-1.5">
                         <i data-lucide="plus" class="w-4 h-4"></i> NEW ALARM
                     </button>
                 </div>
 
                 <!-- Alarm List Container -->
                 <div id="alarm-list-container"
-                    class="w-full flex-1 overflow-y-auto custom-scrollbar flex flex-col gap-2.5 pr-1 z-10 min-h-[160px]">
-                    <!-- Injected by alarm.renderList() -->
+                    class="w-full flex-1 overflow-y-auto custom-scrollbar flex flex-col gap-2.5 pr-1 z-10">
                 </div>
 
                 <!-- Empty State -->
                 <div id="alarm-empty-state"
-                    class="hidden flex-col items-center justify-center flex-1 py-10 opacity-60 text-slate-500 dark:text-slate-400 z-10">
-                    <i data-lucide="bell-off" class="w-12 h-12 mb-2"></i>
+                    class="alarm-empty flex-col items-center justify-center flex-1 py-8 opacity-65 text-slate-500 dark:text-slate-400 z-10">
+                    <i data-lucide="bell-off" class="w-12 h-12 mb-2 text-pink"></i>
                     <p class="font-heading font-bold text-sm uppercase tracking-wider">No alarms set</p>
-                    <p class="text-xs text-slate-400">Click + NEW ALARM to add one</p>
+                    <p class="text-xs text-slate-400 mt-0.5">Add reminders for lesson transitions, bells, or clean up</p>
                 </div>
 
-                <!-- Add Alarm Form Overlay -->
-                <div id="alarm-add-form"
-                    class="absolute inset-0 z-40 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl flex flex-col items-center justify-center p-6 transition-all duration-300 translate-y-full opacity-0">
-                    <div class="w-full max-w-sm flex flex-col gap-4 items-center">
-                        <h3 class="text-xl sm:text-2xl font-heading font-bold text-dark dark:text-white uppercase tracking-tight">New Alarm</h3>
+                <!-- Add / Edit Alarm Drawer Overlay -->
+                <div id="alarm-add-form" class="alarm-drawer" aria-hidden="true">
+                    <div class="w-full max-w-md flex flex-col gap-3 items-center">
+                        <h3 id="alarm-form-title" class="text-xl sm:text-2xl font-heading font-bold text-dark dark:text-white uppercase tracking-tight">
+                            New Alarm
+                        </h3>
+
+                        <!-- Quick Offset Chips -->
+                        <div class="pro-only flex flex-wrap gap-1.5 justify-center">
+                            <button type="button" onclick="alarmApplyQuick('5m')" class="chip-pill px-2.5 py-1 rounded-lg bg-white dark:bg-slate-800 text-[11px] font-heading font-bold">+5m</button>
+                            <button type="button" onclick="alarmApplyQuick('10m')" class="chip-pill px-2.5 py-1 rounded-lg bg-white dark:bg-slate-800 text-[11px] font-heading font-bold">+10m</button>
+                            <button type="button" onclick="alarmApplyQuick('next00')" class="chip-pill px-2.5 py-1 rounded-lg bg-white dark:bg-slate-800 text-[11px] font-heading font-bold">Next :00</button>
+                            <button type="button" onclick="alarmApplyQuick('next30')" class="chip-pill px-2.5 py-1 rounded-lg bg-white dark:bg-slate-800 text-[11px] font-heading font-bold">Next :30</button>
+                        </div>
 
                         <!-- Time Picker -->
-                        <div class="flex items-center justify-center gap-2 p-3 rounded-2xl border-3 border-[#1e293b] dark:border-slate-600 bg-slate-50 dark:bg-slate-800">
+                        <div class="flex items-center justify-center gap-2 p-2.5 rounded-2xl border-[3px] border-[#1e293b] dark:border-slate-600 bg-slate-50 dark:bg-slate-800">
                             <input type="number" id="alarm-hour" value="07" min="1" max="12"
                                 class="w-16 text-center text-4xl font-mono font-bold bg-transparent focus:outline-none focus:text-pink placeholder-slate-300 p-0 text-dark dark:text-white"
                                 placeholder="07">
@@ -473,22 +761,42 @@
                             <input type="number" id="alarm-min" value="00" min="0" max="59"
                                 class="w-16 text-center text-4xl font-mono font-bold bg-transparent focus:outline-none focus:text-pink placeholder-slate-300 p-0 text-dark dark:text-white"
                                 placeholder="00">
-                            <button onclick="alarmToggleAmPm()" id="alarm-ampm-btn"
-                                class="btn-chunky ml-2 px-3 py-1.5 rounded-xl font-heading font-bold text-base bg-pink text-white">
+                            <button type="button" onclick="alarmToggleAmPm()" id="alarm-ampm-btn"
+                                class="btn-chunky ml-2 px-3 py-1.5 rounded-xl text-base bg-pink text-white">
                                 AM
                             </button>
                         </div>
 
                         <!-- Label -->
-                        <input type="text" id="alarm-label" placeholder="Alarm Label (e.g., Clean Desk)" maxlength="30"
-                            class="w-full text-center px-4 py-2.5 rounded-xl border-3 border-[#1e293b] dark:border-slate-600 font-heading font-bold text-sm bg-slate-50 dark:bg-slate-800 text-dark dark:text-white focus:outline-none focus:border-pink">
+                        <input type="text" id="alarm-label" placeholder="Alarm Label (e.g., Clean Desks)" maxlength="30"
+                            class="w-full text-center px-4 py-2 rounded-xl border-[3px] border-[#1e293b] dark:border-slate-600 font-heading font-bold text-sm bg-slate-50 dark:bg-slate-800 text-dark dark:text-white focus:outline-none focus:border-pink">
 
-                        <!-- Buttons -->
-                        <div class="flex gap-3 w-full mt-2">
-                            <button onclick="alarmCloseAddForm()"
-                                class="btn-chunky flex-1 py-2.5 rounded-xl font-heading font-bold text-sm bg-white dark:bg-slate-800 text-dark dark:text-white">CANCEL</button>
-                            <button onclick="alarmSaveNew()"
-                                class="btn-chunky flex-1 py-2.5 bg-pink text-white rounded-xl font-heading font-bold text-sm">SAVE ALARM</button>
+                        <!-- Repeat & Sound Row -->
+                        <div class="pro-only w-full flex flex-wrap items-center justify-between gap-2">
+                            <div id="alarm-repeat-group" class="flex gap-1.5">
+                                <button type="button" data-repeat="once" onclick="alarmSetRepeat('once')" class="chip-pill px-2.5 py-1 rounded-lg bg-pink text-white text-[11px] font-heading font-bold uppercase">Once</button>
+                                <button type="button" data-repeat="daily" onclick="alarmSetRepeat('daily')" class="chip-pill px-2.5 py-1 rounded-lg bg-white dark:bg-slate-800 text-dark dark:text-white text-[11px] font-heading font-bold uppercase">Daily</button>
+                                <button type="button" data-repeat="weekdays" onclick="alarmSetRepeat('weekdays')" class="chip-pill px-2.5 py-1 rounded-lg bg-white dark:bg-slate-800 text-dark dark:text-white text-[11px] font-heading font-bold uppercase">Weekdays</button>
+                            </div>
+                            <div class="flex items-center gap-1.5">
+                                <select id="alarm-sound-select"
+                                    class="px-2.5 py-1 rounded-xl border-2 border-[#1e293b] dark:border-slate-600 bg-white dark:bg-slate-800 text-xs font-heading font-bold text-dark dark:text-white">
+                                    <option value="bell">Bell</option>
+                                    <option value="chime">Chime</option>
+                                    <option value="fanfare">Fanfare</option>
+                                </select>
+                                <button type="button" onclick="alarmPreviewSound()" class="chip-pill p-1.5 rounded-lg bg-white dark:bg-slate-800 text-blue" title="Test Sound">
+                                    <i data-lucide="volume-2" class="w-3.5 h-3.5"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Actions -->
+                        <div class="flex gap-3 w-full mt-1">
+                            <button type="button" onclick="alarmCloseAddForm()"
+                                class="btn-chunky flex-1 py-2.5 rounded-xl text-sm bg-white dark:bg-slate-800 text-dark dark:text-white">CANCEL</button>
+                            <button type="button" onclick="alarmSaveNew()"
+                                class="btn-chunky flex-1 py-2.5 bg-pink text-white rounded-xl text-sm">SAVE ALARM</button>
                         </div>
                     </div>
                 </div>
@@ -496,28 +804,45 @@
         </section>
 
         <!-- ========================================================
-             5. COUNTDOWN SECTION
+             5. COUNTDOWN SECTION (Target Clock Time)
              ======================================================== -->
-        <section id="tool-countdown" class="hidden w-full max-w-2xl flex-col items-center animate-pop-in">
-            <div class="tool-card w-full p-5 sm:p-7 text-center flex flex-col items-center gap-5 relative overflow-hidden">
+        <section id="tool-countdown" class="tool-section w-full max-w-2xl flex-col items-center animate-pop-in">
+            <div class="tool-card w-full p-5 sm:p-6 text-center flex flex-col items-center gap-4 relative overflow-hidden">
                 <!-- Title Row -->
-                <div class="w-full flex justify-between items-center border-b-2 border-[#1e293b]/20 dark:border-slate-700 pb-3 z-10">
+                <div class="focus-hide w-full flex justify-between items-center border-b-2 border-[#1e293b]/20 dark:border-slate-700 pb-3 z-10">
                     <h2 class="text-lg sm:text-xl font-heading font-bold flex items-center gap-2 tracking-wide uppercase text-dark dark:text-white">
                         <i data-lucide="timer-reset" class="text-blue w-5 h-5 sm:w-6 sm:h-6"></i> COUNTDOWN
                     </h2>
-                    <button onclick="countdown.reset()"
-                        class="btn-chunky text-xs font-heading font-bold px-3 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">RESET</button>
+                    <div class="flex items-center gap-2">
+                        <button onclick="countdown.reset()" id="cd-btn-reset"
+                            class="btn-chunky text-xs px-3 py-1 rounded-xl bg-slate-100 dark:bg-slate-800 text-dark dark:text-white"
+                            title="Reset Countdown (R)">RESET</button>
+                        <button onclick="toggleFocusStage('countdown')" id="cd-btn-focus"
+                            class="btn-chunky p-1.5 rounded-xl bg-blue text-white" title="Fullscreen Focus Mode (Z)">
+                            <i data-lucide="maximize-2" class="w-4 h-4"></i>
+                        </button>
+                    </div>
                 </div>
 
                 <!-- Setup Phase -->
-                <div id="countdown-setup" class="flex flex-col items-center gap-5 w-full py-4">
-                    <div class="flex flex-col gap-1">
-                        <h3 class="text-xl sm:text-2xl font-heading font-bold text-dark dark:text-white uppercase tracking-tight">Set Target Time</h3>
-                        <p class="text-xs font-heading font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">Count down until a specific class hour</p>
+                <div id="countdown-setup" class="cd-phase active flex-col items-center gap-3.5 w-full py-1">
+                    <div class="flex flex-col gap-0.5">
+                        <h3 class="text-lg sm:text-xl font-heading font-bold text-dark dark:text-white uppercase tracking-tight">Count Down To Clock Time</h3>
+                        <p class="text-xs font-heading font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Automatically rolls to tomorrow if time has passed today</p>
+                    </div>
+
+                    <!-- Quick Target Chips -->
+                    <div class="pro-only flex flex-wrap gap-1.5 justify-center">
+                        <button onclick="countdownApplyQuick('15m')" class="chip-pill px-2.5 py-1 rounded-lg bg-white dark:bg-slate-800 text-xs font-heading font-bold">+15m</button>
+                        <button onclick="countdownApplyQuick('30m')" class="chip-pill px-2.5 py-1 rounded-lg bg-white dark:bg-slate-800 text-xs font-heading font-bold">+30m</button>
+                        <button onclick="countdownApplyQuick('45m')" class="chip-pill px-2.5 py-1 rounded-lg bg-white dark:bg-slate-800 text-xs font-heading font-bold">+45m</button>
+                        <button onclick="countdownApplyQuick('60m')" class="chip-pill px-2.5 py-1 rounded-lg bg-white dark:bg-slate-800 text-xs font-heading font-bold">+1h</button>
+                        <button onclick="countdownApplyQuick('next00')" class="chip-pill px-2.5 py-1 rounded-lg bg-white dark:bg-slate-800 text-xs font-heading font-bold">Next :00</button>
+                        <button onclick="countdownApplyQuick('next30')" class="chip-pill px-2.5 py-1 rounded-lg bg-white dark:bg-slate-800 text-xs font-heading font-bold">Next :30</button>
                     </div>
 
                     <!-- Time Inputs -->
-                    <div class="flex items-center justify-center gap-2 p-3 rounded-2xl border-3 border-[#1e293b] dark:border-slate-600 bg-slate-50 dark:bg-slate-800">
+                    <div class="flex items-center justify-center gap-2 p-3 rounded-2xl border-[3px] border-[#1e293b] dark:border-slate-600 bg-slate-50 dark:bg-slate-800">
                         <input type="number" id="countdown-hour" value="12" min="1" max="12"
                             class="w-20 text-center text-5xl font-mono font-bold bg-transparent focus:outline-none focus:text-blue placeholder-slate-300 p-0 text-dark dark:text-white"
                             placeholder="12">
@@ -526,34 +851,60 @@
                             class="w-20 text-center text-5xl font-mono font-bold bg-transparent focus:outline-none focus:text-blue placeholder-slate-300 p-0 text-dark dark:text-white"
                             placeholder="00">
                         <button onclick="countdown.toggleAmPm()" id="countdown-ampm-btn"
-                            class="btn-chunky ml-3 px-3.5 py-2 rounded-xl font-heading font-bold text-xl bg-blue text-white">
+                            class="btn-chunky ml-2 px-3.5 py-2 rounded-xl text-xl bg-blue text-white">
                             PM
                         </button>
                     </div>
 
-                    <!-- Label -->
-                    <input type="text" id="countdown-label" placeholder="What are we counting down to? (Optional)" maxlength="30"
-                        class="w-full max-w-sm px-4 py-2.5 rounded-xl border-3 border-[#1e293b] dark:border-slate-600 bg-slate-50 dark:bg-slate-800 text-center font-heading font-bold text-sm text-dark dark:text-white focus:outline-none focus:border-blue">
+                    <!-- Live Preview Pill -->
+                    <div id="countdown-preview-badge"
+                        class="px-3.5 py-1 rounded-full border-2 border-[#1e293b] dark:border-slate-600 bg-blue/10 text-blue font-heading font-bold text-xs uppercase tracking-wider">
+                        Target preview...
+                    </div>
+
+                    <!-- Label & Presets -->
+                    <div class="w-full max-w-sm flex flex-col gap-2 items-center">
+                        <input type="text" id="countdown-label" placeholder="Event label (e.g. End of Class)" maxlength="30"
+                            class="w-full px-4 py-2 rounded-xl border-[3px] border-[#1e293b] dark:border-slate-600 bg-slate-50 dark:bg-slate-800 text-center font-heading font-bold text-sm text-dark dark:text-white focus:outline-none focus:border-blue">
+                        <div class="pro-only flex flex-wrap gap-1.5 justify-center">
+                            <button onclick="countdownSetLabel('End of Class')" class="chip-pill px-2 py-0.5 rounded-lg bg-white dark:bg-slate-800 text-[10px] font-heading font-bold">End of Class</button>
+                            <button onclick="countdownSetLabel('Exam Ends')" class="chip-pill px-2 py-0.5 rounded-lg bg-white dark:bg-slate-800 text-[10px] font-heading font-bold">Exam Ends</button>
+                            <button onclick="countdownSetLabel('Break Time')" class="chip-pill px-2 py-0.5 rounded-lg bg-white dark:bg-slate-800 text-[10px] font-heading font-bold">Break Time</button>
+                        </div>
+                    </div>
 
                     <button onclick="countdown.start()"
-                        class="btn-chunky w-full max-w-sm py-3.5 bg-blue text-white rounded-2xl font-heading font-bold text-lg uppercase">
+                        class="btn-chunky w-full max-w-sm py-3 bg-blue text-white rounded-2xl text-base sm:text-lg">
                         START COUNTDOWN
                     </button>
                 </div>
 
                 <!-- Running Phase -->
-                <div id="countdown-running" class="hidden flex-col items-center gap-4 w-full py-6">
-                    <div class="bg-blue/15 text-blue dark:text-blue px-5 py-1.5 rounded-full border-2 border-blue/30">
-                        <span id="countdown-active-label" class="font-heading font-bold text-xs sm:text-sm tracking-widest uppercase">END OF CLASS</span>
+                <div id="countdown-running" class="cd-phase flex-col items-center gap-4 w-full py-4">
+                    <div class="flex items-center gap-2 flex-wrap justify-center">
+                        <div class="bg-blue/15 text-blue px-5 py-1.5 rounded-full border-2 border-blue/40">
+                            <span id="countdown-active-label" class="font-heading font-bold text-xs sm:text-sm tracking-widest uppercase">END OF CLASS</span>
+                        </div>
+                        <span id="countdown-tomorrow-badge"
+                            class="is-hidden px-3 py-1 rounded-full border-2 border-[#1e293b] bg-orange text-white font-heading font-bold text-[11px] uppercase tracking-wider">
+                            TOMORROW
+                        </span>
                     </div>
 
                     <div id="countdown-time-display"
-                        class="font-mono text-5xl sm:text-6xl md:text-7xl leading-none font-bold tracking-tight text-blue drop-shadow-sm my-2">
+                        class="font-mono text-5xl sm:text-7xl leading-none font-bold tracking-tight text-blue drop-shadow-sm my-1">
                         00:00:00
                     </div>
 
-                    <div class="text-xs font-heading font-bold text-slate-400 uppercase tracking-widest">
-                        Target Time: <span id="countdown-target-display" class="text-dark dark:text-white font-bold">12:00 PM</span>
+                    <div id="countdown-progress-wrap" class="w-full max-w-md flex flex-col gap-1.5">
+                        <div class="w-full h-4 rounded-full border-2 border-[#1e293b] dark:border-slate-600 bg-slate-200 dark:bg-slate-800 overflow-hidden">
+                            <div id="countdown-progress-fill" class="traffic-bar-fill h-full bg-blue" style="width: 0%"></div>
+                        </div>
+                        <div class="flex justify-between items-center text-[11px] font-heading font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                            <span>Now: <strong id="countdown-now-display" class="text-dark dark:text-white">--:--</strong></span>
+                            <span id="countdown-progress-pct" class="text-blue">0% elapsed</span>
+                            <span>Target: <strong id="countdown-target-display" class="text-dark dark:text-white">12:00 PM</strong></span>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -562,73 +913,90 @@
         <!-- ========================================================
              6. CALENDAR SECTION
              ======================================================== -->
-        <section id="tool-calendar" class="hidden w-full max-w-3xl flex-col items-center animate-pop-in">
-            <div class="tool-card w-full p-4 sm:p-5">
+        <section id="tool-calendar" class="tool-section w-full max-w-2xl flex-col items-center animate-pop-in">
+            <div class="tool-card w-full p-4 sm:p-5 flex flex-col gap-3">
                 <!-- Navigation Row -->
-                <div class="flex items-center justify-between mb-4">
+                <div class="flex items-center justify-between gap-2">
                     <button onclick="calNav(-1)"
                         class="btn-chunky w-10 h-10 rounded-xl bg-white dark:bg-slate-800 text-dark dark:text-white"
-                        title="Previous Month">
+                        title="Previous Month / Year">
                         <i data-lucide="chevron-left" class="w-5 h-5"></i>
                     </button>
 
-                    <div class="flex items-center gap-3">
+                    <div class="flex items-center gap-2 sm:gap-3">
                         <button onclick="calGoToday()"
-                            class="btn-chunky px-3 py-1 rounded-lg text-xs font-heading font-bold uppercase tracking-wider bg-white dark:bg-slate-800 text-dark dark:text-white">
+                            class="btn-chunky px-3 py-1 rounded-xl text-xs bg-white dark:bg-slate-800 text-dark dark:text-white">
                             Today
                         </button>
-                        <div class="flex flex-col items-center cursor-pointer group" onclick="calToggleViewMode()"
+                        <button onclick="calToggleViewMode()"
+                            class="flex flex-col items-center cursor-pointer group px-2 py-0.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
                             title="Toggle Month / Year View">
                             <h2 id="cal-month-year"
-                                class="text-xl sm:text-2xl font-heading font-bold text-center uppercase tracking-tight text-dark dark:text-white group-hover:text-blue transition-colors">
+                                class="text-lg sm:text-2xl font-heading font-bold text-center uppercase tracking-tight text-dark dark:text-white group-hover:text-blue transition-colors leading-none">
                                 MONTH YEAR
                             </h2>
-                            <span class="text-[10px] font-heading font-bold uppercase tracking-widest text-slate-400 opacity-60 group-hover:opacity-100 transition-opacity">
-                                Toggle View
+                            <span class="text-[10px] font-heading font-bold uppercase tracking-widest text-slate-400 mt-0.5">
+                                Tap for Year View
                             </span>
-                        </div>
+                        </button>
+                        <button onclick="calToggleWeekStart()" id="cal-weekstart-btn"
+                            class="pro-only btn-chunky px-2.5 py-1 rounded-xl text-[11px] bg-white dark:bg-slate-800 text-dark dark:text-white"
+                            title="Switch Week Start (Mon / Sun)">MON</button>
                     </div>
 
                     <button onclick="calNav(1)"
                         class="btn-chunky w-10 h-10 rounded-xl bg-white dark:bg-slate-800 text-dark dark:text-white"
-                        title="Next Month">
+                        title="Next Month / Year">
                         <i data-lucide="chevron-right" class="w-5 h-5"></i>
                     </button>
                 </div>
 
                 <!-- MONTH VIEW CONTAINER -->
-                <div id="cal-month-view" class="w-full">
-                    <!-- Days Header -->
-                    <div class="grid grid-cols-7 gap-1 sm:gap-2 mb-2 text-center font-heading font-bold text-xs text-slate-500 dark:text-slate-400">
-                        <div>MON</div>
-                        <div>TUE</div>
-                        <div>WED</div>
-                        <div>THU</div>
-                        <div>FRI</div>
-                        <div class="text-pink">SAT</div>
-                        <div class="text-pink">SUN</div>
+                <div id="cal-month-view" class="cal-pane active w-full">
+                    <div id="cal-weekdays" class="grid grid-cols-7 gap-1 sm:gap-2 mb-1.5 text-center font-heading font-bold text-xs text-slate-500 dark:text-slate-400">
                     </div>
-
-                    <!-- Days Grid -->
-                    <div id="cal-grid" class="grid grid-cols-7 gap-1.5 sm:gap-2 w-full">
-                        <!-- JS injected cells -->
-                    </div>
+                    <div id="cal-grid" class="grid grid-cols-7 gap-1.5 sm:gap-2 w-full"></div>
                 </div>
 
-                <!-- YEAR VIEW CONTAINER (Hidden initially) -->
+                <!-- YEAR VIEW CONTAINER -->
                 <div id="cal-year-view"
-                    class="hidden grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5 w-full max-h-[360px] overflow-y-auto custom-scrollbar p-1">
-                    <!-- JS injected mini-calendars -->
+                    class="cal-pane cal-year-pane grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5 w-full max-h-[360px] overflow-y-auto custom-scrollbar p-1">
                 </div>
 
-                <!-- Info Box -->
-                <div class="mt-4 flex justify-center">
-                    <div id="cal-counter-display"
-                        class="text-xs font-bold px-4 py-2 rounded-xl border-2 border-[#1e293b] dark:border-slate-600 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 shadow-[2px_2px_0px_0px_#1e293b] dark:shadow-[2px_2px_0px_0px_#000] flex flex-col items-center gap-1">
-                        <div class="flex items-center gap-2">
-                            <i data-lucide="info" class="w-3.5 h-3.5 flex-shrink-0 text-blue"></i>
-                            <span id="cal-info-text">Click date to select. <span class="text-blue bg-blue/10 px-1 rounded">Alt+Click</span> to mark.</span>
+                <!-- Selected Day Inspector & Note Bar -->
+                <div id="cal-counter-display"
+                    class="w-full rounded-2xl border-2 border-[#1e293b] dark:border-slate-600 bg-slate-50/90 dark:bg-slate-800/80 p-3 flex flex-col gap-2.5 shadow-[2px_2px_0px_0px_#1e293b] dark:shadow-[2px_2px_0px_0px_#000]">
+                    <div class="flex flex-wrap items-center justify-between gap-2 text-xs font-heading font-bold">
+                        <div class="flex items-center gap-2 flex-wrap">
+                            <span id="cal-selected-title" class="text-blue uppercase tracking-wider">SELECT A DATE</span>
+                            <span id="cal-relative-badge" class="px-2 py-0.5 rounded-lg bg-slate-200 dark:bg-slate-700 text-dark dark:text-white text-[10px] uppercase">TODAY</span>
+                            <span id="cal-weekdays-badge" class="pro-only is-hidden px-2 py-0.5 rounded-lg bg-green/15 text-green text-[10px] uppercase">0 school days</span>
                         </div>
+                        <div class="flex items-center gap-2">
+                            <span id="cal-marked-count" class="text-pink text-[11px] uppercase">0 marked</span>
+                            <span id="cal-alt-hint" class="pro-only hidden sm:inline text-[10px] text-slate-400 uppercase">Alt+Click quick-mark</span>
+                        </div>
+                    </div>
+
+                    <div id="cal-inspector" class="pro-only flex flex-wrap items-center gap-2">
+                        <div class="flex items-center gap-1.5" role="group" aria-label="Tag color">
+                            <button type="button" data-cal-color="pink" onclick="calSetTagColor('pink')" class="w-6 h-6 rounded-full bg-pink border-2 border-[#1e293b] ring-2 ring-offset-1 ring-blue transition-transform hover:scale-110" title="Pink Tag"></button>
+                            <button type="button" data-cal-color="orange" onclick="calSetTagColor('orange')" class="w-6 h-6 rounded-full bg-orange border-2 border-[#1e293b] transition-transform hover:scale-110" title="Orange Tag"></button>
+                            <button type="button" data-cal-color="green" onclick="calSetTagColor('green')" class="w-6 h-6 rounded-full bg-green border-2 border-[#1e293b] transition-transform hover:scale-110" title="Green Tag"></button>
+                            <button type="button" data-cal-color="blue" onclick="calSetTagColor('blue')" class="w-6 h-6 rounded-full bg-blue border-2 border-[#1e293b] transition-transform hover:scale-110" title="Blue Tag"></button>
+                        </div>
+                        <input type="text" id="cal-note-input" maxlength="40"
+                            placeholder="Short event note (e.g. Unit 4 Quiz)"
+                            class="flex-1 min-w-[160px] px-3 py-1.5 rounded-xl border-2 border-[#1e293b] dark:border-slate-600 bg-white dark:bg-slate-900 text-xs font-heading font-bold text-dark dark:text-white focus:outline-none focus:border-blue">
+                        <button type="button" id="cal-save-note-btn" onclick="calSaveNote()"
+                            class="btn-chunky px-3 py-1.5 rounded-xl bg-blue text-white text-xs gap-1">
+                            <i data-lucide="bookmark-plus" class="w-3.5 h-3.5"></i> Save Mark
+                        </button>
+                        <button type="button" id="cal-clear-note-btn" onclick="calClearDay()"
+                            class="btn-chunky px-2.5 py-1.5 rounded-xl bg-white dark:bg-slate-700 text-pink text-xs"
+                            title="Clear Mark on Selected Day">
+                            <i data-lucide="eraser" class="w-3.5 h-3.5"></i>
+                        </button>
                     </div>
                 </div>
             </div>
@@ -637,67 +1005,123 @@
     </main>
 
     <!-- ========================================================
-         MODAL OVERLAYS (Soft Brutalist & Pop-in)
+         MODAL OVERLAYS (Unified .modal-overlay / .open)
          ======================================================== -->
 
-    <!-- RUSH / EXPLOSION OVERLAY -->
-    <div id="explosion-overlay"
-        class="fixed inset-0 z-50 hidden items-center justify-center flex-col cursor-pointer transition-opacity opacity-0 backdrop-blur-xl bg-slate-900/75 p-6"
-        onclick="resetTimerOverlay()">
-        <div class="text-center animate-pop-in">
-            <h1 class="text-7xl sm:text-9xl font-heading font-bold text-orange drop-shadow-lg leading-none mb-2">BOOM!</h1>
-            <p class="text-2xl sm:text-3xl font-heading font-bold uppercase tracking-widest text-white mb-8">Time Is Up!</p>
-            <button class="btn-chunky px-8 py-3.5 bg-dark text-white rounded-2xl text-lg border-3 border-white/40">
-                RESET TIMER
-            </button>
+    <!-- TIMER DONE OVERLAY -->
+    <div id="timer-done-overlay" class="modal-overlay" aria-hidden="true">
+        <div class="text-center animate-pop-in max-w-lg w-full">
+            <div id="timer-done-icon-wrap" class="w-24 h-24 rounded-3xl border-4 border-white/40 bg-green text-white mx-auto mb-4 flex items-center justify-center shadow-xl animate-bounce">
+                <i data-lucide="bell" class="w-12 h-12"></i>
+            </div>
+            <h1 id="timer-done-title" class="text-6xl sm:text-8xl font-heading font-bold text-green leading-none mb-2 uppercase">DONE!</h1>
+            <p id="timer-done-subtitle" class="text-lg sm:text-2xl font-heading font-bold uppercase tracking-widest text-white mb-8">Time Is Up</p>
+            <div class="flex flex-wrap gap-3 justify-center">
+                <button onclick="timerAddExtraFromOverlay(60)" class="btn-chunky px-6 py-3.5 bg-blue text-white rounded-2xl text-base border-white/40">
+                    +1 MIN EXTRA
+                </button>
+                <button onclick="resetTimerOverlay()" class="btn-chunky px-7 py-3.5 bg-green text-white rounded-2xl text-base border-white/40">
+                    RESET TIMER
+                </button>
+            </div>
         </div>
     </div>
 
-    <!-- ZEN / CALM OVERLAY -->
-    <div id="zen-overlay"
-        class="fixed inset-0 z-50 hidden items-center justify-center flex-col cursor-pointer transition-opacity opacity-0 backdrop-blur-xl bg-slate-900/75 p-6"
-        onclick="resetTimerOverlay()">
-        <div class="text-center animate-pop-in">
-            <i data-lucide="bell" class="w-20 h-20 text-green mx-auto mb-3 animate-bounce"></i>
-            <h1 class="text-5xl sm:text-7xl font-heading font-bold text-green leading-none mb-2 uppercase">DONE!</h1>
-            <p class="text-xl sm:text-2xl font-heading font-bold uppercase tracking-widest text-white mb-8">Time Is Up</p>
-            <button class="btn-chunky px-8 py-3.5 bg-green text-white rounded-2xl text-lg border-3 border-white/40">
-                RESET TIMER
-            </button>
-        </div>
-    </div>
-
-    <!-- ALARM OVERLAY -->
-    <div id="alarm-overlay"
-        class="fixed inset-0 z-50 hidden items-center justify-center flex-col cursor-pointer transition-opacity opacity-0 backdrop-blur-xl bg-slate-900/75 p-6"
-        onclick="alarmDismiss()">
-        <div class="text-center animate-pop-in">
-            <i data-lucide="bell-ring" class="w-20 h-20 text-pink mx-auto mb-3 animate-pulse"></i>
+    <!-- ALARM RINGING OVERLAY -->
+    <div id="alarm-overlay" class="modal-overlay" aria-hidden="true">
+        <div class="text-center animate-pop-in max-w-lg w-full">
+            <div class="w-24 h-24 rounded-3xl border-4 border-white/40 bg-pink text-white mx-auto mb-4 flex items-center justify-center shadow-xl animate-pulse">
+                <i data-lucide="bell-ring" class="w-12 h-12"></i>
+            </div>
             <h1 class="text-5xl sm:text-7xl font-heading font-bold text-pink leading-none mb-2 uppercase">ALARM!</h1>
             <p id="alarm-overlay-label" class="text-xl sm:text-2xl font-heading font-bold uppercase tracking-widest text-white mb-1">Wake Up!</p>
             <p id="alarm-overlay-time" class="font-mono text-3xl sm:text-4xl font-bold text-pink mb-8">07:00 AM</p>
-            <button class="btn-chunky px-8 py-3.5 bg-pink text-white rounded-2xl text-lg border-3 border-white/40">
-                DISMISS
-            </button>
+            <div class="flex flex-wrap gap-3 justify-center">
+                <button onclick="alarmSnooze()" class="btn-chunky px-6 py-3.5 bg-orange text-white rounded-2xl text-base border-white/40">
+                    SNOOZE +5M
+                </button>
+                <button onclick="alarmDismiss()" class="btn-chunky px-8 py-3.5 bg-pink text-white rounded-2xl text-base border-white/40">
+                    DISMISS
+                </button>
+            </div>
         </div>
     </div>
 
-    <!-- COUNTDOWN OVERLAY -->
-    <div id="countdown-overlay"
-        class="fixed inset-0 z-50 hidden items-center justify-center flex-col cursor-pointer transition-opacity opacity-0 backdrop-blur-xl bg-slate-900/75 p-6"
-        onclick="countdown.dismissOverlay()">
-        <div class="text-center animate-pop-in">
-            <i data-lucide="timer-reset" class="w-20 h-20 text-blue mx-auto mb-3 animate-pulse"></i>
-            <h1 class="text-5xl sm:text-7xl font-heading font-bold text-blue leading-none mb-2 uppercase">DONE!</h1>
-            <p id="countdown-overlay-label" class="text-2xl sm:text-3xl font-heading font-bold uppercase tracking-widest text-white mb-8">TIME IS UP</p>
-            <button class="btn-chunky px-8 py-3.5 bg-blue text-white rounded-2xl text-lg border-3 border-white/40">
+    <!-- COUNTDOWN DONE OVERLAY -->
+    <div id="countdown-overlay" class="modal-overlay" aria-hidden="true">
+        <div class="text-center animate-pop-in max-w-lg w-full">
+            <div class="w-24 h-24 rounded-3xl border-4 border-white/40 bg-blue text-white mx-auto mb-4 flex items-center justify-center shadow-xl animate-pulse">
+                <i data-lucide="timer-reset" class="w-12 h-12"></i>
+            </div>
+            <h1 class="text-5xl sm:text-7xl font-heading font-bold text-blue leading-none mb-2 uppercase">TIME'S UP!</h1>
+            <p id="countdown-overlay-label" class="text-2xl sm:text-3xl font-heading font-bold uppercase tracking-widest text-white mb-8">TARGET REACHED</p>
+            <button onclick="countdown.dismissOverlay()" class="btn-chunky px-8 py-3.5 bg-blue text-white rounded-2xl text-base border-white/40">
                 CLOSE
             </button>
         </div>
     </div>
 
-    <!-- Application Script -->
-    <script src="./script.js"></script>
+    <!-- KEYBOARD SHORTCUTS MODAL -->
+    <div id="shortcuts-modal" class="modal-overlay" onclick="if (event.target === this) closeShortcutsModal()" aria-hidden="true">
+        <div class="glass-panel rounded-3xl max-w-md w-full p-6 animate-pop-in text-left">
+            <div class="flex items-center justify-between border-b-2 border-[#1e293b]/20 dark:border-slate-700 pb-3 mb-4">
+                <h3 class="font-heading font-bold text-xl uppercase text-dark dark:text-white flex items-center gap-2">
+                    <i data-lucide="keyboard" class="w-5 h-5 text-blue"></i> Keyboard Shortcuts
+                </h3>
+                <button onclick="closeShortcutsModal()" class="btn-chunky w-9 h-9 rounded-xl bg-white dark:bg-slate-800 text-dark dark:text-white" title="Close">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs font-heading font-bold">
+                <div class="flex items-center justify-between p-2 rounded-xl bg-slate-100 dark:bg-slate-800">
+                    <span>Switch Tool</span>
+                    <kbd class="px-2 py-0.5 rounded border border-[#1e293b] bg-white dark:bg-slate-700">1 - 6</kbd>
+                </div>
+                <div class="flex items-center justify-between p-2 rounded-xl bg-slate-100 dark:bg-slate-800">
+                    <span>Start / Pause</span>
+                    <kbd class="px-2 py-0.5 rounded border border-[#1e293b] bg-white dark:bg-slate-700">Space</kbd>
+                </div>
+                <div class="flex items-center justify-between p-2 rounded-xl bg-slate-100 dark:bg-slate-800">
+                    <span>Reset Tool</span>
+                    <kbd class="px-2 py-0.5 rounded border border-[#1e293b] bg-white dark:bg-slate-700">R</kbd>
+                </div>
+                <div class="flex items-center justify-between p-2 rounded-xl bg-slate-100 dark:bg-slate-800">
+                    <span>Record Lap</span>
+                    <kbd class="px-2 py-0.5 rounded border border-[#1e293b] bg-white dark:bg-slate-700">L</kbd>
+                </div>
+                <div class="flex items-center justify-between p-2 rounded-xl bg-slate-100 dark:bg-slate-800">
+                    <span>Focus Fullscreen</span>
+                    <kbd class="px-2 py-0.5 rounded border border-[#1e293b] bg-white dark:bg-slate-700">Z</kbd>
+                </div>
+                <div class="flex items-center justify-between p-2 rounded-xl bg-slate-100 dark:bg-slate-800">
+                    <span>12H / 24H</span>
+                    <kbd class="px-2 py-0.5 rounded border border-[#1e293b] bg-white dark:bg-slate-700">F</kbd>
+                </div>
+                <div class="flex items-center justify-between p-2 rounded-xl bg-slate-100 dark:bg-slate-800">
+                    <span>Analog / Digital</span>
+                    <kbd class="px-2 py-0.5 rounded border border-[#1e293b] bg-white dark:bg-slate-700">V</kbd>
+                </div>
+                <div class="flex items-center justify-between p-2 rounded-xl bg-slate-100 dark:bg-slate-800">
+                    <span>Words Readout</span>
+                    <kbd class="px-2 py-0.5 rounded border border-[#1e293b] bg-white dark:bg-slate-700">W</kbd>
+                </div>
+                <div class="flex items-center justify-between p-2 rounded-xl bg-slate-100 dark:bg-slate-800">
+                    <span>Mute Audio</span>
+                    <kbd class="px-2 py-0.5 rounded border border-[#1e293b] bg-white dark:bg-slate-700">M</kbd>
+                </div>
+                <div class="flex items-center justify-between p-2 rounded-xl bg-slate-100 dark:bg-slate-800">
+                    <span>Exit / Close</span>
+                    <kbd class="px-2 py-0.5 rounded-xl border border-[#1e293b] bg-white dark:bg-slate-700">Esc</kbd>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- TOAST STACK -->
+    <div id="toast-container" class="fixed bottom-4 right-4 z-[70] flex flex-col gap-2 pointer-events-none"></div>
+
+    <!-- Application Script (?v=3 cache-busting) -->
+    <script src="./script.js?v=3"></script>
 </body>
 
 </html>
