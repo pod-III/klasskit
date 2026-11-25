@@ -2,362 +2,560 @@
 <html lang="en">
 
 <head>
-    <!-- Supabase Auth -->
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.105.4"></script>
-    <script src="https://cdn.jsdelivr.net/npm/browser-image-compression@2.0.2/dist/browser-image-compression.js"></script>
-    <script src="/supabase.js"></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Poster Studio</title>
+    <title>Poster Studio | KlassKit</title>
     <link rel="icon" type="image/x-icon" href="../../../media/icon.ico" />
     <link rel="icon" type="image/webp" href="../../../media/icon.webp" />
 
-    <link rel="stylesheet" href="../../../css/tailwind.generated.css" />
-    <script src="https://unpkg.com/lucide@1.16.0"></script>
-    <script src="../../../components/input-modal.js"></script>
-    <link
-        href="https://fonts.googleapis.com/css2?family=Fredoka:wght@300;400;500;600;700&family=Nunito:wght@400;600;700;800&family=Patrick+Hand&display=swap"
-        rel="stylesheet">
-
+    <!-- Early Synchronous Theme & Hub Color-Theme Sync -->
     <script>
-        try {
-            if (localStorage.getItem('theme_poster-studio') === 'dark') {
-                document.documentElement.classList.add('dark');
+        (function () {
+            function readStored(key) {
+                try {
+                    var raw = localStorage.getItem(key);
+                    if (raw == null) return null;
+                    try { return JSON.parse(raw); } catch (e) { return raw; }
+                } catch (e) { return null; }
             }
-        } catch (_) {}
+            function syncTheme(changedKey) {
+                var isDark;
+                if (changedKey === 'theme_hub') {
+                    var hubVal = readStored('theme_hub');
+                    isDark = hubVal ? hubVal === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
+                } else {
+                    var toolTheme = readStored('theme_poster-studio') || readStored('klasskit-theme');
+                    var hubTheme = readStored('theme_hub');
+                    isDark = toolTheme
+                        ? toolTheme === 'dark'
+                        : hubTheme
+                            ? hubTheme === 'dark'
+                            : window.matchMedia('(prefers-color-scheme: dark)').matches;
+                }
+                document.documentElement.classList.toggle('dark', isDark);
+
+                var colorTheme = readStored('klasskit_colorTheme');
+                if (colorTheme && colorTheme !== 'classic') {
+                    document.documentElement.setAttribute('data-theme', colorTheme);
+                } else {
+                    document.documentElement.removeAttribute('data-theme');
+                }
+            }
+            syncTheme();
+            window.addEventListener('storage', function (e) {
+                if (
+                    e.key === 'theme_hub' ||
+                    e.key === 'theme_poster-studio' ||
+                    e.key === 'klasskit-theme' ||
+                    e.key === 'klasskit_colorTheme'
+                ) {
+                    syncTheme(e.key);
+                }
+            });
+        })();
     </script>
 
+    <!-- Supabase Auth & Image Compression -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.105.4"></script>
+    <script src="https://cdn.jsdelivr.net/npm/browser-image-compression@2.0.2/dist/browser-image-compression.js"></script>
+    <script src="/supabase.js"></script>
 
-    <link rel="stylesheet" href="../../../css/base.css" />
-    <link rel="stylesheet" href="../../../css/components.css" />
-    <link rel="stylesheet" href="style.css">
-    
-  <script defer src="/js/analytics.js"></script>
+    <!-- Icons, Universal Input & Bulk Import Modals, Fonts -->
+    <script src="https://unpkg.com/lucide@1.16.0"></script>
+    <script src="../../../components/input-modal.js"></script>
+    <script src="../../../components/bulk-import-modal.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Nunito:wght@400;600;700;800&family=Patrick+Hand&display=swap" rel="stylesheet">
+
+    <!-- Styles (Cache-busted ?v=5) -->
+    <link rel="stylesheet" href="../../../css/tailwind.generated.css?v=5" />
+    <link rel="stylesheet" href="../../../css/base.css?v=5" />
+    <link rel="stylesheet" href="../../../css/components.css?v=5" />
+    <link rel="stylesheet" href="./style.css?v=5" />
+    <script defer src="/js/analytics.js"></script>
 </head>
 
-<body class="h-screen w-screen overflow-hidden font-body selection:bg-brand-yellow/50 flex flex-col"
-    style="background-color: var(--bg-primary); color: var(--text-primary)">
+<body class="h-screen w-screen overflow-hidden font-body text-dark dark:text-white flex flex-col select-none">
 
     <!-- EXIT ZEN BUTTON -->
     <button onclick="App.toggleFullScreen()" id="exit-zen-btn" type="button" aria-label="Exit Zen Mode"
-        class="fixed top-4 left-4 z-50 neo-btn bg-white dark:bg-slate-800 text-brand-dark dark:text-white px-4 py-2 gap-2 transition-all">
-        <i data-lucide="minimize" class="w-4 h-4"></i>
-        <span class="font-heading font-black text-sm uppercase">Exit Zen Mode</span>
+        class="fixed top-4 left-4 z-50 btn-chunky bg-white dark:bg-slate-800 text-dark dark:text-white px-4 py-2 gap-2 text-xs">
+        <i data-lucide="minimize-2" class="w-4 h-4"></i>
+        <span>Exit Zen</span>
     </button>
 
-    <!-- TOP BAR -->
-    <header id="top-bar" class="h-16 shrink-0 flex items-center px-4 gap-3 z-40 relative"
-        style="background: var(--bg-secondary); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border-bottom: 3px solid var(--border-primary);">
-        <div class="flex items-center gap-2 mr-2 shrink-0">
-            <div
-                class="w-9 h-9 bg-brand-pink rounded-lg border-2 border-brand-dark dark:border-slate-500 flex items-center justify-center font-heading font-black text-white text-lg shadow-neo-sm">
-                KK</div>
-            <h1 class="font-heading font-black text-lg tracking-tight leading-none hidden md:block"
-                style="color: var(--text-primary)">
-                POSTER<br><span class="text-brand-pink">STUDIO</span></h1>
-        </div>
+    <!-- COMPACT SINGLE-ROW CHROMEBOOK HEADER -->
+    <header id="top-bar" class="glass-panel sticky top-0 z-40 px-3 sm:px-4 py-2 flex-none">
+        <div class="w-full max-w-[1600px] mx-auto flex items-center justify-between gap-2.5">
 
-        <div class="flex-1 flex gap-2 items-center overflow-x-auto no-scrollbar">
-            <!-- Nav -->
-            <div class="flex gap-1 p-1 bg-slate-100 dark:bg-slate-800 rounded-lg border-2 shrink-0 shadow-sm"
-                style="border-color: var(--border-primary)">
-                <button onclick="App.cyclePoster(-1)" type="button" aria-label="Previous project" title="Previous project"
-                    class="w-7 h-7 flex items-center justify-center hover:bg-slate-200 dark:hover:bg-slate-600 rounded transition-colors"
-                    style="color: var(--text-primary)"><i data-lucide="chevron-left" class="w-4 h-4"></i></button>
-                <div class="relative group w-36">
-                    <select id="project-select" aria-label="Select project" onchange="App.switchPoster(this.value)"
-                        class="w-full h-full pl-2 pr-6 bg-transparent font-heading font-bold text-xs appearance-none cursor-pointer outline-none truncate"
-                        style="color: var(--text-primary)"></select>
-                    <i data-lucide="chevron-down"
-                        class="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-400 pointer-events-none"></i>
+            <!-- Brand + Simple / Pro Pill -->
+            <div class="flex items-center gap-2 flex-shrink-0">
+                <div class="w-9 h-9 rounded-xl bg-pink text-white border-[2.5px] border-[#1e293b] dark:border-slate-500 shadow-[3px_3px_0px_0px_#1e293b] dark:shadow-[3px_3px_0px_0px_#000] flex items-center justify-center flex-shrink-0 -rotate-3 hover:rotate-0 transition-transform">
+                    <i data-lucide="layout-template" class="w-4 h-4"></i>
                 </div>
-                <button onclick="App.cyclePoster(1)" type="button" aria-label="Next project" title="Next project"
-                    class="w-7 h-7 flex items-center justify-center hover:bg-slate-200 dark:hover:bg-slate-600 rounded transition-colors"
-                    style="color: var(--text-primary)"><i data-lucide="chevron-right" class="w-4 h-4"></i></button>
+                <div class="hidden sm:flex flex-col leading-none">
+                    <h1 class="font-heading font-bold text-base lg:text-lg tracking-tight uppercase text-dark dark:text-white">
+                        Poster <span class="text-pink">Studio</span>
+                    </h1>
+                </div>
+
+                <!-- Simple | Pro Pill (KlassKit Standard) -->
+                <div class="flex items-center gap-0.5 p-1 rounded-xl border-2 border-[#1e293b] dark:border-slate-600 bg-slate-100 dark:bg-slate-800 ml-1">
+                    <button type="button" id="btn-uimode-simple" onclick="App.setUiMode('simple')"
+                        class="ui-mode-btn active px-2.5 py-1 rounded-lg text-[10px] sm:text-[11px] uppercase">Simple</button>
+                    <button type="button" id="btn-uimode-pro" onclick="App.setUiMode('pro')"
+                        class="ui-mode-btn px-2.5 py-1 rounded-lg text-[10px] sm:text-[11px] uppercase">Pro</button>
+                </div>
             </div>
 
-            <div class="h-7 w-0.5 bg-slate-300 dark:bg-slate-600 mx-1 hidden md:block"></div>
+            <!-- Center: Project Nav + Poster Title + Quick Templates + Bulk Import -->
+            <div class="flex-1 flex items-center justify-center gap-2 min-w-0 max-w-3xl">
+                <div class="flex items-center gap-0.5 p-1 rounded-xl border-2 border-[#1e293b] dark:border-slate-600 bg-slate-100 dark:bg-slate-800 flex-shrink-0">
+                    <button onclick="App.cyclePoster(-1)" type="button" aria-label="Previous project" title="Previous project"
+                        class="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-white dark:hover:bg-slate-700 text-dark dark:text-white transition-colors">
+                        <i data-lucide="chevron-left" class="w-4 h-4"></i>
+                    </button>
+                    <div class="relative w-24 sm:w-32 md:w-36">
+                        <select id="project-select" aria-label="Select project" onchange="App.switchPoster(this.value)"
+                            class="w-full pl-2 pr-5 py-1 bg-transparent font-heading font-bold text-xs text-dark dark:text-white appearance-none cursor-pointer outline-none truncate"></select>
+                        <i data-lucide="chevron-down"
+                            class="absolute right-1 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none"></i>
+                    </div>
+                    <button onclick="App.cyclePoster(1)" type="button" aria-label="Next project" title="Next project"
+                        class="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-white dark:hover:bg-slate-700 text-dark dark:text-white transition-colors">
+                        <i data-lucide="chevron-right" class="w-4 h-4"></i>
+                    </button>
+                </div>
 
-            <!-- Global Inputs -->
-            <div class="flex gap-2 flex-1 min-w-[280px] items-center">
-                <input type="text" id="global_badge" aria-label="Poster badge number" class="neo-input w-14 text-center" placeholder="#">
-                <input type="text" id="global_title" aria-label="Poster title" class="neo-input flex-1" placeholder="POSTER TITLE">
-                <input type="text" id="global_subtitle" aria-label="Poster subtitle" class="neo-input flex-1 hidden lg:block"
-                    placeholder="Subtitle...">
-                <div class="flex gap-1 bg-white dark:bg-slate-800 p-1 rounded-xl border-2 shrink-0 shadow-sm" style="border-color: var(--border-primary)">
-                    <select id="global_layout" aria-label="Layout aspect ratio" class="bg-transparent font-heading font-bold text-xs cursor-pointer outline-none text-slate-700 dark:text-white" title="Layout Aspect Ratio">
-                        <option value="landscape" class="dark:bg-slate-800">Landscape (16:9)</option>
-                        <option value="portrait" class="dark:bg-slate-800">Portrait (9:16)</option>
-                        <option value="square" class="dark:bg-slate-800">Square (1:1)</option>
+                <input type="text" id="global_title" aria-label="Poster title"
+                    class="neo-input flex-1 min-w-[110px] max-w-xs" placeholder="POSTER TITLE">
+
+                <button type="button" onclick="App.openTemplatesModal()"
+                    class="btn-chunky bg-orange text-white px-2.5 sm:px-3 py-1.5 rounded-xl text-xs gap-1.5 flex-shrink-0"
+                    title="Classroom Poster Templates">
+                    <i data-lucide="sparkles" class="w-4 h-4"></i>
+                    <span class="hidden md:inline">Templates</span>
+                </button>
+
+                <button type="button" onclick="App.openBulkImport()"
+                    class="btn-chunky bg-pink text-white px-2.5 sm:px-3 py-1.5 rounded-xl text-xs gap-1.5 flex-shrink-0"
+                    title="Bulk Import Lesson Outline">
+                    <i data-lucide="file-up" class="w-4 h-4"></i>
+                    <span class="hidden lg:inline">Bulk Import</span>
+                </button>
+            </div>
+
+            <!-- Right Primary Actions -->
+            <div class="flex items-center gap-1.5 flex-shrink-0">
+                <button type="button" onclick="App.openLibrary()"
+                    class="btn-chunky bg-white dark:bg-slate-800 text-dark dark:text-white px-2.5 py-1.5 rounded-xl text-xs gap-1.5"
+                    title="My Projects">
+                    <i data-lucide="folder-open" class="w-4 h-4 text-green"></i>
+                    <span class="hidden lg:inline">Projects</span>
+                </button>
+
+                <button onclick="Store.save(true)" id="save-btn" type="button" aria-label="Save project"
+                    class="btn-chunky bg-blue text-white px-2.5 sm:px-3 py-1.5 rounded-xl text-xs gap-1.5" title="Save (Ctrl+S)">
+                    <i data-lucide="save" class="w-4 h-4"></i>
+                    <span class="hidden sm:inline">Save</span>
+                </button>
+
+                <button onclick="window.print()" type="button" aria-label="Print poster" title="Print Poster"
+                    class="btn-chunky bg-white dark:bg-slate-800 text-dark dark:text-white p-1.5 rounded-xl">
+                    <i data-lucide="printer" class="w-4 h-4 text-blue"></i>
+                </button>
+
+                <button onclick="App.toggleTheme()" id="theme-toggle" type="button" aria-label="Toggle dark mode" aria-pressed="false"
+                    class="btn-chunky bg-white dark:bg-slate-800 text-dark dark:text-white p-1.5 rounded-xl"
+                    title="Toggle Light / Dark Mode">
+                    <i data-lucide="moon" class="w-4 h-4 dark:hidden"></i>
+                    <i data-lucide="sun" class="w-4 h-4 hidden dark:block text-yellow-400"></i>
+                </button>
+
+                <button onclick="App.toggleHelp()" type="button" aria-label="Help Guide"
+                    class="btn-chunky bg-yellow text-dark p-1.5 rounded-xl" title="Quick Guide">
+                    <i data-lucide="help-circle" class="w-4 h-4"></i>
+                </button>
+
+                <div class="relative">
+                    <button onclick="App.toggleSettingsMenu(event)" type="button" aria-label="More options" id="settings-menu-btn"
+                        class="btn-chunky bg-white dark:bg-slate-800 text-dark dark:text-white p-1.5 rounded-xl" title="More Actions">
+                        <i data-lucide="more-vertical" class="w-4 h-4"></i>
+                    </button>
+                    <div id="settings-menu" class="dropdown-menu w-52 rounded-2xl overflow-hidden z-50">
+                        <button onclick="App.createNewPoster(); App.closeSettingsMenu()" type="button"
+                            class="w-full text-left px-4 py-2.5 hover:bg-slate-100 dark:hover:bg-slate-800 font-heading font-bold text-xs uppercase flex items-center gap-2.5 border-b border-slate-200 dark:border-slate-700 text-dark dark:text-white">
+                            <i data-lucide="plus" class="w-4 h-4 text-green"></i> New Poster
+                        </button>
+                        <button onclick="App.openTemplatesModal(); App.closeSettingsMenu()" type="button"
+                            class="w-full text-left px-4 py-2.5 hover:bg-slate-100 dark:hover:bg-slate-800 font-heading font-bold text-xs uppercase flex items-center gap-2.5 border-b border-slate-200 dark:border-slate-700 text-dark dark:text-white">
+                            <i data-lucide="sparkles" class="w-4 h-4 text-orange"></i> Templates
+                        </button>
+                        <button onclick="App.openBulkImport(); App.closeSettingsMenu()" type="button"
+                            class="w-full text-left px-4 py-2.5 hover:bg-slate-100 dark:hover:bg-slate-800 font-heading font-bold text-xs uppercase flex items-center gap-2.5 border-b border-slate-200 dark:border-slate-700 text-dark dark:text-white">
+                            <i data-lucide="file-up" class="w-4 h-4 text-pink"></i> Bulk Import
+                        </button>
+                        <button onclick="App.openLibrary(); App.closeSettingsMenu()" type="button"
+                            class="w-full text-left px-4 py-2.5 hover:bg-slate-100 dark:hover:bg-slate-800 font-heading font-bold text-xs uppercase flex items-center gap-2.5 border-b border-slate-200 dark:border-slate-700 text-dark dark:text-white">
+                            <i data-lucide="folder-open" class="w-4 h-4 text-blue"></i> Open Library
+                        </button>
+                        <button onclick="App.openImageSelector(null); App.closeSettingsMenu()" type="button"
+                            class="w-full text-left px-4 py-2.5 hover:bg-slate-100 dark:hover:bg-slate-800 font-heading font-bold text-xs uppercase flex items-center gap-2.5 border-b border-slate-200 dark:border-slate-700 text-dark dark:text-white">
+                            <i data-lucide="image" class="w-4 h-4 text-pink"></i> Image Assets
+                        </button>
+                        <button onclick="document.getElementById('import-file').click(); App.closeSettingsMenu()" type="button"
+                            class="w-full text-left px-4 py-2.5 hover:bg-slate-100 dark:hover:bg-slate-800 font-heading font-bold text-xs uppercase flex items-center gap-2.5 border-b border-slate-200 dark:border-slate-700 text-dark dark:text-white">
+                            <i data-lucide="upload" class="w-4 h-4 text-slate-500"></i> Import JSON
+                        </button>
+                        <button onclick="App.exportPoster(); App.closeSettingsMenu()" type="button"
+                            class="w-full text-left px-4 py-2.5 hover:bg-slate-100 dark:hover:bg-slate-800 font-heading font-bold text-xs uppercase flex items-center gap-2.5 border-b border-slate-200 dark:border-slate-700 text-dark dark:text-white">
+                            <i data-lucide="download" class="w-4 h-4 text-slate-500"></i> Export JSON
+                        </button>
+                        <button onclick="App.toggleFullScreen(); App.closeSettingsMenu()" type="button"
+                            class="w-full text-left px-4 py-2.5 hover:bg-slate-100 dark:hover:bg-slate-800 font-heading font-bold text-xs uppercase flex items-center gap-2.5 text-dark dark:text-white">
+                            <i data-lucide="maximize-2" class="w-4 h-4 text-orange"></i> Zen Presentation
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- PRO STUDIO BAR (Hidden cleanly in Simple Mode) -->
+    <div id="pro-studio-bar" class="pro-only glass-panel z-30 px-3 sm:px-5 py-1.5 flex-none">
+        <div class="w-full max-w-[1600px] mx-auto flex flex-wrap items-center justify-between gap-2">
+            <!-- Poster Metadata & Style Controls -->
+            <div class="flex flex-wrap items-center gap-2 flex-1 min-w-0">
+                <div class="flex items-center gap-1.5">
+                    <span class="text-[10px] font-heading font-bold uppercase text-slate-400">Badge</span>
+                    <input type="text" id="global_badge" aria-label="Poster badge number"
+                        class="neo-input w-14 text-center py-1 text-xs" placeholder="#">
+                </div>
+                <input type="text" id="global_subtitle" aria-label="Poster subtitle"
+                    class="neo-input flex-1 min-w-[140px] max-w-xs py-1 text-xs" placeholder="Poster subtitle...">
+
+                <div class="flex items-center gap-1 bg-white dark:bg-slate-800 px-2 py-1 rounded-xl border-2 border-[#1e293b] dark:border-slate-600 shadow-sm">
+                    <i data-lucide="ratio" class="w-3.5 h-3.5 text-blue flex-shrink-0"></i>
+                    <select id="global_layout" aria-label="Layout aspect ratio"
+                        class="bg-transparent font-heading font-bold text-xs cursor-pointer outline-none text-dark dark:text-white">
+                        <option value="landscape" class="dark:bg-slate-800">16:9 Landscape</option>
+                        <option value="portrait" class="dark:bg-slate-800">9:16 Portrait</option>
+                        <option value="square" class="dark:bg-slate-800">1:1 Square</option>
                     </select>
                 </div>
-                <div class="flex gap-1 bg-white dark:bg-slate-800 p-1 rounded-xl border-2 shrink-0 shadow-sm" style="border-color: var(--border-primary)">
-                    <select id="global_pattern" aria-label="Background pattern" class="bg-transparent font-heading font-bold text-xs cursor-pointer outline-none text-slate-700 dark:text-white" title="Background Pattern">
+
+                <div class="flex items-center gap-1 bg-white dark:bg-slate-800 px-2 py-1 rounded-xl border-2 border-[#1e293b] dark:border-slate-600 shadow-sm">
+                    <i data-lucide="palette" class="w-3.5 h-3.5 text-pink flex-shrink-0"></i>
+                    <select id="global_pattern" aria-label="Background pattern"
+                        class="bg-transparent font-heading font-bold text-xs cursor-pointer outline-none text-dark dark:text-white">
                         <option value="graph" class="dark:bg-slate-800">Graph Paper</option>
                         <option value="dots" class="dark:bg-slate-800">Polka Dots</option>
                         <option value="chalkboard" class="dark:bg-slate-800">Chalkboard</option>
+                        <option value="cork" class="dark:bg-slate-800">Corkboard</option>
                         <option value="plain" class="dark:bg-slate-800">Solid Canvas</option>
                     </select>
                 </div>
-                <div class="flex gap-1 bg-white dark:bg-slate-800 p-1 rounded-xl border-2 shrink-0 shadow-sm" style="border-color: var(--border-primary)">
-                    <select id="global_gridSize" aria-label="Grid size" class="bg-transparent font-heading font-bold text-xs cursor-pointer outline-none text-slate-700 dark:text-white" title="Grid Size">
+
+                <div class="flex items-center gap-1 bg-white dark:bg-slate-800 px-2 py-1 rounded-xl border-2 border-[#1e293b] dark:border-slate-600 shadow-sm">
+                    <i data-lucide="grid" class="w-3.5 h-3.5 text-green flex-shrink-0"></i>
+                    <select id="global_gridSize" aria-label="Grid size"
+                        class="bg-transparent font-heading font-bold text-xs cursor-pointer outline-none text-dark dark:text-white">
                         <option value="sm" class="dark:bg-slate-800">Small Grid</option>
                         <option value="md" selected class="dark:bg-slate-800">Medium Grid</option>
                         <option value="lg" class="dark:bg-slate-800">Large Grid</option>
                     </select>
                 </div>
             </div>
-        </div>
 
-        <!-- Actions -->
-        <div class="flex gap-2 shrink-0">
-            <button onclick="App.toggleTheme()" id="theme-toggle" type="button" aria-label="Toggle dark mode" aria-pressed="false"
-                class="neo-btn bg-white dark:bg-slate-800 text-brand-dark dark:text-white w-9 h-9 p-0"
-                title="Toggle Dark Mode">
-                <i data-lucide="sun" class="w-4 h-4 hidden dark:block"></i>
-                <i data-lucide="moon" class="w-4 h-4 block dark:hidden"></i>
-            </button>
-            <button onclick="App.toggleHelp()" type="button" aria-label="Help Guide" class="neo-btn bg-brand-yellow text-brand-dark w-9 h-9 p-0"
-                title="Help Guide"><i data-lucide="help-circle" class="w-4 h-4"></i></button>
-            <button onclick="Store.save(true)" id="save-btn" type="button" aria-label="Save project"
-                class="neo-btn bg-brand-blue text-white px-3 py-1.5 gap-1.5 h-9 text-xs"><i data-lucide="save" class="w-4 h-4"></i>
-                <span class="hidden sm:inline">Save</span></button>
-            <div class="relative">
-                <button onclick="App.toggleSettingsMenu(event)" type="button" aria-label="More options" class="neo-btn bg-white dark:bg-slate-800 w-9 h-9 p-0" id="settings-menu-btn"><i data-lucide="more-vertical"
-                        class="w-4 h-4"></i></button>
-                <div id="settings-menu" class="absolute right-0 top-full mt-2 w-48 rounded-xl shadow-neo hidden z-50"
-                    style="background: var(--surface-card); border: 2px solid var(--border-primary)">
-                    <button onclick="App.openLibrary(); App.closeSettingsMenu()" type="button"
-                        class="w-full text-left px-4 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-700 font-bold flex gap-2 rounded-t-xl transition-colors text-sm"
-                        style="border-bottom: 2px solid var(--border-secondary)"><i data-lucide="folder-open"
-                            class="w-4 h-4"></i> Open Library</button>
-                    <button onclick="App.createNewPoster(); App.closeSettingsMenu()" type="button"
-                        class="w-full text-left px-4 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-700 font-bold flex gap-2 transition-colors text-sm"
-                        style="border-bottom: 2px solid var(--border-secondary)"><i data-lucide="plus"
-                            class="w-4 h-4"></i> New Project</button>
-                    <button onclick="document.getElementById('import-file').click(); App.closeSettingsMenu()" type="button"
-                        class="w-full text-left px-4 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-700 font-bold flex gap-2 transition-colors text-sm"
-                        style="border-bottom: 2px solid var(--border-secondary)"><i data-lucide="upload"
-                            class="w-4 h-4"></i> Import JSON</button>
-                    <button onclick="App.exportPoster(); App.closeSettingsMenu()" type="button"
-                        class="w-full text-left px-4 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-700 font-bold flex gap-2 transition-colors text-sm"
-                        style="border-bottom: 2px solid var(--border-secondary)"><i data-lucide="download"
-                            class="w-4 h-4"></i> Export JSON</button>
-                    <button onclick="App.toggleFullScreen(); App.closeSettingsMenu()" type="button"
-                        class="w-full text-left px-4 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-700 font-bold flex gap-2 rounded-b-xl transition-colors text-sm"><i
-                            data-lucide="maximize" class="w-4 h-4"></i> Zen Mode</button>
-                </div>
+            <!-- History, Assets & Zen Mode -->
+            <div class="flex items-center gap-1.5 flex-shrink-0">
+                <button type="button" id="btn-undo" onclick="App.undo()" disabled
+                    class="btn-chunky bg-white dark:bg-slate-800 text-dark dark:text-white px-2 py-1 rounded-xl text-[11px] gap-1" title="Undo (Ctrl+Z)">
+                    <i data-lucide="undo-2" class="w-3.5 h-3.5 text-blue"></i>
+                    <span class="hidden xl:inline">Undo</span>
+                </button>
+                <button type="button" id="btn-redo" onclick="App.redo()" disabled
+                    class="btn-chunky bg-white dark:bg-slate-800 text-dark dark:text-white px-2 py-1 rounded-xl text-[11px] gap-1" title="Redo (Ctrl+Y)">
+                    <i data-lucide="redo-2" class="w-3.5 h-3.5 text-blue"></i>
+                    <span class="hidden xl:inline">Redo</span>
+                </button>
+                <button type="button" onclick="App.openImageSelector(null)"
+                    class="btn-chunky bg-white dark:bg-slate-800 text-dark dark:text-white px-2.5 py-1 rounded-xl text-[11px] gap-1" title="Manage Image Library">
+                    <i data-lucide="images" class="w-3.5 h-3.5 text-pink"></i>
+                    <span>Images</span>
+                </button>
+                <button type="button" onclick="App.toggleFullScreen()"
+                    class="btn-chunky bg-orange text-white px-2.5 py-1 rounded-xl text-[11px] gap-1" title="Zen Presentation Mode">
+                    <i data-lucide="maximize-2" class="w-3.5 h-3.5"></i>
+                    <span>Zen</span>
+                </button>
             </div>
         </div>
-    </header>
+    </div>
 
-    <!-- MAIN CANVAS -->
-    <main class="flex-1 relative overflow-hidden flex flex-col" style="background-color: var(--bg-tertiary)">
+    <!-- MAIN STUDIO DESK & POSTER CANVAS -->
+    <main class="studio-desk flex-1 relative overflow-hidden flex flex-col">
 
-        <!-- Zoom & Print Controls -->
-        <div class="absolute top-3 right-3 z-30 flex gap-2 no-print opacity-75 hover:opacity-100 transition-opacity">
-            <div class="rounded-xl shadow-neo flex items-center p-1 gap-1"
-                style="background: var(--bg-secondary); backdrop-filter: blur(12px); border: 2px solid var(--border-primary)">
+        <!-- Floating Zoom Controls -->
+        <div class="absolute top-3 right-3 z-30 flex items-center gap-2 no-print">
+            <div class="glass-dock rounded-xl flex items-center px-1.5 py-1 gap-1 shadow-[3px_3px_0px_0px_#1e293b]">
                 <button onclick="App.changeZoom(-0.1)" type="button" aria-label="Zoom out" title="Zoom Out"
-                    class="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors"><i data-lucide="minus"
-                        class="w-4 h-4"></i></button>
-                <span id="zoom-display" class="font-heading font-bold text-xs w-10 text-center">50%</span>
+                    class="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors text-dark dark:text-white">
+                    <i data-lucide="minus" class="w-3.5 h-3.5"></i>
+                </button>
+                <span id="zoom-display" class="font-heading font-bold text-xs w-11 text-center text-dark dark:text-white tabular-nums">50%</span>
                 <button onclick="App.changeZoom(0.1)" type="button" aria-label="Zoom in" title="Zoom In"
-                    class="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors"><i data-lucide="plus"
-                        class="w-4 h-4"></i></button>
-                <button onclick="App.fitToScreen()" type="button" aria-label="Fit poster to screen" title="Fit to Screen"
-                    class="px-2 py-1 bg-brand-yellow/40 dark:bg-brand-yellow/25 text-brand-dark dark:text-white rounded text-[10px] font-black uppercase">FIT</button>
+                    class="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors text-dark dark:text-white">
+                    <i data-lucide="plus" class="w-3.5 h-3.5"></i>
+                </button>
+                <button onclick="App.fitToScreen()" type="button" aria-label="Fit poster to screen" title="Fit Poster to Screen"
+                    class="px-2.5 py-1 bg-yellow text-dark border-2 border-[#1e293b] rounded-lg text-[10px] font-heading font-bold uppercase hover:brightness-95 transition-all">
+                    Fit
+                </button>
             </div>
-            <button onclick="window.print()" type="button" aria-label="Print poster" title="Print Poster" class="neo-btn bg-brand-blue text-white w-9 h-9 p-0"><i
-                    data-lucide="printer" class="w-4 h-4"></i></button>
         </div>
 
-        <div id="poster-viewport"
-            class="flex-1 w-full h-full overflow-auto p-4 md:p-6 flex transition-all duration-300 pb-24">
-            <div id="poster-wrapper" class="m-auto shrink-0 relative">
-                <div id="poster-area"
-                    class="w-[2560px] h-[1440px] bg-brand-chalk dark:bg-slate-800 bg-graph-paper relative shadow-neo-lg overflow-hidden border-4"
-                    style="border-color: var(--border-primary)">
+        <!-- Scrollable Centered Poster Viewport -->
+        <div id="poster-viewport" class="flex-1 w-full h-full overflow-auto p-4 md:p-6 flex pb-24 custom-scrollbar">
+            <div id="poster-wrapper" class="m-auto flex-shrink-0 relative">
+                <div id="poster-area" class="w-[2560px] h-[1440px] bg-graph-paper relative overflow-hidden rounded-2xl">
                 </div>
             </div>
         </div>
     </main>
 
-    <!-- BOTTOM DOCK (Add Modules) -->
+    <!-- FLOATING BOTTOM DOCK (Add Poster Blocks) -->
     <div id="bottom-dock"
-        class="fixed bottom-3 left-1/2 -translate-x-1/2 z-40 rounded-2xl shadow-neo-lg p-2.5 flex gap-2 items-center overflow-x-auto max-w-[94vw] no-print"
-        style="background: var(--bg-secondary); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border: 3px solid var(--border-primary)">
-        <div class="px-2 font-heading font-black text-[11px] uppercase opacity-60 shrink-0 text-center leading-tight">
-            Add<br>Layer</div>
-        <div class="h-8 w-0.5 bg-slate-200 dark:bg-slate-600 shrink-0"></div>
+        class="fixed bottom-3 left-1/2 -translate-x-1/2 z-40 glass-dock rounded-2xl px-3 py-2 flex gap-2 items-center overflow-x-auto max-w-[94vw] no-scrollbar no-print">
+        <div class="px-1.5 font-heading font-bold text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-300 flex-shrink-0 text-center leading-tight">
+            Add<br>Block
+        </div>
+        <div class="h-8 w-[2px] bg-slate-200 dark:bg-slate-700 flex-shrink-0"></div>
         <div id="module-toolbox" class="flex gap-2"></div>
     </div>
 
-    <!-- EDIT MODAL -->
-    <div id="editor-modal" class="fixed inset-0 z-[100] hidden items-center justify-center backdrop-blur-sm"
-        style="background: rgba(0,0,0,0.3)" onclick="if(event.target === this) App.closeEditor()">
-        <div class="w-[90%] max-w-lg max-h-[90vh] flex flex-col rounded-2xl overflow-hidden slide-in-bottom"
-            style="background: var(--surface-card); border: 4px solid var(--border-primary); box-shadow: var(--shadow-hard-md)">
-            <div id="editor-header" class="p-4 flex justify-between items-center"
-                style="border-bottom: 4px solid var(--border-primary); background: var(--bg-tertiary)">
-                <div class="flex items-center gap-2">
-                    <span class="font-heading font-black text-xl uppercase" id="editor-title">Edit Layer</span>
+    <!-- ========================================================
+         MODALS (Unified .modal-overlay / .open)
+         ======================================================== -->
+
+    <!-- LAYER EDITOR MODAL -->
+    <div id="editor-modal" class="modal-overlay" aria-hidden="true" onclick="if (event.target === this) App.closeEditor()">
+        <div class="modal-card w-[94%] max-w-xl max-h-[88vh] flex flex-col rounded-3xl overflow-hidden animate-pop-in">
+            <div id="editor-header" class="px-5 py-3.5 flex justify-between items-center border-b-2 border-[#1e293b]/15 dark:border-slate-700 bg-slate-50 dark:bg-slate-900">
+                <div class="flex items-center gap-2.5 min-w-0">
+                    <span class="font-heading font-bold text-lg sm:text-xl uppercase truncate text-dark dark:text-white" id="editor-title">Edit Block</span>
                     <button onclick="App.duplicateCurrent()" type="button" aria-label="Duplicate layer"
-                        class="p-1.5 bg-brand-blue text-white rounded hover:bg-blue-600 ml-2" title="Duplicate"><i
-                            data-lucide="copy" class="w-4 h-4"></i></button>
+                        class="btn-chunky bg-blue text-white px-2.5 py-1 rounded-xl text-[10px] gap-1" title="Duplicate Block">
+                        <i data-lucide="copy" class="w-3.5 h-3.5"></i>
+                        <span>Duplicate</span>
+                    </button>
                 </div>
-                <button onclick="App.closeEditor()" type="button" aria-label="Close editor" class="p-2 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg"><i
-                        data-lucide="x" class="w-5 h-5"></i></button>
+                <button onclick="App.closeEditor()" type="button" aria-label="Close editor"
+                    class="btn-chunky w-9 h-9 rounded-xl bg-white dark:bg-slate-700 text-dark dark:text-white">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
             </div>
-            <div id="editor-content" class="flex-1 overflow-y-auto p-6 custom-scrollbar space-y-6"
-                style="background: var(--surface-card)"></div>
-            <div class="p-4 flex gap-2"
-                style="background: var(--bg-tertiary); border-top: 4px solid var(--border-primary)">
-                <button onclick="App.moveModule(-1)" type="button" class="flex-1 neo-btn py-3 text-xs gap-1"
-                    style="background: var(--surface-card)" title="Move Backward"><i data-lucide="arrow-left"
-                        class="w-4 h-4"></i> Back</button>
-                <button onclick="App.moveModule(1)" type="button" class="flex-1 neo-btn py-3 text-xs gap-1"
-                    style="background: var(--surface-card)" title="Move Forward">Fwd <i data-lucide="arrow-right"
-                        class="w-4 h-4"></i></button>
-                <div class="w-0.5 bg-slate-300 dark:bg-slate-600 mx-1"></div>
+
+            <div id="editor-content" class="flex-1 overflow-y-auto p-5 custom-scrollbar space-y-4"></div>
+
+            <div class="px-5 py-3.5 flex gap-2 border-t-2 border-[#1e293b]/15 dark:border-slate-700 bg-slate-50 dark:bg-slate-900">
+                <button id="btn-editor-move-back" onclick="App.moveModule(-1)" type="button"
+                    class="btn-chunky flex-1 bg-white dark:bg-slate-700 text-dark dark:text-white py-2.5 rounded-xl text-xs gap-1" title="Move Backward">
+                    <i data-lucide="arrow-left" class="w-4 h-4"></i> Back
+                </button>
+                <button id="btn-editor-move-fwd" onclick="App.moveModule(1)" type="button"
+                    class="btn-chunky flex-1 bg-white dark:bg-slate-700 text-dark dark:text-white py-2.5 rounded-xl text-xs gap-1" title="Move Forward">
+                    Fwd <i data-lucide="arrow-right" class="w-4 h-4"></i>
+                </button>
                 <button onclick="App.deleteCurrent()" type="button"
-                    class="flex-1 neo-btn bg-red-100 dark:bg-red-500/20 text-brand-red py-3 text-xs gap-1"><i
-                        data-lucide="trash-2" class="w-4 h-4"></i> Del</button>
+                    class="btn-chunky flex-1 bg-pink text-white py-2.5 rounded-xl text-xs gap-1" title="Delete Block">
+                    <i data-lucide="trash-2" class="w-4 h-4"></i> Delete
+                </button>
             </div>
         </div>
     </div>
 
-    <!-- HELP MODAL -->
-    <div id="help-modal"
-        class="fixed inset-0 z-[120] hidden items-center justify-center bg-brand-dark/40 backdrop-blur-sm"
-        onclick="if(event.target === this) App.toggleHelp()">
-        <div
-            class="bg-white dark:bg-slate-900 w-[90%] max-w-2xl max-h-[85vh] flex flex-col rounded-2xl border-4 border-brand-dark dark:border-slate-500 shadow-[12px_12px_0px_0px_#1e293b] dark:shadow-[12px_12px_0px_0px_#000000] overflow-hidden slide-in-bottom">
-            <div class="p-6 border-b-4 border-brand-dark dark:border-slate-500 bg-brand-yellow flex justify-between items-center">
-                <h2 class="font-heading font-black text-3xl text-brand-dark">QUICK GUIDE</h2>
-                <button onclick="App.toggleHelp()" type="button" aria-label="Close help" class="neo-btn bg-white text-brand-dark w-10 h-10 p-0"><i data-lucide="x"
-                        class="w-5 h-5"></i></button>
-            </div>
-            <div class="p-8 overflow-y-auto custom-scrollbar font-body text-brand-dark dark:text-slate-100 space-y-6">
-
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div class="bg-blue-50 dark:bg-blue-950/40 border-2 border-brand-blue rounded-xl p-4 shadow-sm">
-                        <div class="flex items-center gap-2 mb-2 text-brand-blue font-heading font-black text-lg"><i
-                                data-lucide="plus-square" class="w-6 h-6"></i> 1. ADD LAYERS</div>
-                        <p class="text-sm font-bold text-slate-600 dark:text-slate-300">Use the <span
-                                class="bg-white dark:bg-slate-800 border border-brand-dark dark:border-slate-500 px-1 rounded text-xs dark:text-white">BOTTOM DOCK</span> to add
-                            new modules.</p>
+    <!-- CLASSROOM TEMPLATES MODAL -->
+    <div id="templates-modal" class="modal-overlay" aria-hidden="true" onclick="if (event.target === this) App.closeTemplatesModal()">
+        <div class="modal-card w-[92%] max-w-3xl max-h-[86vh] flex flex-col rounded-3xl overflow-hidden animate-pop-in">
+            <div class="px-6 py-4 flex justify-between items-center border-b-2 border-[#1e293b]/15 dark:border-slate-700 bg-slate-50 dark:bg-slate-900">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-orange text-white border-2 border-[#1e293b] flex items-center justify-center shadow-[2px_2px_0px_0px_#1e293b]">
+                        <i data-lucide="sparkles" class="w-5 h-5"></i>
                     </div>
-                    <div class="bg-pink-50 dark:bg-pink-950/40 border-2 border-brand-pink rounded-xl p-4 shadow-sm">
-                        <div class="flex items-center gap-2 mb-2 text-brand-pink font-heading font-black text-lg"><i
-                                data-lucide="edit-3" class="w-6 h-6"></i> 2. EDIT CONTENT</div>
-                        <p class="text-sm font-bold text-slate-600 dark:text-slate-300"><span
-                                class="bg-white dark:bg-slate-800 border border-brand-dark dark:border-slate-500 px-1 rounded text-xs dark:text-white">CLICK</span> any block to
-                            open the editor. Change Text, Color, and Sizes.</p>
-                    </div>
-                    <div class="bg-purple-50 dark:bg-purple-950/40 border-2 border-brand-purple rounded-xl p-4 shadow-sm">
-                        <div class="flex items-center gap-2 mb-2 text-brand-purple font-heading font-black text-lg"><i
-                                data-lucide="move" class="w-6 h-6"></i> 3. DRAG & DROP</div>
-                        <p class="text-sm font-bold text-slate-600 dark:text-slate-300">Click and hold the <span
-                                class="bg-white dark:bg-slate-800 border border-brand-dark dark:border-slate-500 px-1 rounded text-xs dark:text-white"><i data-lucide="move"
-                                    class="w-3 h-3 inline"></i></span> icon on any card to drag it to a new position.
-                        </p>
-                    </div>
-                    <div class="bg-green-50 dark:bg-green-950/40 border-2 border-brand-green rounded-xl p-4 shadow-sm">
-                        <div class="flex items-center gap-2 mb-2 text-brand-green font-heading font-black text-lg"><i
-                                data-lucide="save" class="w-6 h-6"></i> 4. SAVE & SHARE</div>
-                        <p class="text-sm font-bold text-slate-600 dark:text-slate-300">Auto-saves locally. Use <span
-                                class="bg-white dark:bg-slate-800 border border-brand-dark dark:border-slate-500 px-1 rounded text-xs dark:text-white">CTRL + S</span> to force
-                            save.</p>
+                    <div>
+                        <h2 class="font-heading font-bold text-xl uppercase leading-none text-dark dark:text-white">Poster Templates</h2>
+                        <p class="text-xs font-bold text-slate-400 mt-0.5">Start with a ready-to-teach classroom layout</p>
                     </div>
                 </div>
+                <button onclick="App.closeTemplatesModal()" type="button" aria-label="Close templates"
+                    class="btn-chunky w-9 h-9 rounded-xl bg-white dark:bg-slate-700 text-dark dark:text-white">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
+            </div>
+            <div id="templates-grid" class="flex-1 overflow-y-auto p-5 grid grid-cols-1 sm:grid-cols-2 gap-3.5 custom-scrollbar"></div>
+        </div>
+    </div>
+
+    <!-- ALL POSTER BLOCKS PICKER MODAL -->
+    <div id="blocks-modal" class="modal-overlay" aria-hidden="true" onclick="if (event.target === this) App.closeBlocksModal()">
+        <div class="modal-card w-[94%] max-w-4xl max-h-[86vh] flex flex-col rounded-3xl overflow-hidden animate-pop-in">
+            <div class="px-6 py-4 flex justify-between items-center border-b-2 border-[#1e293b]/15 dark:border-slate-700 bg-slate-50 dark:bg-slate-900">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-pink text-white border-2 border-[#1e293b] flex items-center justify-center shadow-[2px_2px_0px_0px_#1e293b]">
+                        <i data-lucide="layout-grid" class="w-5 h-5"></i>
+                    </div>
+                    <div>
+                        <h2 class="font-heading font-bold text-xl uppercase leading-none text-dark dark:text-white">All Poster Blocks</h2>
+                        <p class="text-xs font-bold text-slate-400 mt-0.5">Choose from 15 classroom anchor-chart modules</p>
+                    </div>
+                </div>
+                <button onclick="App.closeBlocksModal()" type="button" aria-label="Close block picker"
+                    class="btn-chunky w-9 h-9 rounded-xl bg-white dark:bg-slate-700 text-dark dark:text-white">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
+            </div>
+            <div id="blocks-picker-grid" class="flex-1 overflow-y-auto p-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 custom-scrollbar"></div>
+            <div class="px-6 py-3.5 border-t-2 border-[#1e293b]/15 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 flex flex-wrap items-center justify-between gap-3">
+                <span class="text-xs font-bold text-slate-500 dark:text-slate-300">Building an entire lesson chart at once?</span>
+                <button onclick="App.closeBlocksModal(); App.openBulkImport()" type="button"
+                    class="btn-chunky bg-pink text-white px-4 py-2 rounded-xl text-xs gap-1.5">
+                    <i data-lucide="file-up" class="w-4 h-4"></i> Bulk Import Full Outline
+                </button>
             </div>
         </div>
     </div>
 
-    <!-- LIBRARY MODAL -->
-    <div id="library-modal" class="fixed inset-0 z-[110] hidden items-center justify-center backdrop-blur-sm"
-        style="background: rgba(0,0,0,0.4)"
-        onclick="if(event.target === this) App.closeLibrary()">
-        <div class="w-[90%] max-w-3xl max-h-[85vh] flex flex-col rounded-2xl overflow-hidden"
-            style="background: var(--surface-card); border: 4px solid var(--border-primary); box-shadow: var(--shadow-hard-md)">
-            <div class="p-5 flex justify-between items-center"
-                style="border-bottom: 4px solid var(--border-primary); background: var(--bg-tertiary)">
-                <h2 class="font-heading font-black text-2xl">MY PROJECTS</h2>
-                <button onclick="App.closeLibrary()" type="button" aria-label="Close projects library" class="p-1.5 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"><i data-lucide="x"
-                        class="w-6 h-6"></i></button>
+    <!-- PROJECTS LIBRARY MODAL -->
+    <div id="library-modal" class="modal-overlay" aria-hidden="true" onclick="if (event.target === this) App.closeLibrary()">
+        <div class="modal-card w-[92%] max-w-3xl max-h-[85vh] flex flex-col rounded-3xl overflow-hidden animate-pop-in">
+            <div class="px-6 py-4 flex justify-between items-center border-b-2 border-[#1e293b]/15 dark:border-slate-700 bg-slate-50 dark:bg-slate-900">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-blue text-white border-2 border-[#1e293b] flex items-center justify-center shadow-[2px_2px_0px_0px_#1e293b]">
+                        <i data-lucide="folder-open" class="w-5 h-5"></i>
+                    </div>
+                    <div>
+                        <h2 class="font-heading font-bold text-xl uppercase leading-none text-dark dark:text-white">My Posters</h2>
+                        <p class="text-xs font-bold text-slate-400 mt-0.5">Saved locally & synced to cloud</p>
+                    </div>
+                </div>
+                <button onclick="App.closeLibrary()" type="button" aria-label="Close projects library"
+                    class="btn-chunky w-9 h-9 rounded-xl bg-white dark:bg-slate-700 text-dark dark:text-white">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
             </div>
-            <div id="library-list" class="flex-1 overflow-y-auto p-5 space-y-3 custom-scrollbar"
-                style="background: var(--bg-tertiary)"></div>
-            <div class="p-4" style="background: var(--surface-card); border-top: 4px solid var(--border-primary)">
-                <button onclick="App.createNewPoster()" type="button" class="neo-btn w-full bg-brand-green text-brand-dark py-3 text-lg">CREATE NEW
-                    POSTER</button>
+            <div id="library-list" class="flex-1 overflow-y-auto p-5 space-y-2.5 custom-scrollbar"></div>
+            <div class="px-6 py-4 border-t-2 border-[#1e293b]/15 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 flex flex-wrap gap-2.5">
+                <button onclick="App.createNewPoster()" type="button"
+                    class="btn-chunky flex-1 bg-green text-white py-2.5 px-3 rounded-xl text-xs gap-1.5">
+                    <i data-lucide="plus-circle" class="w-4 h-4"></i> Blank Poster
+                </button>
+                <button onclick="App.closeLibrary(); App.openTemplatesModal()" type="button"
+                    class="btn-chunky flex-1 bg-orange text-white py-2.5 px-3 rounded-xl text-xs gap-1.5">
+                    <i data-lucide="sparkles" class="w-4 h-4"></i> Pick Template
+                </button>
+                <button onclick="App.closeLibrary(); App.openBulkImport()" type="button"
+                    class="btn-chunky flex-1 bg-pink text-white py-2.5 px-3 rounded-xl text-xs gap-1.5">
+                    <i data-lucide="file-up" class="w-4 h-4"></i> Bulk Import
+                </button>
             </div>
         </div>
     </div>
 
     <!-- IMAGE LIBRARY MODAL -->
-    <div id="image-modal" class="fixed inset-0 z-[115] hidden items-center justify-center backdrop-blur-sm"
-        style="background: rgba(0,0,0,0.4)" onclick="if(event.target === this) App.closeImageLibrary()">
-        <div class="w-[90%] max-w-4xl max-h-[85vh] flex flex-col rounded-2xl overflow-hidden slide-in-bottom"
-            style="background: var(--surface-card); border: 4px solid var(--border-primary); box-shadow: var(--shadow-hard-md)">
-            <div class="p-5 bg-brand-teal text-white flex justify-between items-center"
-                style="border-bottom: 4px solid var(--border-primary)">
+    <div id="image-modal" class="modal-overlay" aria-hidden="true" onclick="if (event.target === this) App.closeImageLibrary()">
+        <div class="modal-card w-[92%] max-w-4xl max-h-[85vh] flex flex-col rounded-3xl overflow-hidden animate-pop-in">
+            <div class="px-6 py-4 bg-pink text-white flex justify-between items-center border-b-2 border-[#1e293b]">
                 <div class="flex items-center gap-3">
-                    <i data-lucide="image" class="w-8 h-8"></i>
-                    <h2 class="font-heading font-black text-2xl">IMAGE ASSETS</h2>
+                    <i data-lucide="images" class="w-6 h-6"></i>
+                    <h2 class="font-heading font-bold text-xl uppercase">Image Assets</h2>
                 </div>
-                <button onclick="App.closeImageLibrary()" type="button" aria-label="Close image assets"><i data-lucide="x" class="w-8 h-8"></i></button>
+                <button onclick="App.closeImageLibrary()" type="button" aria-label="Close image assets"
+                    class="btn-chunky w-9 h-9 rounded-xl bg-white text-dark">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
             </div>
-            <div class="p-4 flex gap-4 items-center"
-                style="background: var(--bg-tertiary); border-bottom: 4px solid var(--border-primary)">
-                <label class="flex-1 cursor-pointer neo-btn py-3 px-4 border-dashed border-2"
-                    style="background: var(--surface-card)">
-                    <input type="file" class="hidden" accept="image/*" onchange="App.handleImageUpload(this)">
-                    <i data-lucide="upload-cloud" class="w-5 h-5 mr-2 text-brand-purple"></i>
-                    <span class="font-bold">Upload New Image</span>
+            <div class="p-4 flex flex-wrap gap-3 items-center border-b-2 border-[#1e293b]/15 dark:border-slate-700 bg-slate-50 dark:bg-slate-900">
+                <label class="flex-1 min-w-[200px] cursor-pointer btn-chunky bg-white dark:bg-slate-800 text-dark dark:text-white py-2.5 px-4 rounded-xl text-xs gap-2">
+                    <input type="file" class="is-hidden" accept="image/*" onchange="App.handleImageUpload(this)">
+                    <i data-lucide="upload-cloud" class="w-4 h-4 text-blue"></i>
+                    <span>Upload New Image</span>
                 </label>
-                <div class="text-xs font-bold text-slate-400 uppercase tracking-wide">Stored locally in Browser</div>
+                <div class="text-[11px] font-heading font-bold text-slate-400 uppercase tracking-wider">Stored locally in IndexedDB + Cloud</div>
             </div>
             <div id="image-grid"
-                class="flex-1 overflow-y-auto p-5 custom-scrollbar grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 content-start"
-                style="background: var(--bg-tertiary)">
-                <!-- Images rendered here -->
+                class="flex-1 overflow-y-auto p-5 custom-scrollbar grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3.5 content-start">
+            </div>
+        </div>
+    </div>
+
+    <!-- HELP GUIDE MODAL -->
+    <div id="help-modal" class="modal-overlay" aria-hidden="true" onclick="if (event.target === this) App.toggleHelp()">
+        <div class="modal-card w-[92%] max-w-2xl max-h-[85vh] flex flex-col rounded-3xl overflow-hidden animate-pop-in">
+            <div class="px-6 py-4 border-b-2 border-[#1e293b] bg-yellow flex justify-between items-center">
+                <h2 class="font-heading font-bold text-2xl text-dark uppercase">Quick Guide</h2>
+                <button onclick="App.toggleHelp()" type="button" aria-label="Close help"
+                    class="btn-chunky bg-white text-dark w-9 h-9 rounded-xl">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
+            </div>
+            <div class="p-6 overflow-y-auto custom-scrollbar font-body text-dark dark:text-slate-100">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div class="bg-blue/10 border-2 border-blue rounded-2xl p-4">
+                        <div class="flex items-center gap-2 mb-1.5 text-blue font-heading font-bold text-sm uppercase">
+                            <i data-lucide="sparkles" class="w-4 h-4"></i> 1. Simple vs Pro &amp; 15 Blocks
+                        </div>
+                        <p class="text-xs font-bold text-slate-600 dark:text-slate-300">Start in <strong>Simple Mode</strong> with 8 core blocks plus the <strong>More</strong> picker for all 15 modules. Switch to <strong>Pro Mode</strong> for all 15 dock buttons, custom grids, corkboard/chalkboard backgrounds, undo history, and tape pins.</p>
+                    </div>
+                    <div class="bg-pink/10 border-2 border-pink rounded-2xl p-4">
+                        <div class="flex items-center gap-2 mb-1.5 text-pink font-heading font-bold text-sm uppercase">
+                            <i data-lucide="file-up" class="w-4 h-4"></i> 2. Bulk Import &amp; Quick Paste
+                        </div>
+                        <p class="text-xs font-bold text-slate-600 dark:text-slate-300">Use <strong>Bulk Import</strong> in the top bar to copy an AI-ready outline template and generate a full poster in seconds. Inside block editors, use interactive row builders or switch to <strong>Quick Paste</strong> (even TSV/CSV tables!).</p>
+                    </div>
+                    <div class="bg-orange/10 border-2 border-orange rounded-2xl p-4">
+                        <div class="flex items-center gap-2 mb-1.5 text-orange font-heading font-bold text-sm uppercase">
+                            <i data-lucide="printer" class="w-4 h-4"></i> 3. Print &amp; Zen
+                        </div>
+                        <p class="text-xs font-bold text-slate-600 dark:text-slate-300">Click any card to edit, drag the handle or use hover arrows to reorder, print as a wall handout, or launch <strong>Zen Mode</strong> to present full-screen.</p>
+                    </div>
+                    <div class="bg-green/10 border-2 border-green rounded-2xl p-4">
+                        <div class="flex items-center gap-2 mb-1.5 text-green font-heading font-bold text-sm uppercase">
+                            <i data-lucide="keyboard" class="w-4 h-4"></i> 4. Shortcuts
+                        </div>
+                        <p class="text-xs font-bold text-slate-600 dark:text-slate-300"><strong>Ctrl+S</strong> saves immediately, <strong>Ctrl+Z / Ctrl+Y</strong> undo or redo block changes, and pressing <strong>Enter</strong> in row builders adds the next item.</p>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
 
     <!-- CONFIRMATION MODAL -->
-    <div id="confirm-modal" class="fixed inset-0 z-[120] hidden items-center justify-center backdrop-blur-sm"
-        style="background: rgba(0,0,0,0.3)" onclick="if(event.target === this) App.closeConfirm()">
-        <div class="w-[90%] max-w-md flex flex-col rounded-2xl overflow-hidden slide-in-bottom"
-            style="background: var(--surface-card); border: 4px solid var(--border-primary); box-shadow: var(--shadow-hard-md)">
-            <div class="h-4 bg-brand-red flex gap-2 items-center px-3"
-                style="border-bottom: 4px solid var(--border-primary)">
-                <div class="w-2 h-2 rounded-full bg-white/50"></div>
-                <div class="w-2 h-2 rounded-full bg-white/50"></div>
+    <div id="confirm-modal" class="modal-overlay" aria-hidden="true" onclick="if (event.target === this) App.closeConfirm()">
+        <div class="modal-card w-[90%] max-w-sm rounded-3xl p-6 animate-pop-in text-center">
+            <div class="w-14 h-14 rounded-2xl bg-pink/15 text-pink flex items-center justify-center mb-4 mx-auto border-2 border-[#1e293b]">
+                <i data-lucide="alert-triangle" class="w-7 h-7"></i>
             </div>
-            <div class="p-8">
-                <h3 class="font-heading font-black text-3xl leading-none mb-4" style="color: var(--text-primary)">SYSTEM
-                    ALERT</h3>
-                <p id="confirm-msg"
-                    class="font-body font-bold text-xl leading-relaxed border-l-4 border-brand-yellow pl-4"
-                    style="color: var(--text-secondary)">Are you sure you want to perform this action?</p>
-            </div>
-            <div class="flex gap-4 p-6 pt-0">
+            <h3 class="font-heading font-bold text-xl text-dark dark:text-white uppercase mb-1.5">Confirm Action</h3>
+            <p id="confirm-msg" class="text-slate-500 dark:text-slate-300 text-sm mb-6 font-semibold">Are you sure?</p>
+            <div class="flex gap-3">
                 <button onclick="App.closeConfirm()" type="button"
-                    class="flex-1 py-3 font-heading font-black rounded-xl hover:-translate-y-1 hover:shadow-neo-sm transition-all"
-                    style="border: 4px solid var(--border-primary); color: var(--text-primary)">CANCEL</button>
+                    class="btn-chunky flex-1 py-2.5 rounded-xl bg-white dark:bg-slate-700 text-dark dark:text-white text-xs">Cancel</button>
                 <button onclick="App.handleConfirmYes()" type="button"
-                    class="flex-1 py-3 font-heading font-black rounded-xl bg-brand-red text-white hover:bg-red-500 hover:-translate-y-1 hover:shadow-neo-sm transition-all"
-                    style="border: 4px solid var(--border-primary); box-shadow: 4px 4px 0px 0px rgba(0,0,0,0.2)">PROCEED</button>
+                    class="btn-chunky flex-1 py-2.5 bg-pink text-white rounded-xl text-xs">Proceed</button>
             </div>
         </div>
     </div>
 
-    <input type="file" id="import-file" class="hidden" accept=".json" onchange="App.handleFileImport(this)">
+    <!-- Hidden JSON Import Input -->
+    <input type="file" id="import-file" class="is-hidden" accept=".json" onchange="App.handleFileImport(this)">
 
-    <script src="script.js"></script>
+    <!-- Toast Notifications -->
+    <div id="toast-container"></div>
+
+    <!-- Application Script (?v=5 cache-busting) -->
+    <script src="./script.js?v=5"></script>
 </body>
 
 </html>
