@@ -465,6 +465,7 @@ async function saveToCloud() {
             text: s.text || '',
             images: sImgs,
             imageCaptions: filterCloudCaptions(s.imageCaptions, sImgs),
+            settings: s.settings && typeof s.settings === 'object' ? { ...s.settings } : undefined,
             createdAt: s.createdAt || Date.now(),
             updatedAt: s.updatedAt || s.lastUsed || s.createdAt || Date.now(),
             lastUsed: s.lastUsed || s.createdAt || Date.now(),
@@ -487,21 +488,23 @@ async function loadFromCloud() {
         const data = await loadProgress('speedy_slides_data');
         if (!data) return;
 
-        // 1. Merge settings
-        if (data.settings && typeof data.settings === 'object') {
+        const localUpdatedAt = (await dbGet('presentationUpdatedAt')) || 0;
+        const cloudUpdatedAt = typeof data.updatedAt === 'number' ? data.updatedAt : 0;
+
+        // 1. Merge settings (only overwrite if cloud is newer or local has no timestamp)
+        if (data.settings && typeof data.settings === 'object' && (!localUpdatedAt || cloudUpdatedAt > localUpdatedAt)) {
             const localAdv = localStorage.getItem('speedy_show_advanced');
             app.settings = { ...DEFAULT_SETTINGS, ...data.settings };
             if (localAdv === 'true' || localAdv === 'false') {
                 app.settings.showAdvanced = localAdv === 'true';
             }
+            try { localStorage.setItem('speedy_settings_v1', JSON.stringify(app.settings)); } catch (_) {}
             await dbPut('presentationSettings', app.settings, { sync: false });
             app.applySettingsToUI();
         }
 
         // 2. Merge text (without overwriting newer local edits or active typing)
         const localText = (await dbGet('presentationText')) || '';
-        const localUpdatedAt = (await dbGet('presentationUpdatedAt')) || 0;
-        const cloudUpdatedAt = typeof data.updatedAt === 'number' ? data.updatedAt : 0;
         const textarea = document.getElementById('word-input');
         const liveText = textarea ? textarea.value : localText;
 
@@ -557,6 +560,7 @@ async function loadFromCloud() {
                         text: nextText,
                         images: nextImages,
                         imageCaptions: nextCaptions,
+                        settings: cloudSetTime >= localSetTime ? (s.settings || match.settings) : (match.settings || s.settings),
                         createdAt: match.createdAt || s.createdAt || Date.now(),
                         updatedAt: Math.max(localSetTime, cloudSetTime) || Date.now(),
                         lastUsed: Math.max(match.lastUsed || 0, s.lastUsed || 0) || Date.now(),
@@ -629,14 +633,23 @@ const app = {
     async init() {
         this.renderStarterPacksMenu();
 
-        // Fast sync of Simple/Options toggle from localStorage before IDB resolves
+        // Fast sync of saved settings & Simple/Options toggle from localStorage before IDB resolves
+        try {
+            const rawLsSettings = localStorage.getItem('speedy_settings_v1');
+            if (rawLsSettings) {
+                const parsedLs = JSON.parse(rawLsSettings);
+                if (parsedLs && typeof parsedLs === 'object') {
+                    this.settings = { ...DEFAULT_SETTINGS, ...parsedLs };
+                }
+            }
+        } catch (_) {}
         const localAdv = localStorage.getItem('speedy_show_advanced');
         if (localAdv === 'true' || localAdv === 'false') {
             this.settings.showAdvanced = localAdv === 'true';
         }
         this.applySettingsToUI();
 
-        // Hydrate saved settings
+        // Hydrate saved settings from IndexedDB
         const savedSettings = await dbGet('presentationSettings');
         if (savedSettings && typeof savedSettings === 'object') {
             this.settings = { ...DEFAULT_SETTINGS, ...savedSettings };
@@ -646,6 +659,7 @@ const app = {
             if (this.settings.autoPlaySec > 0) {
                 this.lastAutoPlaySec = this.settings.autoPlaySec;
             }
+            try { localStorage.setItem('speedy_settings_v1', JSON.stringify(this.settings)); } catch (_) {}
         }
         this.applySettingsToUI();
 
@@ -1111,6 +1125,9 @@ const app = {
         ) {
             this.updateCount();
         }
+        if (this.activeSetId) {
+            this.autoSaveActiveSet();
+        }
         if (this.isPresenting()) {
             this.renderSlide();
         }
@@ -1121,6 +1138,7 @@ const app = {
     },
 
     persistSettings() {
+        try { localStorage.setItem('speedy_settings_v1', JSON.stringify(this.settings)); } catch (_) {}
         dbPut('presentationUpdatedAt', Date.now(), { sync: false });
         dbPut('presentationSettings', { ...this.settings });
     },
@@ -2325,17 +2343,25 @@ const app = {
         const slide = this.deck[this.currentIndex];
         if (!slide) return;
 
-        // Layout class for pair vs single + text alignment
+        // Layout class for pair vs single + text alignment (prevent image/text collision)
         const isLeft = this.settings.textAlign === 'left';
         const alignWrapCls = isLeft ? 'items-start text-left' : 'items-center text-center';
         if (slide.type === 'pair') {
-            contentWrap.className = 'w-full max-w-[92vw] max-h-[78vh] px-4 sm:px-10 flex flex-col lg:flex-row items-center justify-center gap-6 lg:gap-10 relative z-20';
-            textWrap.className = `flex flex-col justify-center ${alignWrapCls} w-full lg:w-1/2 min-w-0 stage-blur-target`;
-            imageWrap.className = 'flex flex-col items-center justify-center gap-3 w-full lg:w-1/2 min-w-0 stage-blur-target';
+            contentWrap.className = 'w-full max-w-[92vw] max-h-[78vh] px-4 sm:px-10 flex flex-col lg:flex-row items-center justify-center gap-4 lg:gap-10 relative z-20 overflow-hidden';
+            textWrap.className = `flex flex-col justify-center ${alignWrapCls} w-full lg:w-1/2 min-w-0 min-h-0 max-h-[34vh] lg:max-h-[74vh] overflow-hidden stage-blur-target`;
+            imageWrap.className = 'flex flex-col items-center justify-center gap-2 w-full lg:w-1/2 min-w-0 min-h-0 max-h-[40vh] lg:max-h-[74vh] overflow-hidden stage-blur-target';
+            if (displayImg) {
+                displayImg.classList.remove('max-h-[66vh]');
+                displayImg.classList.add('max-h-[34vh]', 'lg:max-h-[62vh]');
+            }
         } else {
-            contentWrap.className = 'w-full max-w-[92vw] max-h-[78vh] px-4 sm:px-10 flex flex-col items-center justify-center gap-6 relative z-20';
-            textWrap.className = `flex flex-col justify-center ${alignWrapCls} w-full min-w-0 stage-blur-target`;
-            imageWrap.className = 'flex flex-col items-center justify-center gap-3 max-w-full stage-blur-target';
+            contentWrap.className = 'w-full max-w-[92vw] max-h-[78vh] px-4 sm:px-10 flex flex-col items-center justify-center gap-6 relative z-20 overflow-hidden';
+            textWrap.className = `flex flex-col justify-center ${alignWrapCls} w-full min-w-0 min-h-0 stage-blur-target`;
+            imageWrap.className = 'flex flex-col items-center justify-center gap-3 max-w-full min-h-0 stage-blur-target';
+            if (displayImg) {
+                displayImg.classList.remove('max-h-[34vh]', 'lg:max-h-[62vh]');
+                displayImg.classList.add('max-h-[66vh]');
+            }
         }
 
         // Transition animation
@@ -3064,6 +3090,7 @@ const app = {
                     text,
                     images: [...this.images],
                     imageCaptions: captions,
+                    settings: { ...this.settings },
                     updatedAt: now,
                     lastUsed: now
                 });
@@ -3098,6 +3125,7 @@ const app = {
                 text,
                 images: [...this.images],
                 imageCaptions: captions,
+                settings: { ...this.settings },
                 updatedAt: now,
                 lastUsed: now
             });
@@ -3115,6 +3143,7 @@ const app = {
             text,
             images: [...this.images],
             imageCaptions: captions,
+            settings: { ...this.settings },
             createdAt: now,
             updatedAt: now,
             lastUsed: now,
@@ -3172,6 +3201,7 @@ const app = {
                     text,
                     images: [...this.images],
                     imageCaptions: this.collectActiveCaptions(),
+                    settings: { ...this.settings },
                     createdAt: duplicate?.createdAt || now,
                     updatedAt: now,
                     lastUsed: now,
@@ -3199,6 +3229,7 @@ const app = {
             text,
             images: [...this.images],
             imageCaptions: this.collectActiveCaptions(),
+            settings: { ...this.settings },
             updatedAt: now,
             lastUsed: now
         });
@@ -3222,6 +3253,13 @@ const app = {
             : {};
         await dbPut('presentationImages', this.images);
         await dbPut('presentationImageCaptions', this.imageCaptions);
+
+        if (freshSet.settings && typeof freshSet.settings === 'object') {
+            const currentAdv = this.settings.showAdvanced;
+            this.settings = { ...DEFAULT_SETTINGS, ...freshSet.settings, showAdvanced: currentAdv };
+            this.persistSettings();
+            this.applySettingsToUI();
+        }
 
         this.activeSetId = freshSet.id;
         await dbPut('activeSetId', this.activeSetId, { sync: false });
@@ -3257,6 +3295,7 @@ const app = {
             text: freshSet.text || '',
             images: [...(freshSet.images || [])],
             imageCaptions: { ...(freshSet.imageCaptions || {}) },
+            settings: freshSet.settings && typeof freshSet.settings === 'object' ? { ...freshSet.settings } : { ...this.settings },
             createdAt: now,
             updatedAt: now,
             lastUsed: now,
