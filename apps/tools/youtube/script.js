@@ -1454,7 +1454,7 @@
                 },
                 events: {
                     onReady(e) {
-                                                const iframe = typeof e.target.getIframe === 'function' ? e.target.getIframe() : null;
+                        const iframe = typeof e.target.getIframe === 'function' ? e.target.getIframe() : null;
                         if (iframe) iframe.referrerPolicy = 'strict-origin-when-cross-origin';
                         e.target.setVolume(playerVolume);
                         if (playerMuted) e.target.mute();
@@ -1463,12 +1463,12 @@
                         }
                     },
                     onStateChange: onPlayerStateChange,
-onError(e) {
+                    onError(e) {
                         const code = e && e.data ? ` (Error ${e.data})` : '';
                         console.warn('YouTube Player error:', e && e.data);
-                        showToast(`Video cannot be embedded${code} — try Copy Link`, 'warning');
+                        showToast(`Video cannot be embedded${code} — try Copy Link`, 'warning');}
                 }
-            };
+            }
             if (window.location.protocol === 'http:' || window.location.protocol === 'https:') {
                 pConfig.playerVars.origin = window.location.origin;
             }
