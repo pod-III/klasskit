@@ -1,57 +1,111 @@
-// Audio Context
-const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+// ==================== AUDIO & THEME ====================
+const SOUND_KEY = 'sound_word_search';
+const THEME_KEY = 'theme_word-search';
+const PREFS_KEY = 'word_search_prefs_v1';
+
+let audioCtx = null;
+let soundEnabled = true;
+try {
+    soundEnabled = localStorage.getItem(SOUND_KEY) !== 'off';
+} catch (e) {
+    soundEnabled = true;
+}
+
+function getAudioCtx() {
+    if (!audioCtx && typeof window !== 'undefined') {
+        const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+        if (AudioContextClass) audioCtx = new AudioContextClass();
+    }
+    return audioCtx;
+}
 
 const playTone = (freq, type, duration) => {
-    if (audioCtx.state === 'suspended') audioCtx.resume();
-    const osc = audioCtx.createOscillator();
-    const gain = audioCtx.createGain();
+    if (!soundEnabled) return;
+    const ctx = getAudioCtx();
+    if (!ctx) return;
+    if (ctx.state === 'suspended') ctx.resume();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
     osc.type = type;
-    osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
-    gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + duration);
+    osc.frequency.setValueAtTime(freq, ctx.currentTime);
+    gain.gain.setValueAtTime(0.08, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + duration);
     osc.connect(gain);
-    gain.connect(audioCtx.destination);
+    gain.connect(ctx.destination);
     osc.start();
-    osc.stop(audioCtx.currentTime + duration);
+    osc.stop(ctx.currentTime + duration);
 };
+
+function updateSoundToggleUI() {
+    const btn = document.getElementById('sound-toggle');
+    const onIcon = document.getElementById('sound-icon-on');
+    const offIcon = document.getElementById('sound-icon-off');
+    if (btn) btn.setAttribute('aria-pressed', String(soundEnabled));
+    if (onIcon) onIcon.classList.toggle('hidden', !soundEnabled);
+    if (offIcon) offIcon.classList.toggle('hidden', soundEnabled);
+}
 
 const Sound = {
-    tap: () => playTone(600, 'sine', 0.1),
+    tap: () => playTone(600, 'sine', 0.08),
+    click: () => playTone(420, 'triangle', 0.05),
+    back: () => playTone(520, 'sine', 0.05),
     success: () => {
         playTone(500, 'triangle', 0.1);
-        setTimeout(() => playTone(1000, 'triangle', 0.2), 100);
+        setTimeout(() => playTone(1000, 'triangle', 0.18), 100);
     },
-    error: () => playTone(150, 'sawtooth', 0.2),
-    win: () => [400, 500, 600, 800].forEach((f, i) => setTimeout(() => playTone(f, 'square', 0.2), i * 100))
+    error: () => playTone(150, 'sawtooth', 0.18),
+    win: () => [400, 500, 600, 800].forEach((f, i) => setTimeout(() => playTone(f, 'square', 0.18), i * 100)),
+    toggleMute: () => {
+        soundEnabled = !soundEnabled;
+        try { localStorage.setItem(SOUND_KEY, soundEnabled ? 'on' : 'off'); } catch (e) { /* ignore */ }
+        updateSoundToggleUI();
+        if (soundEnabled) Sound.click();
+    }
 };
 
+function initTheme() {
+    let savedTheme = null;
+    try {
+        savedTheme = localStorage.getItem(THEME_KEY) || localStorage.getItem('klasskit-theme') || localStorage.getItem('theme_hub');
+    } catch (e) { /* ignore */ }
+    if (savedTheme === 'dark' || (!savedTheme && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+        document.documentElement.classList.add('dark');
+    } else {
+        document.documentElement.classList.remove('dark');
+    }
+}
+
+function toggleTheme() {
+    const isDark = document.documentElement.classList.toggle('dark');
+    try {
+        localStorage.setItem(THEME_KEY, isDark ? 'dark' : 'light');
+        localStorage.setItem('klasskit-theme', isDark ? 'dark' : 'light');
+    } catch (e) { /* ignore */ }
+    Sound.click();
+}
+
 // --- TOAST NOTIFICATIONS ---
-function showToast(message, type = 'info', duration = 3000) {
+function showToast(message, type = 'info', duration = 2600) {
     const container = document.getElementById('toast-container');
     if (!container) return;
 
     const toast = document.createElement('div');
     const colors = {
-        success: 'bg-green border-dark text-dark',
-        error: 'bg-pink border-dark text-white',
-        info: 'bg-blue border-dark text-white',
-        warning: 'bg-orange border-dark text-white'
+        success: 'bg-green text-dark',
+        error: 'bg-pink text-white',
+        info: 'bg-dark text-white',
+        warning: 'bg-orange text-dark'
     };
 
-    toast.className = `${colors[type] || colors.info} px-4 py-3 rounded-lg border-2 shadow-hard font-bold text-sm flex items-center gap-2 min-w-[200px] animate-pop`;
+    toast.className = `px-4 py-2.5 rounded-2xl border-2 border-dark dark:border-slate-500 shadow-hard font-heading text-xs uppercase tracking-wide flex items-center gap-2 pointer-events-auto ${colors[type] || colors.info}`;
     toast.innerHTML = `<span>${escapeHtml(message)}</span>`;
-
     container.appendChild(toast);
-
-    if (window.lucide) {
-        lucide.createIcons();
-    }
 
     setTimeout(() => {
         toast.style.opacity = '0';
-        toast.style.transform = 'translateX(100%)';
-        toast.style.transition = 'all 0.3s ease';
-        setTimeout(() => toast.remove(), 300);
+        toast.style.transform = 'translateY(8px)';
+        toast.style.transition = 'opacity 0.2s ease, transform 0.2s ease';
+        setTimeout(() => toast.remove(), 220);
     }, duration);
 }
 
@@ -61,12 +115,12 @@ function showConfirmToast(message, onConfirm, onCancel) {
     if (!container) return;
 
     const toast = document.createElement('div');
-    toast.className = 'bg-white border-2 border-dark px-4 py-3 rounded-lg shadow-hard min-w-[280px] animate-pop';
+    toast.className = 'bg-white dark:bg-slate-800 border-2 border-dark dark:border-slate-500 px-4 py-3 rounded-2xl shadow-hard min-w-[280px] pointer-events-auto';
     toast.innerHTML = `
-        <p class="font-bold text-dark text-sm mb-3">${escapeHtml(message)}</p>
+        <p class="font-bold text-dark dark:text-white text-sm mb-3">${escapeHtml(message)}</p>
         <div class="flex gap-2">
-            <button id="confirm-yes" class="flex-1 bg-pink text-white py-2 rounded border-2 border-dark font-bold text-xs hover:brightness-110 transition">YES</button>
-            <button id="confirm-no" class="flex-1 bg-gray-200 text-dark py-2 rounded border-2 border-dark font-bold text-xs hover:brightness-110 transition">NO</button>
+            <button id="confirm-yes" class="flex-1 bg-pink text-white py-2 rounded-xl border-2 border-dark font-bold text-xs hover:brightness-110 transition">YES</button>
+            <button id="confirm-no" class="flex-1 bg-slate-200 dark:bg-slate-700 text-dark dark:text-white py-2 rounded-xl border-2 border-dark font-bold text-xs hover:brightness-110 transition">NO</button>
         </div>
     `;
 
@@ -84,14 +138,18 @@ function showConfirmToast(message, onConfirm, onCancel) {
 }
 
 function escapeHtml(text) {
-    if (typeof text !== 'string') return '';
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
+    if (text === undefined || text === null) return '';
+    return String(text).replace(/[&<>"']/g, (ch) => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#39;'
+    }[ch]));
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-    lucide.createIcons();
+    if (window.lucide) lucide.createIcons();
 });
 
 // --- INDEXEDDB ---
@@ -142,12 +200,21 @@ async function initDB() {
 
 async function savePreset(name, data, id = null) {
     if (!dataBase) throw new Error('Database not initialized');
+    const existing = id ? await getPreset(id) : null;
+    const now = Date.now();
+    const isSame = existing && (existing.name || '').trim().toLowerCase() === name.trim().toLowerCase();
     return new Promise((resolve, reject) => {
         const tx = dataBase.transaction(STORE_PRESETS, 'readwrite');
         const store = tx.objectStore(STORE_PRESETS);
-        const preset = { name, data: JSON.parse(JSON.stringify(data)), updatedAt: Date.now() };
-        if (id) preset.id = id;
-        const request = id ? store.put(preset) : store.add(preset);
+        const preset = {
+            name: name.trim(),
+            data: JSON.parse(JSON.stringify(data)),
+            updatedAt: now,
+            lastUsed: now,
+            usageCount: isSame ? ((existing.usageCount || 0) + 1) : 1
+        };
+        if (isSame) preset.id = existing.id;
+        const request = isSame ? store.put(preset) : store.add(preset);
         request.onsuccess = () => resolve(request.result);
         request.onerror = () => reject(request.error);
     });
@@ -155,22 +222,41 @@ async function savePreset(name, data, id = null) {
 
 async function getAllPresets() {
     if (!dataBase) return [];
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve) => {
         const tx = dataBase.transaction(STORE_PRESETS, 'readonly');
         const store = tx.objectStore(STORE_PRESETS);
         const index = store.index('updatedAt');
         const request = index.getAll();
-        request.onsuccess = () => resolve(request.result.reverse());
+        request.onsuccess = () => resolve((request.result || []).reverse());
     });
 }
 
 async function getPreset(id) {
-    if (!dataBase) return null;
-    return new Promise((resolve, reject) => {
+    if (!dataBase || id === null || id === undefined) return null;
+    return new Promise((resolve) => {
         const tx = dataBase.transaction(STORE_PRESETS, 'readonly');
         const store = tx.objectStore(STORE_PRESETS);
         const request = store.get(id);
-        request.onsuccess = () => resolve(request.result);
+        request.onsuccess = () => resolve(request.result || null);
+        request.onerror = () => resolve(null);
+    });
+}
+
+async function markPresetUsed(id) {
+    if (!dataBase || id === null || id === undefined) return;
+    const preset = await getPreset(id);
+    if (!preset) return;
+    return new Promise((resolve) => {
+        const tx = dataBase.transaction(STORE_PRESETS, 'readwrite');
+        const store = tx.objectStore(STORE_PRESETS);
+        store.put({
+            ...preset,
+            id: preset.id,
+            lastUsed: Date.now(),
+            usageCount: (preset.usageCount || 0) + 1
+        });
+        tx.oncomplete = () => { syncToCloud(); resolve(); };
+        tx.onerror = () => resolve();
     });
 }
 
@@ -181,6 +267,7 @@ async function deletePreset(id) {
         const store = tx.objectStore(STORE_PRESETS);
         const request = store.delete(id);
         request.onsuccess = () => resolve();
+        request.onerror = () => reject(request.error);
     });
 }
 
@@ -203,12 +290,53 @@ async function getCurrentPresetId() {
 const State = {
     grid: [],
     solutions: new Set(),
+    placedWords: [],
     validWords: new Set(),
     foundWords: new Set(),
     selectionStart: null,
     isActive: false,
     totalWords: 0
 };
+
+const Settings = {
+    bankMode: 'full',
+    letterCase: 'upper'
+};
+
+function loadLocalPrefs() {
+    try {
+        const raw = localStorage.getItem(PREFS_KEY);
+        if (!raw) return;
+        const parsed = JSON.parse(raw);
+        if (parsed.bankMode && ['full', 'hints', 'count'].includes(parsed.bankMode)) {
+            Settings.bankMode = parsed.bankMode;
+        }
+        if (parsed.letterCase && ['upper', 'lower'].includes(parsed.letterCase)) {
+            Settings.letterCase = parsed.letterCase;
+        }
+    } catch (e) { /* ignore */ }
+}
+
+function saveLocalPrefs() {
+    try {
+        localStorage.setItem(PREFS_KEY, JSON.stringify(Settings));
+    } catch (e) { /* ignore */ }
+}
+
+function applyPrefsToControls() {
+    if (els.bankMode) els.bankMode.value = Settings.bankMode;
+    document.querySelectorAll('input[name="ws-letter-case"]').forEach((r) => {
+        r.checked = r.value === Settings.letterCase;
+    });
+}
+
+function formatWordDisplay(word, mode, letterCase) {
+    const cased = letterCase === 'lower' ? String(word).toLowerCase() : String(word).toUpperCase();
+    if (mode === 'hints') {
+        return `${cased[0] || ''} ${'_ '.repeat(Math.max(0, cased.length - 1)).trim()} (${cased.length})`;
+    }
+    return cased;
+}
 
 // --- DIFFICULTY ---
 const Difficulty = {
@@ -217,14 +345,12 @@ const Difficulty = {
 };
 
 function getActiveDirs() {
-    // Always: forward horizontal + forward vertical
     const dirs = [{ r: 0, c: 1 }, { r: 1, c: 0 }];
     if (Difficulty.allowBackwards) {
         dirs.push({ r: 0, c: -1 }, { r: -1, c: 0 });
     }
     if (Difficulty.allowDiagonal) {
         dirs.push({ r: 1, c: 1 }, { r: -1, c: 1 });
-        // Backward diagonals only when both modes active
         if (Difficulty.allowBackwards) {
             dirs.push({ r: -1, c: -1 }, { r: 1, c: -1 });
         }
@@ -235,12 +361,13 @@ function getActiveDirs() {
 function toggleDifficulty(mode) {
     if (mode === 'backwards') {
         Difficulty.allowBackwards = !Difficulty.allowBackwards;
-        document.getElementById('toggle-backwards').classList.toggle('active', Difficulty.allowBackwards);
+        document.getElementById('toggle-backwards')?.classList.toggle('active', Difficulty.allowBackwards);
     } else if (mode === 'diagonal') {
         Difficulty.allowDiagonal = !Difficulty.allowDiagonal;
-        document.getElementById('toggle-diagonal').classList.toggle('active', Difficulty.allowDiagonal);
+        document.getElementById('toggle-diagonal')?.classList.toggle('active', Difficulty.allowDiagonal);
     }
     updateDifficultyLabel();
+    Sound.click();
 }
 
 function updateDifficultyLabel() {
@@ -249,19 +376,19 @@ function updateDifficultyLabel() {
     const { allowBackwards, allowDiagonal } = Difficulty;
     let text, colorClass;
     if (!allowBackwards && !allowDiagonal) {
-        text = '⭐ Easy — Horizontal &amp; Vertical';
+        text = 'Easy — Horizontal & Vertical';
         colorClass = 'bg-green/10 border-green/30 text-green';
     } else if (allowBackwards && !allowDiagonal) {
-        text = '⭐⭐ Medium — + Backwards';
+        text = 'Medium — + Backwards';
         colorClass = 'bg-orange/10 border-orange/30 text-orange';
     } else if (!allowBackwards && allowDiagonal) {
-        text = '⭐⭐ Medium — + Diagonal';
+        text = 'Medium — + Diagonal';
         colorClass = 'bg-orange/10 border-orange/30 text-orange';
     } else {
-        text = '⭐⭐⭐ Hard — All Directions';
+        text = 'Hard — All Directions';
         colorClass = 'bg-pink/10 border-pink/30 text-pink';
     }
-    el.className = `text-center py-1.5 px-3 border-2 rounded-lg ${colorClass}`;
+    el.className = `text-center py-1 px-2.5 border rounded-lg ${colorClass}`;
     el.innerHTML = `<span class="text-[10px] font-bold uppercase tracking-widest">${text}</span>`;
 }
 
@@ -280,10 +407,14 @@ const els = {
     zoomOut: document.getElementById('zoom-out'),
     generateBtn: document.getElementById('generate-btn'),
     giveUpBtn: document.getElementById('give-up-btn'),
-    userPresetSelect: document.getElementById('userPresetSelect'),
+    clearBoardBtn: document.getElementById('clear-board-btn'),
     userPresetNameInput: document.getElementById('userPresetNameInput'),
+    setsList: document.getElementById('sets-list'),
+    savedCount: document.getElementById('saved-count'),
+    setsSort: document.getElementById('sets-sort'),
     savedPuzzleSelect: document.getElementById('savedPuzzleSelect'),
     savedPuzzleNameInput: document.getElementById('savedPuzzleNameInput'),
+    bankMode: document.getElementById('ws-bank-mode'),
     emptyStateCta: document.getElementById('empty-state-cta'),
     emptyBankMsg: document.getElementById('empty-bank-msg')
 };
@@ -293,6 +424,7 @@ let syncTimeout = null;
 async function syncToCloud() {
     if (syncTimeout) clearTimeout(syncTimeout);
     syncTimeout = setTimeout(async () => {
+        if (typeof saveProgress !== 'function') return;
         const presets = await getAllPresets();
         const puzzles = await getAllSavedPuzzles();
         await saveProgress('word_search', {
@@ -300,13 +432,14 @@ async function syncToCloud() {
             puzzles,
             currentPresetId
         });
-    }, 2000);
+    }, 1500);
 }
 
 async function loadFromCloud() {
+    if (typeof loadProgress !== 'function') return;
     const cloudData = await loadProgress('word_search');
     if (cloudData) {
-        if (cloudData.presets) {
+        if (cloudData.presets && dataBase) {
             for (const p of cloudData.presets) {
                 const tx = dataBase.transaction(STORE_PRESETS, 'readwrite');
                 const store = tx.objectStore(STORE_PRESETS);
@@ -323,7 +456,7 @@ async function loadFromCloud() {
                 }
             }
         }
-        if (cloudData.puzzles) {
+        if (cloudData.puzzles && dataBase) {
             for (const p of cloudData.puzzles) {
                 const tx = dataBase.transaction(STORE_PUZZLES, 'readwrite');
                 const store = tx.objectStore(STORE_PUZZLES);
@@ -345,90 +478,170 @@ async function loadFromCloud() {
     }
 }
 
-// --- PERSISTENCE LOGIC ---
-
+// --- SAVED WORD SETS (Crossword-style inline card list) ---
 async function renderPresetSelector() {
     const presets = await getAllPresets();
-    if (!els.userPresetSelect) return;
-    els.userPresetSelect.innerHTML = '<option value="">-- Select a Preset --</option>';
-    presets.forEach(p => {
-        const option = document.createElement('option');
-        option.value = p.id;
-        option.textContent = p.name;
-        if (p.id === currentPresetId) option.selected = true;
-        els.userPresetSelect.appendChild(option);
+    if (els.savedCount) els.savedCount.textContent = String(presets.length);
+    const list = els.setsList || document.getElementById('sets-list');
+    if (!list) return;
+
+    if (currentPresetId !== null && currentPresetId !== undefined) {
+        const stillExists = presets.some(p => String(p.id) === String(currentPresetId));
+        if (!stillExists) currentPresetId = null;
+    }
+
+    if (presets.length === 0) {
+        list.innerHTML = '<p class="text-slate-400 dark:text-slate-500 text-xs italic">No saved sets yet.</p>';
+        syncToCloud();
+        return;
+    }
+
+    const sort = els.setsSort ? els.setsSort.value : 'recent';
+    const sorted = presets.slice().sort((a, b) => {
+        if (sort === 'alpha') return (a.name || '').localeCompare(b.name || '');
+        if (sort === 'popular') {
+            return (b.usageCount || 0) - (a.usageCount || 0)
+                || ((b.lastUsed || b.updatedAt || 0) - (a.lastUsed || a.updatedAt || 0));
+        }
+        return (b.lastUsed || b.updatedAt || 0) - (a.lastUsed || a.updatedAt || 0);
     });
+
+    list.innerHTML = '';
+    sorted.forEach((p) => {
+        const isActive = currentPresetId !== null && currentPresetId !== undefined && String(p.id) === String(currentPresetId);
+        const wordCount = (p.data?.words || '').split(',').map(w => w.trim()).filter(Boolean).length;
+        const sizeLabel = p.data?.size ? `${p.data.size}x${p.data.size}` : '10x10';
+
+        const item = document.createElement('div');
+        item.className = `flex items-center gap-2 p-2 rounded-lg border transition-all ${isActive
+            ? 'border-blue bg-blue/10 dark:bg-blue/20'
+            : 'bg-white/60 dark:bg-slate-800/60 border-slate-200 dark:border-slate-500/40 hover:border-blue/40'}`;
+        item.innerHTML = `
+            <button type="button" class="set-row-load flex-1 min-w-0 text-left">
+                <p class="text-sm font-bold text-dark dark:text-slate-100 truncate flex items-center gap-1.5">
+                    <span class="truncate">${escapeHtml(p.name)}</span>
+                    ${isActive ? '<span class="px-1.5 py-0.5 rounded bg-blue text-white text-[9px] font-black uppercase shrink-0">Active</span>' : ''}
+                </p>
+                <p class="text-[10px] text-slate-400 dark:text-slate-500 truncate">${wordCount} words · ${escapeHtml(sizeLabel)}</p>
+            </button>
+            <button type="button" class="set-load-btn p-1.5 bg-blue/10 dark:bg-blue/20 text-blue rounded-md border border-blue/20 hover:bg-blue hover:text-white hover:translate-y-[-1px] active:translate-y-[2px] transition-all" title="Load Set" aria-label="Load word set">
+                <i data-lucide="upload" class="w-3.5 h-3.5 pointer-events-none"></i>
+            </button>
+            <button type="button" class="set-delete-btn p-1.5 bg-pink/10 dark:bg-pink/20 text-pink rounded-md border border-pink/20 hover:bg-pink hover:text-white hover:translate-y-[-1px] active:translate-y-[2px] transition-all" title="Delete Set" aria-label="Delete word set">
+                <i data-lucide="trash-2" class="w-3.5 h-3.5 pointer-events-none"></i>
+            </button>
+        `;
+
+        const handleLoad = async () => {
+            await loadPresetObject(p);
+            await markPresetUsed(p.id);
+            await renderPresetSelector();
+            Sound.click();
+            showToast(`Loaded "${p.name}"`, 'success');
+        };
+
+        item.querySelector('.set-row-load').addEventListener('click', handleLoad);
+        item.querySelector('.set-load-btn').addEventListener('click', handleLoad);
+        item.querySelector('.set-delete-btn').addEventListener('click', () => {
+            showConfirmToast(`Delete "${p.name}"?`, async () => {
+                await deletePreset(p.id);
+                if (String(currentPresetId) === String(p.id)) {
+                    currentPresetId = null;
+                    if (els.userPresetNameInput) els.userPresetNameInput.value = '';
+                    await saveCurrentPresetId(null);
+                }
+                Sound.back();
+                await renderPresetSelector();
+                showToast('Set deleted!', 'success');
+            });
+        });
+
+        list.appendChild(item);
+    });
+    if (window.lucide) lucide.createIcons();
     syncToCloud();
 }
 
-async function onUserPresetSelect() {
-    const id = parseInt(els.userPresetSelect.value);
-    if (!id && id !== 0) return;
-    const preset = await getPreset(id);
-    if (preset) {
-        currentPresetId = id;
-        els.input.value = preset.data.words || '';
-        els.sizeSlider.value = preset.data.size || '10';
-        els.sizeDisplay.innerText = `${els.sizeSlider.value}x${els.sizeSlider.value}`;
-        els.userPresetNameInput.value = preset.name;
-        // Restore difficulty
-        Difficulty.allowBackwards = preset.data.allowBackwards || false;
-        Difficulty.allowDiagonal = preset.data.allowDiagonal || false;
-        document.getElementById('toggle-backwards').classList.toggle('active', Difficulty.allowBackwards);
-        document.getElementById('toggle-diagonal').classList.toggle('active', Difficulty.allowDiagonal);
-        updateDifficultyLabel();
-        await saveCurrentPresetId(id);
+async function loadPresetObject(preset) {
+    if (!preset) return;
+    currentPresetId = preset.id;
+    els.input.value = preset.data?.words || '';
+    els.sizeSlider.value = preset.data?.size || '10';
+    els.sizeDisplay.innerText = `${els.sizeSlider.value}x${els.sizeSlider.value}`;
+    if (els.userPresetNameInput) els.userPresetNameInput.value = preset.name || '';
+    Difficulty.allowBackwards = Boolean(preset.data?.allowBackwards);
+    Difficulty.allowDiagonal = Boolean(preset.data?.allowDiagonal);
+    document.getElementById('toggle-backwards')?.classList.toggle('active', Difficulty.allowBackwards);
+    document.getElementById('toggle-diagonal')?.classList.toggle('active', Difficulty.allowDiagonal);
+    updateDifficultyLabel();
+    if (preset.data?.bankMode && ['full', 'hints', 'count'].includes(preset.data.bankMode)) {
+        Settings.bankMode = preset.data.bankMode;
     }
+    if (preset.data?.letterCase && ['upper', 'lower'].includes(preset.data.letterCase)) {
+        Settings.letterCase = preset.data.letterCase;
+    }
+    applyPrefsToControls();
+    saveLocalPrefs();
+    await saveCurrentPresetId(preset.id);
 }
 
 async function saveCurrentUserPreset() {
+    const rawName = (els.userPresetNameInput?.value || '').trim();
+    const content = (els.input?.value || '').trim();
+    if (!rawName) {
+        els.userPresetNameInput?.focus();
+        Sound.error();
+        showToast('Enter a set name first', 'warning');
+        return;
+    }
+    if (!content) {
+        els.input?.focus();
+        Sound.error();
+        showToast('Add some words before saving', 'warning');
+        return;
+    }
     try {
-        const name = els.userPresetNameInput.value.trim() || 'Untitled';
-        const data = { words: els.input.value, size: els.sizeSlider.value, allowBackwards: Difficulty.allowBackwards, allowDiagonal: Difficulty.allowDiagonal };
-        const id = await savePreset(name, data, currentPresetId);
+        const data = {
+            words: els.input.value,
+            size: els.sizeSlider.value,
+            allowBackwards: Difficulty.allowBackwards,
+            allowDiagonal: Difficulty.allowDiagonal,
+            bankMode: Settings.bankMode,
+            letterCase: Settings.letterCase
+        };
+        const id = await savePreset(rawName, data, currentPresetId);
         currentPresetId = id;
+        if (els.userPresetNameInput) els.userPresetNameInput.value = rawName;
         await saveCurrentPresetId(id);
         await renderPresetSelector();
-        showToast('Preset saved!', 'success');
+        Sound.success();
+        showToast(`Saved "${rawName}"!`, 'success');
     } catch (e) {
-        showToast('Failed to save preset', 'error');
+        Sound.error();
+        showToast('Failed to save set', 'error');
     }
 }
 
 async function createNewUserPreset() {
-    els.userPresetNameInput.value = 'New Preset';
-    els.input.value = '';
-    els.sizeSlider.value = '10';
-    els.sizeDisplay.innerText = '10x10';
     currentPresetId = null;
+    if (els.userPresetNameInput) {
+        els.userPresetNameInput.value = '';
+        els.userPresetNameInput.focus();
+    }
     await saveCurrentPresetId(null);
     await renderPresetSelector();
+    Sound.click();
+    showToast('Detached — type a name and click SAVE for a new set', 'info');
 }
 
-async function deleteCurrentUserPreset() {
-    if (!currentPresetId) {
-        showToast('No preset selected.', 'error');
-        return;
-    }
-    showConfirmToast('Delete this preset?', async () => {
-        await deletePreset(currentPresetId);
-        currentPresetId = null;
-        els.userPresetNameInput.value = '';
-        await saveCurrentPresetId(null);
-        await renderPresetSelector();
-        showToast('Preset deleted!', 'success');
-    });
-}
-
-// --- SAVED PUZZLES ---
-
+// --- SAVED GRIDS ---
 async function getAllSavedPuzzles() {
     if (!dataBase) return [];
     return new Promise((resolve) => {
         const tx = dataBase.transaction(STORE_PUZZLES, 'readonly');
         const index = tx.objectStore(STORE_PUZZLES).index('updatedAt');
         const request = index.getAll();
-        request.onsuccess = () => resolve(request.result.reverse());
+        request.onsuccess = () => resolve((request.result || []).reverse());
     });
 }
 
@@ -447,14 +660,14 @@ async function renderSavedPuzzleSelector() {
 }
 
 async function onSavedPuzzleSelect() {
-    const id = parseInt(els.savedPuzzleSelect.value);
+    const id = parseInt(els.savedPuzzleSelect.value, 10);
     if (!id && id !== 0) return;
     const puzzle = await getSavedPuzzle(id);
     if (puzzle) {
         currentSavedPuzzleId = id;
         loadSavedPuzzleData(puzzle.data);
-        els.savedPuzzleNameInput.value = puzzle.name;
-        showToast('Puzzle loaded!', 'success');
+        if (els.savedPuzzleNameInput) els.savedPuzzleNameInput.value = puzzle.name;
+        showToast('Saved grid loaded!', 'success');
     }
 }
 
@@ -469,14 +682,16 @@ async function getSavedPuzzle(id) {
 
 async function saveCurrentPuzzle() {
     if (!State.grid.length) {
-        showToast('No puzzle to save.', 'error');
+        showToast('Build a grid first before saving.', 'warning');
+        Sound.error();
         return;
     }
     try {
-        const name = els.savedPuzzleNameInput.value.trim() || `Puzzle ${new Date().toLocaleDateString()}`;
+        const name = (els.savedPuzzleNameInput?.value || '').trim() || `Grid ${new Date().toLocaleDateString()}`;
         const puzzleData = {
             grid: State.grid,
             solutions: Array.from(State.solutions),
+            placedWords: State.placedWords || [],
             validWords: Array.from(State.validWords),
             totalWords: State.totalWords,
             size: State.grid.length
@@ -484,9 +699,11 @@ async function saveCurrentPuzzle() {
         const id = await saveGeneratedPuzzle(name, puzzleData, currentSavedPuzzleId);
         currentSavedPuzzleId = id;
         await renderSavedPuzzleSelector();
-        showToast('Puzzle saved!', 'success');
+        Sound.success();
+        showToast('Grid saved!', 'success');
     } catch (e) {
-        showToast('Failed to save', 'error');
+        Sound.error();
+        showToast('Failed to save grid', 'error');
     }
 }
 
@@ -505,16 +722,17 @@ async function saveGeneratedPuzzle(name, data, id = null) {
 
 async function deleteCurrentSavedPuzzle() {
     if (!currentSavedPuzzleId) {
-        showToast('No saved puzzle selected.', 'error');
+        showToast('No saved grid selected.', 'warning');
         return;
     }
-    showConfirmToast('Delete this saved puzzle?', async () => {
+    showConfirmToast('Delete this saved grid?', async () => {
         await deleteGeneratedPuzzle(currentSavedPuzzleId);
         currentSavedPuzzleId = null;
-        els.savedPuzzleNameInput.value = '';
-        els.savedPuzzleSelect.value = '';
+        if (els.savedPuzzleNameInput) els.savedPuzzleNameInput.value = '';
+        if (els.savedPuzzleSelect) els.savedPuzzleSelect.value = '';
         await renderSavedPuzzleSelector();
-        showToast('Puzzle deleted!', 'success');
+        Sound.back();
+        showToast('Saved grid deleted!', 'success');
     });
 }
 
@@ -531,24 +749,24 @@ async function deleteGeneratedPuzzle(id) {
 
 function loadSavedPuzzleData(data) {
     State.grid = data.grid;
-    State.solutions = new Set(data.solutions);
-    State.validWords = new Set(data.validWords);
+    State.solutions = new Set(data.solutions || []);
+    State.placedWords = Array.isArray(data.placedWords) ? data.placedWords : [];
+    State.validWords = new Set(data.validWords || []);
     State.foundWords.clear();
     State.isActive = true;
     State.selectionStart = null;
     State.totalWords = data.totalWords;
+    GRID_SIZE = State.grid.length || 10;
 
     els.emptyStateCta?.classList.add('hidden');
     renderGrid(data.size);
     renderWordBank(Array.from(State.validWords));
     updateHUD();
-
-    // Use a small delay to ensure grid is rendered before fitting
     setTimeout(fitGridToDisplay, 50);
+    broadcastFullState();
 }
 
 // --- UI HELPERS ---
-
 function toggleControlPanel(forceHide = false) {
     const isHidden = window.innerWidth >= 768
         ? els.controls.classList.contains('hidden-panel-desktop')
@@ -559,6 +777,7 @@ function toggleControlPanel(forceHide = false) {
     } else {
         els.controls.classList.remove('hidden-panel-mobile', 'hidden-panel-desktop');
     }
+    setTimeout(fitGridToDisplay, 320);
 }
 
 function toggleSavedPuzzleControls() {
@@ -574,55 +793,96 @@ function updateGridSize() {
     document.querySelectorAll('.grid-cell').forEach(el => {
         el.style.width = `${CELL_SIZE}px`;
         el.style.height = `${CELL_SIZE}px`;
-        const fontSize = Math.max(0.7, CELL_SIZE / 45); // Scale font slightly smaller
+        const fontSize = Math.max(0.7, CELL_SIZE / 42);
         el.style.fontSize = `${fontSize}rem`;
     });
 }
 
 function fitGridToDisplay() {
-    const container = els.grid.parentElement.parentElement; // Grid Area container
+    const container = els.grid?.parentElement?.parentElement;
     const size = State.grid.length;
     if (!size || !container) return;
 
-    // Use a larger offset for the safe area (80px instead of 40px)
-    // to account for container padding and the floating glass header
-    const targetWidth = container.clientWidth - 80;
-    const targetHeight = container.clientHeight - 80;
-
-    // Grid gap is 4px (gap-1) and padding is 4px (p-1)
+    const targetWidth = Math.max(120, container.clientWidth - 72);
+    const targetHeight = Math.max(120, container.clientHeight - 72);
     const gapTotal = (size - 1) * 4;
-    const paddingTotal = 8; // 4px padding on both sides
-
+    const paddingTotal = 8;
     const minDim = Math.min(targetWidth, targetHeight);
 
-    // Accurate cell size calculation: (TotalDim - Gaps - InternalPadding) / NumberOfCells
     CELL_SIZE = Math.floor((minDim - gapTotal - paddingTotal) / size);
-
-    // Safety boundaries
     CELL_SIZE = Math.max(20, Math.min(CELL_SIZE, 80));
 
     updateGridSize();
 }
 
-// --- GAME LOGIC ---
+function dedupeWords() {
+    const tokens = (els.input.value || '')
+        .split(/[,\n]+/)
+        .map(w => w.trim().toUpperCase().replace(/[^A-Z]/g, ''))
+        .filter(Boolean);
+    const seen = new Set();
+    const kept = [];
+    let removed = 0;
 
+    tokens.forEach((tok) => {
+        if (seen.has(tok)) {
+            removed++;
+        } else {
+            seen.add(tok);
+            kept.push(tok);
+        }
+    });
+
+    if (removed > 0) {
+        els.input.value = kept.join(', ');
+        showToast(`Removed ${removed} duplicate word${removed === 1 ? '' : 's'}.`, 'success');
+        Sound.click();
+    } else {
+        showToast('No duplicate words found.', 'info');
+        Sound.click();
+    }
+}
+
+function clearBoardProgress() {
+    if (!State.grid.length) {
+        Sound.error();
+        return;
+    }
+    State.foundWords.clear();
+    State.selectionStart = null;
+    State.isActive = true;
+    document.querySelectorAll('.grid-cell').forEach(cell => {
+        cell.classList.remove('found', 'revealed', 'active-start', 'preview-line', 'error', 'hint-pulse');
+    });
+    document.querySelectorAll('.word-tag').forEach(tag => {
+        tag.classList.remove('found');
+    });
+    updateHUD();
+    Sound.back();
+    broadcastFullState();
+}
+
+// --- GAME LOGIC ---
 function initGame(size, words) {
+    GRID_SIZE = size;
     State.grid = Array(size).fill(null).map(() => Array(size).fill(''));
     State.solutions.clear();
+    State.placedWords = [];
     State.validWords = new Set();
     State.foundWords.clear();
+    State.selectionStart = null;
     State.isActive = true;
 
-    words.sort((a, b) => b.length - a.length);
+    const cleanWords = [...words].sort((a, b) => b.length - a.length);
     const placed = [];
-    words.forEach(word => {
+    cleanWords.forEach(word => {
         if (placeWord(word, size)) {
             placed.push(word);
             State.validWords.add(word);
         }
     });
 
-    const alpha = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    const alpha = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
     for (let r = 0; r < size; r++) {
         for (let c = 0; c < size; c++) {
             if (!State.grid[r][c]) State.grid[r][c] = alpha[Math.floor(Math.random() * 26)];
@@ -634,9 +894,11 @@ function initGame(size, words) {
     renderGrid(size);
     renderWordBank(placed);
     updateHUD();
-    fitGridToDisplay(); // Auto-fit on generation
+    fitGridToDisplay();
     Sound.success();
-    confetti({ particleCount: 50, spread: 60, origin: { y: 0.6 } });
+    if (typeof confetti === 'function') {
+        confetti({ particleCount: 50, spread: 60, origin: { y: 0.6 } });
+    }
     broadcastFullState();
 }
 
@@ -660,6 +922,7 @@ function placeWord(word, size) {
                 State.grid[r + d.r * j][c + d.c * j] = word[j];
                 State.solutions.add(`${r + d.r * j},${c + d.c * j}`);
             }
+            State.placedWords.push({ word, r, c, dr: d.r, dc: d.c });
             return true;
         }
     }
@@ -669,12 +932,16 @@ function placeWord(word, size) {
 function renderGrid(size) {
     els.grid.innerHTML = '';
     els.grid.style.gridTemplateColumns = `repeat(${size}, 1fr)`;
+    const lower = Settings.letterCase === 'lower';
+
     for (let r = 0; r < size; r++) {
         for (let c = 0; c < size; c++) {
             const cell = document.createElement('div');
             cell.className = 'grid-cell';
-            cell.innerText = State.grid[r][c];
-            cell.dataset.r = r; cell.dataset.c = c;
+            const rawCh = State.grid[r][c] || '';
+            cell.innerText = lower ? rawCh.toLowerCase() : rawCh.toUpperCase();
+            cell.dataset.r = r;
+            cell.dataset.c = c;
             cell.onmousedown = () => handleInput(r, c, cell);
             cell.ontouchstart = (e) => { e.preventDefault(); handleInput(r, c, cell); };
             cell.onmouseenter = () => handleHover(r, c);
@@ -691,19 +958,38 @@ function renderWordBank(words) {
         return;
     }
     els.emptyBankMsg?.classList.add('hidden');
-    words.sort().forEach(w => {
+    const displayMode = Settings.bankMode === 'hints' ? 'hints' : 'full';
+
+    [...words].sort().forEach(w => {
         const li = document.createElement('li');
-        li.className = 'word-tag';
-        li.innerText = w;
+        li.className = 'word-tag' + (State.foundWords.has(w) ? ' found' : '');
+        li.innerText = formatWordDisplay(w, displayMode, Settings.letterCase);
         li.id = `tag-${w}`;
+        li.title = 'Click to pulse first letter hint on board';
+        li.onclick = () => hintWordFirstCell(w);
         els.bank.appendChild(li);
     });
 }
 
+function hintWordFirstCell(word) {
+    if (IS_PLAYER_WINDOW || State.foundWords.has(word)) return;
+    const placed = State.placedWords.find(p => p.word === word);
+    if (!placed) return;
+    const cell = getCell(placed.r, placed.c);
+    if (!cell || cell.classList.contains('found')) return;
+    cell.classList.remove('hint-pulse');
+    void cell.offsetWidth;
+    cell.classList.add('hint-pulse');
+    Sound.click();
+    setTimeout(() => cell.classList.remove('hint-pulse'), 1250);
+}
+
 function updateHUD() {
-    els.foundCount.innerText = State.foundWords.size;
-    els.totalCount.innerText = State.totalWords;
-    if (State.foundWords.size === State.totalWords && State.totalWords > 0) endGame(true);
+    if (els.foundCount) els.foundCount.innerText = State.foundWords.size;
+    if (els.totalCount) els.totalCount.innerText = State.totalWords;
+    if (State.foundWords.size === State.totalWords && State.totalWords > 0 && State.isActive) {
+        endGame(true);
+    }
 }
 
 function handleInput(r, c, el) {
@@ -728,7 +1014,6 @@ function handleHover(r, c) {
     if (r === lastHovered.r && c === lastHovered.c) return;
     lastHovered = { r, c };
 
-    // Batch DOM updates: remove old previews only if needed
     document.querySelectorAll('.preview-line').forEach(el => {
         if (el.dataset.r != r || el.dataset.c != c) {
             el.classList.remove('preview-line');
@@ -764,7 +1049,7 @@ function checkMatch(start, end) {
 
     if (match) {
         Sound.success();
-        path.forEach(p => getCell(p.r, p.c).classList.add('found'));
+        path.forEach(p => getCell(p.r, p.c)?.classList.add('found'));
         const tag = document.getElementById(`tag-${match}`);
         if (tag) tag.classList.add('found');
         State.foundWords.add(match);
@@ -774,8 +1059,10 @@ function checkMatch(start, end) {
         Sound.error();
         path.forEach(p => {
             const c = getCell(p.r, p.c);
-            c.classList.add('error');
-            setTimeout(() => c.classList.remove('error'), 400);
+            if (c) {
+                c.classList.add('error');
+                setTimeout(() => c.classList.remove('error'), 400);
+            }
         });
     }
     clearSelection();
@@ -812,14 +1099,16 @@ function endGame(success) {
     State.isActive = false;
     if (success) {
         Sound.win();
-        confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
+        if (typeof confetti === 'function') {
+            confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
+        }
         showToast('You found everything!', 'success');
     }
 }
 
 // ==================== BROADCAST CHANNEL (Student View) ====================
 const BROADCAST_CHANNEL = 'word-search-sync';
-const IS_PLAYER_WINDOW = new URLSearchParams(location.search).has('player');
+const IS_PLAYER_WINDOW = typeof location !== 'undefined' && new URLSearchParams(location.search).has('player');
 const bc = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel(BROADCAST_CHANNEL) : null;
 
 let _bcThrottle = null, _bcLastTime = 0;
@@ -835,7 +1124,6 @@ function broadcastState(options = {}) {
 }
 
 function _performBroadcast() {
-    // Snapshot found cells and revealed cells from DOM
     const foundCells = [], revealedCells = [];
     document.querySelectorAll('.grid-cell').forEach(cell => {
         const key = `${cell.dataset.r},${cell.dataset.c}`;
@@ -845,12 +1133,15 @@ function _performBroadcast() {
     bc.postMessage({
         type: 'state-update',
         grid: State.grid,
+        placedWords: State.placedWords,
         validWords: [...State.validWords],
         foundWords: [...State.foundWords],
         foundCells,
         revealedCells,
         isActive: State.isActive,
         totalWords: State.totalWords,
+        letterCase: Settings.letterCase,
+        bankMode: Settings.bankMode,
         CELL_SIZE,
     });
 }
@@ -863,52 +1154,63 @@ if (bc && IS_PLAYER_WINDOW) {
         if (window._playerRetryInterval) { clearInterval(window._playerRetryInterval); window._playerRetryInterval = null; }
         window._playerLoadingEl?.remove(); window._playerLoadingEl = null;
 
-        // Sync state
-        State.grid = data.grid;
-        State.validWords = new Set(data.validWords);
-        State.foundWords = new Set(data.foundWords);
-        State.isActive = data.isActive;
-        State.totalWords = data.totalWords;
+        State.grid = data.grid || [];
+        State.placedWords = data.placedWords || [];
+        State.validWords = new Set(data.validWords || []);
+        State.foundWords = new Set(data.foundWords || []);
+        State.isActive = Boolean(data.isActive);
+        State.totalWords = data.totalWords || 0;
+        if (data.letterCase) Settings.letterCase = data.letterCase;
+        if (data.bankMode) Settings.bankMode = data.bankMode;
         CELL_SIZE = data.CELL_SIZE || CELL_SIZE;
 
-        if (data.grid.length) {
-            renderGrid(data.grid.length);
-            renderWordBank([...data.validWords]);
+        if (State.grid.length) {
+            els.emptyStateCta?.classList.add('hidden');
+            renderGrid(State.grid.length);
+            renderWordBank([...State.validWords]);
             updateHUD();
             fitGridToDisplay();
         }
-        // Apply found + revealed CSS
-        data.foundCells.forEach(key => {
+        (data.foundCells || []).forEach(key => {
             const [r, c] = key.split(',');
             getCell(r, c)?.classList.add('found');
         });
-        data.revealedCells.forEach(key => {
+        (data.revealedCells || []).forEach(key => {
             const [r, c] = key.split(',');
             getCell(r, c)?.classList.add('revealed');
         });
-        // Mark found words in bank
-        data.foundWords.forEach(w => document.getElementById(`tag-${w}`)?.classList.add('found'));
+        (data.foundWords || []).forEach(w => document.getElementById(`tag-${w}`)?.classList.add('found'));
 
         const sd = document.getElementById('student-round-display');
-        if (sd) sd.textContent = `${data.foundWords.length} / ${data.totalWords}`;
+        if (sd) sd.textContent = `${State.foundWords.size} / ${State.totalWords}`;
     };
 }
 
 // --- INIT ---
-
 window.onload = async () => {
+    initTheme();
+    const themeBtn = document.getElementById('theme-toggle');
+    if (themeBtn) themeBtn.onclick = toggleTheme;
+    const soundBtn = document.getElementById('sound-toggle');
+    if (soundBtn) soundBtn.onclick = () => Sound.toggleMute();
+    updateSoundToggleUI();
+    loadLocalPrefs();
+    applyPrefsToControls();
+
     if (IS_PLAYER_WINDOW) {
         document.documentElement.classList.add('player-mode');
         document.title = 'Student View | Word Search';
         document.getElementById('controls')?.style.setProperty('display', 'none');
         document.getElementById('btn-open-player')?.style.setProperty('display', 'none');
         document.getElementById('give-up-btn')?.style.setProperty('display', 'none');
+        document.getElementById('clear-board-btn')?.style.setProperty('display', 'none');
+        document.getElementById('sound-toggle')?.style.setProperty('display', 'none');
         document.getElementById('confirm-modal')?.style.setProperty('display', 'none');
         document.getElementById('player-toolbar')?.classList.remove('hidden');
-        lucide.createIcons();
+        if (window.lucide) lucide.createIcons();
         const loadingEl = document.createElement('div');
-        loadingEl.className = 'fixed top-4 right-4 z-[9999] flex items-center gap-2 px-4 py-2.5 bg-white/95 border-2 border-dark rounded-full shadow-neo backdrop-blur-sm';
-        loadingEl.innerHTML = `<svg class="w-4 h-4 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M12 2a10 10 0 1 0 10 10"/></svg><span class="font-bold text-xs text-slate-500 uppercase tracking-widest">Connecting...</span>`;
+        loadingEl.className = 'fixed top-4 right-4 z-[9999] flex items-center gap-2 px-4 py-2.5 bg-white/95 dark:bg-slate-800/95 border-2 border-dark dark:border-slate-500 rounded-full shadow-hard-sm backdrop-blur-sm';
+        loadingEl.innerHTML = `<svg class="w-4 h-4 animate-spin text-blue" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M12 2a10 10 0 1 0 10 10"/></svg><span class="font-bold text-xs text-slate-600 dark:text-slate-200 uppercase tracking-widest">Connecting...</span>`;
         document.body.appendChild(loadingEl);
         window._playerLoadingEl = loadingEl;
         const ping = () => bc?.postMessage({ type: 'player-ready' });
@@ -916,56 +1218,100 @@ window.onload = async () => {
         return;
     }
 
-    await requireAuth();
+    if (typeof requireAuth === 'function') await requireAuth();
     await initDB();
     const sid = await getCurrentPresetId();
     if (sid) {
-        currentPresetId = sid;
         const p = await getPreset(sid);
         if (p) {
-            els.input.value = p.data.words || '';
-            els.sizeSlider.value = p.data.size || '10';
-            els.sizeDisplay.innerText = `${els.sizeSlider.value}x${els.sizeSlider.value}`;
-            els.userPresetNameInput.value = p.name;
-            // Restore difficulty
-            Difficulty.allowBackwards = p.data.allowBackwards || false;
-            Difficulty.allowDiagonal = p.data.allowDiagonal || false;
-            document.getElementById('toggle-backwards').classList.toggle('active', Difficulty.allowBackwards);
-            document.getElementById('toggle-diagonal').classList.toggle('active', Difficulty.allowDiagonal);
-            updateDifficultyLabel();
+            await loadPresetObject(p);
         }
     }
     await loadFromCloud();
     await renderPresetSelector();
     await renderSavedPuzzleSelector();
 
-    els.sizeSlider.oninput = (e) => {
-        els.sizeDisplay.innerText = `${e.target.value}x${e.target.value}`;
-    };
+    if (els.sizeSlider) {
+        els.sizeSlider.oninput = (e) => {
+            if (els.sizeDisplay) els.sizeDisplay.innerText = `${e.target.value}x${e.target.value}`;
+        };
+    }
 
-    els.zoomIn.onclick = () => { CELL_SIZE = Math.min(CELL_SIZE + 5, 80); updateGridSize(); };
-    els.zoomOut.onclick = () => { CELL_SIZE = Math.max(CELL_SIZE - 5, 25); updateGridSize(); };
+    document.querySelectorAll('input[name="ws-letter-case"]').forEach((r) => {
+        r.addEventListener('change', () => {
+            Settings.letterCase = r.value === 'lower' ? 'lower' : 'upper';
+            saveLocalPrefs();
+            if (State.grid.length) {
+                renderGrid(State.grid.length);
+                renderWordBank(Array.from(State.validWords));
+                broadcastFullState();
+            }
+        });
+    });
 
-    els.generateBtn.onclick = () => {
-        const words = els.input.value.split(',').map(w => w.trim().toUpperCase().replace(/[^A-Z]/g, '')).filter(w => w.length > 0);
-        if (words.length < 1) return showToast('Enter some words!', 'error');
-        saveCurrentUserPreset();
+    els.bankMode?.addEventListener('change', () => {
+        Settings.bankMode = els.bankMode.value;
+        saveLocalPrefs();
+        if (State.validWords.size) {
+            renderWordBank(Array.from(State.validWords));
+            broadcastFullState();
+        }
+    });
 
-        // Reset saved puzzle ID when starting a fresh one
-        currentSavedPuzzleId = null;
-        els.savedPuzzleNameInput.value = '';
-        els.savedPuzzleSelect.value = '';
+    if (els.zoomIn) els.zoomIn.onclick = () => { CELL_SIZE = Math.min(CELL_SIZE + 5, 80); updateGridSize(); };
+    if (els.zoomOut) els.zoomOut.onclick = () => { CELL_SIZE = Math.max(CELL_SIZE - 5, 25); updateGridSize(); };
 
-        initGame(parseInt(els.sizeSlider.value), words);
-        if (window.innerWidth < 768) toggleControlPanel(true);
-    };
+    if (els.generateBtn) {
+        els.generateBtn.onclick = () => {
+            const words = (els.input?.value || '')
+                .split(/[,\n]+/)
+                .map(w => w.trim().toUpperCase().replace(/[^A-Z]/g, ''))
+                .filter(w => w.length > 0);
+            if (words.length < 1) return showToast('Enter some words!', 'error');
 
-    els.giveUpBtn.onclick = () => document.getElementById('confirm-modal').classList.remove('hidden');
-    document.getElementById('cancel-reveal').onclick = () => document.getElementById('confirm-modal').classList.add('hidden');
-    document.getElementById('confirm-reveal').onclick = () => { revealSolutions(); document.getElementById('confirm-modal').classList.add('hidden'); };
+            currentSavedPuzzleId = null;
+            if (els.savedPuzzleNameInput) els.savedPuzzleNameInput.value = '';
+            if (els.savedPuzzleSelect) els.savedPuzzleSelect.value = '';
+
+            initGame(parseInt(els.sizeSlider.value, 10) || 10, words);
+            if (window.innerWidth < 768) toggleControlPanel(true);
+        };
+    }
+
+    document.getElementById('dedupe-btn')?.addEventListener('click', dedupeWords);
+    document.getElementById('clear-words-btn')?.addEventListener('click', () => {
+        if (els.input) els.input.value = '';
+        Sound.back();
+    });
+
+    document.getElementById('save-set-btn')?.addEventListener('click', saveCurrentUserPreset);
+    document.getElementById('new-set-btn')?.addEventListener('click', createNewUserPreset);
+    els.setsSort?.addEventListener('change', renderPresetSelector);
+    els.userPresetNameInput?.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            saveCurrentUserPreset();
+        }
+    });
+
+    els.clearBoardBtn?.addEventListener('click', clearBoardProgress);
+
+    if (els.giveUpBtn) els.giveUpBtn.onclick = () => document.getElementById('confirm-modal')?.classList.remove('hidden');
+    document.getElementById('cancel-reveal')?.addEventListener('click', () => document.getElementById('confirm-modal')?.classList.add('hidden'));
+    document.getElementById('confirm-reveal')?.addEventListener('click', () => {
+        revealSolutions();
+        document.getElementById('confirm-modal')?.classList.add('hidden');
+    });
 
     document.querySelectorAll('.preset-btn').forEach(btn => {
-        btn.onclick = () => { els.input.value = btn.dataset.words; };
+        btn.onclick = () => {
+            currentPresetId = null;
+            if (els.input) els.input.value = btn.dataset.words || '';
+            if (els.userPresetNameInput) els.userPresetNameInput.value = btn.dataset.title || '';
+            renderPresetSelector();
+            els.generateBtn?.click();
+            Sound.click();
+        };
     });
 
     // Guided Bulk Import + CEFR Presets
@@ -1028,7 +1374,7 @@ window.onload = async () => {
                 if (!imported.length) return false;
                 if (optionValues && optionValues.append && els.input.value.trim()) {
                     const existing = els.input.value
-                        .split(',')
+                        .split(/[,\n]+/)
                         .map(w => w.trim().toUpperCase().replace(/[^A-Z]/g, ''))
                         .filter(Boolean);
                     const merged = Array.from(new Set([...existing, ...imported]));
@@ -1036,7 +1382,7 @@ window.onload = async () => {
                 } else {
                     els.input.value = imported.join(', ');
                 }
-                els.generateBtn.click();
+                els.generateBtn?.click();
                 showToast(`Imported ${imported.length} words!`, 'success');
                 return true;
             }
@@ -1049,16 +1395,19 @@ window.onload = async () => {
             url: 'presets.json',
             title: 'CEFR Word Sets',
             collapsible: true,
-            getMeta: (p) => ({ icon: 'hash', label: `${(p.words || []).length} words` }),
+            getMeta: (p) => ({ icon: 'hash', label: `${(p.words || []).length}w` }),
             onSelect: (preset) => {
                 const words = (preset.words || [])
                     .map(w => String(w).trim().toUpperCase().replace(/[^A-Z]/g, ''))
                     .filter(Boolean);
                 if (!words.length) return;
+                currentPresetId = null;
                 els.input.value = words.join(', ');
+                if (els.userPresetNameInput) els.userPresetNameInput.value = preset.title || '';
                 currentSavedPuzzleId = null;
                 if (els.savedPuzzleNameInput) els.savedPuzzleNameInput.value = '';
                 if (els.savedPuzzleSelect) els.savedPuzzleSelect.value = '';
+                renderPresetSelector();
                 initGame(parseInt(els.sizeSlider.value, 10) || 10, words);
                 if (window.innerWidth < 768) toggleControlPanel(true);
                 showToast(`Loaded "${preset.title}" (${preset.level})`, 'success');
@@ -1070,7 +1419,6 @@ window.onload = async () => {
 
     if (window.innerWidth < 768) toggleControlPanel(true);
 
-    // Respond to student-ready pings
     if (bc) {
         bc.onmessage = (evt) => { if (evt.data?.type === 'player-ready') broadcastFullState(); };
     }
@@ -1079,10 +1427,16 @@ window.onload = async () => {
     });
 };
 
-// --- Print Mode ---
+// --- PRINT MODE (Vector SVG Renderer) ---
 let printingAsKey = false;
 window.setPrintMode = function (mode, asKey = false) {
+    if (!State.grid || !State.grid.length) {
+        showToast('Build a puzzle first before printing!', 'warning');
+        Sound.error();
+        return;
+    }
     const printArea = document.getElementById('print-area');
+    if (!printArea) return;
     if (mode === 'separate') {
         printArea.classList.add('print-separate-pages');
     } else {
@@ -1093,7 +1447,6 @@ window.setPrintMode = function (mode, asKey = false) {
     originalPrint.call(window);
 };
 
-// Global Print Hook
 const originalPrint = window.print;
 window.print = function () {
     preparePrintVersion(printingAsKey);
@@ -1109,17 +1462,129 @@ window.addEventListener('afterprint', () => {
     preparePrintVersion(false);
 });
 
+function buildPrintWordSearchSVG({ grid, placedWords, solutions, gridSizeMm, letterCase, asKey }) {
+    const size = grid.length;
+    const U = 100;
+    const cellSizeMm = gridSizeMm / size;
+
+    const outerStroke = Math.max(3.6, Math.min(8.5, +((0.60 / cellSizeMm) * U).toFixed(2)));
+    const innerStroke = Math.max(1.6, Math.min(4.0, +((0.24 / cellSizeMm) * U).toFixed(2)));
+    const shadowOffset = Math.max(4.5, Math.min(11.0, +((0.80 / cellSizeMm) * U).toFixed(2)));
+    const padTL = Math.ceil(outerStroke * 0.75);
+    const padBR = Math.ceil(shadowOffset + outerStroke * 0.75);
+    const vbW = size * U + padTL + padBR;
+    const vbH = size * U + padTL + padBR;
+    const svgSizeMm = (vbW / U) * cellSizeMm;
+
+    const innerPaths = [];
+    for (let i = 1; i < size; i++) {
+        innerPaths.push(`M${i * U} 0V${size * U}`);
+        innerPaths.push(`M0 ${i * U}H${size * U}`);
+    }
+
+    const answerCapsules = [];
+    if (asKey) {
+        if (Array.isArray(placedWords) && placedWords.length > 0) {
+            const capsulePalettes = [
+                { fill: '#fce7f3', stroke: '#ec4899' },
+                { fill: '#e0f2fe', stroke: '#0284c7' },
+                { fill: '#dcfce7', stroke: '#16a34a' },
+                { fill: '#ffedd5', stroke: '#ea580c' }
+            ];
+            const capStroke = Math.max(3.6, +(outerStroke * 0.72).toFixed(2));
+            const capH = 72;
+            const capRx = 36;
+            placedWords.forEach((pw, idx) => {
+                if (!pw || !pw.word) return;
+                const pal = capsulePalettes[idx % capsulePalettes.length];
+                const sx = pw.c * U + 50;
+                const sy = pw.r * U + 50;
+                const ex = (pw.c + pw.dc * (pw.word.length - 1)) * U + 50;
+                const ey = (pw.r + pw.dr * (pw.word.length - 1)) * U + 50;
+                const mx = (sx + ex) / 2;
+                const my = (sy + ey) / 2;
+                const dist = Math.hypot(ex - sx, ey - sy);
+                const deg = +((Math.atan2(ey - sy, ex - sx) * 180) / Math.PI).toFixed(2);
+                const capW = +(dist + capH).toFixed(2);
+                answerCapsules.push(
+                    `<rect x="${(-capW / 2).toFixed(2)}" y="${(-capH / 2).toFixed(2)}" width="${capW}" height="${capH}" rx="${capRx}" ry="${capRx}" transform="translate(${mx.toFixed(2)} ${my.toFixed(2)}) rotate(${deg})" fill="${pal.fill}" fill-opacity="0.58" stroke="${pal.stroke}" stroke-width="${capStroke}"/>`
+                );
+            });
+        } else if (solutions && solutions.size > 0) {
+            const capStroke = Math.max(3.6, +(outerStroke * 0.72).toFixed(2));
+            solutions.forEach((key) => {
+                const [rStr, cStr] = String(key).split(',');
+                const r = parseInt(rStr, 10);
+                const c = parseInt(cStr, 10);
+                if (!Number.isFinite(r) || !Number.isFinite(c)) return;
+                answerCapsules.push(
+                    `<rect x="${c * U + 12}" y="${r * U + 12}" width="76" height="76" rx="18" ry="18" fill="#fce7f3" fill-opacity="0.65" stroke="#ec4899" stroke-width="${capStroke}"/>`
+                );
+            });
+        }
+    }
+
+    const lower = letterCase === 'lower';
+    const textYOffset = lower ? 66.5 : 69.5;
+    const letterEls = [];
+    for (let r = 0; r < size; r++) {
+        for (let c = 0; c < size; c++) {
+            const rawCh = grid[r]?.[c] || '';
+            const ch = lower ? rawCh.toLowerCase() : rawCh.toUpperCase();
+            const isSol = asKey && solutions?.has(`${r},${c}`);
+            const fill = asKey ? (isSol ? '#0f172a' : '#94a3b8') : '#0f172a';
+            const weight = asKey ? (isSol ? '700' : '600') : '700';
+            letterEls.push(
+                `<text x="${c * U + 50}" y="${r * U + textYOffset}" font-family="Fredoka, sans-serif" font-weight="${weight}" font-size="56" fill="${fill}" text-anchor="middle">${escapeHtml(ch)}</text>`
+            );
+        }
+    }
+
+    const svgEl = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svgEl.setAttribute('class', 'ws-print-svg');
+    svgEl.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+    svgEl.setAttribute('viewBox', `0 0 ${vbW} ${vbH}`);
+    svgEl.setAttribute('width', `${svgSizeMm.toFixed(2)}mm`);
+    svgEl.setAttribute('height', `${svgSizeMm.toFixed(2)}mm`);
+    svgEl.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+    svgEl.setAttribute('role', 'img');
+    svgEl.setAttribute('aria-label', 'Word search puzzle grid');
+    svgEl.style.width = `${svgSizeMm.toFixed(2)}mm`;
+    svgEl.style.height = `${svgSizeMm.toFixed(2)}mm`;
+
+    const boardLen = size * U;
+    const shadowFill = asKey ? '#f5d0de' : '#cbd5e1';
+
+    svgEl.innerHTML = [
+        `<g transform="translate(${padTL} ${padTL})">`,
+        `<rect x="${shadowOffset}" y="${shadowOffset}" width="${boardLen}" height="${boardLen}" fill="${shadowFill}" shape-rendering="crispEdges"/>`,
+        `<rect x="0" y="0" width="${boardLen}" height="${boardLen}" fill="#ffffff" shape-rendering="crispEdges"/>`,
+        innerPaths.length
+            ? `<path d="${innerPaths.join('')}" fill="none" stroke="#cbd5e1" stroke-width="${innerStroke}" stroke-linecap="butt" shape-rendering="crispEdges"/>`
+            : '',
+        asKey && answerCapsules.length
+            ? `<g>${answerCapsules.join('')}</g>`
+            : '',
+        `<rect x="0" y="0" width="${boardLen}" height="${boardLen}" fill="none" stroke="#0f172a" stroke-width="${outerStroke}" shape-rendering="crispEdges"/>`,
+        `<g text-rendering="geometricPrecision">${letterEls.join('')}</g>`,
+        '</g>'
+    ].join('');
+
+    return { svgEl, svgSizeMm };
+}
+
 function preparePrintVersion(asKey = false) {
     const printArea = document.getElementById('print-area');
     const gridContainer = document.getElementById('print-grid-container');
     const printBank = document.getElementById('print-word-bank');
+    const countBanner = document.getElementById('print-count-banner');
     if (!printArea || !gridContainer || !printBank) return;
 
-    const savedName = (els.savedPuzzleNameInput?.value || '').trim();
     const presetName = (els.userPresetNameInput?.value || '').trim();
-    const validSaved = savedName && savedName.toLowerCase() !== 'new preset' && savedName.toLowerCase() !== 'untitled' ? savedName : '';
+    const savedName = (els.savedPuzzleNameInput?.value || '').trim();
     const validPreset = presetName && presetName.toLowerCase() !== 'new preset' && presetName.toLowerCase() !== 'untitled' ? presetName : '';
-    const baseTitle = validSaved || validPreset || 'Word Search';
+    const validSaved = savedName && savedName.toLowerCase() !== 'new preset' && savedName.toLowerCase() !== 'untitled' ? savedName : '';
+    const baseTitle = validPreset || validSaved || 'Word Search';
 
     const dirParts = ['Horizontal & Vertical'];
     if (Difficulty.allowDiagonal) dirParts.push('Diagonal');
@@ -1137,9 +1602,15 @@ function preparePrintVersion(asKey = false) {
     printArea.classList.toggle('print-answer-key', Boolean(asKey));
     if (headingEl) headingEl.textContent = baseTitle;
     if (subEl) {
-        subEl.textContent = asKey
-            ? `Teacher Reference Sheet showing all hidden word locations (${dirSummary}).`
-            : `Find and circle all hidden words in the grid (${dirSummary}).`;
+        if (asKey) {
+            subEl.textContent = `Teacher Reference Sheet showing all hidden word paths (${dirSummary}).`;
+        } else if (Settings.bankMode === 'count') {
+            subEl.textContent = `Challenge Mode: Find and circle all hidden words without a word list (${dirSummary}).`;
+        } else if (Settings.bankMode === 'hints') {
+            subEl.textContent = `Use the first-letter hints below to find and circle each hidden word (${dirSummary}).`;
+        } else {
+            subEl.textContent = `Find and circle all hidden words in the grid (${dirSummary}).`;
+        }
     }
     if (badgeEl) {
         badgeEl.hidden = !asKey;
@@ -1150,49 +1621,68 @@ function preparePrintVersion(asKey = false) {
 
     const wordsList = Array.from(State.validWords || []).sort();
     const gridSize = State.grid.length || 10;
-    const noteText = `${gridSize}×${gridSize} Grid · ${wordsList.length} Words · ${dirSummary}`;
+    const isSeparate = printArea.classList.contains('print-separate-pages');
+    const noteText = `${gridSize}×${gridSize} Grid · ${wordsList.length} Word${wordsList.length === 1 ? '' : 's'} · ${dirSummary}`;
     if (countEl) countEl.textContent = `${wordsList.length} Word${wordsList.length === 1 ? '' : 's'}`;
-    if (footerNoteEl) footerNoteEl.textContent = noteText;
-    if (footerNoteP1El) footerNoteP1El.textContent = noteText;
+    if (footerNoteP1El) footerNoteP1El.textContent = isSeparate ? `${noteText} · Page 1 of 2` : noteText;
+    if (footerNoteEl) footerNoteEl.textContent = isSeparate ? `${noteText} · Page 2 of 2` : noteText;
 
     gridContainer.innerHTML = '';
     printBank.innerHTML = '';
+    if (countBanner) {
+        countBanner.textContent = '';
+        countBanner.classList.add('hidden');
+    }
+    printBank.classList.remove('hidden');
 
     if (!State.grid.length) return;
 
-    const isSeparate = printArea.classList.contains('print-separate-pages');
-    const gridMm = isSeparate ? 170 : (wordsList.length > 16 ? 126 : 138);
-    const cellFontPt = Math.max(8.5, Math.min(18, +((isSeparate ? 195 : 170) / gridSize).toFixed(1)));
-    const bankCols = wordsList.length > 15 ? 4 : 3;
-
-    printArea.style.setProperty('--ws-grid-mm', `${gridMm}mm`);
-    printArea.style.setProperty('--ws-cell-font', `${cellFontPt}pt`);
+    const effectiveBankMode = asKey ? 'full' : Settings.bankMode;
+    const bankCols = effectiveBankMode === 'hints'
+        ? (wordsList.length > 8 ? 3 : 2)
+        : (wordsList.length > 15 ? 4 : 3);
     printArea.style.setProperty('--ws-bank-cols', String(bankCols));
 
-    const printGrid = els.grid.cloneNode(true);
-    printGrid.id = 'print-word-grid-clone';
-    printGrid.className = 'print-grid';
-    printGrid.style.width = '';
-    printGrid.style.height = '';
-    printGrid.style.gridTemplateColumns = `repeat(${gridSize}, 1fr)`;
-    printGrid.style.gridTemplateRows = `repeat(${gridSize}, 1fr)`;
-    printGrid.style.setProperty('--grid-size', gridSize);
-    printGrid.querySelectorAll('.grid-cell').forEach((cell) => {
-        cell.classList.remove('selected', 'preview-line', 'found', 'revealed', 'active-start', 'print-solution-cell');
-        cell.style.width = '';
-        cell.style.height = '';
-        cell.style.fontSize = '';
-        if (asKey && State.solutions?.has(`${cell.dataset.r},${cell.dataset.c}`)) {
-            cell.classList.add('print-solution-cell');
+    const bankRows = effectiveBankMode === 'count' ? 1 : Math.max(1, Math.ceil(wordsList.length / bankCols));
+    printArea.classList.remove('ws-bank-compact', 'ws-bank-dense');
+    if (!isSeparate && effectiveBankMode !== 'count') {
+        if (bankRows > 7) printArea.classList.add('ws-bank-dense');
+        else if (bankRows > 5) printArea.classList.add('ws-bank-compact');
+    }
+
+    let gridSizeMm;
+    if (isSeparate) {
+        gridSizeMm = 170;
+    } else {
+        const estBankH = effectiveBankMode === 'count'
+            ? 24
+            : (bankRows > 7 ? (15 + bankRows * 5.2) : bankRows > 5 ? (16 + bankRows * 6.0) : (18 + bankRows * 6.8));
+        const overhead = asKey ? 48 : 43;
+        gridSizeMm = Math.max(96, Math.min(162, 268 - overhead - estBankH));
+    }
+
+    const { svgEl } = buildPrintWordSearchSVG({
+        grid: State.grid,
+        placedWords: State.placedWords,
+        solutions: State.solutions,
+        gridSizeMm,
+        letterCase: Settings.letterCase,
+        asKey: Boolean(asKey)
+    });
+    gridContainer.appendChild(svgEl);
+
+    if (effectiveBankMode === 'count') {
+        printBank.classList.add('hidden');
+        if (countBanner) {
+            countBanner.classList.remove('hidden');
+            countBanner.textContent = `Challenge: Find and circle all ${wordsList.length} hidden word${wordsList.length === 1 ? '' : 's'} in the grid above!`;
         }
-    });
-
-    gridContainer.appendChild(printGrid);
-
-    wordsList.forEach(w => {
-        const li = document.createElement('li');
-        li.className = 'print-word';
-        li.textContent = w;
-        printBank.appendChild(li);
-    });
+    } else {
+        wordsList.forEach(w => {
+            const li = document.createElement('li');
+            li.className = 'print-word';
+            li.textContent = formatWordDisplay(w, effectiveBankMode, Settings.letterCase);
+            printBank.appendChild(li);
+        });
+    }
 }

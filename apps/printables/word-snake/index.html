@@ -3,8 +3,8 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Word Snake Generator — KlassKit</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Word Snake — KlassKit</title>
     <link rel="icon" type="image/x-icon" href="../../../media/icon.ico" />
     <link rel="icon" type="image/webp" href="../../../media/icon.webp" />
 
@@ -44,10 +44,11 @@
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Nunito:wght@400;600;700;800&family=JetBrains+Mono:wght@500;800&display=swap" rel="stylesheet">
 
     <!-- Libraries -->
     <script src="https://unpkg.com/lucide@1.16.0"></script>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
     <script src="../../../components/bulk-import-modal.js"></script>
 
     <!-- Shared KlassKit Styles -->
@@ -57,13 +58,24 @@
     <link rel="stylesheet" href="../../../css/klasskit-print.css" />
 
     <style>
-        /* ---------- Theme tokens (light = chalk paper, dark = OLED slate) ---------- */
+        /* ---------- Theme tokens (unified with Crossword & Word Search) ---------- */
         :root {
+            --bg-primary: #f8fafc;
+            --bg-secondary: rgba(255, 255, 255, 0.88);
+            --text-primary: #0f172a;
+            --text-secondary: #64748b;
+            --border-primary: #1e293b;
+            --border-secondary: rgba(148, 163, 184, 0.7);
+            --accent-blue: #1ea7fd;
+            --accent-pink: #ff4785;
+            --accent-green: #00d063;
+            --accent-orange: #ff7e33;
+            --shadow-color: rgba(15, 23, 42, 0.16);
             --line: #1e293b;
             --ink: #1e293b;
             --surface: #ffffff;
             --muted: #64748b;
-            --shadow: #1e293b;
+            --shadow: rgba(15, 23, 42, 0.16);
             --dots: #cbd5e1;
             --track: #f1f5f9;
             --snake-body: #ffffff;
@@ -71,6 +83,13 @@
         }
 
         .dark {
+            --bg-primary: #020617;
+            --bg-secondary: rgba(15, 23, 42, 0.85);
+            --text-primary: #e2e8f0;
+            --text-secondary: #94a3b8;
+            --border-primary: #64748b;
+            --border-secondary: rgba(100, 116, 139, 0.45);
+            --shadow-color: #000000;
             --line: #64748b;
             --ink: #f8fafc;
             --surface: #0f172a;
@@ -87,34 +106,49 @@
             overflow: hidden;
             -webkit-tap-highlight-color: transparent;
             user-select: none;
+            transition: background-color 0.3s, color 0.3s;
+        }
+
+        :focus-visible {
+            outline: 3px solid #1ea7fd;
+            outline-offset: 2px;
         }
 
         @media (max-width: 768px) {
             body { padding-bottom: 0 !important; }
         }
 
-        @media screen {
-            .hidden { display: none !important; }
+        /* --- GLASSMORPHIC SOFT-BRUTALISM COMPONENTS --- */
+        .glass-panel {
+            background: var(--bg-secondary);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
         }
 
-        /* --- NEO-BRUTALISM CONSOLE (matches Word Search) --- */
         .game-console {
-            border: 6px solid #1e293b;
-            border-radius: 2rem;
-            box-shadow: 14px 14px 0px rgba(30, 41, 59, 0.15);
+            background: rgba(255, 255, 255, 0.72);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 2px solid var(--border-secondary);
+            border-radius: 1.5rem;
+            box-shadow: 6px 6px 0px var(--shadow-color);
+            display: flex;
+            overflow: hidden;
+            transition: all 0.3s ease;
         }
 
         .dark .game-console {
-            border-color: #64748b;
-            box-shadow: 14px 14px 0px rgba(0, 0, 0, 0.45);
+            background: rgba(15, 23, 42, 0.82);
+            border-color: var(--border-primary);
+            box-shadow: 6px 6px 0px var(--shadow-color);
         }
 
         :where(.btn-chunky) {
-            transition: all 0.1s cubic-bezier(0.4, 0, 0.2, 1);
+            transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
             transform: translateY(0);
             position: relative;
-            border: 3px solid var(--line);
-            box-shadow: 0 4px 0 var(--shadow);
+            border: 1px solid var(--border-secondary);
+            box-shadow: 4px 4px 0 var(--shadow-color);
         }
 
         .btn-chunky {
@@ -124,31 +158,28 @@
             letter-spacing: 0.05em;
         }
 
+        :where(.dark .btn-chunky) {
+            border-color: var(--border-primary);
+            box-shadow: 4px 4px 0 var(--shadow-color);
+        }
+
         .btn-chunky:hover:not(:disabled) {
-            transform: translateY(-2px);
-            box-shadow: 0 6px 0 var(--shadow);
-            filter: brightness(1.05);
+            transform: translate(-2px, -2px);
+            box-shadow: 6px 6px 0 var(--shadow-color);
+            filter: brightness(105%);
         }
 
         .btn-chunky:active:not(:disabled) {
-            transform: translateY(4px);
-            box-shadow: 0 0 0 var(--shadow) !important;
+            transform: translate(2px, 2px);
+            box-shadow: 2px 2px 0 var(--shadow-color) !important;
         }
 
         .btn-chunky:disabled {
-            opacity: 0.5;
+            opacity: 0.45;
             cursor: not-allowed;
         }
 
-        .btn-chunky:focus-visible,
-        input:focus-visible,
-        select:focus-visible,
-        textarea:focus-visible {
-            outline: 3px solid var(--color-blue);
-            outline-offset: 2px;
-        }
-
-        /* --- SEGMENTED TOGGLE CARDS (matches Word Search difficulty toggles) --- */
+        /* --- SEGMENTED TOGGLE CARDS --- */
         .seg { position: relative; display: block; }
         .seg input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
 
@@ -157,39 +188,38 @@
             align-items: center;
             justify-content: center;
             gap: 0.3rem;
-            padding: 0.55rem 0.35rem;
+            padding: 0.48rem 0.35rem;
             font-family: 'Nunito', sans-serif;
             font-size: 10px;
             font-weight: 800;
             letter-spacing: 0.04em;
             text-transform: uppercase;
             user-select: none;
-            color: #94a3b8;
-            background: var(--surface);
-            border: 2px solid var(--line);
+            color: var(--text-secondary);
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-secondary);
             border-radius: 0.75rem;
-            box-shadow: 2px 2px 0 var(--shadow);
+            box-shadow: 2px 2px 0 var(--shadow-color);
             transition: all 0.15s ease;
         }
 
-        .seg span.seg-col { flex-direction: column; gap: 0.3rem; padding: 0.65rem 0.25rem; }
+        .dark .seg span {
+            border-color: var(--border-primary);
+        }
+
+        .seg span.seg-col { flex-direction: column; gap: 0.25rem; padding: 0.55rem 0.25rem; }
 
         .seg:hover input:not(:checked) + span {
-            transform: translateY(-2px);
+            transform: translateY(-1px);
             color: var(--ink);
         }
 
-        .seg:active input + span {
-            transform: translateY(2px);
-            box-shadow: none;
-        }
-
         .seg input:checked + span {
-            background: #2979FF;
+            background: var(--accent-blue);
             color: #ffffff;
-            border-color: var(--line);
-            box-shadow: 2px 2px 0 var(--shadow);
-            transform: translateY(2px);
+            border-color: var(--accent-blue);
+            box-shadow: 1px 1px 0 var(--shadow-color);
+            transform: translateY(1px);
         }
 
         .seg input:focus-visible + span {
@@ -200,29 +230,21 @@
         /* --- VOCABULARY WORD TAGS (matches Word Search .word-tag) --- */
         .word-tag {
             cursor: pointer;
-            padding: 6px 14px;
+            padding: 6px 13px;
             border-radius: 999px;
-            border: 2px solid #1e293b;
-            font-size: 0.85rem;
-            font-weight: 700;
-            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-            background: #ffffff;
-            color: #475569;
-            box-shadow: 3px 3px 0px #1e293b;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
+            border: 2px solid var(--border-primary);
+            font-size: 0.82rem;
+            font-weight: 800;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+            box-shadow: 3px 3px 0px var(--shadow-color);
+            letter-spacing: 0.04em;
         }
 
-        .dark .word-tag {
-            background: #1e293b;
-            color: #e2e8f0;
-            border-color: #64748b;
-            box-shadow: 3px 3px 0px #000000;
-        }
-
-        .word-tag:hover {
+        .word-tag:hover:not(.found) {
             transform: translateY(-2px);
-            border-color: #1ea7fd;
+            border-color: var(--accent-blue);
         }
 
         .word-tag.spotlight {
@@ -233,8 +255,9 @@
         }
 
         .word-tag.found {
-            background: #00E676 !important;
-            color: #1e293b !important;
+            background: var(--accent-green) !important;
+            color: #00442a !important;
+            border-color: var(--accent-green) !important;
             text-decoration: line-through;
             opacity: 0.65;
             box-shadow: none;
@@ -242,18 +265,24 @@
         }
 
         /* --- UTILS --- */
-        .custom-scrollbar::-webkit-scrollbar { height: 6px; width: 6px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
-        .dark .custom-scrollbar::-webkit-scrollbar-thumb { background: #475569; }
-        .custom-scrollbar { scrollbar-color: #cbd5e1 transparent; scrollbar-width: thin; }
+        .custom-scrollbar::-webkit-scrollbar { height: 8px; width: 8px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(203, 213, 225, 0.6); border-radius: 10px; border: 2px solid transparent; background-clip: content-box; }
+        .dark .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.2); }
+        .custom-scrollbar { scrollbar-color: rgba(148, 163, 184, 0.5) transparent; scrollbar-width: thin; }
 
         textarea {
             user-select: text;
-            background-image: radial-gradient(var(--dots) 1.5px, transparent 1.5px);
-            background-size: 12px 12px;
+            background-image: radial-gradient(var(--border-secondary) 1px, transparent 1px);
+            background-size: 10px 10px;
         }
 
-        /* Panel Toggles (matches Word Search) */
+        /* Panel Toggles (matches Crossword & Word Search) */
+        .hidden-panel-mobile {
+            transform: translateY(100%);
+            border-bottom-width: 0 !important;
+        }
+
         @media (max-width: 767px) {
             .hidden-panel-mobile {
                 display: none !important;
@@ -269,11 +298,11 @@
 
         @media (min-width: 1024px) {
             .hidden-panel-desktop {
-                margin-left: -24rem;
+                margin-left: -340px;
             }
         }
 
-        /* ---------- Snake artwork & Interactive Smartboard Letters ---------- */
+        /* ---------- Snake artwork & Answer Highlighter Bands ---------- */
         #svg-wrapper {
             display: flex;
             align-items: center;
@@ -293,6 +322,22 @@
 
         .snake-edge { stroke: var(--line); }
         .snake-body { stroke: var(--snake-body); }
+        .snake-answer-bands { display: none; }
+        .show-answers .snake-answer-bands,
+        #print-area.print-answer-key .snake-answer-bands {
+            display: block;
+        }
+
+        .snake-band-0 { stroke: #fce7f3; }
+        .snake-band-1 { stroke: #e0f2fe; }
+        .snake-band-2 { stroke: #dcfce7; }
+        .snake-band-3 { stroke: #ffedd5; }
+
+        .dark #svg-wrapper .snake-band-0 { stroke: rgba(255, 71, 133, 0.34); }
+        .dark #svg-wrapper .snake-band-1 { stroke: rgba(30, 167, 253, 0.34); }
+        .dark #svg-wrapper .snake-band-2 { stroke: rgba(0, 208, 99, 0.32); }
+        .dark #svg-wrapper .snake-band-3 { stroke: rgba(255, 126, 51, 0.34); }
+
         .snake-letters {
             fill: var(--snake-ink);
             font-family: 'Fredoka', sans-serif;
@@ -323,16 +368,24 @@
         .snake-glint { fill: var(--snake-body); }
         .snake-tongue { stroke: #ff4785; }
 
-        .show-answers .snake-letters text[data-filler="1"] {
-            fill: var(--muted);
-            opacity: 0.3;
+        .show-answers .snake-letters text[data-filler="1"],
+        #print-area.print-answer-key .snake-letters text[data-filler="1"] {
+            fill: #94a3b8;
+            opacity: 0.42;
         }
         .show-answers .snake-letters text[data-word="1"] {
-            fill: #ff4785;
+            fill: #0f172a;
+            font-weight: 700;
+        }
+        .dark #svg-wrapper.show-answers .snake-letters text[data-word="1"] {
+            fill: #ffffff;
+        }
+        #print-area.print-answer-key .snake-letters text[data-word="1"] {
+            fill: #0f172a !important;
             font-weight: 700;
         }
 
-        /* ---------- PRINT (always light, strict A4 dimensions) ---------- */
+        /* ---------- PRINT (Unified with Crossword & Word Search, always light A4) ---------- */
         @page { size: A4 portrait; margin: 0; }
 
         #print-area {
@@ -344,15 +397,19 @@
         }
 
         @media print {
-            html, body {
+            html,
+            body,
+            html.dark,
+            html.dark body {
                 display: block !important;
                 width: 210mm !important;
-                height: 297mm !important;
+                height: auto !important;
+                background: #ffffff !important;
+                background-image: none !important;
+                color: #1e293b !important;
                 padding: 0 !important;
                 margin: 0 !important;
-                overflow: hidden !important;
-                background: #fff !important;
-                background-image: none !important;
+                overflow: visible !important;
                 -webkit-print-color-adjust: exact !important;
                 print-color-adjust: exact !important;
             }
@@ -360,7 +417,11 @@
             html[data-orient="landscape"],
             html[data-orient="landscape"] body {
                 width: 297mm !important;
-                height: 210mm !important;
+            }
+
+            body::before,
+            body::after {
+                display: none !important;
             }
 
             body > :not(#print-area) {
@@ -371,70 +432,101 @@
                 display: flex !important;
                 flex-direction: column !important;
                 width: 210mm !important;
-                height: 297mm !important;
-                max-width: 210mm !important;
-                max-height: 297mm !important;
-                padding: 12mm 14mm !important;
+                height: 294mm !important;
+                max-height: 294mm !important;
+                padding: 13mm 14mm 14mm !important;
                 margin: 0 auto !important;
                 box-sizing: border-box !important;
                 overflow: hidden !important;
-                background: #fff !important;
-                page-break-after: avoid !important;
-                break-after: avoid !important;
+                background: #ffffff !important;
+                color: #1e293b !important;
+                font-family: 'Nunito', sans-serif !important;
             }
 
             html[data-orient="landscape"] #print-area {
                 width: 297mm !important;
-                height: 210mm !important;
-                max-width: 297mm !important;
-                max-height: 210mm !important;
-                padding: 10mm 14mm !important;
+                height: 207mm !important;
+                max-height: 207mm !important;
+                padding: 10mm 14mm 11mm !important;
             }
 
-            .print-header {
-                flex-shrink: 0;
-                display: flex;
-                justify-content: space-between;
-                align-items: flex-end;
-                border-bottom: 4px solid #1e293b;
-                padding-bottom: 8px;
-                margin-bottom: 10px;
-            }
-
-            .print-title h1 {
-                font-family: 'Fredoka', sans-serif;
-                font-size: 2.35rem;
-                text-transform: uppercase;
-                line-height: 1;
-                margin: 0;
-            }
-
-            .print-title p {
-                font-family: 'Nunito', sans-serif;
-                font-size: 0.9rem;
-                font-weight: 800;
-                color: #475569;
-                margin: 5px 0 0;
-            }
-
-            .print-meta {
+            .wsn-print-page1 {
                 display: flex;
                 flex-direction: column;
-                gap: 8px;
-                min-width: 240px;
-                font-family: 'Nunito', sans-serif;
-                font-size: 1rem;
-                font-weight: 700;
+                flex: 1 1 0%;
+                min-height: 0;
             }
 
-            .meta-line { display: flex; justify-content: space-between; align-items: flex-end; }
-            .meta-line span:last-child { flex-grow: 1; margin-left: 10px; border-bottom: 2px solid #1e293b; }
+            .kk-print-footer-p1 {
+                display: none !important;
+            }
+
+            #print-area.print-separate-pages {
+                display: block !important;
+                height: auto !important;
+                max-height: none !important;
+                min-height: auto !important;
+                padding: 0 !important;
+                overflow: visible !important;
+            }
+
+            #print-area.print-separate-pages .wsn-print-page1 {
+                display: flex !important;
+                flex-direction: column !important;
+                width: 210mm !important;
+                height: 294mm !important;
+                padding: 13mm 14mm 14mm !important;
+                box-sizing: border-box !important;
+                break-after: page;
+                page-break-after: always;
+            }
+
+            html[data-orient="landscape"] #print-area.print-separate-pages .wsn-print-page1 {
+                width: 297mm !important;
+                height: 207mm !important;
+                padding: 10mm 14mm 11mm !important;
+            }
+
+            #print-area.print-separate-pages .kk-print-footer-p1 {
+                display: flex !important;
+                margin-top: auto !important;
+            }
+
+            .wsn-print-stage {
+                flex: 1 1 0%;
+                min-height: 0;
+                display: flex !important;
+                justify-content: center;
+                align-items: center;
+                width: 100%;
+                box-sizing: border-box;
+                margin: 3mm 0 3.5mm;
+                padding: 3.5mm 4.5mm;
+                border: 1.5px solid #cbd5e1;
+                border-radius: 12px;
+                background-color: #f8fafc !important;
+                background-image: radial-gradient(#cbd5e1 0.65px, transparent 0.65px) !important;
+                background-size: 4.5mm 4.5mm !important;
+                overflow: hidden;
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+            }
+
+            #print-area.print-answer-key .wsn-print-stage {
+                border-color: #f9a8d4;
+                background-color: #fffafb !important;
+                background-image: radial-gradient(#f5c2d7 0.65px, transparent 0.65px) !important;
+            }
+
+            .print-separate-pages .wsn-print-stage {
+                margin: 4mm 0 4.5mm;
+                padding: 5mm;
+            }
 
             #print-svg-container {
-                flex: 1 1 0% !important;
-                min-height: 0 !important;
                 width: 100% !important;
-                max-height: 100% !important;
+                height: 100% !important;
+                min-height: 0 !important;
                 display: flex !important;
                 justify-content: center !important;
                 align-items: center !important;
@@ -447,96 +539,256 @@
                 max-width: 100% !important;
                 max-height: 100% !important;
                 display: block !important;
+                filter: none !important;
+            }
+
+            .wsn-print-bank-wrap {
+                flex-shrink: 0;
+                display: flex;
+                flex-direction: column;
+            }
+
+            .wsn-print-page2-header {
+                display: none;
+            }
+
+            #print-area.print-separate-pages .wsn-print-bank-wrap {
+                display: flex !important;
+                flex-direction: column !important;
+                width: 210mm !important;
+                min-height: 294mm !important;
+                padding: 13mm 14mm 14mm !important;
+                box-sizing: border-box !important;
+                page-break-before: auto;
+                break-before: auto;
+            }
+
+            html[data-orient="landscape"] #print-area.print-separate-pages .wsn-print-bank-wrap {
+                width: 297mm !important;
+                min-height: 207mm !important;
+                padding: 10mm 14mm 11mm !important;
+            }
+
+            #print-area .kk-print-brand-footer {
+                margin-top: auto !important;
+                padding-top: 5px;
+            }
+
+            .print-separate-pages .wsn-print-page2-header {
+                display: flex;
+                justify-content: space-between;
+                align-items: flex-end;
+                gap: 14px;
+                border-bottom: 3px solid #1e293b;
+                padding-bottom: 6px;
+                margin-bottom: 12px;
+            }
+
+            .wsn-print-page2-left {
+                display: flex;
+                flex-direction: column;
+                gap: 3px;
+                min-width: 0;
+            }
+
+            .wsn-print-page2-title {
+                font-family: 'Fredoka', sans-serif;
+                font-weight: 700;
+                font-size: 1.45rem;
+                text-transform: uppercase;
+                letter-spacing: 0.02em;
+                line-height: 1.05;
+                color: #1e293b;
+            }
+
+            .wsn-print-page2-sub {
+                font-family: 'Nunito', sans-serif;
+                font-weight: 800;
+                font-size: 0.72rem;
+                text-transform: uppercase;
+                letter-spacing: 0.06em;
+                color: #475569;
+            }
+
+            .wsn-page2-name-line {
+                display: flex;
+                align-items: flex-end;
+                gap: 8px;
+                min-width: 190px;
+                font-family: 'Nunito', sans-serif;
+                font-size: 0.85rem;
+                font-weight: 800;
+                color: #1e293b;
+            }
+
+            .wsn-page2-name-line .kk-line {
+                flex: 1 1 auto;
+                border-bottom: 2px solid #1e293b;
+                height: 1em;
+            }
+
+            #print-area.print-answer-key .wsn-page2-name-line {
+                display: none !important;
+            }
+
+            .wsn-print-bank-card {
+                border: 2px solid #1e293b;
+                border-radius: 10px;
+                padding: 7px 10px 8px;
+                background: #ffffff !important;
+                box-shadow: 2.5px 2.5px 0 #cbd5e1;
+                margin-bottom: 2px;
+            }
+
+            .wsn-print-bank-head {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 8px;
+                font-family: 'Fredoka', sans-serif;
+                font-size: 9.8pt;
+                font-weight: 700;
+                text-transform: uppercase;
+                letter-spacing: 0.05em;
+                color: #1e293b;
+                padding: 3px 8px;
+                border-radius: 6px;
+                border: 1.5px solid #1e293b;
+                background: #dcfce7;
+                margin-bottom: 6px;
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+            }
+
+            .wsn-bank-head-label {
+                display: inline-flex;
+                align-items: center;
+                gap: 5px;
+            }
+
+            .wsn-bank-head-icon {
+                width: 12px;
+                height: 12px;
+                flex-shrink: 0;
+            }
+
+            .wsn-bank-count {
+                font-family: 'Nunito', sans-serif;
+                font-size: 7.8pt;
+                font-weight: 800;
+                padding: 1px 6px;
+                border-radius: 999px;
+                background: rgba(255, 255, 255, 0.8);
+                border: 1px solid #1e293b;
+                line-height: 1.2;
             }
 
             #print-word-bank {
-                flex-shrink: 0;
                 display: grid;
-                grid-template-columns: repeat(auto-fill, minmax(44mm, 1fr));
-                gap: 2.5mm 4.5mm;
-                margin-top: 4mm;
-                padding-top: 3.5mm;
-                border-top: 2px dashed #cbd5e1;
+                grid-template-columns: repeat(var(--wsn-bank-cols, 4), minmax(0, 1fr));
+                gap: 4.5px 12px;
+                margin: 0;
+                padding: 0;
+                width: 100%;
+                list-style: none;
             }
 
             .print-word {
                 display: flex;
                 align-items: center;
-                gap: 7px;
-                font-family: 'Fredoka', sans-serif;
-                font-size: 11.5pt;
-                font-weight: 600;
+                gap: 6px;
+                font-family: 'Fredoka', sans-serif !important;
+                font-size: 10pt !important;
+                font-weight: 600 !important;
+                color: #1e293b !important;
+                letter-spacing: 0.03em;
+                margin: 0 !important;
+                break-inside: avoid;
+                list-style: none;
             }
 
             .print-word::before {
                 content: '';
                 flex: none;
-                width: 15px;
-                height: 15px;
-                border: 2.5px solid #1e293b;
-                border-radius: 4px;
-                background: #fff;
+                width: 12px;
+                height: 12px;
+                border: 2px solid #1e293b;
+                border-radius: 3px;
+                background: #ffffff;
             }
 
             .print-count-banner {
-                grid-column: 1 / -1;
                 text-align: center;
                 font-family: 'Fredoka', sans-serif;
-                font-size: 12pt;
-                padding: 6px;
-                border: 2.5px dashed #1e293b;
+                font-size: 10.5pt;
+                font-weight: 600;
+                color: #1e293b;
+                padding: 6px 10px;
+                border: 2px dashed #1e293b;
                 border-radius: 8px;
+                background: #f8fafc !important;
             }
+
+            #print-area.wsn-bank-compact .wsn-print-bank-card { padding: 5px 8px 6px; }
+            #print-area.wsn-bank-compact #print-word-bank { gap: 3px 10px; }
+            #print-area.wsn-bank-compact .print-word { font-size: 9pt !important; }
+
+            #print-area.wsn-bank-dense .wsn-print-bank-card { padding: 4px 7px 5px; }
+            #print-area.wsn-bank-dense #print-word-bank { gap: 2px 8px; }
+            #print-area.wsn-bank-dense .print-word { font-size: 8.2pt !important; }
+            #print-area.wsn-bank-dense .print-word::before { width: 10px; height: 10px; border-width: 1.5px; }
+
+            #print-area.print-separate-pages .wsn-print-bank-card { padding: 11px 13px 12px; }
+            #print-area.print-separate-pages .wsn-print-bank-head { font-size: 10.5pt; padding: 4px 10px; margin-bottom: 10px; }
+            #print-area.print-separate-pages #print-word-bank { gap: 8px 16px; }
+            #print-area.print-separate-pages .print-word { font-size: 11pt !important; }
         }
     </style>
     <style id="page-style"></style>
-  <script defer src="/js/analytics.js"></script>
+    <script defer src="/js/analytics.js"></script>
 </head>
 
-<body class="h-screen w-screen flex flex-col items-center justify-center p-2 md:p-6 overflow-hidden text-dark dark:text-white">
+<body class="h-screen w-screen flex flex-col items-center justify-center p-2 md:p-4 overflow-hidden text-dark dark:text-white">
 
     <!-- Toast Container -->
-    <div id="toast-container" class="print:hidden fixed top-4 right-4 z-[400] flex flex-col gap-2 pointer-events-none"></div>
+    <div id="toast-container" class="no-print fixed bottom-6 left-1/2 -translate-x-1/2 z-[400] flex flex-col gap-2 pointer-events-none"></div>
 
     <!-- MAIN CONSOLE -->
-    <div class="game-console print:hidden w-full h-full relative flex flex-col md:flex-row shadow-2xl overflow-hidden border-4 border-dark dark:border-slate-500 rounded-[2rem] bg-white dark:bg-slate-900">
+    <div class="game-console no-print w-full h-full relative flex-col md:flex-row">
 
         <!-- SIDEBAR: SETUP (Left) -->
         <aside id="sidebar"
-            class="w-full md:w-80 lg:w-96 bg-white dark:bg-slate-900 border-b-4 md:border-b-0 md:border-r-4 border-dark dark:border-slate-500 flex flex-col z-50 transition-all duration-300 h-[50%] md:h-full relative shrink-0">
+            class="w-full md:w-80 lg:w-[340px] glass-panel border-b-[1px] md:border-b-0 md:border-r-[1px] border-slate-300 dark:border-slate-500/40 flex flex-col z-50 transition-all duration-300 shadow-xl md:shadow-none h-[50%] md:h-full relative shrink-0">
 
             <!-- Header -->
-            <div class="p-5 border-b-4 border-dark dark:border-slate-500 bg-blue/10 dark:bg-slate-800/80 flex justify-between items-center gap-2">
+            <div class="p-4 border-b-[1px] border-slate-300 dark:border-slate-500/40 bg-slate-50/50 dark:bg-slate-800/50 flex justify-between items-center transition-colors">
                 <div>
-                    <h1 class="text-2xl font-heading text-dark dark:text-white tracking-wide leading-none">
+                    <h1 class="text-2xl font-heading text-dark dark:text-slate-100 tracking-wide leading-none transition-colors">
                         Word Snake
                     </h1>
-                    <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">KlassKit</p>
+                    <p class="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-widest mt-1">KlassKit</p>
                 </div>
-                <div class="flex items-center gap-1.5">
-                    <button id="help-btn" type="button" title="How to Use & Classroom Ideas"
-                        class="p-2 bg-orange/20 text-orange border-2 border-dark dark:border-slate-500 rounded-lg shadow-hard-sm hover:translate-y-[-1px] active:translate-y-0.5 active:shadow-none transition-all">
-                        <i data-lucide="help-circle" class="w-4 h-4"></i>
-                    </button>
-                    <button id="theme-btn" type="button" aria-pressed="false" aria-label="Toggle dark mode" title="Toggle Dark Mode"
-                        class="p-2 bg-white dark:bg-slate-800 text-dark dark:text-white border-2 border-dark dark:border-slate-500 rounded-lg shadow-hard-sm hover:translate-y-[-1px] active:translate-y-0.5 active:shadow-none transition-all">
-                        <i data-lucide="moon" class="w-4 h-4 dark:hidden"></i>
-                        <i data-lucide="sun" class="w-4 h-4 hidden dark:block text-orange"></i>
-                    </button>
-                    <button id="mobile-close-panel" type="button" onclick="toggleControlPanel(true)"
-                        class="md:hidden p-2 bg-pink/20 text-pink border-2 border-dark dark:border-slate-500 rounded-lg shadow-hard-sm active:translate-y-1 active:shadow-none transition-all">
-                        <i data-lucide="x" class="w-4 h-4"></i>
-                    </button>
-                </div>
+                <button id="mobile-close-panel" type="button" onclick="toggleControlPanel(true)" aria-label="Hide setup panel"
+                    class="md:hidden p-2 bg-pink/20 text-pink border-2 border-dark dark:border-slate-500 rounded-lg shadow-hard-sm active:translate-y-1 active:shadow-none transition-all">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            <!-- OPEN STUDENT VIEW -->
+            <div class="px-4 pt-3 pb-1 shrink-0">
+                <button id="btn-open-player" type="button" title="Open Student View"
+                    class="w-full btn-chunky bg-green text-dark py-2.5 rounded-xl text-sm font-black tracking-widest flex items-center justify-center gap-2 hover:brightness-105">
+                    <i data-lucide="monitor" class="w-5 h-5"></i> OPEN STUDENT VIEW
+                </button>
             </div>
 
             <!-- Scrollable Content -->
-            <div class="flex-1 p-5 overflow-y-auto custom-scrollbar space-y-6 bg-white dark:bg-slate-900">
+            <div class="flex-1 p-4 overflow-y-auto custom-scrollbar space-y-4 bg-transparent">
 
                 <!-- Active Set Banner -->
-                <div id="active-set-banner" class="hidden animate-pop-in p-3 rounded-xl bg-blue/10 dark:bg-blue/20 border-2 border-blue flex items-center justify-between gap-2">
+                <div id="active-set-banner" class="hidden animate-pop-in p-2.5 rounded-xl bg-blue/10 dark:bg-blue/20 border border-blue flex items-center justify-between gap-2">
                     <div class="flex items-center gap-2 min-w-0">
-                        <div class="w-7 h-7 rounded-lg bg-blue text-white flex items-center justify-center shrink-0 border-2 border-dark">
+                        <div class="w-7 h-7 rounded-lg bg-blue text-white flex items-center justify-center shrink-0 border border-dark">
                             <i data-lucide="bookmark-check" class="w-3.5 h-3.5"></i>
                         </div>
                         <div class="min-w-0">
@@ -549,24 +801,24 @@
                     </button>
                 </div>
 
-                <!-- Snake Length Control (matches Word Search Grid Density) -->
-                <div class="space-y-3">
+                <!-- Snake Length Control -->
+                <div class="space-y-2">
                     <div class="flex justify-between items-end">
-                        <label for="size-slider" class="text-xs font-bold text-slate-400 uppercase tracking-widest">Snake Length</label>
+                        <label for="size-slider" class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">Snake Length</label>
                         <output id="size-display" for="size-slider" class="font-heading text-lg text-blue">3.5 coils</output>
                     </div>
                     <input type="range" id="size-slider" min="1.5" max="6" step="0.5" value="3.5"
-                        class="w-full h-3 bg-slate-100 dark:bg-slate-800 rounded-full appearance-none cursor-pointer accent-blue border-2 border-dark dark:border-slate-500 shadow-inner-hard">
-                    <div class="flex justify-between text-[10px] font-bold text-slate-400">
+                        class="w-full h-2.5 bg-slate-200 dark:bg-slate-800 rounded-full appearance-none cursor-pointer accent-blue border border-slate-300 dark:border-slate-500/60">
+                    <div class="flex justify-between text-[10px] font-bold text-slate-400 dark:text-slate-500">
                         <span>SHORT (1.5)</span>
                         <span>LONG (6)</span>
                     </div>
                 </div>
 
                 <!-- Shape & Mechanics -->
-                <div class="space-y-3 pt-4 border-t-2 border-dashed border-slate-300 dark:border-slate-700">
-                    <label class="text-xs font-bold text-slate-400 uppercase tracking-widest block">Snake Shape</label>
-                    <div class="grid grid-cols-6 gap-2">
+                <div class="space-y-2.5 pt-3 border-t-2 border-dashed border-slate-300 dark:border-slate-500/40">
+                    <label class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest block">Snake Shape</label>
+                    <div class="grid grid-cols-6 gap-1.5">
                         <label class="seg col-span-2" title="A round spiral">
                             <input type="radio" name="shape" value="circle" checked>
                             <span class="seg-col"><i data-lucide="circle" class="w-4 h-4"></i>Circle</span>
@@ -591,8 +843,8 @@
                 </div>
 
                 <!-- Filler & Options -->
-                <div class="space-y-3 pt-4 border-t-2 border-dashed border-slate-300 dark:border-slate-700">
-                    <label class="text-xs font-bold text-slate-400 uppercase tracking-widest block">Difficulty &amp; Clues</label>
+                <div class="space-y-2.5 pt-3 border-t-2 border-dashed border-slate-300 dark:border-slate-500/40">
+                    <label class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest block">Difficulty &amp; Clues</label>
                     <div class="grid grid-cols-3 gap-1.5">
                         <label class="seg" title="Random A-Z filler letters between words">
                             <input type="radio" name="filler-mode" value="random" checked>
@@ -612,8 +864,8 @@
                             <label class="seg"><input type="radio" name="letter-case" value="upper" checked><span>ABC</span></label>
                             <label class="seg"><input type="radio" name="letter-case" value="lower"><span>abc</span></label>
                         </div>
-                        <select id="bank-mode"
-                            class="w-full p-2 bg-slate-50 dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-lg text-dark dark:text-white font-bold text-xs focus:outline-none focus:border-blue cursor-pointer">
+                        <select id="bank-mode" aria-label="Word bank mode"
+                            class="w-full px-2 py-1.5 bg-white/75 dark:bg-slate-900/70 border border-slate-300 dark:border-slate-500/50 rounded-xl text-dark dark:text-slate-200 font-bold text-[11px] focus:outline-none focus:border-blue cursor-pointer">
                             <option value="full">Full Word List</option>
                             <option value="hints">First-Letter Hints</option>
                             <option value="count">Count Only (Hard)</option>
@@ -625,99 +877,114 @@
                     </label>
                 </div>
 
-                <!-- Handout Header -->
-                <div class="space-y-2 pt-4 border-t-2 border-dashed border-slate-300 dark:border-slate-700">
-                    <label class="text-xs font-bold text-slate-400 uppercase tracking-widest block">Worksheet Header</label>
-                    <input id="custom-title" type="text" value="Word Snake" placeholder="Worksheet Title"
-                        class="w-full p-2 bg-slate-50 dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-lg text-dark dark:text-white font-bold text-xs focus:outline-none focus:border-blue" />
-                    <input id="custom-subtitle" type="text" value="Circle the hidden words along the snake from head to tail and tick them off below." placeholder="Student instructions..."
-                        class="w-full p-2 bg-slate-50 dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-lg text-dark dark:text-white font-semibold text-xs focus:outline-none focus:border-blue" />
-                </div>
-
-                <!-- Quick Presets (matches Word Search pill presets) -->
-                <div class="pt-4 border-t-2 border-dashed border-slate-300 dark:border-slate-700">
-                    <label class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3 block">Quick Presets</label>
-                    <div class="flex gap-2 flex-wrap">
-                        <button type="button" data-preset="fruits"
-                            class="preset-btn px-3 py-1.5 bg-white dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-full text-xs font-bold shadow-hard-sm hover:translate-y-[-1px] active:translate-y-[4px] active:shadow-none transition-all">🍎 Fruits</button>
-                        <button type="button" data-preset="animals"
-                            class="preset-btn px-3 py-1.5 bg-white dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-full text-xs font-bold shadow-hard-sm hover:translate-y-[-1px] active:translate-y-[4px] active:shadow-none transition-all">🦁 Animals</button>
-                        <button type="button" data-preset="verbs"
-                            class="preset-btn px-3 py-1.5 bg-white dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-full text-xs font-bold shadow-hard-sm hover:translate-y-[-1px] active:translate-y-[4px] active:shadow-none transition-all">🏃 Verbs</button>
-                        <button type="button" data-preset="jobs"
-                            class="preset-btn px-3 py-1.5 bg-white dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-full text-xs font-bold shadow-hard-sm hover:translate-y-[-1px] active:translate-y-[4px] active:shadow-none transition-all">👩‍⚕️ Jobs</button>
-                    </div>
-                </div>
-
-                <!-- Word Input -->
-                <div class="space-y-2 pt-4 border-t-2 border-dashed border-slate-300 dark:border-slate-700 flex flex-col">
-                    <div class="flex items-center justify-between gap-2">
-                        <label for="word-input" class="text-xs font-bold text-slate-400 uppercase tracking-widest">Vocabulary (Comma Separated)</label>
-                        <div class="flex items-center gap-2">
-                            <span id="capacity" class="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 border-2 border-dark dark:border-slate-500" aria-live="polite"></span>
-                            <button type="button" id="bulk-import-btn" class="px-2.5 py-0.5 bg-orange text-dark border-2 border-dark dark:border-slate-500 rounded-full text-[10px] font-heading font-bold uppercase tracking-wider shadow-hard-sm hover:-translate-y-0.5 active:translate-y-0.5 active:shadow-none transition-all flex items-center gap-1">
-                                <i data-lucide="file-up" class="w-3 h-3"></i> Bulk Import
+                <!-- Vocabulary Input -->
+                <div class="space-y-2 pt-3 border-t-2 border-dashed border-slate-300 dark:border-slate-500/40 flex flex-col">
+                    <div class="flex flex-wrap items-center justify-between gap-1.5">
+                        <label for="word-input" class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">Vocabulary</label>
+                        <div class="flex items-center gap-1.5 shrink-0">
+                            <span id="capacity" class="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-white/80 dark:bg-slate-800 border border-slate-300 dark:border-slate-500/60" aria-live="polite"></span>
+                            <button type="button" id="dedupe-btn" title="Remove duplicate words"
+                                class="text-[10px] bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 px-2 py-0.5 rounded border border-slate-300 dark:border-slate-500 font-bold transition-colors">
+                                Dedupe
                             </button>
-                            <button type="button" id="clear-words-btn" class="text-[11px] font-extrabold text-pink hover:underline">Clear</button>
+                            <button type="button" id="clear-words-btn"
+                                class="text-[10px] bg-white dark:bg-slate-800 hover:bg-pink/10 text-pink px-2 py-0.5 rounded border border-slate-300 dark:border-slate-500 font-bold transition-colors">
+                                Clear
+                            </button>
+                            <button type="button" id="bulk-import-btn"
+                                class="btn-chunky bg-orange text-dark px-2.5 py-1 rounded-lg text-[11px] flex items-center gap-1"
+                                title="Copy AI template or bulk-paste word lists">
+                                <i data-lucide="file-up" class="w-3.5 h-3.5"></i> IMPORT
+                            </button>
                         </div>
                     </div>
                     <textarea id="word-input" spellcheck="false"
-                        class="w-full h-32 p-4 bg-slate-50 dark:bg-slate-800 text-dark dark:text-white font-mono text-sm border-2 border-dark dark:border-slate-500 rounded-xl focus:border-blue focus:ring-0 outline-none resize-none shadow-inner-hard"
+                        class="w-full h-28 p-3.5 bg-white/60 dark:bg-slate-900/60 text-dark dark:text-slate-200 font-mono text-sm border-[1px] border-slate-300 dark:border-slate-500/50 rounded-xl focus:border-blue focus:ring-1 focus:ring-blue outline-none resize-none shadow-inner transition-colors"
                         placeholder="APPLE, BANANA, CHERRY, DRAGONFRUIT">APPLE, BANANA, CHERRY, DRAGONFRUIT, MANGO, ORANGE, GRAPES</textarea>
                 </div>
 
                 <!-- Inline message -->
                 <p id="status" role="status" aria-live="polite"
-                    class="hidden px-3 py-2 rounded-xl text-xs font-extrabold bg-pink/20 text-dark dark:text-white border-2 border-pink shadow-hard-sm animate-pop-in"></p>
+                    class="hidden px-3 py-2 rounded-xl text-xs font-bold bg-pink/15 text-pink border border-pink/40"></p>
 
                 <!-- Generate Button -->
                 <button id="generate-btn" type="button"
-                    class="w-full btn-chunky bg-green text-dark py-3 rounded-xl text-xl tracking-wide flex items-center justify-center gap-2 hover:brightness-105">
+                    class="w-full btn-chunky bg-green text-dark py-2.5 rounded-xl text-lg tracking-wide flex items-center justify-center gap-2 hover:brightness-105">
                     <i data-lucide="waypoints" class="w-5 h-5"></i> BUILD SNAKE
                 </button>
 
-                <!-- Library (Saved Sets) -->
-                <div class="pt-4 border-t-2 border-dashed border-slate-300 dark:border-slate-700 space-y-2">
+                <!-- Handout Header -->
+                <div class="space-y-2 pt-3 border-t-2 border-dashed border-slate-300 dark:border-slate-500/40">
+                    <label for="custom-title" class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest block">Handout Header</label>
+                    <input id="custom-title" type="text" value="Word Snake" placeholder="Worksheet Title"
+                        class="w-full px-3 py-1.5 bg-white/60 dark:bg-slate-900/60 border border-slate-300 dark:border-slate-500/50 rounded-lg text-dark dark:text-slate-200 font-bold text-xs focus:outline-none focus:border-blue" />
+                    <input id="custom-subtitle" type="text" value="Circle the hidden words along the snake from head to tail and tick them off below." placeholder="Student instructions..."
+                        class="w-full px-3 py-1.5 bg-white/60 dark:bg-slate-900/60 border border-slate-300 dark:border-slate-500/50 rounded-lg text-dark dark:text-slate-200 font-semibold text-xs focus:outline-none focus:border-blue" />
+                </div>
+
+                <!-- Saved Sets (Library) -->
+                <div class="pt-3 border-t-2 border-dashed border-slate-300 dark:border-slate-500/40 space-y-2">
                     <div class="flex items-center justify-between gap-2">
-                        <label for="library-sort" class="text-xs font-bold text-slate-400 uppercase tracking-widest">Library (<span id="saved-count">0</span>)</label>
+                        <label for="library-sort" class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">Saved Sets (<span id="saved-count">0</span>)</label>
                         <div class="flex items-center gap-1.5">
                             <select id="library-sort" aria-label="Sort saved sets"
-                                class="p-1 bg-slate-50 dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-lg text-dark dark:text-white font-bold text-[10px] focus:outline-none">
+                                class="px-2 py-1 text-[11px] font-bold rounded-lg border border-slate-300 dark:border-slate-500/50 bg-white/80 dark:bg-slate-900/70 text-dark dark:text-slate-200 outline-none">
                                 <option value="recent">Recent</option>
                                 <option value="alpha">A–Z</option>
                                 <option value="popular">Popular</option>
                             </select>
                             <button id="new-set-btn" type="button" title="New Workspace"
-                                class="p-1.5 bg-white dark:bg-slate-800 text-dark dark:text-white border-2 border-dark dark:border-slate-500 rounded-lg hover:brightness-95 active:translate-y-0.5 font-bold text-[10px] flex items-center gap-1">
-                                <i data-lucide="plus" class="w-3 h-3"></i> NEW
+                                class="px-2 py-1 rounded-lg border border-slate-300 dark:border-slate-500/50 bg-white/80 dark:bg-slate-800 text-[10px] font-bold text-slate-600 dark:text-slate-200 hover:border-blue hover:text-blue transition-colors flex items-center gap-1">
+                                <i data-lucide="sparkles" class="w-3 h-3"></i> NEW
                             </button>
                         </div>
                     </div>
-                    <div class="flex items-center gap-1.5">
+                    <div class="flex items-center gap-2">
                         <input id="set-name-input" type="text" placeholder="Set name..." aria-label="Word snake set name"
-                            class="flex-1 min-w-0 p-2 bg-slate-50 dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-lg text-dark dark:text-white font-bold text-xs focus:outline-none focus:border-blue" />
+                            class="flex-1 min-w-0 px-3 py-2 bg-white/60 dark:bg-slate-900/60 text-dark dark:text-slate-200 font-body text-sm border-[1px] border-slate-300 dark:border-slate-500/50 rounded-lg focus:border-blue focus:ring-1 focus:ring-blue outline-none transition-colors" />
                         <button id="save-set-btn" type="button" title="Save Set"
-                            class="btn-chunky bg-pink text-white px-3 py-2 rounded-lg text-xs flex items-center gap-1 shrink-0">
+                            class="btn-chunky bg-pink text-white px-3 py-2 rounded-lg text-xs flex items-center gap-1 hover:brightness-105 shrink-0">
                             <i data-lucide="save" class="w-3.5 h-3.5"></i> SAVE
                         </button>
                     </div>
-                    <div id="library-list" class="space-y-1.5 max-h-44 overflow-y-auto custom-scrollbar pr-1"></div>
+                    <div id="library-list" class="space-y-1.5 max-h-36 overflow-y-auto custom-scrollbar"></div>
                 </div>
+
+                <!-- Starter Presets (Quick + CEFR) -->
+                <div class="pt-3 border-t-2 border-dashed border-slate-300 dark:border-slate-500/40 space-y-2.5">
+                    <label class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest block">Starter Presets</label>
+                    <div class="flex gap-1.5 flex-wrap">
+                        <button type="button" data-preset="fruits" data-title="Fruit Market"
+                            class="preset-btn px-2.5 py-1 bg-white/80 dark:bg-slate-800 border border-slate-300 dark:border-slate-500/60 rounded-full text-[11px] font-bold text-dark dark:text-slate-200 shadow-hard-sm hover:translate-y-[-1px] active:translate-y-[2px] active:shadow-none transition-all">Fruits</button>
+                        <button type="button" data-preset="animals" data-title="Wild Animals"
+                            class="preset-btn px-2.5 py-1 bg-white/80 dark:bg-slate-800 border border-slate-300 dark:border-slate-500/60 rounded-full text-[11px] font-bold text-dark dark:text-slate-200 shadow-hard-sm hover:translate-y-[-1px] active:translate-y-[2px] active:shadow-none transition-all">Animals</button>
+                        <button type="button" data-preset="verbs" data-title="Action Verbs"
+                            class="preset-btn px-2.5 py-1 bg-white/80 dark:bg-slate-800 border border-slate-300 dark:border-slate-500/60 rounded-full text-[11px] font-bold text-dark dark:text-slate-200 shadow-hard-sm hover:translate-y-[-1px] active:translate-y-[2px] active:shadow-none transition-all">Verbs</button>
+                        <button type="button" data-preset="jobs" data-title="Jobs Around Town"
+                            class="preset-btn px-2.5 py-1 bg-white/80 dark:bg-slate-800 border border-slate-300 dark:border-slate-500/60 rounded-full text-[11px] font-bold text-dark dark:text-slate-200 shadow-hard-sm hover:translate-y-[-1px] active:translate-y-[2px] active:shadow-none transition-all">Jobs</button>
+                    </div>
+                    <div id="wsn-presets-slot"></div>
+                </div>
+
             </div>
 
             <!-- Footer Actions -->
-            <div class="p-3 border-t-4 border-dark dark:border-slate-500 bg-slate-100 dark:bg-slate-800 space-y-2">
-                <div class="grid grid-cols-2 gap-2">
+            <div class="p-3 border-t-[1px] border-slate-300 dark:border-slate-500/40 bg-slate-50/50 dark:bg-slate-800/50 space-y-2 transition-colors">
+                <div class="grid grid-cols-2 gap-1.5">
                     <label class="seg"><input type="radio" name="page-orient" value="portrait" checked><span><i data-lucide="rectangle-vertical" class="w-3.5 h-3.5"></i> Portrait</span></label>
                     <label class="seg"><input type="radio" name="page-orient" value="landscape"><span><i data-lucide="rectangle-horizontal" class="w-3.5 h-3.5"></i> Landscape</span></label>
                 </div>
                 <div class="flex gap-2">
                     <button id="print-btn" type="button" disabled
-                        class="flex-1 btn-chunky bg-white dark:bg-slate-900 text-dark dark:text-white py-2 rounded-lg text-xs border-2 border-dark dark:border-slate-500 flex items-center justify-center gap-1 hover:brightness-95" title="Print Student Handout">
-                        <i data-lucide="printer" class="w-4 h-4"></i> HANDOUT
+                        class="flex-1 btn-chunky bg-white dark:bg-slate-700 text-dark dark:text-slate-200 py-2 rounded-lg text-xs border-[1px] border-slate-300 dark:border-slate-500 flex items-center justify-center gap-1 hover:brightness-95" title="Snake and Word Bank on 1 Page">
+                        <i data-lucide="printer" class="w-4 h-4"></i> 1-PAGE
+                    </button>
+                    <button id="print-2page-btn" type="button" disabled
+                        class="flex-1 btn-chunky bg-white dark:bg-slate-700 text-dark dark:text-slate-200 py-2 rounded-lg text-xs border-[1px] border-slate-300 dark:border-slate-500 flex items-center justify-center gap-1 hover:brightness-95" title="Snake and Word Bank on Separate Pages">
+                        <i data-lucide="file-text" class="w-4 h-4"></i> 2-PAGE
                     </button>
                     <button id="print-key-btn" type="button" disabled
-                        class="flex-1 btn-chunky bg-white dark:bg-slate-900 text-dark dark:text-white py-2 rounded-lg text-xs border-2 border-dark dark:border-slate-500 flex items-center justify-center gap-1 hover:brightness-95" title="Print Teacher Key">
+                        class="btn-chunky bg-orange/25 dark:bg-orange/25 text-dark dark:text-orange px-3 py-2 rounded-lg text-xs border-[1px] border-slate-300 dark:border-slate-500 flex items-center justify-center gap-1 hover:brightness-95 shrink-0" title="Print Teacher Answer Key">
                         <i data-lucide="key-round" class="w-4 h-4"></i> KEY
                     </button>
                 </div>
@@ -725,29 +992,39 @@
         </aside>
 
         <!-- MAIN DISPLAY AREA -->
-        <main class="flex-1 relative h-[50%] md:h-full bg-slate-50 dark:bg-slate-950 flex flex-col lg:flex-row overflow-hidden group">
+        <main class="flex-1 relative h-[50%] md:h-full bg-slate-50/40 dark:bg-slate-900/40 flex flex-col lg:flex-row overflow-hidden group transition-colors">
 
-            <!-- Subtle Grid Background (matches Word Search) -->
-            <div class="absolute inset-0 opacity-10 pointer-events-none"
-                style="background-image: radial-gradient(#1e293b 2px, transparent 2px); background-size: 24px 24px;">
-            </div>
-
-            <!-- Floating Controls (top-left of canvas, matches Word Search) -->
-            <div class="absolute top-4 left-4 z-20 no-print flex gap-2">
+            <!-- Floating Controls (Settings, Theme, Sound, Reveal, Clear, Help) -->
+            <div class="absolute top-3 left-3 z-20 no-print flex gap-2">
                 <button id="toggle-sidebar-btn" type="button" onclick="toggleControlPanel(false)"
-                    class="p-2 bg-white/80 dark:bg-slate-800/80 backdrop-blur-md border-2 border-dark dark:border-slate-500 rounded-lg shadow-hard-sm hover:translate-y-[-2px] transition-transform text-slate-700 dark:text-slate-200 hover:text-dark"
-                    title="Toggle Setup Panel">
+                    class="p-2 bg-white dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-xl shadow-hard-sm hover:translate-y-[-2px] transition-transform text-slate-700 dark:text-slate-200 hover:text-dark dark:hover:text-white"
+                    title="Toggle Setup Panel" aria-label="Toggle setup panel">
                     <i data-lucide="settings" class="w-5 h-5"></i>
                 </button>
+                <button id="theme-btn" type="button" aria-pressed="false" aria-label="Toggle dark mode" title="Toggle Dark Mode"
+                    class="p-2 bg-white dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-xl shadow-hard-sm hover:translate-y-[-2px] transition-transform text-slate-700 dark:text-slate-200 hover:text-dark dark:hover:text-white">
+                    <i data-lucide="moon" class="w-5 h-5 block dark:hidden"></i>
+                    <i data-lucide="sun" class="w-5 h-5 hidden dark:block"></i>
+                </button>
+                <button id="sound-toggle" type="button" aria-pressed="true" aria-label="Toggle Sound" title="Toggle Sound"
+                    class="p-2 bg-white dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-xl shadow-hard-sm hover:translate-y-[-2px] transition-transform text-slate-700 dark:text-slate-200 hover:text-dark dark:hover:text-white">
+                    <i data-lucide="volume-2" class="w-5 h-5" id="sound-icon-on"></i>
+                    <i data-lucide="volume-x" class="w-5 h-5 hidden" id="sound-icon-off"></i>
+                </button>
                 <button id="answer-toggle-btn" type="button" aria-pressed="false"
-                    class="p-2 bg-white/80 dark:bg-slate-800/80 backdrop-blur-md border-2 border-dark dark:border-slate-500 rounded-lg shadow-hard-sm hover:translate-y-[-2px] transition-transform text-orange hover:text-dark"
-                    title="Reveal Solution">
+                    class="p-2 bg-white dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-xl shadow-hard-sm hover:translate-y-[-2px] transition-transform text-orange hover:text-dark dark:hover:text-white"
+                    title="Reveal Solution" aria-label="Reveal Solution">
                     <i data-lucide="eye" class="w-5 h-5"></i>
                 </button>
                 <button id="reset-board-btn" type="button"
-                    class="hidden p-2 bg-white/80 dark:bg-slate-800/80 backdrop-blur-md border-2 border-dark dark:border-slate-500 rounded-lg shadow-hard-sm hover:translate-y-[-2px] transition-transform text-pink hover:text-dark"
-                    title="Clear clicked letters on board">
-                    <i data-lucide="eraser" class="w-5 h-5"></i>
+                    class="p-2 bg-white dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-xl shadow-hard-sm hover:translate-y-[-2px] transition-transform text-pink hover:text-dark dark:hover:text-white"
+                    title="Clear Picked Letters on Board" aria-label="Clear Picked Letters on Board">
+                    <i data-lucide="rotate-ccw" class="w-5 h-5"></i>
+                </button>
+                <button id="help-btn" type="button"
+                    class="p-2 bg-white dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-xl shadow-hard-sm hover:translate-y-[-2px] transition-transform text-blue hover:text-dark dark:hover:text-white"
+                    title="How to Use Word Snake" aria-label="How to Use">
+                    <i data-lucide="help-circle" class="w-5 h-5"></i>
                 </button>
             </div>
 
@@ -755,33 +1032,32 @@
             <div class="flex-1 h-full relative flex items-center justify-center p-4 overflow-hidden">
                 <!-- Empty state -->
                 <div id="empty-state"
-                    class="hidden absolute inset-0 flex flex-col items-center justify-center text-slate-400 opacity-50 pointer-events-none text-center p-6">
-                    <i data-lucide="waypoints" class="w-16 h-16 mb-4"></i>
-                    <h2 class="font-heading text-2xl text-dark dark:text-white">Ready to Start?</h2>
-                    <p class="font-body text-sm mt-2">Adjust settings on the left and press <br><b class="text-green-600">BUILD SNAKE</b></p>
+                    class="hidden absolute inset-0 flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 opacity-50 pointer-events-none text-center p-6">
+                    <i data-lucide="waypoints" class="w-16 h-16 mb-3"></i>
+                    <p class="font-heading text-xl">Build a puzzle to start</p>
+                    <p class="text-xs font-mono mt-1">Press BUILD SNAKE on the left.</p>
                 </div>
 
-                <!-- Snake SVG is rendered here -->
+                <!-- Snake SVG rendered here -->
                 <div id="svg-wrapper" class="relative z-10 w-full h-full"></div>
 
-                <!-- Zoom Controls (bottom-right, matches Word Search) -->
-                <div class="absolute bottom-4 right-4 z-20 flex gap-2 no-print">
-                    <button id="zoom-out" type="button" title="Zoom Out"
-                        class="p-2 bg-white dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-lg shadow-hard-sm hover:bg-slate-50 dark:hover:bg-slate-700 active:translate-y-1 active:shadow-none">
+                <!-- Zoom Controls -->
+                <div class="absolute bottom-3 right-3 z-20 flex gap-2 no-print">
+                    <button id="zoom-out" type="button" title="Zoom Out" aria-label="Zoom Out"
+                        class="p-2 bg-white dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-xl shadow-hard-sm hover:bg-slate-50 dark:hover:bg-slate-700 active:translate-y-1 active:shadow-none text-slate-700 dark:text-slate-200 transition-all">
                         <i data-lucide="minus" class="w-4 h-4"></i>
                     </button>
-                    <button id="zoom-in" type="button" title="Zoom In"
-                        class="p-2 bg-white dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-lg shadow-hard-sm hover:bg-slate-50 dark:hover:bg-slate-700 active:translate-y-1 active:shadow-none">
+                    <button id="zoom-in" type="button" title="Zoom In" aria-label="Zoom In"
+                        class="p-2 bg-white dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-xl shadow-hard-sm hover:bg-slate-50 dark:hover:bg-slate-700 active:translate-y-1 active:shadow-none text-slate-700 dark:text-slate-200 transition-all">
                         <i data-lucide="plus" class="w-4 h-4"></i>
                     </button>
                 </div>
             </div>
 
-            <!-- VOCABULARY PANEL (Right Side, matches Word Search #play-controls) -->
-            <div class="w-full lg:w-80 h-1/3 lg:h-full bg-white dark:bg-slate-900 border-t-4 lg:border-t-0 lg:border-l-4 border-dark dark:border-slate-500 flex flex-col z-10 shadow-xl lg:shadow-none shrink-0"
-                id="play-controls">
-                <div
-                    class="p-3 bg-pink border-b-4 border-dark dark:border-slate-500 text-white font-heading text-lg tracking-wide flex items-center justify-between gap-2 overflow-hidden">
+            <!-- VOCABULARY PANEL (Right Side) -->
+            <div id="play-controls"
+                class="w-full lg:w-72 h-1/3 lg:h-full glass-panel border-t-[1px] lg:border-t-0 lg:border-l-[1px] border-slate-300 dark:border-slate-500/40 flex flex-col z-10 shadow-xl lg:shadow-none shrink-0 transition-all">
+                <div class="p-3 bg-pink/90 dark:bg-pink/80 border-b-[1px] border-slate-300 dark:border-slate-500/40 text-white font-heading text-lg tracking-wide flex items-center justify-between gap-2 overflow-hidden transition-colors">
                     <div class="flex items-center gap-2">
                         <i data-lucide="list" class="w-5 h-5"></i> VOCABULARY
                     </div>
@@ -792,14 +1068,14 @@
 
                 <!-- Status Feedback -->
                 <div id="status-bar"
-                    class="p-2 bg-slate-50 dark:bg-slate-800 border-b-2 border-slate-200 dark:border-slate-700 text-[10px] font-bold text-center text-slate-400 uppercase tracking-widest">
-                    Tap Snake Letters ➔ Or Tap Word to Spotlight
+                    class="p-2 bg-slate-50/70 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-700 text-[10px] font-bold text-center text-slate-500 dark:text-slate-400 uppercase tracking-widest">
+                    Tap Snake Letters · Tap Pill to Spotlight
                 </div>
 
                 <!-- Word Bank -->
                 <ul id="word-bank"
                     class="flex-1 overflow-y-auto p-4 custom-scrollbar flex flex-wrap gap-2 content-start list-none">
-                    <p id="word-bank-empty" class="text-slate-400 text-sm text-center w-full mt-4">No words loaded yet.</p>
+                    <p id="word-bank-empty" class="text-slate-400 dark:text-slate-500 text-sm text-center w-full mt-4">No words placed yet.</p>
                 </ul>
             </div>
 
@@ -807,7 +1083,7 @@
     </div>
 
     <!-- HOW TO USE / HELP MODAL -->
-    <div id="helpModal" class="hidden fixed inset-0 bg-dark/60 backdrop-blur-md z-[500] items-center justify-center p-4">
+    <div id="helpModal" class="hidden fixed inset-0 bg-dark/60 backdrop-blur-md z-[500] items-center justify-center p-4 no-print">
         <div class="bg-white dark:bg-slate-800 w-full max-w-lg rounded-[2rem] border-4 border-dark dark:border-slate-500 shadow-hard-lg animate-pop-in overflow-hidden">
             <div class="p-5 border-b-4 border-dark dark:border-slate-500 bg-orange/15 flex items-center justify-between gap-3">
                 <div class="flex items-center gap-3">
@@ -816,7 +1092,7 @@
                     </div>
                     <div>
                         <h3 class="text-xl font-heading font-bold text-dark dark:text-white uppercase leading-tight">How to Use Word Snake</h3>
-                        <p class="text-xs font-semibold text-slate-500 dark:text-slate-400">Print Handouts & Interactive Smartboard Play</p>
+                        <p class="text-xs font-semibold text-slate-500 dark:text-slate-400">Print Handouts &amp; Interactive Smartboard Play</p>
                     </div>
                 </div>
                 <button id="help-close-btn" type="button" class="btn-chunky w-9 h-9 rounded-xl bg-white dark:bg-slate-700 flex items-center justify-center">
@@ -828,13 +1104,13 @@
                     <h4 class="font-heading text-sm uppercase text-dark dark:text-white mb-1 flex items-center gap-1.5">
                         <i data-lucide="printer" class="w-4 h-4 text-blue"></i> 1. Printable A4 Worksheets
                     </h4>
-                    <p class="text-xs leading-relaxed">Enter your vocabulary words, choose a shape (Circle, Square, Rectangle, Serpentine, or Random Maze), and adjust the difficulty: use <b>Sneaky Blend</b> to generate decoy letters purely from your vocabulary words, or <b>First-Letter Hints</b> (`A _ _ _ _ (5)`) to make students recall spelling before finding the word!</p>
+                    <p class="text-xs leading-relaxed">Enter your vocabulary words, choose a shape (Circle, Square, Rectangle, Serpentine, or Random Maze), and pick difficulty: <b>Blend</b> uses decoys purely from your word list, <b>No Gaps</b> chains words head-to-tail, and <b>1-PAGE</b>, <b>2-PAGE</b>, or <b>KEY</b> prints clean A4 handouts with pastel Answer Bands.</p>
                 </div>
                 <div class="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-900 border-2 border-dark dark:border-slate-600">
                     <h4 class="font-heading text-sm uppercase text-dark dark:text-white mb-1 flex items-center gap-1.5">
-                        <i data-lucide="monitor-play" class="w-4 h-4 text-green"></i> 2. Live Smartboard / Projector Play
+                        <i data-lucide="monitor-play" class="w-4 h-4 text-green"></i> 2. Live Smartboard &amp; Student View
                     </h4>
-                    <p class="text-xs leading-relaxed">Collapse the controls sidebar (`Controls` button) and invite students up to tap letters directly on the snake! When all letters of a hidden word are tapped, the word automatically checks itself off in the bank. Or click any word pill at the bottom to spotlight its exact location on the snake!</p>
+                    <p class="text-xs leading-relaxed">Open <b>OPEN STUDENT VIEW</b> on your projector, or let students tap letters directly on the snake! Click any pill in the right-hand Vocabulary panel to spotlight that word on the snake.</p>
                 </div>
                 <div class="flex justify-end pt-1">
                     <button id="help-got-it-btn" type="button" class="btn-chunky px-6 py-2.5 rounded-xl text-xs bg-green text-dark">Got It!</button>
@@ -844,7 +1120,7 @@
     </div>
 
     <!-- SAVE AS MODAL -->
-    <div id="saveModal" class="hidden fixed inset-0 bg-dark/60 backdrop-blur-md z-[500] items-center justify-center p-4">
+    <div id="saveModal" class="hidden fixed inset-0 bg-dark/60 backdrop-blur-md z-[500] items-center justify-center p-4 no-print">
         <div class="bg-white dark:bg-slate-800 w-full max-w-sm rounded-[2rem] border-4 border-dark dark:border-slate-500 shadow-hard-lg animate-pop-in overflow-hidden">
             <div class="p-5 border-b-4 border-dark dark:border-slate-500 bg-blue/10 flex items-center gap-3">
                 <div class="w-11 h-11 rounded-2xl bg-blue flex items-center justify-center border-3 border-dark shadow-hard-sm shrink-0">
@@ -870,7 +1146,7 @@
     </div>
 
     <!-- CONFIRM MODAL -->
-    <div id="confirmModal" class="hidden fixed inset-0 bg-dark/60 backdrop-blur-md z-[500] items-center justify-center p-4">
+    <div id="confirmModal" class="hidden fixed inset-0 bg-dark/60 backdrop-blur-md z-[500] items-center justify-center p-4 no-print">
         <div class="bg-white dark:bg-slate-800 w-full max-w-sm rounded-[2rem] border-4 border-dark dark:border-slate-500 shadow-hard-lg animate-pop-in overflow-hidden">
             <div class="p-6 text-center">
                 <div class="w-14 h-14 rounded-2xl bg-pink/15 flex items-center justify-center border-3 border-dark mx-auto mb-3">
@@ -886,35 +1162,81 @@
         </div>
     </div>
 
-    <!-- TOAST CONTAINER -->
-    <div id="toast-container" class="print:hidden fixed bottom-6 left-1/2 -translate-x-1/2 z-[400] flex flex-col gap-2 pointer-events-none"></div>
-
-    <!-- PRINT LAYOUT (hidden on screen, A4 when printing) -->
+    <!-- PRINT LAYOUT (Unified Vector SVG + KlassKit Print Identity) -->
     <div id="print-area" class="hidden">
-        <div class="print-header">
-            <div class="print-title">
-                <h1 id="print-heading">Word Snake</h1>
-                <p id="print-subheading">Circle the hidden words along the snake from head to tail and tick them off below.</p>
+        <div class="wsn-print-page1">
+            <div class="kk-print-header">
+                <div class="kk-print-title">
+                    <h1 id="print-heading">Word Snake</h1>
+                    <p id="print-subheading">Circle the hidden words along the snake from head to tail and tick them off below.</p>
+                    <span id="print-mode-badge" hidden class="kk-print-badge kk-badge-orange hidden">Teacher Answer Key</span>
+                </div>
+                <div class="kk-print-meta">
+                    <div class="kk-meta-line"><span>Name:</span><span class="kk-line"></span></div>
+                    <div class="kk-meta-line"><span>Date:</span><span class="kk-line"></span></div>
+                </div>
             </div>
-            <div class="print-meta">
-                <div class="meta-line"><span>Name:</span><span></span></div>
-                <div class="meta-line"><span>Date:</span><span></span></div>
+
+            <div id="print-grid-stage" class="wsn-print-stage">
+                <div id="print-svg-container"></div>
             </div>
-        </div>
-        <div id="print-svg-container"></div>
-        <div id="print-word-bank"></div>
-        <div class="kk-print-brand-footer">
-            <span class="kk-print-footer-note">Word Snake Handout</span>
-            <span class="kk-print-brand-mark">
-                <span class="kk-brand-dots" aria-hidden="true">
-                    <span class="kk-brand-dot" style="background:#ff4785"></span>
-                    <span class="kk-brand-dot" style="background:#ff7e33"></span>
-                    <span class="kk-brand-dot" style="background:#00d063"></span>
-                    <span class="kk-brand-dot" style="background:#1ea7fd"></span>
+
+            <div class="kk-print-brand-footer kk-print-footer-p1">
+                <span id="print-footer-note-p1" class="kk-print-footer-note">Word Snake · Puzzle</span>
+                <span class="kk-print-brand-mark">
+                    <span class="kk-brand-dots" aria-hidden="true">
+                        <span class="kk-brand-dot" style="background:#ff4785"></span>
+                        <span class="kk-brand-dot" style="background:#ff7e33"></span>
+                        <span class="kk-brand-dot" style="background:#00d063"></span>
+                        <span class="kk-brand-dot" style="background:#1ea7fd"></span>
+                    </span>
+                    <span>Made with <strong>KlassKit</strong></span>
                 </span>
-                <span>Made with <strong>KlassKit</strong></span>
-            </span>
+            </div>
         </div>
+
+        <div class="wsn-print-bank-wrap">
+            <div class="wsn-print-page2-header">
+                <div class="wsn-print-page2-left">
+                    <span class="wsn-print-page2-title">Word Snake — Word Bank</span>
+                    <span class="wsn-print-page2-sub">Page 2 of 2 · Word Bank</span>
+                </div>
+                <div class="wsn-page2-name-line">
+                    <span>Name:</span><span class="kk-line"></span>
+                </div>
+            </div>
+            <div class="wsn-print-bank-card">
+                <div class="wsn-print-bank-head">
+                    <span class="wsn-bank-head-label">
+                        <svg class="wsn-bank-head-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 6h13"/><path d="M8 12h13"/><path d="M8 18h13"/><path d="M3 6h.01"/><path d="M3 12h.01"/><path d="M3 18h.01"/></svg>
+                        <span>Word Bank</span>
+                    </span>
+                    <span id="print-word-count" class="wsn-bank-count">0 Words</span>
+                </div>
+                <div id="print-word-bank"></div>
+            </div>
+
+            <div class="kk-print-brand-footer">
+                <span id="print-footer-note" class="kk-print-footer-note">Word Snake Handout</span>
+                <span class="kk-print-brand-mark">
+                    <span class="kk-brand-dots" aria-hidden="true">
+                        <span class="kk-brand-dot" style="background:#ff4785"></span>
+                        <span class="kk-brand-dot" style="background:#ff7e33"></span>
+                        <span class="kk-brand-dot" style="background:#00d063"></span>
+                        <span class="kk-brand-dot" style="background:#1ea7fd"></span>
+                    </span>
+                    <span>Made with <strong>KlassKit</strong></span>
+                </span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Student Toolbar -->
+    <div id="player-toolbar"
+        class="no-print hidden fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 px-5 py-3 bg-white/95 dark:bg-slate-800/95 border-2 border-dark dark:border-slate-500 rounded-2xl shadow-hard backdrop-blur-sm">
+        <span class="font-bold text-xs uppercase tracking-widest text-slate-400">Student View</span>
+        <div class="w-px h-5 bg-slate-300 dark:bg-slate-600"></div>
+        <span id="student-round-display" class="font-mono text-sm font-bold text-dark dark:text-white">— / —</span>
     </div>
 
     <script>
@@ -936,6 +1258,16 @@
 
             const randInt = (n) => Math.floor(Math.random() * n);
             const round1 = (n) => Math.round(n * 10) / 10;
+
+            function escapeHtml(str) {
+                return String(str ?? '').replace(/[&<>"']/g, (ch) => ({
+                    '&': '&amp;',
+                    '<': '&lt;',
+                    '>': '&gt;',
+                    '"': '&quot;',
+                    "'": '&#39;'
+                }[ch]));
+            }
 
             function shuffleArray(arr) {
                 const copy = arr.slice();
@@ -1171,7 +1503,7 @@
                 };
 
                 const d = pts.map((p, i) => `${i ? 'L' : 'M'}${round1(p[0])} ${round1(p[1])}`).join(' ');
-                return { d, bodyW: mt.bodyW, edge: mt.edge, fontSize: mt.fontSize, numChars, slots, head, vb };
+                return { d, bodyW: mt.bodyW, edge: mt.edge, fontSize: mt.fontSize, slot, numChars, slots, head, vb };
             }
 
             const letterLimit = (numChars, wordCount, fillerMode) =>
@@ -1184,7 +1516,6 @@
                 const gaps = new Array(words.length + 1).fill(minGap);
                 for (let spare = numChars - letters - gaps.length * minGap; spare > 0; spare--) {
                     if (fillerMode === 'continuous') {
-                        // In continuous mode, put any extra tail padding at the end
                         gaps[gaps.length - 1]++;
                     } else {
                         gaps[randInt(gaps.length)]++;
@@ -1204,30 +1535,68 @@
                     for (let g = 0; g < gaps[wordIdx]; g++) chars.push({ ch: filler(), isWord: false, word: '' });
                     for (const rawCh of word) {
                         const ch = letterCase === 'lower' ? rawCh.toLowerCase() : rawCh;
-                        chars.push({ ch, isWord: true, word });
+                        chars.push({ ch, isWord: true, word, wordRunId: wordIdx });
                     }
                 });
                 for (let g = 0; g < gaps[words.length]; g++) chars.push({ ch: filler(), isWord: false, word: '' });
                 return chars;
             }
 
-            /** Build the complete SVG markup. */
-            function snakeSVG(geo, chars, wordCount) {
-                const { d, bodyW, edge, fontSize, slots, head, vb } = geo;
+            /** Build the complete SVG markup (with optional pastel Answer Highlighter Bands). */
+            function snakeSVG(geo, chars, wordCount, options = {}) {
+                const { d, bodyW, edge, fontSize, slot, slots, head, vb } = geo;
+                const includeAnswerBands = options.includeAnswerBands !== false;
+
+                const answerBands = [];
+                if (includeAnswerBands) {
+                    const ext = (slot || 24) * 0.44;
+                    const bandW = round1(Math.max(10, bodyW - edge * 2 - 4));
+                    let i = 0;
+                    while (i < chars.length) {
+                        const entry = chars[i];
+                        if (!entry.isWord || entry.wordRunId === undefined || !slots[i]) {
+                            i++;
+                            continue;
+                        }
+                        const runId = entry.wordRunId;
+                        let j = i;
+                        while (j + 1 < chars.length && chars[j + 1].isWord && chars[j + 1].wordRunId === runId && slots[j + 1]) {
+                            j++;
+                        }
+                        const sFirst = slots[i];
+                        const sLast = slots[j];
+                        const rad0 = (sFirst.deg * Math.PI) / 180;
+                        const rad1 = (sLast.deg * Math.PI) / 180;
+                        const bandPts = [
+                            [sFirst.x - Math.cos(rad0) * ext, sFirst.y - Math.sin(rad0) * ext]
+                        ];
+                        for (let k = i; k <= j; k++) {
+                            bandPts.push([slots[k].x, slots[k].y]);
+                        }
+                        bandPts.push([sLast.x + Math.cos(rad1) * ext, sLast.y + Math.sin(rad1) * ext]);
+                        const pathD = bandPts.map((p, idx) => `${idx === 0 ? 'M' : 'L'}${round1(p[0])} ${round1(p[1])}`).join(' ');
+                        answerBands.push(
+                            `<path class="snake-answer-band snake-band-${runId % 4}" d="${pathD}" fill="none" stroke-width="${bandW}" stroke-linecap="butt" stroke-linejoin="round"/>`
+                        );
+                        i = j + 1;
+                    }
+                }
+
                 const letters = chars.map((entry, i) => {
                     const c = entry.ch;
                     const s = slots[i];
                     if (!s) return '';
                     const squeeze = WIDE_LETTERS.has(c) ? ' scale(.86 1)' : '';
                     const attr = entry.isWord
-                        ? ` data-word="1" data-target="${entry.word}" data-idx="${i}"`
+                        ? ` data-word="1" data-target="${escapeHtml(entry.word)}" data-idx="${i}"`
                         : ` data-filler="1" data-idx="${i}"`;
-                    return `<text${attr} transform="translate(${round1(s.x)} ${round1(s.y)}) rotate(${round1(s.deg)})${squeeze}" dy=".35em">${c}</text>`;
+                    return `<text${attr} transform="translate(${round1(s.x)} ${round1(s.y)}) rotate(${round1(s.deg)})${squeeze}" dy=".35em">${escapeHtml(c)}</text>`;
                 }).join('');
 
                 return `<svg viewBox="${vb.x} ${vb.y} ${vb.w} ${vb.h}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Word snake puzzle hiding ${wordCount} word${wordCount === 1 ? '' : 's'}" xmlns="http://www.w3.org/2000/svg">
 <path class="snake-edge" d="${d}" fill="none" stroke-width="${round1(bodyW)}" stroke-linecap="round" stroke-linejoin="round"/>
 <path class="snake-body" d="${d}" fill="none" stroke-width="${round1(bodyW - edge * 2)}" stroke-linecap="round" stroke-linejoin="round"/>
+${includeAnswerBands && answerBands.length ? `<g class="snake-answer-bands">${answerBands.join('')}</g>` : ''}
 <g class="snake-letters" font-size="${round1(fontSize)}" text-anchor="middle">${letters}</g>
 <g transform="translate(${round1(head.x)} ${round1(head.y)}) rotate(${round1(head.deg)}) scale(${round1(head.scale * 100) / 100})">
 <path class="snake-head" stroke-width="6" d="M -35,0 C -35,-30 35,-30 35,0 C 35,45 20,55 0,55 C -20,55 -35,45 -35,0 Z"/>
@@ -1246,6 +1615,61 @@
                 return cased;
             }
 
+            // ===== AUDIO ========================================================
+            const SOUND_KEY = 'sound_word_snake';
+            let audioCtx = null;
+            let soundEnabled = true;
+            try { soundEnabled = localStorage.getItem(SOUND_KEY) !== 'off'; } catch (e) { soundEnabled = true; }
+
+            function getAudioCtx() {
+                if (!audioCtx && typeof window !== 'undefined') {
+                    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+                    if (AudioContextClass) audioCtx = new AudioContextClass();
+                }
+                return audioCtx;
+            }
+
+            const playTone = (freq, type, duration) => {
+                if (!soundEnabled) return;
+                const ctx = getAudioCtx();
+                if (!ctx) return;
+                if (ctx.state === 'suspended') ctx.resume();
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.type = type;
+                osc.frequency.setValueAtTime(freq, ctx.currentTime);
+                gain.gain.setValueAtTime(0.06, ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.005, ctx.currentTime + duration);
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.start();
+                osc.stop(ctx.currentTime + duration);
+            };
+
+            function updateSoundToggleUI() {
+                const btn = $('sound-toggle');
+                const onIcon = $('sound-icon-on');
+                const offIcon = $('sound-icon-off');
+                if (btn) btn.setAttribute('aria-pressed', String(soundEnabled));
+                if (onIcon) onIcon.classList.toggle('hidden', !soundEnabled);
+                if (offIcon) offIcon.classList.toggle('hidden', soundEnabled);
+            }
+
+            const Sound = {
+                tap: () => playTone(620, 'sine', 0.06),
+                click: () => playTone(420, 'triangle', 0.05),
+                back: () => playTone(520, 'sine', 0.05),
+                success: () => { playTone(520, 'triangle', 0.1); setTimeout(() => playTone(980, 'triangle', 0.16), 90); },
+                error: () => playTone(160, 'sawtooth', 0.16),
+                win: () => [420, 520, 640, 840].forEach((f, i) => setTimeout(() => playTone(f, 'square', 0.16), i * 90)),
+                toggleMute: () => {
+                    soundEnabled = !soundEnabled;
+                    try { localStorage.setItem(SOUND_KEY, soundEnabled ? 'on' : 'off'); } catch (e) { /* ignore */ }
+                    updateSoundToggleUI();
+                    if (soundEnabled) Sound.click();
+                }
+            };
+
             // ===== UI & PERSISTENCE =============================================
 
             const STORAGE_KEY = 'klasskit_word_snake_v1';
@@ -1256,7 +1680,6 @@
             const el = {
                 sidebar: $('sidebar'),
                 toggleSidebar: $('toggle-sidebar-btn'),
-                toggleSidebarIcon: $('sidebar-toggle-icon'),
                 slider: $('size-slider'),
                 display: $('size-display'),
                 input: $('word-input'),
@@ -1268,8 +1691,10 @@
                 status: $('status'),
                 generate: $('generate-btn'),
                 print: $('print-btn'),
+                print2Page: $('print-2page-btn'),
                 printKey: $('print-key-btn'),
                 theme: $('theme-btn'),
+                soundToggle: $('sound-toggle'),
                 help: $('help-btn'),
                 empty: $('empty-state'),
                 wrapper: $('svg-wrapper'),
@@ -1283,11 +1708,16 @@
                 printArea: $('print-area'),
                 printHeading: $('print-heading'),
                 printSubheading: $('print-subheading'),
+                printBadge: $('print-mode-badge'),
                 printSvg: $('print-svg-container'),
                 printBank: $('print-word-bank'),
+                printWordCount: $('print-word-count'),
+                printFooterNote: $('print-footer-note'),
+                printFooterNoteP1: $('print-footer-note-p1'),
                 pageStyle: $('page-style'),
                 answerToggle: $('answer-toggle-btn'),
                 clearWords: $('clear-words-btn'),
+                dedupeBtn: $('dedupe-btn'),
                 newSet: $('new-set-btn'),
                 setNameInput: $('set-name-input'),
                 saveSet: $('save-set-btn'),
@@ -1305,13 +1735,15 @@
             let currentWords = [];
             let foundWords = new Set();
             let spotlightedWord = null;
+            let lastSnakeData = null;
+            let zoomLevel = 1;
 
             const choice = (name, fallback = '') => document.querySelector(`input[name="${name}"]:checked`)?.value || fallback;
             const setRadio = (name, val) => {
                 const r = document.querySelector(`input[name="${name}"][value="${val}"]`);
                 if (r) r.checked = true;
             };
-            const currentSize = () => parseFloat(el.slider.value);
+            const currentSize = () => parseFloat(el.slider?.value || '3.5');
 
             const DEFAULT_ORIENT = { circle: 'portrait', square: 'portrait', rectangle: 'landscape', long: 'landscape', random: 'portrait' };
 
@@ -1332,28 +1764,20 @@
                 if (!container) return;
                 const toast = document.createElement('div');
                 const colors = {
-                    success: 'bg-green text-dark border-dark',
-                    error: 'bg-pink text-white border-dark',
-                    info: 'bg-blue text-white border-dark',
-                    warning: 'bg-orange text-dark border-dark',
+                    success: 'bg-green text-dark',
+                    error: 'bg-pink text-white',
+                    info: 'bg-dark text-white',
+                    warning: 'bg-orange text-dark',
                 };
-                const icons = {
-                    success: 'check-circle',
-                    error: 'alert-circle',
-                    info: 'info',
-                    warning: 'alert-triangle',
-                };
-                toast.className = `${colors[type] || colors.info} px-5 py-3 rounded-2xl shadow-hard border-3 font-extrabold text-xs uppercase tracking-wider flex items-center gap-2 pointer-events-auto animate-pop-in`;
-                toast.innerHTML = `<i data-lucide="${icons[type] || 'info'}" class="w-4 h-4 shrink-0"></i><span></span>`;
-                toast.querySelector('span').textContent = message;
+                toast.className = `${colors[type] || colors.info} px-4 py-2.5 rounded-2xl border-2 border-dark dark:border-slate-500 shadow-hard font-heading text-xs uppercase tracking-wide flex items-center gap-2 pointer-events-auto animate-pop-in`;
+                toast.textContent = message;
                 container.appendChild(toast);
-                if (window.lucide) window.lucide.createIcons();
                 setTimeout(() => {
                     toast.style.opacity = '0';
-                    toast.style.transform = 'translateY(12px)';
-                    toast.style.transition = 'all 0.3s ease';
-                    setTimeout(() => toast.remove(), 320);
-                }, 2600);
+                    toast.style.transform = 'translateY(8px)';
+                    toast.style.transition = 'opacity 0.2s ease, transform 0.2s ease';
+                    setTimeout(() => toast.remove(), 220);
+                }, 2400);
             }
 
             function showConfirm(title, message) {
@@ -1474,26 +1898,27 @@
                 const sets = readSets();
                 const current = sets.find((s) => s.id === activeSetId);
                 if (current) {
-                    el.activeSetBanner.classList.remove('hidden');
-                    el.activeSetName.textContent = current.name;
+                    el.activeSetBanner?.classList.remove('hidden');
+                    if (el.activeSetName) el.activeSetName.textContent = current.name;
                 } else {
                     activeSetId = null;
-                    el.activeSetBanner.classList.add('hidden');
+                    el.activeSetBanner?.classList.add('hidden');
                 }
             }
 
             function renderLibrary() {
                 const sets = readSets();
                 if (el.savedCount) el.savedCount.textContent = String(sets.length);
-                const sort = el.librarySort.value;
+                const sort = el.librarySort ? el.librarySort.value : 'recent';
                 if (sort === 'recent') sets.sort((a, b) => (b.lastUsed || 0) - (a.lastUsed || 0));
                 else if (sort === 'alpha') sets.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
                 else if (sort === 'popular') sets.sort((a, b) => (b.usageCount || 0) - (a.usageCount || 0));
 
                 updateActiveSetBanner();
 
+                if (!el.libraryList) return;
                 if (!sets.length) {
-                    el.libraryList.innerHTML = `<p class="text-xs font-semibold text-slate-400 text-center py-3">No saved sets yet.</p>`;
+                    el.libraryList.innerHTML = `<p class="text-slate-400 dark:text-slate-500 text-xs italic">No saved sets yet.</p>`;
                     return;
                 }
 
@@ -1501,26 +1926,25 @@
                     const isActive = s.id === activeSetId;
                     const count = parseWords(s.words || '').length;
                     return `
-                        <div class="flex items-center gap-2 p-2 rounded-xl border-2 ${isActive ? 'border-blue bg-blue/10' : 'border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60'} hover:border-blue transition-colors">
-                            <button type="button" data-load-id="${s.id}" class="flex-1 text-left min-w-0">
-                                <p class="text-xs font-extrabold truncate flex items-center gap-1.5">
-                                    <span></span>
-                                    ${isActive ? '<span class="px-1.5 py-0.2 rounded bg-blue text-white text-[9px] uppercase">Active</span>' : ''}
+                        <div class="flex items-center gap-2 p-2 rounded-lg border transition-all ${isActive
+                            ? 'border-blue bg-blue/10 dark:bg-blue/20'
+                            : 'bg-white/60 dark:bg-slate-800/60 border-slate-200 dark:border-slate-500/40 hover:border-blue/40'}">
+                            <button type="button" data-load-id="${escapeHtml(s.id)}" class="flex-1 text-left min-w-0">
+                                <p class="text-sm font-bold text-dark dark:text-slate-100 truncate flex items-center gap-1.5">
+                                    <span class="truncate">${escapeHtml(s.name)}</span>
+                                    ${isActive ? '<span class="px-1.5 py-0.5 rounded bg-blue text-white text-[9px] font-black uppercase shrink-0">Active</span>' : ''}
                                 </p>
-                                <p class="text-[10px] font-bold text-slate-400">${count} words · ${s.shape || 'circle'}</p>
+                                <p class="text-[10px] text-slate-400 dark:text-slate-500 truncate">${count} words · ${escapeHtml(s.shape || 'circle')}</p>
                             </button>
-                            <button type="button" data-delete-id="${s.id}" class="p-1.5 rounded-lg text-slate-400 hover:text-pink hover:bg-pink/10 transition-colors" title="Delete set">
-                                <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                            <button type="button" data-load-btn="${escapeHtml(s.id)}" class="p-1.5 bg-blue/10 dark:bg-blue/20 text-blue rounded-md border border-blue/20 hover:bg-blue hover:text-white transition-all" title="Load set">
+                                <i data-lucide="upload" class="w-3.5 h-3.5 pointer-events-none"></i>
+                            </button>
+                            <button type="button" data-delete-id="${escapeHtml(s.id)}" class="p-1.5 bg-pink/10 dark:bg-pink/20 text-pink rounded-md border border-pink/20 hover:bg-pink hover:text-white transition-all" title="Delete set">
+                                <i data-lucide="trash-2" class="w-3.5 h-3.5 pointer-events-none"></i>
                             </button>
                         </div>
                     `;
                 }).join('');
-
-                const loadBtns = el.libraryList.querySelectorAll('[data-load-id]');
-                sets.forEach((s, idx) => {
-                    const span = loadBtns[idx]?.querySelector('p span:first-child');
-                    if (span) span.textContent = s.name;
-                });
 
                 if (window.lucide) window.lucide.createIcons();
             }
@@ -1535,6 +1959,7 @@
             }
 
             function updateCapacity() {
+                if (!el.capacity) return;
                 const { words, used, limit } = wordStats();
                 el.capacity.textContent = `${used} / ${Math.max(0, limit)} letters`;
                 const over = used > limit;
@@ -1544,6 +1969,7 @@
             }
 
             function updateSizeLabel() {
+                if (!el.display || !el.slider) return;
                 const label = describeSize(choice('shape', 'circle'), currentSize());
                 el.display.textContent = label;
                 el.slider.setAttribute('aria-valuetext', label);
@@ -1552,15 +1978,17 @@
             function applyPage() {
                 const orient = choice('page-orient', 'portrait');
                 document.documentElement.dataset.orient = orient;
-                el.pageStyle.textContent = `@page { size: A4 ${orient}; margin: 0; }`;
+                if (el.pageStyle) el.pageStyle.textContent = `@page { size: A4 ${orient}; margin: 0; }`;
             }
 
             function showStatus(message) {
+                if (!el.status) return;
                 el.status.textContent = message;
                 el.status.classList.remove('hidden');
             }
 
             function clearStatus() {
+                if (!el.status) return;
                 el.status.textContent = '';
                 el.status.classList.add('hidden');
             }
@@ -1568,9 +1996,6 @@
             function updateFoundProgress() {
                 if (el.foundCount) el.foundCount.textContent = String(foundWords.size);
                 if (el.totalCount) el.totalCount.textContent = String(currentWords.length);
-                const anyPicked = el.wrapper.querySelectorAll('text.user-picked, text.word-spotlight').length > 0;
-                el.resetBoard.classList.toggle('hidden', !anyPicked);
-                el.resetBoard.classList.toggle('inline-flex', anyPicked);
             }
 
             function renderWordBank(words) {
@@ -1578,7 +2003,6 @@
                 const letterCase = choice('letter-case', 'upper');
                 const bankMode = el.bankMode.value;
 
-                // Screen bank (interactive pills matching Word Search .word-tag)
                 el.bank.replaceChildren(...sorted.map((w) => {
                     const isFound = foundWords.has(w);
                     const isSpot = spotlightedWord === w;
@@ -1593,26 +2017,12 @@
                     return li;
                 }));
 
-                // Print bank
-                if (bankMode === 'count') {
-                    const banner = document.createElement('div');
-                    banner.className = 'print-count-banner';
-                    banner.textContent = `Challenge: Find and circle all ${sorted.length} hidden words along the snake!`;
-                    el.printBank.replaceChildren(banner);
-                } else {
-                    el.printBank.replaceChildren(...sorted.map((w) => {
-                        const div = document.createElement('div');
-                        div.className = 'print-word';
-                        div.textContent = formatWordClue(w, bankMode, letterCase);
-                        return div;
-                    }));
-                }
-
-                el.bankEmpty.classList.toggle('hidden', sorted.length > 0);
+                el.bankEmpty?.classList.toggle('hidden', sorted.length > 0);
                 updateFoundProgress();
             }
 
             function checkSmartboardCompletion() {
+                const prevSize = foundWords.size;
                 foundWords.clear();
                 for (const w of currentWords) {
                     const nodes = Array.from(el.wrapper.querySelectorAll(`text[data-target="${w}"]`));
@@ -1621,8 +2031,41 @@
                     }
                 }
                 renderWordBank(currentWords);
-                if (currentWords.length > 0 && foundWords.size === currentWords.length) {
-                    showToast('All hidden words found! Great job!', 'success');
+                if (foundWords.size > prevSize) Sound.success();
+                if (currentWords.length > 0 && foundWords.size === currentWords.length && foundWords.size > prevSize) {
+                    Sound.win();
+                    if (typeof confetti === 'function') {
+                        confetti({ particleCount: 90, spread: 65, origin: { y: 0.6 } });
+                    }
+                    showToast('All hidden words found!', 'success');
+                }
+                broadcastState();
+            }
+
+            function dedupeWords() {
+                const rawTokens = (el.input.value || '')
+                    .split(/[,;\n]+/)
+                    .map((w) => w.trim().toUpperCase().replace(/[^A-Z]/g, ''))
+                    .filter(Boolean);
+                const seen = new Set();
+                const kept = [];
+                let removed = 0;
+                rawTokens.forEach((tok) => {
+                    if (seen.has(tok)) removed++;
+                    else {
+                        seen.add(tok);
+                        kept.push(tok);
+                    }
+                });
+                if (removed > 0) {
+                    el.input.value = kept.join(', ');
+                    updateCapacity();
+                    persistState();
+                    Sound.click();
+                    showToast(`Removed ${removed} duplicate word${removed === 1 ? '' : 's'}.`, 'success');
+                } else {
+                    Sound.click();
+                    showToast('No duplicate words found.', 'info');
                 }
             }
 
@@ -1630,21 +2073,30 @@
                 const { words, used, limit } = wordStats();
 
                 if (words.length === 0) {
-                    if (!silent) showStatus('Add at least one word to hide inside the snake.');
+                    if (!silent) {
+                        showStatus('Add at least one word to hide inside the snake.');
+                        Sound.error();
+                    }
                     currentWords = [];
+                    lastSnakeData = null;
                     foundWords.clear();
                     spotlightedWord = null;
                     el.wrapper.classList.add('hidden');
                     el.empty.classList.remove('hidden');
+                    el.wrapper.innerHTML = '';
+                    el.printSvg.innerHTML = '';
                     el.bank.replaceChildren();
-                    el.bankEmpty.classList.remove('hidden');
+                    el.bankEmpty?.classList.remove('hidden');
                     el.print.disabled = true;
+                    if (el.print2Page) el.print2Page.disabled = true;
                     el.printKey.disabled = true;
                     updateFoundProgress();
+                    broadcastFullState();
                     return;
                 }
                 if (used > limit) {
                     showStatus(`Too many letters: your words use ${used}, but this snake holds ${Math.max(0, limit)}. Make the snake longer, switch to "No Gaps", or remove a word.`);
+                    if (!silent) Sound.error();
                     return;
                 }
 
@@ -1653,52 +2105,143 @@
                 foundWords.clear();
                 spotlightedWord = null;
 
-                const orderedWords = el.shuffleWords.checked ? shuffleArray(words) : words;
+                const shape = choice('shape', 'circle');
                 const fillerMode = choice('filler-mode', 'random');
                 const letterCase = choice('letter-case', 'upper');
-                const geo = geometryFor(choice('shape', 'circle'), currentSize());
+                const orderedWords = el.shuffleWords.checked ? shuffleArray(words) : words;
+                const geo = geometryFor(shape, currentSize());
                 const chars = placeWords(orderedWords, geo.numChars, fillerMode, letterCase);
-                const svg = snakeSVG(geo, chars, words.length);
+                const svg = snakeSVG(geo, chars, words.length, { includeAnswerBands: true });
+
+                lastSnakeData = { geo, chars, words, shape, fillerMode, letterCase };
 
                 el.wrapper.innerHTML = svg;
-                el.printSvg.innerHTML = svg;
                 el.empty.classList.add('hidden');
                 el.wrapper.classList.remove('hidden');
                 renderWordBank(words);
+                preparePrintVersion(false);
                 el.print.disabled = false;
+                if (el.print2Page) el.print2Page.disabled = false;
                 el.printKey.disabled = false;
+                if (!silent) Sound.success();
                 persistState();
+                broadcastFullState();
             }
 
             let printingAsKey = false;
-            function preparePrintTitles(asKey) {
+            function preparePrintVersion(asKey = false) {
                 applyPage();
+                const isSeparate = el.printArea.classList.contains('print-separate-pages');
                 const baseTitle = el.customTitle.value.trim() || 'Word Snake';
                 const baseSub = el.customSubtitle.value.trim() || 'Circle the hidden words along the snake from head to tail.';
-                el.printArea.classList.toggle('show-answers', asKey);
-                el.printHeading.textContent = asKey ? `${baseTitle} — Teacher Key` : baseTitle;
-                el.printSubheading.textContent = asKey ? 'Highlighted letters show the exact location of every hidden word.' : baseSub;
+                const bankMode = el.bankMode.value;
+                const letterCase = choice('letter-case', 'upper');
+
+                el.printArea.classList.toggle('print-answer-key', Boolean(asKey));
+                el.printArea.classList.toggle('show-answers', Boolean(asKey));
+
+                if (el.printHeading) el.printHeading.textContent = baseTitle;
+                if (el.printSubheading) {
+                    if (asKey) {
+                        el.printSubheading.textContent = 'Teacher Reference Sheet showing color-banded hidden words along the snake.';
+                    } else if (bankMode === 'count') {
+                        el.printSubheading.textContent = 'Challenge Mode: Find and circle all hidden words from head to tail without a word list.';
+                    } else if (bankMode === 'hints') {
+                        el.printSubheading.textContent = 'Use the first-letter hints below to circle every hidden word along the snake.';
+                    } else {
+                        el.printSubheading.textContent = baseSub;
+                    }
+                }
+                if (el.printBadge) {
+                    el.printBadge.hidden = !asKey;
+                    el.printBadge.classList.toggle('hidden', !asKey);
+                    el.printBadge.style.display = asKey ? 'inline-block' : 'none';
+                }
+
+                const page2Title = el.printArea.querySelector('.wsn-print-page2-title');
+                if (page2Title) page2Title.textContent = asKey ? `${baseTitle} — Word Bank (Key)` : `${baseTitle} — Word Bank`;
+
+                if (lastSnakeData) {
+                    el.printSvg.innerHTML = snakeSVG(
+                        lastSnakeData.geo,
+                        lastSnakeData.chars,
+                        lastSnakeData.words.length,
+                        { includeAnswerBands: Boolean(asKey) }
+                    );
+                } else {
+                    el.printSvg.innerHTML = '';
+                }
+
+                const sorted = [...currentWords].sort();
+                const effectiveBankMode = asKey ? 'full' : bankMode;
+                const orient = choice('page-orient', 'portrait');
+                const bankCols = effectiveBankMode === 'hints'
+                    ? (orient === 'landscape' ? 3 : 2)
+                    : (orient === 'landscape' ? 5 : (sorted.length > 12 ? 4 : 3));
+
+                el.printArea.style.setProperty('--wsn-bank-cols', String(bankCols));
+                const bankRows = effectiveBankMode === 'count' ? 1 : Math.max(1, Math.ceil(sorted.length / bankCols));
+                el.printArea.classList.remove('wsn-bank-compact', 'wsn-bank-dense');
+                if (!isSeparate && effectiveBankMode !== 'count') {
+                    if (bankRows > 4) el.printArea.classList.add('wsn-bank-dense');
+                    else if (bankRows > 2) el.printArea.classList.add('wsn-bank-compact');
+                }
+
+                if (el.printWordCount) el.printWordCount.textContent = `${sorted.length} Word${sorted.length === 1 ? '' : 's'}`;
+
+                if (effectiveBankMode === 'count') {
+                    const banner = document.createElement('div');
+                    banner.className = 'print-count-banner';
+                    banner.textContent = `Challenge: Find and circle all ${sorted.length} hidden word${sorted.length === 1 ? '' : 's'} along the snake!`;
+                    el.printBank.replaceChildren(banner);
+                } else {
+                    el.printBank.replaceChildren(...sorted.map((w) => {
+                        const div = document.createElement('div');
+                        div.className = 'print-word';
+                        div.textContent = formatWordClue(w, effectiveBankMode, letterCase);
+                        return div;
+                    }));
+                }
+
+                const shapeLabels = { circle: 'Circle', square: 'Square', rectangle: 'Rect', long: 'Serpentine', random: 'Maze' };
+                const fillerLabels = { random: 'A–Z Filler', blend: 'Blend Filler', continuous: 'No Gaps' };
+                const shapeText = shapeLabels[choice('shape', 'circle')] || 'Snake';
+                const fillerText = fillerLabels[choice('filler-mode', 'random')] || 'A–Z Filler';
+                const noteText = sorted.length
+                    ? `${shapeText} · ${sorted.length} Word${sorted.length === 1 ? '' : 's'} · ${fillerText}`
+                    : 'Word Snake Handout';
+                if (el.printFooterNoteP1) el.printFooterNoteP1.textContent = isSeparate ? `${noteText} · Page 1 of 2` : noteText;
+                if (el.printFooterNote) el.printFooterNote.textContent = isSeparate ? `${noteText} · Page 2 of 2` : noteText;
             }
 
-            function printHandout(asKey = false) {
-                printingAsKey = asKey;
-                preparePrintTitles(asKey);
+            function printHandout(mode = 'combined', asKey = false) {
+                if (!currentWords.length || !lastSnakeData) {
+                    showToast('Build a snake first before printing!', 'warning');
+                    Sound.error();
+                    return;
+                }
+                if (mode === 'separate') el.printArea.classList.add('print-separate-pages');
+                else el.printArea.classList.remove('print-separate-pages');
+
+                printingAsKey = Boolean(asKey);
+                preparePrintVersion(printingAsKey);
                 setTimeout(() => window.print(), 60);
             }
 
-            window.addEventListener('beforeprint', () => preparePrintTitles(printingAsKey));
+            window.addEventListener('beforeprint', () => preparePrintVersion(printingAsKey));
             window.addEventListener('afterprint', () => {
                 printingAsKey = false;
-                preparePrintTitles(false);
+                preparePrintVersion(false);
             });
 
             function setTheme(dark) {
                 document.documentElement.classList.toggle('dark', dark);
-                el.theme.setAttribute('aria-pressed', String(dark));
+                el.theme?.setAttribute('aria-pressed', String(dark));
                 try {
                     localStorage.setItem('theme_word-snake', dark ? 'dark' : 'light');
                     localStorage.setItem('klasskit-theme', dark ? 'dark' : 'light');
                 } catch (e) { /* ignore */ }
+                Sound.click();
             }
 
             function toggleAnswers() {
@@ -1709,9 +2252,10 @@
                 el.answerToggle.classList.toggle('text-white', showAnswers);
                 el.answerToggle.classList.toggle('text-orange', !showAnswers);
                 el.answerToggle.title = showAnswers ? 'Hide Solution' : 'Reveal Solution';
+                Sound.click();
+                broadcastState();
             }
 
-            let zoomLevel = 1;
             function applyZoom() {
                 el.wrapper.style.transform = `scale(${zoomLevel})`;
             }
@@ -1735,6 +2279,83 @@
                 generate(true);
             }
 
+            // ==================== BROADCAST CHANNEL (Student View) ====================
+            const BROADCAST_CHANNEL = 'word-snake-sync';
+            const IS_PLAYER_WINDOW = typeof location !== 'undefined' && new URLSearchParams(location.search).has('player');
+            const bc = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel(BROADCAST_CHANNEL) : null;
+
+            let _bcThrottle = null, _bcLastTime = 0;
+            function broadcastState(options = {}) {
+                if (!bc || IS_PLAYER_WINDOW) return;
+                const now = performance.now();
+                const minInterval = options.immediate ? 0 : 60;
+                if (_bcThrottle) clearTimeout(_bcThrottle);
+                const go = () => { _bcLastTime = performance.now(); _performBroadcast(); };
+                if (now - _bcLastTime >= minInterval) go();
+                else _bcThrottle = setTimeout(go, minInterval - (now - _bcLastTime));
+            }
+
+            function _performBroadcast() {
+                const pickedIndices = [];
+                el.wrapper.querySelectorAll('text.user-picked').forEach((node) => {
+                    if (node.dataset.idx !== undefined) pickedIndices.push(node.dataset.idx);
+                });
+                bc.postMessage({
+                    type: 'state-update',
+                    svgHtml: lastSnakeData ? snakeSVG(lastSnakeData.geo, lastSnakeData.chars, lastSnakeData.words.length, { includeAnswerBands: true }) : '',
+                    words: currentWords,
+                    foundWords: [...foundWords],
+                    pickedIndices,
+                    spotlightedWord,
+                    showAnswers,
+                    bankMode: el.bankMode.value,
+                    letterCase: choice('letter-case', 'upper'),
+                    zoomLevel
+                });
+            }
+
+            function broadcastFullState() { broadcastState({ immediate: true }); }
+
+            if (bc && IS_PLAYER_WINDOW) {
+                bc.onmessage = ({ data }) => {
+                    if (data.type !== 'state-update') return;
+                    if (window._playerRetryInterval) { clearInterval(window._playerRetryInterval); window._playerRetryInterval = null; }
+                    window._playerLoadingEl?.remove(); window._playerLoadingEl = null;
+
+                    currentWords = data.words || [];
+                    foundWords = new Set(data.foundWords || []);
+                    spotlightedWord = data.spotlightedWord || null;
+                    showAnswers = Boolean(data.showAnswers);
+                    if (data.bankMode) el.bankMode.value = data.bankMode;
+                    if (data.letterCase) setRadio('letter-case', data.letterCase);
+                    zoomLevel = data.zoomLevel || 1;
+                    applyZoom();
+
+                    if (data.svgHtml) {
+                        el.wrapper.innerHTML = data.svgHtml;
+                        el.empty.classList.add('hidden');
+                        el.wrapper.classList.remove('hidden');
+                    } else {
+                        el.wrapper.innerHTML = '';
+                        el.wrapper.classList.add('hidden');
+                        el.empty.classList.remove('hidden');
+                    }
+
+                    el.wrapper.classList.toggle('show-answers', showAnswers);
+
+                    const pickedSet = new Set(data.pickedIndices || []);
+                    el.wrapper.querySelectorAll('text[data-idx]').forEach((t) => {
+                        t.classList.toggle('user-picked', pickedSet.has(t.dataset.idx));
+                        t.classList.toggle('word-spotlight', Boolean(spotlightedWord && t.getAttribute('data-target') === spotlightedWord));
+                    });
+
+                    renderWordBank(currentWords);
+
+                    const sd = $('student-round-display');
+                    if (sd) sd.textContent = currentWords.length ? `${foundWords.size} / ${currentWords.length} words` : 'Waiting...';
+                };
+            }
+
             // ----- Event Wiring -----
             document.querySelectorAll('input[name="shape"]').forEach((r) => r.addEventListener('change', onShapeChange));
             document.querySelectorAll('input[name="filler-mode"], input[name="letter-case"]').forEach((r) => {
@@ -1743,113 +2364,131 @@
                     generate(true);
                 });
             });
-            el.bankMode.addEventListener('change', () => {
+            el.bankMode?.addEventListener('change', () => {
                 renderWordBank(currentWords);
+                preparePrintVersion(false);
                 persistState();
+                broadcastFullState();
             });
-            el.shuffleWords.addEventListener('change', () => generate(true));
-            el.customTitle.addEventListener('input', persistState);
-            el.customSubtitle.addEventListener('input', persistState);
+            el.shuffleWords?.addEventListener('change', () => generate(true));
+            el.customTitle?.addEventListener('input', persistState);
+            el.customSubtitle?.addEventListener('input', persistState);
 
             document.querySelectorAll('input[name="page-orient"]').forEach((r) => r.addEventListener('change', () => {
                 applyPage();
+                preparePrintVersion(false);
                 persistState();
             }));
-            el.slider.addEventListener('input', () => {
+            el.slider?.addEventListener('input', () => {
                 updateSizeLabel();
                 updateCapacity();
                 persistState();
             });
-            el.slider.addEventListener('change', () => generate(true));
-            el.input.addEventListener('input', () => {
+            el.slider?.addEventListener('change', () => generate(true));
+            el.input?.addEventListener('input', () => {
                 updateCapacity();
                 persistState();
             });
 
             // Interactive Smartboard clicking on snake letters
-            el.wrapper.addEventListener('click', (e) => {
+            el.wrapper?.addEventListener('click', (e) => {
+                if (IS_PLAYER_WINDOW) return;
                 const textNode = e.target.closest('text[data-idx]');
                 if (!textNode) return;
                 textNode.classList.toggle('user-picked');
+                Sound.tap();
                 checkSmartboardCompletion();
             });
 
             // Spotlight a word when clicking its pill in the word bank
-            el.bank.addEventListener('click', (e) => {
+            el.bank?.addEventListener('click', (e) => {
+                if (IS_PLAYER_WINDOW) return;
                 const btn = e.target.closest('button[data-word]');
                 if (!btn) return;
                 const w = btn.dataset.word;
                 spotlightedWord = spotlightedWord === w ? null : w;
                 el.wrapper.querySelectorAll('text').forEach((t) => {
-                    t.classList.toggle('word-spotlight', spotlightedWord && t.getAttribute('data-target') === spotlightedWord);
+                    t.classList.toggle('word-spotlight', Boolean(spotlightedWord && t.getAttribute('data-target') === spotlightedWord));
                 });
+                Sound.click();
                 renderWordBank(currentWords);
+                broadcastState();
             });
 
-            el.resetBoard.addEventListener('click', () => {
+            el.resetBoard?.addEventListener('click', () => {
                 spotlightedWord = null;
                 foundWords.clear();
                 el.wrapper.querySelectorAll('text').forEach((t) => {
                     t.classList.remove('user-picked', 'word-spotlight');
                 });
+                Sound.back();
                 renderWordBank(currentWords);
+                broadcastFullState();
             });
 
-            el.generate.addEventListener('click', () => {
+            el.generate?.addEventListener('click', () => {
                 generate(false);
                 if (window.innerWidth < 768) window.toggleControlPanel(true);
             });
             el.zoomIn?.addEventListener('click', () => {
                 zoomLevel = Math.min(1.6, Math.round((zoomLevel + 0.1) * 10) / 10);
                 applyZoom();
+                broadcastState();
             });
             el.zoomOut?.addEventListener('click', () => {
                 zoomLevel = Math.max(0.6, Math.round((zoomLevel - 0.1) * 10) / 10);
                 applyZoom();
+                broadcastState();
             });
-            el.print.addEventListener('click', () => printHandout(false));
-            el.printKey.addEventListener('click', () => printHandout(true));
-            el.theme.addEventListener('click', () => setTheme(!document.documentElement.classList.contains('dark')));
-            el.answerToggle.addEventListener('click', toggleAnswers);
+            el.print?.addEventListener('click', () => printHandout('combined', false));
+            el.print2Page?.addEventListener('click', () => printHandout('separate', false));
+            el.printKey?.addEventListener('click', () => printHandout('combined', true));
+            el.theme?.addEventListener('click', () => setTheme(!document.documentElement.classList.contains('dark')));
+            el.soundToggle?.addEventListener('click', () => Sound.toggleMute());
+            el.answerToggle?.addEventListener('click', toggleAnswers);
 
             // Help modal
             const closeHelp = () => {
                 $('helpModal').classList.add('hidden');
                 $('helpModal').classList.remove('flex');
             };
-            el.help.addEventListener('click', () => {
+            el.help?.addEventListener('click', () => {
                 $('helpModal').classList.remove('hidden');
                 $('helpModal').classList.add('flex');
                 if (window.lucide) window.lucide.createIcons();
             });
-            $('help-close-btn').addEventListener('click', closeHelp);
-            $('help-got-it-btn').addEventListener('click', closeHelp);
-            $('helpModal').addEventListener('click', (e) => { if (e.target === $('helpModal')) closeHelp(); });
+            $('help-close-btn')?.addEventListener('click', closeHelp);
+            $('help-got-it-btn')?.addEventListener('click', closeHelp);
+            $('helpModal')?.addEventListener('click', (e) => { if (e.target === $('helpModal')) closeHelp(); });
 
             document.querySelectorAll('[data-preset]').forEach((btn) => {
                 btn.addEventListener('click', () => {
                     const key = btn.getAttribute('data-preset');
+                    const title = btn.getAttribute('data-title') || '';
                     if (PRESETS[key]) {
                         activeSetId = null;
-                        if (el.setNameInput) el.setNameInput.value = '';
+                        if (el.setNameInput) el.setNameInput.value = title;
+                        if (title && el.customTitle) el.customTitle.value = title;
                         el.input.value = PRESETS[key];
                         updateCapacity();
                         renderLibrary();
                         generate(false);
-                        showToast(`Loaded ${key} preset`, 'info');
+                        showToast(`Loaded "${title || key}" preset`, 'info');
                     }
                 });
             });
 
-            el.clearWords.addEventListener('click', () => {
+            el.dedupeBtn?.addEventListener('click', dedupeWords);
+            el.clearWords?.addEventListener('click', () => {
                 el.input.value = '';
                 updateCapacity();
                 generate(true);
                 persistState();
+                Sound.back();
             });
 
             // Saved Sets actions
-            el.newSet.addEventListener('click', async () => {
+            el.newSet?.addEventListener('click', async () => {
                 const ok = await showConfirm('Start New Workspace?', 'This will detach from any active saved set and load default settings.');
                 if (!ok) return;
                 activeSetId = null;
@@ -1872,7 +2511,7 @@
                 showToast('New workspace ready', 'info');
             });
 
-            el.saveSet.addEventListener('click', () => {
+            el.saveSet?.addEventListener('click', () => {
                 const inlineName = el.setNameInput ? el.setNameInput.value.trim() : '';
                 if (inlineName) {
                     confirmSaveSet(inlineName);
@@ -1887,14 +2526,12 @@
                 setTimeout(() => input.focus(), 50);
             });
 
-            if (el.setNameInput) {
-                el.setNameInput.addEventListener('keydown', (e) => {
-                    if (e.key === 'Enter') {
-                        e.preventDefault();
-                        el.saveSet.click();
-                    }
-                });
-            }
+            el.setNameInput?.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    el.saveSet.click();
+                }
+            });
 
             const closeSaveModal = () => {
                 const modal = $('saveModal');
@@ -1902,13 +2539,14 @@
                 modal.classList.remove('flex');
             };
 
-            $('save-modal-cancel').addEventListener('click', closeSaveModal);
-            $('saveModal').addEventListener('click', (e) => { if (e.target === $('saveModal')) closeSaveModal(); });
+            $('save-modal-cancel')?.addEventListener('click', closeSaveModal);
+            $('saveModal')?.addEventListener('click', (e) => { if (e.target === $('saveModal')) closeSaveModal(); });
 
             const confirmSaveSet = (explicitName) => {
                 const name = (typeof explicitName === 'string' ? explicitName : $('save-set-input').value).trim();
                 if (!name) {
                     showToast('Please enter a set name', 'warning');
+                    Sound.error();
                     return;
                 }
                 const sets = readSets();
@@ -1929,6 +2567,7 @@
                     closeSaveModal();
                     renderLibrary();
                     persistState();
+                    Sound.success();
                     showToast(`Updated "${name}"`, 'success');
                 } else {
                     const id = 'ws_' + now;
@@ -1946,29 +2585,31 @@
                     closeSaveModal();
                     renderLibrary();
                     persistState();
+                    Sound.success();
                     showToast(`Saved "${name}"`, 'success');
                 }
             };
 
-            $('save-modal-confirm').addEventListener('click', () => confirmSaveSet());
-            $('save-set-input').addEventListener('keydown', (e) => {
+            $('save-modal-confirm')?.addEventListener('click', () => confirmSaveSet());
+            $('save-set-input')?.addEventListener('keydown', (e) => {
                 if (e.key === 'Enter') { e.preventDefault(); confirmSaveSet(); }
                 if (e.key === 'Escape') closeSaveModal();
             });
 
-            el.closeSet.addEventListener('click', () => {
+            el.closeSet?.addEventListener('click', () => {
                 activeSetId = null;
                 if (el.setNameInput) el.setNameInput.value = '';
                 renderLibrary();
                 persistState();
+                Sound.click();
             });
 
-            el.librarySort.addEventListener('change', renderLibrary);
+            el.librarySort?.addEventListener('change', renderLibrary);
 
-            el.libraryList.addEventListener('click', async (e) => {
-                const loadBtn = e.target.closest('[data-load-id]');
-                if (loadBtn) {
-                    const id = loadBtn.getAttribute('data-load-id');
+            el.libraryList?.addEventListener('click', async (e) => {
+                const loadEl = e.target.closest('[data-load-id], [data-load-btn]');
+                if (loadEl) {
+                    const id = loadEl.getAttribute('data-load-id') || loadEl.getAttribute('data-load-btn');
                     const sets = readSets();
                     const item = sets.find((s) => s.id === id);
                     if (!item) return;
@@ -2002,11 +2643,12 @@
                     }
                     renderLibrary();
                     persistState();
+                    Sound.back();
                     showToast('Set deleted', 'info');
                 }
             });
 
-            // ----- Bulk Import -----
+            // ----- Bulk Import & CEFR Starter Presets -----
             const wsnakeBulkModal = window.KlassKitBulkImport ? window.KlassKitBulkImport.create({
                 id: 'wsnake-bulk-import-overlay',
                 title: 'Word Snake Bulk Import',
@@ -2067,7 +2709,10 @@
                 onImport(result, opts) {
                     const incoming = result.items || [];
                     if (!incoming.length) return false;
-                    if (result.title) el.customTitle.value = result.title;
+                    if (result.title) {
+                        el.customTitle.value = result.title;
+                        if (el.setNameInput) el.setNameInput.value = result.title;
+                    }
                     if (result.subtitle) el.customSubtitle.value = result.subtitle;
 
                     if (opts && opts.append && el.input.value.trim()) {
@@ -2085,13 +2730,80 @@
                 }
             }) : null;
 
-            $('bulk-import-btn')?.addEventListener('click', () => wsnakeBulkModal?.open());
+            $('bulk-import-btn')?.addEventListener('click', () => {
+                Sound.click();
+                wsnakeBulkModal?.open();
+            });
+
+            if (window.KlassKitBulkImport && !IS_PLAYER_WINDOW) {
+                window.KlassKitBulkImport.mountPresets({
+                    container: '#wsn-presets-slot',
+                    url: 'presets.json',
+                    title: 'CEFR Word Sets',
+                    collapsible: true,
+                    getMeta: (p) => ({ icon: 'hash', label: `${(p.words || []).length}w` }),
+                    onSelect: (preset) => {
+                        const words = (preset.words || [])
+                            .map(w => String(w).trim().toUpperCase().replace(/[^A-Z]/g, ''))
+                            .filter(Boolean);
+                        if (!words.length) return;
+                        activeSetId = null;
+                        el.input.value = words.join(', ');
+                        if (preset.title) {
+                            el.customTitle.value = preset.title;
+                            if (el.setNameInput) el.setNameInput.value = preset.title;
+                        }
+                        updateCapacity();
+                        renderLibrary();
+                        generate(false);
+                        if (window.innerWidth < 768) window.toggleControlPanel(true);
+                        showToast(`Loaded "${preset.title}" (${preset.level})`, 'success');
+                    }
+                });
+            }
+
+            // Export testable helpers cleanly on window if needed
+            window.WordSnakeApp = {
+                buildGeometry,
+                placeWords,
+                snakeSVG,
+                letterLimit,
+                capacityFor,
+                preparePrintVersion,
+                generate,
+                getState: () => ({ currentWords, lastSnakeData })
+            };
 
             // ----- Startup -----
             (async function init() {
+                updateSoundToggleUI();
+                el.theme?.setAttribute('aria-pressed', String(document.documentElement.classList.contains('dark')));
+
+                if (IS_PLAYER_WINDOW) {
+                    document.documentElement.classList.add('player-mode');
+                    document.title = 'Student View | Word Snake';
+                    el.sidebar?.style.setProperty('display', 'none');
+                    $('btn-open-player')?.style.setProperty('display', 'none');
+                    el.answerToggle?.style.setProperty('display', 'none');
+                    el.resetBoard?.style.setProperty('display', 'none');
+                    el.soundToggle?.style.setProperty('display', 'none');
+                    el.help?.style.setProperty('display', 'none');
+                    $('player-toolbar')?.classList.remove('hidden');
+                    if (window.lucide) window.lucide.createIcons();
+
+                    const loadingEl = document.createElement('div');
+                    loadingEl.className = 'fixed top-4 right-4 z-[9999] flex items-center gap-2 px-4 py-2.5 bg-white/95 dark:bg-slate-800/95 border-2 border-dark dark:border-slate-500 rounded-full shadow-hard-sm backdrop-blur-sm';
+                    loadingEl.innerHTML = `<svg class="w-4 h-4 animate-spin text-blue" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M12 2a10 10 0 1 0 10 10"/></svg><span class="font-bold text-xs text-slate-600 dark:text-slate-200 uppercase tracking-widest">Connecting...</span>`;
+                    document.body.appendChild(loadingEl);
+                    window._playerLoadingEl = loadingEl;
+                    const ping = () => bc?.postMessage({ type: 'player-ready' });
+                    ping();
+                    window._playerRetryInterval = setInterval(ping, 2000);
+                    return;
+                }
+
                 if (typeof requireAuth === 'function') await requireAuth();
                 await loadPersistedState();
-                el.theme.setAttribute('aria-pressed', String(document.documentElement.classList.contains('dark')));
                 applyPage();
                 updateSizeLabel();
                 updateCapacity();
@@ -2101,6 +2813,17 @@
                     if (activeInitialSet) el.setNameInput.value = activeInitialSet.name || '';
                 }
                 generate(true);
+                if (window.innerWidth < 768) window.toggleControlPanel(true);
+
+                if (bc) {
+                    bc.onmessage = (evt) => {
+                        if (evt.data?.type === 'player-ready') broadcastFullState();
+                    };
+                }
+                $('btn-open-player')?.addEventListener('click', () => {
+                    Sound.click();
+                    window.open(location.pathname + '?player=1', 'word-snake-student', 'width=1280,height=800,menubar=no,toolbar=no,location=no,status=no');
+                });
                 if (window.lucide) window.lucide.createIcons();
             })();
         })();

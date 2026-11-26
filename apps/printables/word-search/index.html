@@ -10,6 +10,21 @@
     <title>Word Search</title>
     <link rel="icon" type="image/x-icon" href="../../../media/icon.ico" />
     <link rel="icon" type="image/webp" href="../../../media/icon.webp" />
+    <script>
+        (function () {
+            function readTheme(key) {
+                try {
+                    var raw = localStorage.getItem(key);
+                    if (raw == null) return null;
+                    try { return JSON.parse(raw); } catch (e) { return raw; }
+                } catch (e) { return null; }
+            }
+            var toolTheme = readTheme('theme_word-search') || readTheme('klasskit-theme');
+            var hubTheme = readTheme('theme_hub');
+            var isDark = toolTheme ? toolTheme === 'dark' : (hubTheme ? hubTheme === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches);
+            if (isDark) document.documentElement.classList.add('dark');
+        })();
+    </script>
 
     <!-- Icons & Libraries -->
     <script src="https://unpkg.com/lucide@1.16.0"></script>
@@ -19,202 +34,241 @@
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link
-        href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Nunito:wght@400;600;800&family=JetBrains+Mono:wght@500;800&display=swap"
-        rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Nunito:wght@400;600;700;800&family=JetBrains+Mono:wght@500;800&display=swap" rel="stylesheet">
 
     <link rel="stylesheet" href="../../../css/tailwind.generated.css" />
     <link rel="stylesheet" href="../../../css/base.css" />
     <link rel="stylesheet" href="../../../css/components.css" />
     <link rel="stylesheet" href="../../../css/klasskit-print.css" />
     <link rel="stylesheet" href="./style.css">
-  
-  <script defer src="/js/analytics.js"></script>
+
+    <script defer src="/js/analytics.js"></script>
 </head>
 
-<body class="h-screen w-screen flex flex-col items-center justify-center p-2 md:p-6 overflow-hidden">
+<body class="h-screen w-screen flex flex-col items-center justify-center p-2 md:p-4 overflow-hidden">
 
     <!-- Toast Container -->
-    <div id="toast-container" class="fixed top-4 right-4 z-[200] flex flex-col gap-2"></div>
+    <div id="toast-container" class="no-print fixed bottom-6 left-1/2 -translate-x-1/2 z-[200] flex flex-col gap-2 pointer-events-none"></div>
 
     <!-- MAIN CONSOLE -->
-    <div
-        class="game-console w-full h-full relative flex flex-col md:flex-row shadow-2xl overflow-hidden border-4 border-dark rounded-[2rem] bg-white">
+    <div class="game-console w-full h-full relative flex-col md:flex-row">
 
         <!-- SIDEBAR: SETUP (Left) -->
         <aside id="controls"
-            class="w-full md:w-80 lg:w-96 bg-white border-b-4 md:border-b-0 md:border-r-4 border-dark flex flex-col z-50 transition-all duration-300 h-[50%] md:h-full relative shrink-0">
+            class="w-full md:w-80 lg:w-[340px] glass-panel border-b-[1px] md:border-b-0 md:border-r-[1px] border-slate-300 dark:border-slate-500/40 flex flex-col z-50 transition-all duration-300 shadow-xl md:shadow-none h-[50%] md:h-full relative shrink-0">
 
             <!-- Header -->
-            <div class="p-5 border-b-4 border-dark bg-blue/10 flex justify-between items-center">
+            <div class="p-4 border-b-[1px] border-slate-300 dark:border-slate-500/40 bg-slate-50/50 dark:bg-slate-800/50 flex justify-between items-center transition-colors">
                 <div>
-                    <h1 class="text-2xl font-heading text-dark tracking-wide leading-none">
+                    <h1 class="text-2xl font-heading text-dark dark:text-slate-100 tracking-wide leading-none transition-colors">
                         Word Search
                     </h1>
-                    <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">KlassKit</p>
+                    <p class="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-widest mt-1">KlassKit</p>
                 </div>
-                <button onclick="toggleControlPanel(true)"
-                    class="md:hidden p-2 bg-pink/20 text-pink border-2 border-dark rounded-lg shadow-hard-sm active:translate-y-1 active:shadow-none transition-all">
+                <button onclick="toggleControlPanel(true)" aria-label="Hide setup panel"
+                    class="md:hidden p-2 bg-pink/20 text-pink border-2 border-dark dark:border-slate-500 rounded-lg shadow-hard-sm active:translate-y-1 active:shadow-none transition-all">
                     <i data-lucide="x" class="w-5 h-5"></i>
                 </button>
             </div>
 
             <!-- OPEN STUDENT VIEW -->
-            <div class="px-4 pt-4 pb-2 shrink-0">
+            <div class="px-4 pt-3 pb-1 shrink-0">
                 <button id="btn-open-player" title="Open Student View"
-                    class="w-full py-3 rounded-xl text-sm font-black tracking-widest flex items-center justify-center gap-2 transition-all"
-                    style="background:#16a34a;color:#ffffff;border:2px solid #15803d;box-shadow:0 4px 0 #14532d;">
+                    class="w-full btn-chunky bg-green text-dark py-2.5 rounded-xl text-sm font-black tracking-widest flex items-center justify-center gap-2 hover:brightness-105">
                     <i data-lucide="monitor" class="w-5 h-5"></i> OPEN STUDENT VIEW
                 </button>
             </div>
 
             <!-- Scrollable Content -->
-            <div class="flex-1 p-5 overflow-y-auto custom-scrollbar space-y-6 bg-white">
+            <div class="flex-1 p-4 overflow-y-auto custom-scrollbar space-y-4 bg-transparent">
 
-                <!-- Density Controls -->
-                <div class="space-y-3">
+                <!-- Grid Density -->
+                <div class="space-y-2">
                     <div class="flex justify-between items-end">
-                        <label class="text-xs font-bold text-slate-400 uppercase tracking-widest">Grid Density</label>
+                        <label for="size-slider" class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">Grid Density</label>
                         <span id="size-display" class="font-heading text-lg text-blue">10x10</span>
                     </div>
                     <input type="range" id="size-slider" min="6" max="20" value="10"
-                        class="w-full h-3 bg-slate-100 rounded-full appearance-none cursor-pointer accent-blue border-2 border-dark shadow-inner-hard">
-                    <div class="flex justify-between text-[10px] font-bold text-slate-400">
+                        class="w-full h-2.5 bg-slate-200 dark:bg-slate-800 rounded-full appearance-none cursor-pointer accent-blue border border-slate-300 dark:border-slate-500/60">
+                    <div class="flex justify-between text-[10px] font-bold text-slate-400 dark:text-slate-500">
                         <span>EASY (6)</span>
                         <span>HARD (20)</span>
                     </div>
                 </div>
 
-                <!-- Difficulty Settings -->
-                <div class="space-y-3 pt-4 border-t-2 border-dashed border-slate-300">
-                    <label class="text-xs font-bold text-slate-400 uppercase tracking-widest block">Difficulty</label>
+                <!-- Difficulty & Word Bank Options -->
+                <div class="space-y-2.5 pt-3 border-t-2 border-dashed border-slate-300 dark:border-slate-500/40">
+                    <label class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest block">Difficulty &amp; Clues</label>
                     <div class="grid grid-cols-2 gap-2">
-                        <!-- Allow Backwards Toggle -->
-                        <button id="toggle-backwards"
-                            onclick="toggleDifficulty('backwards')"
-                            class="difficulty-toggle group flex flex-col items-center gap-1.5 p-3 bg-white border-2 border-dark rounded-xl shadow-hard-sm hover:translate-y-[-2px] active:translate-y-[2px] active:shadow-none transition-all text-slate-400"
+                        <button type="button" id="toggle-backwards" onclick="toggleDifficulty('backwards')"
+                            class="difficulty-toggle group flex flex-col items-center gap-1 p-2.5 bg-white/70 dark:bg-slate-800/70 border border-slate-300 dark:border-slate-500/60 rounded-xl shadow-hard-sm hover:translate-y-[-2px] active:translate-y-[2px] active:shadow-none transition-all text-slate-500 dark:text-slate-300"
                             title="Allow words to be placed right-to-left or bottom-to-top">
-                            <i data-lucide="arrow-left-right" class="w-5 h-5"></i>
+                            <i data-lucide="arrow-left-right" class="w-4 h-4"></i>
                             <span class="text-[10px] font-bold uppercase tracking-wide leading-none">Backwards</span>
                         </button>
-                        <!-- Allow Diagonal Toggle -->
-                        <button id="toggle-diagonal"
-                            onclick="toggleDifficulty('diagonal')"
-                            class="difficulty-toggle group flex flex-col items-center gap-1.5 p-3 bg-white border-2 border-dark rounded-xl shadow-hard-sm hover:translate-y-[-2px] active:translate-y-[2px] active:shadow-none transition-all text-slate-400"
+                        <button type="button" id="toggle-diagonal" onclick="toggleDifficulty('diagonal')"
+                            class="difficulty-toggle group flex flex-col items-center gap-1 p-2.5 bg-white/70 dark:bg-slate-800/70 border border-slate-300 dark:border-slate-500/60 rounded-xl shadow-hard-sm hover:translate-y-[-2px] active:translate-y-[2px] active:shadow-none transition-all text-slate-500 dark:text-slate-300"
                             title="Allow words to be placed diagonally">
-                            <i data-lucide="move-diagonal" class="w-5 h-5"></i>
+                            <i data-lucide="move-diagonal" class="w-4 h-4"></i>
                             <span class="text-[10px] font-bold uppercase tracking-wide leading-none">Diagonal</span>
                         </button>
                     </div>
-                    <!-- Difficulty Label -->
-                    <div id="difficulty-label" class="text-center py-1.5 px-3 bg-green/10 border-2 border-green/30 rounded-lg">
-                        <span class="text-[10px] font-bold text-green uppercase tracking-widest">⭐ Easy — Horizontal &amp; Vertical</span>
+                    <div id="difficulty-label" class="text-center py-1 px-2.5 bg-green/10 border border-green/30 rounded-lg">
+                        <span class="text-[10px] font-bold text-green uppercase tracking-widest">Easy — Horizontal &amp; Vertical</span>
                     </div>
-                </div>
-
-                <!-- PERSISTENCE (Merged from old UI) -->
-                <div class="pt-4 border-t-2 border-dashed border-slate-300 space-y-4">
-                    <div class="space-y-2">
-                        <label class="text-xs font-bold text-slate-400 uppercase tracking-widest">My Presets</label>
-                        <select id="userPresetSelect" onchange="onUserPresetSelect()"
-                            class="w-full p-2 bg-slate-50 border-2 border-dark rounded-lg text-dark font-bold text-xs focus:outline-none focus:border-blue cursor-pointer">
-                            <option value="">-- Select a Preset --</option>
+                    <div class="grid grid-cols-2 gap-2 pt-0.5">
+                        <div class="grid grid-cols-2 gap-1.5">
+                            <label class="ws-seg" title="Uppercase grid & word bank">
+                                <input type="radio" name="ws-letter-case" value="upper" checked>
+                                <span>ABC</span>
+                            </label>
+                            <label class="ws-seg" title="Lowercase grid & word bank">
+                                <input type="radio" name="ws-letter-case" value="lower">
+                                <span>abc</span>
+                            </label>
+                        </div>
+                        <select id="ws-bank-mode" aria-label="Word bank display mode"
+                            class="w-full px-2 py-1.5 bg-white/75 dark:bg-slate-900/70 border border-slate-300 dark:border-slate-500/50 rounded-xl text-dark dark:text-slate-200 font-bold text-[11px] focus:outline-none focus:border-blue cursor-pointer">
+                            <option value="full">Full Word List</option>
+                            <option value="hints">First-Letter Hints</option>
+                            <option value="count">Count Only (Hard)</option>
                         </select>
-                        <div class="flex gap-2">
-                            <input type="text" id="userPresetNameInput" placeholder="Preset name..."
-                                class="flex-1 p-2 bg-slate-50 border-2 border-dark rounded-lg text-dark font-bold text-xs focus:outline-none focus:border-blue">
-                            <button onclick="saveCurrentUserPreset()"
-                                class="p-2 bg-green text-dark border-2 border-dark rounded-lg shadow-hard-sm active:translate-y-1 active:shadow-none transition-all"><i
-                                    data-lucide="save" class="w-4 h-4"></i></button>
-                        </div>
-                        <div class="flex gap-2">
-                            <button onclick="createNewUserPreset()"
-                                class="flex-1 py-1.5 bg-blue text-white border-2 border-dark rounded-lg font-bold text-[10px] flex items-center justify-center gap-1 hover:brightness-110"><i
-                                    data-lucide="plus" class="w-3 h-3"></i> NEW</button>
-                            <button onclick="deleteCurrentUserPreset()"
-                                class="flex-1 py-1.5 bg-pink text-white border-2 border-dark rounded-lg font-bold text-[10px] flex items-center justify-center gap-1 hover:brightness-110"><i
-                                    data-lucide="trash-2" class="w-3 h-3"></i> DEL</button>
-                        </div>
                     </div>
                 </div>
 
-                <!-- Presets -->
-                <div class="pt-4 border-t-2 border-dashed border-slate-300">
-                    <label class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3 block">Quick
-                        Presets</label>
-                    <div class="flex gap-2 flex-wrap">
-                        <button
-                            class="preset-btn px-3 py-1.5 bg-white border-2 border-dark rounded-full text-xs font-bold shadow-hard-sm hover:translate-y-[-1px] active:translate-y-[4px] active:shadow-none transition-all"
-                            data-words="RED, BLUE, GREEN, PINK, ORANGE, BLACK, WHITE">🎨 Colors</button>
-                        <button
-                            class="preset-btn px-3 py-1.5 bg-white border-2 border-dark rounded-full text-xs font-bold shadow-hard-sm hover:translate-y-[-1px] active:translate-y-[4px] active:shadow-none transition-all"
-                            data-words="LION, TIGER, BEAR, WOLF, ZEBRA, MONKEY">🦁 Animals</button>
-                        <button
-                            class="preset-btn px-3 py-1.5 bg-white border-2 border-dark rounded-full text-xs font-bold shadow-hard-sm hover:translate-y-[-1px] active:translate-y-[4px] active:shadow-none transition-all"
-                            data-words="RUN, JUMP, SWIM, READ, WRITE, SPEAK">🏃 Verbs</button>
-                    </div>
-                    <div id="cefr-presets-slot" class="mt-3"></div>
-                </div>
-
-                <!-- Word Input -->
-                <div class="space-y-2 flex-1 flex flex-col">
-                    <div class="flex items-center justify-between gap-2">
-                        <label class="text-xs font-bold text-slate-400 uppercase tracking-widest">Vocabulary (Comma
-                            Separated)</label>
-                        <button type="button" id="btn-bulk-import"
-                            class="px-2.5 py-1 rounded-lg border-2 border-dark bg-orange text-dark text-[11px] font-heading font-bold uppercase flex items-center gap-1 hover:brightness-105 shadow-hard-sm active:translate-y-[2px] active:shadow-none transition-all">
-                            <i data-lucide="file-up" class="w-3.5 h-3.5"></i> Bulk Import
-                        </button>
+                <!-- Vocabulary Input -->
+                <div class="space-y-2 pt-3 border-t-2 border-dashed border-slate-300 dark:border-slate-500/40 flex flex-col">
+                    <div class="flex flex-wrap items-center justify-between gap-1.5">
+                        <label for="word-input" class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">Vocabulary</label>
+                        <div class="flex items-center gap-1.5 shrink-0">
+                            <button type="button" id="dedupe-btn" title="Remove duplicate words"
+                                class="text-[10px] bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 px-2 py-0.5 rounded border border-slate-300 dark:border-slate-500 font-bold transition-colors">
+                                Dedupe
+                            </button>
+                            <button type="button" id="clear-words-btn" title="Clear vocabulary input"
+                                class="text-[10px] bg-white dark:bg-slate-800 hover:bg-pink/10 text-pink px-2 py-0.5 rounded border border-slate-300 dark:border-slate-500 font-bold transition-colors">
+                                Clear
+                            </button>
+                            <button type="button" id="btn-bulk-import"
+                                class="btn-chunky bg-orange text-dark px-2.5 py-1 rounded-lg text-[11px] flex items-center gap-1"
+                                title="Bulk import comma or line word lists">
+                                <i data-lucide="file-up" class="w-3.5 h-3.5"></i> IMPORT
+                            </button>
+                        </div>
                     </div>
                     <textarea id="word-input" spellcheck="false"
-                        class="w-full h-32 p-4 bg-slate-50 text-dark font-mono text-sm border-2 border-dark rounded-xl focus:border-blue focus:ring-0 outline-none resize-none shadow-inner-hard"
+                        class="w-full h-32 p-3.5 bg-white/60 dark:bg-slate-900/60 text-dark dark:text-slate-200 font-mono text-sm border-[1px] border-slate-300 dark:border-slate-500/50 rounded-xl focus:border-blue focus:ring-1 focus:ring-blue outline-none resize-none shadow-inner transition-colors"
                         placeholder="APPLE, BANANA, CHERRY, DRAGONFRUIT"></textarea>
                 </div>
 
                 <!-- Generate Button -->
                 <button id="generate-btn"
-                    class="w-full btn-chunky bg-green text-dark py-3 rounded-xl text-xl tracking-wide flex items-center justify-center gap-2 hover:brightness-105">
+                    class="w-full btn-chunky bg-green text-dark py-2.5 rounded-xl text-lg tracking-wide flex items-center justify-center gap-2 hover:brightness-105">
                     <i data-lucide="layout-grid" class="w-5 h-5"></i> BUILD PUZZLE
                 </button>
+
+                <!-- Saved Word Sets -->
+                <div class="pt-3 border-t-2 border-dashed border-slate-300 dark:border-slate-500/40">
+                    <div class="flex items-center justify-between gap-2 mb-2">
+                        <label for="userPresetNameInput" class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest block">
+                            Saved Sets (<span id="saved-count">0</span>)
+                        </label>
+                        <div class="flex items-center gap-1.5">
+                            <select id="sets-sort" aria-label="Sort saved word sets"
+                                class="px-2 py-1 text-[11px] font-bold rounded-lg border border-slate-300 dark:border-slate-500/50 bg-white/80 dark:bg-slate-900/70 text-dark dark:text-slate-200 outline-none">
+                                <option value="recent">Recent</option>
+                                <option value="alpha">A–Z</option>
+                                <option value="popular">Popular</option>
+                            </select>
+                            <button id="new-set-btn" type="button" title="Detach from active set and start fresh"
+                                class="px-2 py-1 rounded-lg border border-slate-300 dark:border-slate-500/50 bg-white/80 dark:bg-slate-800 text-[10px] font-bold text-slate-600 dark:text-slate-200 hover:border-blue hover:text-blue transition-colors flex items-center gap-1">
+                                <i data-lucide="sparkles" class="w-3 h-3"></i> NEW
+                            </button>
+                        </div>
+                    </div>
+                    <div class="flex gap-2 mb-3">
+                        <input id="userPresetNameInput" type="text" placeholder="Set name..."
+                            class="flex-1 min-w-0 px-3 py-2 bg-white/60 dark:bg-slate-900/60 text-dark dark:text-slate-200 font-body text-sm border-[1px] border-slate-300 dark:border-slate-500/50 rounded-lg focus:border-blue focus:ring-1 focus:ring-blue outline-none transition-colors" />
+                        <button id="save-set-btn" type="button"
+                            class="btn-chunky bg-pink text-white px-3 py-2 rounded-lg text-xs flex items-center gap-1 hover:brightness-105 shrink-0">
+                            <i data-lucide="save" class="w-3.5 h-3.5"></i> SAVE
+                        </button>
+                    </div>
+                    <div id="sets-list" class="space-y-1.5 max-h-36 overflow-y-auto custom-scrollbar">
+                        <p class="text-slate-400 dark:text-slate-500 text-xs italic">No saved sets yet.</p>
+                    </div>
+                </div>
+
+                <!-- Starter Presets -->
+                <div class="pt-3 border-t-2 border-dashed border-slate-300 dark:border-slate-500/40 space-y-2.5">
+                    <label class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest block">Starter Presets</label>
+                    <div class="flex gap-1.5 flex-wrap">
+                        <button type="button"
+                            class="preset-btn px-2.5 py-1 bg-white/80 dark:bg-slate-800 border border-slate-300 dark:border-slate-500/60 rounded-full text-[11px] font-bold text-dark dark:text-slate-200 shadow-hard-sm hover:translate-y-[-1px] active:translate-y-[2px] active:shadow-none transition-all"
+                            data-title="Colors" data-words="RED, BLUE, GREEN, PINK, ORANGE, BLACK, WHITE">Colors</button>
+                        <button type="button"
+                            class="preset-btn px-2.5 py-1 bg-white/80 dark:bg-slate-800 border border-slate-300 dark:border-slate-500/60 rounded-full text-[11px] font-bold text-dark dark:text-slate-200 shadow-hard-sm hover:translate-y-[-1px] active:translate-y-[2px] active:shadow-none transition-all"
+                            data-title="Animals" data-words="LION, TIGER, BEAR, WOLF, ZEBRA, MONKEY">Animals</button>
+                        <button type="button"
+                            class="preset-btn px-2.5 py-1 bg-white/80 dark:bg-slate-800 border border-slate-300 dark:border-slate-500/60 rounded-full text-[11px] font-bold text-dark dark:text-slate-200 shadow-hard-sm hover:translate-y-[-1px] active:translate-y-[2px] active:shadow-none transition-all"
+                            data-title="Action Verbs" data-words="RUN, JUMP, SWIM, READ, WRITE, SPEAK">Verbs</button>
+                    </div>
+                    <div id="cefr-presets-slot"></div>
+                </div>
 
             </div>
 
             <!-- Footer Actions -->
-            <div class="p-3 border-t-4 border-dark bg-slate-100 flex gap-2">
+            <div class="p-3 border-t-[1px] border-slate-300 dark:border-slate-500/40 bg-slate-50/50 dark:bg-slate-800/50 flex gap-2 transition-colors">
                 <button type="button" onclick="setPrintMode('combined', false)"
-                    class="flex-1 btn-chunky bg-white text-dark py-2 rounded-lg text-xs border-2 border-dark flex items-center justify-center gap-1 hover:brightness-95" title="Grid and Words on 1 Page">
+                    class="flex-1 btn-chunky bg-white dark:bg-slate-700 text-dark dark:text-slate-200 py-2 rounded-lg text-xs border-[1px] border-slate-300 dark:border-slate-500 flex items-center justify-center gap-1 hover:brightness-95"
+                    title="Grid and Words on 1 Page">
                     <i data-lucide="printer" class="w-4 h-4"></i> 1-PAGE
                 </button>
                 <button type="button" onclick="setPrintMode('separate', false)"
-                    class="flex-1 btn-chunky bg-white text-dark py-2 rounded-lg text-xs border-2 border-dark flex items-center justify-center gap-1 hover:brightness-95" title="Words on Separate Page">
+                    class="flex-1 btn-chunky bg-white dark:bg-slate-700 text-dark dark:text-slate-200 py-2 rounded-lg text-xs border-[1px] border-slate-300 dark:border-slate-500 flex items-center justify-center gap-1 hover:brightness-95"
+                    title="Grid and Word Bank on Separate Pages">
                     <i data-lucide="file-text" class="w-4 h-4"></i> 2-PAGE
                 </button>
                 <button type="button" onclick="setPrintMode('combined', true)"
-                    class="btn-chunky bg-orange/25 text-dark px-3 py-2 rounded-lg text-xs border-2 border-dark flex items-center justify-center gap-1 hover:brightness-95 shrink-0" title="Print Teacher Answer Key">
+                    class="btn-chunky bg-orange/25 dark:bg-orange/25 text-dark dark:text-orange px-3 py-2 rounded-lg text-xs border-[1px] border-slate-300 dark:border-slate-500 flex items-center justify-center gap-1 hover:brightness-95 shrink-0"
+                    title="Print Teacher Answer Key">
                     <i data-lucide="key-round" class="w-4 h-4"></i> KEY
                 </button>
             </div>
         </aside>
 
         <!-- MAIN DISPLAY AREA -->
-        <main class="flex-1 relative h-[50%] md:h-full bg-slate-50 flex flex-col lg:flex-row overflow-hidden group">
+        <main class="flex-1 relative h-[50%] md:h-full bg-slate-50/40 dark:bg-slate-900/40 flex flex-col lg:flex-row overflow-hidden group transition-colors">
 
-            <!-- Subtle Grid Background -->
-            <div class="absolute inset-0 opacity-10 pointer-events-none"
-                style="background-image: radial-gradient(#1e293b 2px, transparent 2px); background-size: 24px 24px;">
-            </div>
-
-            <!-- Floating Controls -->
-            <div class="absolute top-4 left-4 z-20 no-print flex gap-2">
-                <button onclick="toggleControlPanel(false)"
-                    class="p-2 bg-white/80 backdrop-blur-md border-2 border-dark rounded-lg shadow-hard-sm hover:translate-y-[-2px] transition-transform text-slate-700 hover:text-dark"
-                    title="Open Setup Panel">
+            <!-- Floating Controls (Settings, Theme, Sound, Reveal, Clear) -->
+            <div class="absolute top-3 left-3 z-20 no-print flex gap-2">
+                <button type="button" onclick="toggleControlPanel(false)"
+                    class="p-2 bg-white dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-xl shadow-hard-sm hover:translate-y-[-2px] transition-transform text-slate-700 dark:text-slate-200 hover:text-dark dark:hover:text-white"
+                    title="Toggle Setup Panel" aria-label="Toggle setup panel">
                     <i data-lucide="settings" class="w-5 h-5"></i>
                 </button>
-                <button id="give-up-btn"
-                    class="p-2 bg-white/80 backdrop-blur-md border-2 border-dark rounded-lg shadow-hard-sm hover:translate-y-[-2px] transition-transform text-orange hover:text-dark"
-                    title="Reveal Solution">
+                <button type="button" id="theme-toggle"
+                    class="p-2 bg-white dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-xl shadow-hard-sm hover:translate-y-[-2px] transition-transform text-slate-700 dark:text-slate-200 hover:text-dark dark:hover:text-white"
+                    title="Toggle Dark Mode" aria-label="Toggle Dark Mode">
+                    <i data-lucide="moon" class="w-5 h-5 block dark:hidden"></i>
+                    <i data-lucide="sun" class="w-5 h-5 hidden dark:block"></i>
+                </button>
+                <button type="button" id="sound-toggle"
+                    class="p-2 bg-white dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-xl shadow-hard-sm hover:translate-y-[-2px] transition-transform text-slate-700 dark:text-slate-200 hover:text-dark dark:hover:text-white"
+                    title="Toggle Sound" aria-label="Toggle Sound" aria-pressed="true">
+                    <i data-lucide="volume-2" class="w-5 h-5" id="sound-icon-on"></i>
+                    <i data-lucide="volume-x" class="w-5 h-5 hidden" id="sound-icon-off"></i>
+                </button>
+                <button type="button" id="give-up-btn"
+                    class="p-2 bg-white dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-xl shadow-hard-sm hover:translate-y-[-2px] transition-transform text-orange hover:text-dark dark:hover:text-white"
+                    title="Reveal Solution" aria-label="Reveal Solution">
                     <i data-lucide="eye" class="w-5 h-5"></i>
+                </button>
+                <button type="button" id="clear-board-btn"
+                    class="p-2 bg-white dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-xl shadow-hard-sm hover:translate-y-[-2px] transition-transform text-pink hover:text-dark dark:hover:text-white"
+                    title="Clear Found Words on Board" aria-label="Clear Found Words on Board">
+                    <i data-lucide="rotate-ccw" class="w-5 h-5"></i>
                 </button>
             </div>
 
@@ -224,31 +278,31 @@
                     <div id="word-grid" class="grid gap-1 transform transition-transform duration-200">
                         <!-- Initial Empty State -->
                         <div id="empty-state-cta"
-                            class="absolute inset-0 flex flex-col items-center justify-center text-slate-400 opacity-50 pointer-events-none text-center p-6">
-                            <i data-lucide="layout-grid" class="w-16 h-16 mb-4"></i>
-                            <h2 class="font-heading text-2xl text-dark">Ready to Start?</h2>
-                            <p class="font-body text-sm mt-2">Adjust settings on the left and press <br><b
-                                    class="text-green-600">BUILD PUZZLE</b></p>
+                            class="absolute inset-0 flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 opacity-50 pointer-events-none text-center p-6">
+                            <i data-lucide="layout-grid" class="w-16 h-16 mb-3"></i>
+                            <p class="font-heading text-xl">Build a puzzle to start</p>
+                            <p class="text-xs font-mono mt-1">Press BUILD PUZZLE on the left.</p>
                         </div>
                     </div>
                 </div>
 
                 <!-- Zoom Controls -->
-                <div class="absolute bottom-4 right-4 z-20 flex gap-2 no-print">
-                    <button id="zoom-out"
-                        class="p-2 bg-white border-2 border-dark rounded-lg shadow-hard-sm hover:bg-slate-50 active:translate-y-1 active:shadow-none"><i
-                            data-lucide="minus" class="w-4 h-4"></i></button>
-                    <button id="zoom-in"
-                        class="p-2 bg-white border-2 border-dark rounded-lg shadow-hard-sm hover:bg-slate-50 active:translate-y-1 active:shadow-none"><i
-                            data-lucide="plus" class="w-4 h-4"></i></button>
+                <div class="absolute bottom-3 right-3 z-20 flex gap-2 no-print">
+                    <button type="button" id="zoom-out" title="Zoom Out" aria-label="Zoom Out"
+                        class="p-2 bg-white dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-xl shadow-hard-sm hover:bg-slate-50 dark:hover:bg-slate-700 active:translate-y-1 active:shadow-none text-slate-700 dark:text-slate-200 transition-all">
+                        <i data-lucide="minus" class="w-4 h-4"></i>
+                    </button>
+                    <button type="button" id="zoom-in" title="Zoom In" aria-label="Zoom In"
+                        class="p-2 bg-white dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-xl shadow-hard-sm hover:bg-slate-50 dark:hover:bg-slate-700 active:translate-y-1 active:shadow-none text-slate-700 dark:text-slate-200 transition-all">
+                        <i data-lucide="plus" class="w-4 h-4"></i>
+                    </button>
                 </div>
             </div>
 
             <!-- VOCABULARY PANEL (Right Side) -->
-            <div class="w-full lg:w-80 h-1/3 lg:h-full bg-white border-t-4 lg:border-t-0 lg:border-l-4 border-dark flex flex-col z-10 shadow-xl lg:shadow-none shrink-0"
-                id="play-controls">
-                <div
-                    class="p-3 bg-pink border-b-4 border-dark text-white font-heading text-lg tracking-wide flex items-center justify-between gap-2 overflow-hidden">
+            <div id="play-controls"
+                class="w-full lg:w-72 h-1/3 lg:h-full glass-panel border-t-[1px] lg:border-t-0 lg:border-l-[1px] border-slate-300 dark:border-slate-500/40 flex flex-col z-10 shadow-xl lg:shadow-none shrink-0 transition-all">
+                <div class="p-3 bg-pink/90 dark:bg-pink/80 border-b-[1px] border-slate-300 dark:border-slate-500/40 text-white font-heading text-lg tracking-wide flex items-center justify-between gap-2 overflow-hidden transition-colors">
                     <div class="flex items-center gap-2">
                         <i data-lucide="list" class="w-5 h-5"></i> VOCABULARY
                     </div>
@@ -259,39 +313,39 @@
 
                 <!-- Status Feedback -->
                 <div id="status-bar"
-                    class="p-2 bg-slate-50 border-b-2 border-slate-200 text-[10px] font-bold text-center text-slate-400 uppercase tracking-widest">
-                    Tap First Letter ➔ Tap Last Letter
+                    class="p-2 bg-slate-50/70 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-700 text-[10px] font-bold text-center text-slate-500 dark:text-slate-400 uppercase tracking-widest">
+                    Tap First &amp; Last Letter · Tap Tag to Hint
                 </div>
 
                 <!-- Word Bank -->
                 <ul id="word-bank"
                     class="flex-1 overflow-y-auto p-4 custom-scrollbar flex flex-wrap gap-2 content-start list-none">
-                    <p id="empty-bank-msg" class="text-slate-400 text-sm text-center w-full mt-4">No words loaded yet.
-                    </p>
+                    <p id="empty-bank-msg" class="text-slate-400 dark:text-slate-500 text-sm text-center w-full mt-4">No words placed yet.</p>
                 </ul>
 
                 <!-- Saved Puzzles (Mini) -->
-                <div class="p-3 border-t-2 border-slate-100 bg-slate-50/50">
-                    <button onclick="toggleSavedPuzzleControls()"
-                        class="w-full flex items-center justify-between text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 hover:text-dark">
-                        <span>Saved Puzzles</span>
-                        <i data-lucide="chevron-up" id="saved-puzzle-toggle-icon"
-                            class="w-3 h-3 transition-transform"></i>
+                <div class="p-3 border-t border-slate-200 dark:border-slate-700/70 bg-slate-50/50 dark:bg-slate-800/40">
+                    <button type="button" onclick="toggleSavedPuzzleControls()"
+                        class="w-full flex items-center justify-between text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-1 hover:text-dark dark:hover:text-white transition-colors">
+                        <span>Saved Grids</span>
+                        <i data-lucide="chevron-up" id="saved-puzzle-toggle-icon" class="w-3 h-3 transition-transform"></i>
                     </button>
                     <div id="saved-puzzle-controls" class="space-y-2 mt-2">
-                        <select id="savedPuzzleSelect" onchange="onSavedPuzzleSelect()"
-                            class="w-full p-1.5 bg-white border-2 border-dark rounded-lg text-dark font-bold text-[10px] focus:outline-none">
+                        <select id="savedPuzzleSelect" onchange="onSavedPuzzleSelect()" aria-label="Load saved grid"
+                            class="w-full p-1.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg text-dark dark:text-slate-200 font-bold text-[10px] focus:outline-none">
                             <option value="">-- Load Saved --</option>
                         </select>
                         <div class="flex gap-1">
-                            <input type="text" id="savedPuzzleNameInput" placeholder="Save as..."
-                                class="flex-1 p-1.5 bg-white border-2 border-dark rounded-lg text-dark font-bold text-[10px] focus:outline-none">
-                            <button onclick="saveCurrentPuzzle()"
-                                class="p-1.5 bg-blue text-white border-2 border-dark rounded-lg hover:brightness-110 active:translate-y-0.5" title="Save Puzzle"><i data-lucide="save"
-                                    class="w-3 h-3"></i></button>
-                            <button onclick="deleteCurrentSavedPuzzle()"
-                                class="p-1.5 bg-pink text-white border-2 border-dark rounded-lg hover:brightness-110 active:translate-y-0.5" title="Delete Puzzle"><i data-lucide="trash-2"
-                                    class="w-3 h-3"></i></button>
+                            <input type="text" id="savedPuzzleNameInput" placeholder="Save grid as..."
+                                class="flex-1 min-w-0 p-1.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg text-dark dark:text-slate-200 font-bold text-[10px] focus:outline-none">
+                            <button type="button" onclick="saveCurrentPuzzle()"
+                                class="p-1.5 bg-blue text-white border border-dark dark:border-slate-500 rounded-lg hover:brightness-110 active:translate-y-0.5" title="Save Grid">
+                                <i data-lucide="save" class="w-3 h-3"></i>
+                            </button>
+                            <button type="button" onclick="deleteCurrentSavedPuzzle()"
+                                class="p-1.5 bg-pink text-white border border-dark dark:border-slate-500 rounded-lg hover:brightness-110 active:translate-y-0.5" title="Delete Saved Grid">
+                                <i data-lucide="trash-2" class="w-3 h-3"></i>
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -303,26 +357,24 @@
     <!-- REVEAL CONFIRM MODAL -->
     <div id="confirm-modal"
         class="fixed inset-0 z-[110] hidden flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm no-print">
-        <div
-            class="bg-white border-4 border-dark shadow-hard p-8 rounded-[2rem] max-w-sm w-full text-center animate-pop-in">
+        <div class="bg-white dark:bg-slate-800 border-4 border-dark dark:border-slate-500 shadow-hard p-8 rounded-[2rem] max-w-sm w-full text-center animate-pop-in">
             <div class="flex justify-center mb-4">
-                <div class="bg-orange/20 p-4 rounded-full border-4 border-dark text-orange">
+                <div class="bg-orange/20 p-4 rounded-full border-4 border-dark dark:border-slate-500 text-orange">
                     <i data-lucide="flag" class="w-10 h-10"></i>
                 </div>
             </div>
-            <h3 class="text-2xl font-heading text-dark mb-2">Give Up?</h3>
-            <p class="font-body text-slate-500 mb-8">This will end the current game and reveal all the hidden answers.
-            </p>
+            <h3 class="text-2xl font-heading text-dark dark:text-white mb-2">Reveal Solution?</h3>
+            <p class="font-body text-slate-500 dark:text-slate-300 mb-8">This will end the current round and highlight all hidden words.</p>
             <div class="flex flex-col gap-3">
-                <button id="cancel-reveal"
-                    class="btn-chunky bg-white text-dark py-3 rounded-xl border-2 border-dark">Keep Playing</button>
-                <button id="confirm-reveal"
-                    class="btn-chunky bg-orange text-white py-3 rounded-xl border-2 border-dark">Reveal Answers</button>
+                <button type="button" id="cancel-reveal"
+                    class="btn-chunky bg-white dark:bg-slate-700 text-dark dark:text-white py-3 rounded-xl border-2 border-dark dark:border-slate-500">Keep Playing</button>
+                <button type="button" id="confirm-reveal"
+                    class="btn-chunky bg-orange text-dark py-3 rounded-xl border-2 border-dark dark:border-slate-500">Reveal Answers</button>
             </div>
         </div>
     </div>
 
-    <!-- PRINT LAYOUT (Hidden) -->
+    <!-- PRINT LAYOUT (Hidden unless printing) -->
     <div id="print-area" class="hidden">
         <div class="ws-print-page1">
             <div class="kk-print-header">
@@ -337,7 +389,8 @@
                 </div>
             </div>
 
-            <div id="print-grid-frame" class="ws-print-grid-frame">
+            <!-- Crisp vector SVG word search injected dynamically for print -->
+            <div id="print-grid-stage" class="ws-print-stage">
                 <div id="print-grid-container"></div>
             </div>
 
@@ -357,15 +410,24 @@
 
         <div class="ws-print-bank-wrap">
             <div class="ws-print-page2-header">
-                <span class="ws-print-page2-title">Word Search · Word Bank</span>
-                <span class="ws-print-page2-sub">Page 2 · Checklist</span>
+                <div class="ws-print-page2-left">
+                    <span class="ws-print-page2-title">Word Search — Word Bank</span>
+                    <span class="ws-print-page2-sub">Page 2 of 2 · Word Bank</span>
+                </div>
+                <div class="ws-page2-name-line">
+                    <span>Name:</span><span class="kk-line"></span>
+                </div>
             </div>
             <div class="ws-print-bank-card">
                 <div class="ws-print-bank-head">
-                    <span>Word Bank</span>
+                    <span class="ws-bank-head-label">
+                        <svg class="ws-bank-head-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 6h13"/><path d="M8 12h13"/><path d="M8 18h13"/><path d="M3 6h.01"/><path d="M3 12h.01"/><path d="M3 18h.01"/></svg>
+                        <span>Word Bank</span>
+                    </span>
                     <span id="print-word-count" class="ws-bank-count">0 Words</span>
                 </div>
                 <ul id="print-word-bank"></ul>
+                <div id="print-count-banner" class="ws-print-count-banner hidden"></div>
             </div>
 
             <div class="kk-print-brand-footer">
@@ -384,10 +446,11 @@
     </div>
 
     <!-- Student Toolbar -->
-    <div id="player-toolbar" class="no-print hidden fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 px-5 py-3 bg-white/95 border-2 border-dark rounded-2xl shadow-neo backdrop-blur-sm">
+    <div id="player-toolbar"
+        class="no-print hidden fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 px-5 py-3 bg-white/95 dark:bg-slate-800/95 border-2 border-dark dark:border-slate-500 rounded-2xl shadow-hard backdrop-blur-sm">
         <span class="font-bold text-xs uppercase tracking-widest text-slate-400">Student View</span>
-        <div class="w-px h-5 bg-slate-300"></div>
-        <span id="student-round-display" class="font-mono text-sm font-bold text-dark">— / —</span>
+        <div class="w-px h-5 bg-slate-300 dark:bg-slate-600"></div>
+        <span id="student-round-display" class="font-mono text-sm font-bold text-dark dark:text-white">— / —</span>
     </div>
 
     <script src="./script.js"></script>
