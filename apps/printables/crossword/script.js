@@ -894,7 +894,13 @@ function updateHighlights(r, c) {
 // --- NEW: Print Mode Trigger ---
 let printingAsKey = false;
 window.setPrintMode = function(mode, asKey = false) {
+    if (!words || !words.length) {
+        if (typeof showCwToast === 'function') showCwToast('Build a puzzle first before printing!', 'warning');
+        Sound.error();
+        return;
+    }
     const printArea = document.getElementById('print-area');
+    if (!printArea) return;
     if (mode === 'separate') {
         printArea.classList.add('print-separate-pages');
     } else {
@@ -914,7 +920,168 @@ window.addEventListener('afterprint', () => {
     preparePrintVersion(false);
 });
 
-// --- UPDATED: Dynamic Sizing ---
+function getActiveGridBounds(sourceGrid) {
+    if (!Array.isArray(sourceGrid) || !sourceGrid.length) return null;
+    let minR = Infinity;
+    let maxR = -1;
+    let minC = Infinity;
+    let maxC = -1;
+
+    for (let r = 0; r < sourceGrid.length; r++) {
+        const row = sourceGrid[r];
+        if (!Array.isArray(row)) continue;
+        for (let c = 0; c < row.length; c++) {
+            if (row[c]) {
+                if (r < minR) minR = r;
+                if (r > maxR) maxR = r;
+                if (c < minC) minC = c;
+                if (c > maxC) maxC = c;
+            }
+        }
+    }
+
+    if (maxR === -1) return null;
+    return {
+        minR,
+        maxR,
+        minC,
+        maxC,
+        activeRows: maxR - minR + 1,
+        activeCols: maxC - minC + 1
+    };
+}
+
+function buildPrintCrosswordSVG({ grid: sourceGrid, words: sourceWords, bounds, cellSizeMm, asKey }) {
+    const { minR, minC, activeRows, activeCols } = bounds;
+    const U = 100;
+
+    const outerStroke = Math.max(3.6, Math.min(8.2, +((0.55 / cellSizeMm) * U).toFixed(2)));
+    const innerStroke = Math.max(2.0, Math.min(4.4, +((0.28 / cellSizeMm) * U).toFixed(2)));
+    const shadowOffset = Math.max(4.5, Math.min(11.0, +((0.75 / cellSizeMm) * U).toFixed(2)));
+    const padTL = Math.ceil(outerStroke * 0.75);
+    const padBR = Math.ceil(shadowOffset + outerStroke * 0.75);
+    const vbW = activeCols * U + padTL + padBR;
+    const vbH = activeRows * U + padTL + padBR;
+    const svgWidthMm = (vbW / U) * cellSizeMm;
+    const svgHeightMm = (vbH / U) * cellSizeMm;
+
+    const startNumMap = new Map();
+    (sourceWords || []).forEach((w) => {
+        const pr = w.row - minR;
+        const pc = w.col - minC;
+        if (pr >= 0 && pr < activeRows && pc >= 0 && pc < activeCols) {
+            const key = `${pr},${pc}`;
+            if (!startNumMap.has(key)) startNumMap.set(key, w.num);
+        }
+    });
+
+    const hasCell = (pr, pc) => (
+        pr >= 0 &&
+        pr < activeRows &&
+        pc >= 0 &&
+        pc < activeCols &&
+        Boolean(sourceGrid[pr + minR]?.[pc + minC])
+    );
+
+    const shadowRects = [];
+    const fillRects = [];
+    const innerPaths = [];
+    const outerPaths = [];
+    const numTexts = [];
+    const answerTexts = [];
+
+    const numPt = Math.max(5.8, Math.min(8.5, cellSizeMm * 0.68));
+    const numSizeU = Math.min(28, +(((numPt * 0.352778) / cellSizeMm) * U).toFixed(2));
+    const insetX = +(outerStroke * 0.5 + Math.max(7, U * 0.08)).toFixed(2);
+    const insetY = +(outerStroke * 0.5 + Math.max(6, U * 0.07)).toFixed(2);
+    const numBaselineY = +(insetY + numSizeU * 0.82).toFixed(2);
+
+    const letterSizeU = numSizeU > 25 ? 48 : 54;
+    const letterBaselineY = Math.min(80, Math.max(73, +(numBaselineY + 6 + letterSizeU * 0.72).toFixed(2)));
+
+    for (let pr = 0; pr < activeRows; pr++) {
+        for (let pc = 0; pc < activeCols; pc++) {
+            const ch = sourceGrid[pr + minR]?.[pc + minC];
+            if (!ch) continue;
+
+            const x = pc * U;
+            const y = pr * U;
+
+            shadowRects.push(
+                `<rect x="${(x + shadowOffset).toFixed(2)}" y="${(y + shadowOffset).toFixed(2)}" width="${(U + 0.5).toFixed(2)}" height="${(U + 0.5).toFixed(2)}"/>`
+            );
+            fillRects.push(
+                `<rect x="${x}" y="${y}" width="${U}" height="${U}"/>`
+            );
+
+            if (hasCell(pr, pc + 1)) {
+                innerPaths.push(`M${(pc + 1) * U} ${y}V${(pr + 1) * U}`);
+            }
+            if (hasCell(pr + 1, pc)) {
+                innerPaths.push(`M${x} ${(pr + 1) * U}H${(pc + 1) * U}`);
+            }
+
+            if (!hasCell(pr - 1, pc)) {
+                outerPaths.push(`M${x} ${y}H${(pc + 1) * U}`);
+            }
+            if (!hasCell(pr + 1, pc)) {
+                outerPaths.push(`M${x} ${(pr + 1) * U}H${(pc + 1) * U}`);
+            }
+            if (!hasCell(pr, pc - 1)) {
+                outerPaths.push(`M${x} ${y}V${(pr + 1) * U}`);
+            }
+            if (!hasCell(pr, pc + 1)) {
+                outerPaths.push(`M${(pc + 1) * U} ${y}V${(pr + 1) * U}`);
+            }
+
+            const num = startNumMap.get(`${pr},${pc}`);
+            if (num !== undefined) {
+                numTexts.push(
+                    `<text x="${(x + insetX).toFixed(2)}" y="${(y + numBaselineY).toFixed(2)}" font-family="Nunito, sans-serif" font-weight="800" font-size="${numSizeU}" fill="#1e293b" text-anchor="start">${num}</text>`
+                );
+            }
+
+            if (asKey) {
+                answerTexts.push(
+                    `<text x="${(x + 50).toFixed(2)}" y="${(y + letterBaselineY).toFixed(2)}" font-family="Fredoka, sans-serif" font-weight="700" font-size="${letterSizeU}" fill="#9d174d" text-anchor="middle">${escapeHTML(ch)}</text>`
+                );
+            }
+        }
+    }
+
+    const svgEl = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svgEl.setAttribute('class', 'cw-print-svg');
+    svgEl.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+    svgEl.setAttribute('viewBox', `0 0 ${vbW} ${vbH}`);
+    svgEl.setAttribute('width', `${svgWidthMm.toFixed(2)}mm`);
+    svgEl.setAttribute('height', `${svgHeightMm.toFixed(2)}mm`);
+    svgEl.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+    svgEl.setAttribute('role', 'img');
+    svgEl.setAttribute('aria-label', 'Crossword puzzle grid');
+    svgEl.style.width = `${svgWidthMm.toFixed(2)}mm`;
+    svgEl.style.height = `${svgHeightMm.toFixed(2)}mm`;
+
+    const shadowFill = asKey ? '#f5d0de' : '#cbd5e1';
+    const cellFill = asKey ? '#fff1f5' : '#ffffff';
+
+    svgEl.innerHTML = [
+        `<g transform="translate(${padTL} ${padTL})">`,
+        `<g fill="${shadowFill}" shape-rendering="crispEdges">${shadowRects.join('')}</g>`,
+        `<g fill="${cellFill}" shape-rendering="crispEdges">${fillRects.join('')}</g>`,
+        innerPaths.length
+            ? `<path d="${innerPaths.join('')}" fill="none" stroke="#475569" stroke-width="${innerStroke}" stroke-linecap="butt" shape-rendering="crispEdges"/>`
+            : '',
+        outerPaths.length
+            ? `<path d="${outerPaths.join('')}" fill="none" stroke="#0f172a" stroke-width="${outerStroke}" stroke-linecap="square" shape-rendering="crispEdges"/>`
+            : '',
+        `<g text-rendering="geometricPrecision">${numTexts.join('')}${asKey ? answerTexts.join('') : ''}</g>`,
+        '</g>'
+    ].join('');
+
+    return { svgEl, svgWidthMm, svgHeightMm };
+}
+
+// --- UPDATED: Vector SVG Print Layout ---
 function preparePrintVersion(asKey = false) {
     const printContainer = document.getElementById('print-grid-container');
     const printArea = document.getElementById('print-area');
@@ -945,64 +1112,81 @@ function preparePrintVersion(asKey = false) {
 
     const acrossWords = (words || []).filter(w => w.dir === 'across').slice().sort((a, b) => a.num - b.num);
     const downWords = (words || []).filter(w => w.dir === 'down').slice().sort((a, b) => a.num - b.num);
-    const noteText = (words && words.length)
-        ? `${words.length} Clue${words.length === 1 ? '' : 's'} · ${acrossWords.length} Across, ${downWords.length} Down`
+    const bounds = getActiveGridBounds(grid);
+    const isSeparate = printArea.classList.contains('print-separate-pages');
+
+    const noteText = (bounds && words && words.length)
+        ? `${bounds.activeCols}×${bounds.activeRows} Grid · ${words.length} Clue${words.length === 1 ? '' : 's'} · ${acrossWords.length} Across, ${downWords.length} Down`
         : 'Crossword Puzzle';
-    if (footerNoteEl) footerNoteEl.textContent = noteText;
-    if (footerNoteP1El) footerNoteP1El.textContent = noteText;
+    if (footerNoteP1El) footerNoteP1El.textContent = isSeparate ? `${noteText} · Page 1 of 2` : noteText;
+    if (footerNoteEl) footerNoteEl.textContent = isSeparate ? `${noteText} · Page 2 of 2` : noteText;
 
     printContainer.innerHTML = '';
 
     const pa = document.getElementById('print-clues-across');
     const pd = document.getElementById('print-clues-down');
-    pa.innerHTML = `<div class="cw-clue-card-head cw-head-across"><span>Across</span><span>${acrossWords.length}</span></div>`;
-    pd.innerHTML = `<div class="cw-clue-card-head cw-head-down"><span>Down</span><span>${downWords.length}</span></div>`;
+    const acrossIcon = '<svg class="cw-clue-head-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>';
+    const downIcon = '<svg class="cw-clue-head-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14"/><path d="m19 12-7 7-7-7"/></svg>';
+    pa.innerHTML = `<div class="cw-clue-card-head cw-head-across"><span class="cw-clue-head-label">${acrossIcon}<span>Across</span></span><span class="cw-clue-count">${acrossWords.length}</span></div>`;
+    pd.innerHTML = `<div class="cw-clue-card-head cw-head-down"><span class="cw-clue-head-label">${downIcon}<span>Down</span></span><span class="cw-clue-count">${downWords.length}</span></div>`;
 
-    if (!words || !words.length) return;
+    if (!words || !words.length || !bounds) return;
 
-    const printGrid = els.grid.cloneNode(true);
-    printGrid.id = 'print-grid-clone';
-    printGrid.className = 'print-grid';
+    const estimateColLines = (list) => list.reduce((sum, w) => {
+        const extra = asKey ? (w.word.length + 6) : 5;
+        return sum + Math.max(1, Math.ceil(((w.clue || '').length + extra) / 42));
+    }, 0);
+    const maxColLines = Math.max(estimateColLines(acrossWords), estimateColLines(downWords), 2);
+    const maxColItems = Math.max(acrossWords.length, downWords.length, 1);
 
-    const isSeparate = printArea.classList.contains('print-separate-pages');
-    const maxW = 174;
-    const maxH = isSeparate ? 210 : 118;
-    const cellSize = Math.min(isSeparate ? 13 : 11, maxW / GRID_COLS, maxH / GRID_ROWS);
+    printArea.classList.remove('cw-clues-compact', 'cw-clues-dense');
+    if (!isSeparate) {
+        if (maxColLines > 20) printArea.classList.add('cw-clues-dense');
+        else if (maxColLines > 13) printArea.classList.add('cw-clues-compact');
+    } else if (maxColLines > 36) {
+        printArea.classList.add('cw-clues-compact');
+    }
 
-    printGrid.style.gridTemplateColumns = `repeat(${GRID_COLS}, 1fr)`;
-    printGrid.style.gridTemplateRows = `repeat(${GRID_ROWS}, 1fr)`;
-    printGrid.style.width = `${(cellSize * GRID_COLS).toFixed(2)}mm`;
-    printGrid.style.height = `${(cellSize * GRID_ROWS).toFixed(2)}mm`;
-    printGrid.style.setProperty('--cw-num-size', `${Math.max(5.5, Math.min(8, +(cellSize * 0.62).toFixed(1)))}pt`);
-    printGrid.style.setProperty('--cw-letter-size', `${Math.max(8, Math.min(15, +(cellSize * 1.15).toFixed(1)))}pt`);
+    const svgPadMm = 1.8;
+    let maxW;
+    let maxH;
+    let maxCellCap;
 
-    printGrid.querySelectorAll('.cw-cell').forEach(cell => {
-        cell.classList.remove('cell-focused', 'word-highlight', 'locked', 'error');
-        cell.style.width = '';
-        cell.style.height = '';
-        const input = cell.querySelector('input');
-        if (input) input.value = '';
-        const oldAns = cell.querySelector('.cw-print-answer');
-        if (oldAns) oldAns.remove();
-        if (asKey && cell.classList.contains('filled')) {
-            const r = parseInt(cell.dataset.r, 10);
-            const c = parseInt(cell.dataset.c, 10);
-            const ch = grid?.[r]?.[c] || '';
-            if (ch) {
-                const ans = document.createElement('span');
-                ans.className = 'cw-print-answer';
-                ans.textContent = ch;
-                cell.appendChild(ans);
-            }
-        }
+    if (isSeparate) {
+        maxW = 172;
+        maxH = asKey ? 206 : 214;
+        maxCellCap = 15.0;
+    } else {
+        const estClueH = maxColLines > 20
+            ? (11 + maxColLines * 3.4 + maxColItems * 0.8)
+            : maxColLines > 13
+                ? (12 + maxColLines * 3.8 + maxColItems * 1.0)
+                : (14 + maxColLines * 4.5 + maxColItems * 1.4);
+        const overhead = asKey ? 48 : 43;
+        maxW = 170;
+        maxH = Math.max(76, Math.min(168, 268 - overhead - estClueH));
+        maxCellCap = 12.5;
+    }
+
+    const cellSizeMm = Math.max(
+        4.8,
+        Math.min(maxCellCap, (maxW - svgPadMm) / bounds.activeCols, (maxH - svgPadMm) / bounds.activeRows)
+    );
+
+    const { svgEl } = buildPrintCrosswordSVG({
+        grid,
+        words,
+        bounds,
+        cellSizeMm,
+        asKey: Boolean(asKey)
     });
-
-    printContainer.appendChild(printGrid);
+    printContainer.appendChild(svgEl);
 
     const makeClueRow = (w) => {
         const div = document.createElement('div');
         div.className = 'print-clue';
-        div.innerHTML = `<span class="print-clue-num">${w.num}.</span><span>${escapeHTML(w.clue)} <span class="print-clue-len">(${w.word.length})</span></span>`;
+        const ansTag = asKey ? `<span class="print-clue-ans">${escapeHTML(w.word)}</span>` : '';
+        div.innerHTML = `<span class="print-clue-num">${w.num}.</span><span class="print-clue-body"><span class="print-clue-text">${escapeHTML(w.clue)}</span><span class="print-clue-len">(${w.word.length})</span>${ansTag}</span>`;
         return div;
     };
 
