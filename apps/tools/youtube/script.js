@@ -1443,7 +1443,7 @@
             const pConfig = {
                 height: '100%',
                 width: '100%',
-                // host: 'https://www.youtube-nocookie.com',
+                host: 'https://www.youtube-nocookie.com',
                 videoId: id,
                 playerVars: {
                     playsinline: 1,
@@ -1454,6 +1454,8 @@
                 },
                 events: {
                     onReady(e) {
+                                                const iframe = typeof e.target.getIframe === 'function' ? e.target.getIframe() : null;
+                        if (iframe) iframe.referrerPolicy = 'strict-origin-when-cross-origin';
                         e.target.setVolume(playerVolume);
                         if (playerMuted) e.target.mute();
                         if (typeof e.target.setPlaybackRate === 'function') {
@@ -1461,25 +1463,18 @@
                         }
                     },
                     onStateChange: onPlayerStateChange,
-                    onError(e) {
-    const code = e && e.data;
-    console.warn('YouTube player error code:', code);
-    const msgs = {
-        2: 'Invalid video ID',
-        5: 'Player error — try again',
-        100: 'Video not found or private',
-        101: 'Owner disabled embedding — use Copy Link',
-        150: 'Owner disabled embedding — use Copy Link',
-        153: 'Embed blocked (missing referrer) — check site settings'
-    };
-    showToast(msgs[code] || ('Video cannot be played (code ' + code + ')'), 'warning');
-}
+onError(e) {
+                        const code = e && e.data ? ` (Error ${e.data})` : '';
+                        console.warn('YouTube Player error:', e && e.data);
+                        showToast(`Video cannot be embedded${code} — try Copy Link`, 'warning');
                 }
             };
             if (window.location.protocol === 'http:' || window.location.protocol === 'https:') {
                 pConfig.playerVars.origin = window.location.origin;
             }
             player = new window.YT.Player('player', pConfig);
+                        const iframe = typeof player.getIframe === 'function' ? player.getIframe() : null;
+            if (iframe) iframe.referrerPolicy = 'strict-origin-when-cross-origin';
         } else {
             player.loadVideoById({ videoId: id, startSeconds: startSec });
         }
