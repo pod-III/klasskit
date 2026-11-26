@@ -998,7 +998,7 @@ const HistoryManager = {
 
     container.innerHTML = filtered.map(({ game, timeStr }) => `
       <div class="card p-3 flex items-center justify-between gap-3 bg-card border-2 border-line rounded-xl shadow-hard-sm hover:translate-y-[-2px] transition-all group cursor-pointer"
-           role="button" tabindex="0" aria-label="Open ${game.title} (${this.formatTimeAgo(timeStr)})"
+           role="button" tabindex="0" data-game-id="${game.id}" aria-label="Open ${game.title} (${this.formatTimeAgo(timeStr)})"
            onclick="HistoryManager.togglePanel(false, false); GameModal.open('${game.id}')">
         <div class="flex items-center gap-3 min-w-0">
           <div class="w-10 h-10 rounded-xl ${Utils.getColorClass(game.color)} flex items-center justify-center text-white border-2 border-line shadow-sm shrink-0 group-hover:scale-110 transition-transform">

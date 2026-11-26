@@ -31,6 +31,28 @@ const GameModal = {
     TabManager.createTab(game);
   },
 
+  openInNewTab(gameId) {
+    AudioEngine.click();
+    const game = State.getGameById(gameId);
+    if (!game) return console.error(`Game not found: ${gameId}`);
+
+    // Privilege Check: Unauthorized Pro Tool Access
+    if (game.pro && !State.isPro()) {
+      UI.showToast("This tool is exclusive to PRO users", "warning");
+      return;
+    }
+
+    // Admin Check: Unauthorized Admin-Only Tool Access
+    if (game.adminOnly && !State.isAdmin()) {
+      UI.showToast("This tool is exclusive to ADMIN users", "warning");
+      return;
+    }
+
+    RecentGames.add(gameId);
+    HistoryManager.trackTabOpen(gameId);
+    window.open(game.path, '_blank', 'noopener,noreferrer');
+  },
+
   close() {
     TabManager.returnToHome();
   },
@@ -740,6 +762,28 @@ const App = {
         e.preventDefault();
         interactiveEl.click();
       }
+    });
+
+    document.addEventListener('contextmenu', (e) => {
+      // Side-panel tabs and tab groups have their own direct contextmenu handlers
+      if (e.target.closest('.side-panel-tab, .tab-group-header')) return;
+
+      // Suppress native menu when right-clicking on the custom context menu itself
+      if (e.target.closest('#tab-context-menu, #tab-group-submenu')) {
+        e.preventDefault();
+        return;
+      }
+
+      const gameTrigger = e.target.closest('[data-game-id], [data-action="openGame"], [data-action="continueGame"]');
+      const gameId = gameTrigger?.dataset.gameId || gameTrigger?.dataset.param;
+
+      if (gameTrigger && gameId && State.getGameById(gameId)) {
+        e.preventDefault();
+        TabManager.showGameContextMenu(e.clientX, e.clientY, gameId);
+        return;
+      }
+
+      TabManager.hideContextMenu();
     });
   }
 };

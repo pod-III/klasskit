@@ -672,22 +672,29 @@ const TabManager = {
   },
 
   setupContextMenu() {
+    if (this.contextMenu) return;
+
     // Tab context menu
     this.contextMenu = document.createElement('div');
     this.contextMenu.id = 'tab-context-menu';
+    this.contextMenu.setAttribute('role', 'menu');
     this.contextMenu.className = 'fixed z-[100] bg-card border-2 border-line rounded-xl shadow-hard p-2 hidden flex-col gap-1 min-w-[180px]';
     document.body.appendChild(this.contextMenu);
 
     // Group submenu ("Add to Group")
     this.groupMenu = document.createElement('div');
     this.groupMenu.id = 'tab-group-submenu';
+    this.groupMenu.setAttribute('role', 'menu');
     this.groupMenu.className = 'fixed z-[101] bg-card border-2 border-line rounded-xl shadow-hard p-2 hidden flex-col gap-1 min-w-[160px]';
     document.body.appendChild(this.groupMenu);
 
-    // Hide menus on click elsewhere
+    // Hide menus on click elsewhere, scroll, resize, or window blur
     document.addEventListener('click', () => {
       this.hideContextMenu();
     });
+    window.addEventListener('resize', () => this.hideContextMenu());
+    window.addEventListener('blur', () => this.hideContextMenu());
+    document.addEventListener('scroll', () => this.hideContextMenu(), true);
   },
 
   showTabContextMenu(x, y, tabId) {
@@ -707,6 +714,7 @@ const TabManager = {
     const addItem = (label, icon, action, { keepOpen = false, trailingIcon = null } = {}) => {
       const btn = document.createElement('button');
       btn.type = 'button';
+      btn.setAttribute('role', 'menuitem');
       btn.className = 'w-full text-left px-3 py-2 rounded-lg text-sm font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-2 transition-colors';
       btn.innerHTML = `<i data-lucide="${icon}" class="w-4 h-4 shrink-0"></i><span class="flex-1">${label}</span>${trailingIcon ? `<i data-lucide="${trailingIcon}" class="w-3.5 h-3.5 opacity-60 shrink-0"></i>` : ''}`;
       btn.addEventListener('click', (e) => {
@@ -721,17 +729,7 @@ const TabManager = {
     addItem('Pin / Unpin', 'pin', () => this.togglePinTab(tabId));
     addItem('Reload', 'rotate-cw', () => this.reloadTab(tabId));
     addItem('Open in New Tab', 'external-link', () => {
-      const game = State.getGameById(tab.gameId);
-      if (!game) return;
-      if (game.pro && !State.isPro()) {
-        UI.showToast("This app is exclusive to PRO users", "warning");
-        return;
-      }
-      if (game.adminOnly && !State.isAdmin()) {
-        UI.showToast("This app is exclusive to ADMIN users", "warning");
-        return;
-      }
-      window.open(game.path, '_blank', 'noopener,noreferrer');
+      GameModal.openInNewTab(tab.gameId);
     });
     addItem('Close Tab', 'x', () => this.closeTab(tabId));
 
@@ -761,6 +759,69 @@ const TabManager = {
     Utils.refreshIcons(menu);
 
     // Boundary check
+    const rect = menu.getBoundingClientRect();
+    menu.style.left = `${Math.max(8, Math.min(x, window.innerWidth - rect.width - 8))}px`;
+    menu.style.top = `${Math.max(8, Math.min(y, window.innerHeight - rect.height - 8))}px`;
+  },
+
+  showGameContextMenu(x, y, gameId) {
+    const game = State.getGameById(gameId);
+    if (!game) return;
+
+    if (!this.contextMenu) this.setupContextMenu();
+    this.hideContextMenu();
+    const menu = this.contextMenu;
+
+    menu.innerHTML = '';
+    menu.style.left = `${x}px`;
+    menu.style.top = `${y}px`;
+    menu.classList.remove('hidden');
+    menu.classList.add('flex');
+
+    const titleHeader = document.createElement('div');
+    titleHeader.className = 'px-3 pt-1 pb-1.5 text-[10px] font-black text-ink-muted uppercase tracking-widest border-b border-line-muted mb-1 truncate max-w-[240px]';
+    titleHeader.textContent = game.title;
+    menu.appendChild(titleHeader);
+
+    const addItem = (label, icon, action, { danger = false } = {}) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.setAttribute('role', 'menuitem');
+      btn.className = danger
+        ? 'w-full text-left px-3 py-2 rounded-lg text-sm font-bold text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-2 transition-colors'
+        : 'w-full text-left px-3 py-2 rounded-lg text-sm font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-2 transition-colors';
+      btn.innerHTML = `<i data-lucide="${icon}" class="w-4 h-4 shrink-0"></i><span class="flex-1">${label}</span>`;
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.hideContextMenu();
+        action(e);
+      });
+      menu.appendChild(btn);
+    };
+
+    const existingTab = this.tabs.find(t => t.gameId === gameId);
+    const isPinned = typeof PinnedGames !== 'undefined' && PinnedGames.isPinned(gameId);
+
+    addItem('Open in New Tab', 'external-link', () => GameModal.openInNewTab(gameId));
+    addItem(existingTab ? 'Switch to Open Tab' : 'Open in Workspace', existingTab ? 'layout-template' : 'play', () => GameModal.open(gameId));
+
+    const separator = document.createElement('div');
+    separator.className = 'h-px bg-slate-200 dark:bg-slate-700 my-1';
+    menu.appendChild(separator);
+
+    if (typeof PinnedGames !== 'undefined') {
+      addItem(isPinned ? 'Unpin' : 'Pin to Top', isPinned ? 'pin-off' : 'pin', () => {
+        PinnedGames.toggle(gameId);
+        if (typeof Hero !== 'undefined' && Hero.updateStats) Hero.updateStats();
+      });
+    }
+
+    if (existingTab) {
+      addItem('Close Workspace Tab', 'x', () => this.closeTab(existingTab.id), { danger: true });
+    }
+
+    Utils.refreshIcons(menu);
+
     const rect = menu.getBoundingClientRect();
     menu.style.left = `${Math.max(8, Math.min(x, window.innerWidth - rect.width - 8))}px`;
     menu.style.top = `${Math.max(8, Math.min(y, window.innerHeight - rect.height - 8))}px`;
