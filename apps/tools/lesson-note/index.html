@@ -60,19 +60,19 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
 
-    <!-- Stylesheets (?v=2) -->
-    <link rel="stylesheet" href="../../../css/tailwind.generated.css?v=2" />
-    <link rel="stylesheet" href="../../../css/base.css?v=2" />
-    <link rel="stylesheet" href="../../../css/components.css?v=2" />
+    <!-- Stylesheets (?v=5) -->
+    <link rel="stylesheet" href="../../../css/tailwind.generated.css?v=5" />
+    <link rel="stylesheet" href="../../../css/base.css?v=5" />
+    <link rel="stylesheet" href="../../../css/components.css?v=5" />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.snow.css" />
-    <link rel="stylesheet" href="./styles.css?v=2" />
+    <link rel="stylesheet" href="./styles.css?v=5" />
 
     <!-- Deferred Runtime Scripts (Non-blocking first paint; heavy export/compression loaded on demand) -->
     <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.105.4"></script>
     <script defer src="/supabase.js"></script>
     <script defer src="https://unpkg.com/lucide@1.16.0"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.js"></script>
-    <script defer src="./script.js?v=2"></script>
+    <script defer src="./script.js?v=5"></script>
     <script defer src="/js/analytics.js"></script>
 </head>
 
@@ -111,6 +111,13 @@
                     <i data-lucide="hard-drive" class="w-3.5 h-3.5 text-blue"></i>
                     <span>Local Ready</span>
                 </span>
+
+                <button type="button" id="openFileManagerBtn" onclick="app.openFileManager()"
+                    class="btn-chunky bg-white dark:bg-slate-800 text-dark dark:text-white px-2.5 sm:px-3 py-1.5 text-xs font-heading font-bold uppercase tracking-wide gap-1.5"
+                    data-tooltip="Open File & Folder Manager" data-tooltip-shortcut="Ctrl+Shift+M">
+                    <i data-lucide="folder-tree" class="w-3.5 h-3.5 text-blue"></i>
+                    <span class="hidden sm:inline">Files</span>
+                </button>
 
                 <button type="button" id="quickBufferBtn" onclick="app.createBufferNote()"
                     class="btn-chunky bg-orange text-white px-2.5 sm:px-3 py-1.5 text-xs font-heading font-bold uppercase tracking-wide gap-1.5"
@@ -308,6 +315,16 @@
 
                 <!-- Scrollable Paginated List -->
                 <div id="notesList" class="flex-1 min-h-0 overflow-y-auto p-2.5 custom-scrollbar space-y-1"></div>
+
+                <!-- Sidebar File & Folder Manager Shortcut Footer -->
+                <div id="sidebarFooter" class="p-2.5 border-t-2 border-slate-200/80 dark:border-slate-700/80 flex-none">
+                    <button type="button" id="sidebarFileManagerBtn" onclick="app.openFileManager()"
+                        class="btn-chunky w-full bg-white dark:bg-slate-800 text-dark dark:text-white py-2 px-3 text-xs font-heading font-bold uppercase tracking-wider gap-2"
+                        data-tooltip="Manage Folders, Bulk Move & Delete" data-tooltip-shortcut="Ctrl+Shift+M">
+                        <i data-lucide="folder-tree" class="w-4 h-4 text-blue"></i>
+                        <span>Manage Files &amp; Folders</span>
+                    </button>
+                </div>
             </div>
         </aside>
 
@@ -524,6 +541,134 @@
     <!-- CURSOR TOOLTIP -->
     <div id="tooltip" role="tooltip"></div>
 
+    <!-- FILE & FOLDER MANAGER MODAL -->
+    <div id="fileManagerModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="fmModalTitle"
+        onclick="if (event.target === this) app.closeFileManager()">
+        <div class="modal-card fm-modal-card w-full max-w-5xl h-[86vh] max-h-[820px] bg-white/95 dark:bg-slate-800/95 backdrop-blur-xl border-4 border-dark dark:border-slate-500 rounded-[2rem] shadow-hard-lg flex flex-col overflow-hidden">
+            <!-- Modal Header -->
+            <div class="flex-none px-4 sm:px-5 py-3.5 border-b-[3px] border-dark dark:border-slate-600 flex items-center justify-between gap-3 bg-white/70 dark:bg-slate-900/50">
+                <div class="flex items-center gap-3 min-w-0">
+                    <div class="w-10 h-10 rounded-xl bg-blue text-white border-2 border-dark dark:border-slate-500 shadow-hard-sm flex items-center justify-center flex-shrink-0 -rotate-3">
+                        <i data-lucide="folder-tree" class="w-5 h-5"></i>
+                    </div>
+                    <div class="min-w-0">
+                        <h3 id="fmModalTitle" class="font-heading font-bold text-lg uppercase tracking-tight text-dark dark:text-white leading-none truncate">File &amp; Folder Manager</h3>
+                        <p id="fmSummaryMeta" class="text-[11px] font-bold text-slate-500 dark:text-slate-300 mt-1 truncate">0 notes · 0 folders</p>
+                    </div>
+                </div>
+
+                <div class="flex items-center gap-2 flex-shrink-0">
+                    <button type="button" id="fmNewFolderBtn" onclick="app.createFolder()"
+                        class="btn-chunky bg-white dark:bg-slate-800 text-dark dark:text-white px-2.5 sm:px-3 py-1.5 text-xs font-heading font-bold uppercase tracking-wide gap-1.5"
+                        data-tooltip="Create New Folder">
+                        <i data-lucide="folder-plus" class="w-3.5 h-3.5 text-orange"></i>
+                        <span class="hidden sm:inline">+ Folder</span>
+                    </button>
+                    <button type="button" id="fmNewNoteBtn" onclick="app.fmCreateNoteInCurrentView()"
+                        class="btn-chunky bg-blue text-white px-2.5 sm:px-3 py-1.5 text-xs font-heading font-bold uppercase tracking-wide gap-1.5"
+                        data-tooltip="New Note Here">
+                        <i data-lucide="plus" class="w-3.5 h-3.5"></i>
+                        <span class="hidden sm:inline">+ Note</span>
+                    </button>
+                    <button type="button" id="fmCloseBtn" onclick="app.closeFileManager()" aria-label="Close File Manager"
+                        class="btn-chunky bg-white dark:bg-slate-700 text-dark dark:text-white w-9 h-9 p-0">
+                        <i data-lucide="x" class="w-4 h-4"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- 2-Pane Explorer Body -->
+            <div class="flex-1 min-h-0 flex flex-col md:flex-row overflow-hidden">
+                <!-- Left Rail: Locations & Folders -->
+                <aside class="fm-sidebar w-full md:w-72 flex-none border-b-2 md:border-b-0 md:border-r-2 border-slate-200 dark:border-slate-700 bg-slate-50/80 dark:bg-slate-900/50 flex flex-col min-h-0 max-h-52 md:max-h-none">
+                    <div id="fmLocationsList" class="p-2.5 space-y-1 flex-none border-b-2 border-slate-200/80 dark:border-slate-700/80"></div>
+
+                    <div class="px-3 pt-2.5 pb-1.5 flex items-center justify-between gap-2 flex-none">
+                        <div class="flex items-center gap-1.5 min-w-0">
+                            <span class="text-[11px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Folders</span>
+                            <span id="fmFoldersCount" class="px-1.5 py-0.5 rounded-md bg-slate-200/80 dark:bg-slate-800 text-[10px] font-black text-slate-600 dark:text-slate-300">0</span>
+                        </div>
+                        <button type="button" onclick="app.createFolder()" aria-label="Add folder"
+                            class="w-6 h-6 rounded-lg border-2 border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 hover:border-blue text-orange flex items-center justify-center cursor-pointer transition-colors"
+                            data-tooltip="New Folder">
+                            <i data-lucide="plus" class="w-3.5 h-3.5"></i>
+                        </button>
+                    </div>
+
+                    <!-- Multi-Folder Bulk Delete Strip -->
+                    <div id="fmFolderBulkBar" class="is-hidden mx-2.5 mb-2 px-2.5 py-1.5 rounded-xl bg-pink/10 border-2 border-pink/40 flex items-center justify-between gap-2 flex-none">
+                        <span id="fmFolderSelectedLabel" class="text-[11px] font-black text-pink truncate">0 selected</span>
+                        <div class="flex items-center gap-1.5 flex-shrink-0">
+                            <button type="button" onclick="app.clearFmFolderSelection()"
+                                class="text-[11px] font-extrabold text-slate-500 dark:text-slate-300 hover:underline cursor-pointer">
+                                Clear
+                            </button>
+                            <button type="button" id="fmDeleteSelectedFoldersBtn" onclick="app.bulkDeleteSelectedFolders()"
+                                class="btn-chunky bg-pink text-white px-2 py-1 text-[10px] font-heading font-bold uppercase tracking-wide gap-1">
+                                <i data-lucide="trash-2" class="w-3 h-3"></i>
+                                <span>Delete</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div id="fmFolderList" class="flex-1 min-h-0 overflow-y-auto px-2.5 pb-2.5 space-y-1 custom-scrollbar"></div>
+                </aside>
+
+                <!-- Right Explorer Workspace -->
+                <section class="flex-1 min-w-0 flex flex-col min-h-0 overflow-hidden">
+                    <!-- Filter, Sort, Layout & Select Toolbar -->
+                    <div class="px-3 sm:px-4 py-2.5 border-b-2 border-slate-200/80 dark:border-slate-700/80 flex flex-wrap items-center gap-2 flex-none bg-white/60 dark:bg-slate-800/40">
+                        <div class="flex items-center gap-2 min-w-0 mr-auto">
+                            <div id="fmBreadcrumb" class="flex items-center gap-1.5 min-w-0 overflow-x-auto"></div>
+                            <span id="fmCurrentViewCount" class="px-2 py-0.5 rounded-lg bg-slate-100 dark:bg-slate-700 text-[11px] font-black text-slate-600 dark:text-slate-200 flex-none">0</span>
+                        </div>
+
+                        <div class="relative flex-1 min-w-[150px] max-w-xs">
+                            <i data-lucide="search" class="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"></i>
+                            <input type="text" id="fmSearchInput" placeholder="Filter files &amp; folders..."
+                                class="w-full pl-8 pr-7 py-1.5 text-xs font-bold bg-white dark:bg-slate-900 border-2 border-slate-300 dark:border-slate-600 focus:border-blue rounded-xl text-dark dark:text-slate-100 placeholder-slate-400 outline-none select-text">
+                            <button type="button" id="fmClearSearchBtn" onclick="app.clearFmSearch()" aria-label="Clear filter"
+                                class="is-hidden absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-pink p-0.5 rounded cursor-pointer">
+                                <i data-lucide="x" class="w-3.5 h-3.5"></i>
+                            </button>
+                        </div>
+
+                        <select id="fmSortSelect" onchange="app.setFmSort(this.value)" aria-label="Sort files"
+                            class="px-2.5 py-1.5 text-xs font-extrabold bg-white dark:bg-slate-900 border-2 border-slate-300 dark:border-slate-600 focus:border-blue rounded-xl text-dark dark:text-slate-100 outline-none cursor-pointer">
+                            <option value="date-desc">Newest</option>
+                            <option value="date-asc">Oldest</option>
+                            <option value="title-asc">Title A-Z</option>
+                            <option value="title-desc">Title Z-A</option>
+                        </select>
+
+                        <div class="fm-layout-toggle flex items-center p-0.5 rounded-xl bg-slate-100 dark:bg-slate-900 border-2 border-slate-300 dark:border-slate-600 flex-none" role="group" aria-label="View layout">
+                            <button type="button" id="fmLayoutGridBtn" onclick="app.setFmLayout('grid')" aria-label="Grid folder view"
+                                class="fm-layout-btn is-active" data-tooltip="Folder Grid View">
+                                <i data-lucide="layout-grid" class="w-3.5 h-3.5"></i>
+                            </button>
+                            <button type="button" id="fmLayoutListBtn" onclick="app.setFmLayout('list')" aria-label="List view"
+                                class="fm-layout-btn" data-tooltip="Compact List View">
+                                <i data-lucide="list" class="w-3.5 h-3.5"></i>
+                            </button>
+                        </div>
+
+                        <button type="button" id="fmSelectAllBtn" onclick="app.toggleFmSelectAllVisible()"
+                            class="btn-chunky bg-white dark:bg-slate-800 text-dark dark:text-white px-2.5 py-1.5 text-[11px] font-heading font-bold uppercase tracking-wide gap-1.5">
+                            <i data-lucide="square-check" class="w-3.5 h-3.5 text-blue"></i>
+                            <span id="fmSelectAllLabel">Select All</span>
+                        </button>
+                    </div>
+
+                    <!-- Contextual Multi-Select Bulk Action Bar -->
+                    <div id="fmBulkBar" class="fm-bulk-bar px-3 sm:px-4 py-2 border-b-2 border-slate-200/80 dark:border-slate-700/80 flex-none"></div>
+
+                    <!-- Scrollable Paginated Explorer Grid/List -->
+                    <div id="fmFileList" class="flex-1 min-h-0 overflow-y-auto p-3 sm:p-4 custom-scrollbar"></div>
+                </section>
+            </div>
+        </div>
+    </div>
+
     <!-- CONFIRMATION MODAL -->
     <div id="customModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="modalTitle"
         onclick="if (event.target === this && typeof app._confirmCancel === 'function') app._confirmCancel()">
@@ -626,6 +771,7 @@
                     <h4 class="font-heading font-bold uppercase text-blue tracking-wider text-[11px]">Keyboard Shortcuts</h4>
                     <div class="flex items-center justify-between gap-2"><span class="font-bold text-slate-600 dark:text-slate-300">New Note</span><span class="key-badge">Ctrl + N</span></div>
                     <div class="flex items-center justify-between gap-2"><span class="font-bold text-slate-600 dark:text-slate-300">New 3d Buffer</span><span class="key-badge">Ctrl + Shift + B</span></div>
+                    <div class="flex items-center justify-between gap-2"><span class="font-bold text-slate-600 dark:text-slate-300">File &amp; Folder Manager</span><span class="key-badge">Ctrl + Shift + M</span></div>
                     <div class="flex items-center justify-between gap-2"><span class="font-bold text-slate-600 dark:text-slate-300">Search Notes</span><span class="key-badge">Ctrl + K</span></div>
                     <div class="flex items-center justify-between gap-2"><span class="font-bold text-slate-600 dark:text-slate-300">Toggle Outline</span><span class="key-badge">Ctrl + Shift + O</span></div>
                     <div class="flex items-center justify-between gap-2"><span class="font-bold text-slate-600 dark:text-slate-300">Zen Mode</span><span class="key-badge">Ctrl + Shift + Z</span></div>

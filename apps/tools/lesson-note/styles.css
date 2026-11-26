@@ -771,6 +771,16 @@ html.dark .ql-editor td {
     pointer-events: auto;
 }
 
+#tableDialog,
+#helpModal {
+    z-index: 540;
+}
+
+#customModal,
+#promptModal {
+    z-index: 560;
+}
+
 .modal-card {
     transform: scale(0.93) translateY(8px);
     opacity: 0;
@@ -981,6 +991,388 @@ html.dark #tooltip {
 .print-body li[data-list="checked"] > .ql-ui::before {
     background: #1ea7fd !important;
     border-color: #1ea7fd !important;
+}
+
+/* ========================================================
+   FILE & FOLDER MANAGER MODAL
+   ======================================================== */
+.fm-location-btn {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    padding: 0.5rem 0.65rem;
+    border-radius: 0.85rem;
+    border: 2px solid transparent;
+    background: transparent;
+    color: var(--text-primary);
+    font-size: 12px;
+    font-weight: 800;
+    text-align: left;
+    cursor: pointer;
+    transition: background-color 0.14s ease, border-color 0.14s ease, transform 0.12s ease;
+}
+
+.fm-location-btn:hover {
+    background: rgba(148, 163, 184, 0.14);
+}
+
+.fm-location-btn.is-active {
+    background: rgba(30, 167, 253, 0.14);
+    border-color: var(--color-blue);
+    box-shadow: 0 3px 0 var(--color-blue);
+}
+
+.fm-location-btn.is-active-buffer {
+    background: rgba(255, 126, 51, 0.14);
+    border-color: var(--color-orange);
+    box-shadow: 0 3px 0 var(--color-orange);
+}
+
+.fm-location-btn.is-active-trash {
+    background: rgba(255, 71, 133, 0.14);
+    border-color: var(--color-pink);
+    box-shadow: 0 3px 0 var(--color-pink);
+}
+
+.fm-folder-row {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.45rem 0.55rem;
+    border-radius: 0.85rem;
+    border: 2px solid transparent;
+    background: transparent;
+    cursor: pointer;
+    transition: background-color 0.14s ease, border-color 0.14s ease;
+}
+
+.fm-folder-row:hover {
+    background: rgba(148, 163, 184, 0.12);
+}
+
+.fm-folder-row.is-active {
+    background: rgba(30, 167, 253, 0.13);
+    border-color: var(--color-blue);
+    box-shadow: 0 3px 0 var(--color-blue);
+}
+
+.fm-folder-row.is-selected {
+    background: rgba(255, 71, 133, 0.08);
+    border-color: rgba(255, 71, 133, 0.65);
+}
+
+.fm-drop-target {
+    background: rgba(30, 167, 253, 0.18) !important;
+    border: 2px dashed var(--color-blue) !important;
+}
+
+.fm-bulk-bar {
+    background: rgba(248, 250, 252, 0.85);
+    min-height: 46px;
+    display: flex;
+    align-items: center;
+    transition: background-color 0.16s ease;
+}
+
+html.dark .fm-bulk-bar {
+    background: rgba(15, 23, 42, 0.65);
+}
+
+.fm-bulk-bar.has-selection {
+    background: rgba(30, 167, 253, 0.1);
+}
+
+.fm-bulk-bar.has-selection.is-buffer {
+    background: rgba(255, 126, 51, 0.1);
+}
+
+.fm-bulk-bar.has-selection.is-trash {
+    background: rgba(255, 71, 133, 0.1);
+}
+
+.fm-bulk-bar.has-selection.is-folder {
+    background: rgba(255, 71, 133, 0.1);
+}
+
+.fm-layout-btn {
+    width: 28px;
+    height: 26px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 0.55rem;
+    color: var(--text-muted);
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    transition: background-color 0.14s ease, color 0.14s ease;
+}
+
+.fm-layout-btn:hover {
+    color: var(--text-primary);
+    background: rgba(148, 163, 184, 0.16);
+}
+
+.fm-layout-btn.is-active {
+    background: var(--color-blue);
+    color: #ffffff;
+}
+
+.fm-crumb-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.25rem 0.55rem;
+    border-radius: 0.7rem;
+    border: 2px solid transparent;
+    font-size: 12px;
+    font-weight: 800;
+    color: var(--text-primary);
+    background: rgba(148, 163, 184, 0.12);
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background-color 0.14s ease, border-color 0.14s ease;
+}
+
+.fm-crumb-btn:hover {
+    background: rgba(30, 167, 253, 0.14);
+    border-color: rgba(30, 167, 253, 0.45);
+}
+
+.fm-folder-tab {
+    position: absolute;
+    top: -12px;
+    left: -2.5px;
+    width: 46%;
+    height: 13px;
+    border-radius: 0.65rem 0.65rem 0 0;
+    border: 2.5px solid var(--ln-border);
+    border-bottom: none;
+    pointer-events: none;
+    transition: border-color 0.14s ease;
+}
+
+.fm-folder-card {
+    position: relative;
+    margin-top: 11px;
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+    padding: 0.75rem;
+    border-radius: 0.25rem 1.15rem 1.15rem 1.15rem;
+    border: 2.5px solid var(--ln-border);
+    background: var(--ln-surface-strong);
+    box-shadow: 0 4px 0 var(--ln-shadow);
+    cursor: pointer;
+    transition: transform 0.14s ease, box-shadow 0.14s ease, border-color 0.14s ease, background-color 0.14s ease;
+}
+
+.fm-folder-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 0 var(--ln-shadow);
+}
+
+.fm-folder-card.is-selected {
+    border-color: var(--color-pink);
+    background: rgba(255, 71, 133, 0.09);
+    box-shadow: 0 4px 0 var(--color-pink);
+}
+
+.fm-folder-card.is-selected .fm-folder-tab {
+    border-color: var(--color-pink);
+}
+
+.fm-folder-card.fm-drop-target {
+    border-style: dashed !important;
+    border-color: var(--color-blue) !important;
+    background: rgba(30, 167, 253, 0.16) !important;
+    transform: scale(1.02);
+}
+
+.fm-folder-card.fm-drop-target .fm-folder-tab {
+    border-color: var(--color-blue);
+    border-style: dashed;
+}
+
+.fm-new-folder-card {
+    min-height: 108px;
+    margin-top: 11px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.45rem;
+    padding: 0.75rem;
+    border-radius: 1.15rem;
+    border: 2.5px dashed rgba(148, 163, 184, 0.65);
+    background: rgba(248, 250, 252, 0.55);
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: border-color 0.14s ease, background-color 0.14s ease, color 0.14s ease, transform 0.12s ease;
+}
+
+.fm-new-folder-card:hover {
+    border-color: var(--color-blue);
+    background: rgba(30, 167, 253, 0.08);
+    color: var(--color-blue);
+    transform: translateY(-2px);
+}
+
+.fm-file-card {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    gap: 0.55rem;
+    padding: 0.78rem 0.85rem;
+    min-height: 126px;
+    border-radius: 1.1rem;
+    border: 2px solid var(--ln-border-soft);
+    background: var(--ln-surface-strong);
+    box-shadow: 0 3px 0 rgba(15, 23, 42, 0.1);
+    cursor: pointer;
+    transition: transform 0.13s ease, border-color 0.14s ease, box-shadow 0.14s ease, background-color 0.14s ease;
+}
+
+.fm-file-card:hover {
+    border-color: rgba(30, 167, 253, 0.65);
+    transform: translateY(-2px);
+}
+
+.fm-file-card.is-selected {
+    border-color: var(--color-blue);
+    background: rgba(30, 167, 253, 0.11);
+    box-shadow: 0 4px 0 var(--color-blue);
+}
+
+.fm-file-card.is-selected.is-buffer {
+    border-color: var(--color-orange);
+    background: rgba(255, 126, 51, 0.11);
+    box-shadow: 0 4px 0 var(--color-orange);
+}
+
+.fm-file-card.is-selected.is-trash {
+    border-color: var(--color-pink);
+    background: rgba(255, 71, 133, 0.11);
+    box-shadow: 0 4px 0 var(--color-pink);
+}
+
+html.dark .fm-folder-card {
+    background: rgba(30, 41, 59, 0.94);
+}
+
+html.dark .fm-folder-card.is-selected {
+    background: rgba(255, 71, 133, 0.18);
+}
+
+html.dark .fm-new-folder-card {
+    background: rgba(15, 23, 42, 0.45);
+    border-color: rgba(100, 116, 139, 0.7);
+}
+
+html.dark .fm-file-card {
+    background: rgba(30, 41, 59, 0.9);
+    box-shadow: 0 3px 0 rgba(2, 6, 23, 0.45);
+}
+
+html.dark .fm-file-card.is-selected {
+    background: rgba(30, 167, 253, 0.2);
+}
+
+html.dark .fm-file-card.is-selected.is-buffer {
+    background: rgba(255, 126, 51, 0.2);
+}
+
+html.dark .fm-file-card.is-selected.is-trash {
+    background: rgba(255, 71, 133, 0.2);
+}
+
+.fm-line-clamp-2 {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.fm-file-row {
+    display: flex;
+    align-items: center;
+    gap: 0.7rem;
+    padding: 0.65rem 0.8rem;
+    border-radius: 1rem;
+    border: 2px solid var(--ln-border-soft);
+    background: var(--ln-surface-strong);
+    cursor: pointer;
+    transition: transform 0.12s ease, border-color 0.14s ease, background-color 0.14s ease, box-shadow 0.14s ease;
+}
+
+.fm-file-row:hover {
+    border-color: rgba(30, 167, 253, 0.55);
+    transform: translateY(-1px);
+}
+
+.fm-file-row.is-selected {
+    background: rgba(30, 167, 253, 0.11);
+    border-color: var(--color-blue);
+    box-shadow: 0 3px 0 var(--color-blue);
+}
+
+.fm-file-row.is-selected.is-buffer {
+    background: rgba(255, 126, 51, 0.11);
+    border-color: var(--color-orange);
+    box-shadow: 0 3px 0 var(--color-orange);
+}
+
+.fm-file-row.is-selected.is-trash {
+    background: rgba(255, 71, 133, 0.11);
+    border-color: var(--color-pink);
+    box-shadow: 0 3px 0 var(--color-pink);
+}
+
+.fm-file-row.is-folder-row.is-selected {
+    background: rgba(255, 71, 133, 0.11);
+    border-color: var(--color-pink);
+    box-shadow: 0 3px 0 var(--color-pink);
+}
+
+html.dark .fm-file-row {
+    background: rgba(30, 41, 59, 0.9);
+}
+
+html.dark .fm-file-row.is-selected {
+    background: rgba(30, 167, 253, 0.2);
+}
+
+html.dark .fm-file-row.is-selected.is-buffer {
+    background: rgba(255, 126, 51, 0.2);
+}
+
+html.dark .fm-file-row.is-selected.is-trash {
+    background: rgba(255, 71, 133, 0.2);
+}
+
+html.dark .fm-file-row.is-folder-row.is-selected {
+    background: rgba(255, 71, 133, 0.2);
+}
+
+.fm-checkbox {
+    width: 1.05rem;
+    height: 1.05rem;
+    border-radius: 0.35rem;
+    accent-color: var(--color-blue);
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.fm-checkbox-folder {
+    accent-color: var(--color-pink);
+}
+
+.fm-row-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    flex-shrink: 0;
 }
 
 /* Scrollbar polish */
