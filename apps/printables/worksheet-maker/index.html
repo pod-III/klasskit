@@ -216,15 +216,20 @@
       box-shadow: 2px 2px 0px 0px #000000;
     }
 
-    /* Crisp White A4 Sheet (dark-mode safe) */
-    #a4-zoom-wrapper {
+    /* Crisp White A4 Sheet (dark-mode safe, Card Maker multi-page simulation) */
+    .page-wrapper {
+      position: relative;
       transform-origin: top center;
       transition: transform 0.2s ease;
     }
 
     .a4-sheet {
       width: 210mm;
-      min-height: 297mm;
+      height: 297mm;
+      padding: 14mm 14mm 15mm;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
       background: #ffffff;
       color: #1e293b;
       border: 4px solid #1e293b;
@@ -278,25 +283,35 @@
       .no-print, .sidebar, .sidebar-right, .editor-pane, .workspace-toolbar, #zoom-bar {
         display: none !important;
       }
-      #print-sheet-container {
+      #print-sheet-container,
+      #a4-pages-stack {
         display: block !important;
         width: 210mm !important;
         max-width: 210mm !important;
         margin: 0 auto !important;
         padding: 0 !important;
+        gap: 0 !important;
       }
-      #a4-zoom-wrapper {
+      .page-wrapper {
+        break-after: page;
+        page-break-after: always;
         transform: none !important;
         zoom: 1 !important;
         margin: 0 !important;
       }
+      .page-wrapper:last-child {
+        break-after: auto;
+        page-break-after: auto;
+      }
       .a4-sheet {
         width: 210mm !important;
+        height: 297mm !important;
         max-width: 210mm !important;
-        min-height: 294mm !important;
+        min-height: 297mm !important;
         margin: 0 auto !important;
-        padding: 14mm !important;
+        padding: 14mm 14mm 15mm !important;
         box-sizing: border-box !important;
+        overflow: hidden !important;
         border: none !important;
         box-shadow: none !important;
         background: #ffffff !important;
@@ -2853,22 +2868,19 @@
     }
 
     function applyPreviewZoom() {
-      const wrapper = document.getElementById('a4-zoom-wrapper');
+      const wrappers = document.querySelectorAll('#print-sheet-container .page-wrapper');
       const sheetPane = document.getElementById('print-sheet-container');
       const area = document.getElementById('previewArea');
-      if (wrapper) {
+      if (wrappers.length) {
         let zoomVal = 1;
         if (currentZoomMode === 'fit') {
           const host = (sheetPane && sheetPane.clientWidth > 0) ? sheetPane : area;
           const availW = host ? Math.max(240, host.clientWidth - 40) : 794;
           zoomVal = Math.min(1, Math.max(0.35, +(availW / 810).toFixed(2)));
-        } else if (state.viewMode === 'split') {
-          // If Split View is active and 100% would overflow horizontally, still honor explicit zoom
-          zoomVal = parseFloat(currentZoomMode) || 1;
         } else {
           zoomVal = parseFloat(currentZoomMode) || 1;
         }
-        wrapper.style.zoom = String(zoomVal);
+        wrappers.forEach((w) => { w.style.zoom = String(zoomVal); });
       }
       ['0.5', '0.75', '1', 'fit'].forEach((k) => {
         const btn = document.getElementById(`zoom-${k}`);
@@ -3251,7 +3263,7 @@
 
     function getPageFrameStyle(look) {
       const borderMode = look.settings.pageBorder || 'none';
-      const fontRule = `font-family:${look.fontCss}; min-height:256mm; display:flex; flex-direction:column;`;
+      const fontRule = `font-family:${look.fontCss}; height:100%; display:flex; flex-direction:column; box-sizing:border-box;`;
       if (borderMode === 'simple') return `${fontRule} border:2px solid ${look.accent.hex}; border-radius:10px; padding:14px 16px;`;
       if (borderMode === 'double') return `${fontRule} border:5px double ${look.accent.hex}; border-radius:8px; padding:14px 16px;`;
       if (borderMode === 'dashed') return `${fontRule} border:2.5px dashed ${look.accent.hex}; border-radius:16px; padding:14px 16px;`;
@@ -3342,16 +3354,49 @@
       `;
     }
 
-    function getA4SheetInnerHTML() {
-      const look = getWorksheetLookStyles();
-      const settings = look.settings;
-      const scale = look.scale;
-      const totalPts = getTotalPoints();
+    function getContinuationHeaderHTML(look, pageNum) {
+      const title = esc(state.worksheet.title) || 'Untitled Worksheet';
+      return `
+        <div class="pb-2.5 mb-4 flex items-end justify-between gap-4" style="border-bottom:2px solid ${look.accent.hex};">
+          <div class="min-w-0">
+            <div class="text-base font-extrabold uppercase tracking-wide text-slate-900 truncate">${title}</div>
+            <div class="text-[11px] font-bold text-slate-500">Continued — Page ${pageNum}</div>
+          </div>
+          ${look.settings.showHeaderFields ? `
+            <div class="flex items-end gap-2 text-xs font-semibold text-slate-700 shrink-0 w-44">
+              <span>Name:</span><div class="flex-1 border-b border-slate-700"></div>
+            </div>
+          ` : ''}
+        </div>
+      `;
+    }
 
+    function buildWorksheetFooterHTML(settings, pageNum, totalPages) {
+      const leftText = (settings.showFooter && settings.footerText)
+        ? esc(settings.footerText)
+        : (state.showAnswers ? 'Teacher Answer Key' : 'Printable Worksheet');
+      const pageLabel = totalPages > 1 ? ` · Page ${pageNum} / ${totalPages}` : '';
+      return `
+        <div class="kk-print-brand-footer mt-auto pt-3">
+          <span class="kk-print-footer-note">${leftText}${pageLabel}</span>
+          <span class="kk-print-brand-mark">
+            <span class="kk-brand-dots" aria-hidden="true">
+              <span class="kk-brand-dot" style="background:#ff4785"></span>
+              <span class="kk-brand-dot" style="background:#ff7e33"></span>
+              <span class="kk-brand-dot" style="background:#00d063"></span>
+              <span class="kk-brand-dot" style="background:#1ea7fd"></span>
+            </span>
+            <span>Made with <strong>KlassKit</strong></span>
+          </span>
+        </div>
+      `;
+    }
+
+    function buildWorksheetRowBlocks(look) {
       const previewBuilders = {
         mcq: getMCQPreview,
         fib: getFIBPreview,
-        sa: getSAPreview,
+        sa: getSAEditor ? getSAPreview : getSAPreview,
         tf: getTFPreview,
         matching: getMatchingPreview,
         essay: getEssayPreview,
@@ -3364,62 +3409,186 @@
       };
 
       let qNum = 0;
-      const qHtml = state.worksheet.questions.map((q) => {
+      const blocks = state.worksheet.questions.map((q) => {
         const typeMeta = Object.values(QUESTION_TYPES).find(t => t.id === q.type);
         if (!(typeMeta && typeMeta.nonNumbered)) qNum += 1;
         const fn = previewBuilders[q.type];
-        return fn ? fn(q, qNum) : '';
+        const html = fn ? fn(q, qNum) : '';
+        const fullSpan = look.isTwoCol && (q.type === 'section' || q.type === 'passage');
+        return { html, fullSpan };
+      }).filter(b => b.html);
+
+      if (!look.isTwoCol) {
+        return blocks.map(b => `<div class="w-full" style="display:flow-root;">${b.html}</div>`);
+      }
+
+      const rows = [];
+      let pairBuf = [];
+      const flushPair = () => {
+        if (!pairBuf.length) return;
+        rows.push(`<div class="grid grid-cols-1 sm:grid-cols-2 gap-4 items-start">${pairBuf.join('')}</div>`);
+        pairBuf = [];
+      };
+      for (const b of blocks) {
+        if (b.fullSpan) {
+          flushPair();
+          rows.push(`<div class="w-full" style="display:flow-root;">${b.html}</div>`);
+        } else {
+          pairBuf.push(b.html);
+          if (pairBuf.length === 2) flushPair();
+        }
+      }
+      flushPair();
+      return rows;
+    }
+
+    function paginateWorksheetRows(look, scale, totalPts, rowHtmlList) {
+      if (!rowHtmlList.length) return [[]];
+
+      const host = document.createElement('div');
+      host.style.cssText = 'position:fixed; left:-99999px; top:0; visibility:hidden; pointer-events:none; z-index:-1;';
+      const sheet = document.createElement('div');
+      sheet.className = 'a4-sheet text-black';
+      const frame = document.createElement('div');
+      frame.setAttribute('style', getPageFrameStyle(look));
+      sheet.appendChild(frame);
+      host.appendChild(sheet);
+      document.body.appendChild(host);
+
+      try {
+        const frameCs = getComputedStyle(frame);
+        const framePadY = (parseFloat(frameCs.paddingTop) || 0) + (parseFloat(frameCs.paddingBottom) || 0);
+        const frameInnerH = frame.clientHeight - framePadY;
+
+        const footerProbe = document.createElement('div');
+        footerProbe.style.display = 'flow-root';
+        footerProbe.innerHTML = buildWorksheetFooterHTML(look.settings, 1, 2);
+        frame.appendChild(footerProbe);
+        const footerH = footerProbe.offsetHeight + 18;
+        frame.removeChild(footerProbe);
+
+        const p1TopProbe = document.createElement('div');
+        p1TopProbe.style.display = 'flow-root';
+        p1TopProbe.innerHTML = `
+          ${getWorksheetHeaderHTML(look, totalPts)}
+          ${state.worksheet.instructions ? `<div class="mb-6 p-3.5 italic text-slate-800 rounded-lg text-sm" style="background:${look.accent.soft}; border-left:4px solid ${look.accent.hex};"><strong>Instructions:</strong> ${esc(state.worksheet.instructions)}</div>` : ''}
+          ${getPreviewWordBankHTML()}
+        `;
+        frame.appendChild(p1TopProbe);
+        const p1TopH = p1TopProbe.offsetHeight;
+        frame.removeChild(p1TopProbe);
+
+        const pNTopProbe = document.createElement('div');
+        pNTopProbe.style.display = 'flow-root';
+        pNTopProbe.innerHTML = getContinuationHeaderHTML(look, 2);
+        frame.appendChild(pNTopProbe);
+        const pNTopH = pNTopProbe.offsetHeight;
+        frame.removeChild(pNTopProbe);
+
+        const p1Limit = Math.max(120, frameInnerH - p1TopH - footerH);
+        const pNLimit = Math.max(120, frameInnerH - pNTopH - footerH);
+
+        const rowsWrap = document.createElement('div');
+        rowsWrap.className = `relative z-10 ${scale.wrapperText}`;
+        rowsWrap.innerHTML = rowHtmlList.join('');
+        frame.appendChild(rowsWrap);
+
+        const heights = Array.from(rowsWrap.children).map((el) => {
+          const cs = getComputedStyle(el);
+          return el.offsetHeight + (parseFloat(cs.marginTop) || 0) + (parseFloat(cs.marginBottom) || 0);
+        });
+
+        const pages = [];
+        let current = [];
+        let used = 0;
+        let limit = p1Limit;
+
+        rowHtmlList.forEach((html, idx) => {
+          const h = heights[idx] || 0;
+          if (current.length > 0 && used + h > limit) {
+            pages.push(current);
+            current = [html];
+            used = h;
+            limit = pNLimit;
+          } else {
+            current.push(html);
+            used += h;
+          }
+        });
+        if (current.length > 0) pages.push(current);
+        return pages;
+      } finally {
+        host.remove();
+      }
+    }
+
+    function renderPaginatedWorksheetPreview() {
+      const stack = document.getElementById('a4-pages-stack');
+      if (!stack) return;
+
+      const look = getWorksheetLookStyles();
+      const settings = look.settings;
+      const scale = look.scale;
+      const totalPts = getTotalPoints();
+      const rowHtmlList = buildWorksheetRowBlocks(look);
+      const pages = paginateWorksheetRows(look, scale, totalPts, rowHtmlList);
+      const totalPages = pages.length;
+
+      const watermarkHtml = state.showAnswers ? `
+        <div class="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 opacity-5 pointer-events-none z-0 no-print">
+          <h1 class="text-[120px] font-black text-blue/30 -rotate-45 whitespace-nowrap">ANSWER KEY</h1>
+        </div>
+      ` : '';
+
+      stack.innerHTML = pages.map((pageRows, idx) => {
+        const pageNum = idx + 1;
+        const isFirst = idx === 0;
+        const topHtml = isFirst
+          ? `
+            ${getWorksheetHeaderHTML(look, totalPts)}
+            ${state.worksheet.instructions ? `
+              <div class="mb-6 p-3.5 italic text-slate-800 rounded-lg text-sm" style="background:${look.accent.soft}; border-left:4px solid ${look.accent.hex};">
+                <strong>Instructions:</strong> ${esc(state.worksheet.instructions)}
+              </div>
+            ` : ''}
+            ${getPreviewWordBankHTML()}
+          `
+          : getContinuationHeaderHTML(look, pageNum);
+
+        const emptyNotice = (isFirst && state.worksheet.questions.length === 0)
+          ? '<div class="text-center py-20 text-gray-400 italic">No modules added yet. Add a question or layout block from the sidebar or Builder view.</div>'
+          : '';
+
+        return `
+          <div class="page-wrapper flex flex-col items-center">
+            <div class="no-print w-full flex items-center justify-between gap-3 mb-2 px-1">
+              <span class="text-xs font-heading font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                Page ${pageNum} of ${totalPages} — ${state.showAnswers ? 'Answer Key' : 'Student Copy'}
+              </span>
+              <span class="text-[10px] font-extrabold px-2 py-0.5 rounded bg-white/80 dark:bg-slate-800/80 border border-brand-dark/30 dark:border-slate-600 text-slate-600 dark:text-slate-300 uppercase">
+                210 × 297 mm
+              </span>
+            </div>
+            <div class="a4-sheet text-black">
+              <div id="${isFirst ? 'ws-page-frame' : `ws-page-frame-${pageNum}`}" style="${getPageFrameStyle(look)}">
+                ${topHtml}
+                ${isFirst ? watermarkHtml : ''}
+                <div class="relative z-10 ${scale.wrapperText}">
+                  ${pageRows.join('')}
+                </div>
+                ${emptyNotice}
+                ${buildWorksheetFooterHTML(settings, pageNum, totalPages)}
+              </div>
+            </div>
+          </div>
+        `;
       }).join('');
 
-      const listLayoutCls = look.isTwoCol
-        ? 'grid grid-cols-1 sm:grid-cols-2 gap-4 items-start'
-        : '';
-
-      return `
-        <div id="ws-page-frame" style="${getPageFrameStyle(look)}">
-          ${getWorksheetHeaderHTML(look, totalPts)}
-
-          ${state.worksheet.instructions ? `
-            <div class="mb-6 p-3.5 italic text-slate-800 rounded-lg text-sm" style="background:${look.accent.soft}; border-left:4px solid ${look.accent.hex};">
-              <strong>Instructions:</strong> ${esc(state.worksheet.instructions)}
-            </div>
-          ` : ''}
-
-          ${getPreviewWordBankHTML()}
-
-          ${state.showAnswers ? `
-            <div class="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 opacity-5 pointer-events-none z-0 no-print">
-              <h1 class="text-[120px] font-black text-blue/30 -rotate-45 whitespace-nowrap">ANSWER KEY</h1>
-            </div>
-          ` : ''}
-
-          <div class="relative z-10 ${scale.wrapperText} ${listLayoutCls}">
-            ${qHtml}
-          </div>
-
-          ${state.worksheet.questions.length === 0 ? '<div class="text-center py-20 text-gray-400 italic">No modules added yet. Add a question or layout block from the sidebar or Builder view.</div>' : ''}
-
-          <div class="kk-print-brand-footer mt-auto pt-3">
-            <span class="kk-print-footer-note">${(settings.showFooter && settings.footerText) ? esc(settings.footerText) : (state.showAnswers ? 'Teacher Answer Key' : 'Printable Worksheet')}</span>
-            <span class="kk-print-brand-mark">
-              <span class="kk-brand-dots" aria-hidden="true">
-                <span class="kk-brand-dot" style="background:#ff4785"></span>
-                <span class="kk-brand-dot" style="background:#ff7e33"></span>
-                <span class="kk-brand-dot" style="background:#00d063"></span>
-                <span class="kk-brand-dot" style="background:#1ea7fd"></span>
-              </span>
-              <span>Made with <strong>KlassKit</strong></span>
-            </span>
-          </div>
-        </div>
-      `;
+      applyPreviewZoom();
     }
 
     function refreshLivePreview() {
-      const sheetInner = document.getElementById('live-a4-preview-inner');
-      if (sheetInner) {
-        sheetInner.innerHTML = getA4SheetInnerHTML();
-      }
+      renderPaginatedWorksheetPreview();
       const totalPts = getTotalPoints();
       const summary = `${state.worksheet.questions.length} Qs · ${totalPts} Pts`;
       const p1 = document.getElementById('ws-summary-pill');
@@ -3585,21 +3754,9 @@
               </div>
             </div>
 
-            <!-- LIVE A4 SHEET PANE (Visible in Split & A4 Preview, always used for Print) -->
+            <!-- LIVE A4 SHEET PANE (Card Maker Multi-Page Simulation, always used for Print) -->
             <div id="print-sheet-container" class="${isEdit ? 'hidden' : 'flex flex-col items-center'} shrink-0">
-              <div class="no-print w-full flex items-center justify-between gap-3 mb-3 px-1">
-                <span class="text-xs font-heading font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                  A4 Worksheet Sheet — ${state.showAnswers ? 'Answer Key' : 'Student Copy'}
-                </span>
-                <span class="text-[10px] font-extrabold px-2 py-0.5 rounded bg-white/80 dark:bg-slate-800/80 border border-brand-dark/30 dark:border-slate-600 text-slate-600 dark:text-slate-300 uppercase">
-                  210 × 297 mm
-                </span>
-              </div>
-              <div id="a4-zoom-wrapper" class="page-wrapper">
-                <div id="live-a4-preview-inner" class="a4-sheet p-[18mm] text-black">
-                  ${getA4SheetInnerHTML()}
-                </div>
-              </div>
+              <div id="a4-pages-stack" class="flex flex-col items-center gap-8"></div>
             </div>
 
           </div>
@@ -4157,7 +4314,7 @@
 
       renderLibrary();
       updateActiveIndicator();
-      applyPreviewZoom();
+      renderPaginatedWorksheetPreview();
 
       const sidebarScrollEl = document.getElementById('sidebar-scroll-body');
       const rightSidebarScrollEl = document.getElementById('right-sidebar-scroll-body');
@@ -4624,6 +4781,17 @@
 
     window.addEventListener('resize', () => {
       if (state.viewMode !== 'edit') applyPreviewZoom();
+    });
+
+    window.addEventListener('beforeprint', () => {
+      renderPaginatedWorksheetPreview();
+      document.querySelectorAll('#print-sheet-container .page-wrapper').forEach((w) => {
+        w.style.zoom = '1';
+      });
+    });
+
+    window.addEventListener('afterprint', () => {
+      applyPreviewZoom();
     });
 
     // --- Init ---
