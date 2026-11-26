@@ -2,336 +2,809 @@
 <html lang="en">
 
 <head>
-    <!-- Supabase Auth -->
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.105.4"></script>
-    <script src="https://cdn.jsdelivr.net/npm/browser-image-compression@2.0.2/dist/browser-image-compression.js"></script>
-    <script src="/supabase.js"></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Slides</title>
+    <title>Slides | KlassKit</title>
     <link rel="icon" type="image/x-icon" href="../../../media/icon.ico" />
     <link rel="icon" type="image/webp" href="../../../media/icon.webp" />
 
-    <link rel="stylesheet" href="../../../css/tailwind.generated.css" />
-    <script src="https://unpkg.com/lucide@1.16.0"></script>
+    <!-- Early Synchronous Theme & Hub Color-Theme Sync -->
+    <script>
+        (function () {
+            function readStored(key) {
+                try {
+                    var raw = localStorage.getItem(key);
+                    if (raw == null) return null;
+                    try { return JSON.parse(raw); } catch (e) { return raw; }
+                } catch (e) { return null; }
+            }
+            function syncTheme(changedKey) {
+                var isDark;
+                if (changedKey === 'theme_hub') {
+                    var hubVal = readStored('theme_hub');
+                    isDark = hubVal ? hubVal === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
+                } else {
+                    var toolTheme = readStored('theme_presentation-maker') || readStored('klasskit-theme');
+                    var hubTheme = readStored('theme_hub');
+                    isDark = toolTheme
+                        ? toolTheme === 'dark'
+                        : hubTheme
+                            ? hubTheme === 'dark'
+                            : window.matchMedia('(prefers-color-scheme: dark)').matches;
+                }
+                document.documentElement.classList.toggle('dark', isDark);
 
+                var colorTheme = readStored('klasskit_colorTheme');
+                if (colorTheme && colorTheme !== 'classic') {
+                    document.documentElement.setAttribute('data-theme', colorTheme);
+                } else {
+                    document.documentElement.removeAttribute('data-theme');
+                }
+            }
+            syncTheme();
+            window.addEventListener('storage', function (e) {
+                if (
+                    e.key === 'theme_hub' ||
+                    e.key === 'theme_presentation-maker' ||
+                    e.key === 'klasskit-theme' ||
+                    e.key === 'klasskit_colorTheme'
+                ) {
+                    syncTheme(e.key);
+                }
+            });
+        })();
+    </script>
+
+    <!-- Supabase Auth & Image Compression -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.105.4"></script>
+    <script src="https://cdn.jsdelivr.net/npm/browser-image-compression@2.0.2/dist/browser-image-compression.js"></script>
+    <script src="/supabase.js"></script>
+
+    <!-- Icons, Bulk Import Modal & Google Fonts -->
+    <script src="https://unpkg.com/lucide@1.16.0"></script>
+    <script src="../../../components/bulk-import-modal.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link
-        href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Nunito:wght@400;600;800&display=swap"
-        rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:wght@500;600;700;800&display=swap" rel="stylesheet">
 
-    <link rel="stylesheet" href="../../../css/base.css" />
-    <link rel="stylesheet" href="../../../css/components.css" />
-    <link rel="stylesheet" href="style.css" />
-  
-  <script defer src="/js/analytics.js"></script>
+    <!-- Styles (Cache-busted ?v=7) -->
+    <link rel="stylesheet" href="../../../css/tailwind.generated.css?v=7" />
+    <link rel="stylesheet" href="../../../css/base.css?v=7" />
+    <link rel="stylesheet" href="../../../css/components.css?v=7" />
+    <link rel="stylesheet" href="./style.css?v=7" />
+    <script defer src="/js/analytics.js"></script>
 </head>
 
-<body class="font-body min-h-screen flex flex-col overflow-hidden transition-colors duration-300">
+<body class="h-screen w-screen overflow-hidden font-body text-dark dark:text-white flex flex-col select-none">
 
     <!-- FLOATING BACKGROUND ICONS -->
-    <i data-lucide="layers" class="bg-float-icon w-32 h-32 top-10 left-10"></i>
-    <i data-lucide="monitor-play" class="bg-float-icon w-40 h-40 bottom-20 right-20"></i>
+    <i data-lucide="layers" class="bg-float-icon w-32 h-32 top-14 left-10"></i>
+    <i data-lucide="monitor-play" class="bg-float-icon w-40 h-40 bottom-16 right-16"></i>
 
-    <div id="toast-container" class="fixed bottom-6 right-6 z-[80] flex flex-col gap-2 pointer-events-none"></div>
-
-    <input type="file" id="importInput" accept=".json" class="hidden" onchange="app.processImport(this)">
-
-    <nav
-        class="w-full glass-panel bg-white/85 dark:bg-slate-900/85 border-b-[3px] border-brand-dark dark:border-slate-500 px-5 py-2.5 sticky top-0 z-40 flex-none transition-colors duration-300">
-        <div class="max-w-7xl mx-auto flex justify-between items-center w-full">
-            <div class="flex items-center gap-3">
-                <div
-                    class="w-9 h-9 bg-brand-pink border-[3px] border-brand-dark dark:border-slate-400 rounded-xl flex items-center justify-center shadow-hard-sm dark:shadow-hard-sm-dark -rotate-3 hover:rotate-0 transition-transform">
-                    <i data-lucide="monitor-play" class="text-white w-5 h-5"></i>
+    <!-- CLASSIC TOP NAVIGATION BAR -->
+    <nav id="top-bar" class="glass-panel sticky top-0 z-40 px-4 sm:px-5 py-2 flex-none">
+        <div class="max-w-7xl mx-auto flex justify-between items-center w-full gap-3">
+            <div class="flex items-center gap-3 min-w-0">
+                <div class="w-9 h-9 bg-pink text-white border-[2.5px] border-dark dark:border-slate-500 rounded-xl flex items-center justify-center shadow-hard-sm flex-shrink-0 -rotate-3 hover:rotate-0 transition-transform">
+                    <i data-lucide="monitor-play" class="w-5 h-5"></i>
                 </div>
-                <div>
-                    <h1
-                        class="font-heading font-bold text-xl tracking-tight uppercase leading-none text-brand-dark dark:text-white transition-colors duration-300">
-                        Slides</h1>
-                    <div class="flex items-center gap-2 mt-0.5">
-                        <span id="current-deck-name"
-                            class="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest">Unsaved
-                            Session</span>
-                        <span id="save-status-indicator" class="w-2 h-2 rounded-full bg-brand-orange"></span>
-                    </div>
+                <div class="min-w-0">
+                    <h1 class="font-heading font-bold text-xl tracking-tight uppercase leading-none text-dark dark:text-white">Slides</h1>
+                    <button type="button" id="deck-title-btn" onclick="app.openSaveModal()" title="Rename or save deck"
+                        class="flex items-center gap-1.5 mt-0.5 cursor-pointer group">
+                        <span id="deck-title-label" class="text-[10px] font-extrabold text-slate-500 dark:text-slate-400 group-hover:text-blue uppercase tracking-widest truncate max-w-[200px]">Unsaved Session</span>
+                        <span id="save-status-dot" class="w-2 h-2 rounded-full bg-orange flex-shrink-0" title="Unsaved edits"></span>
+                    </button>
                 </div>
             </div>
-            <div class="flex items-center gap-2">
-                <button onclick="app.toggleTheme()"
-                    class="btn-chunky px-3 py-1.5 bg-white dark:bg-slate-800 border-[2px] border-brand-dark dark:border-slate-500 text-slate-700 dark:text-slate-200 text-xs font-bold rounded-xl flex items-center gap-1.5 shadow-hard-sm dark:shadow-hard-sm-dark">
-                    <i data-lucide="moon" class="w-4 h-4 hidden dark:block text-yellow-400"></i>
-                    <i data-lucide="sun" class="w-4 h-4 block dark:hidden text-brand-orange"></i>
-                    <span class="hidden dark:inline">DARK</span>
-                    <span class="inline dark:hidden">LIGHT</span>
+
+            <div class="flex items-center gap-2 flex-shrink-0">
+                <div class="hidden sm:flex items-center gap-1.5">
+                    <button type="button" id="btn-undo" onclick="app.undo()" title="Undo (Ctrl+Z)" disabled
+                        aria-label="Undo"
+                        class="btn-chunky bg-white dark:bg-slate-800 text-dark dark:text-white w-9 h-9 p-0">
+                        <i data-lucide="undo-2" class="w-4 h-4"></i>
+                    </button>
+                    <button type="button" id="btn-redo" onclick="app.redo()" title="Redo (Ctrl+Y)" disabled
+                        aria-label="Redo"
+                        class="btn-chunky bg-white dark:bg-slate-800 text-dark dark:text-white w-9 h-9 p-0">
+                        <i data-lucide="redo-2" class="w-4 h-4"></i>
+                    </button>
+                </div>
+
+                <button type="button" id="btn-theme" onclick="app.toggleTheme()" title="Toggle Light / Dark Mode"
+                    aria-label="Toggle Light or Dark Mode"
+                    class="btn-chunky px-3 py-1.5 bg-white dark:bg-slate-800 text-dark dark:text-white text-xs font-heading font-bold uppercase tracking-wide gap-1.5">
+                    <i id="theme-icon-sun" data-lucide="sun" class="w-4 h-4 text-orange is-hidden"></i>
+                    <i id="theme-icon-moon" data-lucide="moon" class="w-4 h-4 text-blue"></i>
+                    <span id="theme-label">LIGHT</span>
                 </button>
-                <button onclick="document.getElementById('help-modal').classList.remove('hidden')"
-                    class="btn-chunky p-2 bg-white dark:bg-slate-800 border-[2px] border-brand-dark dark:border-slate-500 rounded-xl text-brand-dark dark:text-gray-200 shadow-hard-sm dark:shadow-hard-sm-dark"
-                    title="Keyboard Shortcuts">
+
+                <button type="button" id="btn-help" onclick="app.toggleHelp(true)" title="Keyboard Shortcuts"
+                    aria-label="Keyboard Shortcuts"
+                    class="btn-chunky w-9 h-9 p-0 bg-white dark:bg-slate-800 text-dark dark:text-white">
                     <i data-lucide="keyboard" class="w-4 h-4"></i>
                 </button>
             </div>
         </div>
     </nav>
 
-    <main class="flex-grow flex items-stretch justify-center p-3 sm:p-4 h-[calc(100vh-64px)]">
-        <div class="w-full max-w-7xl grid grid-cols-1 lg:grid-cols-12 gap-4 h-full">
+    <!-- CLASSIC 2-COLUMN WORKSPACE -->
+    <main id="workspace" class="flex-1 min-h-0 flex items-stretch justify-center p-3 sm:p-4 relative z-10 overflow-hidden">
+        <div class="w-full max-w-7xl grid grid-cols-1 lg:grid-cols-12 gap-4 h-full min-h-0">
 
-            <div class="lg:col-span-3 flex flex-col gap-3 h-full overflow-y-auto pr-1 custom-scroll pb-2">
-
-                <button onclick="app.toggleLibrary()"
-                    class="btn-chunky w-full py-2.5 bg-brand-dark dark:bg-slate-800 border-[3px] border-brand-dark dark:border-slate-500 rounded-xl text-white font-heading font-bold text-base shadow-hard dark:shadow-hard-dark flex items-center justify-center gap-2">
-                    <i data-lucide="library" class="w-5 h-5"></i> MY LIBRARY
+            <!-- LEFT CONTROL RAIL (Classic 3 Columns) -->
+            <aside class="lg:col-span-3 flex flex-col gap-2.5 h-full min-h-0 overflow-y-auto pr-1 custom-scrollbar pb-1">
+                <button type="button" id="btn-library" onclick="app.toggleLibraryDrawer(true)"
+                    class="btn-chunky w-full py-2.5 px-3 bg-dark dark:bg-slate-800 text-white font-heading font-bold text-sm uppercase tracking-wider gap-2">
+                    <i data-lucide="library" class="w-4 h-4 text-blue"></i>
+                    <span>My Library</span>
+                    <span id="library-count-badge" class="ml-auto px-2 py-0.5 rounded-lg bg-white/15 text-white text-[11px] font-black leading-none">0</span>
                 </button>
 
-                <div
-                    class="glass-panel bg-white/85 dark:bg-slate-800/85 border-[3px] border-brand-dark dark:border-slate-500 rounded-2xl p-3.5 shadow-hard dark:shadow-hard-dark flex flex-col gap-2.5 transition-colors duration-300">
-                    <h2
-                        class="font-heading font-bold text-sm uppercase tracking-wider border-b-2 border-gray-100 dark:border-slate-700 pb-1.5 text-brand-dark dark:text-white">
-                        Session Info</h2>
-                    <div class="grid grid-cols-2 gap-2.5">
-                        <div
-                            class="bg-brand-bg dark:bg-slate-900 border-[2px] border-brand-dark dark:border-slate-600 rounded-xl p-2 text-center transition-colors">
-                            <span
-                                class="block text-gray-500 dark:text-gray-400 text-[10px] font-bold uppercase">Slides</span>
-                            <span id="stat-count" class="font-heading text-lg font-bold text-brand-blue">0</span>
+                <!-- Session Info Card -->
+                <div class="glass-card p-3 flex flex-col gap-2">
+                    <div class="flex items-center justify-between border-b-2 border-slate-200/70 dark:border-slate-700 pb-1.5">
+                        <h2 class="font-heading font-bold text-xs uppercase tracking-wider text-dark dark:text-white">Session Info</h2>
+                        <span id="sync-badge" class="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">Local</span>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <div class="bg-slate-50/90 dark:bg-slate-900/70 border-2 border-dark/80 dark:border-slate-600 rounded-xl p-2 text-center">
+                            <span class="block text-slate-500 dark:text-slate-400 text-[10px] font-extrabold uppercase">Slides</span>
+                            <span id="stat-count" class="font-heading text-lg font-bold text-blue leading-tight">0</span>
                         </div>
-                        <div
-                            class="bg-brand-bg dark:bg-slate-900 border-[2px] border-brand-dark dark:border-slate-600 rounded-xl p-2 text-center transition-colors">
-                            <span class="block text-gray-500 dark:text-gray-400 text-[10px] font-bold uppercase">Est.
-                                Time</span>
-                            <span id="stat-time" class="font-heading text-lg font-bold text-brand-orange">0m</span>
+                        <div class="bg-slate-50/90 dark:bg-slate-900/70 border-2 border-dark/80 dark:border-slate-600 rounded-xl p-2 text-center">
+                            <span class="block text-slate-500 dark:text-slate-400 text-[10px] font-extrabold uppercase">Est. Time</span>
+                            <span id="stat-time" class="font-heading text-lg font-bold text-orange leading-tight">0m</span>
                         </div>
                     </div>
                 </div>
 
-                <button onclick="app.addSlide()"
-                    class="btn-chunky w-full py-2.5 bg-brand-blue border-[3px] border-brand-dark dark:border-slate-500 rounded-xl text-white font-heading font-bold text-base shadow-hard dark:shadow-hard-dark flex items-center justify-center gap-2"
-                    title="Ctrl + Enter">
-                    <i data-lucide="plus-circle" class="w-5 h-5"></i> ADD SLIDE
+                <!-- Primary Slide & Image Upload Actions -->
+                <button type="button" id="btn-add-slide" onclick="app.addSlide()" title="Add a New Slide"
+                    class="btn-chunky w-full py-2.5 px-3 bg-blue text-white font-heading font-bold text-sm uppercase tracking-wider gap-2">
+                    <i data-lucide="circle-plus" class="w-4 h-4"></i>
+                    <span>Add Slide</span>
                 </button>
 
-                <div class="grid grid-cols-2 gap-2.5">
-                    <button onclick="app.manualSave()"
-                        class="btn-chunky w-full py-2 bg-white dark:bg-slate-800 border-[3px] border-brand-dark dark:border-slate-500 rounded-xl text-brand-dark dark:text-white font-heading font-bold text-sm shadow-hard-sm dark:shadow-hard-sm-dark flex items-center justify-center gap-1.5"
-                        title="Save to Library (Ctrl+S)">
-                        <i data-lucide="save" class="w-4 h-4 text-brand-green"></i> <span>Save</span>
+                <button type="button" id="btn-upload-image" onclick="app.openUploadImageModal()" title="Upload One or Many Images"
+                    class="btn-chunky w-full py-2.5 px-3 bg-orange text-white font-heading font-bold text-sm uppercase tracking-wider gap-2">
+                    <i data-lucide="cloud-upload" class="w-4 h-4"></i>
+                    <span>Upload Image</span>
+                </button>
+
+                <button type="button" id="btn-image-manager" onclick="app.openImageManagerModal()" title="Open Saved Image Manager"
+                    class="btn-chunky w-full py-2 px-3 bg-white dark:bg-slate-800 text-dark dark:text-white font-heading font-bold text-xs uppercase tracking-wider gap-2">
+                    <i data-lucide="images" class="w-4 h-4 text-orange"></i>
+                    <span>Image Manager</span>
+                    <span id="deck-img-count-badge" class="ml-auto px-2 py-0.5 rounded-lg bg-orange/15 text-orange text-[11px] font-black leading-none">0</span>
+                </button>
+
+                <!-- Quick Builders -->
+                <div class="grid grid-cols-2 gap-2">
+                    <button type="button" id="btn-bulk-import" onclick="app.openBulkImport()" title="Paste Slide Lines"
+                        class="btn-chunky w-full py-2 px-2 bg-white dark:bg-slate-800 text-dark dark:text-white font-heading font-bold text-xs uppercase tracking-wide gap-1.5">
+                        <i data-lucide="file-text" class="w-4 h-4 text-pink"></i>
+                        <span>Bulk Text</span>
                     </button>
-                    <button onclick="app.exportJSON()"
-                        class="btn-chunky w-full py-2 bg-white dark:bg-slate-800 border-[3px] border-brand-dark dark:border-slate-500 rounded-xl text-brand-dark dark:text-white font-heading font-bold text-sm shadow-hard-sm dark:shadow-hard-sm-dark flex items-center justify-center gap-1.5"
-                        title="Export File">
-                        <i data-lucide="download" class="w-4 h-4 text-brand-orange"></i> <span>Export</span>
+                    <button type="button" id="btn-templates" onclick="app.openTemplatesModal()" title="Classroom Templates"
+                        class="btn-chunky w-full py-2 px-2 bg-white dark:bg-slate-800 text-dark dark:text-white font-heading font-bold text-xs uppercase tracking-wide gap-1.5">
+                        <i data-lucide="sparkles" class="w-4 h-4 text-orange"></i>
+                        <span>Templates</span>
                     </button>
                 </div>
 
-                <button onclick="app.startPresentation()"
-                    class="btn-chunky w-full py-3 bg-brand-green border-[3px] border-brand-dark dark:border-slate-500 rounded-xl text-white font-heading font-black tracking-wide text-lg shadow-hard dark:shadow-hard-dark flex items-center justify-center gap-2.5 mt-auto">
-                    <i data-lucide="play" class="w-5 h-5 fill-current"></i> START
+                <!-- Save / Export -->
+                <div class="grid grid-cols-2 gap-2">
+                    <button type="button" id="btn-save" onclick="app.manualSave()" title="Save to Library (Ctrl+S)"
+                        class="btn-chunky w-full py-2 px-2 bg-white dark:bg-slate-800 text-dark dark:text-white font-heading font-bold text-xs uppercase tracking-wide gap-1.5">
+                        <i data-lucide="save" class="w-4 h-4 text-green"></i>
+                        <span>Save</span>
+                    </button>
+                    <button type="button" id="btn-export" onclick="app.exportJSON()" title="Export JSON Backup"
+                        class="btn-chunky w-full py-2 px-2 bg-white dark:bg-slate-800 text-dark dark:text-white font-heading font-bold text-xs uppercase tracking-wide gap-1.5">
+                        <i data-lucide="download" class="w-4 h-4 text-blue"></i>
+                        <span>Export</span>
+                    </button>
+                </div>
+
+                <!-- Hero Start Button -->
+                <button type="button" id="btn-present" onclick="app.startPresentation()" title="Start Presentation (Ctrl+Enter / F5)"
+                    class="btn-chunky w-full py-3 bg-green text-white font-heading font-bold tracking-wider text-base uppercase gap-2 mt-auto">
+                    <i data-lucide="play" class="w-5 h-5 fill-current"></i>
+                    <span>Start</span>
                 </button>
 
-                <button onclick="app.clear()"
-                    class="btn-chunky w-full py-2.5 bg-white dark:bg-slate-800 border-[3px] border-brand-dark dark:border-brand-pink/70 rounded-xl text-brand-dark dark:text-brand-pink font-heading font-bold text-sm shadow-hard-sm dark:shadow-hard-sm-dark flex items-center justify-center gap-2">
-                    <i data-lucide="trash-2" class="w-4 h-4"></i> CLEAR ALL
+                <button type="button" id="btn-clear" onclick="app.clear()"
+                    class="btn-chunky w-full py-2 bg-white dark:bg-slate-800 text-dark dark:text-pink font-heading font-bold text-xs uppercase tracking-wider gap-1.5">
+                    <i data-lucide="trash-2" class="w-4 h-4 text-pink"></i>
+                    <span>Clear All</span>
                 </button>
-            </div>
+            </aside>
 
-            <div
-                class="lg:col-span-9 glass-panel bg-white/85 dark:bg-slate-900/85 border-[3px] border-brand-dark dark:border-slate-500 rounded-2xl shadow-hard dark:shadow-hard-dark flex flex-col overflow-hidden h-full relative transition-colors duration-300">
-                <div
-                    class="bg-white/90 dark:bg-slate-800/90 border-b-[3px] border-brand-dark dark:border-slate-500 px-5 py-3 flex justify-between items-center flex-none z-10 transition-colors duration-300">
-                    <span class="font-heading font-bold text-lg uppercase tracking-tight text-brand-dark dark:text-white">Slide Deck</span>
+            <!-- RIGHT SLIDE DECK WORKSPACE (Classic 9 Columns) -->
+            <section class="lg:col-span-9 glass-card flex flex-col overflow-hidden h-full min-h-0 relative">
+                <!-- Deck Header -->
+                <div class="bg-white/85 dark:bg-slate-800/85 border-b-[3px] border-dark dark:border-slate-500 px-4 sm:px-5 py-2.5 flex justify-between items-center gap-2 flex-none z-10">
+                    <div class="flex items-center gap-2.5 min-w-0">
+                        <span class="font-heading font-bold text-lg uppercase tracking-tight text-dark dark:text-white">Slide Deck</span>
+                        <span id="active-slide-pill" class="px-2.5 py-0.5 rounded-lg bg-blue/15 text-blue text-[11px] font-black uppercase tracking-wide">Slide 1 / 1</span>
+                    </div>
 
-                    <div class="flex items-center gap-2">
-                        <div
-                            class="flex bg-brand-bg dark:bg-slate-900 rounded-xl border-[2px] border-brand-dark dark:border-slate-500 p-1">
-                            <button id="btn-view-list" onclick="app.switchView('list')"
-                                class="p-1.5 rounded-lg bg-brand-blue text-white transition-all shadow-sm" title="List View">
+                    <div class="flex items-center gap-2 flex-shrink-0">
+                        <div class="flex bg-slate-100 dark:bg-slate-900 rounded-xl border-2 border-dark dark:border-slate-500 p-0.5">
+                            <button type="button" id="view-list" onclick="app.setView('list')" title="List View" aria-label="List View"
+                                class="p-1.5 rounded-lg bg-blue text-white transition-colors cursor-pointer">
                                 <i data-lucide="list" class="w-4 h-4"></i>
                             </button>
-                            <button id="btn-view-grid" onclick="app.switchView('grid')"
-                                class="p-1.5 rounded-lg text-gray-500 dark:text-gray-400 hover:text-brand-dark dark:hover:text-white transition-all" title="Grid View">
+                            <button type="button" id="view-grid" onclick="app.setView('grid')" title="Grid View" aria-label="Grid View"
+                                class="p-1.5 rounded-lg text-slate-500 dark:text-slate-300 transition-colors cursor-pointer">
                                 <i data-lucide="layout-grid" class="w-4 h-4"></i>
                             </button>
                         </div>
                     </div>
                 </div>
 
-                <div id="deck-viewport" class="flex-grow overflow-y-auto p-4 sm:p-5 custom-scroll relative">
+                <!-- Scrollable Slides Container -->
+                <div id="deck-viewport" class="flex-1 min-h-0 overflow-y-auto p-4 sm:p-5 custom-scrollbar relative">
+                    <div id="slides-list-container" class="flex flex-col gap-4 pb-8"></div>
+                    <div id="slides-grid-container" class="is-hidden grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4 pb-8"></div>
 
-                    <div id="empty-state"
-                        class="hidden absolute inset-0 flex flex-col items-center justify-center text-gray-400 dark:text-gray-500 opacity-60 z-0">
-                        <i data-lucide="layers" class="w-16 h-16 mb-4"></i>
-                        <p class="font-heading text-xl">No slides yet</p>
-                        <p class="text-sm">Click "Add Slide" to begin</p>
+                    <!-- Empty State (Zero hidden+flex collision) -->
+                    <div id="empty-state" class="is-hidden empty-state-panel">
+                        <div class="max-w-md mx-auto bg-white/95 dark:bg-slate-800/95 border-3 border-dark dark:border-slate-500 rounded-[2rem] shadow-hard p-7 text-center animate-pop-in">
+                            <div class="w-14 h-14 mx-auto mb-3 rounded-2xl bg-blue/15 text-blue border-2 border-dark dark:border-slate-500 shadow-hard-sm flex items-center justify-center -rotate-3">
+                                <i data-lucide="layers" class="w-7 h-7"></i>
+                            </div>
+                            <h2 class="font-heading font-bold text-xl uppercase tracking-tight text-dark dark:text-white mb-1.5">No Slides Yet</h2>
+                            <p class="text-xs font-bold text-slate-500 dark:text-slate-300 mb-5">Start with a blank slide, upload photos into your Image Manager, or launch a template.</p>
+                            <div class="flex flex-wrap items-center justify-center gap-2">
+                                <button type="button" onclick="app.addSlide()" class="btn-chunky bg-blue text-white px-3.5 py-2 text-xs font-heading font-bold uppercase tracking-wider gap-1.5">
+                                    <i data-lucide="plus" class="w-4 h-4"></i>
+                                    <span>Add Slide</span>
+                                </button>
+                                <button type="button" onclick="app.openUploadImageModal()" class="btn-chunky bg-orange text-white px-3.5 py-2 text-xs font-heading font-bold uppercase tracking-wider gap-1.5">
+                                    <i data-lucide="cloud-upload" class="w-4 h-4"></i>
+                                    <span>Upload Image</span>
+                                </button>
+                                <button type="button" onclick="app.openImageManagerModal()" class="btn-chunky bg-white dark:bg-slate-700 text-dark dark:text-white px-3.5 py-2 text-xs font-heading font-bold uppercase tracking-wider gap-1.5">
+                                    <i data-lucide="images" class="w-4 h-4 text-orange"></i>
+                                    <span>Image Manager</span>
+                                </button>
+                                <button type="button" onclick="app.openBulkImport()" class="btn-chunky bg-pink text-white px-3.5 py-2 text-xs font-heading font-bold uppercase tracking-wider gap-1.5">
+                                    <i data-lucide="file-text" class="w-4 h-4"></i>
+                                    <span>Bulk Text</span>
+                                </button>
+                                <button type="button" onclick="app.openTemplatesModal()" class="btn-chunky bg-green text-white px-3.5 py-2 text-xs font-heading font-bold uppercase tracking-wider gap-1.5">
+                                    <i data-lucide="sparkles" class="w-4 h-4"></i>
+                                    <span>Templates</span>
+                                </button>
+                            </div>
+                        </div>
                     </div>
-
-                    <div id="slides-list-container" class="space-y-4 relative z-10 min-h-full"></div>
-
-                    <div id="slides-grid-container"
-                        class="hidden grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 relative z-10"></div>
-
                 </div>
-            </div>
+            </section>
         </div>
     </main>
 
-    <aside id="library-drawer"
-        class="fixed inset-y-0 left-0 w-80 glass-panel bg-white/90 dark:bg-slate-900/90 border-r-[4px] border-brand-dark dark:border-slate-500 shadow-[10px_0_30px_rgba(0,0,0,0.15)] transform -translate-x-full transition-all duration-300 flex flex-col z-50">
-        <div
-            class="p-5 border-b-[3px] border-brand-dark dark:border-slate-500 bg-brand-bg/60 dark:bg-slate-800/60 flex justify-between items-center">
-            <h2 class="font-heading font-bold text-xl text-brand-dark dark:text-white flex items-center gap-2">
-                <i data-lucide="library" class="w-5 h-5 text-brand-blue"></i> Library
-            </h2>
-            <button onclick="app.toggleLibrary()"
-                class="text-gray-400 dark:text-gray-500 hover:text-brand-dark dark:hover:text-white transition-colors">
-                <i data-lucide="x" class="w-6 h-6"></i>
-            </button>
-        </div>
-
-        <div class="p-4 border-b-2 border-gray-100 dark:border-white/5">
-            <button onclick="app.createNewDeck()"
-                class="btn-chunky w-full py-2 bg-brand-green border-[2px] border-brand-dark dark:border-white/10 rounded-xl text-white font-heading font-bold shadow-hard-sm flex items-center justify-center gap-2">
-                <i data-lucide="plus" class="w-4 h-4"></i> Create New Deck
-            </button>
-            <button onclick="app.triggerImport()"
-                class="mt-3 w-full py-2 text-xs font-bold text-gray-500 dark:text-gray-400 hover:text-brand-blue dark:hover:text-brand-blue flex items-center justify-center gap-1 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg transition-colors">
-                <i data-lucide="upload" class="w-3 h-3"></i> Import File
-            </button>
-        </div>
-
-        <div id="library-list" class="flex-grow overflow-y-auto p-4 space-y-3 custom-scroll bg-transparent">
-        </div>
-    </aside>
-
-    <div id="presentation-mode"
-        class="hidden fixed inset-0 z-50 flex flex-col items-center justify-center cursor-pointer transition-colors duration-500 ease-in-out select-none overflow-hidden bg-brand-dark">
-        <div class="absolute top-6 right-6 flex gap-3 z-50 opacity-75 hover:opacity-100 transition-opacity">
-            <button onclick="app.exitPresentation(event)"
-                class="bg-white text-brand-dark p-2.5 rounded-full border-[2px] border-brand-dark hover:bg-gray-100 shadow-hard-sm transition-colors"
-                title="Exit Presentation (Esc)">
-                <i data-lucide="x" class="w-6 h-6"></i>
-            </button>
-        </div>
-
-        <div id="slide-display-container"
-            class="w-full h-full flex items-center justify-center px-8 relative z-10 gap-8 max-w-[90vw] mx-auto transition-all">
-            <h1 id="display-word"
-                class="font-heading font-bold text-white leading-tight drop-shadow-md break-words transition-all duration-300">
-                Word</h1>
-            <img id="display-image" src="" alt="Slide Image"
-                class="hidden rounded-2xl border-4 border-white shadow-2xl object-contain">
-        </div>
-
-        <div class="absolute bottom-6 left-0 w-full flex justify-center z-50 pointer-events-none">
-            <div onclick="event.stopPropagation()"
-                class="inline-flex items-center gap-2 bg-brand-dark/85 backdrop-blur-md text-white px-3 py-2 rounded-2xl border-[2px] border-white/30 font-heading font-bold shadow-hard-sm pointer-events-auto">
-                <button onclick="event.stopPropagation(); app.prevSlide()" class="p-1.5 rounded-xl hover:bg-white/15 transition-colors" title="Previous Slide (Left Arrow)">
-                    <i data-lucide="chevron-left" class="w-4 h-4"></i>
-                </button>
-                <span class="px-1 text-sm"><span id="slide-number">1</span> / <span id="total-slides">10</span></span>
-                <button onclick="event.stopPropagation(); app.nextSlide()" class="p-1.5 rounded-xl hover:bg-white/15 transition-colors" title="Next Slide (Right Arrow / Space)">
-                    <i data-lucide="chevron-right" class="w-4 h-4"></i>
+    <!-- SAVED DECKS DRAWER -->
+    <div id="library-drawer" class="drawer-overlay" role="dialog" aria-modal="true" aria-labelledby="library-drawer-title"
+        onclick="if (event.target === this) app.toggleLibraryDrawer(false)">
+        <aside class="drawer-panel">
+            <div class="p-4 sm:p-5 border-b-3 border-dark dark:border-slate-600 flex items-center justify-between gap-3 flex-none">
+                <div class="flex items-center gap-2.5 min-w-0">
+                    <div class="w-10 h-10 rounded-xl bg-blue text-white border-2 border-dark dark:border-slate-500 shadow-hard-sm flex items-center justify-center flex-shrink-0">
+                        <i data-lucide="library" class="w-5 h-5"></i>
+                    </div>
+                    <div class="min-w-0">
+                        <h2 id="library-drawer-title" class="font-heading font-bold text-lg uppercase tracking-tight leading-none text-dark dark:text-white">My Library</h2>
+                        <span id="library-cloud-pill" class="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400">Local Storage Ready</span>
+                    </div>
+                </div>
+                <button type="button" onclick="app.toggleLibraryDrawer(false)" aria-label="Close library drawer"
+                    class="btn-chunky bg-white dark:bg-slate-700 text-dark dark:text-white w-9 h-9 p-0">
+                    <i data-lucide="x" class="w-4 h-4"></i>
                 </button>
             </div>
-        </div>
 
-        <div class="absolute bottom-0 left-0 w-full h-3 bg-black/10">
-            <div id="progress-bar" class="h-full bg-white/80 transition-all duration-300" style="width: 0%"></div>
+            <div class="p-4 border-b-2 border-slate-200 dark:border-slate-700 space-y-2.5 flex-none bg-slate-50/70 dark:bg-slate-900/40">
+                <div class="grid grid-cols-2 gap-2">
+                    <button type="button" onclick="app.createNewDeck()"
+                        class="btn-chunky bg-white dark:bg-slate-800 text-dark dark:text-white py-2 px-3 text-xs font-heading font-bold uppercase tracking-wide gap-1.5">
+                        <i data-lucide="file-plus" class="w-3.5 h-3.5 text-blue"></i>
+                        <span>New Deck</span>
+                    </button>
+                    <button type="button" onclick="app.manualSave()"
+                        class="btn-chunky bg-green text-white py-2 px-3 text-xs font-heading font-bold uppercase tracking-wide gap-1.5">
+                        <i data-lucide="save" class="w-3.5 h-3.5"></i>
+                        <span>Save Current</span>
+                    </button>
+                </div>
+                <button type="button" onclick="app.triggerImport()"
+                    class="w-full py-2 text-xs font-extrabold text-slate-500 dark:text-slate-300 hover:text-blue hover:border-blue flex items-center justify-center gap-1.5 border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-xl transition-colors cursor-pointer">
+                    <i data-lucide="upload" class="w-3.5 h-3.5"></i>
+                    <span>Import JSON Backup File</span>
+                </button>
+                <div class="relative">
+                    <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"></i>
+                    <input type="text" id="library-search" oninput="app.renderLibrary()" placeholder="Search saved decks..."
+                        class="w-full pl-9 pr-3 py-2 rounded-xl bg-white dark:bg-slate-800 border-2 border-slate-300 dark:border-slate-600 focus:border-blue text-xs font-bold text-dark dark:text-white outline-none">
+                </div>
+            </div>
+
+            <div id="deck-list" class="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-2.5"></div>
+        </aside>
+    </div>
+
+    <!-- PERSISTENT IMAGE MANAGER MODAL -->
+    <div id="image-manager-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="img-mgr-title"
+        onclick="if (event.target === this) app.closeImageManager()">
+        <div class="modal-card w-full max-w-3xl bg-white/95 dark:bg-slate-800/95 backdrop-blur-xl border-4 border-dark dark:border-slate-500 rounded-[2rem] shadow-hard-lg overflow-hidden flex flex-col max-h-[90vh]">
+            <div class="h-2 bg-orange flex-none"></div>
+
+            <!-- Header -->
+            <div class="px-5 sm:px-6 py-3.5 border-b-3 border-slate-200 dark:border-slate-700 flex items-center justify-between gap-3 flex-none">
+                <div class="flex items-center gap-3 min-w-0">
+                    <div class="w-10 h-10 rounded-xl bg-orange text-white border-2 border-dark dark:border-slate-500 shadow-hard-sm flex items-center justify-center -rotate-3 flex-shrink-0">
+                        <i data-lucide="images" class="w-5 h-5"></i>
+                    </div>
+                    <div class="min-w-0">
+                        <h2 id="img-mgr-title" class="font-heading font-bold text-xl uppercase tracking-tight text-dark dark:text-white leading-none truncate">Image Manager</h2>
+                        <p id="img-mgr-subtitle" class="text-[11px] font-extrabold uppercase tracking-wider text-orange mt-1 truncate">Saved images stay safe even when slides are deleted</p>
+                    </div>
+                </div>
+                <button type="button" onclick="app.closeImageManager()" aria-label="Close image manager modal"
+                    class="btn-chunky bg-white dark:bg-slate-700 text-dark dark:text-white w-9 h-9 p-0 flex-shrink-0">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
+            </div>
+
+            <!-- Slide Picker Context Banner -->
+            <div id="img-mgr-picker-banner" class="is-hidden px-5 sm:px-6 py-2 bg-blue/10 border-b-2 border-blue/25 flex items-center justify-between gap-2 flex-none">
+                <span id="img-mgr-picker-text" class="text-xs font-extrabold text-blue">Picking saved image for Slide #1</span>
+                <button type="button" onclick="app.setImageManagerTarget(null)"
+                    class="text-[11px] font-black uppercase tracking-wide text-blue hover:underline flex-shrink-0 cursor-pointer">
+                    Switch to Deck Mode
+                </button>
+            </div>
+
+            <!-- Search & Actions -->
+            <div class="p-4 sm:px-6 border-b-2 border-slate-200/80 dark:border-slate-700 flex flex-wrap items-center justify-between gap-2.5 flex-none">
+                <div class="relative flex-1 min-w-[180px]">
+                    <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"></i>
+                    <input type="text" id="img-mgr-search" oninput="app.renderImageManagerGallery()" placeholder="Search saved images by name..."
+                        class="w-full pl-9 pr-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-900 border-2 border-slate-300 dark:border-slate-600 focus:border-blue text-xs font-bold text-dark dark:text-white outline-none">
+                </div>
+                <div id="img-mgr-select-actions" class="flex items-center gap-1.5">
+                    <button type="button" onclick="app.toggleSelectAllManagedImages()"
+                        class="px-2.5 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-700 hover:bg-blue/15 text-xs font-extrabold text-slate-600 dark:text-slate-200 hover:text-blue transition-colors cursor-pointer">
+                        Select All
+                    </button>
+                    <button type="button" onclick="app.clearManagedImageSelection()"
+                        class="px-2.5 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-xs font-extrabold text-slate-500 dark:text-slate-300 transition-colors cursor-pointer">
+                        Clear
+                    </button>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button type="button" id="img-mgr-delete-all-btn" onclick="app.deleteAllManagedImages()" disabled
+                        title="Delete All Saved Images"
+                        class="btn-chunky bg-pink text-white px-3 py-1.5 text-xs font-heading font-bold uppercase tracking-wide gap-1.5">
+                        <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                        <span>Delete All</span>
+                    </button>
+                    <button type="button" onclick="app.switchToUploadModalFromManager()"
+                        class="btn-chunky bg-blue text-white px-3.5 py-1.5 text-xs font-heading font-bold uppercase tracking-wide gap-1.5">
+                        <i data-lucide="cloud-upload" class="w-3.5 h-3.5"></i>
+                        <span>Upload Image</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Gallery Grid -->
+            <div class="flex-1 min-h-0 overflow-y-auto custom-scrollbar p-4 sm:px-6">
+                <div id="img-mgr-gallery" class="img-mgr-grid"></div>
+            </div>
+
+            <!-- Batch Action Footer for Selected Saved Images -->
+            <div id="img-mgr-gallery-footer" class="px-5 sm:px-6 py-3 border-t-3 border-slate-200 dark:border-slate-700 bg-slate-50/90 dark:bg-slate-900/60 flex flex-wrap items-center justify-between gap-2.5 flex-none">
+                <span id="img-mgr-selection-status" class="text-xs font-extrabold text-slate-500 dark:text-slate-300">0 selected — saved images persist even if you delete slides</span>
+                <div class="flex items-center gap-2 flex-wrap ml-auto">
+                    <select id="img-mgr-gallery-layout" aria-label="Slide layout for selected images"
+                        class="px-2.5 py-1.5 rounded-xl bg-white dark:bg-slate-800 border-2 border-dark/70 dark:border-slate-500 text-xs font-extrabold text-dark dark:text-white outline-none">
+                        <option value="caption">Caption Layout</option>
+                        <option value="split">Split Layout</option>
+                        <option value="full">Full Img Layout</option>
+                    </select>
+                    <select id="img-mgr-gallery-mode" aria-label="Where to add selected images"
+                        class="px-2.5 py-1.5 rounded-xl bg-white dark:bg-slate-800 border-2 border-dark/70 dark:border-slate-500 text-xs font-extrabold text-dark dark:text-white outline-none">
+                        <option value="append">Append as Slides</option>
+                        <option value="replace">Replace Deck</option>
+                        <option value="attach">Attach to Existing</option>
+                    </select>
+                    <button type="button" id="img-mgr-create-slides-btn" onclick="app.createSlidesFromSelectedManagedImages()" disabled
+                        class="btn-chunky bg-green text-white px-4 py-1.5 text-xs font-heading font-bold uppercase tracking-wider gap-1.5">
+                        <i data-lucide="layers" class="w-3.5 h-3.5"></i>
+                        <span>Add Selected to Slides</span>
+                    </button>
+                </div>
+            </div>
         </div>
     </div>
 
-    <div id="help-modal"
-        class="hidden fixed inset-0 z-[70] flex items-center justify-center bg-black/50 backdrop-blur-sm px-4">
-        <div
-            class="bg-white dark:bg-slate-800 border-[3px] border-brand-dark dark:border-slate-500 rounded-[2rem] p-6 shadow-hard dark:shadow-hard-dark max-w-md w-full relative transition-colors">
-            <button onclick="document.getElementById('help-modal').classList.add('hidden')"
-                class="absolute top-4 right-4 text-gray-400 dark:text-gray-500 hover:text-brand-dark dark:hover:text-white transition-colors">
-                <i data-lucide="x" class="w-6 h-6"></i>
+    <!-- DEDICATED UPLOAD IMAGE MODAL (No Slide Layout Selection) -->
+    <div id="upload-image-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="upload-img-title"
+        onclick="if (event.target === this) app.closeUploadImageModal()">
+        <div class="modal-card w-full max-w-3xl bg-white/95 dark:bg-slate-800/95 backdrop-blur-xl border-4 border-dark dark:border-slate-500 rounded-[2rem] shadow-hard-lg overflow-hidden flex flex-col max-h-[90vh]">
+            <div class="h-2 bg-blue flex-none"></div>
+
+            <!-- Header -->
+            <div class="px-5 sm:px-6 py-3.5 border-b-3 border-slate-200 dark:border-slate-700 flex items-center justify-between gap-3 flex-none">
+                <div class="flex items-center gap-3 min-w-0">
+                    <div class="w-10 h-10 rounded-xl bg-blue text-white border-2 border-dark dark:border-slate-500 shadow-hard-sm flex items-center justify-center -rotate-3 flex-shrink-0">
+                        <i data-lucide="cloud-upload" class="w-5 h-5"></i>
+                    </div>
+                    <div class="min-w-0">
+                        <h2 id="upload-img-title" class="font-heading font-bold text-xl uppercase tracking-tight text-dark dark:text-white leading-none truncate">Upload Image</h2>
+                        <p id="upload-img-subtitle" class="text-[11px] font-extrabold uppercase tracking-wider text-blue mt-1 truncate">Uploaded photos are stored safely in your Image Manager</p>
+                    </div>
+                </div>
+                <button type="button" onclick="app.closeUploadImageModal()" aria-label="Close upload image modal"
+                    class="btn-chunky bg-white dark:bg-slate-700 text-dark dark:text-white w-9 h-9 p-0 flex-shrink-0">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
+            </div>
+
+            <!-- Slide Context Banner (When opened from a specific slide) -->
+            <div id="upload-img-picker-banner" class="is-hidden px-5 sm:px-6 py-2 bg-orange/10 border-b-2 border-orange/25 flex items-center justify-between gap-2 flex-none">
+                <span id="upload-img-picker-text" class="text-xs font-extrabold text-orange">Uploading image for Slide #1</span>
+                <button type="button" onclick="app.switchToManagerFromUpload()"
+                    class="text-[11px] font-black uppercase tracking-wide text-orange hover:underline flex-shrink-0 cursor-pointer">
+                    Pick from Image Manager
+                </button>
+            </div>
+
+            <div class="flex-1 min-h-0 overflow-y-auto custom-scrollbar p-5 space-y-4">
+                <!-- Dropzone & Multi-file Browse -->
+                <div id="bulk-img-dropzone" role="button" tabindex="0" onclick="app.triggerBulkImagesBrowse()"
+                    class="bulk-img-dropzone p-5 text-center cursor-pointer flex flex-col items-center justify-center gap-2">
+                    <div class="w-12 h-12 rounded-2xl bg-blue/15 text-blue border-2 border-dark dark:border-slate-500 shadow-hard-sm flex items-center justify-center">
+                        <i data-lucide="cloud-upload" class="w-6 h-6"></i>
+                    </div>
+                    <div>
+                        <p class="font-heading font-bold text-base uppercase tracking-tight text-dark dark:text-white">Drop one or many images here, paste (Ctrl+V), or click to browse</p>
+                        <p class="text-xs font-bold text-slate-500 dark:text-slate-300 mt-0.5">PNG, JPG, WebP, or GIF &middot; Up to 60 images per batch (20MB max each)</p>
+                    </div>
+                </div>
+
+                <!-- Optional Batch Image URLs Toggle & Panel -->
+                <div class="rounded-2xl border-2 border-slate-200 dark:border-slate-700 bg-slate-50/80 dark:bg-slate-900/50 overflow-hidden">
+                    <button type="button" id="bulk-img-url-toggle" onclick="app.toggleBulkImageUrlPanel()"
+                        class="w-full px-4 py-2.5 flex items-center justify-between text-xs font-extrabold text-slate-600 dark:text-slate-300 hover:text-blue transition-colors cursor-pointer">
+                        <span class="flex items-center gap-2">
+                            <i data-lucide="link-2" class="w-4 h-4 text-blue"></i>
+                            <span>Or paste image web URLs (one or many lines)</span>
+                        </span>
+                        <span class="text-[11px] uppercase tracking-wider text-blue">Add URLs</span>
+                    </button>
+                    <div id="bulk-img-url-panel" class="is-hidden px-4 pb-3 pt-1 border-t-2 border-slate-200 dark:border-slate-700 space-y-2">
+                        <textarea id="bulk-img-urls-input" rows="3" spellcheck="false"
+                            placeholder="One https:// URL per line, or Label | https://example.com/photo.jpg"
+                            class="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-800 border-2 border-slate-300 dark:border-slate-600 focus:border-blue text-xs font-bold text-dark dark:text-white outline-none resize-y custom-scrollbar"></textarea>
+                        <div class="flex justify-end">
+                            <button type="button" onclick="app.addBulkImageUrls()"
+                                class="btn-chunky bg-blue text-white px-3.5 py-1.5 text-xs font-heading font-bold uppercase tracking-wider gap-1.5">
+                                <i data-lucide="plus" class="w-3.5 h-3.5"></i>
+                                <span>Add URLs to Queue</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Clean Upload Options (No Slide Layout or Theme) -->
+                <div class="p-3.5 rounded-2xl bg-slate-50/90 dark:bg-slate-900/60 border-2 border-slate-200 dark:border-slate-700 flex flex-wrap items-center justify-between gap-3">
+                    <div class="flex items-center gap-2.5 flex-wrap">
+                        <label for="bulk-img-mode" class="text-[11px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">After Upload:</label>
+                        <select id="bulk-img-mode" onchange="app.renderBulkImageQueue()"
+                            class="px-3 py-1.5 rounded-xl bg-white dark:bg-slate-800 border-2 border-dark/70 dark:border-slate-500 text-xs font-extrabold text-dark dark:text-white outline-none">
+                            <option value="manager-only">Save to Image Manager Only</option>
+                            <option value="append">Save &amp; Append to Deck</option>
+                            <option value="attach">Save &amp; Attach to Slides</option>
+                            <option value="replace">Save &amp; Replace Deck</option>
+                        </select>
+                    </div>
+
+                    <label class="inline-flex items-center gap-2 text-xs font-bold text-slate-600 dark:text-slate-300 cursor-pointer select-none">
+                        <input type="checkbox" id="bulk-img-use-names" checked onchange="app.toggleBulkImageUseNames()"
+                            class="w-4 h-4 rounded accent-orange cursor-pointer">
+                        <span>Use clean filenames as image labels</span>
+                    </label>
+                </div>
+
+                <!-- Staged Upload Queue -->
+                <div class="space-y-2.5">
+                    <div class="flex items-center justify-between gap-2 flex-wrap">
+                        <span id="bulk-img-queue-count" class="text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-300">0 images queued</span>
+                        <div class="flex items-center gap-2">
+                            <button type="button" onclick="app.sortBulkImageQueue()"
+                                class="px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-700 hover:bg-blue/15 text-xs font-extrabold text-slate-600 dark:text-slate-200 hover:text-blue transition-colors inline-flex items-center gap-1 cursor-pointer">
+                                <i data-lucide="arrow-up-down" class="w-3.5 h-3.5"></i>
+                                <span>Sort A-Z</span>
+                            </button>
+                            <button type="button" onclick="app.clearBulkImageQueue()"
+                                class="px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-700 hover:bg-pink/15 text-xs font-extrabold text-slate-600 dark:text-slate-200 hover:text-pink transition-colors inline-flex items-center gap-1 cursor-pointer">
+                                <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                                <span>Clear</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div id="bulk-img-queue" class="bulk-img-queue-grid"></div>
+                </div>
+            </div>
+
+            <!-- Footer & Progress -->
+            <div class="px-5 sm:px-6 py-3.5 border-t-3 border-slate-200 dark:border-slate-700 bg-slate-50/85 dark:bg-slate-900/60 flex flex-wrap items-center justify-between gap-3 flex-none">
+                <div class="flex-1 min-w-[180px] space-y-1">
+                    <p id="bulk-img-status" class="text-xs font-extrabold text-slate-500 dark:text-slate-300">Ready — add images above to save into your Image Manager.</p>
+                    <div id="bulk-img-progress-wrap" class="is-hidden bulk-img-progress-track">
+                        <div id="bulk-img-progress-bar" class="bulk-img-progress-bar"></div>
+                    </div>
+                </div>
+                <div class="flex items-center gap-2 ml-auto flex-wrap">
+                    <button type="button" onclick="app.switchToManagerFromUpload()"
+                        class="btn-chunky bg-white dark:bg-slate-700 text-dark dark:text-white px-3.5 py-2 text-xs font-heading font-bold uppercase tracking-wider gap-1.5">
+                        <i data-lucide="images" class="w-3.5 h-3.5 text-orange"></i>
+                        <span>Image Manager</span>
+                    </button>
+                    <button type="button" onclick="app.closeUploadImageModal()"
+                        class="btn-chunky bg-white dark:bg-slate-700 text-dark dark:text-white px-4 py-2 text-xs font-heading font-bold uppercase tracking-wider">
+                        Cancel
+                    </button>
+                    <button type="button" id="bulk-img-confirm-btn" onclick="app.confirmBulkImageImport()" disabled
+                        class="btn-chunky bg-green text-white px-5 py-2 text-xs font-heading font-bold uppercase tracking-wider gap-1.5">
+                        <i data-lucide="circle-check" class="w-4 h-4"></i>
+                        <span id="bulk-img-confirm-label">Upload Images</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- STARTER TEMPLATES MODAL -->
+    <div id="templates-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="templates-modal-title"
+        onclick="if (event.target === this) app.closeModal('templates-modal')">
+        <div class="modal-card w-full max-w-2xl bg-white/95 dark:bg-slate-800/95 backdrop-blur-xl border-4 border-dark dark:border-slate-500 rounded-[2rem] shadow-hard-lg overflow-hidden flex flex-col max-h-[88vh]">
+            <div class="h-2 bg-orange flex-none"></div>
+            <div class="px-6 py-4 border-b-3 border-slate-200 dark:border-slate-700 flex items-center justify-between gap-3 flex-none">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-orange text-white border-2 border-dark dark:border-slate-500 shadow-hard-sm flex items-center justify-center -rotate-3">
+                        <i data-lucide="sparkles" class="w-5 h-5"></i>
+                    </div>
+                    <div>
+                        <h2 id="templates-modal-title" class="font-heading font-bold text-xl uppercase tracking-tight text-dark dark:text-white leading-none">Classroom Templates</h2>
+                        <p class="text-[11px] font-extrabold uppercase tracking-widest text-orange mt-1">Launch a lesson structure in one click</p>
+                    </div>
+                </div>
+                <button type="button" onclick="app.closeModal('templates-modal')" aria-label="Close templates modal"
+                    class="btn-chunky bg-white dark:bg-slate-700 text-dark dark:text-white w-9 h-9 p-0">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
+            </div>
+
+            <div class="px-6 py-3 border-b-2 border-slate-200 dark:border-slate-700 bg-slate-50/80 dark:bg-slate-900/40 flex items-center justify-between gap-3 flex-none">
+                <label class="inline-flex items-center gap-2 text-xs font-extrabold text-slate-600 dark:text-slate-300 cursor-pointer select-none">
+                    <input type="checkbox" id="template-append-toggle" class="w-4 h-4 rounded accent-orange cursor-pointer">
+                    <span>Append template slides to my current deck (instead of replacing)</span>
+                </label>
+            </div>
+
+            <div id="templates-grid" class="p-6 overflow-y-auto custom-scrollbar grid grid-cols-1 sm:grid-cols-2 gap-3.5"></div>
+        </div>
+    </div>
+
+    <!-- SAVE / RENAME DECK MODAL -->
+    <div id="name-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="name-modal-title"
+        onclick="if (event.target === this) app.closeModal('name-modal')">
+        <div class="modal-card w-full max-w-sm bg-white/95 dark:bg-slate-800/95 backdrop-blur-xl border-4 border-dark dark:border-slate-500 rounded-[2rem] shadow-hard-lg overflow-hidden p-6">
+            <div class="w-14 h-14 mx-auto mb-3 rounded-2xl bg-green/15 text-green border-2 border-dark dark:border-slate-500 shadow-hard-sm flex items-center justify-center">
+                <i data-lucide="bookmark-plus" class="w-7 h-7"></i>
+            </div>
+            <h2 id="name-modal-title" class="font-heading font-bold text-xl uppercase tracking-tight text-center text-dark dark:text-white mb-1">Save Deck</h2>
+            <p class="text-xs font-bold text-slate-500 dark:text-slate-300 text-center mb-4">Give this slide deck a clear classroom title.</p>
+
+            <input type="text" id="deck-name-input" maxlength="80" placeholder="e.g., Unit 3 Vocabulary Warmup"
+                class="w-full px-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-900 border-3 border-dark dark:border-slate-500 focus:border-blue text-sm font-extrabold text-dark dark:text-white outline-none mb-3">
+
+            <label id="save-as-copy-wrap" class="is-hidden flex items-center gap-2 text-xs font-bold text-slate-600 dark:text-slate-300 mb-4 cursor-pointer select-none">
+                <input type="checkbox" id="save-as-copy-checkbox" class="w-4 h-4 rounded accent-blue cursor-pointer">
+                <span>Save as a brand-new copy in Library</span>
+            </label>
+
+            <div class="grid grid-cols-2 gap-3 mt-2">
+                <button type="button" onclick="app.closeModal('name-modal')"
+                    class="btn-chunky bg-slate-100 dark:bg-slate-700 text-dark dark:text-white py-2.5 text-xs font-heading font-bold uppercase tracking-wider">
+                    Cancel
+                </button>
+                <button type="button" onclick="app.confirmSaveDeck()"
+                    class="btn-chunky bg-green text-white py-2.5 text-xs font-heading font-bold uppercase tracking-wider">
+                    Save Deck
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- IMAGE URL MODAL -->
+    <div id="image-url-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="image-url-modal-title"
+        onclick="if (event.target === this) app.closeModal('image-url-modal')">
+        <div class="modal-card w-full max-w-md bg-white/95 dark:bg-slate-800/95 backdrop-blur-xl border-4 border-dark dark:border-slate-500 rounded-[2rem] shadow-hard-lg overflow-hidden p-6">
+            <div class="flex items-center gap-3 mb-4">
+                <div class="w-11 h-11 rounded-xl bg-blue/15 text-blue border-2 border-dark dark:border-slate-500 shadow-hard-sm flex items-center justify-center flex-shrink-0">
+                    <i data-lucide="link-2" class="w-5 h-5"></i>
+                </div>
+                <div>
+                    <h2 id="image-url-modal-title" class="font-heading font-bold text-lg uppercase tracking-tight text-dark dark:text-white leading-none">Image Web Link</h2>
+                    <p class="text-xs font-bold text-slate-500 dark:text-slate-300 mt-1">Paste an https:// image URL to attach &amp; save to Manager.</p>
+                </div>
+            </div>
+
+            <input type="url" id="image-url-input" placeholder="https://images.unsplash.com/..."
+                class="w-full px-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-900 border-3 border-dark dark:border-slate-500 focus:border-blue text-xs font-bold text-dark dark:text-white outline-none mb-2">
+            <p id="image-url-error" class="is-hidden text-xs font-extrabold text-pink mb-3">Please enter a valid http(s) image link.</p>
+
+            <div class="grid grid-cols-2 gap-3 mt-4">
+                <button type="button" onclick="app.closeModal('image-url-modal')"
+                    class="btn-chunky bg-slate-100 dark:bg-slate-700 text-dark dark:text-white py-2.5 text-xs font-heading font-bold uppercase tracking-wider">
+                    Cancel
+                </button>
+                <button type="button" onclick="app.applyImageUrl()"
+                    class="btn-chunky bg-blue text-white py-2.5 text-xs font-heading font-bold uppercase tracking-wider">
+                    Use Image
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- KEYBOARD SHORTCUTS & TIPS MODAL -->
+    <div id="help-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="help-modal-title"
+        onclick="if (event.target === this) app.toggleHelp(false)">
+        <div class="modal-card w-full max-w-xl bg-white/95 dark:bg-slate-800/95 backdrop-blur-xl border-4 border-dark dark:border-slate-500 rounded-[2rem] shadow-hard-lg overflow-hidden p-6">
+            <div class="flex items-center justify-between gap-3 mb-5 pb-3 border-b-2 border-slate-200 dark:border-slate-700">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-blue text-white border-2 border-dark dark:border-slate-500 shadow-hard-sm flex items-center justify-center">
+                        <i data-lucide="keyboard" class="w-5 h-5"></i>
+                    </div>
+                    <div>
+                        <h2 id="help-modal-title" class="font-heading font-bold text-lg uppercase tracking-tight text-dark dark:text-white leading-none">Shortcuts &amp; Studio Guide</h2>
+                        <p class="text-[11px] font-bold text-slate-500 dark:text-slate-300 mt-1">Classic workflow + persistent Image Manager</p>
+                    </div>
+                </div>
+                <button type="button" onclick="app.toggleHelp(false)" aria-label="Close shortcuts modal"
+                    class="btn-chunky bg-white dark:bg-slate-700 text-dark dark:text-white w-9 h-9 p-0">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                <div class="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border-2 border-slate-200 dark:border-slate-700 space-y-2.5">
+                    <h3 class="font-heading font-bold uppercase text-pink tracking-wider text-[11px]">Presentation Mode</h3>
+                    <div class="flex items-center justify-between gap-2"><span class="font-bold text-slate-600 dark:text-slate-300">Next Slide</span><span class="key-badge">Space / ArrowRight</span></div>
+                    <div class="flex items-center justify-between gap-2"><span class="font-bold text-slate-600 dark:text-slate-300">Previous Slide</span><span class="key-badge">ArrowLeft</span></div>
+                    <div class="flex items-center justify-between gap-2"><span class="font-bold text-slate-600 dark:text-slate-300">First / Last</span><span class="key-badge">Home / End</span></div>
+                    <div class="flex items-center justify-between gap-2"><span class="font-bold text-slate-600 dark:text-slate-300">Blackout Curtain</span><span class="key-badge">B</span></div>
+                    <div class="flex items-center justify-between gap-2"><span class="font-bold text-slate-600 dark:text-slate-300">Teacher Notes</span><span class="key-badge">N</span></div>
+                    <div class="flex items-center justify-between gap-2"><span class="font-bold text-slate-600 dark:text-slate-300">Fullscreen</span><span class="key-badge">F</span></div>
+                    <div class="flex items-center justify-between gap-2"><span class="font-bold text-slate-600 dark:text-slate-300">Exit Stage</span><span class="key-badge">Esc</span></div>
+                </div>
+
+                <div class="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border-2 border-slate-200 dark:border-slate-700 space-y-2.5">
+                    <h3 class="font-heading font-bold uppercase text-blue tracking-wider text-[11px]">Deck Editor</h3>
+                    <div class="flex items-center justify-between gap-2"><span class="font-bold text-slate-600 dark:text-slate-300">Save Deck</span><span class="key-badge">Ctrl + S</span></div>
+                    <div class="flex items-center justify-between gap-2"><span class="font-bold text-slate-600 dark:text-slate-300">Start Presenting</span><span class="key-badge">Ctrl + Enter / F5</span></div>
+                    <div class="flex items-center justify-between gap-2"><span class="font-bold text-slate-600 dark:text-slate-300">Paste Image</span><span class="key-badge">Ctrl + V</span></div>
+                    <div class="flex items-center justify-between gap-2"><span class="font-bold text-slate-600 dark:text-slate-300">Reorder Slide</span><span class="key-badge">Alt + Up / Down</span></div>
+                    <div class="flex items-center justify-between gap-2"><span class="font-bold text-slate-600 dark:text-slate-300">Undo / Redo</span><span class="key-badge">Ctrl + Z / Y</span></div>
+                    <p class="pt-1 text-[11px] font-semibold text-slate-500 dark:text-slate-400 leading-relaxed">
+                        Uploaded photos stay in your <strong>Image Manager</strong> even if you delete slides—reuse them anytime!
+                    </p>
+                </div>
+            </div>
+
+            <button type="button" onclick="app.toggleHelp(false)"
+                class="btn-chunky w-full mt-5 bg-blue text-white py-2.5 text-xs font-heading font-bold uppercase tracking-wider">
+                Got It
             </button>
-            <h3 class="font-heading font-bold text-2xl mb-4 text-brand-blue">Shortcuts</h3>
-            <div class="grid grid-cols-1 gap-2 text-sm">
-                <div
-                    class="flex justify-between items-center p-2 bg-gray-50 dark:bg-slate-900 rounded-lg transition-colors">
-                    <span class="font-bold text-gray-600 dark:text-gray-300">Add Slide</span>
-                    <span class="key-badge">Ctrl + Enter</span>
-                </div>
-                <div
-                    class="flex justify-between items-center p-2 bg-gray-50 dark:bg-slate-900 rounded-lg transition-colors">
-                    <span class="font-bold text-gray-600 dark:text-gray-300">Quick Save</span>
-                    <span class="key-badge">Ctrl + S</span>
-                </div>
-                <div
-                    class="flex justify-between items-center p-2 bg-gray-50 dark:bg-slate-900 rounded-lg transition-colors">
-                    <span class="font-bold text-gray-600 dark:text-gray-300">Start Presentation</span>
-                    <span class="key-badge">Ctrl + P</span>
-                </div>
-                <div
-                    class="flex justify-between items-center p-2 bg-gray-50 dark:bg-slate-900 rounded-lg transition-colors">
-                    <span class="font-bold text-gray-600 dark:text-gray-300">Reorder Slide</span>
-                    <span class="key-badge">Alt + Up/Down</span>
-                </div>
-            </div>
-            <style>
-                .key-badge {
-                    background: white;
-                    border: 2px solid #e2e8f0;
-                    padding: 2px 6px;
-                    border-radius: 4px;
-                    font-weight: 700;
-                    color: #64748b;
-                }
-
-                html.dark .key-badge {
-                    background: #1e293b;
-                    border-color: rgba(255, 255, 255, 0.1);
-                    color: #cbd5e1;
-                }
-            </style>
         </div>
     </div>
 
-    <div id="name-modal"
-        class="hidden fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm animate-pop">
-        <div
-            class="bg-white dark:bg-slate-800 border-[3px] border-brand-dark dark:border-slate-500 rounded-[2rem] p-8 flex flex-col items-center shadow-hard dark:shadow-hard-dark max-w-sm w-full transition-colors">
-            <h3 class="text-2xl font-heading font-bold text-brand-dark dark:text-white mb-4">Save Deck</h3>
-            <input type="text" id="deck-name-input" placeholder="e.g. Phonics Unit 1"
-                class="w-full p-3 border-[2px] border-brand-dark dark:border-white/10 bg-white dark:bg-slate-900 text-brand-dark dark:text-white rounded-xl font-bold mb-4 focus:outline-none focus:border-brand-blue dark:focus:border-brand-blue transition-colors placeholder:text-gray-400 dark:placeholder:text-gray-500">
-            <div class="flex gap-3 w-full">
-                <button onclick="document.getElementById('name-modal').classList.add('hidden')"
-                    class="flex-1 btn-chunky bg-white dark:bg-slate-700 border-[2px] border-brand-dark dark:border-white/10 text-brand-dark dark:text-white py-2 rounded-xl font-bold transition-colors">Cancel</button>
-                <button id="confirm-save-btn"
-                    class="flex-1 btn-chunky bg-brand-green border-[2px] border-transparent dark:border-white/10 text-white dark:text-brand-dark py-2 rounded-xl font-bold shadow-hard-sm transition-colors">Save</button>
+    <!-- GENERIC CONFIRM MODAL -->
+    <div id="custom-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="modal-title"
+        onclick="if (event.target === this && typeof app._confirmCancel === 'function') app._confirmCancel()">
+        <div class="modal-card w-full max-w-sm bg-white/95 dark:bg-slate-800/95 backdrop-blur-xl border-4 border-dark dark:border-slate-500 rounded-[2rem] shadow-hard-lg overflow-hidden p-6 text-center">
+            <div id="modal-icon-wrap" class="w-14 h-14 mx-auto mb-3 rounded-2xl bg-pink/15 text-pink border-2 border-dark dark:border-slate-500 shadow-hard-sm flex items-center justify-center">
+                <i id="modal-icon" data-lucide="triangle-alert" class="w-7 h-7"></i>
+            </div>
+            <h2 id="modal-title" class="font-heading font-bold text-xl uppercase tracking-tight text-dark dark:text-white mb-2">Confirm</h2>
+            <p id="modal-desc" class="text-sm font-semibold text-slate-600 dark:text-slate-300 mb-6"></p>
+            <div class="grid grid-cols-2 gap-3">
+                <button type="button" id="modal-cancel"
+                    class="btn-chunky bg-slate-100 dark:bg-slate-700 text-dark dark:text-white py-2.5 text-xs font-heading font-bold uppercase tracking-wider">
+                    Cancel
+                </button>
+                <button type="button" id="modal-confirm"
+                    class="btn-chunky bg-pink text-white py-2.5 text-xs font-heading font-bold uppercase tracking-wider">
+                    Confirm
+                </button>
             </div>
         </div>
     </div>
 
-    <div id="custom-modal"
-        class="hidden fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm animate-pop">
-        <div
-            class="bg-white dark:bg-slate-800 border-[3px] border-brand-dark dark:border-slate-500 rounded-[2rem] p-8 flex flex-col items-center text-center shadow-hard dark:shadow-hard-dark max-w-sm w-full transition-colors">
-            <div
-                class="w-16 h-16 rounded-full flex items-center justify-center mb-4 bg-brand-bg dark:bg-slate-900 border-[3px] border-brand-dark dark:border-white/10 text-brand-dark dark:text-white transition-colors">
-                <i id="modal-icon" data-lucide="alert-triangle" class="w-8 h-8"></i>
+    <!-- FULLSCREEN PRESENTATION MODE -->
+    <div id="presentation-mode" class="presentation-overlay" aria-hidden="true">
+        <div id="present-progress-track" class="present-progress-track">
+            <div id="present-progress-bar" class="present-progress-bar"></div>
+        </div>
+
+        <div id="present-notes-banner" class="is-hidden present-notes-banner" onclick="event.stopPropagation()">
+            <div class="flex items-center gap-2 text-[11px] font-black uppercase tracking-widest text-orange mb-1">
+                <i data-lucide="sticky-note" class="w-3.5 h-3.5"></i>
+                <span>Teacher Notes</span>
             </div>
-            <h3 id="modal-title" class="text-2xl font-heading font-bold text-brand-dark dark:text-white mb-2">Are you
-                sure?</h3>
-            <p id="modal-desc" class="text-gray-600 dark:text-gray-400 font-bold text-sm mb-6">This action cannot be
-                undone.</p>
-            <div class="flex gap-3 w-full">
-                <button id="modal-cancel"
-                    class="flex-1 btn-chunky bg-white dark:bg-slate-700 border-[2px] border-brand-dark dark:border-white/10 text-brand-dark dark:text-white py-2 rounded-xl font-bold transition-colors">Cancel</button>
-                <button id="modal-confirm"
-                    class="flex-1 btn-chunky bg-brand-pink border-[2px] border-transparent dark:border-white/10 text-white dark:text-brand-dark py-2 rounded-xl font-bold shadow-hard-sm transition-colors">Yes,
-                    Do it</button>
+            <p id="present-notes-content" class="text-sm font-bold leading-snug text-white"></p>
+        </div>
+
+        <div id="stage-container" class="flex-1 min-h-0 w-full h-full flex items-center justify-center overflow-hidden cursor-pointer"
+            onclick="app.handleStageClick(event)">
+            <div id="stage-content" class="w-full h-full flex items-center justify-center"></div>
+        </div>
+
+        <div id="present-blackout" class="blackout-curtain" onclick="app.toggleBlackout(false)">
+            <div class="px-5 py-3 rounded-2xl bg-slate-900/90 border-2 border-slate-700 text-slate-300 text-xs font-heading font-bold uppercase tracking-widest flex items-center gap-2.5">
+                <i data-lucide="eye-off" class="w-4 h-4 text-orange"></i>
+                <span>Screen Paused &middot; Press B or Click to Resume</span>
             </div>
+        </div>
+
+        <div id="present-hud" class="present-hud" onclick="event.stopPropagation()">
+            <button type="button" id="hud-prev" onclick="app.prevSlide()" title="Previous Slide (ArrowLeft)"
+                aria-label="Previous Slide" class="hud-icon-btn">
+                <i data-lucide="chevron-left" class="w-5 h-5"></i>
+            </button>
+            <span id="slide-counter" class="px-2.5 text-sm font-heading font-bold tracking-wide text-white select-none">1 / 1</span>
+            <button type="button" id="hud-next" onclick="app.nextSlide()" title="Next Slide (ArrowRight / Space)"
+                aria-label="Next Slide" class="hud-icon-btn">
+                <i data-lucide="chevron-right" class="w-5 h-5"></i>
+            </button>
+
+            <div class="w-[1px] h-5 bg-white/25 mx-1"></div>
+
+            <button type="button" id="hud-blackout" onclick="app.toggleBlackout()" title="Pause / Blackout Screen (B)"
+                aria-label="Blackout Screen" class="hud-icon-btn">
+                <i data-lucide="eye-off" class="w-4 h-4"></i>
+            </button>
+            <button type="button" id="hud-notes" onclick="app.toggleNotes()" title="Toggle Teacher Notes (N)"
+                aria-label="Toggle Teacher Notes" class="hud-icon-btn relative">
+                <i data-lucide="sticky-note" class="w-4 h-4"></i>
+                <span id="hud-notes-dot" class="is-hidden absolute top-1 right-1 w-2 h-2 rounded-full bg-orange"></span>
+            </button>
+            <button type="button" id="hud-fullscreen" onclick="app.toggleFullScreen()" title="Toggle Fullscreen (F)"
+                aria-label="Toggle Fullscreen" class="hud-icon-btn">
+                <i id="hud-fullscreen-icon" data-lucide="maximize-2" class="w-4 h-4"></i>
+            </button>
+            <button type="button" id="hud-exit" onclick="app.exitPresentation()" title="Exit Presentation (Esc)"
+                aria-label="Exit Presentation" class="hud-exit-btn">
+                <i data-lucide="x" class="w-4 h-4"></i>
+                <span class="hidden sm:inline">Exit</span>
+            </button>
         </div>
     </div>
 
-    <canvas id="compression-canvas" class="hidden"></canvas>
+    <!-- HIDDEN FILE INPUTS & TOASTS -->
+    <input type="file" id="imageInput" accept="image/*" class="sr-only">
+    <input type="file" id="bulkImagesInput" accept="image/*" multiple class="sr-only">
+    <input type="file" id="importInput" accept=".json,application/json" class="sr-only">
+    <div id="toast-container" aria-live="polite" class="toast-stack"></div>
 
-    <script src="script.js"></script>
+    <script src="./script.js?v=7"></script>
 </body>
 
 </html>
