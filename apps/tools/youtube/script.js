@@ -1443,7 +1443,7 @@
             const pConfig = {
                 height: '100%',
                 width: '100%',
-                host: 'https://www.youtube-nocookie.com',
+                // host: 'https://www.youtube-nocookie.com',
                 videoId: id,
                 playerVars: {
                     playsinline: 1,
