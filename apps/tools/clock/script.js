@@ -166,11 +166,18 @@
         return out;
     }
 
-    function calcNextTargetDate(h12, min, ampm, nowDate = new Date()) {
-        let targetH = Math.max(1, Math.min(12, Math.trunc(Number(h12) || 12)));
-        const targetM = Math.max(0, Math.min(59, Math.trunc(Number(min) || 0)));
-        if (ampm === 'PM' && targetH < 12) targetH += 12;
-        if (ampm === 'AM' && targetH === 12) targetH = 0;
+    function calcNextTargetDate(h, min, ampm, nowDate = new Date(), is24Hour = false) {
+        let targetH;
+        const parsedH = Math.trunc(Number(h));
+        if (is24Hour) {
+            targetH = Math.max(0, Math.min(23, Number.isFinite(parsedH) ? parsedH : 0));
+        } else {
+            targetH = Math.max(1, Math.min(12, Number.isFinite(parsedH) && parsedH >= 1 ? parsedH : 12));
+            if (ampm === 'PM' && targetH < 12) targetH += 12;
+            if (ampm === 'AM' && targetH === 12) targetH = 0;
+        }
+        const parsedM = Math.trunc(Number(min));
+        const targetM = Math.max(0, Math.min(59, Number.isFinite(parsedM) ? parsedM : 0));
 
         const targetDate = new Date(
             nowDate.getFullYear(),
@@ -473,9 +480,10 @@
             const buttons = [DOM.get('btn-mute-toggle'), DOM.get('btn-mute-mobile')];
             buttons.forEach((btn) => {
                 if (!btn) return;
+                const iconSize = btn.id === 'btn-mute-toggle' ? 'w-5 h-5' : 'w-4 h-4';
                 btn.innerHTML = state.audio.muted
-                    ? '<i data-lucide="volume-x" class="w-4 h-4 text-pink"></i>'
-                    : '<i data-lucide="volume-2" class="w-4 h-4 text-blue"></i>';
+                    ? `<i data-lucide="volume-x" class="${iconSize} text-pink"></i>`
+                    : `<i data-lucide="volume-2" class="${iconSize} text-blue"></i>`;
                 btn.title = state.audio.muted ? 'Unmute Sounds (M)' : 'Mute Sounds (M)';
                 hydrateIcons(btn);
             });
@@ -829,7 +837,7 @@
             localStorage.setItem(CONSTANTS.LS_WORLD_CLOCKS, JSON.stringify(state.clock.worldCities));
             saveAllToCloud();
         },
-        applyPreferencesUI() {
+        applyPreferencesUI(prev24Hour = null) {
             const c = state.clock;
             const btnFormat = DOM.get('clock-btn-format');
             const btnView = DOM.get('clock-btn-view');
@@ -924,10 +932,10 @@
             if (modeBadge) {
                 const span = modeBadge.querySelector('span');
                 if (c.teachMode) {
-                    modeBadge.className = 'inline-flex items-center gap-1.5 px-3 py-1 rounded-full border-2 border-[#1e293b] dark:border-slate-600 bg-orange/15 text-orange font-heading font-bold text-[11px] uppercase tracking-wider';
+                    modeBadge.className = 'inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full border-2 border-[#1e293b] dark:border-slate-600 bg-orange/15 text-orange font-heading font-bold text-xs uppercase tracking-wider';
                     if (span) span.textContent = 'TEACH MODE';
                 } else {
-                    modeBadge.className = 'inline-flex items-center gap-1.5 px-3 py-1 rounded-full border-2 border-[#1e293b] dark:border-slate-600 bg-green/15 text-green font-heading font-bold text-[11px] uppercase tracking-wider';
+                    modeBadge.className = 'inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full border-2 border-[#1e293b] dark:border-slate-600 bg-green/15 text-green font-heading font-bold text-xs uppercase tracking-wider';
                     if (span) span.textContent = 'LIVE CLOCK';
                 }
             }
@@ -935,6 +943,12 @@
             this.renderWorldClocks();
             c.lastSecond = -1;
             this.update();
+            if (typeof countdown !== 'undefined' && countdown.syncFormatUI) {
+                countdown.syncFormatUI(prev24Hour);
+            }
+            if (typeof alarm !== 'undefined' && alarm.syncFormatUI) {
+                alarm.syncFormatUI(prev24Hour);
+            }
         },
         update() {
             const c = state.clock;
@@ -1011,8 +1025,9 @@
             sidebar.updateBadges();
         },
         toggleFormat() {
+            const was24Hour = state.clock.is24Hour;
             state.clock.is24Hour = !state.clock.is24Hour;
-            this.applyPreferencesUI();
+            this.applyPreferencesUI(was24Hour);
             this.updateWorldClocks();
             this.savePrefs();
         },
@@ -1129,8 +1144,8 @@
             const btn = DOM.get('clock-btn-reveal-answer');
             if (btn) {
                 btn.innerHTML = state.clock.teachRevealAnswer
-                    ? '<i data-lucide="eye" class="w-3 h-3"></i> Hide Answer'
-                    : '<i data-lucide="eye-off" class="w-3 h-3"></i> Reveal';
+                    ? '<i data-lucide="eye" class="w-3.5 h-3.5"></i> Hide Answer'
+                    : '<i data-lucide="eye-off" class="w-3.5 h-3.5"></i> Reveal';
                 hydrateIcons(btn);
             }
             state.clock.lastSecond = -1;
@@ -1176,8 +1191,8 @@
 
             if (btn) {
                 btn.innerHTML = sw.running
-                    ? '<i data-lucide="pause" class="w-7 h-7 fill-current"></i>'
-                    : '<i data-lucide="play" class="w-7 h-7 fill-current ml-0.5"></i>';
+                    ? '<i data-lucide="pause" class="w-8 h-8 fill-current"></i>'
+                    : '<i data-lucide="play" class="w-8 h-8 fill-current ml-0.5"></i>';
                 btn.classList.toggle('bg-orange', sw.running);
                 btn.classList.toggle('bg-blue', !sw.running);
                 hydrateIcons(btn);
@@ -1410,15 +1425,15 @@
             const trafficPane = DOM.get('timer-visual-traffic');
             const btnStart = DOM.get('timer-btn-start');
 
-            const inactiveCls = 'btn-chunky px-3 sm:px-4 py-1.5 rounded-lg text-xs font-heading font-bold uppercase gap-1.5 bg-white dark:bg-slate-800 text-dark dark:text-white';
+            const inactiveCls = 'btn-chunky px-3.5 sm:px-5 py-2 rounded-xl text-xs sm:text-sm font-heading font-bold uppercase gap-1.5 bg-white dark:bg-slate-800 text-dark dark:text-white';
             if (btnCalm) btnCalm.className = mode === 'calm'
-                ? 'btn-chunky px-3 sm:px-4 py-1.5 rounded-lg text-xs font-heading font-bold uppercase gap-1.5 bg-green text-white'
+                ? 'btn-chunky px-3.5 sm:px-5 py-2 rounded-xl text-xs sm:text-sm font-heading font-bold uppercase gap-1.5 bg-green text-white'
                 : inactiveCls;
             if (btnBomb) btnBomb.className = mode === 'bomb'
-                ? 'btn-chunky px-3 sm:px-4 py-1.5 rounded-lg text-xs font-heading font-bold uppercase gap-1.5 bg-orange text-white'
+                ? 'btn-chunky px-3.5 sm:px-5 py-2 rounded-xl text-xs sm:text-sm font-heading font-bold uppercase gap-1.5 bg-orange text-white'
                 : inactiveCls;
             if (btnTraffic) btnTraffic.className = mode === 'traffic'
-                ? 'btn-chunky px-3 sm:px-4 py-1.5 rounded-lg text-xs font-heading font-bold uppercase gap-1.5 bg-blue text-white'
+                ? 'btn-chunky px-3.5 sm:px-5 py-2 rounded-xl text-xs sm:text-sm font-heading font-bold uppercase gap-1.5 bg-blue text-white'
                 : inactiveCls;
 
             if (zenPane) zenPane.classList.toggle('active', mode === 'calm');
@@ -1427,7 +1442,7 @@
 
             if (btnStart) {
                 const accent = mode === 'bomb' ? 'bg-orange' : mode === 'traffic' ? 'bg-blue' : 'bg-green';
-                btnStart.className = `btn-chunky w-16 h-16 sm:w-[72px] sm:h-[72px] rounded-3xl ${accent} text-white mx-1`;
+                btnStart.className = `btn-chunky w-20 h-20 rounded-3xl ${accent} text-white mx-1`;
             }
 
             if (mode === 'bomb' && state.timer.sound === 'chime') {
@@ -1664,7 +1679,7 @@
             if (status) {
                 const labelText = zone === 'pink' ? 'FINAL SECONDS' : zone === 'yellow' ? 'WRAP UP SOON' : 'WORK TIME';
                 status.textContent = t.task ? `${t.task.toUpperCase()} · ${labelText}` : labelText;
-                status.className = `font-heading font-bold text-xs uppercase tracking-widest ${zone === 'pink' ? 'text-pink' : zone === 'yellow' ? 'text-orange' : 'text-green'}`;
+                status.className = `font-heading font-bold text-xs sm:text-sm uppercase tracking-widest ${zone === 'pink' ? 'text-pink' : zone === 'yellow' ? 'text-orange' : 'text-green'}`;
             }
         },
         toggle() {
@@ -1696,7 +1711,7 @@
 
             const btnStart = DOM.get('timer-btn-start');
             if (btnStart) {
-                btnStart.innerHTML = '<i data-lucide="pause" class="w-8 h-8 fill-current"></i>';
+                btnStart.innerHTML = '<i data-lucide="pause" class="w-9 h-9 fill-current"></i>';
                 hydrateIcons(btnStart);
             }
 
@@ -1736,7 +1751,7 @@
 
             const btnStart = DOM.get('timer-btn-start');
             if (btnStart) {
-                btnStart.innerHTML = '<i data-lucide="play" class="w-8 h-8 fill-current ml-0.5"></i>';
+                btnStart.innerHTML = '<i data-lucide="play" class="w-9 h-9 fill-current ml-0.5"></i>';
                 hydrateIcons(btnStart);
             }
             const bombSvg = DOM.get('timer-bomb-svg');
@@ -1899,10 +1914,61 @@
     // 5. ALARM MODULE (Multi-Alarm, Repeat, Snooze, XSS-Safe)
     // ========================================================
     const alarm = {
+        setAmPm(ampm) {
+            state.alarm.ampm = ampm === 'PM' ? 'PM' : 'AM';
+            this.syncAmPmUI();
+        },
         toggleAmPm() {
-            state.alarm.ampm = state.alarm.ampm === 'AM' ? 'PM' : 'AM';
-            const btn = DOM.get('alarm-ampm-btn');
-            if (btn) btn.textContent = state.alarm.ampm;
+            this.setAmPm(state.alarm.ampm === 'AM' ? 'PM' : 'AM');
+        },
+        syncAmPmUI() {
+            const isPM = state.alarm.ampm === 'PM';
+            const amBtn = DOM.get('alarm-am-btn');
+            const pmBtn = DOM.get('alarm-pm-btn');
+            if (amBtn) {
+                amBtn.setAttribute('aria-pressed', String(!isPM));
+                amBtn.classList.toggle('bg-pink', !isPM);
+                amBtn.classList.toggle('text-white', !isPM);
+                amBtn.classList.toggle('text-slate-500', isPM);
+                amBtn.classList.toggle('dark:text-slate-400', isPM);
+            }
+            if (pmBtn) {
+                pmBtn.setAttribute('aria-pressed', String(isPM));
+                pmBtn.classList.toggle('bg-blue', isPM);
+                pmBtn.classList.toggle('text-white', isPM);
+                pmBtn.classList.toggle('text-slate-500', !isPM);
+                pmBtn.classList.toggle('dark:text-slate-400', !isPM);
+            }
+        },
+        syncFormatUI(was24Hour = null) {
+            const is24 = state.clock.is24Hour;
+            const fmtBtn = DOM.get('alarm-btn-format');
+            const ampmGroup = DOM.get('alarm-ampm-group');
+            const hEl = DOM.get('alarm-hour');
+
+            if (fmtBtn) fmtBtn.textContent = is24 ? '24H' : '12H';
+            if (ampmGroup) ampmGroup.classList.toggle('is-hidden', is24);
+
+            if (hEl) {
+                if (was24Hour !== null && was24Hour !== is24) {
+                    const rawH = parseInt(hEl.value, 10);
+                    if (is24) {
+                        const h12 = Math.max(1, Math.min(12, Number.isFinite(rawH) && rawH >= 1 ? rawH : 12));
+                        const h24 = (h12 === 12 ? 0 : h12) + (state.alarm.ampm === 'PM' ? 12 : 0);
+                        hEl.value = padZero(h24);
+                    } else {
+                        const h24 = Math.max(0, Math.min(23, Number.isFinite(rawH) ? rawH : 7));
+                        state.alarm.ampm = h24 >= 12 ? 'PM' : 'AM';
+                        hEl.value = padZero(h24 % 12 || 12);
+                    }
+                }
+                hEl.min = is24 ? '0' : '1';
+                hEl.max = is24 ? '23' : '12';
+                hEl.placeholder = is24 ? '07' : '07';
+            }
+
+            this.syncAmPmUI();
+            this.renderList();
         },
         setRepeat(rep) {
             state.alarm.repeat = ['once', 'daily', 'weekdays'].includes(rep) ? rep : 'once';
@@ -1932,14 +1998,13 @@
             const h24 = target.getHours();
             const m = target.getMinutes();
             state.alarm.ampm = h24 >= 12 ? 'PM' : 'AM';
-            const h12 = h24 % 12 || 12;
+            const displayH = state.clock.is24Hour ? h24 : (h24 % 12 || 12);
 
             const hEl = DOM.get('alarm-hour');
             const mEl = DOM.get('alarm-min');
-            const btn = DOM.get('alarm-ampm-btn');
-            if (hEl) hEl.value = padZero(h12);
+            if (hEl) hEl.value = padZero(displayH);
             if (mEl) mEl.value = padZero(m);
-            if (btn) btn.textContent = state.alarm.ampm;
+            this.syncAmPmUI();
         },
         previewSound() {
             const sel = DOM.get('alarm-sound-select');
@@ -1955,7 +2020,6 @@
             const titleEl = DOM.get('alarm-form-title');
             const hEl = DOM.get('alarm-hour');
             const mEl = DOM.get('alarm-min');
-            const ampmBtn = DOM.get('alarm-ampm-btn');
             const labelEl = DOM.get('alarm-label');
             const soundSel = DOM.get('alarm-sound-select');
 
@@ -1964,10 +2028,10 @@
                 const existing = state.alarm.alarms.find(a => a.id === editId);
                 if (existing) {
                     if (titleEl) titleEl.textContent = 'Edit Alarm';
-                    if (hEl) hEl.value = padZero(existing.h);
-                    if (mEl) mEl.value = padZero(existing.m);
                     state.alarm.ampm = existing.ampm;
-                    if (ampmBtn) ampmBtn.textContent = existing.ampm;
+                    const displayH = state.clock.is24Hour ? existing.adjustedH : existing.h;
+                    if (hEl) hEl.value = padZero(displayH);
+                    if (mEl) mEl.value = padZero(existing.m);
                     if (labelEl) labelEl.value = existing.label || '';
                     this.setRepeat(existing.repeat || 'once');
                     if (soundSel) soundSel.value = existing.sound || 'bell';
@@ -1977,13 +2041,15 @@
                 const nowPlus = new Date(Date.now() + 5 * 60000);
                 const h24 = nowPlus.getHours();
                 state.alarm.ampm = h24 >= 12 ? 'PM' : 'AM';
-                if (hEl) hEl.value = padZero(h24 % 12 || 12);
+                const displayH = state.clock.is24Hour ? h24 : (h24 % 12 || 12);
+                if (hEl) hEl.value = padZero(displayH);
                 if (mEl) mEl.value = padZero(nowPlus.getMinutes());
-                if (ampmBtn) ampmBtn.textContent = state.alarm.ampm;
                 if (labelEl) labelEl.value = '';
                 this.setRepeat('once');
                 if (soundSel) soundSel.value = 'bell';
             }
+
+            this.syncFormatUI();
 
             if (drawer) {
                 drawer.classList.add('open');
@@ -2005,16 +2071,31 @@
             const labelEl = DOM.get('alarm-label');
             const soundSel = DOM.get('alarm-sound-select');
 
-            let h = parseInt(hEl ? hEl.value : '12', 10);
-            if (isNaN(h)) h = 12;
-            h = Math.max(1, Math.min(12, h));
+            const rawH = parseInt(hEl ? hEl.value : '', 10);
+            let h, ampm, adjustedH;
+            if (state.clock.is24Hour) {
+                adjustedH = Math.max(0, Math.min(23, Number.isFinite(rawH) ? rawH : 7));
+                ampm = adjustedH >= 12 ? 'PM' : 'AM';
+                h = adjustedH % 12 || 12;
+            } else {
+                const rawTrim = hEl ? hEl.value.trim() : '';
+                if (Number.isFinite(rawH) && rawH >= 13 && rawH <= 23) {
+                    h = rawH - 12;
+                    ampm = 'PM';
+                } else if (rawTrim !== '' && rawH === 0) {
+                    h = 12;
+                    ampm = 'AM';
+                } else {
+                    h = Math.max(1, Math.min(12, Number.isFinite(rawH) && rawH >= 1 ? rawH : 12));
+                    ampm = state.alarm.ampm;
+                }
+                adjustedH = ampm === 'AM' ? (h === 12 ? 0 : h) : (h === 12 ? 12 : h + 12);
+            }
 
             let m = parseInt(mEl ? mEl.value : '0', 10);
             if (isNaN(m)) m = 0;
             m = Math.max(0, Math.min(59, m));
 
-            const ampm = state.alarm.ampm;
-            const adjustedH = ampm === 'AM' ? (h === 12 ? 0 : h) : (h === 12 ? 12 : h + 12);
             const label = (labelEl ? labelEl.value.trim() : '') || 'Classroom Alarm';
             const repeat = state.alarm.repeat || 'once';
             const sound = soundSel ? soundSel.value : 'bell';
@@ -2087,34 +2168,37 @@
             );
 
             const repeatLabels = { once: 'Once', daily: 'Daily', weekdays: 'Mon-Fri' };
+            const is24 = state.clock.is24Hour;
 
             container.innerHTML = sorted.map((al) => {
                 const nextDiff = al.enabled ? calcNextAlarmDiff(al, now) : Infinity;
                 const etaStr = Number.isFinite(nextDiff) ? `in ${formatHumanDuration(nextDiff)}` : 'Off';
                 const repeatText = repeatLabels[al.repeat || 'once'] || 'Once';
+                const timeStr = is24 ? `${padZero(al.adjustedH)}:${padZero(al.m)}` : `${padZero(al.h)}:${padZero(al.m)}`;
+                const ampmBadge = is24 ? '' : `<span class="text-base sm:text-lg font-heading font-bold text-pink">${escapeHtml(al.ampm)}</span>`;
                 return `
-                    <div class="p-3 rounded-2xl border-[3px] border-[#1e293b] dark:border-slate-600 bg-white dark:bg-slate-800 flex items-center justify-between gap-3 shadow-[3px_3px_0px_0px_#1e293b] dark:shadow-[3px_3px_0px_0px_#000] transition-opacity ${!al.enabled ? 'opacity-55' : ''}">
+                    <div class="p-4 sm:p-5 rounded-2xl border-[3px] border-[#1e293b] dark:border-slate-600 bg-white dark:bg-slate-800 flex items-center justify-between gap-3 shadow-[3px_3px_0px_0px_#1e293b] dark:shadow-[3px_3px_0px_0px_#000] transition-opacity ${!al.enabled ? 'opacity-55' : ''}">
                         <div class="flex flex-col text-left min-w-0">
-                            <div class="flex items-baseline gap-2 flex-wrap">
-                                <span class="text-2xl sm:text-3xl font-mono font-bold text-dark dark:text-white leading-none">${padZero(al.h)}:${padZero(al.m)}</span>
-                                <span class="text-sm sm:text-base font-heading font-bold text-pink">${escapeHtml(al.ampm)}</span>
+                            <div class="flex items-baseline gap-2.5 flex-wrap">
+                                <span class="text-3xl sm:text-4xl font-mono font-bold text-dark dark:text-white leading-none">${timeStr}</span>
+                                ${ampmBadge}
                                 <span class="px-2 py-0.5 rounded-lg bg-slate-100 dark:bg-slate-700 text-[10px] font-heading font-bold uppercase text-slate-600 dark:text-slate-300">${repeatText}</span>
-                                <span class="text-[11px] font-heading font-bold text-blue uppercase">${etaStr}</span>
+                                <span class="text-xs font-heading font-bold text-blue uppercase">${etaStr}</span>
                             </div>
-                            <div class="text-xs font-heading font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 truncate mt-1">${escapeHtml(al.label)}</div>
+                            <div class="text-sm font-heading font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 truncate mt-1">${escapeHtml(al.label)}</div>
                         </div>
-                        <div class="flex items-center gap-1.5 flex-shrink-0">
+                        <div class="flex items-center gap-2 flex-shrink-0">
                             <button type="button" onclick="alarm.openAddForm(${al.id})" title="Edit alarm"
-                                class="btn-chunky p-2 rounded-xl bg-white dark:bg-slate-700 text-dark dark:text-white">
-                                <i data-lucide="pencil" class="w-4 h-4 text-blue"></i>
+                                class="btn-chunky p-2.5 rounded-xl bg-white dark:bg-slate-700 text-dark dark:text-white">
+                                <i data-lucide="pencil" class="w-5 h-5 text-blue"></i>
                             </button>
                             <button type="button" onclick="alarm.toggleEnable(${al.id})" title="${al.enabled ? 'Disable alarm' : 'Enable alarm'}"
-                                class="btn-chunky p-2 rounded-xl ${al.enabled ? 'bg-green text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-400'}">
-                                <i data-lucide="power" class="w-4 h-4"></i>
+                                class="btn-chunky p-2.5 rounded-xl ${al.enabled ? 'bg-green text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-400'}">
+                                <i data-lucide="power" class="w-5 h-5"></i>
                             </button>
                             <button type="button" onclick="alarm.delete(${al.id})" title="Delete alarm"
-                                class="btn-chunky p-2 bg-pink text-white rounded-xl">
-                                <i data-lucide="trash-2" class="w-4 h-4"></i>
+                                class="btn-chunky p-2.5 bg-pink text-white rounded-xl">
+                                <i data-lucide="trash-2" class="w-5 h-5"></i>
                             </button>
                         </div>
                     </div>`;
@@ -2163,7 +2247,11 @@
             const timeEl = DOM.get('alarm-overlay-time');
 
             if (labelEl) labelEl.textContent = al.label || 'Alarm!';
-            if (timeEl) timeEl.textContent = `${padZero(al.h)}:${padZero(al.m)} ${al.ampm}`;
+            if (timeEl) {
+                timeEl.textContent = state.clock.is24Hour
+                    ? `${padZero(al.adjustedH)}:${padZero(al.m)}`
+                    : `${padZero(al.h)}:${padZero(al.m)} ${al.ampm}`;
+            }
             if (overlay) {
                 overlay.classList.add('open');
                 overlay.setAttribute('aria-hidden', 'false');
@@ -2203,7 +2291,10 @@
             this.saveState();
             saveAllToCloud();
             this.renderList();
-            showToast(`Snoozed for 5 minutes (${padZero(h)}:${padZero(m)} ${ampm})`, 'info');
+            const toastTime = state.clock.is24Hour
+                ? `${padZero(h24)}:${padZero(m)}`
+                : `${padZero(h)}:${padZero(m)} ${ampm}`;
+            showToast(`Snoozed for 5 minutes (${toastTime})`, 'info');
         },
         stopSound() {
             if (state.alarm.soundInterval) {
@@ -2249,15 +2340,84 @@
     // 6. COUNTDOWN MODULE (Target Clock Time w/ Auto-Tomorrow)
     // ========================================================
     const countdown = {
-        toggleAmPm() {
-            state.countdown.ampm = state.countdown.ampm === 'AM' ? 'PM' : 'AM';
-            const btn = DOM.get('countdown-ampm-btn');
-            if (btn) {
-                btn.textContent = state.countdown.ampm;
-                btn.classList.toggle('bg-blue', state.countdown.ampm === 'PM');
-                btn.classList.toggle('bg-pink', state.countdown.ampm === 'AM');
+        setAmPm(ampm) {
+            state.countdown.ampm = ampm === 'AM' ? 'AM' : 'PM';
+            this.syncAmPmUI();
+            if (state.countdown.active) {
+                this.update();
+            } else {
+                this.updatePreview();
             }
-            this.updatePreview();
+        },
+        toggleAmPm() {
+            this.setAmPm(state.countdown.ampm === 'AM' ? 'PM' : 'AM');
+        },
+        syncAmPmUI() {
+            const isPM = state.countdown.ampm === 'PM';
+            const amBtn = DOM.get('countdown-am-btn');
+            const pmBtn = DOM.get('countdown-pm-btn');
+            if (amBtn) {
+                amBtn.setAttribute('aria-pressed', String(!isPM));
+                amBtn.classList.toggle('bg-pink', !isPM);
+                amBtn.classList.toggle('text-white', !isPM);
+                amBtn.classList.toggle('text-slate-500', isPM);
+                amBtn.classList.toggle('dark:text-slate-400', isPM);
+            }
+            if (pmBtn) {
+                pmBtn.setAttribute('aria-pressed', String(isPM));
+                pmBtn.classList.toggle('bg-blue', isPM);
+                pmBtn.classList.toggle('text-white', isPM);
+                pmBtn.classList.toggle('text-slate-500', !isPM);
+                pmBtn.classList.toggle('dark:text-slate-400', !isPM);
+            }
+        },
+        syncFormatUI(was24Hour = null) {
+            const is24 = state.clock.is24Hour;
+            const fmtBtn = DOM.get('cd-btn-format');
+            const ampmGroup = DOM.get('countdown-ampm-group');
+            const hEl = DOM.get('countdown-hour');
+            const targetDisp = DOM.get('countdown-target-display');
+
+            if (fmtBtn) fmtBtn.textContent = is24 ? '24H' : '12H';
+            if (ampmGroup) ampmGroup.classList.toggle('is-hidden', is24);
+
+            if (hEl) {
+                if (was24Hour !== null && was24Hour !== is24) {
+                    const rawH = parseInt(hEl.value, 10);
+                    if (is24) {
+                        const h12 = Math.max(1, Math.min(12, Number.isFinite(rawH) ? rawH : 12));
+                        const h24 = (h12 === 12 ? 0 : h12) + (state.countdown.ampm === 'PM' ? 12 : 0);
+                        hEl.value = padZero(h24);
+                    } else {
+                        const h24 = Math.max(0, Math.min(23, Number.isFinite(rawH) ? rawH : 12));
+                        state.countdown.ampm = h24 >= 12 ? 'PM' : 'AM';
+                        hEl.value = padZero(h24 % 12 || 12);
+                    }
+                }
+                hEl.min = is24 ? '0' : '1';
+                hEl.max = is24 ? '23' : '12';
+                hEl.placeholder = is24 ? '00' : '12';
+            }
+
+            if (targetDisp && state.countdown.target) {
+                const t = state.countdown.target;
+                const h12 = t.h;
+                const m = t.m;
+                const ampm = t.ampm || 'PM';
+                if (is24) {
+                    const h24 = (h12 === 12 ? 0 : h12) + (ampm === 'PM' ? 12 : 0);
+                    targetDisp.textContent = `${padZero(h24)}:${padZero(m)}`;
+                } else {
+                    targetDisp.textContent = `${h12}:${padZero(m)} ${ampm}`;
+                }
+            }
+
+            this.syncAmPmUI();
+            if (state.countdown.active) {
+                this.update();
+            } else {
+                this.updatePreview();
+            }
         },
         setLabel(text) {
             const inp = DOM.get('countdown-label');
@@ -2278,46 +2438,72 @@
             const h24 = target.getHours();
             const m = target.getMinutes();
             state.countdown.ampm = h24 >= 12 ? 'PM' : 'AM';
-            const h12 = h24 % 12 || 12;
+            const displayH = state.clock.is24Hour ? h24 : (h24 % 12 || 12);
 
             const hEl = DOM.get('countdown-hour');
             const mEl = DOM.get('countdown-min');
-            const btn = DOM.get('countdown-ampm-btn');
-            if (hEl) hEl.value = padZero(h12);
+            if (hEl) hEl.value = padZero(displayH);
             if (mEl) mEl.value = padZero(m);
-            if (btn) {
-                btn.textContent = state.countdown.ampm;
-                btn.classList.toggle('bg-blue', state.countdown.ampm === 'PM');
-                btn.classList.toggle('bg-pink', state.countdown.ampm === 'AM');
+            this.syncAmPmUI();
+            if (state.countdown.active) {
+                this.update();
+            } else {
+                this.updatePreview();
             }
-            this.updatePreview();
+        },
+        _readSetupTime() {
+            const hEl = DOM.get('countdown-hour');
+            const mEl = DOM.get('countdown-min');
+            const is24 = state.clock.is24Hour;
+            const rawTrim = hEl ? hEl.value.trim() : '';
+            const rawH = parseInt(rawTrim, 10);
+            const rawM = parseInt(mEl ? mEl.value : '', 10);
+            const min = Math.max(0, Math.min(59, Number.isFinite(rawM) ? rawM : 0));
+
+            if (is24) {
+                const h24 = Math.max(0, Math.min(23, Number.isFinite(rawH) ? rawH : 0));
+                const ampm = h24 >= 12 ? 'PM' : 'AM';
+                const h12 = h24 % 12 || 12;
+                return { inputH: h24, h12, min, ampm, is24: true };
+            }
+
+            if (Number.isFinite(rawH) && rawH >= 13 && rawH <= 23) {
+                const h12 = rawH - 12;
+                return { inputH: h12, h12, min, ampm: 'PM', is24: false };
+            }
+            if (rawTrim !== '' && rawH === 0) {
+                return { inputH: 12, h12: 12, min, ampm: 'AM', is24: false };
+            }
+            const h12 = Math.max(1, Math.min(12, Number.isFinite(rawH) && rawH >= 1 ? rawH : 12));
+            return { inputH: h12, h12, min, ampm: state.countdown.ampm, is24: false };
         },
         updatePreview() {
             const badge = DOM.get('countdown-preview-badge');
             if (!badge) return;
-            const hEl = DOM.get('countdown-hour');
-            const mEl = DOM.get('countdown-min');
-            const h12 = Math.max(1, Math.min(12, parseInt(hEl ? hEl.value : '12', 10) || 12));
-            const min = Math.max(0, Math.min(59, parseInt(mEl ? mEl.value : '0', 10) || 0));
-            const { isTomorrow, diffMs } = calcNextTargetDate(h12, min, state.countdown.ampm, new Date());
-            badge.textContent = `${isTomorrow ? 'Tomorrow' : 'Today'} · ${formatHumanDuration(diffMs)} from now`;
+            const { inputH, h12, min, ampm, is24 } = this._readSetupTime();
+            const { isTomorrow, diffMs } = calcNextTargetDate(inputH, min, ampm, new Date(), is24);
+            const targetStr = is24 ? `${padZero(inputH)}:${padZero(min)}` : `${h12}:${padZero(min)} ${ampm}`;
+            badge.textContent = `${isTomorrow ? 'Tomorrow' : 'Today'} at ${targetStr} · ${formatHumanDuration(diffMs)} from now`;
         },
         start(restored = null) {
-            const hEl = DOM.get('countdown-hour');
-            const mEl = DOM.get('countdown-min');
             const lblEl = DOM.get('countdown-label');
+            let h, m, ampm, targetTimestamp, startedAt, isTomorrow, label;
 
-            const h = restored ? restored.target.h : Math.max(1, Math.min(12, parseInt(hEl ? hEl.value : '12', 10) || 12));
-            const m = restored ? restored.target.m : Math.max(0, Math.min(59, parseInt(mEl ? mEl.value : '0', 10) || 0));
-            const ampm = restored ? restored.target.ampm : state.countdown.ampm;
-            const label = restored ? restored.label : ((lblEl && lblEl.value.trim()) || 'COUNTDOWN');
-
-            let targetTimestamp = restored ? Number(restored.targetTimestamp) : 0;
-            let startedAt = restored ? Number(restored.startedAt) : Date.now();
-            let isTomorrow = restored ? Boolean(restored.isTomorrow) : false;
-
-            if (!targetTimestamp) {
-                const res = calcNextTargetDate(h, m, ampm, new Date());
+            if (restored) {
+                h = restored.target.h;
+                m = restored.target.m;
+                ampm = restored.target.ampm;
+                label = restored.label;
+                targetTimestamp = Number(restored.targetTimestamp);
+                startedAt = Number(restored.startedAt);
+                isTomorrow = Boolean(restored.isTomorrow);
+            } else {
+                const parsed = this._readSetupTime();
+                h = parsed.h12;
+                m = parsed.min;
+                ampm = parsed.ampm;
+                label = (lblEl && lblEl.value.trim()) || 'COUNTDOWN';
+                const res = calcNextTargetDate(parsed.inputH, m, ampm, new Date(), parsed.is24);
                 targetTimestamp = res.targetDate.getTime();
                 isTomorrow = res.isTomorrow;
                 startedAt = Date.now();
@@ -2340,7 +2526,14 @@
             if (runningView) runningView.classList.add('active');
             if (activeLabel) activeLabel.textContent = label;
             if (tomorrowBadge) tomorrowBadge.classList.toggle('is-hidden', !isTomorrow);
-            if (targetDisp) targetDisp.textContent = `${h}:${padZero(m)} ${ampm}`;
+            if (targetDisp) {
+                if (state.clock.is24Hour) {
+                    const h24 = (h === 12 ? 0 : h) + (ampm === 'PM' ? 12 : 0);
+                    targetDisp.textContent = `${padZero(h24)}:${padZero(m)}`;
+                } else {
+                    targetDisp.textContent = `${h}:${padZero(m)} ${ampm}`;
+                }
+            }
 
             audio.ensureContext();
             this.update();
@@ -2356,7 +2549,9 @@
             if (nowDisp) {
                 const n = new Date(nowMs);
                 const nh = n.getHours();
-                nowDisp.textContent = `${nh % 12 || 12}:${padZero(n.getMinutes())} ${nh >= 12 ? 'PM' : 'AM'}`;
+                nowDisp.textContent = state.clock.is24Hour
+                    ? `${padZero(nh)}:${padZero(n.getMinutes())}`
+                    : `${nh % 12 || 12}:${padZero(n.getMinutes())} ${nh >= 12 ? 'PM' : 'AM'}`;
             }
 
             if (diff <= 0) {
@@ -2364,9 +2559,10 @@
                 return;
             }
 
-            const h = Math.floor(diff / 3600000);
-            const m = Math.floor((diff % 3600000) / 60000);
-            const s = Math.floor((diff % 60000) / 1000);
+            const totalSec = Math.max(0, Math.ceil(diff / 1000));
+            const h = Math.floor(totalSec / 3600);
+            const m = Math.floor((totalSec % 3600) / 60);
+            const s = totalSec % 60;
 
             const timeDisp = DOM.get('countdown-time-display');
             if (timeDisp) {
@@ -2455,24 +2651,29 @@
                         const hEl = DOM.get('countdown-hour');
                         const mEl = DOM.get('countdown-min');
                         const lblEl = DOM.get('countdown-label');
-                        const btn = DOM.get('countdown-ampm-btn');
-                        if (hEl) hEl.value = padZero(data.target.h);
-                        if (mEl) mEl.value = padZero(data.target.m);
                         state.countdown.ampm = data.target.ampm || 'PM';
+                        const h12 = data.target.h;
+                        const displayH = state.clock.is24Hour
+                            ? ((h12 === 12 ? 0 : h12) + (state.countdown.ampm === 'PM' ? 12 : 0))
+                            : h12;
+                        if (hEl) hEl.value = padZero(displayH);
+                        if (mEl) mEl.value = padZero(data.target.m);
                         if (lblEl) lblEl.value = data.label || '';
-                        if (btn) {
-                            btn.textContent = state.countdown.ampm;
-                            btn.classList.toggle('bg-blue', state.countdown.ampm === 'PM');
-                            btn.classList.toggle('bg-pink', state.countdown.ampm === 'AM');
-                        }
+                        this.syncFormatUI();
                         if (data.targetTimestamp && data.targetTimestamp > Date.now()) {
                             this.start(data);
                             return;
                         }
+                        state.countdown.active = false;
+                        state.countdown.target = null;
+                        state.countdown.targetTimestamp = 0;
+                        if (lblEl) lblEl.value = '';
+                        this.saveState();
                     }
                 }
             } catch (_) {}
-            this.updatePreview();
+            this.applyQuick('next00');
+            this.syncFormatUI();
         }
     };
 
@@ -2606,7 +2807,7 @@
             const isSelected = state.calendar.selected === dateKey;
             const mark = state.calendar.marked[dateKey];
 
-            let classes = 'cal-day rounded-xl sm:rounded-2xl flex flex-col items-center justify-center font-heading font-bold text-sm sm:text-lg relative cursor-pointer border-2 sm:border-[3px] ';
+            let classes = 'cal-day rounded-xl sm:rounded-2xl flex flex-col items-center justify-center font-heading font-bold text-base sm:text-xl relative cursor-pointer border-2 sm:border-[3px] ';
             if (isToday) {
                 classes += 'bg-blue text-white border-[#1e293b] shadow-[3px_3px_0px_0px_#1e293b] dark:shadow-[3px_3px_0px_0px_#000] z-10 ';
             } else if (isCurrMonth) {
@@ -2852,15 +3053,68 @@
             if (el) el.addEventListener('change', () => timer.syncFromManualInput());
         });
 
-        validateRange(DOM.get('alarm-hour'), 1, 12);
+        const alarmHour = DOM.get('alarm-hour');
+        if (alarmHour) {
+            alarmHour.addEventListener('change', () => {
+                let v = parseInt(alarmHour.value, 10);
+                if (state.clock.is24Hour) {
+                    if (isNaN(v)) v = 0;
+                    v = Math.max(0, Math.min(23, v));
+                } else {
+                    if (v >= 13 && v <= 23) {
+                        v -= 12;
+                        alarm.setAmPm('PM');
+                    } else if (alarmHour.value.trim() !== '' && v === 0) {
+                        v = 12;
+                        alarm.setAmPm('AM');
+                    } else {
+                        if (isNaN(v)) v = 1;
+                        v = Math.max(1, Math.min(12, v));
+                    }
+                }
+                alarmHour.value = padZero(v);
+            });
+        }
         validateRange(DOM.get('alarm-min'), 0, 59);
 
         const cdHour = DOM.get('countdown-hour');
         const cdMin = DOM.get('countdown-min');
-        validateRange(cdHour, 1, 12);
+        const cdLabel = DOM.get('countdown-label');
+        if (cdHour) {
+            cdHour.addEventListener('change', () => {
+                let v = parseInt(cdHour.value, 10);
+                if (state.clock.is24Hour) {
+                    if (isNaN(v)) v = 0;
+                    v = Math.max(0, Math.min(23, v));
+                } else {
+                    if (v >= 13 && v <= 23) {
+                        v -= 12;
+                        countdown.setAmPm('PM');
+                    } else if (cdHour.value.trim() !== '' && v === 0) {
+                        v = 12;
+                        countdown.setAmPm('AM');
+                    } else {
+                        if (isNaN(v)) v = 1;
+                        v = Math.max(1, Math.min(12, v));
+                    }
+                }
+                cdHour.value = padZero(v);
+                countdown.updatePreview();
+            });
+        }
         validateRange(cdMin, 0, 59);
         [cdHour, cdMin].forEach((el) => {
             if (el) el.addEventListener('input', () => countdown.updatePreview());
+        });
+        [cdHour, cdMin, cdLabel].forEach((el) => {
+            if (el) {
+                el.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        countdown.start();
+                    }
+                });
+            }
         });
 
         const taskInp = DOM.get('timer-task-input');
@@ -2893,6 +3147,9 @@
             clock.update();
             alarm.check();
             countdown.update();
+            if (state.currentTool === 'countdown' && !state.countdown.active) {
+                countdown.updatePreview();
+            }
             if (new Date().getSeconds() === 0) {
                 clock.updateWorldClocks();
                 if (state.currentTool === 'alarm') alarm.renderList();
@@ -2982,7 +3239,7 @@
                 focusStage.toggle();
             }
         } else if (k === 'f') {
-            if (state.currentTool === 'clock') clock.toggleFormat();
+            if (['clock', 'countdown', 'alarm'].includes(state.currentTool)) clock.toggleFormat();
         } else if (k === 'v') {
             if (state.currentTool === 'clock') clock.toggleView();
         } else if (k === 'w') {
