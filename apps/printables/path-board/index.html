@@ -64,6 +64,7 @@
     <link rel="stylesheet" href="../../../css/tailwind.generated.css" />
     <link rel="stylesheet" href="../../../css/base.css" />
     <link rel="stylesheet" href="../../../css/components.css" />
+    <link rel="stylesheet" href="../../../css/klasskit-print.css" />
 
     <style>
         /* ---------- Theme tokens (light = chalk paper, dark = OLED slate) ---------- */
@@ -698,6 +699,10 @@
 
             <!-- Footer Print Actions -->
             <div class="p-3 border-t-4 border-dark dark:border-slate-500 bg-slate-100 dark:bg-slate-800 space-y-2 shrink-0">
+                <label class="flex items-center gap-2 cursor-pointer text-[11px] font-extrabold text-slate-600 dark:text-slate-300">
+                    <input type="checkbox" id="full-board-print" checked class="w-4 h-4 shrink-0 accent-blue cursor-pointer">
+                    <span>Full Board on Paper (Max Board Size)</span>
+                </label>
                 <div class="grid grid-cols-2 gap-2">
                     <label class="seg"><input type="radio" name="page-orient" value="portrait"><span><i data-lucide="rectangle-vertical" class="w-3.5 h-3.5"></i> Portrait</span></label>
                     <label class="seg"><input type="radio" name="page-orient" value="landscape" checked><span><i data-lucide="rectangle-horizontal" class="w-3.5 h-3.5"></i> Landscape</span></label>
@@ -947,6 +952,18 @@
         </div>
         <div id="print-svg-container"></div>
         <div id="print-footer"></div>
+        <div class="kk-print-brand-footer">
+            <span class="kk-print-footer-note">Path Board Game</span>
+            <span class="kk-print-brand-mark">
+                <span class="kk-brand-dots" aria-hidden="true">
+                    <span class="kk-brand-dot" style="background:#ff4785"></span>
+                    <span class="kk-brand-dot" style="background:#ff7e33"></span>
+                    <span class="kk-brand-dot" style="background:#00d063"></span>
+                    <span class="kk-brand-dot" style="background:#1ea7fd"></span>
+                </span>
+                <span>Made with <strong>KlassKit</strong></span>
+            </span>
+        </div>
     </div>
 
     <script>
@@ -1428,6 +1445,7 @@
                 printSubheading: $('print-subheading'),
                 printSvg: $('print-svg-container'),
                 printFooter: $('print-footer'),
+                fullBoardPrint: $('full-board-print'),
                 pageStyle: $('page-style'),
             };
 
@@ -1563,6 +1581,8 @@
                     customTitle: el.customTitle.value,
                     customSubtitle: el.customSubtitle.value,
                     orient: choice('page-orient', 'landscape'),
+                    fullBoardPrint: Boolean(el.fullBoardPrint?.checked),
+                    fullBoardDefaultV2: true,
                     teamCount: parseInt(el.teamCount.value, 10) || 4,
                     activeSetId
                 };
@@ -1579,6 +1599,11 @@
                 if (typeof data.customTitle === 'string') el.customTitle.value = data.customTitle;
                 if (typeof data.customSubtitle === 'string') el.customSubtitle.value = data.customSubtitle;
                 if (data.orient) setRadio('page-orient', data.orient);
+                if (el.fullBoardPrint) {
+                    el.fullBoardPrint.checked = data.fullBoardDefaultV2
+                        ? Boolean(data.fullBoardPrint)
+                        : true;
+                }
                 if (data.teamCount) el.teamCount.value = String(data.teamCount);
                 if (data.activeSetId !== undefined) activeSetId = data.activeSetId;
             }
@@ -1924,6 +1949,7 @@
                 const baseTitle = el.customTitle.value.trim() || 'Path Board Game';
                 const baseSub = el.customSubtitle.value.trim() || 'Roll the die, move your token, and answer the prompt on each space!';
                 el.printArea.classList.toggle('show-answers', asKey);
+                el.printArea.classList.toggle('print-full-board', Boolean(el.fullBoardPrint?.checked) && !asKey);
                 el.printHeading.textContent = asKey ? `${baseTitle} — Teacher Key` : baseTitle;
                 el.printSubheading.textContent = asKey ? 'Teacher reference with space numbers and answers.' : baseSub;
 
@@ -2052,6 +2078,8 @@
                 applyPage();
                 persistState();
             }));
+
+            el.fullBoardPrint?.addEventListener('change', () => persistState());
 
             el.showNumbers.addEventListener('change', () => { renderSVGOnly(); persistState(); });
             el.shufflePrompts.addEventListener('change', () => generate(true));
@@ -2193,6 +2221,7 @@
                 el.showNumbers.checked = true;
                 el.shufflePrompts.checked = false;
                 setRadio('page-orient', 'landscape');
+                if (el.fullBoardPrint) el.fullBoardPrint.checked = true;
                 applyPage();
                 updateSizeLabel();
                 updateCapacity();

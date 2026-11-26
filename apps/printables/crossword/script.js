@@ -892,68 +892,122 @@ function updateHighlights(r, c) {
 }
 
 // --- NEW: Print Mode Trigger ---
-window.setPrintMode = function(mode) {
+let printingAsKey = false;
+window.setPrintMode = function(mode, asKey = false) {
     const printArea = document.getElementById('print-area');
     if (mode === 'separate') {
         printArea.classList.add('print-separate-pages');
     } else {
         printArea.classList.remove('print-separate-pages');
     }
-    if (words && words.length) preparePrintVersion();
+    printingAsKey = Boolean(asKey);
+    preparePrintVersion(printingAsKey);
     window.print();
 };
 
 window.addEventListener('beforeprint', () => {
-    if (words && words.length) preparePrintVersion();
+    preparePrintVersion(printingAsKey);
+});
+
+window.addEventListener('afterprint', () => {
+    printingAsKey = false;
+    preparePrintVersion(false);
 });
 
 // --- UPDATED: Dynamic Sizing ---
-function preparePrintVersion() {
+function preparePrintVersion(asKey = false) {
     const printContainer = document.getElementById('print-grid-container');
     const printArea = document.getElementById('print-area');
-    if (!printContainer) return;
+    if (!printContainer || !printArea) return;
+
+    const rawName = (document.getElementById('set-name-input')?.value || '').trim();
+    const baseTitle = rawName || 'Crossword Puzzle';
+    const headingEl = document.getElementById('print-heading');
+    const subEl = document.getElementById('print-subheading');
+    const badgeEl = document.getElementById('print-mode-badge');
+    const page2TitleEl = printArea.querySelector('.cw-print-page2-title');
+    const footerNoteEl = document.getElementById('print-footer-note');
+    const footerNoteP1El = document.getElementById('print-footer-note-p1');
+
+    printArea.classList.toggle('print-answer-key', Boolean(asKey));
+    if (headingEl) headingEl.textContent = baseTitle;
+    if (subEl) {
+        subEl.textContent = asKey
+            ? 'Teacher Reference Sheet showing the completed grid and word clues.'
+            : 'Read the clues below and write one letter in each square.';
+    }
+    if (badgeEl) {
+        badgeEl.hidden = !asKey;
+        badgeEl.classList.toggle('hidden', !asKey);
+        badgeEl.style.display = asKey ? 'inline-block' : 'none';
+    }
+    if (page2TitleEl) page2TitleEl.textContent = asKey ? `${baseTitle} — Clues (Key)` : `${baseTitle} — Clues`;
+
+    const acrossWords = (words || []).filter(w => w.dir === 'across').slice().sort((a, b) => a.num - b.num);
+    const downWords = (words || []).filter(w => w.dir === 'down').slice().sort((a, b) => a.num - b.num);
+    const noteText = (words && words.length)
+        ? `${words.length} Clue${words.length === 1 ? '' : 's'} · ${acrossWords.length} Across, ${downWords.length} Down`
+        : 'Crossword Puzzle';
+    if (footerNoteEl) footerNoteEl.textContent = noteText;
+    if (footerNoteP1El) footerNoteP1El.textContent = noteText;
+
     printContainer.innerHTML = '';
-    
+
+    const pa = document.getElementById('print-clues-across');
+    const pd = document.getElementById('print-clues-down');
+    pa.innerHTML = `<div class="cw-clue-card-head cw-head-across"><span>Across</span><span>${acrossWords.length}</span></div>`;
+    pd.innerHTML = `<div class="cw-clue-card-head cw-head-down"><span>Down</span><span>${downWords.length}</span></div>`;
+
+    if (!words || !words.length) return;
+
     const printGrid = els.grid.cloneNode(true);
-    printGrid.id = "print-grid-clone";
-    printGrid.className = "print-grid";
-    
+    printGrid.id = 'print-grid-clone';
+    printGrid.className = 'print-grid';
+
     const isSeparate = printArea.classList.contains('print-separate-pages');
-    
-    // Use 230mm height if on its own page, otherwise limit to 140mm for combined mode
-    const maxW = 170;
-    const maxH = isSeparate ? 230 : 140; 
-    const cellSize = Math.min(maxW / GRID_COLS, maxH / GRID_ROWS);
-    
+    const maxW = 174;
+    const maxH = isSeparate ? 210 : 118;
+    const cellSize = Math.min(isSeparate ? 13 : 11, maxW / GRID_COLS, maxH / GRID_ROWS);
+
     printGrid.style.gridTemplateColumns = `repeat(${GRID_COLS}, 1fr)`;
     printGrid.style.gridTemplateRows = `repeat(${GRID_ROWS}, 1fr)`;
-    
-    // Explicitly set the total grid dimensions
-    printGrid.style.width = `${cellSize * GRID_COLS}mm`;
-    printGrid.style.height = `${cellSize * GRID_ROWS}mm`;
+    printGrid.style.width = `${(cellSize * GRID_COLS).toFixed(2)}mm`;
+    printGrid.style.height = `${(cellSize * GRID_ROWS).toFixed(2)}mm`;
+    printGrid.style.setProperty('--cw-num-size', `${Math.max(5.5, Math.min(8, +(cellSize * 0.62).toFixed(1)))}pt`);
+    printGrid.style.setProperty('--cw-letter-size', `${Math.max(8, Math.min(15, +(cellSize * 1.15).toFixed(1)))}pt`);
 
     printGrid.querySelectorAll('.cw-cell').forEach(cell => {
         cell.classList.remove('cell-focused', 'word-highlight', 'locked', 'error');
-        cell.style.width = ''; 
+        cell.style.width = '';
         cell.style.height = '';
         const input = cell.querySelector('input');
         if (input) input.value = '';
+        const oldAns = cell.querySelector('.cw-print-answer');
+        if (oldAns) oldAns.remove();
+        if (asKey && cell.classList.contains('filled')) {
+            const r = parseInt(cell.dataset.r, 10);
+            const c = parseInt(cell.dataset.c, 10);
+            const ch = grid?.[r]?.[c] || '';
+            if (ch) {
+                const ans = document.createElement('span');
+                ans.className = 'cw-print-answer';
+                ans.textContent = ch;
+                cell.appendChild(ans);
+            }
+        }
     });
 
     printContainer.appendChild(printGrid);
-    
-    const pa = document.getElementById('print-clues-across');
-    const pd = document.getElementById('print-clues-down');
-    pa.innerHTML = '<h3 class="font-bold border-b border-black mb-2 uppercase">Across</h3>';
-    pd.innerHTML = '<h3 class="font-bold border-b border-black mb-2 uppercase">Down</h3>';
-    
-    words.forEach(w => {
-        const div = document.createElement('div'); 
-        div.className = 'print-clue'; 
-        div.innerHTML = `<strong>${w.num}.</strong> ${escapeHTML(w.clue)}`;
-        if (w.dir === 'across') pa.appendChild(div); 
-        else pd.appendChild(div);
-    });
+
+    const makeClueRow = (w) => {
+        const div = document.createElement('div');
+        div.className = 'print-clue';
+        div.innerHTML = `<span class="print-clue-num">${w.num}.</span><span>${escapeHTML(w.clue)} <span class="print-clue-len">(${w.word.length})</span></span>`;
+        return div;
+    };
+
+    acrossWords.forEach(w => pa.appendChild(makeClueRow(w)));
+    downWords.forEach(w => pd.appendChild(makeClueRow(w)));
 }
 
 // ==================== BROADCAST CHANNEL (Student View) ====================

@@ -201,6 +201,7 @@
         showPathArrows: true,
         bonusTilesEnabled: false,
         printCutouts: true,
+        fullBoardPrint: true,
         challengeMode: false,
         roll6ExtraTurn: true,
         exactFinish: false,
@@ -2013,6 +2014,8 @@
             bonusTilesEnabled: state.bonusTilesEnabled,
             bonusTiles: { ...state.bonusTiles },
             printCutouts: state.printCutouts,
+            fullBoardPrint: state.fullBoardPrint,
+            fullBoardDefaultV2: true,
             challengeMode: state.challengeMode,
             roll6ExtraTurn: state.roll6ExtraTurn,
             exactFinish: state.exactFinish,
@@ -2080,6 +2083,11 @@
             state.printCutouts = data.printCutouts;
             document.getElementById('toggle-print-cutouts').checked = data.printCutouts;
         }
+        state.fullBoardPrint = data.fullBoardDefaultV2
+            ? Boolean(data.fullBoardPrint)
+            : true;
+        const fullBoardToggleEl = document.getElementById('toggle-full-board-print');
+        if (fullBoardToggleEl) fullBoardToggleEl.checked = state.fullBoardPrint;
         if (typeof data.challengeMode === 'boolean') state.challengeMode = data.challengeMode;
         if (typeof data.roll6ExtraTurn === 'boolean') state.roll6ExtraTurn = data.roll6ExtraTurn;
         if (typeof data.exactFinish === 'boolean') state.exactFinish = data.exactFinish;
@@ -2356,6 +2364,10 @@
 
     function preparePrint(isKey = false) {
         applyPage();
+        const printAreaEl = document.getElementById('print-area');
+        if (printAreaEl) {
+            printAreaEl.classList.toggle('print-full-board', Boolean(state.fullBoardPrint) && !isKey);
+        }
 
         const title = document.getElementById('custom-title').value.trim() || 'Slides & Ladders';
         const subtitle = document.getElementById('custom-subtitle').value.trim() || '';
@@ -2435,7 +2447,13 @@
     <line x1="20" y1="67" x2="${totalW - 20}" y2="67" stroke="#1e293b" stroke-width="3"/>
     <g transform="translate(0 ${headerH})">${innerBody}</g>
     <text x="20" y="${totalH - 12}" font-family="Nunito, sans-serif" font-weight="700" font-size="11" fill="#475569">START at 1 -&gt; FINISH at ${state.totalTiles} | Ladders go UP | Slides &amp; Snakes go DOWN</text>
-    <text x="${totalW - 20}" y="${totalH - 12}" text-anchor="end" font-family="Fredoka, sans-serif" font-weight="700" font-size="12" fill="#1e293b">KlassKit</text>
+    <g transform="translate(${totalW - 20}, ${totalH - 12})">
+        <circle cx="-118" cy="-4" r="3" fill="#ff4785"/>
+        <circle cx="-110" cy="-4" r="3" fill="#ff7e33"/>
+        <circle cx="-102" cy="-4" r="3" fill="#00d063"/>
+        <circle cx="-94" cy="-4" r="3" fill="#1ea7fd"/>
+        <text x="0" y="0" text-anchor="end" font-family="Nunito, sans-serif" font-weight="700" font-size="11.5" fill="#64748b">Made with <tspan font-family="Fredoka, sans-serif" font-weight="700" fill="#1e293b">KlassKit</tspan></text>
+    </g>
 </svg>`;
     }
 
@@ -2877,6 +2895,10 @@
         });
         document.getElementById('toggle-print-cutouts').addEventListener('change', (e) => {
             state.printCutouts = e.target.checked;
+            persistState();
+        });
+        document.getElementById('toggle-full-board-print')?.addEventListener('change', (e) => {
+            state.fullBoardPrint = e.target.checked;
             persistState();
         });
 

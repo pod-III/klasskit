@@ -62,6 +62,7 @@
     <link rel="stylesheet" href="../../../css/tailwind.generated.css" />
     <link rel="stylesheet" href="../../../css/base.css" />
     <link rel="stylesheet" href="../../../css/components.css" />
+    <link rel="stylesheet" href="../../../css/klasskit-print.css" />
 
     <style>
         :root {
@@ -714,6 +715,10 @@ Act out a job and let your partner guess it! | 50</textarea>
 
             <!-- Footer Actions -->
             <div class="p-3 border-t-4 border-dark dark:border-slate-500 bg-slate-100 dark:bg-slate-800 space-y-2 shrink-0">
+                <label class="flex items-center gap-2 cursor-pointer text-[11px] font-extrabold text-slate-600 dark:text-slate-300">
+                    <input type="checkbox" id="full-board-print" class="w-4 h-4 shrink-0 accent-blue cursor-pointer">
+                    <span>Full Board on Paper (Map Only)</span>
+                </label>
                 <div class="grid grid-cols-2 gap-2">
                     <label class="seg"><input type="radio" name="page-orient" value="portrait" checked /><span><i data-lucide="rectangle-vertical" class="w-3.5 h-3.5"></i> Portrait</span></label>
                     <label class="seg"><input type="radio" name="page-orient" value="landscape" /><span><i data-lucide="rectangle-horizontal" class="w-3.5 h-3.5"></i> Landscape</span></label>
@@ -969,6 +974,18 @@ Act out a job and let your partner guess it! | 50</textarea>
                 </div>
                 <div id="print-prompts-grid" class="print-prompts-grid"></div>
             </div>
+        </div>
+        <div class="kk-print-brand-footer">
+            <span class="kk-print-footer-note">Labyrinth Quest</span>
+            <span class="kk-print-brand-mark">
+                <span class="kk-brand-dots" aria-hidden="true">
+                    <span class="kk-brand-dot" style="background:#ff4785"></span>
+                    <span class="kk-brand-dot" style="background:#ff7e33"></span>
+                    <span class="kk-brand-dot" style="background:#00d063"></span>
+                    <span class="kk-brand-dot" style="background:#1ea7fd"></span>
+                </span>
+                <span>Made with <strong>KlassKit</strong></span>
+            </span>
         </div>
     </div>
 
@@ -1411,6 +1428,7 @@ Act out a job and let your partner guess it! | 50</textarea>
                 printExitBonusLabel: $('print-exit-bonus-label'),
                 printSvg: $('print-svg-container'),
                 printPromptsGrid: $('print-prompts-grid'),
+                fullBoardPrint: $('full-board-print'),
                 pageStyle: $('page-style'),
                 librarySort: $('library-sort'),
                 libraryList: $('library-list'),
@@ -1687,6 +1705,7 @@ Act out a job and let your partner guess it! | 50</textarea>
                     subtitle: el.customSubtitle.value,
                     prompts: el.promptsInput.value,
                     orient: choice('page-orient', 'portrait'),
+                    fullBoardPrint: Boolean(el.fullBoardPrint?.checked),
                     activeSetId
                 };
             }
@@ -1704,6 +1723,7 @@ Act out a job and let your partner guess it! | 50</textarea>
                 if (typeof d.subtitle === 'string') el.customSubtitle.value = d.subtitle;
                 if (typeof d.prompts === 'string') el.promptsInput.value = d.prompts;
                 if (d.orient) setRadio('page-orient', d.orient);
+                if (el.fullBoardPrint) el.fullBoardPrint.checked = Boolean(d.fullBoardPrint);
                 if (d.activeSetId !== undefined) activeSetId = d.activeSetId;
                 updatePromptBadge();
             }
@@ -1812,6 +1832,7 @@ Act out a job and let your partner guess it! | 50</textarea>
                 const baseTitle = el.customTitle.value.trim() || 'Labyrinth Quest';
                 const baseSub = el.customSubtitle.value.trim() || 'Find your way from START to EXIT and complete numbered prompts for points!';
                 el.printArea.classList.toggle('show-answers', asKey);
+                el.printArea.classList.toggle('print-full-board', Boolean(el.fullBoardPrint?.checked) && !asKey);
                 el.printHeading.textContent = asKey ? `${baseTitle} — Teacher Key` : baseTitle;
                 el.printSubheading.textContent = asKey ? 'Dashed pink line shows the shortest escape route from START to EXIT.' : baseSub;
                 renderPrintPrompts(asKey);
@@ -1859,6 +1880,8 @@ Act out a job and let your partner guess it! | 50</textarea>
                 persistState();
                 playSound('pop');
             }));
+
+            el.fullBoardPrint?.addEventListener('change', () => persistState());
 
             el.generate.addEventListener('click', () => {
                 generate(false);
@@ -2036,7 +2059,7 @@ Act out a job and let your partner guess it! | 50</textarea>
                 if (!ok) return;
                 activeSetId = null;
                 if (el.setNameInput) el.setNameInput.value = '';
-                applyWorkspaceData({ ...PRESETS.speaking, activeSetId: null });
+                applyWorkspaceData({ ...PRESETS.speaking, fullBoardPrint: false, activeSetId: null });
                 renderLibrary();
                 generate(false);
                 playSound('pop');

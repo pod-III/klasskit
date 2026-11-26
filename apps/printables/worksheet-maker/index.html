@@ -13,6 +13,7 @@
   <link rel="stylesheet" href="../../../css/tailwind.generated.css">
   <link rel="stylesheet" href="../../../css/base.css">
   <link rel="stylesheet" href="../../../css/components.css">
+  <link rel="stylesheet" href="../../../css/klasskit-print.css">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.105.4"></script>
   <script src="/supabase.js"></script>
   <script>
@@ -94,19 +95,27 @@
     }
 
     @media (min-width: 768px) {
-      .sidebar {
-        width: 340px;
+      .sidebar,
+      .sidebar-right {
+        width: 296px;
         border-bottom: none;
-        border-right: 4px solid var(--border-primary);
         height: 100vh;
         position: sticky;
         top: 0;
       }
-      .sidebar.hidden-panel-desktop {
+      .sidebar {
+        border-right: 4px solid var(--border-primary);
+      }
+      .sidebar-right {
+        border-left: 4px solid var(--border-primary);
+      }
+      .sidebar.hidden-panel-desktop,
+      .sidebar-right.hidden-panel-desktop {
         width: 0 !important;
         min-width: 0 !important;
         padding: 0 !important;
         border-right-width: 0 !important;
+        border-left-width: 0 !important;
         overflow: hidden !important;
         opacity: 0;
         pointer-events: none;
@@ -114,10 +123,12 @@
     }
 
     @media (min-width: 1440px) {
-      .sidebar { width: 380px; }
+      .sidebar,
+      .sidebar-right { width: 320px; }
     }
 
-    .dark .sidebar {
+    .dark .sidebar,
+    .dark .sidebar-right {
       background: rgba(30, 41, 59, 0.85);
     }
 
@@ -236,32 +247,42 @@
     }
     .animate-pop-in { animation: pop-in 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
 
+    @page { size: A4 portrait; margin: 0; }
+
     @media print {
-      @page { size: A4 portrait; margin: 14mm; }
       html, body {
         display: block !important;
+        width: 210mm !important;
         background: #ffffff !important;
+        background-image: none !important;
+        color: #1e293b !important;
         height: auto !important;
         overflow: visible !important;
         margin: 0 !important;
         padding: 0 !important;
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+      }
+      body::before, body::after {
+        display: none !important;
       }
       #app, #previewArea, .workspace-grid {
         display: block !important;
+        width: 100% !important;
         height: auto !important;
         overflow: visible !important;
         background: none !important;
         padding: 0 !important;
         margin: 0 !important;
       }
-      .no-print, .sidebar, .editor-pane, .workspace-toolbar, #zoom-bar {
+      .no-print, .sidebar, .sidebar-right, .editor-pane, .workspace-toolbar, #zoom-bar {
         display: none !important;
       }
       #print-sheet-container {
         display: block !important;
-        width: 100% !important;
-        max-width: 100% !important;
-        margin: 0 !important;
+        width: 210mm !important;
+        max-width: 210mm !important;
+        margin: 0 auto !important;
         padding: 0 !important;
       }
       #a4-zoom-wrapper {
@@ -270,11 +291,12 @@
         margin: 0 !important;
       }
       .a4-sheet {
-        width: 100% !important;
-        max-width: none !important;
-        min-height: 0 !important;
-        margin: 0 !important;
-        padding: 0 !important;
+        width: 210mm !important;
+        max-width: 210mm !important;
+        min-height: 294mm !important;
+        margin: 0 auto !important;
+        padding: 14mm !important;
+        box-sizing: border-box !important;
         border: none !important;
         box-shadow: none !important;
         background: #ffffff !important;
@@ -2545,53 +2567,72 @@
     }
 
     function getMatchingPreview(q, index) {
-      const rightItems = [...(q.pairs || [])].sort((a, b) => String(a && a.id || '').localeCompare(String(b && b.id || '')));
+      const look = getWorksheetLookStyles();
+      const pairs = Array.isArray(q.pairs) ? q.pairs : [];
+      const rightItems = [...pairs].sort((a, b) => String(a && a.id || '').localeCompare(String(b && b.id || '')));
       const labels = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
       const rightItemsWithLabels = rightItems.map((item, i) => ({ ...item, label: labels[i % labels.length] }));
       const isLineMatch = q.matchStyle === 'lines';
 
-      const bodyHtml = `
-        <div class="flex gap-6 sm:gap-10 w-full mt-3">
-          <div class="flex-1 flex flex-col gap-3.5 ${isLineMatch ? 'pr-2' : 'border-r border-slate-200 pr-4'}">
-            ${(q.pairs || []).map((pair, idx) => {
-              const correctRight = rightItemsWithLabels.find(r => r.id === pair.id);
-              const leftImg = getWsImageSrc(pair.leftImageId);
-              return `
-                <div class="flex items-center justify-between gap-2">
-                  <div class="flex items-center gap-2 min-w-0">
-                    <span class="font-semibold">${idx + 1}.</span>
-                    ${leftImg ? `<img src="${esc(leftImg)}" alt="" class="max-h-16 max-w-[120px] object-contain rounded border border-slate-200 bg-white p-0.5" />` : ''}
-                    ${pair.left ? `<span class="break-words">${esc(pair.left)}</span>` : ''}
-                  </div>
-                  ${isLineMatch ? `
-                    <div class="flex items-center gap-1.5 shrink-0">
-                      ${state.showAnswers ? `<span class="text-xs text-blue-700 font-bold">[→ ${correctRight?.label || ''}]</span>` : ''}
-                      <span class="w-3 h-3 rounded-full border-2 border-slate-800 inline-block bg-white"></span>
-                    </div>
-                  ` : `
-                    <span class="w-10 border-b border-slate-800 text-center inline-block ml-3 h-5 shrink-0">
-                      ${state.showAnswers ? `<span class="text-blue-700 font-bold text-sm leading-none">${correctRight?.label || ''}</span>` : ''}
-                    </span>
-                  `}
-                </div>
-              `;
-            }).join('')}
+      const rowCardCls = look.theme === 'minimal'
+        ? 'border-b border-slate-200 py-1.5 px-1'
+        : look.theme === 'neo'
+          ? 'border-2 border-slate-900 rounded-lg bg-white py-2 px-2.5'
+          : 'border border-slate-300 rounded-lg bg-slate-50/70 py-1.5 px-2.5';
+
+      const gridGapCls = isLineMatch
+        ? (look.isTwoCol ? 'gap-x-5 gap-y-2.5' : 'gap-x-10 sm:gap-x-14 gap-y-2.5')
+        : (look.isTwoCol ? 'gap-x-3 gap-y-2' : 'gap-x-5 gap-y-2');
+
+      const imgSizeCls = look.isTwoCol
+        ? 'max-h-12 max-w-[78px]'
+        : 'max-h-14 max-w-[110px]';
+
+      const rowsHtml = pairs.map((pair, idx) => {
+        const rightItem = rightItemsWithLabels[idx];
+        const correctRight = rightItemsWithLabels.find(r => r.id === pair.id);
+        const leftImg = getWsImageSrc(pair.leftImageId);
+        const rightImg = rightItem ? getWsImageSrc(rightItem.rightImageId) : '';
+
+        const leftCell = `
+          <div class="flex items-center justify-between gap-2.5 min-w-0 ${rowCardCls}">
+            <div class="flex items-center gap-2 min-w-0 flex-1">
+              ${!isLineMatch ? `
+                <span class="inline-flex items-center justify-center w-7 h-7 rounded-md border-2 border-slate-700 bg-white text-center font-extrabold text-sm shrink-0">
+                  ${state.showAnswers ? `<span class="text-blue-700 leading-none">${correctRight?.label || ''}</span>` : ''}
+                </span>
+              ` : ''}
+              <span class="inline-flex items-center justify-center w-5 h-5 rounded-full text-[11px] font-extrabold shrink-0" style="background:${look.accent.soft}; color:#0f172a; border:1.5px solid ${look.accent.hex};">${idx + 1}</span>
+              ${leftImg ? `<img src="${esc(leftImg)}" alt="" class="${imgSizeCls} object-contain rounded border border-slate-200 bg-white p-0.5 shrink-0" />` : ''}
+              ${pair.left ? `<span class="font-medium leading-snug break-words min-w-0">${esc(pair.left)}</span>` : ''}
+            </div>
+            ${isLineMatch ? `
+              <div class="flex items-center gap-1.5 shrink-0">
+                ${state.showAnswers ? `<span class="text-[11px] text-blue-700 font-extrabold px-1.5 py-0.5 rounded bg-blue-50 border border-blue-200">→ ${correctRight?.label || ''}</span>` : ''}
+                <span class="w-3 h-3 rounded-full border-2 border-slate-800 inline-block bg-white shrink-0"></span>
+              </div>
+            ` : ''}
           </div>
-          <div class="flex-1 flex flex-col gap-3.5">
-            ${rightItemsWithLabels.map(item => {
-              const rightImg = getWsImageSrc(item.rightImageId);
-              return `
-                <div class="flex items-center gap-2.5 min-w-0">
-                  ${isLineMatch ? `<span class="w-3 h-3 rounded-full border-2 border-slate-800 inline-block bg-white shrink-0"></span>` : ''}
-                  <span class="font-semibold shrink-0">${item.label}.</span>
-                  ${rightImg ? `<img src="${esc(rightImg)}" alt="" class="max-h-16 max-w-[120px] object-contain rounded border border-slate-200 bg-white p-0.5" />` : ''}
-                  ${item.right ? `<span class="break-words">${esc(item.right)}</span>` : ''}
-                </div>
-              `;
-            }).join('')}
+        `;
+
+        const rightCell = rightItem ? `
+          <div class="flex items-center gap-2.5 min-w-0 ${rowCardCls}">
+            ${isLineMatch ? `<span class="w-3 h-3 rounded-full border-2 border-slate-800 inline-block bg-white shrink-0"></span>` : ''}
+            <span class="inline-flex items-center justify-center w-5 h-5 rounded-md text-[11px] font-extrabold shrink-0 bg-slate-100 text-slate-800 border border-slate-400">${rightItem.label}</span>
+            ${rightImg ? `<img src="${esc(rightImg)}" alt="" class="${imgSizeCls} object-contain rounded border border-slate-200 bg-white p-0.5 shrink-0" />` : ''}
+            ${rightItem.right ? `<span class="font-medium leading-snug break-words min-w-0">${esc(rightItem.right)}</span>` : ''}
           </div>
-        </div>
-      `;
+        ` : '<div></div>';
+
+        return `
+          <div class="grid grid-cols-2 ${gridGapCls} items-stretch print-block">
+            ${leftCell}
+            ${rightCell}
+          </div>
+        `;
+      }).join('');
+
+      const bodyHtml = `<div class="flex flex-col gap-2 w-full mt-3">${rowsHtml}</div>`;
       return wrapPreviewQuestionBlock(index, q, getQuestionText(q.text || 'Match the following items:'), bodyHtml);
     }
 
@@ -2803,6 +2844,7 @@
     // --- Zoom & Sidebar UI State ---
     let currentZoomMode = localStorage.getItem('worksheet_zoom') || '1';
     let sidebarCollapsed = false;
+    let rightSidebarCollapsed = false;
 
     function setPreviewZoom(mode) {
       currentZoomMode = String(mode);
@@ -2847,6 +2889,19 @@
           aside.classList.toggle('hidden', sidebarCollapsed);
         } else {
           aside.classList.toggle('hidden-panel-desktop', sidebarCollapsed);
+        }
+        setTimeout(() => applyPreviewZoom(), 260);
+      }
+    }
+
+    function toggleRightSidebar() {
+      rightSidebarCollapsed = !rightSidebarCollapsed;
+      const aside = document.getElementById('ws-right-sidebar');
+      if (aside) {
+        if (window.innerWidth < 768) {
+          aside.classList.toggle('hidden', rightSidebarCollapsed);
+        } else {
+          aside.classList.toggle('hidden-panel-desktop', rightSidebarCollapsed);
         }
         setTimeout(() => applyPreviewZoom(), 260);
       }
@@ -2991,10 +3046,78 @@
               </div>
             </section>
 
-            <!-- Worksheet Look & Style Customizer -->
-            <section class="border-t-2 border-slate-100 dark:border-slate-700 pt-4 space-y-3.5">
-              <label class="section-label">Worksheet Look &amp; Style</label>
+            <!-- Starter Presets -->
+            ${getStarterPresetsSidebarHTML()}
 
+            <!-- Saved Worksheets Library -->
+            <section class="border-t-2 border-slate-100 dark:border-slate-700 pt-4 space-y-3">
+              <div class="flex items-center justify-between">
+                <label class="section-label mb-0">Library</label>
+                <select id="sets-sort" onchange="changeSetsSort()" class="bg-transparent text-[10px] font-bold text-slate-400 outline-none cursor-pointer hover:text-brand-blue uppercase tracking-widest">
+                  <option value="recent" ${sortMode === 'recent' ? 'selected' : ''}>Recent</option>
+                  <option value="alpha" ${sortMode === 'alpha' ? 'selected' : ''}>Alpha</option>
+                  <option value="popular" ${sortMode === 'popular' ? 'selected' : ''}>Popular</option>
+                </select>
+              </div>
+              <div class="flex gap-2">
+                <input type="text" id="set-name-input" placeholder="Set name..." class="input-chunky flex-1 py-2 px-3 text-xs">
+                <button id="save-btn" type="button" onclick="saveCurrentSet()" class="btn-chunky bg-pink text-white py-2 px-3 rounded-xl text-xs flex items-center gap-1 shrink-0">
+                  <i data-lucide="save" class="w-3.5 h-3.5"></i> Save
+                </button>
+              </div>
+              <div id="sets-list" class="space-y-1.5 max-h-48 overflow-y-auto custom-scrollbar pr-1"></div>
+            </section>
+
+            <!-- Data Backup (JSON Export / Import) -->
+            <section class="border-t-2 border-slate-100 dark:border-slate-700 pt-4 pb-2">
+              <label class="section-label">Data Backup (With Images)</label>
+              <div class="grid grid-cols-2 gap-2">
+                <button type="button" data-action="export-json" class="btn-chunky bg-white dark:bg-slate-700 py-2 rounded-xl text-xs flex items-center justify-center gap-1 dark:text-white" title="Export self-contained JSON backup">
+                  <i data-lucide="download" class="w-3.5 h-3.5 text-orange"></i> Export JSON
+                </button>
+                <button type="button" data-action="import-json" class="btn-chunky bg-white dark:bg-slate-700 py-2 rounded-xl text-xs flex items-center justify-center gap-1 dark:text-white" title="Import Worksheet JSON (v1 or v2)">
+                  <i data-lucide="upload" class="w-3.5 h-3.5 text-blue"></i> Import JSON
+                </button>
+              </div>
+            </section>
+          </div>
+
+          <!-- Sticky Footer Print & View Action -->
+          <div class="mt-4 pt-4 border-t-2 border-brand-dark dark:border-slate-700 shrink-0">
+            <div class="grid grid-cols-2 gap-2">
+              <button type="button" data-action="print" class="btn-chunky bg-green text-dark py-3 rounded-xl text-sm flex items-center justify-center gap-1.5" title="Print A4 Worksheet">
+                <i data-lucide="printer" class="w-4 h-4"></i> PRINT
+              </button>
+              <button type="button" data-action="set-view-mode" data-mode="${state.viewMode === 'preview' ? 'edit' : 'preview'}" class="btn-chunky bg-orange text-dark py-3 rounded-xl text-sm flex items-center justify-center gap-1.5">
+                <i data-lucide="${state.viewMode === 'preview' ? 'edit-3' : 'eye'}" class="w-4 h-4"></i> ${state.viewMode === 'preview' ? 'BUILDER' : 'A4 PREVIEW'}
+              </button>
+            </div>
+          </div>
+        </aside>
+      `;
+    }
+
+    function getRightSidebarHTML() {
+      const settings = getWorksheetSettings();
+
+      return `
+        <aside id="ws-right-sidebar" class="sidebar-right glass-panel no-print flex flex-col p-4 sm:p-5 ${rightSidebarCollapsed && window.innerWidth >= 768 ? 'hidden-panel-desktop' : ''} ${rightSidebarCollapsed && window.innerWidth < 768 ? 'hidden' : ''}">
+          <div class="mb-4 border-b-2 border-slate-100 dark:border-slate-700 pb-3.5 flex items-center justify-between gap-2 shrink-0">
+            <div class="min-w-0">
+              <h2 class="text-lg font-heading text-brand-dark dark:text-white tracking-tight leading-none uppercase flex items-center gap-2">
+                <i data-lucide="palette" class="w-4 h-4 text-brand-pink"></i> Sheet Style
+              </h2>
+              <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Appearance &amp; Paper</p>
+            </div>
+            <button type="button" data-action="toggle-right-sidebar" title="Hide Style Panel" class="md:hidden bg-pink/15 text-pink p-2 rounded-full border-2 border-brand-dark dark:border-slate-500 shadow-neo-sm">
+              <i data-lucide="x" class="w-4 h-4"></i>
+            </button>
+          </div>
+
+          <div id="right-sidebar-scroll-body" class="space-y-5 flex-1 overflow-y-auto pr-1.5 custom-scrollbar pb-2">
+            <!-- Title & Instructions -->
+            <section class="space-y-2.5">
+              <label class="section-label mb-0">Header Text</label>
               <div>
                 <span class="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Title</span>
                 <input type="text" data-action="update-ws-title" value="${esc(state.worksheet.title)}" placeholder="Worksheet Title" class="input-chunky py-2 px-3 text-xs">
@@ -3003,10 +3126,12 @@
                 <span class="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Instructions</span>
                 <textarea data-action="update-ws-inst" rows="2" placeholder="Student instructions..." class="input-chunky py-2 px-3 text-xs resize-none">${esc(state.worksheet.instructions)}</textarea>
               </div>
+            </section>
 
-              <!-- Sheet Visual Theme -->
+            <!-- Sheet Visual Theme -->
+            <section class="border-t-2 border-slate-100 dark:border-slate-700 pt-4 space-y-3">
               <div>
-                <span class="text-[10px] font-bold text-slate-400 uppercase mb-1.5 block">Sheet Theme</span>
+                <span class="section-label">Sheet Theme</span>
                 <div class="grid grid-cols-2 gap-1.5">
                   ${Object.values(WS_LOOK_THEMES).map(t => {
                     const active = settings.theme === t.id;
@@ -3036,8 +3161,11 @@
                   }).join('')}
                 </div>
               </div>
+            </section>
 
-              <!-- Typography, Header Banner, Border, Columns -->
+            <!-- Typography, Header Banner, Border, Columns -->
+            <section class="border-t-2 border-slate-100 dark:border-slate-700 pt-4 space-y-3">
+              <label class="section-label mb-0">Typography &amp; Layout</label>
               <div class="grid grid-cols-2 gap-2">
                 <div>
                   <span class="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Font Style</span>
@@ -3085,9 +3213,12 @@
                   <button type="button" data-action="set-ws-look" data-setting="questionColumns" data-val="2" class="py-1.5 px-2 rounded-xl border-2 border-brand-dark dark:border-slate-500 text-[10px] font-heading font-bold uppercase ${Number(settings.questionColumns) === 2 ? 'bg-brand-blue text-white shadow-hard-sm' : 'bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-300'}">2 Columns</button>
                 </div>
               </div>
+            </section>
 
-              <!-- Paper Options -->
-              <div class="space-y-1.5 pt-1">
+            <!-- Paper Options -->
+            <section class="border-t-2 border-slate-100 dark:border-slate-700 pt-4 space-y-2">
+              <label class="section-label mb-0">Paper Options</label>
+              <div class="space-y-1.5">
                 <label class="flex items-center gap-2 cursor-pointer text-xs font-bold text-slate-600 dark:text-slate-300">
                   <input type="checkbox" data-action="update-ws-setting" data-setting="showHeaderFields" ${settings.showHeaderFields ? 'checked' : ''} class="w-4 h-4 accent-blue cursor-pointer">
                   <span>Show Name / Date / Section lines</span>
@@ -3113,53 +3244,6 @@
                 </div>
               </div>
             </section>
-
-            <!-- Starter Presets -->
-            ${getStarterPresetsSidebarHTML()}
-
-            <!-- Saved Worksheets Library -->
-            <section class="border-t-2 border-slate-100 dark:border-slate-700 pt-4 space-y-3">
-              <div class="flex items-center justify-between">
-                <label class="section-label mb-0">Library</label>
-                <select id="sets-sort" onchange="changeSetsSort()" class="bg-transparent text-[10px] font-bold text-slate-400 outline-none cursor-pointer hover:text-brand-blue uppercase tracking-widest">
-                  <option value="recent" ${sortMode === 'recent' ? 'selected' : ''}>Recent</option>
-                  <option value="alpha" ${sortMode === 'alpha' ? 'selected' : ''}>Alpha</option>
-                  <option value="popular" ${sortMode === 'popular' ? 'selected' : ''}>Popular</option>
-                </select>
-              </div>
-              <div class="flex gap-2">
-                <input type="text" id="set-name-input" placeholder="Set name..." class="input-chunky flex-1 py-2 px-3 text-xs">
-                <button id="save-btn" type="button" onclick="saveCurrentSet()" class="btn-chunky bg-pink text-white py-2 px-3 rounded-xl text-xs flex items-center gap-1 shrink-0">
-                  <i data-lucide="save" class="w-3.5 h-3.5"></i> Save
-                </button>
-              </div>
-              <div id="sets-list" class="space-y-1.5 max-h-48 overflow-y-auto custom-scrollbar pr-1"></div>
-            </section>
-
-            <!-- Data Backup (JSON Export / Import) -->
-            <section class="border-t-2 border-slate-100 dark:border-slate-700 pt-4 pb-2">
-              <label class="section-label">Data Backup (With Images)</label>
-              <div class="grid grid-cols-2 gap-2">
-                <button type="button" data-action="export-json" class="btn-chunky bg-white dark:bg-slate-700 py-2 rounded-xl text-xs flex items-center justify-center gap-1 dark:text-white" title="Export self-contained JSON backup">
-                  <i data-lucide="download" class="w-3.5 h-3.5 text-orange"></i> Export JSON
-                </button>
-                <button type="button" data-action="import-json" class="btn-chunky bg-white dark:bg-slate-700 py-2 rounded-xl text-xs flex items-center justify-center gap-1 dark:text-white" title="Import Worksheet JSON (v1 or v2)">
-                  <i data-lucide="upload" class="w-3.5 h-3.5 text-blue"></i> Import JSON
-                </button>
-              </div>
-            </section>
-          </div>
-
-          <!-- Sticky Footer Print & View Action -->
-          <div class="mt-4 pt-4 border-t-2 border-brand-dark dark:border-slate-700 shrink-0">
-            <div class="grid grid-cols-2 gap-2">
-              <button type="button" data-action="print" class="btn-chunky bg-green text-dark py-3 rounded-xl text-sm flex items-center justify-center gap-1.5" title="Print A4 Worksheet">
-                <i data-lucide="printer" class="w-4 h-4"></i> PRINT
-              </button>
-              <button type="button" data-action="set-view-mode" data-mode="${state.viewMode === 'preview' ? 'edit' : 'preview'}" class="btn-chunky bg-orange text-dark py-3 rounded-xl text-sm flex items-center justify-center gap-1.5">
-                <i data-lucide="${state.viewMode === 'preview' ? 'edit-3' : 'eye'}" class="w-4 h-4"></i> ${state.viewMode === 'preview' ? 'BUILDER' : 'A4 PREVIEW'}
-              </button>
-            </div>
           </div>
         </aside>
       `;
@@ -3315,11 +3399,18 @@
 
           ${state.worksheet.questions.length === 0 ? '<div class="text-center py-20 text-gray-400 italic">No modules added yet. Add a question or layout block from the sidebar or Builder view.</div>' : ''}
 
-          ${settings.showFooter && settings.footerText ? `
-            <div class="mt-auto pt-4 border-t border-slate-300 text-center text-xs font-semibold text-slate-600 tracking-wide">
-              ${esc(settings.footerText)}
-            </div>
-          ` : ''}
+          <div class="kk-print-brand-footer mt-auto pt-3">
+            <span class="kk-print-footer-note">${(settings.showFooter && settings.footerText) ? esc(settings.footerText) : (state.showAnswers ? 'Teacher Answer Key' : 'Printable Worksheet')}</span>
+            <span class="kk-print-brand-mark">
+              <span class="kk-brand-dots" aria-hidden="true">
+                <span class="kk-brand-dot" style="background:#ff4785"></span>
+                <span class="kk-brand-dot" style="background:#ff7e33"></span>
+                <span class="kk-brand-dot" style="background:#00d063"></span>
+                <span class="kk-brand-dot" style="background:#1ea7fd"></span>
+              </span>
+              <span>Made with <strong>KlassKit</strong></span>
+            </span>
+          </div>
         </div>
       `;
     }
@@ -3450,6 +3541,9 @@
               <button type="button" data-action="print" class="btn-chunky bg-green text-dark px-3.5 py-1.5 rounded-xl text-xs flex items-center gap-1.5">
                 <i data-lucide="printer" class="w-3.5 h-3.5"></i> Print
               </button>
+              <button id="toggle-right-sidebar-btn" type="button" data-action="toggle-right-sidebar" title="Toggle Style Panel" class="p-2 rounded-xl border-2 border-brand-dark dark:border-slate-500 bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:-translate-y-0.5 transition-transform">
+                <i data-lucide="panel-right" class="w-4 h-4"></i>
+              </button>
             </div>
           </div>
 
@@ -3510,8 +3604,8 @@
 
           </div>
 
-          <!-- Floating Bottom-Right Zoom Bar (Card Maker Style) -->
-          <div id="zoom-bar" class="no-print ${isEdit ? 'hidden' : 'fixed bottom-4 right-4 z-[60] flex items-center gap-1 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border-[3px] border-brand-dark dark:border-slate-500 rounded-2xl p-1 shadow-neo dark:shadow-[4px_4px_0px_0px_#000000]'}">
+          <!-- Floating Bottom-Right Zoom Bar (inside center preview area) -->
+          <div id="zoom-bar" class="no-print ${isEdit ? 'hidden' : 'sticky bottom-4 ml-auto mt-6 w-fit z-[60] flex items-center gap-1 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border-[3px] border-brand-dark dark:border-slate-500 rounded-2xl p-1 shadow-neo dark:shadow-[4px_4px_0px_0px_#000000]'}">
             <button type="button" onclick="setPreviewZoom(0.5)" id="zoom-0.5" class="px-2.5 py-1 rounded-xl text-[11px] font-heading font-bold transition-colors">50%</button>
             <button type="button" onclick="setPreviewZoom(0.75)" id="zoom-0.75" class="px-2.5 py-1 rounded-xl text-[11px] font-heading font-bold transition-colors">75%</button>
             <button type="button" onclick="setPreviewZoom(1)" id="zoom-1" class="px-2.5 py-1 rounded-xl text-[11px] font-heading font-bold transition-colors">100%</button>
@@ -4054,10 +4148,11 @@
 
     function render(scrollToBottom = false) {
       const prevSidebarScroll = document.getElementById('sidebar-scroll-body')?.scrollTop || 0;
+      const prevRightSidebarScroll = document.getElementById('right-sidebar-scroll-body')?.scrollTop || 0;
       const prevAreaScroll = document.getElementById('previewArea')?.scrollTop || 0;
       const prevSetsScroll = document.getElementById('sets-list')?.scrollTop || 0;
 
-      document.getElementById('app').innerHTML = `${getSidebarHTML()}${getWorkspaceHTML()}`;
+      document.getElementById('app').innerHTML = `${getSidebarHTML()}${getWorkspaceHTML()}${getRightSidebarHTML()}`;
       lucide.createIcons();
 
       renderLibrary();
@@ -4065,9 +4160,11 @@
       applyPreviewZoom();
 
       const sidebarScrollEl = document.getElementById('sidebar-scroll-body');
+      const rightSidebarScrollEl = document.getElementById('right-sidebar-scroll-body');
       const areaEl = document.getElementById('previewArea');
       const setsEl = document.getElementById('sets-list');
       if (sidebarScrollEl) sidebarScrollEl.scrollTop = prevSidebarScroll;
+      if (rightSidebarScrollEl) rightSidebarScrollEl.scrollTop = prevRightSidebarScroll;
       if (setsEl) setsEl.scrollTop = prevSetsScroll;
 
       if (scrollToBottom && areaEl) {
@@ -4484,6 +4581,9 @@
           break;
         case 'toggle-sidebar':
           toggleSidebar();
+          break;
+        case 'toggle-right-sidebar':
+          toggleRightSidebar();
           break;
         case 'set-view-preview':
           state.showAnswers = false;

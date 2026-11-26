@@ -62,6 +62,7 @@
     <link rel="stylesheet" href="../../../css/tailwind.generated.css" />
     <link rel="stylesheet" href="../../../css/base.css" />
     <link rel="stylesheet" href="../../../css/components.css" />
+    <link rel="stylesheet" href="../../../css/klasskit-print.css" />
 
     <style>
         :root {
@@ -676,6 +677,10 @@
 
             <!-- Footer Actions -->
             <div class="p-3 border-t-4 border-dark dark:border-slate-500 bg-slate-100 dark:bg-slate-800 space-y-2 shrink-0">
+                <label class="flex items-center gap-2 cursor-pointer text-[11px] font-extrabold text-slate-600 dark:text-slate-300">
+                    <input type="checkbox" id="full-board-print" class="w-4 h-4 shrink-0 accent-blue cursor-pointer">
+                    <span>Full Board on Paper (Max Maze Size)</span>
+                </label>
                 <div class="grid grid-cols-2 gap-2">
                     <label class="seg"><input type="radio" name="page-orient" value="portrait" checked /><span><i data-lucide="rectangle-vertical" class="w-3.5 h-3.5"></i> Portrait</span></label>
                     <label class="seg"><input type="radio" name="page-orient" value="landscape" /><span><i data-lucide="rectangle-horizontal" class="w-3.5 h-3.5"></i> Landscape</span></label>
@@ -903,6 +908,18 @@
         </div>
         <div id="print-svg-container"></div>
         <div id="print-footer"></div>
+        <div class="kk-print-brand-footer">
+            <span class="kk-print-footer-note">Maze Handout</span>
+            <span class="kk-print-brand-mark">
+                <span class="kk-brand-dots" aria-hidden="true">
+                    <span class="kk-brand-dot" style="background:#ff4785"></span>
+                    <span class="kk-brand-dot" style="background:#ff7e33"></span>
+                    <span class="kk-brand-dot" style="background:#00d063"></span>
+                    <span class="kk-brand-dot" style="background:#1ea7fd"></span>
+                </span>
+                <span>Made with <strong>KlassKit</strong></span>
+            </span>
+        </div>
     </div>
 
     <script>
@@ -1376,6 +1393,7 @@
                 printSubheading: $('print-subheading'),
                 printSvg: $('print-svg-container'),
                 printFooter: $('print-footer'),
+                fullBoardPrint: $('full-board-print'),
                 pageStyle: $('page-style'),
                 librarySort: $('library-sort'),
                 libraryList: $('library-list'),
@@ -1640,6 +1658,7 @@
                     targets: el.targetInput.value,
                     decoys: el.decoyInput.value,
                     orient: choice('page-orient', 'portrait'),
+                    fullBoardPrint: Boolean(el.fullBoardPrint?.checked),
                     activeSetId
                 };
             }
@@ -1658,6 +1677,7 @@
                 if (typeof d.targets === 'string') el.targetInput.value = d.targets;
                 if (typeof d.decoys === 'string') el.decoyInput.value = d.decoys;
                 if (d.orient) setRadio('page-orient', d.orient);
+                if (el.fullBoardPrint) el.fullBoardPrint.checked = Boolean(d.fullBoardPrint);
                 if (d.activeSetId !== undefined) activeSetId = d.activeSetId;
                 updateWordBadges();
             }
@@ -1766,6 +1786,7 @@
                 const baseTitle = el.customTitle.value.trim() || 'Maze Handout';
                 const baseSub = el.customSubtitle.value.trim() || 'Follow the correct path from START to FINISH.';
                 el.printArea.classList.toggle('show-answers', asKey);
+                el.printArea.classList.toggle('print-full-board', Boolean(el.fullBoardPrint?.checked) && !asKey);
                 el.printHeading.textContent = asKey ? `${baseTitle} — Teacher Key` : baseTitle;
                 el.printSubheading.textContent = asKey ? 'Dashed pink path shows the complete solution.' : baseSub;
                 renderPrintFooter(asKey);
@@ -1815,6 +1836,8 @@
                 persistState();
                 playSound('pop');
             }));
+
+            el.fullBoardPrint?.addEventListener('change', () => persistState());
 
             el.generate.addEventListener('click', () => {
                 generate(false);
@@ -1995,7 +2018,7 @@
                 const p = PRESETS.irregular;
                 applyWorkspaceData({
                     mode: p.mode, size: p.size, title: p.title, subtitle: p.subtitle,
-                    targets: p.targets, decoys: p.decoys, shuffleTargets: p.shuffle, activeSetId: null
+                    targets: p.targets, decoys: p.decoys, shuffleTargets: p.shuffle, fullBoardPrint: false, activeSetId: null
                 });
                 renderLibrary();
                 generate(false);

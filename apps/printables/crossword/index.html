@@ -23,6 +23,7 @@
     <link rel="stylesheet" href="../../../css/tailwind.generated.css" />
     <link rel="stylesheet" href="../../../css/base.css" />
     <link rel="stylesheet" href="../../../css/components.css" />
+    <link rel="stylesheet" href="../../../css/klasskit-print.css" />
     <link rel="stylesheet" href="./style.css">
   
   <script defer src="/js/analytics.js"></script>
@@ -127,13 +128,16 @@
                 </div>
             </div>
             
-            <!-- Footer Actions: Only Print button remains -->
+            <!-- Footer Actions -->
             <div class="p-3 border-t-[1px] border-slate-300 dark:border-slate-500/40 bg-slate-50/50 dark:bg-slate-800/50 flex gap-2 transition-colors">
-                 <button onclick="setPrintMode('combined')" class="w-full btn-chunky bg-white dark:bg-slate-700 text-dark dark:text-slate-200 py-2 rounded-lg text-xs border-[1px] border-slate-300 dark:border-slate-500 flex items-center justify-center gap-1 hover:brightness-95" title="Grid and Clues on 1 Page">
+                 <button type="button" onclick="setPrintMode('combined', false)" class="flex-1 btn-chunky bg-white dark:bg-slate-700 text-dark dark:text-slate-200 py-2 rounded-lg text-xs border-[1px] border-slate-300 dark:border-slate-500 flex items-center justify-center gap-1 hover:brightness-95" title="Grid and Clues on 1 Page">
                     <i data-lucide="printer" class="w-4 h-4"></i> 1-PAGE
                  </button>
-                 <button onclick="setPrintMode('separate')" class="w-full btn-chunky bg-white dark:bg-slate-700 text-dark dark:text-slate-200 py-2 rounded-lg text-xs border-[1px] border-slate-300 dark:border-slate-500 flex items-center justify-center gap-1 hover:brightness-95" title="Grid and Clues on Separate Pages">
+                 <button type="button" onclick="setPrintMode('separate', false)" class="flex-1 btn-chunky bg-white dark:bg-slate-700 text-dark dark:text-slate-200 py-2 rounded-lg text-xs border-[1px] border-slate-300 dark:border-slate-500 flex items-center justify-center gap-1 hover:brightness-95" title="Grid and Clues on Separate Pages">
                     <i data-lucide="file-text" class="w-4 h-4"></i> 2-PAGE
+                 </button>
+                 <button type="button" onclick="setPrintMode('combined', true)" class="btn-chunky bg-orange/25 dark:bg-orange/25 text-dark dark:text-orange px-3 py-2 rounded-lg text-xs border-[1px] border-slate-300 dark:border-slate-500 flex items-center justify-center gap-1 hover:brightness-95 shrink-0" title="Print Teacher Answer Key">
+                    <i data-lucide="key-round" class="w-4 h-4"></i> KEY
                  </button>
             </div>
         </aside>
@@ -216,22 +220,61 @@
 
     <!-- PRINT LAYOUT (Hidden unless printing) -->
     <div id="print-area" class="hidden">
-        <div class="text-center mb-8 border-b-2 border-black pb-4">
-            <h1 class="text-4xl font-bold uppercase mb-2">Crossword</h1>
-            <div class="text-lg">KlassKit</div>
-        </div>
-        <div class="flex justify-between text-lg mb-4">
-            <div>Name: <span class="border-b border-black w-48 inline-block"></span></div>
-            <div>Date: <span class="border-b border-black w-48 inline-block"></span></div>
-        </div>
-        <!-- Grid and Clues injected here dynamically for print -->
-        <div id="print-grid-container" class="my-8"></div>
-        <div class="print-columns mt-8">
-            <div id="print-clues-across">
-                <h3 class="font-bold border-b border-black mb-2 uppercase">Across</h3>
+        <div class="cw-print-page1">
+            <div class="kk-print-header">
+                <div class="kk-print-title">
+                    <h1 id="print-heading">Crossword Puzzle</h1>
+                    <p id="print-subheading">Read the clues below and write one letter in each square.</p>
+                    <span id="print-mode-badge" hidden class="kk-print-badge kk-badge-orange hidden">Teacher Answer Key</span>
+                </div>
+                <div class="kk-print-meta">
+                    <div class="kk-meta-line"><span>Name:</span><span class="kk-line"></span></div>
+                    <div class="kk-meta-line"><span>Date:</span><span class="kk-line"></span></div>
+                </div>
             </div>
-            <div id="print-clues-down" class="mt-4">
-                <h3 class="font-bold border-b border-black mb-2 uppercase">Down</h3>
+
+            <!-- Grid injected here dynamically for print -->
+            <div id="print-grid-container"></div>
+
+            <div class="kk-print-brand-footer kk-print-footer-p1">
+                <span id="print-footer-note-p1" class="kk-print-footer-note">Crossword Puzzle · Grid</span>
+                <span class="kk-print-brand-mark">
+                    <span class="kk-brand-dots" aria-hidden="true">
+                        <span class="kk-brand-dot" style="background:#ff4785"></span>
+                        <span class="kk-brand-dot" style="background:#ff7e33"></span>
+                        <span class="kk-brand-dot" style="background:#00d063"></span>
+                        <span class="kk-brand-dot" style="background:#1ea7fd"></span>
+                    </span>
+                    <span>Made with <strong>KlassKit</strong></span>
+                </span>
+            </div>
+        </div>
+
+        <div class="cw-print-clues-wrap">
+            <div class="cw-print-page2-header">
+                <span class="cw-print-page2-title">Crossword Clues</span>
+                <span class="cw-print-page2-sub">Page 2 · Clues</span>
+            </div>
+            <div class="cw-print-clues-grid">
+                <div id="print-clues-across" class="cw-clue-card">
+                    <div class="cw-clue-card-head cw-head-across">Across</div>
+                </div>
+                <div id="print-clues-down" class="cw-clue-card">
+                    <div class="cw-clue-card-head cw-head-down">Down</div>
+                </div>
+            </div>
+
+            <div class="kk-print-brand-footer">
+                <span id="print-footer-note" class="kk-print-footer-note">Crossword Puzzle</span>
+                <span class="kk-print-brand-mark">
+                    <span class="kk-brand-dots" aria-hidden="true">
+                        <span class="kk-brand-dot" style="background:#ff4785"></span>
+                        <span class="kk-brand-dot" style="background:#ff7e33"></span>
+                        <span class="kk-brand-dot" style="background:#00d063"></span>
+                        <span class="kk-brand-dot" style="background:#1ea7fd"></span>
+                    </span>
+                    <span>Made with <strong>KlassKit</strong></span>
+                </span>
             </div>
         </div>
     </div>

@@ -1080,47 +1080,119 @@ window.onload = async () => {
 };
 
 // --- Print Mode ---
-window.setPrintMode = function (mode) {
+let printingAsKey = false;
+window.setPrintMode = function (mode, asKey = false) {
     const printArea = document.getElementById('print-area');
     if (mode === 'separate') {
         printArea.classList.add('print-separate-pages');
     } else {
         printArea.classList.remove('print-separate-pages');
     }
-    window.print();
+    printingAsKey = Boolean(asKey);
+    preparePrintVersion(printingAsKey);
+    originalPrint.call(window);
 };
 
 // Global Print Hook
 const originalPrint = window.print;
 window.print = function () {
-    if (State.grid.length) preparePrintVersion();
+    preparePrintVersion(printingAsKey);
     originalPrint.call(window);
 };
 
 window.addEventListener('beforeprint', () => {
-    if (State.grid.length) preparePrintVersion();
+    preparePrintVersion(printingAsKey);
 });
 
-function preparePrintVersion() {
+window.addEventListener('afterprint', () => {
+    printingAsKey = false;
+    preparePrintVersion(false);
+});
+
+function preparePrintVersion(asKey = false) {
+    const printArea = document.getElementById('print-area');
+    const gridContainer = document.getElementById('print-grid-container');
+    const printBank = document.getElementById('print-word-bank');
+    if (!printArea || !gridContainer || !printBank) return;
+
+    const savedName = (els.savedPuzzleNameInput?.value || '').trim();
+    const presetName = (els.userPresetNameInput?.value || '').trim();
+    const validSaved = savedName && savedName.toLowerCase() !== 'new preset' && savedName.toLowerCase() !== 'untitled' ? savedName : '';
+    const validPreset = presetName && presetName.toLowerCase() !== 'new preset' && presetName.toLowerCase() !== 'untitled' ? presetName : '';
+    const baseTitle = validSaved || validPreset || 'Word Search';
+
+    const dirParts = ['Horizontal & Vertical'];
+    if (Difficulty.allowDiagonal) dirParts.push('Diagonal');
+    if (Difficulty.allowBackwards) dirParts.push('Backwards');
+    const dirSummary = dirParts.join(' + ');
+
+    const headingEl = document.getElementById('print-heading');
+    const subEl = document.getElementById('print-subheading');
+    const badgeEl = document.getElementById('print-mode-badge');
+    const page2TitleEl = printArea.querySelector('.ws-print-page2-title');
+    const countEl = document.getElementById('print-word-count');
+    const footerNoteEl = document.getElementById('print-footer-note');
+    const footerNoteP1El = document.getElementById('print-footer-note-p1');
+
+    printArea.classList.toggle('print-answer-key', Boolean(asKey));
+    if (headingEl) headingEl.textContent = baseTitle;
+    if (subEl) {
+        subEl.textContent = asKey
+            ? `Teacher Reference Sheet showing all hidden word locations (${dirSummary}).`
+            : `Find and circle all hidden words in the grid (${dirSummary}).`;
+    }
+    if (badgeEl) {
+        badgeEl.hidden = !asKey;
+        badgeEl.classList.toggle('hidden', !asKey);
+        badgeEl.style.display = asKey ? 'inline-block' : 'none';
+    }
+    if (page2TitleEl) page2TitleEl.textContent = asKey ? `${baseTitle} — Word Bank (Key)` : `${baseTitle} — Word Bank`;
+
+    const wordsList = Array.from(State.validWords || []).sort();
+    const gridSize = State.grid.length || 10;
+    const noteText = `${gridSize}×${gridSize} Grid · ${wordsList.length} Words · ${dirSummary}`;
+    if (countEl) countEl.textContent = `${wordsList.length} Word${wordsList.length === 1 ? '' : 's'}`;
+    if (footerNoteEl) footerNoteEl.textContent = noteText;
+    if (footerNoteP1El) footerNoteP1El.textContent = noteText;
+
+    gridContainer.innerHTML = '';
+    printBank.innerHTML = '';
+
+    if (!State.grid.length) return;
+
+    const isSeparate = printArea.classList.contains('print-separate-pages');
+    const gridMm = isSeparate ? 170 : (wordsList.length > 16 ? 126 : 138);
+    const cellFontPt = Math.max(8.5, Math.min(18, +((isSeparate ? 195 : 170) / gridSize).toFixed(1)));
+    const bankCols = wordsList.length > 15 ? 4 : 3;
+
+    printArea.style.setProperty('--ws-grid-mm', `${gridMm}mm`);
+    printArea.style.setProperty('--ws-cell-font', `${cellFontPt}pt`);
+    printArea.style.setProperty('--ws-bank-cols', String(bankCols));
+
     const printGrid = els.grid.cloneNode(true);
+    printGrid.id = 'print-word-grid-clone';
     printGrid.className = 'print-grid';
     printGrid.style.width = '';
     printGrid.style.height = '';
-    printGrid.style.gridTemplateColumns = `repeat(${State.grid.length}, 1fr)`;
-    printGrid.style.setProperty('--grid-size', State.grid.length);
+    printGrid.style.gridTemplateColumns = `repeat(${gridSize}, 1fr)`;
+    printGrid.style.gridTemplateRows = `repeat(${gridSize}, 1fr)`;
+    printGrid.style.setProperty('--grid-size', gridSize);
     printGrid.querySelectorAll('.grid-cell').forEach((cell) => {
-        cell.classList.remove('selected', 'preview-line', 'found', 'revealed');
+        cell.classList.remove('selected', 'preview-line', 'found', 'revealed', 'active-start', 'print-solution-cell');
+        cell.style.width = '';
+        cell.style.height = '';
+        cell.style.fontSize = '';
+        if (asKey && State.solutions?.has(`${cell.dataset.r},${cell.dataset.c}`)) {
+            cell.classList.add('print-solution-cell');
+        }
     });
 
-    document.getElementById('print-grid-container').innerHTML = '';
-    document.getElementById('print-grid-container').appendChild(printGrid);
+    gridContainer.appendChild(printGrid);
 
-    const printBank = document.getElementById('print-word-bank');
-    printBank.innerHTML = '';
-    Array.from(State.validWords).sort().forEach(w => {
+    wordsList.forEach(w => {
         const li = document.createElement('li');
         li.className = 'print-word';
-        li.innerText = w;
+        li.textContent = w;
         printBank.appendChild(li);
     });
 }
