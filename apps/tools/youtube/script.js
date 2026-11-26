@@ -1461,9 +1461,19 @@
                         }
                     },
                     onStateChange: onPlayerStateChange,
-                    onError() {
-                        showToast('Video cannot be embedded — try Copy Link', 'warning');
-                    }
+                    onError(e) {
+    const code = e && e.data;
+    console.warn('YouTube player error code:', code);
+    const msgs = {
+        2: 'Invalid video ID',
+        5: 'Player error — try again',
+        100: 'Video not found or private',
+        101: 'Owner disabled embedding — use Copy Link',
+        150: 'Owner disabled embedding — use Copy Link',
+        153: 'Embed blocked (missing referrer) — check site settings'
+    };
+    showToast(msgs[code] || ('Video cannot be played (code ' + code + ')'), 'warning');
+}
                 }
             };
             if (window.location.protocol === 'http:' || window.location.protocol === 'https:') {
