@@ -17,6 +17,7 @@ let state = {
     textAlign: "center",
     pictureOutline: "none",
     pages: [[]], // Array of pages, each containing array of card objects
+    imagePool: [], // Per-set Picture Bank entries: { id, src, name, createdAt }
 };
 
 // --- UI Feedback ---
@@ -88,9 +89,13 @@ function initTheme() {
 
 // --- IndexedDB ---
 const DB_NAME = 'CardMakerDB';
-const DB_VER = 1;
+const DB_VER = 2;
 const STATE_STORE = 'game_state';
 const SETS_STORE = 'card_sets';
+const IMAGES_STORE = 'card_images';
+
+let lastFocusedCard = null; // { pageIndex, cardIndex }
+let rightPanelOpen = localStorage.getItem('cardmaker_right_panel') !== 'closed';
 
 async function initDB() {
     return new Promise((resolve, reject) => {
@@ -99,19 +104,115 @@ async function initDB() {
             const db = e.target.result;
             if (!db.objectStoreNames.contains(STATE_STORE)) db.createObjectStore(STATE_STORE);
             if (!db.objectStoreNames.contains(SETS_STORE)) db.createObjectStore(SETS_STORE, { keyPath: 'id', autoIncrement: true });
+            if (!db.objectStoreNames.contains(IMAGES_STORE)) db.createObjectStore(IMAGES_STORE, { keyPath: 'id' });
         };
         req.onsuccess = (e) => resolve(e.target.result);
         req.onerror = (e) => reject(e.target.error);
     });
 }
 async function dbPut(key, data) {
-    try { const db = await initDB(); db.transaction(STATE_STORE, 'readwrite').objectStore(STATE_STORE).put(data, key); } catch(e) { console.error(e); }
+    try {
+        const db = await initDB();
+        return new Promise((res) => {
+            const tx = db.transaction(STATE_STORE, 'readwrite');
+            tx.objectStore(STATE_STORE).put(data, key);
+            tx.oncomplete = () => res(true);
+            tx.onerror = () => res(false);
+        });
+    } catch(e) { console.error(e); return false; }
 }
 async function dbGet(key) {
     try {
         const db = await initDB();
         return new Promise((res) => { const r = db.transaction(STATE_STORE, 'readonly').objectStore(STATE_STORE).get(key); r.onsuccess = () => res(r.result); r.onerror = () => res(null); });
     } catch(e) { return null; }
+}
+async function dbPutImage(id, dataUrl, name = '') {
+    try {
+        const db = await initDB();
+        return new Promise((res) => {
+            const tx = db.transaction(IMAGES_STORE, 'readwrite');
+            tx.objectStore(IMAGES_STORE).put({ id, dataUrl, name, createdAt: Date.now() });
+            tx.oncomplete = () => res(true);
+            tx.onerror = () => res(false);
+        });
+    } catch (e) { console.error(e); return false; }
+}
+async function dbGetImage(id) {
+    try {
+        const db = await initDB();
+        return new Promise((res) => {
+            const r = db.transaction(IMAGES_STORE, 'readonly').objectStore(IMAGES_STORE).get(id);
+            r.onsuccess = () => res(r.result?.dataUrl || null);
+            r.onerror = () => res(null);
+        });
+    } catch (e) { return null; }
+}
+async function dbDeleteImage(id) {
+    try {
+        const db = await initDB();
+        return new Promise((res) => {
+            const tx = db.transaction(IMAGES_STORE, 'readwrite');
+            tx.objectStore(IMAGES_STORE).delete(id);
+            tx.oncomplete = () => res(true);
+            tx.onerror = () => res(false);
+        });
+    } catch (e) { return false; }
+}
+async function dbClearImages() {
+    try {
+        const db = await initDB();
+        return new Promise((res) => {
+            const tx = db.transaction(IMAGES_STORE, 'readwrite');
+            tx.objectStore(IMAGES_STORE).clear();
+            tx.oncomplete = () => res(true);
+            tx.onerror = () => res(false);
+        });
+    } catch (e) { return false; }
+}
+
+async function fileToDataUrl(file) {
+    let targetFile = file;
+    if (typeof compressImage === 'function') {
+        try {
+            targetFile = await compressImage(file);
+        } catch (_) {
+            targetFile = file;
+        }
+    }
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (e) => resolve(e.target.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(targetFile);
+    });
+}
+
+async function storeImageFile(file) {
+    const user = await getCloudUser();
+    if (user) {
+        try {
+            return await uploadMedia(file, 'card_maker', state.id);
+        } catch (err) {
+            console.warn('Cloud upload failed, storing in IndexedDB:', err);
+        }
+    }
+    const dataUrl = await fileToDataUrl(file);
+    const id = `cm-img://${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    await dbPutImage(id, dataUrl, file.name || '');
+    return id;
+}
+
+async function resolveCardImage(src) {
+    if (!src) return '';
+    if (src.startsWith('cm-img://')) {
+        const stored = await dbGetImage(src);
+        return stored || '';
+    }
+    if (typeof resolveMediaUrl === 'function') {
+        return await resolveMediaUrl(src);
+    }
+    return src;
 }
 
 // Card Sets CRUD
@@ -353,16 +454,21 @@ async function loadCardSetFromList(id) {
 }
 
 function loadCardSet(stateData, id = null, name = "") {
-    state = { ...state, ...stateData, activeId: id };
+    lastFocusedCard = null;
+    state = { ...state, ...stateData, activeId: id, imagePool: Array.isArray(stateData?.imagePool) ? stateData.imagePool : [] };
+    syncImagePoolFromPages();
     inputCols.value = state.gridCols || 3;
     inputRows.value = state.gridRows || 3;
-    renderAllPages();
-    setOrientation(state.orientation);
-    setImageSize(state.imgHeight);
-    setFontSize(state.fontSize);
+    renderAllPages(false);
+    setOrientation(state.orientation, false);
+    setImageSize(state.imgHeight, false);
+    setFontSize(state.fontSize, false);
+    setTextAlign(state.textAlign || "center", false);
+    setPictureOutline(state.pictureOutline || "none", false);
     updateToggleUI();
     updateActiveIndicator(name);
     renderCardSets();
+    renderImageTray();
 }
 
 async function saveCurrentSet() {
@@ -430,6 +536,9 @@ async function syncStateToCloud() {
                 img: (card.img && card.img.startsWith('http')) ? card.img : "" 
             }))
         );
+        cloudState.imagePool = (Array.isArray(cloudState.imagePool) ? cloudState.imagePool : []).filter(
+            item => item?.src && item.src.startsWith('http')
+        );
         await saveProgress('card_maker_state', cloudState);
         console.log("✅ Card State synced to cloud");
     } catch (e) {
@@ -438,15 +547,22 @@ async function syncStateToCloud() {
 }
 
 async function loadState() {
-    const saved = localStorage.getItem("flashcard_klasskit_state_v5");
-    if (saved) {
-        try {
-            const parsed = JSON.parse(saved);
-            // Merge saved state with defaults to handle version upgrades
-            state = { ...state, ...parsed };
-        } catch (e) { console.warn("Failed to parse state", e); }
+    const dbSaved = await dbGet('cardMakerState');
+    if (dbSaved && typeof dbSaved === 'object') {
+        state = { ...state, ...dbSaved };
+    } else {
+        const saved = localStorage.getItem("flashcard_klasskit_state_v5");
+        if (saved) {
+            try {
+                const parsed = JSON.parse(saved);
+                // Merge saved state with defaults to handle version upgrades
+                state = { ...state, ...parsed };
+            } catch (e) { console.warn("Failed to parse state", e); }
+        }
     }
     if (!state.id) state.id = 'cards_' + Date.now();
+    if (!Array.isArray(state.imagePool)) state.imagePool = [];
+    syncImagePoolFromPages();
 
     // Restore UI Controls
     inputCols.value = state.gridCols || 3;
@@ -459,14 +575,39 @@ async function loadState() {
     setTextAlign(state.textAlign || "center", false);
     setPictureOutline(state.pictureOutline || "none", false);
     updateToggleUI();
-    renderAllPages();
+    renderAllPages(false);
+    await renderImageTray();
 
     // Sync from Cloud
     try {
         const cloudState = await loadProgress('card_maker_state');
         if (cloudState) {
-            state = { ...state, ...cloudState };
-            // Reset UI with cloud data
+            // Preserve local IndexedDB / DataURL images that cloud sync intentionally stripped
+            const localPages = Array.isArray(state.pages) ? state.pages : [];
+            const mergedPages = Array.isArray(cloudState.pages)
+                ? cloudState.pages.map((page, pIdx) =>
+                    (Array.isArray(page) ? page : []).map((card, cIdx) => {
+                        const localImg = localPages[pIdx]?.[cIdx]?.img || "";
+                        return {
+                            ...card,
+                            img: card?.img || localImg
+                        };
+                    })
+                )
+                : localPages;
+            const localPool = Array.isArray(state.imagePool) ? state.imagePool : [];
+            const cloudPool = Array.isArray(cloudState.imagePool) ? cloudState.imagePool : [];
+            const seenSrc = new Set(localPool.map(i => i.src));
+            const mergedPool = [...localPool];
+            cloudPool.forEach(item => {
+                if (item?.src && !seenSrc.has(item.src)) {
+                    seenSrc.add(item.src);
+                    mergedPool.push(item);
+                }
+            });
+            state = { ...state, ...cloudState, pages: mergedPages, imagePool: mergedPool };
+            syncImagePoolFromPages();
+            // Reset UI with merged data
             inputCols.value = state.gridCols || 3;
             inputRows.value = state.gridRows || 3;
             setOrientation(state.orientation, false);
@@ -475,7 +616,8 @@ async function loadState() {
             setTextAlign(state.textAlign || "center", false);
             setPictureOutline(state.pictureOutline || "none", false);
             updateToggleUI();
-            renderAllPages();
+            renderAllPages(false);
+            await renderImageTray();
         }
 
         if (!isSandbox()) {
@@ -525,13 +667,14 @@ async function loadState() {
 function saveState() {
     // Harvest data from DOM
     const pageWrappers = document.querySelectorAll(".page-wrapper");
+    const prevPages = Array.isArray(state.pages) ? state.pages : [];
 
-    state.pages = Array.from(pageWrappers).map((wrapper) => {
+    state.pages = Array.from(pageWrappers).map((wrapper, pIdx) => {
         const cards = [];
         const cardElements =
             wrapper.querySelectorAll(".brutalist-card");
 
-        cardElements.forEach((card) => {
+        cardElements.forEach((card, cIdx) => {
             const labelElement =
                 card.querySelector(".card-label-input");
             const textElement = card.querySelector(
@@ -543,13 +686,16 @@ function saveState() {
                 ? labelElement.innerText
                 : "";
             const text = textElement ? textElement.innerText : "";
-            const imgSrc = imgElement ? (imgElement.dataset.original || imgElement.src) : "";
-            // Check if image is actually visible/set. If src is empty or hidden, save empty string.
+            const prevImg = prevPages[pIdx]?.[cIdx]?.img || "";
+            const rawAttr = imgElement ? (imgElement.dataset.original || "") : "";
+            const rawSrc = imgElement ? (imgElement.getAttribute("src") || "") : "";
+            const imgSrc = rawAttr || (rawSrc && !rawSrc.startsWith("blob:") ? rawSrc : "") || (imgElement?.dataset.removed === "1" ? "" : prevImg);
             const hasImage =
                 imgElement &&
+                imgElement.dataset.removed !== "1" &&
                 !imgElement.classList.contains("hidden") &&
-                imgSrc &&
-                !imgSrc.includes("w3.org"); // Check against SVG placeholder url if needed
+                Boolean(imgSrc) &&
+                !imgSrc.includes("w3.org");
 
             cards.push({
                 text: text,
@@ -560,12 +706,31 @@ function saveState() {
         return cards;
     });
 
-    localStorage.setItem(
-        "flashcard_klasskit_state_v5",
-        JSON.stringify(state),
-    );
-    // Also persist to IndexedDB
+    // Persist full state (including image references) to IndexedDB first
     dbPut('cardMakerState', state);
+
+    // Mirror lightweight state to localStorage without risking QuotaExceededError
+    try {
+        const lsCopy = {
+            ...state,
+            pages: state.pages.map(page =>
+                page.map(card => ({
+                    ...card,
+                    img: (card.img && card.img.startsWith('data:') && card.img.length > 4096) ? '' : card.img
+                }))
+            ),
+            imagePool: (Array.isArray(state.imagePool) ? state.imagePool : []).map(item => ({
+                ...item,
+                src: (item?.src && item.src.startsWith('data:') && item.src.length > 4096) ? '' : item.src
+            })).filter(item => item.src)
+        };
+        localStorage.setItem(
+            "flashcard_klasskit_state_v5",
+            JSON.stringify(lsCopy),
+        );
+    } catch (e) {
+        console.warn("localStorage state mirror skipped:", e);
+    }
 
     // Auto-save to Library if active
     if (state.activeId) {
@@ -601,13 +766,15 @@ function importData(input) {
     reader.onload = (e) => {
         try {
             const parsed = JSON.parse(e.target.result);
-            state = { ...state, ...parsed };
+            state = { ...state, ...parsed, imagePool: Array.isArray(parsed?.imagePool) ? parsed.imagePool : [] };
+            syncImagePoolFromPages();
 
             // Update UI inputs
             inputCols.value = state.gridCols;
             inputRows.value = state.gridRows;
 
             renderAllPages();
+            renderImageTray();
             // Apply settings
             setOrientation(state.orientation);
             setImageSize(state.imgHeight);
@@ -662,8 +829,12 @@ function applyCardBatchToPages(cardObjects, replaceAll = false) {
         if (i >= currentPage.length) {
             currentPage.push(cardObjects[inserted]);
             inserted++;
-        } else if (!currentPage[i].text && !currentPage[i].img) {
-            currentPage[i] = cardObjects[inserted];
+        } else if (!currentPage[i].text) {
+            currentPage[i] = {
+                ...cardObjects[inserted],
+                img: currentPage[i].img || cardObjects[inserted].img || "",
+                label: cardObjects[inserted].label || currentPage[i].label || ""
+            };
             inserted++;
         }
     }
@@ -838,9 +1009,13 @@ function handleBulkTextImport() {
             // Slot doesn't exist yet, push to it
             currentPage.push(newCards[inserted]);
             inserted++;
-        } else if (!currentPage[i].text && !currentPage[i].img) {
-            // Slot is empty, replace it
-            currentPage[i] = newCards[inserted];
+        } else if (!currentPage[i].text) {
+            // Preserve any existing picture when filling word text into the card
+            currentPage[i] = {
+                ...newCards[inserted],
+                img: currentPage[i].img || "",
+                label: newCards[inserted].label || currentPage[i].label || ""
+            };
             inserted++;
         }
     }
@@ -866,29 +1041,19 @@ async function handleBulkImageImport(input) {
 
     const cardsPerPage = state.gridCols * state.gridRows;
 
-    // Process all images
-    const user = await getCloudUser();
+    // Process all images into IndexedDB / cloud and add to Picture Bank
     const newCards = [];
     for (const file of files) {
         try {
-            let imgSource;
-            if (user) {
-                imgSource = await uploadMedia(file, 'card_maker', state.id);
-            } else {
-                imgSource = await new Promise((resolve, reject) => {
-                    const reader = new FileReader();
-                    reader.onload = (e) => resolve(e.target.result);
-                    reader.onerror = reject;
-                    reader.readAsDataURL(file);
-                });
-            }
+            const imgSource = await storeImageFile(file);
+            await ensureInImageTray(imgSource, file.name || "");
             newCards.push({ text: "", img: imgSource, label: "" });
         } catch (e) {
             console.error("Image processing failed", e);
         }
     }
 
-    // Fill current page's empty slots first
+    // Fill current page's empty image slots first (preserving existing text)
     const lastPageIdx = state.pages.length - 1;
     const currentPage = state.pages[lastPageIdx];
 
@@ -897,8 +1062,11 @@ async function handleBulkImageImport(input) {
         if (i >= currentPage.length) {
             currentPage.push(newCards[inserted]);
             inserted++;
-        } else if (!currentPage[i].text && !currentPage[i].img) {
-            currentPage[i] = newCards[inserted];
+        } else if (!currentPage[i].img) {
+            currentPage[i] = {
+                ...currentPage[i],
+                img: newCards[inserted].img
+            };
             inserted++;
         }
     }
@@ -910,8 +1078,9 @@ async function handleBulkImageImport(input) {
     }
 
     renderAllPages();
+    await renderImageTray();
     input.value = "";
-    showToast(`Imported ${files.length} images into cards`, "success");
+    showToast(`Imported ${newCards.length} images into cards & Picture Bank`, "success");
 }
 
 async function deletePage(index) {
@@ -927,6 +1096,9 @@ async function deletePage(index) {
     if (confirmed) {
         saveState(); // Save current state of other pages first
         state.pages.splice(index, 1);
+        if (lastFocusedCard && lastFocusedCard.pageIndex >= state.pages.length) {
+            lastFocusedCard = null;
+        }
         renderAllPages();
         showToast("Page deleted", "info");
     }
@@ -1185,10 +1357,12 @@ function removeImage(pageIndex, cardIndex) {
     const delBtn = document.getElementById(`del-${uid}`);
 
     if (img) {
-        const url = img.src;
+        const url = img.dataset.original || img.src;
         if (url && url.includes('klasskit-media')) {
             deleteMediaFromUrl(url).catch(e => console.error("Cloud delete failed", e));
         }
+        delete img.dataset.original;
+        img.dataset.removed = "1";
         img.src = "";
         img.classList.add("hidden");
     }
@@ -1327,9 +1501,10 @@ function renderSinglePage(pageIndex, pageData) {
         img.className = `image-preview ${savedCard.img ? "" : "hidden"}`;
         img.id = `img-${uid}`;
         if (savedCard.img) {
-            img.dataset.original = savedCard.img; // Store original URL to prevent saveState wiping it
-            resolveMediaUrl(savedCard.img).then(url => {
-                img.src = url;
+            img.dataset.original = savedCard.img; // Store original URL/ID to prevent saveState wiping it
+            delete img.dataset.removed;
+            resolveCardImage(savedCard.img).then(url => {
+                if (url) img.src = url;
             });
         }
 
@@ -1345,10 +1520,16 @@ function renderSinglePage(pageIndex, pageData) {
         text.contentEditable = true;
         text.className = "outline-none"; 
         text.innerText = savedCard.text || "";
+        text.onfocus = () => {
+            lastFocusedCard = { pageIndex, cardIndex: i };
+        };
         text.oninput = () => {
             if (state.autoFit) autoFitText(text);
         };
         text.onblur = () => saveState();
+        card.addEventListener("mousedown", () => {
+            lastFocusedCard = { pageIndex, cardIndex: i };
+        });
 
         // PASTE SANITIZATION
         text.addEventListener("paste", (e) => {
@@ -1383,11 +1564,16 @@ function renderSinglePage(pageIndex, pageData) {
             card.style.opacity = "1";
         });
 
-        card.addEventListener("drop", (e) => {
+        card.addEventListener("drop", async (e) => {
             e.preventDefault();
             e.stopPropagation();
             card.classList.remove("drag-over");
             card.style.opacity = "1";
+            const traySrc = e.dataTransfer.getData("text/cardmaker-img");
+            if (traySrc) {
+                await setCardImageDirect(pageIndex, i, traySrc);
+                return;
+            }
             const file = e.dataTransfer.files[0];
             if (file && file.type.startsWith("image/")) {
                 handleFileSelect(file, uid, pageIndex);
@@ -1425,38 +1611,56 @@ function renderSinglePage(pageIndex, pageData) {
     pagesContainer.appendChild(wrapper);
 }
 
+async function setCardImageDirect(pageIndex, cardIndex, imgSource) {
+    const uid = `${pageIndex}-${cardIndex}`;
+    const img = document.getElementById(`img-${uid}`);
+    const icon = document.getElementById(`icon-${uid}`);
+    const delBtn = document.getElementById(`del-${uid}`);
+    if (!img) return;
+
+    const resolvedUrl = await resolveCardImage(imgSource);
+    img.dataset.original = imgSource;
+    delete img.dataset.removed;
+    img.src = resolvedUrl || imgSource;
+    img.classList.remove("hidden");
+    if (icon) icon.classList.add("hidden");
+    if (delBtn) delBtn.classList.remove("hidden");
+
+    img.classList.remove("cover");
+    img.classList.add("contain");
+    img.style.padding = state.imgHeight === 100 ? "0" : "4px";
+    saveState();
+}
+
 async function handleFileSelect(file, uid, pageIndex) {
     if (!file) return;
-    
+
     const img = document.getElementById(`img-${uid}`);
     const icon = document.getElementById(`icon-${uid}`);
     const delBtn = document.getElementById(`del-${uid}`);
 
     try {
-        let imgSource;
-        const user = await getCloudUser();
-        if (user) {
-            imgSource = await uploadMedia(file, 'card_maker', state.id);
-        } else {
-            imgSource = await new Promise((resolve) => {
-                const reader = new FileReader();
-                reader.onload = (e) => resolve(e.target.result);
-                reader.readAsDataURL(file);
-            });
-        }
+        const imgSource = await storeImageFile(file);
+        await ensureInImageTray(imgSource, file.name || "");
+        const resolvedUrl = await resolveCardImage(imgSource);
 
-        img.src = imgSource;
         img.dataset.original = imgSource;
+        delete img.dataset.removed;
+        img.src = resolvedUrl || imgSource;
         img.classList.remove("hidden");
-        icon.classList.add("hidden");
-        delBtn.classList.remove("hidden");
+        if (icon) icon.classList.add("hidden");
+        if (delBtn) delBtn.classList.remove("hidden");
 
         // Check if full image mode is on, if so, update object fit
         img.classList.remove("cover");
         img.classList.add("contain");
         img.style.padding = state.imgHeight === 100 ? "0" : "4px";
 
+        const fileInput = document.getElementById(`file-${uid}`);
+        if (fileInput) fileInput.value = "";
+
         saveState();
+        await renderImageTray();
     } catch (e) {
         console.error("Image upload failed", e);
         showToast("Image upload failed", "error");
@@ -1470,6 +1674,7 @@ async function resetTool() {
     );
 
     if (confirmed) {
+        lastFocusedCard = null;
         // Reset state to defaults
         state = {
             activeId: null,
@@ -1480,7 +1685,10 @@ async function resetTool() {
             imgHeight: 50,
             fontSize: 2,
             autoFit: false,
+            textAlign: "center",
+            pictureOutline: "none",
             pages: [[]],
+            imagePool: [],
         };
 
         // Update local storage
@@ -1493,6 +1701,7 @@ async function resetTool() {
         inputCols.value = state.gridCols;
         inputRows.value = state.gridRows;
         renderAllPages(false);
+        await renderImageTray();
         setOrientation(state.orientation, false);
         setImageSize(state.imgHeight, false);
         setFontSize(state.fontSize, false);
@@ -1624,16 +1833,345 @@ window.addEventListener("keydown", (e) => {
     }
 });
 
+// --- Picture Bank (Per-Set Image Container in IndexedDB) & Right Panel ---
+
+function syncImagePoolFromPages() {
+    if (!Array.isArray(state.imagePool)) state.imagePool = [];
+    const existing = new Set(state.imagePool.map(item => item?.src).filter(Boolean));
+    (Array.isArray(state.pages) ? state.pages : []).forEach(page => {
+        (Array.isArray(page) ? page : []).forEach(card => {
+            if (card?.img && !existing.has(card.img)) {
+                existing.add(card.img);
+                state.imagePool.push({
+                    id: `tray_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+                    src: card.img,
+                    name: card.text || '',
+                    createdAt: Date.now()
+                });
+            }
+        });
+    });
+}
+
+async function ensureInImageTray(src, name = '') {
+    if (!src) return;
+    if (!Array.isArray(state.imagePool)) state.imagePool = [];
+    if (state.imagePool.some(item => item.src === src)) return;
+    state.imagePool.push({
+        id: `tray_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+        src,
+        name,
+        createdAt: Date.now()
+    });
+}
+
+async function handleTrayImageUpload(input) {
+    const files = Array.from(input?.files || []);
+    if (files.length === 0) return;
+    await addImagesToTray(files);
+    input.value = '';
+}
+
+async function addImagesToTray(fileList) {
+    const files = Array.from(fileList || []).filter(f => f && f.type && f.type.startsWith('image/'));
+    if (files.length === 0) return;
+
+    showToast(`Saving ${files.length} picture${files.length > 1 ? 's' : ''}...`, 'info');
+    let added = 0;
+    for (const file of files) {
+        try {
+            const src = await storeImageFile(file);
+            await ensureInImageTray(src, file.name || '');
+            added++;
+        } catch (err) {
+            console.error('Failed to store picture:', err);
+        }
+    }
+    if (added > 0) {
+        saveState();
+        await renderImageTray();
+        showToast(`Saved ${added} picture${added > 1 ? 's' : ''} to Picture Bank`, 'success');
+    }
+}
+
+async function renderImageTray() {
+    const list = document.getElementById('image-tray-list');
+    const countEl = document.getElementById('image-tray-count');
+    const clearBtn = document.getElementById('tray-clear-btn');
+    if (!list) return;
+
+    const pool = Array.isArray(state.imagePool) ? state.imagePool : [];
+    if (countEl) countEl.textContent = String(pool.length);
+    if (clearBtn) clearBtn.classList.toggle('hidden', pool.length === 0);
+
+    if (pool.length === 0) {
+        list.innerHTML = '<p class="col-span-3 text-slate-400 text-[10px] italic py-2 text-center">No pictures stored yet.</p>';
+        return;
+    }
+
+    const resolved = await Promise.all(pool.map(item => resolveCardImage(item.src)));
+    list.innerHTML = '';
+
+    pool.forEach((item, idx) => {
+        const displayUrl = resolved[idx] || item.src;
+        const tile = document.createElement('div');
+        tile.className = 'relative aspect-square rounded-xl border-2 border-brand-dark dark:border-slate-500 bg-white dark:bg-slate-800 overflow-hidden group cursor-pointer shadow-neo-sm hover:-translate-y-0.5 transition-all';
+        tile.draggable = true;
+        tile.title = 'Click to place on card (or drag onto any card)';
+
+        tile.addEventListener('dragstart', (e) => {
+            e.dataTransfer.setData('text/cardmaker-img', item.src);
+            e.dataTransfer.effectAllowed = 'copy';
+        });
+
+        tile.addEventListener('click', (e) => {
+            if (e.target.closest('button')) return;
+            assignTrayImageToCard(item.src);
+        });
+
+        const imgEl = document.createElement('img');
+        imgEl.src = displayUrl;
+        imgEl.alt = item.name || `Picture ${idx + 1}`;
+        imgEl.className = 'w-full h-full object-contain p-1 pointer-events-none';
+
+        const badge = document.createElement('span');
+        badge.className = 'absolute top-1 left-1 px-1.5 py-0.5 rounded bg-brand-dark/80 text-white text-[9px] font-heading font-bold leading-none pointer-events-none';
+        badge.textContent = `#${idx + 1}`;
+
+        const delBtn = document.createElement('button');
+        delBtn.type = 'button';
+        delBtn.className = 'absolute top-1 right-1 p-1 rounded-md bg-brand-pink text-white border border-brand-dark opacity-0 group-hover:opacity-100 transition-opacity hover:scale-105';
+        delBtn.title = 'Delete from Picture Bank & cards';
+        delBtn.innerHTML = '<i data-lucide="trash-2" class="w-3 h-3"></i>';
+        delBtn.onclick = (e) => {
+            e.stopPropagation();
+            deleteTrayImage(item.id);
+        };
+
+        tile.append(imgEl, badge, delBtn);
+        list.appendChild(tile);
+    });
+    lucide.createIcons();
+}
+
+async function assignTrayImageToCard(imgSource) {
+    saveState();
+    const cardsPerPage = state.gridCols * state.gridRows;
+
+    // Prefer the last-focused card if it is on a valid page
+    if (lastFocusedCard) {
+        const { pageIndex, cardIndex } = lastFocusedCard;
+        if (state.pages[pageIndex]) {
+            while (state.pages[pageIndex].length <= cardIndex) {
+                state.pages[pageIndex].push({ text: '', img: '', label: '' });
+            }
+            await setCardImageDirect(pageIndex, cardIndex, imgSource);
+            showToast(`Placed picture on Page ${pageIndex + 1}, Card ${cardIndex + 1}`, 'success');
+            return;
+        }
+    }
+
+    // Otherwise find the first card slot without an image
+    for (let p = 0; p < state.pages.length; p++) {
+        const page = state.pages[p];
+        for (let c = 0; c < cardsPerPage; c++) {
+            if (!page[c]) page[c] = { text: '', img: '', label: '' };
+            if (!page[c].img) {
+                await setCardImageDirect(p, c, imgSource);
+                showToast(`Placed picture on Page ${p + 1}, Card ${c + 1}`, 'success');
+                return;
+            }
+        }
+    }
+
+    // All existing pages have images — add a new page and place on its first card
+    state.pages.push([{ text: '', img: imgSource, label: '' }]);
+    renderAllPages();
+    showToast('Added new page and placed picture', 'success');
+}
+
+async function applyTrayImagesToCards() {
+    const pool = Array.isArray(state.imagePool) ? state.imagePool : [];
+    if (pool.length === 0) {
+        showToast('Picture Bank is empty', 'warning');
+        return;
+    }
+    saveState();
+    const cardsPerPage = state.gridCols * state.gridRows;
+    let imgIdx = 0;
+
+    for (let p = 0; p < state.pages.length && imgIdx < pool.length; p++) {
+        const page = state.pages[p];
+        for (let c = 0; c < cardsPerPage && imgIdx < pool.length; c++) {
+            if (!page[c]) page[c] = { text: '', img: '', label: '' };
+            if (!page[c].img) {
+                page[c].img = pool[imgIdx].src;
+                imgIdx++;
+            }
+        }
+    }
+
+    while (imgIdx < pool.length) {
+        const newPage = [];
+        for (let c = 0; c < cardsPerPage && imgIdx < pool.length; c++) {
+            newPage.push({ text: '', img: pool[imgIdx].src, label: '' });
+            imgIdx++;
+        }
+        state.pages.push(newPage);
+    }
+
+    renderAllPages();
+    showToast(`Applied ${pool.length} picture${pool.length > 1 ? 's' : ''} to cards`, 'success');
+}
+
+async function deleteTrayImage(id) {
+    if (!Array.isArray(state.imagePool)) return;
+    const idx = state.imagePool.findIndex(item => item.id === id);
+    if (idx === -1) return;
+    const [removed] = state.imagePool.splice(idx, 1);
+
+    // Clear this image from any cards in the current set
+    if (removed?.src) {
+        state.pages = state.pages.map(page =>
+            page.map(card => (card?.img === removed.src ? { ...card, img: '' } : card))
+        );
+        if (removed.src.startsWith('cm-img://')) {
+            const allSets = await getAllCardSets();
+            const usedElsewhere = allSets.some(s =>
+                s.id !== state.activeId &&
+                (s.stateData?.pages?.some(p => p?.some(c => c?.img === removed.src)) ||
+                 s.stateData?.imagePool?.some(i => i?.src === removed.src))
+            );
+            if (!usedElsewhere) {
+                await dbDeleteImage(removed.src);
+            }
+        }
+    }
+
+    renderAllPages();
+    await renderImageTray();
+}
+
+async function clearImageTray() {
+    const pool = Array.isArray(state.imagePool) ? state.imagePool : [];
+    const hasCardImgs = state.pages.some(page => page.some(c => Boolean(c?.img)));
+    if (pool.length === 0 && !hasCardImgs) return;
+
+    const confirmed = await showConfirm(
+        'Delete All Pictures',
+        'Delete all pictures from the Picture Bank and remove them from all cards in this set?'
+    );
+    if (!confirmed) return;
+
+    const removedSrcs = new Set([
+        ...pool.map(i => i?.src).filter(Boolean),
+        ...state.pages.flatMap(p => p.map(c => c?.img).filter(Boolean))
+    ]);
+
+    state.imagePool = [];
+    state.pages = state.pages.map(page =>
+        page.map(card => (card?.img ? { ...card, img: '' } : card))
+    );
+
+    const allSets = await getAllCardSets();
+    for (const src of removedSrcs) {
+        if (src.startsWith('cm-img://')) {
+            const usedElsewhere = allSets.some(s =>
+                s.id !== state.activeId &&
+                (s.stateData?.pages?.some(p => p?.some(c => c?.img === src)) ||
+                 s.stateData?.imagePool?.some(i => i?.src === src))
+            );
+            if (!usedElsewhere) {
+                await dbDeleteImage(src);
+            }
+        }
+    }
+
+    renderAllPages();
+    await renderImageTray();
+    showToast('All pictures deleted from this set', 'info');
+}
+
+function applyRightPanelUI() {
+    const panel = document.getElementById('right-panel');
+    const toggleBtn = document.getElementById('right-toggle-btn');
+    if (!panel) return;
+
+    const isMobile = window.innerWidth <= 1024;
+    if (isMobile) {
+        panel.classList.remove('collapsed');
+        panel.classList.toggle('mobile-open', rightPanelOpen);
+    } else {
+        panel.classList.remove('mobile-open');
+        panel.classList.toggle('collapsed', !rightPanelOpen);
+    }
+
+    if (toggleBtn) {
+        const iconName = rightPanelOpen ? 'panel-right-close' : 'panel-right-open';
+        toggleBtn.innerHTML = `<i data-lucide="${iconName}" class="w-5 h-5"></i>`;
+        lucide.createIcons({ root: toggleBtn });
+    }
+}
+
+function toggleRightPanel() {
+    rightPanelOpen = !rightPanelOpen;
+    localStorage.setItem('cardmaker_right_panel', rightPanelOpen ? 'open' : 'closed');
+    applyRightPanelUI();
+    if (currentZoomMode === 'fit') {
+        setTimeout(applyPreviewZoom, 320);
+    }
+}
+
+function initImageTrayEvents() {
+    const dropzone = document.getElementById('image-tray-dropzone');
+    if (dropzone) {
+        dropzone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropzone.classList.add('drag-over');
+        });
+        dropzone.addEventListener('dragleave', () => {
+            dropzone.classList.remove('drag-over');
+        });
+        dropzone.addEventListener('drop', async (e) => {
+            e.preventDefault();
+            dropzone.classList.remove('drag-over');
+            if (e.dataTransfer.files?.length) {
+                await addImagesToTray(e.dataTransfer.files);
+            }
+        });
+    }
+
+    window.addEventListener('paste', async (e) => {
+        const active = document.activeElement;
+        if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.isContentEditable)) {
+            return;
+        }
+        const items = Array.from(e.clipboardData?.items || []);
+        const imageFiles = items
+            .filter(it => it.type && it.type.startsWith('image/'))
+            .map(it => it.getAsFile())
+            .filter(Boolean);
+        if (imageFiles.length > 0) {
+            e.preventDefault();
+            await addImagesToTray(imageFiles);
+        }
+    });
+}
+
 // --- Init ---
 window.onload = async () => {
     await requireAuth();
     initTheme();
+    if (window.innerWidth <= 1024) rightPanelOpen = false;
+    applyRightPanelUI();
+    initImageTrayEvents();
     await loadState();
     renderCardSets();
     applyPreviewZoom();
     initCardBulkImport();
 };
 window.onresize = () => {
+    applyRightPanelUI();
     if (currentZoomMode === "fit") applyPreviewZoom();
     if (state.autoFit)
         document

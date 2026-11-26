@@ -172,22 +172,6 @@
             </button>
         </div>
 
-        <!-- Active Set Indicator -->
-        <div id="active-set-indicator" class="hidden mb-6 animate-pop-in">
-            <div class="bg-brand-blue/10 border-2 border-brand-blue/30 rounded-xl p-3 flex items-center gap-3">
-                <div class="w-8 h-8 rounded-lg bg-brand-blue flex items-center justify-center text-white shrink-0 shadow-neo-sm">
-                    <i data-lucide="layers" class="w-4 h-4"></i>
-                </div>
-                <div class="min-w-0">
-                    <p class="text-[10px] font-bold text-brand-blue uppercase tracking-wider leading-none mb-1">Active Set</p>
-                    <p id="active-set-name" class="text-sm font-bold truncate dark:text-white">Untitled Set</p>
-                </div>
-                <button onclick="closeActiveSet()" class="ml-auto text-slate-400 hover:text-brand-pink transition-colors">
-                    <i data-lucide="x" class="w-4 h-4"></i>
-                </button>
-            </div>
-        </div>
-
         <!-- Scrollable Controls -->
         <div class="space-y-8 flex-1 overflow-y-auto pr-2 custom-scrollbar">
             <section>
@@ -338,49 +322,6 @@
                     <div class="toggle-switch"></div>
                 </div>
             </section>
-
-            <!-- Saved Card Sets -->
-            <section class="border-t-2 border-slate-100 dark:border-slate-700 pt-4">
-                <div class="flex items-center justify-between mb-2">
-                    <label class="section-label mb-0">Library</label>
-                    <select id="sets-sort" onchange="changeSetsSort()" class="bg-transparent text-[10px] font-bold text-slate-400 outline-none cursor-pointer hover:text-brand-blue transition-colors uppercase tracking-widest">
-                        <option value="recent">Recent</option>
-                        <option value="alpha">Alpha</option>
-                        <option value="popular">Popular</option>
-                    </select>
-                </div>
-                <div class="flex gap-2 mb-3">
-                    <input id="set-name-input" type="text" placeholder="Set name..."
-                        class="input-chunky flex-1 py-2 px-3 text-sm" />
-                    <button id="save-btn" onclick="saveCurrentSet()"
-                        class="btn-chunky bg-brand-pink text-white py-2 px-3 rounded-xl text-xs flex items-center gap-1">
-                        <i data-lucide="save" class="w-3 h-3"></i> SAVE
-                    </button>
-                </div>
-                <div id="sets-list" class="space-y-1.5 max-h-48 overflow-y-auto custom-scrollbar">
-                    <p class="text-slate-400 text-[10px] italic">No saved sets yet.</p>
-                </div>
-            </section>
-
-            <!-- Data Management -->
-            <section class="border-t-2 border-slate-100 dark:border-slate-700 pt-4">
-                <label class="section-label">Data Management</label>
-                <div class="grid grid-cols-2 gap-2">
-                    <button onclick="exportData()"
-                        class="btn-chunky bg-white dark:bg-slate-700 py-2 rounded-xl text-xs flex items-center justify-center gap-1 dark:text-white">
-                        <i data-lucide="download" class="w-3 h-3"></i> Save
-                        File
-                    </button>
-                    <button onclick="
-                                document.getElementById('importFile').click()
-                            "
-                        class="btn-chunky bg-white dark:bg-slate-700 py-2 rounded-xl text-xs flex items-center justify-center gap-1 dark:text-white">
-                        <i data-lucide="upload" class="w-3 h-3"></i> Open
-                        File
-                    </button>
-                </div>
-                <input type="file" id="importFile" accept=".json" class="hidden" onchange="importData(this)" />
-            </section>
         </div>
 
         <div class="mt-4 space-y-2 pt-4 border-t-2 border-brand-dark dark:border-slate-700">
@@ -397,18 +338,147 @@
         </div>
     </aside>
 
-    <!-- FLOATING ZOOM BAR -->
-    <div id="zoom-bar" class="no-print fixed bottom-4 right-4 z-[60] flex items-center gap-1 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border-[3px] border-brand-dark dark:border-slate-500 rounded-2xl p-1 shadow-neo dark:shadow-[4px_4px_0px_0px_#000000]">
-        <button onclick="setPreviewZoom(0.5)" id="zoom-0.5" class="px-2.5 py-1 rounded-xl text-[11px] font-heading font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">50%</button>
-        <button onclick="setPreviewZoom(0.75)" id="zoom-0.75" class="px-2.5 py-1 rounded-xl text-[11px] font-heading font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">75%</button>
-        <button onclick="setPreviewZoom(1)" id="zoom-1" class="px-2.5 py-1 rounded-xl text-[11px] font-heading font-bold bg-brand-blue text-white transition-colors">100%</button>
-        <button onclick="setPreviewZoom('fit')" id="zoom-fit" class="px-2.5 py-1 rounded-xl text-[11px] font-heading font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors" title="Fit page to screen">FIT</button>
+    <!-- CENTER PREVIEW WORKSPACE -->
+    <div class="flex-1 relative flex flex-col min-w-0 h-screen overflow-hidden">
+        <!-- Toggle Right Panel Button -->
+        <button id="right-toggle-btn" onclick="toggleRightPanel()"
+            class="no-print absolute top-4 right-4 z-[60] p-2.5 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border-[3px] border-brand-dark dark:border-slate-500 rounded-2xl shadow-neo dark:shadow-[4px_4px_0px_0px_#000000] hover:-translate-y-0.5 transition-all text-brand-dark dark:text-white"
+            title="Toggle Images &amp; Saves Panel" aria-label="Toggle Images and Saves Panel">
+            <i data-lucide="panel-right-close" class="w-5 h-5" id="right-toggle-icon"></i>
+        </button>
+
+        <!-- FLOATING ZOOM BAR -->
+        <div id="zoom-bar" class="no-print absolute bottom-4 right-4 z-[60] flex items-center gap-1 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border-[3px] border-brand-dark dark:border-slate-500 rounded-2xl p-1 shadow-neo dark:shadow-[4px_4px_0px_0px_#000000]">
+            <button onclick="setPreviewZoom(0.5)" id="zoom-0.5" class="px-2.5 py-1 rounded-xl text-[11px] font-heading font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">50%</button>
+            <button onclick="setPreviewZoom(0.75)" id="zoom-0.75" class="px-2.5 py-1 rounded-xl text-[11px] font-heading font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">75%</button>
+            <button onclick="setPreviewZoom(1)" id="zoom-1" class="px-2.5 py-1 rounded-xl text-[11px] font-heading font-bold bg-brand-blue text-white transition-colors">100%</button>
+            <button onclick="setPreviewZoom('fit')" id="zoom-fit" class="px-2.5 py-1 rounded-xl text-[11px] font-heading font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors" title="Fit page to screen">FIT</button>
+        </div>
+
+        <!-- MAIN WORKSPACE -->
+        <main id="pagesContainer" class="preview-area transition-all duration-500 flex-1">
+            <!-- Pages generated via JS -->
+        </main>
     </div>
 
-    <!-- MAIN WORKSPACE -->
-    <main id="pagesContainer" class="preview-area transition-all duration-500 flex-1">
-        <!-- Pages generated via JS -->
-    </main>
+    <!-- RIGHT SIDEBAR: IMAGES & SAVES -->
+    <aside id="right-panel" class="right-sidebar glass-panel no-print flex flex-col p-4 sm:p-5">
+        <!-- Header -->
+        <div class="mb-4 border-b-2 border-slate-100 dark:border-slate-700 pb-3 flex items-center justify-between shrink-0">
+            <div class="flex items-center gap-2">
+                <div class="w-8 h-8 rounded-xl bg-brand-orange/20 border-2 border-brand-dark dark:border-slate-500 flex items-center justify-center text-brand-orange">
+                    <i data-lucide="folder-heart" class="w-4 h-4"></i>
+                </div>
+                <div>
+                    <h2 class="text-sm font-heading font-bold text-brand-dark dark:text-white uppercase tracking-wide leading-none">
+                        Images &amp; Saves
+                    </h2>
+                    <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">IndexedDB Vault</p>
+                </div>
+            </div>
+            <button onclick="toggleRightPanel()" class="lg:hidden p-1.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-lg border-2 border-brand-dark dark:border-slate-500" aria-label="Close right panel">
+                <i data-lucide="x" class="w-4 h-4"></i>
+            </button>
+        </div>
+
+        <div class="flex-1 overflow-y-auto pr-1 custom-scrollbar space-y-5">
+            <!-- Separate Image Container -->
+            <section class="space-y-2.5">
+                <div class="flex items-center justify-between gap-2">
+                    <div class="flex items-center gap-1.5">
+                        <label class="section-label mb-0">Picture Bank</label>
+                        <span id="image-tray-count" class="px-1.5 py-0.5 rounded-md bg-brand-blue/15 text-brand-blue text-[10px] font-black">0</span>
+                    </div>
+                    <div class="flex items-center gap-1.5">
+                        <button type="button" onclick="applyTrayImagesToCards()" id="tray-autofill-btn"
+                            class="px-2 py-1 rounded-lg bg-brand-green/20 hover:bg-brand-green/35 text-brand-dark dark:text-white border-2 border-brand-dark dark:border-slate-500 text-[10px] font-heading font-bold uppercase transition-colors"
+                            title="Fill cards with images from Picture Bank">
+                            Auto-Fill
+                        </button>
+                        <button type="button" onclick="clearImageTray()" id="tray-clear-btn"
+                            class="px-2 py-1 rounded-lg bg-brand-pink/15 hover:bg-brand-pink hover:text-white text-brand-pink border-2 border-brand-dark dark:border-slate-500 text-[10px] font-heading font-bold uppercase flex items-center gap-1 transition-colors hidden"
+                            title="Delete all pictures from this set">
+                            <i data-lucide="trash-2" class="w-3 h-3"></i> Delete All
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Upload / Drop / Paste Zone -->
+                <div id="image-tray-dropzone"
+                    class="image-tray-dropzone p-2.5 border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-xl bg-slate-50/80 dark:bg-slate-800/60 flex items-center justify-between gap-2 transition-colors">
+                    <div class="min-w-0">
+                        <p class="text-[11px] font-bold text-brand-dark dark:text-white leading-tight">Drop, Paste, or Add</p>
+                        <p class="text-[10px] text-slate-400 truncate">Click a thumb to place on card</p>
+                    </div>
+                    <button type="button" onclick="document.getElementById('trayImageInput').click()"
+                        class="btn-chunky bg-brand-blue text-white px-2.5 py-1.5 rounded-xl text-[10px] flex items-center gap-1 shrink-0">
+                        <i data-lucide="image-plus" class="w-3.5 h-3.5"></i> Add
+                    </button>
+                    <input type="file" id="trayImageInput" multiple accept="image/*" class="hidden" onchange="handleTrayImageUpload(this)" />
+                </div>
+
+                <!-- Image Thumbnails Grid -->
+                <div id="image-tray-list" class="grid grid-cols-3 gap-2 max-h-56 overflow-y-auto custom-scrollbar pr-0.5">
+                    <p class="col-span-3 text-slate-400 text-[10px] italic py-2 text-center">No pictures stored yet.</p>
+                </div>
+            </section>
+
+            <!-- Active Set Indicator -->
+            <div id="active-set-indicator" class="hidden animate-pop-in">
+                <div class="bg-brand-blue/10 border-2 border-brand-blue/30 rounded-xl p-2.5 flex items-center gap-2.5">
+                    <div class="w-7 h-7 rounded-lg bg-brand-blue flex items-center justify-center text-white shrink-0 shadow-neo-sm">
+                        <i data-lucide="layers" class="w-3.5 h-3.5"></i>
+                    </div>
+                    <div class="min-w-0">
+                        <p class="text-[10px] font-bold text-brand-blue uppercase tracking-wider leading-none mb-0.5">Active Set</p>
+                        <p id="active-set-name" class="text-xs font-bold truncate dark:text-white">Untitled Set</p>
+                    </div>
+                    <button onclick="closeActiveSet()" class="ml-auto text-slate-400 hover:text-brand-pink transition-colors" title="Detach active set">
+                        <i data-lucide="x" class="w-4 h-4"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Saved Card Sets -->
+            <section class="border-t-2 border-slate-100 dark:border-slate-700 pt-4">
+                <div class="flex items-center justify-between mb-2">
+                    <label class="section-label mb-0">Saved Sets</label>
+                    <select id="sets-sort" onchange="changeSetsSort()" class="bg-transparent text-[10px] font-bold text-slate-400 outline-none cursor-pointer hover:text-brand-blue transition-colors uppercase tracking-widest">
+                        <option value="recent">Recent</option>
+                        <option value="alpha">Alpha</option>
+                        <option value="popular">Popular</option>
+                    </select>
+                </div>
+                <div class="flex gap-2 mb-3">
+                    <input id="set-name-input" type="text" placeholder="Set name..."
+                        class="input-chunky flex-1 py-2 px-3 text-sm" />
+                    <button id="save-btn" onclick="saveCurrentSet()"
+                        class="btn-chunky bg-brand-pink text-white py-2 px-3 rounded-xl text-xs flex items-center gap-1 shrink-0">
+                        <i data-lucide="save" class="w-3 h-3"></i> SAVE
+                    </button>
+                </div>
+                <div id="sets-list" class="space-y-1.5 max-h-56 overflow-y-auto custom-scrollbar">
+                    <p class="text-slate-400 text-[10px] italic">No saved sets yet.</p>
+                </div>
+            </section>
+
+            <!-- Data Management -->
+            <section class="border-t-2 border-slate-100 dark:border-slate-700 pt-4">
+                <label class="section-label">Data Management</label>
+                <div class="grid grid-cols-2 gap-2">
+                    <button onclick="exportData()"
+                        class="btn-chunky bg-white dark:bg-slate-700 py-2 rounded-xl text-xs flex items-center justify-center gap-1 dark:text-white">
+                        <i data-lucide="download" class="w-3 h-3"></i> Save File
+                    </button>
+                    <button onclick="document.getElementById('importFile').click()"
+                        class="btn-chunky bg-white dark:bg-slate-700 py-2 rounded-xl text-xs flex items-center justify-center gap-1 dark:text-white">
+                        <i data-lucide="upload" class="w-3 h-3"></i> Open File
+                    </button>
+                </div>
+                <input type="file" id="importFile" accept=".json" class="hidden" onchange="importData(this)" />
+            </section>
+        </div>
+    </aside>
 
     <!-- Toast Container -->
     <div id="toast-container" class="fixed bottom-8 left-1/2 -translate-x-1/2 z-[400] flex flex-col gap-3 pointer-events-none"></div>
