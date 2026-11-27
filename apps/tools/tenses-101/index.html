@@ -1,768 +1,608 @@
 <!DOCTYPE html>
-<html lang="en" class="scroll-smooth">
+<html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>KlassKit • Tense Diver</title>
+    <title>Tense Diver | KlassKit</title>
     <link rel="icon" type="image/x-icon" href="../../../media/icon.ico" />
     <link rel="icon" type="image/webp" href="../../../media/icon.webp" />
-    
-    <!-- 
-      FONTS: 
-      - Fredoka: Headings & UI elements (Playful)
-      - Nunito: Body text (Readable)
-    -->
+
+    <!-- Early Synchronous Dark Mode & Hub Color-Theme Sync -->
+    <script>
+        (function () {
+            function readStored(key) {
+                try {
+                    var raw = localStorage.getItem(key);
+                    if (raw == null) return null;
+                    try { return JSON.parse(raw); } catch (e) { return raw; }
+                } catch (e) { return null; }
+            }
+            function syncTheme(changedKey) {
+                var isDark;
+                if (changedKey === 'theme_hub') {
+                    var hubVal = readStored('theme_hub');
+                    isDark = hubVal ? hubVal === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
+                } else {
+                    var toolTheme = readStored('theme_tenses-101') || readStored('theme') || readStored('klasskit-theme');
+                    var hubTheme = readStored('theme_hub');
+                    isDark = toolTheme
+                        ? toolTheme === 'dark'
+                        : hubTheme
+                            ? hubTheme === 'dark'
+                            : window.matchMedia('(prefers-color-scheme: dark)').matches;
+                }
+                document.documentElement.classList.toggle('dark', isDark);
+
+                var colorTheme = readStored('klasskit_colorTheme');
+                if (colorTheme && colorTheme !== 'classic') {
+                    document.documentElement.setAttribute('data-theme', colorTheme);
+                } else {
+                    document.documentElement.removeAttribute('data-theme');
+                }
+            }
+            syncTheme();
+            window.addEventListener('storage', function (e) {
+                if (
+                    e.key === 'theme_hub' ||
+                    e.key === 'theme_tenses-101' ||
+                    e.key === 'theme' ||
+                    e.key === 'klasskit-theme' ||
+                    e.key === 'klasskit_colorTheme'
+                ) {
+                    syncTheme(e.key);
+                }
+            });
+        })();
+    </script>
+
+    <!-- Core Typography: Fredoka (Headings) + Nunito (Body) -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
-    
-    <!-- ICONS: Lucide -->
-    <script src="https://unpkg.com/lucide@1.16.0"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.105.4"></script>
-    <script src="/supabase.js"></script>
-    
-    <!-- TAILWIND CSS -->
-    <link rel="stylesheet" href="../../../css/tailwind.generated.css" />
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
 
-    <style>
-        /* --- GLOBAL STYLES --- */
-        body {
-            background-image: 
-                linear-gradient(rgba(30, 41, 59, 0.05) 1px, transparent 1px),
-                linear-gradient(90deg, rgba(30, 41, 59, 0.05) 1px, transparent 1px);
-            background-size: 24px 24px;
-        }
+    <!-- Stylesheets (?v=2) -->
+    <link rel="stylesheet" href="../../../css/tailwind.generated.css?v=2" />
+    <link rel="stylesheet" href="../../../css/base.css?v=2" />
+    <link rel="stylesheet" href="../../../css/components.css?v=2" />
+    <link rel="stylesheet" href="./style.css?v=2" />
 
-        html.dark body {
-            background-image: 
-                linear-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px),
-                linear-gradient(90deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
-        }
-
-        .scroller::-webkit-scrollbar { width: 6px; }
-        .scroller::-webkit-scrollbar-track { background: transparent; }
-        .scroller::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 99px; }
-        .scroller::-webkit-scrollbar-thumb:hover { background-color: #94a3b8; }
-        
-        html.dark .scroller::-webkit-scrollbar-thumb { background-color: #475569; }
-        html.dark .scroller::-webkit-scrollbar-thumb:hover { background-color: #64748b; }
-
-        .t-item {
-            position: absolute;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            opacity: 0;
-            z-index: 10;
-            pointer-events: none;
-        }
-        
-        .t-item > * { pointer-events: auto; }
-        
-        /* Builder Mode Styles */
-        .cursor-pen { cursor: crosshair; }
-
-        .shadow-neo-white { box-shadow: 4px 4px 0px 0px rgba(255, 255, 255, 1); }
-        .shadow-neo-sm-white { box-shadow: 2px 2px 0px 0px rgba(255, 255, 255, 1); }
-        html.dark .dark\:shadow-neo-white { box-shadow: 4px 4px 0px 0px rgba(255, 255, 255, 1); }
-        html.dark .dark\:shadow-neo-sm-white { box-shadow: 2px 2px 0px 0px rgba(255, 255, 255, 1); }
-        @keyframes pop-in-center {
-            0% { transform: translate(-50%, -50%) scale(0.5); opacity: 0; }
-            100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
-        }
-        @keyframes pop-in-left {
-            0% { transform: translate(0, -50%) scale(0.5); opacity: 0; }
-            100% { transform: translate(0, -50%) scale(1); opacity: 1; }
-        }
-        .animate-pop-center { animation: pop-in-center 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
-        .animate-pop-left { animation: pop-in-left 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
-    </style>
-    <link rel="stylesheet" href="../../../css/base.css" />
-    <link rel="stylesheet" href="../../../css/components.css" />
-  
-  <script defer src="/js/analytics.js"></script>
+    <!-- Deferred Runtime Scripts -->
+    <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.105.4"></script>
+    <script defer src="/supabase.js"></script>
+    <script defer src="https://unpkg.com/lucide@1.16.0"></script>
+    <script defer src="./js/tenses-data.js?v=2"></script>
+    <script defer src="./script.js?v=2"></script>
+    <script defer src="/js/analytics.js"></script>
 </head>
-<body class="bg-slate-50 text-brand-dark font-body h-screen flex flex-col overflow-hidden transition-colors duration-300 dark:bg-slate-900 dark:text-white" onload="App.init()">
 
-    <!-- ================= 1. HEADER ================= -->
-    <nav class="h-16 shrink-0 bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm border-b-3 border-brand-dark dark:border-white px-4 md:px-6 flex items-center justify-between z-50 sticky top-0 transition-colors duration-300">
-        <div class="flex items-center gap-3 select-none cursor-pointer" onclick="location.reload()">
-            <div class="bg-brand-pink p-1.5 rounded-lg border-2 border-brand-dark dark:border-white shadow-sm transform -rotate-3 transition-transform hover:rotate-0">
-                <i data-lucide="compass" class="w-6 h-6 text-white"></i>
+<body class="h-screen w-screen overflow-hidden font-body text-dark dark:text-slate-100 flex flex-col">
+
+    <!-- TOP GLASSMORPHIC NAVIGATION BAR -->
+    <header id="topBar" class="glass-topbar sticky top-0 z-40 px-3 sm:px-5 py-2.5 flex-none">
+        <div class="flex items-center justify-between gap-2 w-full">
+            <!-- Left: Mobile Sidebar Toggle + Brand + Quick Prev/Next -->
+            <div class="flex items-center gap-2.5 min-w-0">
+                <button type="button" id="sidebarToggleBtn" onclick="App.toggleSidebar()" aria-label="Toggle tenses sidebar"
+                    class="btn-chunky md:hidden bg-white dark:bg-slate-800 text-dark dark:text-white w-9 h-9 p-0 flex-shrink-0">
+                    <i data-lucide="panel-left" class="w-4 h-4"></i>
+                </button>
+
+                <div class="w-9 h-9 rounded-xl bg-pink text-white border-[2.5px] border-dark dark:border-slate-500 shadow-hard-sm flex items-center justify-center flex-shrink-0 -rotate-3 hover:rotate-0 transition-transform">
+                    <i data-lucide="compass" class="w-5 h-5"></i>
+                </div>
+
+                <div class="min-w-0 flex items-center gap-2">
+                    <h1 class="font-heading font-bold text-lg sm:text-xl uppercase tracking-tight leading-none text-dark dark:text-white truncate">
+                        Tense <span class="text-blue">Diver</span>
+                    </h1>
+                    <span id="headerTenseMeta" class="hidden sm:inline-flex px-2 py-0.5 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-600 text-[10px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-300 flex-shrink-0">
+                        1 / 16
+                    </span>
+                </div>
+
+                <div class="hidden sm:flex items-center gap-1 ml-1">
+                    <button type="button" id="prevTenseBtn" onclick="App.prevTense()" aria-label="Previous tense"
+                        class="btn-chunky bg-white dark:bg-slate-800 text-dark dark:text-white w-8 h-8 p-0" title="Previous tense (Left Arrow)">
+                        <i data-lucide="chevron-left" class="w-4 h-4"></i>
+                    </button>
+                    <button type="button" id="nextTenseBtn" onclick="App.nextTense()" aria-label="Next tense"
+                        class="btn-chunky bg-white dark:bg-slate-800 text-dark dark:text-white w-8 h-8 p-0" title="Next tense (Right Arrow)">
+                        <i data-lucide="chevron-right" class="w-4 h-4"></i>
+                    </button>
+                </div>
             </div>
-            <h1 class="text-xl md:text-2xl font-heading font-black tracking-tight text-brand-dark dark:text-white">
-                Tense <span class="text-brand-blue">Diver</span>
-            </h1>
+
+            <!-- Right: Mastery Counter + Compare + Board Mode + Theme -->
+            <div class="flex items-center gap-2 flex-shrink-0">
+                <span id="masteryHeaderPill" class="hidden lg:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-green/15 border-2 border-green/40 text-[11px] font-black uppercase tracking-wide text-green">
+                    <i data-lucide="award" class="w-3.5 h-3.5"></i>
+                    <span id="masteryHeaderText">0 / 16 Mastered</span>
+                </span>
+
+                <button type="button" id="compareOpenBtn" onclick="App.openCompareModal()"
+                    class="btn-chunky bg-white dark:bg-slate-800 text-dark dark:text-white px-2.5 sm:px-3 py-1.5 text-xs font-heading font-bold uppercase tracking-wide gap-1.5"
+                    title="Compare two tenses side by side">
+                    <i data-lucide="columns-2" class="w-4 h-4 text-orange"></i>
+                    <span class="hidden sm:inline">Compare</span>
+                </button>
+
+                <button type="button" id="boardModeBtn" onclick="App.toggleBoardMode()" aria-label="Toggle projector board mode"
+                    class="btn-chunky bg-white dark:bg-slate-800 text-dark dark:text-white px-2.5 sm:px-3 py-1.5 text-xs font-heading font-bold uppercase tracking-wide gap-1.5"
+                    title="Classroom Board / Projector Mode">
+                    <i id="boardModeIcon" data-lucide="maximize-2" class="w-4 h-4 text-blue"></i>
+                    <span class="hidden md:inline">Board</span>
+                </button>
+
+                <button type="button" id="themeToggleBtn" onclick="App.toggleTheme()" aria-label="Toggle light or dark theme"
+                    class="btn-chunky bg-white dark:bg-slate-800 text-dark dark:text-white w-9 h-9 p-0"
+                    title="Toggle Light / Dark Mode">
+                    <i id="themeIconSun" data-lucide="sun" class="w-4 h-4 text-orange is-hidden"></i>
+                    <i id="themeIconMoon" data-lucide="moon" class="w-4 h-4 text-blue"></i>
+                </button>
+            </div>
         </div>
-        
-        <div class="flex items-center gap-3">
-            <div class="hidden md:flex gap-3 text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest items-center">
-                <span class="px-2 py-1 bg-slate-100 dark:bg-slate-800 rounded border border-slate-200 dark:border-slate-600">KlassKit</span>
-                <span class="w-1.5 h-1.5 bg-brand-green rounded-full animate-pulse"></span>
-                <span>Live Preview</span>
+    </header>
+
+    <!-- MAIN 2-COLUMN WORKSPACE SHELL -->
+    <div class="flex-1 min-h-0 flex gap-3 p-2.5 sm:p-3.5 relative z-10 overflow-hidden">
+
+        <!-- Mobile Sidebar Backdrop -->
+        <div id="sidebarBackdrop" class="sidebar-backdrop md:hidden" onclick="App.toggleSidebar(false)"></div>
+
+        <!-- LEFT GLASSMORPHIC SIDEBAR -->
+        <aside id="sidebar" class="glass-sidebar flex flex-col flex-none h-full overflow-hidden">
+            <!-- Instant Search Filter -->
+            <div class="p-3 border-b-2 border-slate-200/80 dark:border-slate-700/80 flex-none space-y-2.5">
+                <div class="relative">
+                    <i data-lucide="search" class="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"></i>
+                    <input type="text" id="tenseSearchInput" placeholder="Find tense or signal word..."
+                        class="w-full pl-8 pr-7 py-2 text-xs font-bold bg-white dark:bg-slate-900 border-2 border-slate-300 dark:border-slate-600 focus:border-blue rounded-xl text-dark dark:text-slate-100 placeholder-slate-400 outline-none select-text transition-colors">
+                    <button type="button" id="tenseSearchClearBtn" onclick="App.clearSearch()" aria-label="Clear search"
+                        class="is-hidden absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-pink p-0.5 rounded cursor-pointer">
+                        <i data-lucide="x" class="w-3.5 h-3.5"></i>
+                    </button>
+                </div>
+
+                <!-- Mastery Progress Strip -->
+                <div class="px-2.5 py-2 rounded-xl bg-slate-100/90 dark:bg-slate-900/70 border-2 border-slate-200 dark:border-slate-700 space-y-1.5">
+                    <div class="flex items-center justify-between gap-2 text-[11px] font-black">
+                        <span id="masteryProgressText" class="text-slate-600 dark:text-slate-300 uppercase tracking-wider">0 / 16 Mastered</span>
+                        <button type="button" id="resetProgressBtn" onclick="App.resetAllProgress()"
+                            class="text-[10px] font-extrabold text-slate-400 hover:text-pink flex items-center gap-1 cursor-pointer transition-colors"
+                            title="Reset saved mastery, drafts & examples">
+                            <i data-lucide="rotate-ccw" class="w-3 h-3"></i>
+                            <span>Reset</span>
+                        </button>
+                    </div>
+                    <div class="w-full h-2 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden">
+                        <div id="masteryProgressFill" class="h-full bg-green rounded-full transition-all duration-300" style="width: 0%"></div>
+                    </div>
+                </div>
             </div>
 
-            <button onclick="App.toggleTheme()" class="p-2 rounded-lg border-2 border-brand-dark dark:border-white shadow-neo dark:shadow-neo-white active:shadow-neo-pressed active:translate-y-1 transition-all bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 ml-2 group">
-                <i data-lucide="moon" class="w-5 h-5 block dark:hidden text-brand-dark"></i>
-                <i data-lucide="sun" class="w-5 h-5 hidden dark:block text-yellow-400"></i>
-            </button>
-
-            <button onclick="App.toggleSidebar()" class="md:hidden p-2 rounded-lg border-2 border-brand-dark dark:border-white shadow-neo dark:shadow-neo-white active:shadow-neo-pressed active:translate-y-1 transition-all bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700">
-                <i data-lucide="menu" class="w-6 h-6 dark:text-white"></i>
-            </button>
-        </div>
-    </nav>
-
-    <!-- ================= 2. MAIN LAYOUT ================= -->
-    <div class="flex-1 flex overflow-hidden relative">
-        
-        <!-- SIDEBAR -->
-        <aside id="sidebar" class="w-64 md:w-72 bg-white dark:bg-slate-900 border-r-3 border-brand-dark dark:border-white flex flex-col shrink-0 z-40 transform -translate-x-full md:translate-x-0 transition-transform duration-300 absolute md:relative h-full shadow-[10px_0_20px_rgba(0,0,0,0.1)] md:shadow-none">
-            <div class="p-4 border-b-2 border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
-                <h2 class="font-heading font-black text-slate-400 uppercase tracking-widest text-[10px]">Time Frames</h2>
-            </div>
-            <div id="sidebar-content" class="flex-1 overflow-y-auto scroller p-3 pb-20 space-y-6"></div>
+            <!-- 16 Tense Groups -->
+            <nav id="sidebarContent" aria-label="English Grammar Tenses" class="flex-1 min-h-0 overflow-y-auto p-3 custom-scrollbar space-y-5"></nav>
         </aside>
 
-        <!-- STAGE -->
-        <main class="flex-1 overflow-y-auto scroller p-4 md:p-8 relative w-full" onclick="App.closeSidebarMobile()">
-            
-            <!-- SECTION A: Header -->
-            <div class="max-w-4xl mx-auto mb-8 animate-fade-in">
-                <div class="flex flex-col md:flex-row gap-4 items-start md:items-center justify-between mb-4">
-                    <div>
-                        <span id="tense-category" class="text-[10px] md:text-xs font-black uppercase tracking-widest px-2 py-1 bg-slate-100 dark:bg-slate-800 text-slate-500 rounded border border-slate-200 dark:border-slate-700 select-none transition-colors">Category</span>
-                        <h1 id="tense-title" class="text-3xl md:text-5xl font-heading font-black text-brand-dark dark:text-white mt-2 leading-tight drop-shadow-sm transition-colors">Tense Title</h1>
-                    </div>
-                    
-                    <div class="bg-white dark:bg-slate-800 border-2 border-brand-dark dark:border-white shadow-neo-sm dark:shadow-neo-sm-white rounded-xl px-4 py-2 flex items-center gap-2 shrink-0 transform hover:scale-105 transition-transform cursor-help group relative select-none">
-                        <i data-lucide="function-square" class="w-5 h-5 text-brand-purple"></i>
-                        <span id="tense-formula" class="font-bold font-mono text-lg text-brand-purple">Formula</span>
-                        <div class="absolute -bottom-8 right-0 bg-brand-dark text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-50">
-                            Grammar Structure
-                        </div>
-                    </div>
-                </div>
+        <!-- MAIN SCROLLABLE LEARNING STAGE -->
+        <main id="mainStage" class="flex-1 min-w-0 h-full overflow-y-auto custom-scrollbar pr-0.5">
+            <div class="stage-container max-w-5xl mx-auto space-y-5 pb-10">
 
-                <p id="tense-desc" class="text-lg md:text-xl text-slate-600 dark:text-slate-300 font-bold max-w-2xl leading-relaxed">
-                    Description text...
-                </p>
-            </div>
-
-            <!-- SECTION B: Visualization -->
-            <div class="max-w-4xl mx-auto mb-8 animate-fade-in" style="animation-delay: 0.1s">
-                <!-- Timeline Container -->
-                <div id="timeline-container" onclick="App.handleTimelineClick(event)" class="bg-slate-50 dark:bg-slate-800 border-3 border-brand-dark dark:border-white rounded-2xl shadow-neo dark:shadow-neo-white relative overflow-hidden h-[340px] w-full select-none group transition-all duration-300">
-                    
-                    <!-- Builder Mode Badge -->
-                    <div id="builder-badge" class="absolute top-4 left-1/2 transform -translate-x-1/2 bg-brand-orange text-white px-3 py-1 rounded-full font-black text-xs uppercase tracking-widest border-2 border-brand-dark shadow-sm z-30 hidden animate-bounce-subtle">
-                        Builder Mode Active
-                    </div>
-
-                    <button onclick="App.replayAnimation()" class="absolute top-4 right-4 z-30 p-2 rounded-lg bg-white/80 dark:bg-slate-700/80 border-2 border-brand-dark dark:border-white shadow-sm hover:scale-110 active:scale-95 transition-all text-slate-500 dark:text-white hover:text-brand-dark" title="Replay Animation / Reset Builder">
-                        <i data-lucide="rotate-ccw" class="w-4 h-4"></i>
-                    </button>
-
-                    <div class="absolute inset-0 opacity-40 pointer-events-none" style="background-image: linear-gradient(#94a3b8 1px, transparent 1px), linear-gradient(90deg, #94a3b8 1px, transparent 1px); background-size: 40px 40px;"></div>
-                    
-                    <!-- Axis Labels -->
-                    <div class="absolute top-4 left-4 flex items-center gap-1 opacity-40">
-                        <i data-lucide="arrow-left" class="w-3 h-3 text-brand-dark dark:text-white"></i>
-                        <span class="font-black text-brand-dark dark:text-white text-xs uppercase tracking-[0.2em]">Past</span>
-                    </div>
-                    <div class="absolute top-4 right-16 flex items-center gap-1 opacity-40">
-                        <span class="font-black text-brand-dark dark:text-white text-xs uppercase tracking-[0.2em]">Future</span>
-                        <i data-lucide="arrow-right" class="w-3 h-3 text-brand-dark dark:text-white"></i>
-                    </div>
-
-                    <!-- Timeline Track -->
-                    <div class="absolute top-1/2 left-0 right-0 h-1.5 bg-slate-200 dark:bg-slate-600 border-y border-slate-300 dark:border-slate-500 z-0 transform -translate-y-1/2"></div>
-                    <div class="absolute top-12 bottom-12 left-1/2 w-0 border-r-2 border-dashed border-brand-dark/30 dark:border-white/30 z-0 transform -translate-x-1/2"></div>
-                    
-                    <!-- NOW Label -->
-                    <div class="absolute top-[18%] left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-10 flex flex-col items-center gap-1 cursor-default pointer-events-none">
-                        <div class="bg-brand-dark dark:bg-white dark:text-brand-dark text-white text-[9px] font-black px-2 py-0.5 rounded border-2 border-brand-dark dark:border-white shadow-sm tracking-widest">NOW</div>
-                        <div class="w-0.5 h-full bg-brand-dark dark:bg-white"></div>
-                    </div>
-
-                    <!-- Layer for items -->
-                    <div id="timeline-layer" class="absolute inset-0 z-20 pointer-events-none"></div>
-                </div>
-            </div>
-
-            <!-- SECTION C: Info & Builder -->
-            <div class="max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-6 animate-fade-in" style="animation-delay: 0.2s">
-                
-                <!-- Usage Card -->
-                <div class="bg-white dark:bg-slate-800 border-3 border-brand-dark dark:border-white rounded-2xl shadow-neo dark:shadow-neo-white p-6 relative overflow-hidden flex flex-col h-full transition-colors duration-300">
-                    <div class="absolute top-0 right-0 w-20 h-20 bg-brand-orange/10 rounded-bl-[40px] -mr-8 -mt-8 pointer-events-none"></div>
-                    <div class="flex items-center gap-2 mb-4 relative z-10">
-                        <div class="bg-brand-orange/20 p-1.5 rounded-lg">
-                            <i data-lucide="lightbulb" class="w-5 h-5 text-brand-orange"></i>
-                        </div>
-                        <h3 class="text-xl font-heading font-bold text-brand-dark dark:text-white">When to use?</h3>
-                    </div>
-                    <ul id="usage-list" class="space-y-3 relative z-10 flex-1"></ul>
-                </div>
-
-                <!-- Timeline Builder Card -->
-                <div id="builder-card" class="bg-white dark:bg-slate-800 border-3 border-brand-dark dark:border-white rounded-2xl shadow-neo dark:shadow-neo-white p-6 relative overflow-hidden transition-colors duration-300 flex flex-col">
-                    <div id="ex-blob" class="absolute top-0 right-0 w-20 h-20 bg-brand-blue/10 rounded-bl-[40px] -mr-8 -mt-8 pointer-events-none transition-colors duration-300"></div>
-                    
-                    <div class="relative z-10 flex-1 flex flex-col">
-                        <!-- Header -->
-                        <div class="flex items-center justify-between mb-4">
-                            <div class="flex items-center gap-2">
-                                <div class="bg-brand-purple/20 p-1.5 rounded-lg">
-                                    <i data-lucide="wrench" class="w-5 h-5 text-brand-purple"></i>
-                                </div>
-                                <h3 class="text-xl font-heading font-bold text-brand-dark dark:text-white">Timeline Builder</h3>
+                <!-- 1. HERO HEADER & INTERACTIVE + / - / ? FORMULA CARD -->
+                <section class="glass-panel p-4 sm:p-6">
+                    <div class="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+                        <!-- Left Title, Badges, Description & Signal Word Stickers -->
+                        <div class="lg:col-span-7 space-y-3">
+                            <div class="flex flex-wrap items-center gap-2">
+                                <span id="tenseCategory" class="px-2.5 py-0.5 rounded-lg text-[11px] font-black uppercase tracking-wider border-2">
+                                    Present
+                                </span>
+                                <span id="tenseIndexBadge" class="px-2 py-0.5 rounded-lg bg-slate-100 dark:bg-slate-700 text-[11px] font-black text-slate-500 dark:text-slate-300">
+                                    #1 of 16
+                                </span>
+                                <span id="masteredHeroBadge" class="is-hidden inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg bg-green text-white border-2 border-dark dark:border-slate-500 text-[10px] font-black uppercase tracking-wider">
+                                    <i data-lucide="circle-check" class="w-3 h-3"></i>
+                                    <span>Mastered</span>
+                                </span>
                             </div>
-                            <span class="text-[10px] font-black uppercase tracking-widest bg-slate-100 dark:bg-slate-700 px-2 py-1 rounded text-slate-500 dark:text-slate-300">Challenge</span>
+
+                            <h2 id="tenseTitle" class="font-heading font-bold text-3xl sm:text-4xl uppercase tracking-tight leading-none text-dark dark:text-white">
+                                Simple Present
+                            </h2>
+
+                            <p id="tenseDesc" class="text-sm sm:text-base font-bold text-slate-600 dark:text-slate-300 leading-relaxed">
+                                Used for facts, habits, daily routines, and fixed schedules.
+                            </p>
+
+                            <!-- Time Signal Word Stickers -->
+                            <div class="pt-1">
+                                <p class="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-400 mb-2">
+                                    Time Signal Words
+                                </p>
+                                <div id="signalWordsList" class="flex flex-wrap gap-2"></div>
+                            </div>
                         </div>
 
-                        <p class="text-sm font-bold text-slate-500 dark:text-slate-400 mb-4">
-                            Rebuild the visualization for this tense. Select a tool and click on the timeline to place it.
-                        </p>
+                        <!-- Right Formula (+ / - / ?) & Model Example Card -->
+                        <div class="lg:col-span-5 p-4 rounded-2xl bg-slate-100/90 dark:bg-slate-900/75 border-3 border-dark dark:border-slate-600 shadow-hard-sm space-y-3">
+                            <div class="flex items-center justify-between gap-2">
+                                <div class="flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-300">
+                                    <i data-lucide="square-function" class="w-4 h-4 text-blue"></i>
+                                    <span>Formula &amp; Pattern</span>
+                                </div>
 
-                        <!-- Toolbox Grid -->
-                        <div class="grid grid-cols-4 gap-2 mb-6">
-                            <button onclick="App.selectTool('pin')" id="tool-pin" class="tool-btn flex flex-col items-center justify-center p-2 rounded-xl border-2 border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 hover:border-brand-blue hover:bg-brand-blue/5 transition-all active:scale-95 group">
-                                <div class="w-8 h-8 rounded-full bg-brand-blue border-2 border-brand-dark mb-1 flex items-center justify-center shadow-sm"><i data-lucide="map-pin" class="w-4 h-4 text-white"></i></div>
-                                <span class="text-[10px] font-black uppercase text-slate-500 dark:text-slate-400">Pin</span>
+                                <!-- + / - / ? Form Switcher -->
+                                <div class="seg-track grid grid-cols-3 gap-1" role="group" aria-label="Sentence form">
+                                    <button type="button" id="formBtnPos" onclick="App.setSentenceForm('pos')" class="seg-btn is-active">+ Pos</button>
+                                    <button type="button" id="formBtnNeg" onclick="App.setSentenceForm('neg')" class="seg-btn">- Neg</button>
+                                    <button type="button" id="formBtnQ" onclick="App.setSentenceForm('q')" class="seg-btn">? Q</button>
+                                </div>
+                            </div>
+
+                            <div class="px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-800 border-2 border-dark dark:border-slate-500 font-mono font-extrabold text-sm sm:text-base text-dark dark:text-white text-center select-text">
+                                <span id="tenseFormula">S + V1 (s/es)</span>
+                            </div>
+
+                            <div class="flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-white/80 dark:bg-slate-800/80 border-2 border-slate-200 dark:border-slate-700">
+                                <p id="heroExampleText" class="text-xs sm:text-sm font-bold text-dark dark:text-slate-100 italic select-text flex-1">
+                                    I play tennis every Sunday.
+                                </p>
+                                <button type="button" id="heroSpeakBtn" onclick="App.speakHeroExample()" aria-label="Listen to example sentence"
+                                    class="btn-chunky bg-white dark:bg-slate-700 text-dark dark:text-white w-8 h-8 p-0 flex-shrink-0" title="Listen">
+                                    <i data-lucide="volume-2" class="w-4 h-4 text-blue"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 2. INTERACTIVE TIMELINE VISUALIZER & SANDBOX BUILDER -->
+                <section id="timelineCard" class="glass-panel p-4 sm:p-5 space-y-3.5">
+                    <!-- Stage Header: Mode Switch + Actions -->
+                    <div class="flex flex-wrap items-center justify-between gap-2.5">
+                        <div class="seg-track inline-flex items-center gap-1" role="tablist" aria-label="Timeline mode">
+                            <button type="button" id="modeExploreBtn" onclick="App.setStageMode('explore')" class="seg-btn is-active-blue flex items-center gap-1.5">
+                                <i data-lucide="compass" class="w-3.5 h-3.5"></i>
+                                <span>Explore Timeline</span>
                             </button>
-                            <button onclick="App.selectTool('range')" id="tool-range" class="tool-btn flex flex-col items-center justify-center p-2 rounded-xl border-2 border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 hover:border-brand-blue hover:bg-brand-blue/5 transition-all active:scale-95 group">
-                                <div class="w-8 h-3 rounded bg-brand-blue border-2 border-brand-dark mb-2 shadow-sm"></div>
-                                <span class="text-[10px] font-black uppercase text-slate-500 dark:text-slate-400">Range</span>
-                            </button>
-                            <button onclick="App.selectTool('arrow')" id="tool-arrow" class="tool-btn flex flex-col items-center justify-center p-2 rounded-xl border-2 border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 hover:border-brand-blue hover:bg-brand-blue/5 transition-all active:scale-95 group">
-                                <div class="w-8 h-0 border-b-2 border-brand-blue mb-2 relative"><div class="absolute right-0 -top-[3px] w-2 h-2 border-t-2 border-r-2 border-brand-blue rotate-45"></div></div>
-                                <span class="text-[10px] font-black uppercase text-slate-500 dark:text-slate-400">Arrow</span>
-                            </button>
-                             <button onclick="App.selectTool('marker')" id="tool-marker" class="tool-btn flex flex-col items-center justify-center p-2 rounded-xl border-2 border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 hover:border-brand-blue hover:bg-brand-blue/5 transition-all active:scale-95 group">
-                                <i data-lucide="align-justify" class="w-4 h-4 text-brand-dark dark:text-white mb-1"></i>
-                                <span class="text-[10px] font-black uppercase text-slate-500 dark:text-slate-400">Time</span>
+                            <button type="button" id="modeBuilderBtn" onclick="App.setStageMode('builder')" class="seg-btn flex items-center gap-1.5">
+                                <i data-lucide="wrench" class="w-3.5 h-3.5"></i>
+                                <span>Timeline Builder</span>
                             </button>
                         </div>
 
-                        <!-- Actions & Feedback -->
-                        <div class="mt-auto">
-                            <div id="builder-feedback" class="text-center font-bold text-sm mb-3 min-h-[20px] text-brand-dark dark:text-white"></div>
-                            <div class="flex gap-3">
-                                <button onclick="App.resetBuilder()" class="flex-1 py-3 rounded-xl border-2 border-brand-dark dark:border-white font-black uppercase tracking-widest text-xs hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">Clear</button>
-                                <button onclick="App.checkBuilder()" class="flex-[2] py-3 rounded-xl border-2 border-brand-dark dark:border-white bg-brand-green text-brand-dark shadow-neo-sm active:translate-y-1 active:shadow-none transition-all font-black uppercase tracking-widest text-xs flex items-center justify-center gap-2">
-                                    <i data-lucide="check-circle-2" class="w-4 h-4"></i> Check Answer
+                        <!-- Explore Controls -->
+                        <div id="exploreControls" class="flex items-center gap-2">
+                            <button type="button" id="stepTimelineBtn" onclick="App.stepTimeline()"
+                                class="btn-chunky bg-white dark:bg-slate-800 text-dark dark:text-white px-3 py-1.5 text-xs font-heading font-bold uppercase tracking-wide gap-1.5"
+                                title="Step through timeline events one by one">
+                                <i data-lucide="play" class="w-3.5 h-3.5 text-orange"></i>
+                                <span>Step</span>
+                            </button>
+                            <button type="button" id="replayTimelineBtn" onclick="App.replayAnimation()"
+                                class="btn-chunky bg-white dark:bg-slate-800 text-dark dark:text-white px-3 py-1.5 text-xs font-heading font-bold uppercase tracking-wide gap-1.5"
+                                title="Replay timeline animation">
+                                <i data-lucide="rotate-ccw" class="w-3.5 h-3.5 text-blue"></i>
+                                <span>Replay</span>
+                            </button>
+                        </div>
+
+                        <!-- Builder Controls -->
+                        <div id="builderControls" class="is-hidden flex flex-wrap items-center gap-1.5">
+                            <button type="button" id="builderUndoBtn" onclick="App.undoBuilder()"
+                                class="btn-chunky bg-white dark:bg-slate-800 text-dark dark:text-white px-2.5 py-1.5 text-xs font-heading font-bold uppercase tracking-wide gap-1"
+                                title="Undo last placement">
+                                <i data-lucide="undo-2" class="w-3.5 h-3.5"></i>
+                                <span class="hidden sm:inline">Undo</span>
+                            </button>
+                            <button type="button" id="builderHintBtn" onclick="App.showBuilderHint()"
+                                class="btn-chunky bg-white dark:bg-slate-800 text-dark dark:text-white px-2.5 py-1.5 text-xs font-heading font-bold uppercase tracking-wide gap-1"
+                                title="Show what this tense needs">
+                                <i data-lucide="lightbulb" class="w-3.5 h-3.5 text-orange"></i>
+                                <span class="hidden sm:inline">Hint</span>
+                            </button>
+                            <button type="button" id="builderSolutionBtn" onclick="App.toggleBuilderSolution()"
+                                class="btn-chunky bg-white dark:bg-slate-800 text-dark dark:text-white px-2.5 py-1.5 text-xs font-heading font-bold uppercase tracking-wide gap-1"
+                                title="Toggle translucent solution overlay">
+                                <i data-lucide="eye" class="w-3.5 h-3.5 text-blue"></i>
+                                <span class="hidden sm:inline">Solution</span>
+                            </button>
+                            <button type="button" id="builderClearBtn" onclick="App.resetBuilder()"
+                                class="btn-chunky bg-white dark:bg-slate-800 text-dark dark:text-white px-2.5 py-1.5 text-xs font-heading font-bold uppercase tracking-wide gap-1"
+                                title="Clear placed items">
+                                <i data-lucide="trash-2" class="w-3.5 h-3.5 text-pink"></i>
+                                <span class="hidden sm:inline">Clear</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Past - NOW - Future Visual Canvas -->
+                    <div id="timelineContainer" onclick="App.handleTimelineClick(event)" class="timeline-stage">
+                        <div class="timeline-track-line"></div>
+                        <div class="timeline-now-line"></div>
+                        <div class="timeline-now-pill">NOW</div>
+
+                        <div class="absolute top-3 left-3.5 flex items-center gap-1 opacity-60 pointer-events-none">
+                            <i data-lucide="arrow-left" class="w-3.5 h-3.5 text-dark dark:text-slate-200"></i>
+                            <span class="font-heading font-bold text-xs uppercase tracking-widest text-dark dark:text-slate-200">Past</span>
+                        </div>
+                        <div class="absolute top-3 right-3.5 flex items-center gap-1 opacity-60 pointer-events-none">
+                            <span class="font-heading font-bold text-xs uppercase tracking-widest text-dark dark:text-slate-200">Future</span>
+                            <i data-lucide="arrow-right" class="w-3.5 h-3.5 text-dark dark:text-slate-200"></i>
+                        </div>
+
+                        <span id="builderBadge" class="is-hidden absolute bottom-2.5 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full bg-orange text-white border-2 border-dark text-[10px] font-black uppercase tracking-widest z-30 pointer-events-none">
+                            Builder Mode · Pick a tool and click the canvas
+                        </span>
+                        <span id="stepStatusBadge" class="is-hidden absolute bottom-2.5 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full bg-blue text-white border-2 border-dark text-[10px] font-black uppercase tracking-widest z-30 pointer-events-none">
+                            Step 1 / 2
+                        </span>
+
+                        <!-- Translucent Ghost Solution Overlay + Main Timeline Layer -->
+                        <div id="solutionLayer" class="absolute inset-0 z-10 pointer-events-none"></div>
+                        <div id="timelineLayer" class="absolute inset-0 z-20 pointer-events-none"></div>
+                    </div>
+
+                    <!-- Builder Dock (Shown when Builder mode is active) -->
+                    <div id="builderDock" class="is-hidden p-3.5 rounded-2xl bg-slate-100/90 dark:bg-slate-900/75 border-2 border-slate-300 dark:border-slate-700 space-y-3">
+                        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                            <button type="button" id="tool-pin" onclick="App.selectTool('pin')" class="tool-chip">
+                                <span class="w-7 h-7 rounded-full bg-blue border-2 border-dark flex items-center justify-center text-white">
+                                    <i data-lucide="map-pin" class="w-3.5 h-3.5"></i>
+                                </span>
+                                <span class="font-heading font-bold text-[11px] uppercase text-dark dark:text-slate-100">Event Pin</span>
+                            </button>
+                            <button type="button" id="tool-range" onclick="App.selectTool('range')" class="tool-chip">
+                                <span class="w-10 h-4 rounded-md bg-green border-2 border-dark flex items-center justify-center"></span>
+                                <span class="font-heading font-bold text-[11px] uppercase text-dark dark:text-slate-100">Duration Range</span>
+                            </button>
+                            <button type="button" id="tool-arrow" onclick="App.selectTool('arrow')" class="tool-chip">
+                                <span class="w-9 h-7 rounded-md bg-orange/15 border-2 border-orange flex items-center justify-center text-orange">
+                                    <i data-lucide="move-horizontal" class="w-4 h-4"></i>
+                                </span>
+                                <span class="font-heading font-bold text-[11px] uppercase text-dark dark:text-slate-100">Result Arrow</span>
+                            </button>
+                            <button type="button" id="tool-marker" onclick="App.selectTool('marker')" class="tool-chip">
+                                <span class="w-7 h-7 rounded-md bg-pink/15 border-2 border-pink flex items-center justify-center text-pink">
+                                    <i data-lucide="flag" class="w-3.5 h-3.5"></i>
+                                </span>
+                                <span class="font-heading font-bold text-[11px] uppercase text-dark dark:text-slate-100">Time Marker</span>
+                            </button>
+                        </div>
+
+                        <!-- Selected Item Fine-Control Bar -->
+                        <div id="builderInspector" class="is-hidden px-3 py-2 rounded-xl bg-white dark:bg-slate-800 border-2 border-blue/50 flex flex-wrap items-center justify-between gap-2">
+                            <span id="builderInspectorLabel" class="text-xs font-extrabold text-blue">Selected: Pin</span>
+                            <div class="flex flex-wrap items-center gap-1.5">
+                                <div id="builderWidthControls" class="flex items-center gap-1 mr-1">
+                                    <button type="button" onclick="App.resizeSelectedItem(-6)" class="btn-chunky bg-slate-100 dark:bg-slate-700 text-dark dark:text-white px-2 py-1 text-[10px]" title="Narrower">
+                                        <i data-lucide="minus" class="w-3 h-3"></i>
+                                        <span>Width</span>
+                                    </button>
+                                    <button type="button" onclick="App.resizeSelectedItem(6)" class="btn-chunky bg-slate-100 dark:bg-slate-700 text-dark dark:text-white px-2 py-1 text-[10px]" title="Wider">
+                                        <i data-lucide="plus" class="w-3 h-3"></i>
+                                        <span>Width</span>
+                                    </button>
+                                </div>
+                                <button type="button" onclick="App.nudgeSelectedItem(-5)" class="btn-chunky bg-slate-100 dark:bg-slate-700 text-dark dark:text-white px-2 py-1 text-[10px]" title="Move left (Past)">
+                                    <i data-lucide="chevron-left" class="w-3 h-3"></i>
+                                </button>
+                                <button type="button" onclick="App.nudgeSelectedItem(5)" class="btn-chunky bg-slate-100 dark:bg-slate-700 text-dark dark:text-white px-2 py-1 text-[10px]" title="Move right (Future)">
+                                    <i data-lucide="chevron-right" class="w-3 h-3"></i>
+                                </button>
+                                <button type="button" onclick="App.deleteSelectedItem()" class="btn-chunky bg-pink text-white px-2.5 py-1 text-[10px] gap-1">
+                                    <i data-lucide="trash-2" class="w-3 h-3"></i>
+                                    <span>Remove</span>
                                 </button>
                             </div>
                         </div>
 
-                         <!-- Static Example (Small) -->
-                        <div class="mt-4 pt-4 border-t-2 border-slate-100 dark:border-slate-700">
-                             <div class="flex items-center gap-2 mb-1 opacity-50">
-                                <i data-lucide="quote" class="w-3 h-3 text-brand-dark dark:text-white"></i>
-                                <span class="text-[10px] font-black uppercase tracking-widest">Example</span>
+                        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pt-1">
+                            <p id="builderFeedback" class="text-xs sm:text-sm font-extrabold text-slate-600 dark:text-slate-300 min-h-[20px]">
+                                Select a tool above, then click on the timeline. Drag any placed item to reposition.
+                            </p>
+                            <button type="button" id="checkBuilderBtn" onclick="App.checkBuilder()"
+                                class="btn-chunky bg-green text-white px-4 py-2 text-xs font-heading font-bold uppercase tracking-wider gap-1.5 flex-shrink-0">
+                                <i data-lucide="circle-check" class="w-4 h-4"></i>
+                                <span>Check Answer</span>
+                            </button>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 3. TEACHING RULES & INTERACTIVE PRACTICE DECK -->
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+
+                    <!-- Left Card: Usage Rules, Watch Out Mistake & Class Example Note -->
+                    <section class="glass-panel p-4 sm:p-5 flex flex-col gap-4">
+                        <div class="flex items-center gap-2.5">
+                            <div class="w-9 h-9 rounded-xl bg-orange/15 text-orange border-2 border-dark dark:border-slate-500 flex items-center justify-center flex-shrink-0">
+                                <i data-lucide="lightbulb" class="w-5 h-5"></i>
                             </div>
-                            <p id="static-example" class="font-bold text-brand-dark dark:text-white text-sm italic">Loading...</p>
+                            <div>
+                                <h3 class="font-heading font-bold text-lg uppercase tracking-tight leading-none text-dark dark:text-white">When to Use</h3>
+                                <p class="text-[11px] font-bold text-slate-500 dark:text-slate-400 mt-0.5">Core situations &amp; common errors</p>
+                            </div>
                         </div>
 
-                    </div>
+                        <ul id="usageList" class="space-y-2.5"></ul>
+
+                        <!-- Common Mistake Callout -->
+                        <div class="p-3.5 rounded-2xl bg-pink/5 dark:bg-pink/10 border-2 border-pink/35 space-y-2">
+                            <div class="flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wider text-pink">
+                                <i data-lucide="triangle-alert" class="w-3.5 h-3.5"></i>
+                                <span>Watch Out · Common Mistake</span>
+                            </div>
+                            <p id="mistakeWrong" class="text-xs font-extrabold text-pink line-through select-text"></p>
+                            <p id="mistakeRight" class="text-xs font-extrabold text-green select-text"></p>
+                            <p id="mistakeTip" class="text-[11px] font-bold text-slate-600 dark:text-slate-300 leading-snug"></p>
+                        </div>
+
+                        <!-- Teacher Custom Class Example (LocalStorage per tense) -->
+                        <div class="mt-auto pt-3 border-t-2 border-slate-200/80 dark:border-slate-700/80 space-y-1.5">
+                            <div class="flex items-center justify-between gap-2">
+                                <label for="customExampleInput" class="text-[11px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-300 flex items-center gap-1.5">
+                                    <i data-lucide="pencil" class="w-3.5 h-3.5 text-blue"></i>
+                                    <span>My Class Example (Saved Locally)</span>
+                                </label>
+                                <span id="customExampleStatus" class="text-[10px] font-extrabold text-slate-400">Auto-saves</span>
+                            </div>
+                            <input type="text" id="customExampleInput" maxlength="140"
+                                placeholder="Write your own board example for students..."
+                                class="w-full px-3 py-2 text-xs sm:text-sm font-bold bg-white dark:bg-slate-900 border-2 border-slate-300 dark:border-slate-600 focus:border-blue rounded-xl text-dark dark:text-slate-100 placeholder-slate-400 outline-none select-text transition-colors">
+                        </div>
+                    </section>
+
+                    <!-- Right Card: Live Sentence Lab & Quick Spot-Check Quiz -->
+                    <section class="glass-panel p-4 sm:p-5 flex flex-col gap-4">
+                        <div class="flex items-center justify-between gap-2">
+                            <div class="seg-track inline-flex items-center gap-1" role="tablist" aria-label="Practice lab mode">
+                                <button type="button" id="tabLabBtn" onclick="App.setLabTab('lab')" class="seg-btn is-active-blue flex items-center gap-1.5">
+                                    <i data-lucide="sparkles" class="w-3.5 h-3.5"></i>
+                                    <span>Sentence Lab</span>
+                                </button>
+                                <button type="button" id="tabQuizBtn" onclick="App.setLabTab('quiz')" class="seg-btn flex items-center gap-1.5">
+                                    <i data-lucide="book-open" class="w-3.5 h-3.5"></i>
+                                    <span>Quick Quiz</span>
+                                    <span id="quizBadge" class="px-1.5 py-0.2 rounded-md bg-slate-200 dark:bg-slate-700 text-[10px] font-black text-slate-600 dark:text-slate-200">0/2</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Live Sentence Conjugator Lab -->
+                        <div id="labPanel" class="flex-1 flex flex-col gap-3.5">
+                            <div>
+                                <p class="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5">Subject</p>
+                                <div id="labSubjects" class="flex flex-wrap gap-1.5"></div>
+                            </div>
+
+                            <div>
+                                <p class="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5">Verb Action</p>
+                                <div id="labVerbs" class="flex flex-wrap gap-1.5"></div>
+                            </div>
+
+                            <div class="mt-auto p-4 rounded-2xl bg-slate-100/95 dark:bg-slate-900/80 border-3 border-dark dark:border-slate-600 shadow-hard-sm space-y-3">
+                                <div class="flex items-center justify-between gap-2">
+                                    <span class="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">
+                                        Generated Output
+                                    </span>
+                                    <span class="text-[10px] font-extrabold text-blue">Matches + / - / ? toggle above</span>
+                                </div>
+
+                                <p id="labSentenceOutput" class="font-heading font-bold text-lg sm:text-xl leading-snug text-dark dark:text-white select-text">
+                                    I play tennis every day.
+                                </p>
+
+                                <div class="flex items-center gap-2 pt-1">
+                                    <button type="button" id="labSpeakBtn" onclick="App.speakLabSentence()"
+                                        class="btn-chunky bg-blue text-white px-3 py-1.5 text-xs font-heading font-bold uppercase tracking-wide gap-1.5">
+                                        <i data-lucide="volume-2" class="w-3.5 h-3.5"></i>
+                                        <span>Speak</span>
+                                    </button>
+                                    <button type="button" id="labCopyBtn" onclick="App.copyLabSentence()"
+                                        class="btn-chunky bg-white dark:bg-slate-800 text-dark dark:text-white px-3 py-1.5 text-xs font-heading font-bold uppercase tracking-wide gap-1.5">
+                                        <i data-lucide="copy" class="w-3.5 h-3.5 text-orange"></i>
+                                        <span>Copy</span>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Quick Spot-Check Quiz -->
+                        <div id="quizPanel" class="is-hidden flex-1 flex flex-col gap-3">
+                            <div class="flex items-center justify-between gap-2">
+                                <span id="quizScoreLabel" class="text-xs font-extrabold text-slate-600 dark:text-slate-300">Answer both questions cleanly</span>
+                                <button type="button" id="quizResetBtn" onclick="App.resetQuiz()"
+                                    class="btn-chunky bg-white dark:bg-slate-800 text-dark dark:text-white px-2.5 py-1 text-[10px] font-heading font-bold uppercase tracking-wide gap-1">
+                                    <i data-lucide="rotate-ccw" class="w-3 h-3"></i>
+                                    <span>Retry</span>
+                                </button>
+                            </div>
+                            <div id="quizContainer" class="space-y-3"></div>
+                        </div>
+                    </section>
                 </div>
 
             </div>
-
-            <div class="h-24"></div>
         </main>
     </div>
 
-    <!-- ================= 3. LOGIC ================= -->
-    <script>
-        const App = (function() {
-            
-            // --- DATA STORE ---
-            const TENSES = {
-                // PRESENT GROUP
-                presentSimple: {
-                    cat: 'Present', color: 'green',
-                    title: "Simple Present", formula: "S + V1 (s/es)",
-                    desc: "Used for facts, habits, and routines that are generally true.",
-                    usage: ["Habits & Routines", "General Facts/Truths", "Scheduled Events"],
-                    signals: ["Every day", "Always", "Often", "Usually"],
-                    example: "I play tennis every Sunday.",
-                    viz: [ {type:'pin', l:15, label:'Action', y:50}, {type:'pin', l:35, label:'Action', y:50}, {type:'pin', l:50, label:'Action', y:50}, {type:'pin', l:65, label:'Action', y:50}, {type:'pin', l:85, label:'Action', y:50}, {type:'range', l:10, w:80, label:'Routine / Always True', y:68} ]
-                },
-                presentCont: {
-                    cat: 'Present', color: 'green',
-                    title: "Present Continuous", formula: "S + am/is/are + V-ing",
-                    desc: "Actions happening exactly right now or temporary situations.",
-                    usage: ["Actions happening NOW", "Temporary situations", "Future plans"],
-                    signals: ["Now", "At the moment", "Look!", "Listen!"],
-                    example: "I am studying right now.",
-                    viz: [ {type:'range', l:42, w:16, label:'Happening Now', y:50, active:true} ]
-                },
-                presentPerfect: {
-                    cat: 'Present', color: 'green',
-                    title: "Present Perfect", formula: "S + have/has + V3",
-                    desc: "Actions in the past with a result in the present.",
-                    usage: ["Past action, Present result", "Life Experiences", "Started past, continues now"],
-                    signals: ["Just", "Already", "Yet", "Since", "For"],
-                    example: "I have finished my homework.",
-                    viz: [ {type:'pin', l:30, label:'Action Done', y:45}, {type:'arrow', l:30, w:20, label:'Result affects NOW', y:65} ]
-                },
-                presentPerfectCont: {
-                    cat: 'Present', color: 'green',
-                    title: "Present Perf. Cont.", formula: "S + have/has + been + V-ing",
-                    desc: "Actions that started in the past and are still continuing now.",
-                    usage: ["Duration of present activity", "Action just stopped"],
-                    signals: ["For 2 hours", "Since morning", "All day"],
-                    example: "I have been waiting for 2 hours.",
-                    viz: [ {type:'range', l:20, w:30, label:'Started Past', y:45}, {type:'arrow', l:20, w:30, label:'Duration leading to NOW', y:65} ]
-                },
+    <!-- SIDE-BY-SIDE COMPARE MODAL -->
+    <div id="compareModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="compareModalTitle"
+        onclick="if (event.target === this) App.closeCompareModal()">
+        <div class="modal-card w-full max-w-5xl max-h-[90vh] bg-white/95 dark:bg-slate-800/95 backdrop-blur-xl border-4 border-dark dark:border-slate-500 rounded-[2rem] shadow-hard-lg flex flex-col overflow-hidden">
+            <div class="px-4 sm:px-6 py-3.5 border-b-[3px] border-dark dark:border-slate-600 flex items-center justify-between gap-3 flex-none">
+                <div class="flex items-center gap-3 min-w-0">
+                    <div class="w-10 h-10 rounded-xl bg-orange text-white border-2 border-dark dark:border-slate-500 shadow-hard-sm flex items-center justify-center flex-shrink-0 -rotate-3">
+                        <i data-lucide="columns-2" class="w-5 h-5"></i>
+                    </div>
+                    <div class="min-w-0">
+                        <h3 id="compareModalTitle" class="font-heading font-bold text-lg uppercase tracking-tight text-dark dark:text-white leading-none truncate">Compare Two Tenses</h3>
+                        <p class="text-[11px] font-bold text-slate-500 dark:text-slate-300 mt-1 truncate">Spot timeline differences &amp; grammar rules side by side</p>
+                    </div>
+                </div>
+                <button type="button" onclick="App.closeCompareModal()" aria-label="Close comparison modal"
+                    class="btn-chunky bg-white dark:bg-slate-700 text-dark dark:text-white w-9 h-9 p-0 flex-shrink-0">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
+            </div>
 
-                // PAST GROUP
-                pastSimple: {
-                    cat: 'Past', color: 'pink',
-                    title: "Simple Past", formula: "S + V2",
-                    desc: "Actions completed at a specific time in the past.",
-                    usage: ["Completed action in past", "Series of past actions", "Past habits/facts"],
-                    signals: ["Yesterday", "Last week", "In 2010", "Ago"],
-                    example: "I visited Bali yesterday.",
-                    viz: [ {type:'pin', l:25, label:'Action Happened', y:40}, {type:'marker', l:25, label:'Specific Time', y:75} ]
-                },
-                pastCont: {
-                    cat: 'Past', color: 'pink',
-                    title: "Past Continuous", formula: "S + was/were + V-ing",
-                    desc: "Actions that were in progress at a specific moment in the past.",
-                    usage: ["Action in progress in past", "Interrupted action", "Parallel actions"],
-                    signals: ["When", "While", "At 8 PM last night"],
-                    example: "I was sleeping when you called.",
-                    viz: [ {type:'range', l:15, w:20, label:'Was Doing...', y:55}, {type:'pin', l:25, label:'Interruption', y:30} ]
-                },
-                pastPerfect: {
-                    cat: 'Past', color: 'pink',
-                    title: "Past Perfect", formula: "S + had + V3",
-                    desc: "An action that happened before another action in the past.",
-                    usage: ["Action before another past action", "Reported speech"],
-                    signals: ["Before", "After", "By the time"],
-                    example: "She had left before I arrived.",
-                    viz: [ {type:'pin', l:15, label:'Event 1 (Had done)', y:45}, {type:'pin', l:35, label:'Event 2', y:45}, {type:'arrow', l:15, w:20, label:'Before', y:65} ]
-                },
-                pastPerfectCont: {
-                    cat: 'Past', color: 'pink',
-                    title: "Past Perf. Cont.", formula: "S + had + been + V-ing",
-                    desc: "Duration of an activity up to a point in the past.",
-                    usage: ["Duration before past event", "Cause of a past result"],
-                    signals: ["For", "Since", "Before"],
-                    example: "I had been running so I was tired.",
-                    viz: [ {type:'range', l:10, w:25, label:'Was doing...', y:50}, {type:'pin', l:35, label:'Event', y:50} ]
-                },
+            <div class="flex-1 min-h-0 overflow-y-auto p-4 sm:p-5 custom-scrollbar space-y-4">
+                <!-- Curated Quick Pairs -->
+                <div id="compareQuickPairs" class="flex flex-wrap gap-2"></div>
 
-                // FUTURE GROUP
-                futureSimple: {
-                    cat: 'Future', color: 'blue',
-                    title: "Simple Future", formula: "S + will + V1",
-                    desc: "Decisions made now, predictions, or promises for the future.",
-                    usage: ["Spontaneous decision", "Prediction", "Promise/Threat"],
-                    signals: ["Tomorrow", "Next week", "Soon"],
-                    example: "I will call you later.",
-                    viz: [ {type:'pin', l:75, label:'Action Future', y:50}, {type:'arrow', l:50, w:25, label:'Decision Now', y:65} ]
-                },
-                futureCont: {
-                    cat: 'Future', color: 'blue',
-                    title: "Future Continuous", formula: "S + will + be + V-ing",
-                    desc: "Action that will be in progress at a specific time in the future.",
-                    usage: ["In progress at future time", "Polite inquiry"],
-                    signals: ["At 8 PM tomorrow", "This time next week"],
-                    example: "I will be flying at 8 PM.",
-                    viz: [ {type:'range', l:70, w:20, label:'Will be doing...', y:50}, {type:'marker', l:80, label:'Specific Time', y:75} ]
-                },
-                futurePerfect: {
-                    cat: 'Future', color: 'blue',
-                    title: "Future Perfect", formula: "S + will + have + V3",
-                    desc: "Action that will be completed before a specific time in the future.",
-                    usage: ["Completed before future moment"],
-                    signals: ["By tomorrow", "By the time"],
-                    example: "I will have finished by 5 PM.",
-                    viz: [ {type:'pin', l:80, label:'Finished', y:40}, {type:'arrow', l:50, w:30, label:'Done Before', y:65}, {type:'marker', l:85, label:'Time Limit', y:75} ]
-                },
-                futurePerfectCont: {
-                    cat: 'Future', color: 'blue',
-                    title: "Future Perf. Cont.", formula: "S + will + have + been + V-ing",
-                    desc: "Duration of an activity up to a specific time in the future.",
-                    usage: ["Duration leading to future point"],
-                    signals: ["By next year", "For 10 years"],
-                    example: "By 2026, I will have been teaching for 10 years.",
-                    viz: [ {type:'range', l:55, w:35, label:'Duration', y:50}, {type:'marker', l:90, label:'Time Limit', y:75} ]
-                },
+                <!-- Dropdown Pickers -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label for="compareSelectLeft" class="block text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400 mb-1">Left Tense</label>
+                        <select id="compareSelectLeft" onchange="App.onCompareSelectChange()"
+                            class="w-full px-3 py-2 text-xs sm:text-sm font-extrabold bg-slate-50 dark:bg-slate-900 border-2 border-dark dark:border-slate-500 focus:border-blue rounded-xl text-dark dark:text-slate-100 outline-none cursor-pointer"></select>
+                    </div>
+                    <div>
+                        <label for="compareSelectRight" class="block text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400 mb-1">Right Tense</label>
+                        <select id="compareSelectRight" onchange="App.onCompareSelectChange()"
+                            class="w-full px-3 py-2 text-xs sm:text-sm font-extrabold bg-slate-50 dark:bg-slate-900 border-2 border-dark dark:border-slate-500 focus:border-blue rounded-xl text-dark dark:text-slate-100 outline-none cursor-pointer"></select>
+                    </div>
+                </div>
 
-                // PAST FUTURE GROUP
-                pastFutureSimple: {
-                    cat: 'Past Future', color: 'orange',
-                    title: "Past Future Simple", formula: "S + would + V1",
-                    desc: "An action predicted/promised in the past for the future.",
-                    usage: ["Future from past perspective", "Hypothetical (Conditional 2)"],
-                    signals: ["The next day", "If I were you"],
-                    example: "He said he would buy the car.",
-                    viz: [ {type:'pin', l:20, label:'He Said', y:50}, {type:'arrow', l:20, w:15, label:'"Would..."', y:30, dashed:true}, {type:'pin', l:35, label:'Action', y:50, ghost:true} ]
-                },
-                pastFutureCont: {
-                    cat: 'Past Future', color: 'orange',
-                    title: "Past Future Cont.", formula: "S + would + be + V-ing",
-                    desc: "Action predicted to be in progress in the future (from a past perspective).",
-                    usage: ["Imagined duration", "Conditional Continuous"],
-                    signals: ["At that time"],
-                    example: "I thought I would be working.",
-                    viz: [ {type:'pin', l:20, label:'Thought', y:50}, {type:'range', l:30, w:15, label:'Would be doing...', y:50, ghost:true} ]
-                },
-                pastFuturePerfect: {
-                    cat: 'Past Future', color: 'orange',
-                    title: "Past Future Perfect", formula: "S + would + have + V3",
-                    desc: "Hypothetical action that didn't happen in the past (Conditional Type 3).",
-                    usage: ["Regrets", "Impossible conditions"],
-                    signals: ["If + had V3"],
-                    example: "I would have helped if I knew.",
-                    viz: [ {type:'pin', l:30, label:'Did NOT Happen', y:50, cross:true}, {type:'arrow', l:30, w:10, label:'Imagined', y:65} ]
-                },
-                pastFuturePerfectCont: {
-                    cat: 'Past Future', color: 'orange',
-                    title: "Past Future Perf. Cont.", formula: "S + would + have + been + V-ing",
-                    desc: "Hypothetical duration in the past.",
-                    usage: ["Imaginary duration in past"],
-                    signals: ["If + had V3"],
-                    example: "I would have been sleeping.",
-                    viz: [ {type:'range', l:20, w:20, label:'Would have been...', y:50, ghost:true, cross:true} ]
-                }
-            };
+                <!-- Side-by-Side Comparison Panels -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div id="compareLeftPanel" class="p-4 rounded-2xl bg-slate-50/90 dark:bg-slate-900/70 border-2 border-slate-300 dark:border-slate-600 space-y-3"></div>
+                    <div id="compareRightPanel" class="p-4 rounded-2xl bg-slate-50/90 dark:bg-slate-900/70 border-2 border-slate-300 dark:border-slate-600 space-y-3"></div>
+                </div>
 
-            // --- STATE & INIT ---
-            let currentTenseKey = 'presentSimple';
-            let builderState = {
-                active: false,
-                tool: null,
-                items: [] // {type: 'pin', l: 50}
-            };
+                <!-- Key Contrast Callout -->
+                <div id="compareTakeaway" class="p-3.5 rounded-2xl bg-blue/10 border-2 border-blue/40 text-xs sm:text-sm font-bold text-dark dark:text-slate-100 leading-relaxed"></div>
+            </div>
+        </div>
+    </div>
 
-            async function init() {
-                await requireAuth();
-                if (localStorage.theme === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-                    document.documentElement.classList.add('dark');
-                } else {
-                    document.documentElement.classList.remove('dark');
-                }
-                lucide.createIcons();
-                renderSidebar();
-                loadTense('presentSimple');
-            }
+    <!-- CONFIRMATION MODAL -->
+    <div id="confirmModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="confirmTitle"
+        onclick="if (event.target === this) App.cancelConfirm()">
+        <div class="modal-card w-full max-w-md bg-white/95 dark:bg-slate-800/95 backdrop-blur-xl border-4 border-dark dark:border-slate-500 rounded-[2rem] shadow-hard-lg p-6 text-center">
+            <div id="confirmIconWrap" class="w-14 h-14 mx-auto mb-3 rounded-2xl bg-pink/15 text-pink border-2 border-dark dark:border-slate-500 shadow-hard-sm flex items-center justify-center">
+                <i data-lucide="rotate-ccw" class="w-7 h-7"></i>
+            </div>
+            <h3 id="confirmTitle" class="font-heading font-bold text-xl uppercase tracking-tight text-dark dark:text-white mb-1.5">Reset Progress?</h3>
+            <p id="confirmDesc" class="text-sm font-semibold text-slate-600 dark:text-slate-300 mb-6">This will clear your mastery badges, saved drafts, and custom board examples.</p>
+            <div class="grid grid-cols-2 gap-3">
+                <button type="button" id="confirmCancelBtn"
+                    class="btn-chunky bg-slate-100 dark:bg-slate-700 text-dark dark:text-white py-2.5 text-xs font-heading font-bold uppercase tracking-wider">
+                    Cancel
+                </button>
+                <button type="button" id="confirmOkBtn"
+                    class="btn-chunky bg-pink text-white py-2.5 text-xs font-heading font-bold uppercase tracking-wider">
+                    Reset All
+                </button>
+            </div>
+        </div>
+    </div>
 
-            const BRAND_CLASSES = {
-                green: {
-                    bg: 'bg-brand-green',
-                    bgTint: 'bg-brand-green/10',
-                    text: 'text-brand-green',
-                    borderSoft: 'border-brand-green/30'
-                },
-                pink: {
-                    bg: 'bg-brand-pink',
-                    bgTint: 'bg-brand-pink/10',
-                    text: 'text-brand-pink',
-                    borderSoft: 'border-brand-pink/30'
-                },
-                blue: {
-                    bg: 'bg-brand-blue',
-                    bgTint: 'bg-brand-blue/10',
-                    text: 'text-brand-blue',
-                    borderSoft: 'border-brand-blue/30'
-                },
-                orange: {
-                    bg: 'bg-brand-orange',
-                    bgTint: 'bg-brand-orange/10',
-                    text: 'text-brand-orange',
-                    borderSoft: 'border-brand-orange/30'
-                }
-            };
+    <!-- TOAST STACK -->
+    <div id="toastContainer" aria-live="polite" class="toast-stack"></div>
 
-            // --- VIEW LOGIC ---
-            function renderSidebar() {
-                const sidebarEl = document.getElementById('sidebar-content');
-                sidebarEl.innerHTML = '';
-                const groups = {
-                    green: { label: 'Present', keys: ['presentSimple', 'presentCont', 'presentPerfect', 'presentPerfectCont'] },
-                    pink: { label: 'Past', keys: ['pastSimple', 'pastCont', 'pastPerfect', 'pastPerfectCont'] },
-                    blue: { label: 'Future', keys: ['futureSimple', 'futureCont', 'futurePerfect', 'futurePerfectCont'] },
-                    orange: { label: 'Past Future', keys: ['pastFutureSimple', 'pastFutureCont', 'pastFuturePerfect', 'pastFuturePerfectCont'] }
-                };
-                for (const [color, group] of Object.entries(groups)) {
-                    const c = BRAND_CLASSES[color] || BRAND_CLASSES.blue;
-                    const groupContainer = document.createElement('div');
-                    groupContainer.innerHTML = `
-                        <div class="flex items-center gap-2 mb-2 px-2">
-                            <div class="w-2.5 h-2.5 rounded ${c.bg} border border-brand-dark dark:border-white/50"></div>
-                            <span class="font-heading font-bold text-brand-dark dark:text-slate-200">${group.label}</span>
-                        </div>
-                        <div class="space-y-1">
-                            ${group.keys.map(key => `
-                                <button onclick="App.loadTense('${key}')" id="nav-${key}" 
-                                    class="nav-btn w-full text-left px-4 py-2.5 rounded-xl border-2 border-transparent font-bold text-slate-400 hover:text-brand-dark dark:hover:text-white transition-all hover:bg-slate-50 dark:hover:bg-slate-800 mb-1 text-sm flex items-center justify-between group">
-                                    <span>${TENSES[key].title}</span>
-                                    <div class="w-1.5 h-1.5 rounded-full ${c.bg} opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                                </button>
-                            `).join('')}
-                        </div>
-                    `;
-                    sidebarEl.appendChild(groupContainer);
-                }
-            }
-
-            function loadTense(key) {
-                currentTenseKey = key;
-                resetBuilder(false); // Reset builder state without clearing feedback immediately
-                const data = TENSES[key];
-                const c = BRAND_CLASSES[data.color] || BRAND_CLASSES.blue;
-
-                // Sidebar Logic
-                document.querySelectorAll('.nav-btn').forEach(btn => {
-                    const btnColor = (TENSES[btn.id.replace('nav-', '')] || {}).color;
-                    const bc = BRAND_CLASSES[btnColor] || c;
-                    btn.className = "nav-btn w-full text-left px-4 py-2.5 rounded-xl border-2 border-transparent font-bold text-slate-400 hover:text-brand-dark dark:hover:text-white transition-all hover:bg-slate-50 dark:hover:bg-slate-800 mb-1 text-sm flex items-center justify-between group";
-                    btn.querySelector('div').className = `w-1.5 h-1.5 rounded-full ${bc.bg} opacity-0 group-hover:opacity-100 transition-opacity`;
-                });
-                
-                const activeBtn = document.getElementById(`nav-${key}`);
-                if(activeBtn) {
-                    activeBtn.className = "nav-btn w-full text-left px-4 py-2.5 rounded-xl border-2 border-brand-dark dark:border-white bg-brand-dark dark:bg-white text-white dark:text-brand-dark shadow-neo-sm dark:shadow-neo-sm-white font-bold transition-all mb-1 text-sm active:translate-y-1 active:shadow-none flex items-center justify-between";
-                    activeBtn.querySelector('div').className = `w-2 h-2 rounded-full ${c.bg}`; 
-                }
-
-                // Header Info
-                const badge = document.getElementById('tense-category');
-                badge.innerText = data.cat;
-                badge.className = `text-[10px] md:text-xs font-black uppercase tracking-widest px-2 py-1 rounded border ${c.bgTint} ${c.text} ${c.borderSoft} select-none transition-colors`;
-                
-                const title = document.getElementById('tense-title');
-                title.innerText = data.title;
-                title.className = `text-3xl md:text-5xl font-heading font-black mt-2 leading-tight ${c.text} drop-shadow-sm transition-colors`;
-
-                document.getElementById('tense-formula').innerText = data.formula;
-                document.getElementById('tense-desc').innerText = data.desc;
-                document.getElementById('static-example').innerText = data.example;
-
-                // Usage List
-                const listEl = document.getElementById('usage-list');
-                listEl.innerHTML = '';
-                data.usage.forEach((u, idx) => {
-                    listEl.innerHTML += `
-                        <li class="flex items-start gap-3 animate-fade-in" style="animation-delay: ${idx * 0.05}s">
-                            <div class="bg-brand-green/20 p-0.5 rounded-full mt-0.5 shrink-0">
-                                <i data-lucide="check" class="w-3 h-3 text-brand-green"></i>
-                            </div>
-                            <span class="font-bold text-slate-600 dark:text-slate-300 leading-snug text-sm md:text-base">${u}</span>
-                        </li>`;
-                });
-
-                drawTimeline(data.viz, data.color);
-                lucide.createIcons();
-                
-                if(window.innerWidth < 768) {
-                    document.getElementById('sidebar').classList.add('-translate-x-full');
-                }
-            }
-
-            // --- BUILDER LOGIC ---
-            function selectTool(toolName) {
-                // Activate Builder Mode
-                if (!builderState.active) {
-                    builderState.active = true;
-                    builderState.items = []; // Clear current items for building
-                    document.getElementById('builder-badge').classList.remove('hidden');
-                    drawTimeline([], 'dark'); // Clear timeline, use neutral color
-                }
-                
-                builderState.tool = toolName;
-
-                // Update UI
-                document.querySelectorAll('.tool-btn').forEach(btn => {
-                    btn.classList.remove('border-brand-blue', 'bg-brand-blue/10');
-                    btn.classList.add('border-slate-200', 'dark:border-slate-600');
-                });
-                const activeBtn = document.getElementById(`tool-${toolName}`);
-                if(activeBtn) {
-                    activeBtn.classList.remove('border-slate-200', 'dark:border-slate-600');
-                    activeBtn.classList.add('border-brand-blue', 'bg-brand-blue/10');
-                }
-                
-                // Add cursor hint to timeline
-                document.getElementById('timeline-container').classList.add('cursor-pen');
-                document.getElementById('builder-feedback').innerText = `Place the ${toolName} on the timeline...`;
-                document.getElementById('builder-feedback').className = "text-center font-bold text-sm mb-3 min-h-[20px] text-brand-blue";
-            }
-
-            function handleTimelineClick(e) {
-                if (!builderState.active || !builderState.tool) return;
-
-                // Calculate % position
-                const rect = e.currentTarget.getBoundingClientRect();
-                const x = e.clientX - rect.left;
-                const percent = Math.max(5, Math.min(95, (x / rect.width) * 100)); // Clamp between 5% and 95%
-
-                // Add item
-                const newItem = {
-                    type: builderState.tool,
-                    l: percent,
-                    label: 'My Item', 
-                    y: 50,
-                    w: builderState.tool === 'range' ? 20 : (builderState.tool === 'arrow' ? 20 : 0) // Defaults
-                };
-                
-                builderState.items.push(newItem);
-                
-                // Redraw
-                const currentColor = TENSES[currentTenseKey].color;
-                drawTimeline(builderState.items, currentColor);
-                lucide.createIcons();
-            }
-
-            function resetBuilder(fullReset = true) {
-                builderState.active = false;
-                builderState.tool = null;
-                builderState.items = [];
-                document.getElementById('builder-badge').classList.add('hidden');
-                document.getElementById('timeline-container').classList.remove('cursor-pen');
-                
-                // Reset Tool UI
-                document.querySelectorAll('.tool-btn').forEach(btn => {
-                    btn.classList.remove('border-brand-blue', 'bg-brand-blue/10');
-                    btn.classList.add('border-slate-200', 'dark:border-slate-600');
-                });
-
-                if(fullReset) {
-                    replayAnimation();
-                    document.getElementById('builder-feedback').innerText = "";
-                }
-            }
-
-            function checkBuilder() {
-                if(!builderState.active) {
-                    document.getElementById('builder-feedback').innerText = "Select a tool first!";
-                     document.getElementById('builder-feedback').className = "text-center font-bold text-sm mb-3 min-h-[20px] text-brand-pink";
-                    return;
-                }
-
-                const correctViz = TENSES[currentTenseKey].viz;
-                const userViz = builderState.items;
-
-                // Simple Logic: Do we have roughly the same number of items of each type?
-                // And are they in roughly the correct position (Left vs Right)?
-                
-                let score = 0;
-                let maxScore = correctViz.length;
-                let hints = [];
-
-                // Copy userViz to track matches
-                let remainingUserItems = [...userViz];
-
-                correctViz.forEach(target => {
-                    // Find a match in user items
-                    const matchIndex = remainingUserItems.findIndex(u => 
-                        u.type === target.type && Math.abs(u.l - target.l) < 20 // 20% tolerance
-                    );
-
-                    if(matchIndex !== -1) {
-                        score++;
-                        remainingUserItems.splice(matchIndex, 1);
-                    } else {
-                        hints.push(`Missing a ${target.type} at ${target.l < 50 ? 'Past' : 'Future'} side.`);
-                    }
-                });
-
-                const feedbackEl = document.getElementById('builder-feedback');
-                if (score === maxScore && remainingUserItems.length === 0) {
-                     feedbackEl.innerText = "Perfect! You rebuilt the timeline!";
-                     feedbackEl.className = "text-center font-bold text-sm mb-3 min-h-[20px] text-brand-green animate-bounce-subtle";
-                } else if (score === maxScore) {
-                     feedbackEl.innerText = "Correct! (You added some extra items though).";
-                     feedbackEl.className = "text-center font-bold text-sm mb-3 min-h-[20px] text-brand-green";
-                } else {
-                    feedbackEl.innerText = hints.length > 0 ? hints[0] : "Not quite right. Try again!";
-                    feedbackEl.className = "text-center font-bold text-sm mb-3 min-h-[20px] text-brand-pink";
-                }
-            }
-
-            function replayAnimation() {
-                const data = TENSES[currentTenseKey];
-                drawTimeline(data.viz, data.color);
-                lucide.createIcons();
-            }
-
-            // --- DRAWING LOGIC ---
-            function drawTimeline(items, color) {
-                const layer = document.getElementById('timeline-layer');
-                layer.innerHTML = ''; 
-                const c = BRAND_CLASSES[color] || BRAND_CLASSES.blue;
-                
-                items.forEach((item, index) => {
-                    const el = document.createElement('div');
-                    el.className = 't-item pointer-events-none'; // Items shouldn't block clicks in builder mode
-                    const topVal = item.y ? item.y + '%' : '50%';
-                    el.style.left = item.l + '%';
-                    el.style.top = topVal;
-                    
-                    let animationClass = (item.type === 'range' || item.type === 'arrow') ? 'animate-pop-left' : 'animate-pop-center';
-                    el.style.animationDelay = (index * 0.1) + 's';
-                    el.classList.add(animationClass);
-
-                    if (item.type === 'pin') {
-                        const ghostClass = item.ghost ? 'opacity-50 border-dashed' : '';
-                        const crossHTML = item.cross ? '<div class="absolute inset-0 flex items-center justify-center text-white font-black text-lg">X</div>' : '';
-                        const iconHTML = item.cross ? '' : '<i data-lucide="map-pin" class="w-3.5 h-3.5 relative z-10"></i>';
-                        el.innerHTML = `
-                            <div class="flex flex-col items-center group">
-                                <div class="w-8 h-8 rounded-full ${c.bg} border-2 border-brand-dark dark:border-white shadow-neo-sm dark:shadow-neo-sm-white flex items-center justify-center text-white relative z-20 ${ghostClass}">
-                                    ${iconHTML} ${crossHTML}
-                                </div>
-                                <div class="h-8 w-0.5 bg-brand-dark/50 dark:bg-white/50 z-10"></div>
-                            </div>`;
-                    } else if (item.type === 'range') {
-                        const width = item.w + '%';
-                        const activeClass = item.active ? 'animate-pulse' : '';
-                        const ghostClass = item.ghost ? 'opacity-50 border-dashed' : '';
-                        el.style.width = width;
-                        el.style.transform = 'translate(0, -50%)';
-                        el.innerHTML = `
-                            <div class="w-full h-8 ${c.bg} border-2 border-brand-dark dark:border-white rounded-lg shadow-neo-sm dark:shadow-neo-sm-white opacity-90 flex items-center justify-center ${activeClass} ${ghostClass} origin-left">
-                                <span class="bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-widest border border-brand-dark dark:border-white text-brand-dark dark:text-white shadow-sm whitespace-nowrap select-none opacity-0 group-hover:opacity-100 transition-opacity">Range</span>
-                            </div>`;
-                    } else if (item.type === 'arrow') {
-                        const dashed = item.dashed ? 'border-dashed' : 'border-solid';
-                        el.style.width = item.w + '%';
-                        el.style.transform = 'translate(0, -50%)';
-                        el.innerHTML = `
-                            <div class="w-full h-4 bg-transparent border-b-4 border-brand-dark/40 dark:border-white/40 ${dashed} relative flex justify-center group">
-                                <div class="absolute right-0 -bottom-[5px] w-0 h-0 border-t-[6px] border-t-transparent border-l-[10px] border-l-brand-dark/40 dark:border-l-white/40 border-b-[6px] border-b-transparent"></div>
-                            </div>`;
-                    } else if (item.type === 'marker') {
-                        el.innerHTML = `
-                            <div class="flex flex-col items-center">
-                                <span class="text-[9px] font-black text-brand-dark/70 dark:text-white/70 uppercase tracking-widest mb-1 bg-white/50 dark:bg-slate-900/50 px-1 rounded">TIME</span>
-                                <div class="w-0.5 h-3 bg-brand-dark/70 dark:bg-white/70"></div>
-                            </div>`;
-                    }
-                    layer.appendChild(el);
-                });
-            }
-
-            function toggleSidebar() { document.getElementById('sidebar').classList.toggle('-translate-x-full'); }
-            function closeSidebarMobile() { if (window.innerWidth < 768) document.getElementById('sidebar').classList.add('-translate-x-full'); }
-            function toggleTheme() {
-                if (document.documentElement.classList.contains('dark')) {
-                    document.documentElement.classList.remove('dark');
-                    localStorage.theme = 'light';
-                } else {
-                    document.documentElement.classList.add('dark');
-                    localStorage.theme = 'dark';
-                }
-            }
-
-            return { init, loadTense, selectTool, handleTimelineClick, resetBuilder, checkBuilder, toggleSidebar, closeSidebarMobile, replayAnimation, renderSidebar, toggleTheme };
-        })();
-    </script>
 </body>
+
 </html>

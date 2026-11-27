@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Detective Game | KlassKit</title>
+    <link rel="icon" type="image/x-icon" href="../../../media/icon.ico" />
+    <link rel="icon" type="image/webp" href="../../../media/icon.webp" />
+
+    <!-- Early Synchronous Dark Mode & Hub Color-Theme Sync -->
+    <script>
+        (function () {
+            function readStored(key) {
+                try {
+                    var raw = localStorage.getItem(key);
+                    if (raw == null) return null;
+                    try { return JSON.parse(raw); } catch (e) { return raw; }
+                } catch (e) { return null; }
+            }
+            function syncTheme(changedKey) {
+                var isDark;
+                if (changedKey === 'theme_hub') {
+                    var hubVal = readStored('theme_hub');
+                    isDark = hubVal ? hubVal === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
+                } else {
+                    var toolTheme = readStored('theme_dg') || readStored('theme') || readStored('klasskit-theme');
+                    var hubTheme = readStored('theme_hub');
+                    isDark = toolTheme
+                        ? toolTheme === 'dark'
+                        : hubTheme
+                            ? hubTheme === 'dark'
+                            : window.matchMedia('(prefers-color-scheme: dark)').matches;
+                }
+                document.documentElement.classList.toggle('dark', isDark);
+
+                var colorTheme = readStored('klasskit_colorTheme');
+                if (colorTheme && colorTheme !== 'classic') {
+                    document.documentElement.setAttribute('data-theme', colorTheme);
+                } else {
+                    document.documentElement.removeAttribute('data-theme');
+                }
+            }
+            syncTheme();
+            window.addEventListener('storage', function (e) {
+                if (
+                    e.key === 'theme_hub' ||
+                    e.key === 'theme_dg' ||
+                    e.key === 'theme' ||
+                    e.key === 'klasskit-theme' ||
+                    e.key === 'klasskit_colorTheme'
+                ) {
+                    syncTheme(e.key);
+                }
+            });
+        })();
+    </script>
+
+    <!-- Core Typography: Fredoka (Headings) + Nunito (Body) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet" />
+
+    <!-- Stylesheets (?v=2) -->
+    <link rel="stylesheet" href="../../../css/tailwind.generated.css?v=2" />
+    <link rel="stylesheet" href="../../../css/base.css?v=2" />
+    <link rel="stylesheet" href="../../../css/components.css?v=2" />
+    <link rel="stylesheet" href="./style.css?v=2" />
+
+    <!-- Deferred Runtime Scripts -->
+    <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.105.4"></script>
+    <script defer src="/supabase.js"></script>
+    <script defer src="https://unpkg.com/lucide@1.16.0"></script>
+    <script defer src="./script.js?v=2"></script>
+    <script defer src="/js/analytics.js"></script>
+</head>
+
+<body class="h-screen w-screen overflow-hidden font-body text-dark dark:text-slate-100 flex flex-col">
+
+    <!-- TOP GLASSMORPHIC NAVIGATION BAR -->
+    <header id="topBar" class="glass-topbar sticky top-0 z-40 px-3 sm:px-5 py-2.5 flex-none">
+        <div class="max-w-[1680px] mx-auto w-full flex flex-wrap items-center justify-between gap-2.5">
+            <!-- Left: Brand Identity -->
+            <div class="flex items-center gap-2.5 min-w-0">
+                <div class="w-10 h-10 rounded-xl bg-blue text-white border-2 border-dark dark:border-slate-500 shadow-hard-sm flex items-center justify-center flex-shrink-0">
+                    <i data-lucide="search" class="w-5 h-5"></i>
+                </div>
+                <div class="min-w-0">
+                    <h1 class="font-heading text-lg sm:text-xl font-bold uppercase tracking-tight leading-none text-dark dark:text-white truncate">
+                        Detective Game
+                    </h1>
+                    <p id="headerCaseSubtitle" class="text-[11px] font-extrabold uppercase tracking-widest text-slate-500 dark:text-slate-400 truncate mt-0.5">
+                        Forensics Photo Analysis Unit
+                    </p>
+                </div>
+            </div>
+
+            <!-- Center HUD: Clues + Timer (Active Case Only) -->
+            <div id="activeGameHud" class="is-hidden flex items-center gap-2 sm:gap-3">
+                <div id="clueProgressBadge" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white dark:bg-slate-800 border-2 border-dark dark:border-slate-500 shadow-hard-sm font-heading font-bold text-xs sm:text-sm uppercase text-dark dark:text-white">
+                    <i data-lucide="search" class="w-4 h-4 text-blue"></i>
+                    <span id="clueProgressText">0 / 0 Clues</span>
+                </div>
+
+                <div id="timerContainer" class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-dark text-white dark:bg-slate-900 border-2 border-dark dark:border-slate-500 shadow-hard-sm transition-colors">
+                    <i data-lucide="clock" class="w-4 h-4 text-orange"></i>
+                    <span id="timerDisplay" class="font-heading text-xl sm:text-2xl font-bold tracking-wider leading-none">10:00</span>
+                </div>
+
+                <button type="button" id="pauseBtn" onclick="App.togglePause()" aria-label="Pause or resume investigation"
+                    class="btn-chunky bg-white dark:bg-slate-800 text-dark dark:text-white rounded-xl w-9 h-9 p-0 flex-shrink-0">
+                    <span id="pauseBtnIconSlot" class="inline-flex items-center justify-center"><i data-lucide="pause" class="w-4 h-4"></i></span>
+                </button>
+            </div>
+
+            <!-- Right Controls -->
+            <div class="flex items-center gap-2">
+                <div id="gameActionBtns" class="is-hidden flex items-center gap-2">
+                    <button type="button" id="flashlightToggleBtn" onclick="App.toggleFlashlight()"
+                        class="btn-chunky bg-white dark:bg-slate-800 text-dark dark:text-white rounded-xl px-3 py-1.5 text-xs flex items-center gap-1.5">
+                        <span id="flashlightBtnIconSlot" class="inline-flex items-center justify-center"><i data-lucide="flashlight" class="w-4 h-4 text-orange"></i></span>
+                        <span id="flashlightBtnLabel" class="hidden sm:inline">Light: ON</span>
+                    </button>
+
+                    <button type="button" id="hintBtn" onclick="App.useHint()" aria-label="Show clue hint pulse"
+                        class="btn-chunky bg-orange text-white rounded-xl px-3 py-1.5 text-xs flex items-center gap-1.5">
+                        <i data-lucide="lightbulb" class="w-4 h-4"></i>
+                        <span class="hidden sm:inline">Hint</span>
+                    </button>
+
+                    <button type="button" id="filesBtn" onclick="App.showMenu()"
+                        class="btn-chunky bg-blue text-white rounded-xl px-3 py-1.5 text-xs flex items-center gap-1.5">
+                        <i data-lucide="folder-open" class="w-4 h-4"></i>
+                        <span>Files</span>
+                    </button>
+                </div>
+
+                <button type="button" id="themeToggleBtn" onclick="App.toggleTheme()" aria-label="Toggle dark mode"
+                    class="btn-chunky bg-white dark:bg-slate-800 text-dark dark:text-white rounded-xl w-9 h-9 p-0 flex-shrink-0">
+                    <span id="themeToggleIconSlot" class="inline-flex items-center justify-center"><i data-lucide="moon" class="w-4 h-4"></i></span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Thin Forensics Caution Accent Strip -->
+    <div class="hazard-accent flex-none" aria-hidden="true"></div>
+
+    <!-- VIEW 1: PHOTO ARCHIVES / CASE SELECTION -->
+    <section id="menuView" class="flex-1 overflow-y-auto p-4 sm:p-6">
+        <div class="max-w-5xl mx-auto space-y-6">
+            <!-- Bureau Header Card -->
+            <div class="glass-surface p-5 sm:p-7">
+                <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div>
+                        <span class="sticker -rotate-2 bg-orange text-white px-3 py-1 rounded-xl text-xs uppercase tracking-wider mb-2">
+                            <i data-lucide="camera" class="w-3.5 h-3.5 mr-1.5"></i>
+                            Bureau Case Board
+                        </span>
+                        <h2 class="font-heading text-3xl sm:text-4xl font-bold uppercase tracking-tight text-dark dark:text-white mt-1">
+                            Photo Archives
+                        </h2>
+                        <p class="text-sm sm:text-base font-bold text-slate-600 dark:text-slate-300 mt-1 max-w-2xl">
+                            Select a crime scene file, scan the darkened photo with your flashlight, log clues into your notebook, and issue an arrest warrant.
+                        </p>
+                    </div>
+
+                    <div class="flex flex-wrap items-center gap-2.5 flex-shrink-0">
+                        <div class="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 border-2 border-dark dark:border-slate-500 shadow-hard-sm font-heading font-bold text-xs uppercase text-dark dark:text-white">
+                            <i data-lucide="trophy" class="w-4 h-4 text-green"></i>
+                            <span id="archiveStatsText">0 / 0 Solved</span>
+                        </div>
+                        <button type="button" id="resetProgressBtn" onclick="App.promptResetProgress()"
+                            class="btn-chunky bg-white dark:bg-slate-800 text-dark dark:text-white rounded-xl px-3.5 py-2 text-xs flex items-center gap-1.5">
+                            <i data-lucide="rotate-ccw" class="w-3.5 h-3.5 text-pink"></i>
+                            <span>Reset Progress</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="mt-4 pt-3 border-t-2 border-slate-200 dark:border-slate-700 flex flex-wrap items-center justify-between gap-2 text-xs font-bold text-slate-600 dark:text-slate-300">
+                    <span class="inline-flex items-center gap-1.5">
+                        <i data-lucide="wrench" class="w-3.5 h-3.5 text-blue"></i>
+                        Tip: Press <kbd class="px-1.5 py-0.5 rounded-md bg-slate-200 dark:bg-slate-700 border border-dark dark:border-slate-500 font-heading text-[11px]">Shift + D</kbd> in any scene for Coordinate Calibration Mode.
+                    </span>
+                    <span class="inline-flex items-center gap-1.5">
+                        <i data-lucide="shield-alert" class="w-3.5 h-3.5 text-pink"></i>
+                        Wrong accusation penalty: -60s
+                    </span>
+                </div>
+            </div>
+
+            <!-- Error Container -->
+            <div id="errorContainer"></div>
+
+            <!-- Case Cards Grid -->
+            <div id="caseList" class="grid grid-cols-1 md:grid-cols-2 gap-6 pb-6">
+                <div class="col-span-full glass-surface p-8 text-center font-bold text-slate-500 dark:text-slate-400">
+                    Loading Photo Archives...
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- VIEW 2: ACTIVE INVESTIGATION WORKSPACE -->
+    <main id="gameWorkspace" class="is-hidden flex-1 min-h-0 max-w-[1680px] mx-auto w-full flex flex-col lg:flex-row gap-4 p-3 sm:p-4">
+
+        <!-- Column 1: Interactive Forensics Photo Stage -->
+        <section class="flex-1 flex flex-col min-h-[52vh] lg:min-h-0">
+            <div id="sceneContainer" class="scene-stage is-locked flex-1 relative">
+                <!-- Crime Scene Photograph (src assigned when case loads) -->
+                <img id="sceneImage" class="scene-image is-hidden" alt="Crime Scene Photograph" />
+
+                <!-- Hotspot Target Overlay -->
+                <div id="sceneElements" class="absolute inset-0 z-30"></div>
+
+                <!-- Dynamic Flashlight Darkness Mask -->
+                <div id="flashlightOverlay" class="flashlight-overlay"></div>
+
+                <!-- Scene Location Tag -->
+                <div id="sceneTitle" class="sticker -rotate-2 absolute top-4 left-4 bg-white dark:bg-slate-800 text-dark dark:text-white px-4 py-1.5 rounded-full text-xs uppercase tracking-wider z-40 pointer-events-none">
+                    Location
+                </div>
+
+                <!-- Beam Size Controls (Bottom Left) -->
+                <div id="beamControls" class="absolute bottom-3 left-3 z-40 flex items-center gap-1.5 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border-2 border-dark dark:border-slate-500 rounded-xl p-1 shadow-hard-sm">
+                    <span class="text-[10px] font-heading font-bold uppercase px-1.5 text-slate-600 dark:text-slate-300">Beam</span>
+                    <button type="button" id="beamBtn-sm" onclick="App.setBeamSize('sm')" class="pill-toggle px-2.5 py-1 bg-slate-100 dark:bg-slate-800 text-dark dark:text-white">Sm</button>
+                    <button type="button" id="beamBtn-md" onclick="App.setBeamSize('md')" class="pill-toggle px-2.5 py-1 bg-slate-100 dark:bg-slate-800 text-dark dark:text-white is-active">Md</button>
+                    <button type="button" id="beamBtn-lg" onclick="App.setBeamSize('lg')" class="pill-toggle px-2.5 py-1 bg-slate-100 dark:bg-slate-800 text-dark dark:text-white">Lg</button>
+                </div>
+
+                <!-- Calibration Mode Active Pill (Bottom Right of Stage) -->
+                <button type="button" id="devStageBadge" onclick="App.toggleDevMode()"
+                    class="is-hidden absolute bottom-3 right-3 z-40 btn-chunky bg-pink text-white rounded-xl px-3 py-1.5 text-xs flex items-center gap-1.5">
+                    <i data-lucide="wrench" class="w-3.5 h-3.5"></i>
+                    <span>Calibration ON (Click to Exit)</span>
+                </button>
+
+                <!-- Manual Start Overlay -->
+                <div id="startOverlay" class="absolute inset-0 z-50 bg-slate-950/75 backdrop-blur-sm flex flex-col items-center justify-center p-6 text-center">
+                    <div class="w-20 h-20 rounded-2xl bg-blue text-white border-3 border-white shadow-hard-md flex items-center justify-center mb-4">
+                        <i data-lucide="fingerprint" class="w-10 h-10"></i>
+                    </div>
+                    <h2 id="startCaseTitle" class="font-heading text-3xl sm:text-4xl font-bold text-white uppercase tracking-tight mb-2">
+                        Area Secured
+                    </h2>
+                    <p id="startCaseMeta" class="text-xs sm:text-sm font-extrabold uppercase tracking-widest text-slate-300 mb-6">
+                        Scan photo to collect evidence
+                    </p>
+                    <button type="button" onclick="App.startInvestigation()"
+                        class="btn-chunky bg-green text-white rounded-2xl px-8 py-4 text-lg sm:text-xl flex items-center gap-2.5">
+                        <i data-lucide="play" class="w-5 h-5"></i>
+                        <span>Begin Investigation</span>
+                    </button>
+                    <p class="text-xs font-bold text-slate-300 mt-4 max-w-sm">
+                        Read the Briefing tab on the right first — countdown starts when you click Begin.
+                    </p>
+                </div>
+
+                <!-- Pause Overlay -->
+                <div id="pauseOverlay" class="is-hidden absolute inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center">
+                    <div class="w-16 h-16 rounded-2xl bg-orange text-white border-3 border-white shadow-hard-md flex items-center justify-center mb-4">
+                        <i data-lucide="pause" class="w-8 h-8"></i>
+                    </div>
+                    <h2 class="font-heading text-3xl font-bold text-white uppercase tracking-tight mb-2">
+                        Investigation Paused
+                    </h2>
+                    <p class="text-sm font-bold text-slate-300 mb-6">
+                        Scene photo is concealed while the clock is paused.
+                    </p>
+                    <button type="button" onclick="App.togglePause()"
+                        class="btn-chunky bg-blue text-white rounded-2xl px-7 py-3.5 text-lg flex items-center gap-2">
+                        <i data-lucide="play" class="w-5 h-5"></i>
+                        <span>Resume Search</span>
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Column 2: Tabbed Detective Notebook -->
+        <aside class="w-full lg:w-[410px] xl:w-[440px] flex flex-col min-h-0 flex-shrink-0">
+            <div class="glass-surface flex-1 flex flex-col overflow-hidden min-h-0">
+                <!-- Notebook Tab Strip -->
+                <nav class="p-2 bg-slate-100 dark:bg-slate-900 border-b-3 border-dark dark:border-slate-500 grid grid-cols-3 gap-1.5 flex-none" aria-label="Detective Notebook Tabs">
+                    <button type="button" id="btn-tab-briefing" onclick="App.switchTab('briefing')" class="notebook-tab-btn is-active">
+                        <i data-lucide="file-text" class="w-4 h-4"></i>
+                        <span>Brief</span>
+                    </button>
+                    <button type="button" id="btn-tab-evidence" onclick="App.switchTab('evidence')" class="notebook-tab-btn">
+                        <i data-lucide="search" class="w-4 h-4"></i>
+                        <span>Evidence</span>
+                        <span id="evidenceCountBadge" class="px-1.5 py-0.5 rounded-full text-[10px] bg-dark text-white dark:bg-slate-700 leading-none">0</span>
+                    </button>
+                    <button type="button" id="btn-tab-suspects" onclick="App.switchTab('suspects')" class="notebook-tab-btn">
+                        <i data-lucide="users" class="w-4 h-4"></i>
+                        <span>Suspects</span>
+                        <span id="suspectsCountBadge" class="px-1.5 py-0.5 rounded-full text-[10px] bg-dark text-white dark:bg-slate-700 leading-none">0</span>
+                    </button>
+                </nav>
+
+                <!-- Tab 1: Briefing & Scratchpad -->
+                <div id="tab-briefing" class="tab-content flex-1 overflow-y-auto p-4 sm:p-5 space-y-4">
+                    <div class="flex flex-wrap items-center gap-2">
+                        <span id="briefDifficulty" class="sticker bg-orange text-white px-2.5 py-1 rounded-lg text-xs uppercase">HARD</span>
+                        <span id="briefTime" class="sticker bg-slate-100 dark:bg-slate-800 text-dark dark:text-white px-2.5 py-1 rounded-lg text-xs uppercase">10:00 Limit</span>
+                    </div>
+
+                    <div class="bg-white dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-2xl p-4 shadow-hard-sm">
+                        <h3 class="font-heading text-base font-bold uppercase text-dark dark:text-white flex items-center gap-2 mb-2 pb-2 border-b-2 border-slate-200 dark:border-slate-700">
+                            <i data-lucide="file-text" class="w-4 h-4 text-blue"></i>
+                            Case Briefing
+                        </h3>
+                        <p id="caseBrief" class="text-sm font-bold leading-relaxed text-slate-700 dark:text-slate-200">
+                            Select a case to view briefing.
+                        </p>
+                    </div>
+
+                    <div class="bg-slate-100/80 dark:bg-slate-800/70 border-2 border-dark dark:border-slate-500 rounded-2xl p-4">
+                        <h4 class="font-heading text-xs font-bold uppercase tracking-wider text-dark dark:text-white flex items-center gap-1.5 mb-2">
+                            <i data-lucide="sparkles" class="w-3.5 h-3.5 text-orange"></i>
+                            Field Procedure
+                        </h4>
+                        <ul class="text-xs font-bold text-slate-600 dark:text-slate-300 space-y-1.5">
+                            <li class="flex items-start gap-2">
+                                <i data-lucide="flashlight" class="w-3.5 h-3.5 text-blue mt-0.5 flex-shrink-0"></i>
+                                <span>Sweep your cursor or finger across the photo to spot hidden evidence.</span>
+                            </li>
+                            <li class="flex items-start gap-2">
+                                <i data-lucide="bookmark" class="w-3.5 h-3.5 text-green mt-0.5 flex-shrink-0"></i>
+                                <span>Tag clues in Evidence Log as Key Leads or Dead Ends.</span>
+                            </li>
+                            <li class="flex items-start gap-2">
+                                <i data-lucide="gavel" class="w-3.5 h-3.5 text-pink mt-0.5 flex-shrink-0"></i>
+                                <span>Rule out innocent alibis in Suspects before issuing a Warrant.</span>
+                            </li>
+                        </ul>
+                    </div>
+
+                    <div class="bg-white dark:bg-slate-800 border-2 border-dark dark:border-slate-500 rounded-2xl p-4 shadow-hard-sm">
+                        <div class="flex items-center justify-between gap-2 mb-2">
+                            <label for="caseNotesInput" class="font-heading text-xs font-bold uppercase tracking-wider text-dark dark:text-white flex items-center gap-1.5">
+                                <i data-lucide="file-search" class="w-3.5 h-3.5 text-green"></i>
+                                Class Detective Notes
+                            </label>
+                            <button type="button" onclick="App.clearCaseNote()"
+                                class="text-[11px] font-heading font-bold uppercase text-pink hover:underline flex items-center gap-1 rounded-md px-1.5 py-0.5">
+                                <i data-lucide="eraser" class="w-3 h-3"></i>
+                                Clear
+                            </button>
+                        </div>
+                        <textarea id="caseNotesInput" rows="3" oninput="App.saveCaseNote(this.value)"
+                            placeholder="Type class hypotheses, timelines, or motive notes here (auto-saved)..."
+                            class="w-full rounded-xl border-2 border-dark dark:border-slate-500 bg-slate-50 dark:bg-slate-900 p-2.5 text-xs font-bold text-dark dark:text-white placeholder:text-slate-400 resize-y"></textarea>
+                    </div>
+                </div>
+
+                <!-- Tab 2: Evidence Log -->
+                <div id="tab-evidence" class="tab-content is-hidden flex-1 overflow-y-auto p-4 sm:p-5 space-y-3">
+                    <div class="flex flex-wrap items-center justify-between gap-2 pb-2 border-b-2 border-slate-200 dark:border-slate-700">
+                        <div class="flex items-center gap-1.5">
+                            <button type="button" id="evFilter-all" onclick="App.setEvidenceFilter('all')" class="pill-toggle is-active px-2.5 py-1 bg-white dark:bg-slate-800 text-dark dark:text-white">All</button>
+                            <button type="button" id="evFilter-lead" onclick="App.setEvidenceFilter('lead')" class="pill-toggle px-2.5 py-1 bg-white dark:bg-slate-800 text-dark dark:text-white">Key Leads</button>
+                            <button type="button" id="evFilter-herring" onclick="App.setEvidenceFilter('herring')" class="pill-toggle px-2.5 py-1 bg-white dark:bg-slate-800 text-dark dark:text-white">Dead Ends</button>
+                        </div>
+                        <span id="evFoundSummary" class="text-xs font-heading font-bold uppercase text-slate-500 dark:text-slate-400">0 Found</span>
+                    </div>
+
+                    <div id="evidenceList" class="flex flex-col gap-3">
+                        <div id="emptyEv" class="rounded-2xl border-2 border-dashed border-slate-300 dark:border-slate-600 p-6 text-center text-sm font-bold text-slate-500 dark:text-slate-400">
+                            Scan the crime scene photograph to uncover clues...
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tab 3: Suspects & Warrants -->
+                <div id="tab-suspects" class="tab-content is-hidden flex-1 overflow-y-auto p-4 sm:p-5 space-y-3">
+                    <div class="rounded-xl bg-slate-100 dark:bg-slate-800 border-2 border-dark dark:border-slate-500 px-3 py-2 text-xs font-bold text-slate-600 dark:text-slate-300 flex items-center gap-2">
+                        <i data-lucide="shield-alert" class="w-4 h-4 text-pink flex-shrink-0"></i>
+                        <span>Rule out suspects during discussion. Issuing a wrong warrant deducts 60 seconds!</span>
+                    </div>
+                    <div id="suspectsList" class="flex flex-col gap-3"></div>
+                </div>
+            </div>
+        </aside>
+    </main>
+
+    <!-- CALIBRATION / DEVELOPER PANEL (Shift + D) -->
+    <div id="devModePanel" class="glass-surface p-4">
+        <div class="flex items-center justify-between gap-2 pb-2 mb-2 border-b-2 border-slate-200 dark:border-slate-700">
+            <h3 class="font-heading text-base font-bold uppercase text-dark dark:text-white flex items-center gap-2">
+                <i data-lucide="wrench" class="w-4 h-4 text-pink"></i>
+                Calibration Mode
+            </h3>
+            <button type="button" onclick="App.toggleDevMode()" aria-label="Close calibration mode"
+                class="w-7 h-7 rounded-lg bg-slate-100 dark:bg-slate-800 border-2 border-dark dark:border-slate-500 flex items-center justify-center text-dark dark:text-white">
+                <i data-lucide="x" class="w-4 h-4"></i>
+            </button>
+        </div>
+        <p class="text-xs font-bold text-slate-600 dark:text-slate-300 mb-3">
+            Click anywhere on the scene photograph to sample normalized hotspot coordinates.
+        </p>
+        <div class="bg-dark text-white rounded-xl p-2.5 border-2 border-dark dark:border-slate-500 flex items-center justify-between gap-2">
+            <code id="coordOutput" class="text-xs font-mono text-green">pos: {x: 0.00, y: 0.00}</code>
+            <button type="button" id="copyCoordsBtn" onclick="App.copyCoords()"
+                class="btn-chunky bg-white text-dark rounded-lg px-2.5 py-1 text-xs flex items-center gap-1">
+                <i data-lucide="copy" class="w-3 h-3"></i>
+                <span>Copy</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- MODAL 1: CLUE FOUND / EVIDENCE REVIEW -->
+    <div id="clueModal" class="modal-overlay" onclick="if (event.target === this) App.closeClueModal()">
+        <div class="modal-card glass-surface max-w-md w-full p-6 text-center">
+            <div id="clueModalIconWrap" class="w-16 h-16 rounded-2xl bg-blue text-white border-3 border-dark dark:border-slate-500 shadow-hard-md mx-auto flex items-center justify-center mb-3">
+                <i data-lucide="eye" class="w-8 h-8"></i>
+            </div>
+
+            <span id="clueModalBadge" class="sticker bg-green text-white px-3 py-1 rounded-full text-[11px] uppercase mb-2">
+                New Clue Logged
+            </span>
+
+            <h2 id="clueModalTitle" class="font-heading text-2xl sm:text-3xl font-bold uppercase tracking-tight text-dark dark:text-white mt-1">
+                Clue Found
+            </h2>
+            <p id="clueModalDesc" class="text-sm font-bold text-slate-600 dark:text-slate-300 mt-1 mb-4">
+                Description.
+            </p>
+
+            <div id="clueModalHidden" class="bg-slate-100 dark:bg-slate-800 text-dark dark:text-slate-100 p-4 rounded-2xl border-2 border-dark dark:border-slate-500 border-l-[6px] border-l-blue text-left text-sm font-bold mb-5 shadow-hard-sm">
+                Deduction analysis.
+            </div>
+
+            <button type="button" onclick="App.closeClueModal()"
+                class="btn-chunky bg-blue text-white rounded-xl px-6 py-3 text-base w-full">
+                Back to Scene
+            </button>
+        </div>
+    </div>
+
+    <!-- MODAL 2: REUSABLE CONFIRMATION MODAL -->
+    <div id="confirmModal" class="modal-overlay" onclick="if (event.target === this) App.cancelConfirm()">
+        <div class="modal-card glass-surface max-w-md w-full p-6 text-center">
+            <div id="confirmIconWrap" class="w-14 h-14 rounded-2xl bg-orange text-white border-3 border-dark dark:border-slate-500 shadow-hard-sm mx-auto flex items-center justify-center mb-3">
+                <i data-lucide="gavel" class="w-7 h-7"></i>
+            </div>
+            <h2 id="confirmTitle" class="font-heading text-2xl font-bold uppercase text-dark dark:text-white mb-2">
+                Confirm Action
+            </h2>
+            <p id="confirmMessage" class="text-sm font-bold text-slate-600 dark:text-slate-300 mb-6">
+                Are you sure?
+            </p>
+            <div class="grid grid-cols-2 gap-3">
+                <button type="button" onclick="App.cancelConfirm()"
+                    class="btn-chunky bg-white dark:bg-slate-800 text-dark dark:text-white rounded-xl px-4 py-2.5 text-sm">
+                    Cancel
+                </button>
+                <button type="button" id="confirmActionBtn" onclick="App.executeConfirm()"
+                    class="btn-chunky bg-pink text-white rounded-xl px-4 py-2.5 text-sm">
+                    Confirm
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL 3: WARRANT DENIED (-60S PENALTY) -->
+    <div id="wrongAccusationModal" class="modal-overlay" onclick="if (event.target === this) App.closeWrongAccusationModal()">
+        <div class="modal-card glass-surface max-w-md w-full p-6 sm:p-7 text-center">
+            <div class="w-16 h-16 rounded-2xl bg-pink text-white border-3 border-dark dark:border-slate-500 shadow-hard-md mx-auto flex items-center justify-center mb-3">
+                <i data-lucide="shield-alert" class="w-8 h-8"></i>
+            </div>
+
+            <span class="sticker -rotate-2 bg-pink text-white px-3 py-1 rounded-full text-xs uppercase mb-2">
+                -60 Seconds Penalty
+            </span>
+
+            <h2 class="font-heading text-3xl font-bold uppercase tracking-tight text-dark dark:text-white mt-1 mb-2">
+                Warrant Denied
+            </h2>
+            <p class="text-sm font-bold text-slate-600 dark:text-slate-300 mb-4">
+                The evidence does not match <span id="wrongAccusationName" class="px-2 py-0.5 rounded-lg bg-slate-200 dark:bg-slate-700 text-dark dark:text-white font-extrabold">Suspect</span>.
+            </p>
+
+            <div class="bg-slate-900 text-white p-4 rounded-2xl border-2 border-dark dark:border-slate-500 border-l-[6px] border-l-orange text-left mb-6 shadow-hard-sm">
+                <div class="flex items-center gap-1.5 text-xs font-heading font-bold uppercase tracking-wider text-orange mb-1.5">
+                    <i data-lucide="search" class="w-3.5 h-3.5"></i>
+                    <span>Detective's Lead</span>
+                </div>
+                <p id="wrongAccusationHint" class="text-sm font-bold leading-relaxed text-slate-100"></p>
+            </div>
+
+            <button type="button" onclick="App.closeWrongAccusationModal()"
+                class="btn-chunky bg-blue text-white rounded-xl px-6 py-3 text-base w-full">
+                Resume Investigation
+            </button>
+        </div>
+    </div>
+
+    <!-- MODAL 4: CASE CLOSED / COLD CASE -->
+    <div id="gameOverModal" class="modal-overlay">
+        <div id="gameOverCard" class="modal-card glass-surface max-w-xl w-full p-6 sm:p-8 text-center flex flex-col items-center">
+            <div id="gameOverIcon" class="w-20 h-20 rounded-2xl flex items-center justify-center border-3 border-dark dark:border-slate-500 mb-3 shadow-hard-md"></div>
+
+            <h2 id="gameOverTitle" class="font-heading text-3xl sm:text-4xl font-bold uppercase tracking-tight text-dark dark:text-white mb-2">
+                Case Result
+            </h2>
+
+            <div id="gameOverStats" class="flex flex-wrap items-center justify-center gap-2 mb-4"></div>
+
+            <div class="bg-slate-100 dark:bg-slate-800 border-2 border-dark dark:border-slate-500 p-5 rounded-2xl w-full text-left mb-6 shadow-hard-sm">
+                <p id="gameOverText" class="text-sm sm:text-base font-bold leading-relaxed text-dark dark:text-slate-100"></p>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full">
+                <button type="button" onclick="App.replayCurrentCase()"
+                    class="btn-chunky bg-white dark:bg-slate-800 text-dark dark:text-white rounded-xl px-5 py-3 text-base">
+                    <i data-lucide="rotate-ccw" class="w-4 h-4 mr-1.5"></i>
+                    Replay Case
+                </button>
+                <button type="button" onclick="App.showMenu()"
+                    class="btn-chunky bg-blue text-white rounded-xl px-5 py-3 text-base">
+                    <i data-lucide="folder-open" class="w-4 h-4 mr-1.5"></i>
+                    Case Archives
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- FLOATING TOAST -->
+    <div id="toastBanner" role="status" aria-live="polite"
+        class="glass-surface bg-dark text-white px-4 py-2.5 rounded-xl flex items-center gap-2 text-xs sm:text-sm font-heading font-bold uppercase tracking-wide shadow-hard-md">
+        <span id="toastIconSlot" class="inline-flex items-center justify-center flex-shrink-0"><i data-lucide="info" class="w-4 h-4 text-blue"></i></span>
+        <span id="toastText">Notification</span>
+    </div>
+
+</body>
+
+</html>

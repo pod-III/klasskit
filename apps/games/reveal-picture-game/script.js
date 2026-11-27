@@ -139,6 +139,15 @@ function broadcastState(options = {}) {
     else { _broadcastThrottle = setTimeout(doBroadcast, minInterval - elapsed); }
 }
 
+function getGameMode() {
+    if (document.getElementById('zoom-container')) return 'zoom';
+    if (document.getElementById('blur-container')) return 'blur';
+    const pathname = window.location.pathname;
+    if (pathname.includes('zoom')) return 'zoom';
+    if (pathname.includes('blur')) return 'blur';
+    return 'tiles';
+}
+
 function _performBroadcast() {
     // Read the already-resolved src from the DOM (set by loadLevel via resolveMediaUrl)
     // This is either a signed URL (cloud) or a DataURL (local) — both are usable by the student.
@@ -149,8 +158,7 @@ function _performBroadcast() {
     const indexChanged = Game.currentIndex !== _lastBroadcastImageIndex;
     if (indexChanged) _lastBroadcastImageIndex = Game.currentIndex;
 
-    const pathname = window.location.pathname;
-    const mode = pathname.includes('zoom.html') ? 'zoom' : pathname.includes('blur.html') ? 'blur' : 'tiles';
+    const mode = getGameMode();
 
     const payload = {
         type: 'state-update',
@@ -194,20 +202,36 @@ if (bc && IS_PLAYER_WINDOW) {
         window._playerLoadingEl?.remove();
         window._playerLoadingEl = null;
 
-        // Update image if new src provided
         const img = document.getElementById('target-image');
+        const emptyState = document.getElementById('empty-state');
+        const roundDisplay = document.getElementById('student-round-display');
+
+        if (!data.totalImages) {
+            window._studentLastImageSrc = null;
+            if (img) {
+                img.removeAttribute('src');
+                img.style.filter = '';
+                img.style.transform = '';
+            }
+            if (emptyState) emptyState.style.display = 'flex';
+            const tileGrid = document.getElementById('tile-grid');
+            if (tileGrid) tileGrid.innerHTML = '';
+            if (roundDisplay) roundDisplay.textContent = '0 / 0';
+            return;
+        }
+
+        // Update image if new src provided
         if (img && data.imageSrc) {
-            img.src = data.imageSrc;
+            if (img.src !== data.imageSrc) img.src = data.imageSrc;
             window._studentLastImageSrc = data.imageSrc;
             // Hide the empty-state overlay (normally hidden by Game.start() which student never calls)
-            const emptyState = document.getElementById('empty-state');
             if (emptyState) emptyState.style.display = 'none';
-        } else if (img && !data.imageSrc && window._studentLastImageSrc) {
+        } else if (img && !data.imageSrc && window._studentLastImageSrc && img.src !== window._studentLastImageSrc) {
             img.src = window._studentLastImageSrc;
+            if (emptyState) emptyState.style.display = 'none';
         }
 
         // Update round counter (student toolbar uses id="student-round-display")
-        const roundDisplay = document.getElementById('student-round-display');
         if (roundDisplay) roundDisplay.textContent = `${data.currentIndex + 1} / ${data.totalImages}`;
 
         if (data.mode === 'tiles') {
@@ -218,19 +242,24 @@ if (bc && IS_PLAYER_WINDOW) {
             if (img?.src && img.src !== window.location.href) Game.buildGrid();
 
         } else if (data.mode === 'zoom' && typeof ZoomGame !== 'undefined') {
-            ZoomGame.currentZoom = data.zoomCurrentZoom;
+            ZoomGame.currentZoom = data.zoomCurrentZoom ?? ZoomGame.zoomStart;
             ZoomGame.zoomPosition = data.zoomPosition || { x: 50, y: 50 };
-            ZoomGame.revealed = data.zoomRevealed;
+            ZoomGame.revealed = Boolean(data.zoomRevealed);
             if (img) {
+                img.style.transition = ZoomGame.revealed ? 'transform 0.25s ease-out' : 'none';
                 img.style.transformOrigin = `${ZoomGame.zoomPosition.x}% ${ZoomGame.zoomPosition.y}%`;
                 img.style.transform = `scale(${ZoomGame.currentZoom})`;
             }
 
         } else if (data.mode === 'blur' && typeof BlurGame !== 'undefined') {
-            BlurGame.currentLevel = data.blurCurrentLevel;
-            BlurGame.maxLevel = data.blurMaxLevel;
-            BlurGame.revealed = data.blurRevealed;
-            if (img) img.style.filter = `blur(${(BlurGame.currentLevel / 5) * 20}px)`;
+            BlurGame.currentLevel = data.blurCurrentLevel ?? BlurGame.maxLevel;
+            BlurGame.maxLevel = data.blurMaxLevel ?? BlurGame.maxLevel;
+            BlurGame.revealed = Boolean(data.blurRevealed);
+            if (img) {
+                const blurPx = (BlurGame.currentLevel / 5) * 45;
+                img.style.filter = blurPx > 0 ? `blur(${blurPx}px)` : 'none';
+                img.style.transform = blurPx > 0 ? 'scale(1.08)' : 'scale(1)';
+            }
         }
     };
 }
@@ -247,7 +276,14 @@ const app = {
             await DB.init();
             let storedPresets = await DB.getAllPresets();
 
-            if (!storedPresets || storedPresets.length === 0) {
+            // Clean up any stray empty presets left in IndexedDB from earlier sessions
+            const emptyPresets = (storedPresets || []).filter(p => !p.images || p.images.length === 0);
+            for (const ep of emptyPresets) {
+                await DB.deletePreset(ep.id);
+            }
+            storedPresets = (storedPresets || []).filter(p => p.images && p.images.length > 0);
+
+            if (storedPresets.length === 0) {
                 // Attempt Legacy Migration
                 const legacyImages = await DB.migrateLegacyDB();
                 let defaultImages = [];
@@ -304,18 +340,22 @@ const app = {
     async syncToCloud() {
         if (window.syncTimeout) clearTimeout(window.syncTimeout);
         window.syncTimeout = setTimeout(() => {
-            // Sync metadata + cloud image URLs to avoid large blobs
-            const metadata = this.presets.map(p => ({
-                id: p.id,
-                title: p.title,
-                images: (p.images || []).filter(img => img.startsWith('http')), 
-                currentIndex: p.currentIndex,
-                gridSize: p.gridSize,
-                lastAccessed: p.lastAccessed
-            }));
+            // Only sync presets that actually have cloud image URLs (never sync empty sets)
+            const metadata = this.presets
+                .map(p => ({
+                    id: p.id,
+                    title: p.title,
+                    images: (p.images || []).filter(img => typeof img === 'string' && img.startsWith('http')),
+                    currentIndex: p.currentIndex,
+                    gridSize: p.gridSize,
+                    lastAccessed: p.lastAccessed
+                }))
+                .filter(p => p.images.length > 0);
+
+            const activeHasCloud = metadata.some(p => p.id === this.activePresetId);
             saveProgress('reveal_picture', {
                 presets: metadata,
-                activePresetId: this.activePresetId
+                activePresetId: activeHasCloud ? this.activePresetId : (metadata[0]?.id || null)
             });
         }, 2000);
     },
@@ -326,6 +366,9 @@ const app = {
             // Update local presets with cloud metadata if they match by ID
             let changed = false;
             for (const cp of cloudData.presets) {
+                // Never import empty presets from cloud
+                if (!cp.images || cp.images.length === 0) continue;
+
                 const local = this.presets.find(p => p.id === cp.id);
                 if (local) {
                     local.title = cp.title;
@@ -333,23 +376,23 @@ const app = {
                     local.gridSize = cp.gridSize;
                     local.lastAccessed = cp.lastAccessed;
                     local.revealedIndices = cp.revealedIndices || local.revealedIndices || [];
-                    
-                    // Only update images if the cloud version actually has images (URLs)
-                    if (cp.images && cp.images.length > 0) {
-                        local.images = cp.images;
-                    }
-                    
+                    local.images = cp.images;
+
                     await DB.savePreset(local);
                     changed = true;
                 } else {
                     // New preset from another device
-                    const newPreset = { ...cp, images: cp.images || [] };
+                    const newPreset = { ...cp, images: cp.images };
                     this.presets.push(newPreset);
                     await DB.savePreset(newPreset);
                     changed = true;
                 }
             }
-            if (cloudData.activePresetId) {
+            // Drop placeholder empty preset if cloud provided real presets
+            if (this.presets.some(p => p.images && p.images.length > 0)) {
+                this.presets = this.presets.filter(p => p.images && p.images.length > 0);
+            }
+            if (cloudData.activePresetId && this.presets.some(p => p.id === cloudData.activePresetId)) {
                 this.activePresetId = cloudData.activePresetId;
                 localStorage.setItem('mb_active_preset_id', this.activePresetId);
             }
@@ -363,41 +406,52 @@ const app = {
     },
 
     renderPresetDropdown() {
-        const btn = document.getElementById('preset-dropdown-btn');
         const menu = document.getElementById('preset-dropdown-menu');
         const label = document.getElementById('preset-dropdown-label');
         
-        if (!menu) return; // Skip if custom dropdown doesn't exist (tiles mode still uses select)
+        if (!menu) return;
         
         // Update label
         const activePreset = this.presets.find(p => p.id === this.activePresetId);
-        if (label && activePreset) label.textContent = activePreset.title;
+        if (label && activePreset) {
+            const count = activePreset.images ? activePreset.images.length : 0;
+            label.textContent = count > 0 ? `${activePreset.title} (${count})` : `${activePreset.title} (Empty)`;
+        }
         
-        // Build dropdown items with delete buttons
-        menu.innerHTML = this.presets.map(p => `
-            <div class="flex items-center justify-between px-4 py-3 border-b border-slate-200 dark:border-slate-600 last:border-b-0 hover:bg-slate-50 dark:hover:bg-slate-600 cursor-pointer transition-colors ${p.id === this.activePresetId ? 'bg-orange/10 dark:bg-orange/20' : ''}" onclick="app.selectPreset('${p.id}')">
+        const canDelete = this.presets.length > 1;
+        // Build dropdown items with image count & delete buttons
+        menu.innerHTML = this.presets.map(p => {
+            const count = p.images ? p.images.length : 0;
+            const isActive = p.id === this.activePresetId;
+            return `
+            <div class="flex items-center justify-between gap-2 px-4 py-3 border-b border-slate-200 dark:border-slate-600 last:border-b-0 hover:bg-slate-50 dark:hover:bg-slate-600 cursor-pointer transition-colors ${isActive ? 'bg-blue/10 dark:bg-blue/20' : ''}" onclick="app.selectPreset('${p.id}')">
                 <span class="font-body font-bold text-sm text-dark dark:text-slate-200 truncate flex-1 pointer-events-none">${p.title}</span>
-                <button onclick="app.deletePresetById('${p.id}', event)" class="ml-2 p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all shrink-0" title="Delete Preset">
+                <span class="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full shrink-0 pointer-events-none ${count > 0 ? 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-300' : 'bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-300'}">${count > 0 ? `${count} img` : 'Empty'}</span>
+                ${canDelete ? `<button onclick="app.deletePresetById('${p.id}', event)" class="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all shrink-0" title="Delete Preset">
                     <i data-lucide="trash-2" class="w-4 h-4 pointer-events-none"></i>
-                </button>
-            </div>
-        `).join('');
+                </button>` : ''}
+            </div>`;
+        }).join('');
         
         lucide.createIcons();
     },
 
     togglePresetDropdown() {
         const menu = document.getElementById('preset-dropdown-menu');
-        if (menu) {
-            const isHidden = menu.classList.contains('hidden');
-            // Close all other dropdowns first
-            document.querySelectorAll('#preset-dropdown-menu').forEach(m => m.classList.add('hidden'));
-            if (isHidden) {
-                menu.classList.remove('hidden');
-                // Add click outside listener
-                setTimeout(() => {
-                    document.addEventListener('click', this.closeDropdownOnClickOutside, { once: true });
-                }, 10);
+        if (!menu) return;
+        const isHidden = menu.classList.contains('hidden');
+        if (isHidden) {
+            menu.classList.remove('hidden');
+            if (!this._boundCloseDropdown) {
+                this._boundCloseDropdown = (e) => this.closeDropdownOnClickOutside(e);
+            }
+            setTimeout(() => {
+                document.addEventListener('click', this._boundCloseDropdown);
+            }, 0);
+        } else {
+            menu.classList.add('hidden');
+            if (this._boundCloseDropdown) {
+                document.removeEventListener('click', this._boundCloseDropdown);
             }
         }
     },
@@ -407,6 +461,9 @@ const app = {
         if (container && !container.contains(e.target)) {
             const menu = document.getElementById('preset-dropdown-menu');
             if (menu) menu.classList.add('hidden');
+            if (this._boundCloseDropdown) {
+                document.removeEventListener('click', this._boundCloseDropdown);
+            }
         }
     },
 
@@ -449,11 +506,14 @@ const app = {
         this.activePresetId = preset.id;
         document.getElementById('preset-title').value = preset.title;
 
-        // Update timestamp
+        // Only persist non-empty presets to IndexedDB
         preset.lastAccessed = Date.now();
-        DB.savePreset(preset);
+        if (preset.images && preset.images.length > 0) {
+            DB.savePreset(preset);
+            localStorage.setItem('mb_active_preset_id', preset.id);
+        }
 
-        localStorage.setItem('mb_active_preset_id', preset.id);
+        this.renderPresetDropdown();
 
         // Load Game State
         Game.gridSize = preset.gridSize || 4;
@@ -481,12 +541,17 @@ const app = {
             const prevBtn = document.getElementById('prev-round-btn');
             
             if (emptyState) emptyState.style.display = 'flex';
-            if (targetImage) targetImage.src = "";
+            if (targetImage) {
+                targetImage.removeAttribute('src');
+                targetImage.style.filter = '';
+                targetImage.style.transform = '';
+            }
             if (tileGrid) tileGrid.innerHTML = '';
             if (roundDisplay) roundDisplay.textContent = "0 / 0";
             if (nextBtn) nextBtn.disabled = true;
             if (prevBtn) prevBtn.disabled = true;
             UI.updateCount(0);
+            broadcastFullState();
         }
     },
 
@@ -502,51 +567,73 @@ const app = {
         preset.revealedIndices = Game.revealedIndices || [];
         preset.lastAccessed = Date.now();
 
-        // Only save to DB if preset has images
         if (preset.images && preset.images.length > 0) {
             await DB.savePreset(preset);
+            localStorage.setItem('mb_active_preset_id', preset.id);
+            this.syncToCloud();
+        } else {
+            // Remove from DB if emptied so empty sets do not persist across reloads
+            await DB.deletePreset(preset.id);
             this.syncToCloud();
         }
+        this.renderPresetDropdown();
     },
 
     async switchPreset(id) {
-        const preset = this.presets.find(p => p.id === id);
-        if (preset) {
-            this.loadPresetData(preset);
+        if (id === this.activePresetId) return;
+        const prevPreset = this.presets.find(p => p.id === this.activePresetId);
+        const nextPreset = this.presets.find(p => p.id === id);
+        if (!nextPreset) return;
+
+        // Prune abandoned empty preset when switching to another preset
+        if (prevPreset && (!prevPreset.images || prevPreset.images.length === 0) && this.presets.length > 1) {
+            this.presets = this.presets.filter(p => p.id !== prevPreset.id);
         }
+
+        this.loadPresetData(nextPreset);
     },
 
     async createNewPreset() {
-    const newPreset = {
-        id: 'preset_' + Date.now(),
-        title: `New Session ${this.presets.length + 1}`,
-        images: [],
-        currentIndex: 0,
-        gridSize: 4,
-        lastAccessed: Date.now()
-    };
+        const activePreset = this.presets.find(p => p.id === this.activePresetId);
+        if (activePreset && (!activePreset.images || activePreset.images.length === 0)) {
+            document.getElementById('preset-title')?.focus();
+            UI.showToast("Current session is already empty — add images to save it.", "info");
+            return;
+        }
 
-    this.presets.unshift(newPreset); // Add to top
-    // Don't save empty presets to DB - will save when images are added
+        const newPreset = {
+            id: 'preset_' + Date.now(),
+            title: `Session ${this.presets.length + 1}`,
+            images: [],
+            currentIndex: 0,
+            gridSize: 4,
+            lastAccessed: Date.now()
+        };
 
-    this.renderPresetDropdown();
-    const selector = document.getElementById('preset-selector');
-    if (selector) selector.value = newPreset.id;
-    this.loadPresetData(newPreset);
-    UI.showToast("New preset created! Add images to save it.", "info");
-},
+        this.presets.unshift(newPreset); // Add to top (in-memory until images are added)
+        this.loadPresetData(newPreset);
+        document.getElementById('preset-title')?.focus();
+        UI.showToast("New session ready! Add images to save it.", "info");
+    },
 
     async updatePresetTitle(newTitle) {
-    if (!newTitle.trim() || !this.activePresetId) return;
+        if (!this.activePresetId) return;
+        const presetIndex = this.presets.findIndex(p => p.id === this.activePresetId);
+        if (presetIndex === -1) return;
 
-    const presetIndex = this.presets.findIndex(p => p.id === this.activePresetId);
-    if (presetIndex !== -1 && this.presets[presetIndex].title !== newTitle) {
-        this.presets[presetIndex].title = newTitle;
-        await this.saveCurrentState();
-        this.renderPresetDropdown();
-        UI.showToast("Title saved", "success");
-    }
-},
+        const trimmed = newTitle.trim();
+        if (!trimmed) {
+            document.getElementById('preset-title').value = this.presets[presetIndex].title;
+            return;
+        }
+
+        if (this.presets[presetIndex].title !== trimmed) {
+            this.presets[presetIndex].title = trimmed;
+            document.getElementById('preset-title').value = trimmed;
+            await this.saveCurrentState();
+            UI.showToast("Title saved", "success");
+        }
+    },
 
 // --- DELETION LOGIC ---
 presetToDelete: null,
@@ -788,7 +875,8 @@ const AutoReveal = {
                 return;
             }
             const randomTile = tiles[Math.floor(Math.random() * tiles.length)];
-            Game.revealTile(randomTile);
+            const idx = parseInt(randomTile.dataset.index, 10);
+            Game.revealTile(randomTile, Number.isNaN(idx) ? undefined : idx);
         }, this.speed);
     },
 
@@ -816,6 +904,7 @@ const Game = {
     gridSize: 4,
     tilesRemaining: 0,
     revealedIndices: [], // Track which tiles are revealed
+    _revealAllTimeout: null,
 
     async init() {
         // Restore Theme
@@ -859,6 +948,13 @@ const Game = {
     },
 
     async loadLevel() {
+        if (!this.images || this.images.length === 0) return;
+
+        if (this._revealAllTimeout) {
+            clearTimeout(this._revealAllTimeout);
+            this._revealAllTimeout = null;
+        }
+
         // Bounds check
         if (this.currentIndex >= this.images.length) this.currentIndex = 0;
         if (this.currentIndex < 0) this.currentIndex = this.images.length - 1;
@@ -893,6 +989,7 @@ const Game = {
             const tile = document.createElement('div');
             const isRevealed = this.revealedIndices.includes(i);
             tile.className = 'tile' + (isRevealed ? ' revealed' : '');
+            tile.dataset.index = i;
             
             const numColor = (i % 2 === 0) ? 'text-slate-200' : 'text-slate-300';
             tile.innerHTML = `<span class="text-3xl font-heading ${numColor} pointer-events-none select-none">${i + 1}</span>`;
@@ -910,9 +1007,10 @@ const Game = {
         if (tile.classList.contains('revealed')) return;
         if (Tone.context.state !== 'running') Tone.start();
 
+        const resolvedIndex = index !== undefined ? index : parseInt(tile.dataset.index, 10);
         tile.classList.add('revealed');
-        if (!this.revealedIndices.includes(index)) {
-            this.revealedIndices.push(index);
+        if (!Number.isNaN(resolvedIndex) && !this.revealedIndices.includes(resolvedIndex)) {
+            this.revealedIndices.push(resolvedIndex);
         }
         
         this.tilesRemaining--;
@@ -937,7 +1035,9 @@ const Game = {
             }, i * 30);
         });
 
-        setTimeout(() => {
+        if (this._revealAllTimeout) clearTimeout(this._revealAllTimeout);
+        this._revealAllTimeout = setTimeout(() => {
+            this._revealAllTimeout = null;
             this.tilesRemaining = 0;
             this.revealedIndices = Array.from({length: this.gridSize * this.gridSize}, (_, i) => i);
             UI.updateCount(0);
@@ -969,6 +1069,10 @@ const Game = {
     },
 
     resetLevel() {
+        if (this._revealAllTimeout) {
+            clearTimeout(this._revealAllTimeout);
+            this._revealAllTimeout = null;
+        }
         this.revealedIndices = [];
         this.buildGrid();
         AutoReveal.stop();
@@ -1136,15 +1240,33 @@ window.addEventListener('drop', (e) => {
 
 // 4. Keyboard Shortcuts
 document.addEventListener('keydown', (e) => {
+    const tag = e.target?.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || e.target?.isContentEditable) return;
     if (Game.images.length === 0) return;
+
+    const mode = getGameMode();
     switch (e.code) {
         case 'Space':
             e.preventDefault();
-            AutoReveal.toggle();
+            if (mode === 'zoom') ZoomGame.toggleAuto();
+            else if (mode === 'blur') BlurGame.toggleAuto();
+            else AutoReveal.toggle();
             break;
-        case 'KeyR': Game.resetLevel(); break;
-        case 'KeyN': if (Game.tilesRemaining <= 0) Game.nextLevel(); break;
-        case 'KeyP': if (Game.tilesRemaining <= 0) Game.prevLevel(); break;
+        case 'KeyR':
+            if (mode === 'zoom') ZoomGame.reset();
+            else if (mode === 'blur') BlurGame.reset();
+            else Game.resetLevel();
+            break;
+        case 'KeyN': {
+            const canAdvance = mode === 'zoom' ? ZoomGame.revealed : mode === 'blur' ? BlurGame.revealed : Game.tilesRemaining <= 0;
+            if (canAdvance) Game.nextLevel();
+            break;
+        }
+        case 'KeyP': {
+            const canAdvance = mode === 'zoom' ? ZoomGame.revealed : mode === 'blur' ? BlurGame.revealed : Game.tilesRemaining <= 0;
+            if (canAdvance) Game.prevLevel();
+            break;
+        }
     }
 });
 
@@ -1201,12 +1323,12 @@ window.onload = async () => {
 
     } else {
         // ── HOST WINDOW ──
+        const mode = getGameMode();
+        if (mode === 'zoom') ZoomGame.init();
+        else if (mode === 'blur') BlurGame.init();
+
         await app.init();
         await Game.init();
-
-        const path = window.location.pathname;
-        if (path.includes('zoom.html')) ZoomGame.init();
-        else if (path.includes('blur.html')) BlurGame.init();
 
         if (window.innerWidth < 768) UI.togglePanel(true);
 
@@ -1238,14 +1360,21 @@ const ZoomGame = {
     isAutoZooming: false,
     animationId: null,
     revealed: false,
+    _lastFrameTime: 0,
     
     init() {
         const startSlider = document.getElementById('zoom-start-slider');
         const startVal = document.getElementById('zoom-start-val');
         if (startSlider) {
+            this.zoomStart = parseFloat(startSlider.value) || 3.0;
+            this.currentZoom = this.zoomStart;
+            if (startVal) startVal.textContent = this.zoomStart.toFixed(1) + 'x';
+            const display = document.getElementById('zoom-display');
+            if (display) display.textContent = this.zoomStart.toFixed(1) + 'x';
+
             startSlider.addEventListener('input', (e) => {
                 this.zoomStart = parseFloat(e.target.value);
-                startVal.textContent = this.zoomStart.toFixed(1) + 'x';
+                if (startVal) startVal.textContent = this.zoomStart.toFixed(1) + 'x';
                 if (!this.isAutoZooming && !this.revealed) {
                     this.currentZoom = this.zoomStart;
                     this.updateZoom();
@@ -1257,31 +1386,73 @@ const ZoomGame = {
         const speedSlider = document.getElementById('zoom-speed-slider');
         const speedVal = document.getElementById('zoom-speed-val');
         if (speedSlider) {
+            const idx = Math.max(0, Math.min(4, (parseInt(speedSlider.value, 10) || 3) - 1));
+            if (speedVal) speedVal.textContent = speedLabels[idx];
             speedSlider.addEventListener('input', (e) => {
-                speedVal.textContent = speedLabels[parseInt(e.target.value) - 1];
+                if (speedVal) speedVal.textContent = speedLabels[parseInt(e.target.value, 10) - 1];
             });
         }
-        // Apply initial zoom after a short delay to ensure DOM is ready
-        setTimeout(() => this.updateZoom(), 100);
     },
 
-    reset() {
+    pickZoomPoint(img) {
+        // Compute a random point inside the actual rendered image area (accounting for object-fit: contain)
+        if (img && img.naturalWidth > 0 && img.naturalHeight > 0 && img.clientWidth > 0 && img.clientHeight > 0) {
+            const boxW = img.clientWidth;
+            const boxH = img.clientHeight;
+            const imgRatio = img.naturalWidth / img.naturalHeight;
+            const boxRatio = boxW / boxH;
+
+            let renderW, renderH, offsetX, offsetY;
+            if (imgRatio > boxRatio) {
+                renderW = boxW;
+                renderH = boxW / imgRatio;
+                offsetX = 0;
+                offsetY = (boxH - renderH) / 2;
+            } else {
+                renderH = boxH;
+                renderW = boxH * imgRatio;
+                offsetX = (boxW - renderW) / 2;
+                offsetY = 0;
+            }
+
+            const rx = offsetX + (0.2 + Math.random() * 0.6) * renderW;
+            const ry = offsetY + (0.2 + Math.random() * 0.6) * renderH;
+            return {
+                x: Math.round((rx / boxW) * 1000) / 10,
+                y: Math.round((ry / boxH) * 1000) / 10
+            };
+        }
+        return {
+            x: 25 + Math.random() * 50,
+            y: 25 + Math.random() * 50
+        };
+    },
+
+    reset(shouldBroadcast = true) {
         this.stopAutoZoom();
         this.revealed = false;
         this.currentZoom = this.zoomStart;
-        this.zoomPosition = {
-            x: 20 + Math.random() * 60,
-            y: 20 + Math.random() * 60
-        };
+        const img = document.getElementById('target-image');
+        this.zoomPosition = this.pickZoomPoint(img);
+
         const guessSection = document.getElementById('guess-section');
         if (guessSection) guessSection.classList.add('hidden');
+
         // Apply zoom immediately so the image never appears unzoomed
-        const img = document.getElementById('target-image');
         if (img) {
+            img.style.transition = 'transform 0.25s ease-out';
             img.style.transformOrigin = `${this.zoomPosition.x}% ${this.zoomPosition.y}%`;
             img.style.transform = `scale(${this.currentZoom})`;
-            img.onload = () => this.updateZoom();
+            img.onload = () => {
+                if (!this.revealed && !this.isAutoZooming) {
+                    this.zoomPosition = this.pickZoomPoint(img);
+                    this.updateZoom(true);
+                }
+            };
         }
+
+        const display = document.getElementById('zoom-display');
+        if (display) display.textContent = this.currentZoom.toFixed(1) + 'x';
         this.updateZoomBar();
         
         const btn = document.getElementById('auto-zoom-btn');
@@ -1289,12 +1460,14 @@ const ZoomGame = {
             btn.innerHTML = `<i data-lucide="play" class="w-4 h-4 md:w-5 md:h-5 fill-current"></i><span class="hidden md:inline">AUTO ZOOM</span>`;
             btn.classList.remove('bg-white', 'dark:bg-slate-800', 'text-blue', 'border-blue');
             btn.classList.add('bg-blue', 'text-white');
+            lucide.createIcons();
         }
+
+        if (shouldBroadcast) broadcastState({ immediate: true });
     },
 
-    updateZoom() {
+    updateZoom(immediate = false) {
         const img = document.getElementById('target-image');
-        const container = document.getElementById('zoom-container');
         if (!img || !img.src || img.src === window.location.href) return;
         const scale = this.currentZoom;
         const x = this.zoomPosition.x;
@@ -1305,26 +1478,34 @@ const ZoomGame = {
         const display = document.getElementById('zoom-display');
         if (display) display.textContent = scale.toFixed(1) + 'x';
         this.updateZoomBar();
-        broadcastState();
+        broadcastState({ immediate });
     },
 
     updateZoomBar() {
         const bar = document.getElementById('zoom-bar');
         if (!bar) return;
-        const percent = 100 - ((this.currentZoom - 1) / (this.zoomStart - 1)) * 100;
+        const denom = Math.max(0.1, this.zoomStart - 1);
+        const percent = 100 - ((this.currentZoom - 1) / denom) * 100;
         bar.style.width = Math.max(0, Math.min(100, percent)) + '%';
     },
 
     startAutoZoom() {
         if (this.isAutoZooming || this.revealed) return;
         this.isAutoZooming = true;
+        const img = document.getElementById('target-image');
+        if (img) img.style.transition = 'none';
+
         const speedSlider = document.getElementById('zoom-speed-slider');
-        const speedMultiplier = speedSlider ? parseInt(speedSlider.value) : 3;
-        const zoomSpeed = 0.003 * speedMultiplier;
+        const speedMultiplier = speedSlider ? parseInt(speedSlider.value, 10) : 3;
+        // Scale-per-second so auto-zoom feels smooth and consistent across refresh rates
+        const zoomPerSecond = 0.18 * speedMultiplier;
+        this._lastFrameTime = performance.now();
         
-        const animate = () => {
+        const animate = (now) => {
             if (!this.isAutoZooming || this.revealed) return;
-            this.currentZoom = Math.max(1.0, this.currentZoom - zoomSpeed);
+            const dt = Math.min(0.1, (now - this._lastFrameTime) / 1000);
+            this._lastFrameTime = now;
+            this.currentZoom = Math.max(1.0, this.currentZoom - zoomPerSecond * dt);
             this.updateZoom();
             if (this.currentZoom <= 1.01) {
                 this.revealComplete();
@@ -1332,7 +1513,7 @@ const ZoomGame = {
                 this.animationId = requestAnimationFrame(animate);
             }
         };
-        animate();
+        this.animationId = requestAnimationFrame(animate);
     },
 
     stopAutoZoom() {
@@ -1341,12 +1522,17 @@ const ZoomGame = {
             cancelAnimationFrame(this.animationId);
             this.animationId = null;
         }
+        const img = document.getElementById('target-image');
+        if (img) img.style.transition = 'transform 0.15s ease-out';
     },
 
     revealComplete() {
+        this.stopAutoZoom();
         this.revealed = true;
         this.currentZoom = 1.0;
-        this.updateZoom();
+        const img = document.getElementById('target-image');
+        if (img) img.style.transition = 'transform 0.3s ease-out';
+        this.updateZoom(true);
         Audio.playWin();
         UI.fireConfetti();
         const btn = document.getElementById('next-round-btn');
@@ -1385,8 +1571,8 @@ const ZoomGame = {
 
 // ==================== BLUR MODE ====================
 const BlurGame = {
-    currentLevel: 5,
-    maxLevel: 5,
+    currentLevel: 4,
+    maxLevel: 4,
     isAutoRevealing: false,
     animationId: null,
     revealed: false,
@@ -1396,9 +1582,13 @@ const BlurGame = {
         const blurVal = document.getElementById('blur-start-val');
         if (blurSlider) {
             const labels = ['Low', 'Medium', 'High', 'Very High', 'Extreme'];
+            this.maxLevel = parseInt(blurSlider.value, 10) || 4;
+            this.currentLevel = this.maxLevel;
+            if (blurVal) blurVal.textContent = labels[this.maxLevel - 1];
+
             blurSlider.addEventListener('input', (e) => {
-                this.maxLevel = parseInt(e.target.value);
-                blurVal.textContent = labels[this.maxLevel - 1];
+                this.maxLevel = parseInt(e.target.value, 10);
+                if (blurVal) blurVal.textContent = labels[this.maxLevel - 1];
                 if (!this.isAutoRevealing && !this.revealed) {
                     this.currentLevel = this.maxLevel;
                     this.updateEffect();
@@ -1410,8 +1600,10 @@ const BlurGame = {
         const speedSlider = document.getElementById('blur-speed-slider');
         const speedVal = document.getElementById('blur-speed-val');
         if (speedSlider) {
+            const idx = Math.max(0, Math.min(4, (parseInt(speedSlider.value, 10) || 3) - 1));
+            if (speedVal) speedVal.textContent = speedLabels[idx];
             speedSlider.addEventListener('input', (e) => {
-                speedVal.textContent = speedLabels[parseInt(e.target.value) - 1];
+                if (speedVal) speedVal.textContent = speedLabels[parseInt(e.target.value, 10) - 1];
             });
         }
     },
@@ -1422,23 +1614,24 @@ const BlurGame = {
         this.currentLevel = this.maxLevel;
         const guessSection = document.getElementById('guess-section');
         if (guessSection) guessSection.classList.add('hidden');
-        this.updateEffect();
-        this.updateBlurBar();
+        this.updateEffect(true);
         
         const btn = document.getElementById('auto-blur-btn');
         if (btn) {
             btn.innerHTML = `<i data-lucide="play" class="w-4 h-4 md:w-5 md:h-5 fill-current"></i><span class="hidden md:inline">AUTO REVEAL</span>`;
             btn.classList.remove('bg-white', 'dark:bg-slate-800', 'text-blue', 'border-blue');
             btn.classList.add('bg-blue', 'text-white');
+            lucide.createIcons();
         }
     },
 
-    updateEffect() {
+    updateEffect(immediate = false) {
         const img = document.getElementById('target-image');
         if (!img) return;
         
-        // Blur effect only
-        img.style.filter = `blur(${(this.currentLevel / 5) * 20}px)`;
+        const blurPx = (this.currentLevel / 5) * 45;
+        img.style.filter = blurPx > 0 ? `blur(${blurPx}px)` : 'none';
+        img.style.transform = blurPx > 0 ? 'scale(1.08)' : 'scale(1)';
         
         const display = document.getElementById('blur-display');
         if (display) {
@@ -1446,7 +1639,7 @@ const BlurGame = {
             display.textContent = clarity + '%';
         }
         this.updateBlurBar();
-        broadcastState();
+        broadcastState({ immediate });
     },
 
     updateBlurBar() {
@@ -1460,7 +1653,7 @@ const BlurGame = {
         if (this.isAutoRevealing || this.revealed) return;
         this.isAutoRevealing = true;
         const speedSlider = document.getElementById('blur-speed-slider');
-        const speedMultiplier = speedSlider ? parseInt(speedSlider.value) : 3;
+        const speedMultiplier = speedSlider ? parseInt(speedSlider.value, 10) : 3;
         const stepDelay = 600 / speedMultiplier;
         
         const step = () => {
@@ -1488,9 +1681,10 @@ const BlurGame = {
     },
 
     revealComplete() {
+        this.stopAutoReveal();
         this.revealed = true;
         this.currentLevel = 0;
-        this.updateEffect();
+        this.updateEffect(true);
         Audio.playWin();
         UI.fireConfetti();
         const btn = document.getElementById('next-round-btn');
@@ -1538,17 +1732,20 @@ const AutoBlur = {
 };
 
 // ==================== MODE OVERRIDES ====================
-const path = window.location.pathname;
-if (path.includes('zoom.html')) {
+const currentMode = getGameMode();
+if (currentMode === 'zoom') {
     const originalLoadLevel = Game.loadLevel;
     Game.loadLevel = async function() {
         // Pre-apply zoom so the image is never visible unzoomed during transition
         const img = document.getElementById('target-image');
         if (img) {
+            img.style.transition = 'none';
             img.style.transform = `scale(${ZoomGame.zoomStart})`;
         }
+        ZoomGame.currentZoom = ZoomGame.zoomStart;
+        ZoomGame.revealed = false;
         await originalLoadLevel.call(this);
-        ZoomGame.reset();
+        ZoomGame.reset(true);
     };
     Game.resetZoom = () => ZoomGame.reset();
     Game.revealAll = () => ZoomGame.revealAll();
@@ -1592,9 +1789,18 @@ if (path.includes('zoom.html')) {
             modal.classList.remove('flex');
         }, 200);
     };
-} else if (path.includes('blur.html')) {
+} else if (currentMode === 'blur') {
     const originalLoadLevel = Game.loadLevel;
     Game.loadLevel = async function() {
+        // Pre-apply blur so the image never flashes unblurred while loading
+        const img = document.getElementById('target-image');
+        if (img) {
+            const blurPx = (BlurGame.maxLevel / 5) * 45;
+            img.style.filter = `blur(${blurPx}px)`;
+            img.style.transform = 'scale(1.08)';
+        }
+        BlurGame.currentLevel = BlurGame.maxLevel;
+        BlurGame.revealed = false;
         await originalLoadLevel.call(this);
         BlurGame.reset();
     };
