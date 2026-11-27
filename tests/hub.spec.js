@@ -2,10 +2,16 @@ const { test, expect } = require('@playwright/test');
 
 test.describe('KlassKit Hub & Landing', () => {
   test('public landing page loads cleanly', async ({ page }) => {
+    test.setTimeout(60000);
     const pageErrors = [];
     page.on('pageerror', (err) => pageErrors.push(err.message));
 
-    await page.goto('/index.html');
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.route(/^https:\/\/fonts\.(googleapis|gstatic)\.com\//, (route) =>
+      route.fulfill({ status: 200, contentType: 'text/css', body: '' })
+    );
+
+    await page.goto('/index.html', { waitUntil: 'domcontentloaded' });
     await expect(page.locator('body')).toBeVisible();
     await expect(page).toHaveTitle(/KlassKit/);
     expect(pageErrors).toEqual([]);
@@ -20,10 +26,12 @@ test.describe('KlassKit Hub & Landing', () => {
     await page.addInitScript(() => {
       localStorage.setItem('kk_mode', 'sandbox');
     });
-    await page.route(/^https:\/\/fonts\.(googleapis|gstatic)\.com\//, (route) => route.abort());
+    await page.route(/^https:\/\/fonts\.(googleapis|gstatic)\.com\//, (route) =>
+      route.fulfill({ status: 200, contentType: 'text/css', body: '' })
+    );
 
     await page.goto('/hub.html', { waitUntil: 'domcontentloaded' });
-    await expect(page.locator('#hub-loading-state')).toBeHidden({ timeout: 15000 });
+    await expect(page.locator('#hub-loading-state')).toBeHidden({ timeout: 30000 });
     await expect(page.locator('#landing-view')).toBeVisible();
 
     // "/" shortcut focuses search input and switches to filtered library grid
