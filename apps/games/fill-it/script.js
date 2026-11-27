@@ -1,486 +1,1084 @@
-// Initialize Icons
-lucide.createIcons();
+/* ============================================
+   FILL IN THE BLANK - Cloze Grammar Engine
+   KlassKit 1.9.1 Modular Script
+   ============================================ */
 
-function tokenizeText(text) {
-    const tokens = [];
-    const regex = /[\w'-]+|\s+|[^\w\s'-]+/g;
-    let match;
-    while ((match = regex.exec(text)) !== null) {
-        const str = match[0];
-        let type = 'punctuation';
-        if (/^\s+$/.test(str)) type = 'space';
-        else if (/^[\w'-]+$/.test(str)) type = 'word';
-        tokens.push({ text: str, type: type, isBlank: false, clue: '' });
+(function () {
+    'use strict';
+
+    var QUESTIONS_KEY = 'englishGameQuestions';
+    var SCORE_KEY = 'englishGameScore';
+    var THEME_KEY = 'theme_fill-it';
+    var PREFS_KEY = 'kk_fill_it_prefs_v2';
+
+    var ICON_FALLBACKS = {
+        'edit-3': 'pen-line',
+        'check-circle': 'circle-check',
+        'alert-circle': 'triangle-alert',
+        'alert-triangle': 'triangle-alert',
+        'x-octagon': 'circle-x'
+    };
+
+    function tokenizeText(text) {
+        var tokens = [];
+        var regex = /[\w'-]+|\s+|[^\w\s'-]+/g;
+        var match;
+        while ((match = regex.exec(String(text || ''))) !== null) {
+            var str = match[0];
+            var type = 'punctuation';
+            if (/^\s+$/.test(str)) type = 'space';
+            else if (/^[\w'-]+$/.test(str)) type = 'word';
+            tokens.push({ text: str, type: type, isBlank: false, clue: '' });
+        }
+        return tokens;
     }
-    return tokens;
-}
 
-function migrateOldQuestion(q) {
-    if (q.tokens) return q; // Already migrated
-    const rawText = q.sentence.replace('_', q.answer);
-    const tokens = tokenizeText(rawText);
-    const answerLower = q.answer.toLowerCase();
-    const blankToken = tokens.find(t => t.type === 'word' && t.text.toLowerCase() === answerLower);
-    if (blankToken) {
-        blankToken.isBlank = true;
-        blankToken.clue = q.clue || '';
-    }
-    return { rawText, tokens };
-}
-
-// Default Curriculum (3 Rows, 3 Sentences each)
-const defaultQuestions = [
-    {
-        rawText: "Plants need sunlight to grow. They also require water and nutrients from the soil. This process is called photosynthesis.",
-        tokens: tokenizeText("Plants need sunlight to grow. They also require water and nutrients from the soil. This process is called photosynthesis.")
-    },
-    {
-        rawText: "The Great Wall of China is a famous landmark. It was built thousands of years ago to protect the empire. Today, it is visited by millions of tourists.",
-        tokens: tokenizeText("The Great Wall of China is a famous landmark. It was built thousands of years ago to protect the empire. Today, it is visited by millions of tourists.")
-    },
-    {
-        rawText: "I went to the store to buy some groceries. I forgot my wallet at home so I had to go back. It was a very busy afternoon.",
-        tokens: tokenizeText("I went to the store to buy some groceries. I forgot my wallet at home so I had to go back. It was a very busy afternoon.")
-    }
-];
-
-// Helper to set default blanks
-function setDefaultBlank(q, word, clue) {
-    const token = q.tokens.find(t => t.text.toLowerCase() === word.toLowerCase() && !t.isBlank);
-    if (token) {
-        token.isBlank = true;
-        token.clue = clue;
-    }
-}
-
-setDefaultBlank(defaultQuestions[0], "sunlight", "Energy from the sun");
-setDefaultBlank(defaultQuestions[0], "water", "H2O");
-setDefaultBlank(defaultQuestions[0], "photosynthesis", "Process of making food");
-
-setDefaultBlank(defaultQuestions[1], "China", "Country with the Wall");
-setDefaultBlank(defaultQuestions[1], "protect", "To keep safe");
-setDefaultBlank(defaultQuestions[1], "tourists", "People who visit");
-
-setDefaultBlank(defaultQuestions[2], "store", "Place to buy things");
-setDefaultBlank(defaultQuestions[2], "wallet", "Used to carry money");
-setDefaultBlank(defaultQuestions[2], "busy", "Full of activity");
-
-let questions = [];
-let currentQuestionIndex = 0;
-let score = 0;
-
-// --- Game Logic ---
-
-async function initGame() {
-    await requireAuth();
-    
-    const cloudData = await loadProgress('fill_it');
-    
-    // Apply theme
-    let theme = localStorage.getItem('theme_fill-it');
-    if (cloudData && cloudData.theme) theme = cloudData.theme;
-    
-    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-    if (theme === 'dark' || (!theme && prefersDark)) {
-        document.documentElement.classList.add('dark');
-    } else {
-        document.documentElement.classList.remove('dark');
-    }
-    updateThemeIcon(document.documentElement.classList.contains('dark'));
-
-    // Apply Questions & Score
-    if (cloudData) {
-        if (cloudData.questions) questions = cloudData.questions.map(migrateOldQuestion);
-        if (cloudData.score !== undefined) score = cloudData.score;
-        
-        // Sync back to local storage
-        localStorage.setItem('englishGameQuestions', JSON.stringify(questions));
-        localStorage.setItem('englishGameScore', score);
-        localStorage.setItem('theme_fill-it', theme);
-    } else {
-        const savedQuestions = localStorage.getItem('englishGameQuestions');
-        const savedScore = localStorage.getItem('englishGameScore');
-
-        if (savedQuestions) {
-            questions = JSON.parse(savedQuestions).map(migrateOldQuestion);
-            // Auto-upgrade old default questions to include clues
-            const isOldDefault = questions.length === 3 && questions.every(q => !q.clue) && questions[0].rawText === "The cat sat on the mat." && questions[1].rawText === "She likes to read a book every night.";
-            if (isOldDefault) {
-                questions = JSON.parse(JSON.stringify(defaultQuestions));
-                localStorage.setItem('englishGameQuestions', JSON.stringify(questions));
+    function migrateOldQuestion(q) {
+        if (!q || typeof q !== 'object') return null;
+        if (q.rawText !== undefined && Array.isArray(q.tokens)) {
+            return {
+                rawText: String(q.rawText),
+                tokens: q.tokens.map(function (t) {
+                    return {
+                        text: String(t.text || ''),
+                        type: t.type || 'word',
+                        isBlank: Boolean(t.isBlank),
+                        clue: String(t.clue || '')
+                    };
+                })
+            };
+        }
+        if (typeof q.sentence === 'string' && typeof q.answer === 'string') {
+            var rawText = q.sentence.replace('_', q.answer);
+            var tokens = tokenizeText(rawText);
+            var answerLower = q.answer.toLowerCase();
+            var blankToken = tokens.find(function (t) {
+                return t.type === 'word' && t.text.toLowerCase() === answerLower;
+            });
+            if (blankToken) {
+                blankToken.isBlank = true;
+                blankToken.clue = String(q.clue || '');
             }
-        } else {
-            questions = JSON.parse(JSON.stringify(defaultQuestions));
-            localStorage.setItem('englishGameQuestions', JSON.stringify(questions));
+            return { rawText: rawText, tokens: tokens };
         }
-
-        if (savedScore) {
-            score = parseInt(savedScore);
-        }
+        return null;
     }
 
-    document.getElementById('score-display').innerText = score;
-    loadQuestion();
-}
+    function buildDefaultQuestions() {
+        var list = [
+            {
+                rawText: 'Plants need sunlight to grow. They also require water and nutrients from the soil. This process is called photosynthesis.',
+                tokens: tokenizeText('Plants need sunlight to grow. They also require water and nutrients from the soil. This process is called photosynthesis.')
+            },
+            {
+                rawText: 'The Great Wall of China is a famous landmark. It was built thousands of years ago to protect the empire. Today, it is visited by millions of tourists.',
+                tokens: tokenizeText('The Great Wall of China is a famous landmark. It was built thousands of years ago to protect the empire. Today, it is visited by millions of tourists.')
+            },
+            {
+                rawText: 'I went to the store to buy some groceries. I forgot my wallet at home so I had to go back. It was a very busy afternoon.',
+                tokens: tokenizeText('I went to the store to buy some groceries. I forgot my wallet at home so I had to go back. It was a very busy afternoon.')
+            }
+        ];
 
-function loadQuestion() {
-    if (questions.length === 0) {
-        document.getElementById('sentence-container').innerHTML = `<span class="text-orange">No questions available! Please add or import some via 'Manage Questions'.</span>`;
-        return;
-    }
-
-    currentQuestionIndex = Math.floor(Math.random() * questions.length);
-    const currentQ = questions[currentQuestionIndex];
-
-    let html = '';
-    currentQ.tokens.forEach((t, index) => {
-        if (t.type === 'word' && t.isBlank) {
-            const clueAttr = t.clue ? `placeholder="${t.clue.replace(/"/g, '&quot;')}" title="Clue: ${t.clue.replace(/"/g, '&quot;')}"` : '';
-            html += `<input type="text" class="blank-input answer-input" data-index="${index}" ${clueAttr} autocomplete="off">`;
-        } else {
-            if (t.type === 'space') {
-                html += t.text;
-            } else {
-                html += t.text;
+        function markDefault(q, word, clue) {
+            var tok = q.tokens.find(function (t) {
+                return t.type === 'word' && t.text.toLowerCase() === word.toLowerCase() && !t.isBlank;
+            });
+            if (tok) {
+                tok.isBlank = true;
+                tok.clue = clue;
             }
         }
-    });
 
-    const container = document.getElementById('sentence-container');
-    container.innerHTML = html;
+        markDefault(list[0], 'sunlight', 'Energy from the sun');
+        markDefault(list[0], 'water', 'H2O');
+        markDefault(list[0], 'photosynthesis', 'Process of making food');
 
-    // Auto-fit font size based on content length and screen space
-    const textLength = currentQ.rawText.length;
-    let fontSize = 'text-[2.5rem]'; // Fallback
-    
-    if (textLength > 600) fontSize = 'text-base sm:text-lg';
-    else if (textLength > 400) fontSize = 'text-lg sm:text-xl';
-    else if (textLength > 250) fontSize = 'text-xl sm:text-2xl';
-    else if (textLength > 150) fontSize = 'text-2xl sm:text-3xl';
-    else if (textLength > 80) fontSize = 'text-3xl sm:text-4xl';
-    else if (textLength > 40) fontSize = 'text-4xl sm:text-5xl';
-    else fontSize = 'text-5xl sm:text-6xl';
+        markDefault(list[1], 'China', 'Country with the Wall');
+        markDefault(list[1], 'protect', 'To keep safe');
+        markDefault(list[1], 'tourists', 'People who visit');
 
-    container.className = `font-body leading-relaxed font-bold text-dark dark:text-chalk text-justify w-full ${fontSize}`;
+        markDefault(list[2], 'store', 'Place to buy things');
+        markDefault(list[2], 'wallet', 'Used to carry money');
+        markDefault(list[2], 'busy', 'Full of activity');
 
-    setTimeout(() => {
-        const firstInput = document.querySelector('.answer-input');
-        if (firstInput) firstInput.focus();
-    }, 100);
-}
+        return list;
+    }
 
-function checkAnswer() {
-    if (questions.length === 0) return;
-    const currentQ = questions[currentQuestionIndex];
-    const inputs = document.querySelectorAll('.answer-input');
-    if (inputs.length === 0) return;
+    var state = {
+        questions: [],
+        editorQuestions: [],
+        orderQueue: [],
+        queuePos: 0,
+        currentQuestionIndex: 0,
+        score: 0,
+        showWordBank: false,
+        orderMode: 'sequential',
+        roundAwarded: false,
+        focusedInputIndex: null,
+        pendingConfirmFn: null,
+        syncTimeout: null,
+        toastTimer: null
+    };
 
-    let allCorrect = true;
+    // --- Safe Helpers ---
+    function $(id) {
+        return document.getElementById(id);
+    }
 
-    inputs.forEach(inputEl => {
-        const tokenIndex = parseInt(inputEl.dataset.index);
-        const token = currentQ.tokens[tokenIndex];
-        const userAnswer = inputEl.value.trim().toLowerCase();
-        const correctAnswer = token.text.toLowerCase();
+    function escapeHTML(str) {
+        return String(str == null ? '' : str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
 
-        if (userAnswer === correctAnswer) {
-            inputEl.classList.remove('wrong-feedback', 'animate-shake');
-            inputEl.classList.add('correct-feedback');
-            inputEl.disabled = true;
-        } else {
-            allCorrect = false;
-            inputEl.classList.remove('correct-feedback');
-            inputEl.classList.add('wrong-feedback');
-            void inputEl.offsetWidth; // trigger reflow
+    function safeIcon(name) {
+        if (!name || typeof name !== 'string') return 'info';
+        return ICON_FALLBACKS[name] || name;
+    }
+
+    function refreshIcons() {
+        if (window.lucide && typeof window.lucide.createIcons === 'function') {
+            window.lucide.createIcons();
         }
-    });
+    }
 
-    if (allCorrect) {
-        score += 10;
-        updateScore();
-        setTimeout(async () => {
-            await showAlertModal("Awesome job! Keep going.", { title: "Correct!", icon: "check-circle", iconColor: "green" });
+    function setSlotIcon(slotId, iconName, iconClass) {
+        var slot = $(slotId);
+        if (!slot) return;
+        slot.innerHTML = '<i data-lucide="' + escapeHTML(safeIcon(iconName)) + '" class="' + escapeHTML(iconClass || 'w-4 h-4') + '"></i>';
+        refreshIcons();
+    }
+
+    function showToast(message, iconName) {
+        var banner = $('toastBanner');
+        var textEl = $('toastText');
+        if (!banner || !textEl) return;
+
+        textEl.textContent = message;
+        setSlotIcon('toastIconSlot', iconName || 'info', 'w-4 h-4 text-blue');
+
+        banner.classList.add('open');
+        clearTimeout(state.toastTimer);
+        state.toastTimer = setTimeout(function () {
+            banner.classList.remove('open');
+        }, 2400);
+    }
+
+    // --- Preferences & Cloud Sync ---
+    function loadPrefs() {
+        try {
+            var raw = localStorage.getItem(PREFS_KEY);
+            if (!raw) return;
+            var parsed = JSON.parse(raw);
+            if (parsed && typeof parsed === 'object') {
+                if (typeof parsed.showWordBank === 'boolean') state.showWordBank = parsed.showWordBank;
+                if (parsed.orderMode === 'shuffle' || parsed.orderMode === 'sequential') state.orderMode = parsed.orderMode;
+            }
+        } catch (e) {
+            // ignore storage errors
+        }
+    }
+
+    function savePrefs() {
+        try {
+            localStorage.setItem(PREFS_KEY, JSON.stringify({
+                showWordBank: state.showWordBank,
+                orderMode: state.orderMode
+            }));
+        } catch (e) {
+            // ignore storage errors
+        }
+    }
+
+    function syncToCloud() {
+        if (state.syncTimeout) clearTimeout(state.syncTimeout);
+        state.syncTimeout = setTimeout(function () {
+            if (typeof window.saveProgress === 'function') {
+                window.saveProgress('fill_it', {
+                    questions: state.questions,
+                    score: state.score,
+                    theme: document.documentElement.classList.contains('dark') ? 'dark' : 'light'
+                });
+            }
+        }, 1200);
+    }
+
+    function persistLocalQuestions() {
+        try {
+            localStorage.setItem(QUESTIONS_KEY, JSON.stringify(state.questions));
+        } catch (e) {
+            // ignore storage errors
+        }
+    }
+
+    function updateScoreUI() {
+        if ($('scoreDisplay')) $('scoreDisplay').textContent = String(state.score);
+        try {
+            localStorage.setItem(SCORE_KEY, String(state.score));
+        } catch (e) {
+            // ignore
+        }
+    }
+
+    // --- Theme & Mode Toggles ---
+    function syncThemeIcon() {
+        var isDark = document.documentElement.classList.contains('dark');
+        setSlotIcon('themeToggleIconSlot', isDark ? 'sun' : 'moon', 'w-4 h-4');
+    }
+
+    function toggleDarkMode() {
+        var isDark = !document.documentElement.classList.contains('dark');
+        document.documentElement.classList.toggle('dark', isDark);
+        try {
+            localStorage.setItem(THEME_KEY, isDark ? 'dark' : 'light');
+        } catch (e) {
+            // ignore
+        }
+        syncThemeIcon();
+        syncToCloud();
+    }
+
+    function syncPreferenceButtons() {
+        var bankBtn = $('wordBankToggleBtn');
+        var bankBar = $('wordBankBar');
+        if (bankBtn) {
+            bankBtn.className = state.showWordBank
+                ? 'btn-chunky bg-blue text-white rounded-xl px-3 py-1.5 text-xs flex items-center gap-1.5'
+                : 'btn-chunky bg-white dark:bg-slate-800 text-dark dark:text-white rounded-xl px-3 py-1.5 text-xs flex items-center gap-1.5';
+            setSlotIcon('wordBankToggleIconSlot', 'book-open', state.showWordBank ? 'w-4 h-4 text-white' : 'w-4 h-4 text-blue');
+        }
+        if (bankBar) {
+            bankBar.classList.toggle('is-hidden', !state.showWordBank);
+        }
+
+        var orderLabel = $('orderModeLabel');
+        if (orderLabel) {
+            orderLabel.textContent = state.orderMode === 'shuffle' ? 'Shuffle' : 'In Order';
+        }
+        setSlotIcon('orderModeIconSlot', state.orderMode === 'shuffle' ? 'shuffle' : 'list-ordered', 'w-3.5 h-3.5 text-pink');
+    }
+
+    function toggleWordBank() {
+        state.showWordBank = !state.showWordBank;
+        savePrefs();
+        syncPreferenceButtons();
+        renderWordBank();
+    }
+
+    function toggleOrderMode() {
+        state.orderMode = state.orderMode === 'shuffle' ? 'sequential' : 'shuffle';
+        rebuildOrderQueue(true);
+        savePrefs();
+        syncPreferenceButtons();
+        renderCurrentQuestion();
+        showToast(state.orderMode === 'shuffle' ? 'Order: Shuffle Deck' : 'Order: Sequential (1, 2, 3)', state.orderMode === 'shuffle' ? 'shuffle' : 'list-ordered');
+    }
+
+    function rebuildOrderQueue(keepCurrent, avoidFirstIndex) {
+        var n = state.questions.length;
+        var indices = [];
+        for (var i = 0; i < n; i++) indices.push(i);
+
+        if (state.orderMode === 'shuffle' && n > 1) {
+            for (var j = n - 1; j > 0; j--) {
+                var r = Math.floor(Math.random() * (j + 1));
+                var tmp = indices[j];
+                indices[j] = indices[r];
+                indices[r] = tmp;
+            }
+            if (typeof avoidFirstIndex === 'number' && indices[0] === avoidFirstIndex) {
+                var swapTmp = indices[0];
+                indices[0] = indices[1];
+                indices[1] = swapTmp;
+            }
+        }
+
+        state.orderQueue = indices;
+        if (keepCurrent && indices.indexOf(state.currentQuestionIndex) !== -1) {
+            state.queuePos = indices.indexOf(state.currentQuestionIndex);
+        } else {
+            state.queuePos = 0;
+            state.currentQuestionIndex = n > 0 ? indices[0] : 0;
+        }
+    }
+
+    // --- Passage Rendering & Interactive Gameplay ---
+    function loadQuestion(explicitIndex) {
+        var container = $('sentenceContainer');
+        if (!container) return;
+
+        if (state.questions.length === 0) {
+            state.orderQueue = [];
+            state.queuePos = 0;
+            container.innerHTML = '<span class="text-orange">No passages available yet. Click Manage to add or import passages.</span>';
+            if ($('progressBadge')) $('progressBadge').textContent = '0 / 0';
+            if ($('blankStatusText')) $('blankStatusText').textContent = '0 / 0 Blanks Solved';
+            renderWordBank();
+            return;
+        }
+
+        if (state.orderQueue.length !== state.questions.length) {
+            rebuildOrderQueue(false);
+        }
+
+        if (typeof explicitIndex === 'number' && explicitIndex >= 0 && explicitIndex < state.questions.length) {
+            state.currentQuestionIndex = explicitIndex;
+            var pos = state.orderQueue.indexOf(explicitIndex);
+            state.queuePos = pos !== -1 ? pos : 0;
+        } else if (state.queuePos + 1 < state.orderQueue.length) {
+            state.queuePos += 1;
+            state.currentQuestionIndex = state.orderQueue[state.queuePos];
+        } else {
+            var lastIdx = state.currentQuestionIndex;
+            rebuildOrderQueue(false, state.orderMode === 'shuffle' ? lastIdx : null);
+            state.queuePos = 0;
+            state.currentQuestionIndex = state.orderQueue[0];
+        }
+
+        renderCurrentQuestion();
+    }
+
+    function prevQuestion() {
+        if (state.questions.length === 0) {
             loadQuestion();
-        }, 500);
+            return;
+        }
+        if (state.orderQueue.length !== state.questions.length) rebuildOrderQueue(false);
+        state.queuePos = (state.queuePos - 1 + state.orderQueue.length) % state.orderQueue.length;
+        state.currentQuestionIndex = state.orderQueue[state.queuePos];
+        renderCurrentQuestion();
     }
-}
 
-// --- Data Reset ---
-async function resetData() {
-    const confirmed = await showConfirmModal("Reset to default questions and wipe your score? This cannot be undone.", {
-        title: "Reset Data?",
-        confirmText: "Reset",
-        cancelText: "Cancel",
-        icon: "rotate-ccw",
-        iconColor: "red"
-    });
-    if (confirmed) {
-        localStorage.removeItem('englishGameQuestions');
-        localStorage.removeItem('englishGameScore');
-        questions = JSON.parse(JSON.stringify(defaultQuestions));
-        score = 0;
-        document.getElementById('score-display').innerText = score;
-        renderEditorList();
+    function nextQuestion() {
         loadQuestion();
+    }
+
+    function renderQuestionAtIndex(idx) {
+        if (state.questions.length === 0) {
+            loadQuestion();
+            return;
+        }
+        var safeIdx = (idx >= 0 && idx < state.questions.length) ? idx : 0;
+        if (state.orderQueue.length !== state.questions.length) rebuildOrderQueue(false);
+        var pos = state.orderQueue.indexOf(safeIdx);
+        state.queuePos = pos !== -1 ? pos : 0;
+        state.currentQuestionIndex = state.orderQueue[state.queuePos];
+        renderCurrentQuestion();
+    }
+
+    function renderCurrentQuestion() {
+        var container = $('sentenceContainer');
+        var currentQ = state.questions[state.currentQuestionIndex];
+        if (!container || !currentQ) return;
+
+        state.roundAwarded = false;
+        state.focusedInputIndex = null;
+
+        if ($('progressBadge')) {
+            var total = Math.max(state.questions.length, state.orderQueue.length);
+            $('progressBadge').textContent = (state.queuePos + 1) + ' / ' + total;
+        }
+
+        var htmlParts = [];
+        currentQ.tokens.forEach(function (t, index) {
+            if (t.type === 'word' && t.isBlank) {
+                var placeholder = t.clue ? escapeHTML(t.clue) : '...';
+                var titleAttr = t.clue ? ' title="Clue: ' + escapeHTML(t.clue) + '"' : '';
+                var chWidth = Math.max(8, Math.min(18, t.text.length + 3));
+                htmlParts.push(
+                    '<input type="text" class="blank-input answer-input" data-index="' + index + '" ' +
+                    'style="width:' + chWidth + 'ch;" placeholder="' + placeholder + '"' + titleAttr + ' autocomplete="off" />'
+                );
+            } else {
+                htmlParts.push(escapeHTML(t.text));
+            }
+        });
+
+        container.innerHTML = htmlParts.join('');
+
+        var textLength = currentQ.rawText.length;
+        var fontClass = 'text-3xl sm:text-4xl';
+        if (textLength > 450) fontClass = 'text-lg sm:text-xl';
+        else if (textLength > 260) fontClass = 'text-xl sm:text-2xl';
+        else if (textLength > 150) fontClass = 'text-2xl sm:text-3xl';
+
+        container.className = 'font-body font-bold text-dark dark:text-slate-100 w-full ' + fontClass;
+
+        updateBlankStatus();
+        renderWordBank();
+
+        setTimeout(function () {
+            var inputs = container.querySelectorAll('.answer-input');
+            if (inputs[0] && typeof inputs[0].focus === 'function') {
+                inputs[0].focus();
+            }
+        }, 50);
+    }
+
+    function getBlankInputs() {
+        var container = $('sentenceContainer');
+        if (!container) return [];
+        return Array.from(container.querySelectorAll('.answer-input'));
+    }
+
+    function updateBlankStatus() {
+        var inputs = getBlankInputs();
+        var solved = inputs.filter(function (el) {
+            return el.classList.contains('is-correct');
+        }).length;
+        if ($('blankStatusText')) {
+            $('blankStatusText').textContent = solved + ' / ' + inputs.length + ' Blanks Solved';
+        }
+    }
+
+    function renderWordBank() {
+        var chipsContainer = $('wordBankChips');
+        if (!chipsContainer) return;
+        var currentQ = state.questions[state.currentQuestionIndex];
+        if (!currentQ) {
+            chipsContainer.innerHTML = '';
+            return;
+        }
+
+        var inputs = getBlankInputs();
+        var solvedCounts = {};
+        inputs.forEach(function (inp) {
+            if (inp.classList.contains('is-correct')) {
+                var tok = currentQ.tokens[Number(inp.getAttribute('data-index'))];
+                if (tok) {
+                    var key = tok.text.toLowerCase();
+                    solvedCounts[key] = (solvedCounts[key] || 0) + 1;
+                }
+            }
+        });
+
+        var blanks = currentQ.tokens
+            .map(function (t, idx) { return { text: t.text, isBlank: t.isBlank, type: t.type, index: idx }; })
+            .filter(function (t) { return t.type === 'word' && t.isBlank; });
+
+        // Deterministic sort per passage index + word length to scatter order cleanly without jumping every keystroke
+        blanks.sort(function (a, b) {
+            var cmp = a.text.toLowerCase().localeCompare(b.text.toLowerCase());
+            return cmp !== 0 ? cmp : a.index - b.index;
+        });
+
+        chipsContainer.innerHTML = '';
+        var usedTrack = {};
+        blanks.forEach(function (item) {
+            var lower = item.text.toLowerCase();
+            usedTrack[lower] = (usedTrack[lower] || 0) + 1;
+            var isUsed = (solvedCounts[lower] || 0) >= usedTrack[lower];
+
+            var btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'word-bank-chip' + (isUsed ? ' is-used' : '');
+            btn.disabled = isUsed;
+            btn.textContent = item.text;
+            btn.onclick = function () {
+                fillBlankFromBank(item.text);
+            };
+            chipsContainer.appendChild(btn);
+        });
+    }
+
+    function fillBlankFromBank(word) {
+        var inputs = getBlankInputs();
+        var target = inputs.find(function (inp) {
+            return !inp.disabled && Number(inp.getAttribute('data-index')) === state.focusedInputIndex;
+        }) || inputs.find(function (inp) {
+            return !inp.disabled;
+        });
+        if (!target) return;
+
+        target.value = word;
+        checkAnswer(false);
+
+        if (!target.disabled) {
+            target.classList.remove('is-wrong');
+            void target.offsetWidth;
+            target.classList.add('is-wrong');
+            if (typeof target.focus === 'function') target.focus();
+            showToast('"' + word + '" does not match that blank', 'info');
+        }
+    }
+
+    function checkAnswer(explicitCheck) {
+        if (state.questions.length === 0) return;
+        var currentQ = state.questions[state.currentQuestionIndex];
+        var inputs = getBlankInputs();
+        if (!currentQ || inputs.length === 0) return;
+
+        var allCorrect = true;
+        var anyRevealed = false;
+        var newlySolvedElement = null;
+
+        inputs.forEach(function (inputEl) {
+            var tokenIndex = Number(inputEl.getAttribute('data-index'));
+            var token = currentQ.tokens[tokenIndex];
+            if (!token) return;
+
+            if (inputEl.classList.contains('is-revealed')) {
+                anyRevealed = true;
+                allCorrect = false;
+                return;
+            }
+
+            var userAnswer = String(inputEl.value || '').trim().toLowerCase();
+            var correctAnswer = token.text.toLowerCase();
+
+            if (userAnswer === correctAnswer) {
+                if (!inputEl.classList.contains('is-correct')) {
+                    newlySolvedElement = inputEl;
+                }
+                inputEl.classList.remove('is-wrong');
+                inputEl.classList.add('is-correct');
+                inputEl.disabled = true;
+            } else {
+                allCorrect = false;
+                inputEl.classList.remove('is-correct');
+                if (explicitCheck) {
+                    inputEl.classList.remove('is-wrong');
+                    void inputEl.offsetWidth;
+                    inputEl.classList.add('is-wrong');
+                } else {
+                    inputEl.classList.remove('is-wrong');
+                }
+            }
+        });
+
+        updateBlankStatus();
+        renderWordBank();
+
+        if (newlySolvedElement && !allCorrect) {
+            var nextOpen = inputs.find(function (el) { return !el.disabled; });
+            if (nextOpen && typeof nextOpen.focus === 'function') {
+                nextOpen.focus();
+            }
+        }
+
+        if (allCorrect && !anyRevealed && !state.roundAwarded) {
+            state.roundAwarded = true;
+            state.score += 10;
+            updateScoreUI();
+            syncToCloud();
+            openRoundCompleteModal();
+        } else if (explicitCheck && !allCorrect && !anyRevealed) {
+            showToast('Check highlighted blanks and try again', 'info');
+        }
+    }
+
+    function giveLetterHint() {
+        var currentQ = state.questions[state.currentQuestionIndex];
+        var inputs = getBlankInputs();
+        if (!currentQ || inputs.length === 0) return;
+
+        var target = inputs.find(function (inp) {
+            return !inp.disabled && Number(inp.getAttribute('data-index')) === state.focusedInputIndex;
+        }) || inputs.find(function (inp) {
+            return !inp.disabled;
+        });
+
+        if (!target) {
+            showToast('All blanks are already complete!', 'circle-check');
+            return;
+        }
+
+        var tok = currentQ.tokens[Number(target.getAttribute('data-index'))];
+        if (!tok) return;
+
+        var full = tok.text;
+        var cur = String(target.value || '').trim();
+        var revealLen = 1;
+        while (revealLen <= cur.length && revealLen <= full.length && cur.slice(0, revealLen).toLowerCase() === full.slice(0, revealLen).toLowerCase()) {
+            revealLen++;
+        }
+        revealLen = Math.min(full.length, Math.max(1, revealLen));
+        target.value = full.slice(0, revealLen);
+        target.classList.remove('is-wrong');
+        if (typeof target.focus === 'function') target.focus();
+        checkAnswer(false);
+    }
+
+    function revealAnswers() {
+        var currentQ = state.questions[state.currentQuestionIndex];
+        var inputs = getBlankInputs();
+        if (!currentQ || inputs.length === 0) return;
+
+        inputs.forEach(function (inp) {
+            if (inp.classList.contains('is-correct')) return;
+            var tok = currentQ.tokens[Number(inp.getAttribute('data-index'))];
+            if (!tok) return;
+            inp.value = tok.text;
+            inp.disabled = true;
+            inp.classList.remove('is-wrong');
+            inp.classList.add('is-revealed');
+        });
+        state.roundAwarded = true;
+        showToast('Answers revealed for review', 'eye');
+    }
+
+    // --- Modals ---
+    function openRoundCompleteModal() {
+        var isFinal = state.orderQueue.length > 0 && state.queuePos === state.orderQueue.length - 1;
+        if ($('roundModalTitle')) {
+            $('roundModalTitle').textContent = isFinal ? 'Set Complete!' : 'Great Job!';
+        }
+        if ($('roundModalMessage')) {
+            $('roundModalMessage').textContent = isFinal
+                ? 'You completed all ' + state.questions.length + ' passages in this set!'
+                : 'Every blank in this passage was solved accurately.';
+        }
+        if ($('roundModalActionLabel')) {
+            $('roundModalActionLabel').textContent = isFinal ? 'Play Again' : 'Next Passage';
+        }
+        var modal = $('roundCompleteModal');
+        if (modal) modal.classList.add('open');
+    }
+
+    function closeRoundCompleteModal(advance) {
+        var modal = $('roundCompleteModal');
+        if (modal) modal.classList.remove('open');
+        if (advance) nextQuestion();
+    }
+
+    function openConfirmModal(opts) {
+        state.pendingConfirmFn = typeof opts.onConfirm === 'function' ? opts.onConfirm : null;
+        if ($('confirmTitle')) $('confirmTitle').textContent = opts.title || 'Confirm';
+        if ($('confirmMessage')) $('confirmMessage').textContent = opts.message || 'Are you sure?';
+        if ($('confirmActionBtn')) $('confirmActionBtn').textContent = opts.confirmLabel || 'Confirm';
+        setSlotIcon('confirmIconWrap', opts.icon || 'triangle-alert', 'w-7 h-7');
+        var modal = $('confirmModal');
+        if (modal) modal.classList.add('open');
+    }
+
+    function cancelConfirm() {
+        state.pendingConfirmFn = null;
+        var modal = $('confirmModal');
+        if (modal) modal.classList.remove('open');
+    }
+
+    function executeConfirm() {
+        var fn = state.pendingConfirmFn;
+        cancelConfirm();
+        if (typeof fn === 'function') fn();
+    }
+
+    // --- Question Editor Modal ---
+    function openManageModal() {
+        state.editorQuestions = JSON.parse(JSON.stringify(state.questions));
+        renderEditorList();
+        var modal = $('manageModal');
+        if (modal) modal.classList.add('open');
+    }
+
+    function closeManageModal() {
+        var modal = $('manageModal');
+        if (modal) modal.classList.remove('open');
+    }
+
+    function buildRowTokensHTML(q, rowIndex) {
+        var parts = [];
+        q.tokens.forEach(function (t, tIndex) {
+            if (t.type === 'word') {
+                parts.push(
+                    '<div class="inline-flex flex-col items-center align-top m-1">' +
+                        '<button type="button" onclick="App.toggleTokenBlank(' + rowIndex + ', ' + tIndex + ')" class="token word ' + (t.isBlank ? 'is-blank' : '') + '">' +
+                            escapeHTML(t.text) +
+                        '</button>' +
+                        (t.isBlank
+                            ? '<input type="text" class="clue-mini-input" placeholder="Clue (optional)" value="' + escapeHTML(t.clue || '') + '" oninput="App.updateTokenClue(' + rowIndex + ', ' + tIndex + ', this.value)" />'
+                            : '') +
+                    '</div>'
+                );
+            } else {
+                parts.push('<span class="token ' + escapeHTML(t.type) + '">' + escapeHTML(t.text).replace(/ /g, '&nbsp;') + '</span>');
+            }
+        });
+        return parts.join('');
+    }
+
+    function renderEditorList() {
+        var listContainer = $('editorList');
+        if (!listContainer) return;
+        listContainer.innerHTML = '';
+
+        if (state.editorQuestions.length === 0) {
+            listContainer.innerHTML = '<div class="rounded-2xl border-2 border-dashed border-slate-300 dark:border-slate-600 p-8 text-center font-bold text-slate-500 dark:text-slate-400">No passages yet. Click Add Passage below!</div>';
+            return;
+        }
+
+        state.editorQuestions.forEach(function (q, index) {
+            var blankCount = q.tokens.filter(function (t) { return t.type === 'word' && t.isBlank; }).length;
+            var row = document.createElement('div');
+            row.className = 'bg-white dark:bg-slate-800 border-3 border-dark dark:border-slate-500 rounded-2xl p-4 shadow-hard-sm space-y-3';
+
+            row.innerHTML =
+                '<div class="flex items-center justify-between gap-2">' +
+                    '<span class="sticker bg-blue text-white px-2.5 py-0.5 rounded-lg text-xs uppercase">Passage #' + (index + 1) + ' · <span id="rowBlankCount-' + index + '">' + blankCount + ' Blanks</span></span>' +
+                    '<button type="button" onclick="App.deleteRow(' + index + ')" class="btn-chunky bg-pink text-white rounded-xl px-3 py-1.5 text-xs flex items-center gap-1">' +
+                        '<i data-lucide="trash-2" class="w-3.5 h-3.5"></i><span>Delete</span>' +
+                    '</button>' +
+                '</div>' +
+                '<div>' +
+                    '<label class="block text-[11px] font-heading font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">Paragraph / Sentence</label>' +
+                    '<textarea rows="2" oninput="App.updateRowText(' + index + ', this.value)" class="w-full p-3 font-body font-bold border-2 border-dark dark:border-slate-500 rounded-xl bg-slate-50 dark:bg-slate-900 text-dark dark:text-white resize-y">' + escapeHTML(q.rawText) + '</textarea>' +
+                '</div>' +
+                '<div>' +
+                    '<span class="block text-[11px] font-heading font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">Click words to toggle blanks</span>' +
+                    '<div id="rowTokens-' + index + '" class="flex flex-wrap items-start bg-slate-50 dark:bg-slate-900 p-3 border-2 border-dark dark:border-slate-500 rounded-xl min-h-[56px]">' +
+                        buildRowTokensHTML(q, index) +
+                    '</div>' +
+                '</div>';
+
+            listContainer.appendChild(row);
+        });
+
+        refreshIcons();
+    }
+
+    function updateRowText(qIndex, newText) {
+        var q = state.editorQuestions[qIndex];
+        if (!q || q.rawText === newText) return;
+
+        var oldBlanks = q.tokens
+            .filter(function (t) { return t.type === 'word' && t.isBlank; })
+            .map(function (t) { return { text: t.text.toLowerCase(), clue: t.clue }; });
+
+        q.rawText = newText;
+        q.tokens = tokenizeText(newText);
+
+        q.tokens.forEach(function (t) {
+            if (t.type === 'word') {
+                var matchIdx = oldBlanks.findIndex(function (b) { return b.text === t.text.toLowerCase(); });
+                if (matchIdx !== -1) {
+                    t.isBlank = true;
+                    t.clue = oldBlanks[matchIdx].clue;
+                    oldBlanks.splice(matchIdx, 1);
+                }
+            }
+        });
+
+        var tokenBox = $('rowTokens-' + qIndex);
+        if (tokenBox) {
+            tokenBox.innerHTML = buildRowTokensHTML(q, qIndex);
+        } else {
+            renderEditorList();
+        }
+        var countEl = $('rowBlankCount-' + qIndex);
+        if (countEl) {
+            var count = q.tokens.filter(function (t) { return t.type === 'word' && t.isBlank; }).length;
+            countEl.textContent = count + ' Blanks';
+        }
+    }
+
+    function toggleTokenBlank(qIndex, tIndex) {
+        var q = state.editorQuestions[qIndex];
+        if (!q || !q.tokens[tIndex]) return;
+        q.tokens[tIndex].isBlank = !q.tokens[tIndex].isBlank;
+
+        var tokenBox = $('rowTokens-' + qIndex);
+        if (tokenBox) {
+            tokenBox.innerHTML = buildRowTokensHTML(q, qIndex);
+        } else {
+            renderEditorList();
+        }
+        var countEl = $('rowBlankCount-' + qIndex);
+        if (countEl) {
+            var count = q.tokens.filter(function (t) { return t.type === 'word' && t.isBlank; }).length;
+            countEl.textContent = count + ' Blanks';
+        }
+    }
+
+    function updateTokenClue(qIndex, tIndex, newClue) {
+        if (state.editorQuestions[qIndex] && state.editorQuestions[qIndex].tokens[tIndex]) {
+            state.editorQuestions[qIndex].tokens[tIndex].clue = newClue;
+        }
+    }
+
+    function addNewRow() {
+        var sample = 'Type your new sentence here.';
+        state.editorQuestions.push({
+            rawText: sample,
+            tokens: tokenizeText(sample)
+        });
+        renderEditorList();
+        var listContainer = $('editorList');
+        if (listContainer) {
+            setTimeout(function () {
+                listContainer.scrollTop = listContainer.scrollHeight;
+            }, 60);
+        }
+    }
+
+    function deleteRow(index) {
+        state.editorQuestions.splice(index, 1);
+        renderEditorList();
+    }
+
+    function saveAllQuestions() {
+        var invalidIndex = state.editorQuestions.findIndex(function (q) {
+            var hasText = q.rawText && q.rawText.trim() !== '';
+            var hasBlank = q.tokens && q.tokens.some(function (t) { return t.type === 'word' && t.isBlank; });
+            return !hasText || !hasBlank;
+        });
+
+        if (invalidIndex !== -1) {
+            showToast('Passage #' + (invalidIndex + 1) + ' needs text and at least one blank word', 'triangle-alert');
+            return;
+        }
+
+        state.questions = JSON.parse(JSON.stringify(state.editorQuestions));
+        rebuildOrderQueue(false);
+        persistLocalQuestions();
         syncToCloud();
         closeManageModal();
-    }
-}
-
-function skipQuestion() {
-    loadQuestion();
-}
-
-function updateScore() {
-    localStorage.setItem('englishGameScore', score);
-    document.getElementById('score-display').innerText = score;
-    syncToCloud();
-}
-
-// --- Question Manager Logic ---
-
-let editorQuestions = [];
-
-function openManageModal() {
-    editorQuestions = JSON.parse(JSON.stringify(questions));
-    renderEditorList();
-    document.getElementById('manage-modal').classList.remove('hidden');
-}
-
-function closeManageModal() {
-    document.getElementById('manage-modal').classList.add('hidden');
-}
-
-function renderEditorList() {
-    const listContainer = document.getElementById('editor-list');
-    listContainer.innerHTML = '';
-
-    if (editorQuestions.length === 0) {
-        listContainer.innerHTML = `<div class="text-center font-body font-bold text-slate-500 text-lg p-6">No questions found. Add a new row below!</div>`;
-        return;
+        renderQuestionAtIndex(state.orderQueue[0] || 0);
+        showToast('Passages saved!', 'circle-check');
     }
 
-    editorQuestions.forEach((q, index) => {
-        const row = document.createElement('div');
-        row.className = "flex flex-col gap-4 bg-chalk dark:bg-slate-800 p-4 border-4 border-dark dark:border-slate-400 rounded-xl shadow-[4px_4px_0_var(--color-dark)] dark:shadow-[4px_4px_0_#64748b] editor-row";
-
-        let tokensHtml = '';
-        q.tokens.forEach((t, tIndex) => {
-            if (t.type === 'word') {
-                const blankClass = t.isBlank ? 'is-blank' : '';
-                tokensHtml += `<div class="inline-flex flex-col items-center align-top m-1"><span class="token word ${blankClass}" onclick="toggleTokenBlank(${index}, ${tIndex})">${t.text}</span>`;
-                if (t.isBlank) {
-                    tokensHtml += `<div class="clue-input-wrapper"><input type="text" class="clue-mini-input" placeholder="Clue (optional)" value="${(t.clue || '').replace(/"/g, '&quot;')}" onchange="updateTokenClue(${index}, ${tIndex}, this.value)"></div>`;
+    function promptResetData() {
+        openConfirmModal({
+            title: 'Reset to Defaults?',
+            message: 'Restore default passages and reset your score to 0? This cannot be undone.',
+            icon: 'rotate-ccw',
+            confirmLabel: 'Reset Data',
+            onConfirm: function () {
+                try {
+                    localStorage.removeItem(QUESTIONS_KEY);
+                    localStorage.removeItem(SCORE_KEY);
+                } catch (e) {
+                    // ignore
                 }
-                tokensHtml += `</div>`;
-            } else {
-                tokensHtml += `<span class="token ${t.type}">${t.text.replace(/ /g, '&nbsp;')}</span>`;
+                state.questions = buildDefaultQuestions();
+                rebuildOrderQueue(false);
+                state.editorQuestions = JSON.parse(JSON.stringify(state.questions));
+                state.score = 0;
+                persistLocalQuestions();
+                updateScoreUI();
+                renderEditorList();
+                renderQuestionAtIndex(state.orderQueue[0] || 0);
+                syncToCloud();
+                closeManageModal();
+                showToast('Default passages restored', 'rotate-ccw');
+            }
+        });
+    }
+
+    // --- Export / Import JSON ---
+    function exportJSON() {
+        if (state.questions.length === 0) {
+            showToast('No passages available to export', 'triangle-alert');
+            return;
+        }
+        var dataStr = JSON.stringify(state.questions, null, 2);
+        var blob = new Blob([dataStr], { type: 'application/json' });
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement('a');
+        a.href = url;
+        a.download = 'english_blanks_questions.json';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        showToast('Exported JSON file', 'download');
+    }
+
+    function importJSON(event) {
+        var input = event && event.target ? event.target : $('importFile');
+        var file = input && input.files ? input.files[0] : null;
+        if (!file) return;
+
+        var reader = new FileReader();
+        reader.onload = function (e) {
+            try {
+                var parsed = JSON.parse(e.target.result);
+                if (!Array.isArray(parsed)) {
+                    showToast('JSON must contain an array of passages', 'triangle-alert');
+                    return;
+                }
+                var migrated = [];
+                for (var i = 0; i < parsed.length; i++) {
+                    var item = migrateOldQuestion(parsed[i]);
+                    if (!item) {
+                        showToast('Invalid passage format inside JSON file', 'triangle-alert');
+                        return;
+                    }
+                    migrated.push(item);
+                }
+                state.questions = migrated;
+                rebuildOrderQueue(false);
+                state.editorQuestions = JSON.parse(JSON.stringify(migrated));
+                persistLocalQuestions();
+                syncToCloud();
+                renderEditorList();
+                renderQuestionAtIndex(state.orderQueue[0] || 0);
+                showToast('Imported ' + migrated.length + ' passages!', 'circle-check');
+            } catch (err) {
+                showToast('Could not parse JSON file', 'circle-x');
+            } finally {
+                if (input) input.value = '';
+            }
+        };
+        reader.readAsText(file);
+    }
+
+    // --- Global Listeners & Boot ---
+    function bindGlobalEvents() {
+        var checkTimer = null;
+
+        document.addEventListener('focusin', function (e) {
+            if (e.target && e.target.classList && e.target.classList.contains('answer-input')) {
+                state.focusedInputIndex = Number(e.target.getAttribute('data-index'));
             }
         });
 
-        row.innerHTML = `
-            <div class="flex-1 w-full flex flex-col gap-4">
-                <div>
-                    <label class="block text-xs font-bold mb-1 opacity-70 uppercase tracking-wider">Paragraph / Sentence</label>
-                    <textarea class="w-full p-3 font-body font-bold outline-none border-4 border-dark dark:border-slate-500 rounded-xl bg-white dark:bg-slate-900 text-dark dark:text-chalk resize-y" rows="2" onblur="updateRowText(${index}, this.value)">${q.rawText}</textarea>
-                </div>
-                <div>
-                    <label class="block text-xs font-bold mb-1 opacity-70 uppercase tracking-wider">Click words to create blanks</label>
-                    <div class="flex flex-wrap items-center token-container bg-white dark:bg-slate-900 p-4 border-4 border-dark dark:border-slate-500 rounded-xl min-h-[60px] text-dark dark:text-chalk leading-loose">
-                        ${tokensHtml}
-                    </div>
-                </div>
-            </div>
-            <button onclick="deleteRow(${index})" class="btn-chunky p-2 sm:p-3 bg-pink text-dark self-start mt-2">
-                <i data-lucide="trash-2" class="w-5 h-5"></i> <span class="text-sm font-bold ml-2">DELETE</span>
-            </button>
-        `;
-        listContainer.appendChild(row);
-    });
-    lucide.createIcons();
-}
-
-function updateRowText(qIndex, newText) {
-    const q = editorQuestions[qIndex];
-    if (q.rawText === newText) return;
-    
-    // Preserve old blanks if possible
-    const oldBlanks = q.tokens.filter(t => t.isBlank).map(t => ({text: t.text.toLowerCase(), clue: t.clue}));
-    
-    q.rawText = newText;
-    q.tokens = tokenizeText(newText);
-    
-    q.tokens.forEach(t => {
-        if (t.type === 'word') {
-            const match = oldBlanks.find(b => b.text === t.text.toLowerCase());
-            if (match) {
-                t.isBlank = true;
-                t.clue = match.clue;
+        document.addEventListener('input', function (e) {
+            if (e.target && e.target.classList && e.target.classList.contains('answer-input')) {
+                if (checkTimer) clearTimeout(checkTimer);
+                checkTimer = setTimeout(function () {
+                    checkAnswer(false);
+                }, 140);
             }
-        }
-    });
-    renderEditorList();
-}
+        });
 
-function toggleTokenBlank(qIndex, tIndex) {
-    const t = editorQuestions[qIndex].tokens[tIndex];
-    t.isBlank = !t.isBlank;
-    renderEditorList();
-}
-
-function updateTokenClue(qIndex, tIndex, newClue) {
-    editorQuestions[qIndex].tokens[tIndex].clue = newClue;
-}
-
-function addNewRow() {
-    editorQuestions.push({
-        rawText: "Type your new sentence here.",
-        tokens: tokenizeText("Type your new sentence here.")
-    });
-    renderEditorList();
-    const listContainer = document.getElementById('editor-list');
-    setTimeout(() => {
-        listContainer.scrollTop = listContainer.scrollHeight;
-    }, 100);
-}
-
-function deleteRow(index) {
-    editorQuestions.splice(index, 1);
-    renderEditorList();
-}
-
-async function saveAllQuestions() {
-    const hasError = editorQuestions.some(q => q.rawText.trim() === '' || !q.tokens.some(t => t.isBlank));
-    if (hasError) {
-        await showAlertModal("Make sure all rows have text and at least one blank word selected.", { title: "Formatting Error", icon: "alert-triangle", iconColor: "orange" });
-        return;
-    }
-
-    questions = JSON.parse(JSON.stringify(editorQuestions));
-    localStorage.setItem('englishGameQuestions', JSON.stringify(questions));
-    syncToCloud();
-    closeManageModal();
-    await showAlertModal("Your questions have been successfully updated.", { title: "Saved!", icon: "check-circle", iconColor: "green" });
-    loadQuestion();
-}
-
-
-
-// --- JSON Export / Import ---
-
-async function exportJSON() {
-    if (questions.length === 0) {
-        await showAlertModal("There are no questions to export.", { title: "No Data", icon: "alert-circle", iconColor: "orange" });
-        return;
-    }
-
-    const dataStr = JSON.stringify(questions, null, 2);
-    const blob = new Blob([dataStr], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = "english_blanks_questions.json";
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-
-    await showAlertModal("Your question set has been downloaded successfully.", { title: "Exported!", icon: "download", iconColor: "blue" });
-}
-
-function importJSON(event) {
-    const file = event.target.files[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = async function (e) {
-        try {
-            const importedData = JSON.parse(e.target.result);
-
-            if (Array.isArray(importedData)) {
-                let isValid = true;
-                const newQuestions = importedData.map(q => {
-                    if (q.rawText && Array.isArray(q.tokens)) return q;
-                    if (q.sentence && q.answer && typeof q.sentence === 'string') return migrateOldQuestion(q);
-                    isValid = false;
-                    return null;
-                });
-
-                if (isValid) {
-                    questions = newQuestions;
-                    localStorage.setItem('englishGameQuestions', JSON.stringify(questions));
-                    syncToCloud();
-                    renderEditorList();
-                    await showAlertModal("Questions successfully loaded from the JSON file.", { title: "Imported!", icon: "check-circle", iconColor: "green" });
-                    loadQuestion();
-                } else {
-                    await showAlertModal("The JSON file must contain valid Fill-It question formats.", { title: "Invalid Data", icon: "alert-triangle", iconColor: "red" });
+        document.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape') {
+                if ($('confirmModal') && $('confirmModal').classList.contains('open')) {
+                    cancelConfirm();
+                    return;
                 }
-            } else {
-                await showAlertModal("The JSON file must be an array of questions.", { title: "Invalid Format", icon: "alert-triangle", iconColor: "red" });
+                if ($('roundCompleteModal') && $('roundCompleteModal').classList.contains('open')) {
+                    closeRoundCompleteModal(true);
+                    return;
+                }
+                if ($('manageModal') && $('manageModal').classList.contains('open')) {
+                    closeManageModal();
+                }
+                return;
             }
-        } catch (err) {
-            await showAlertModal("Could not parse the JSON file. Ensure it is formatted correctly.", { title: "Error", icon: "x-octagon", iconColor: "red" });
+
+            if (e.key === 'Enter') {
+                if ($('roundCompleteModal') && $('roundCompleteModal').classList.contains('open')) {
+                    e.preventDefault();
+                    closeRoundCompleteModal(true);
+                    return;
+                }
+                if (e.target && e.target.classList && e.target.classList.contains('answer-input')) {
+                    e.preventDefault();
+                    if (checkTimer) clearTimeout(checkTimer);
+                    checkAnswer(true);
+                }
+            }
+        });
+    }
+
+    async function init() {
+        loadPrefs();
+        syncThemeIcon();
+        syncPreferenceButtons();
+        bindGlobalEvents();
+        refreshIcons();
+
+        if (typeof window.requireAuth === 'function') {
+            await window.requireAuth();
         }
 
-        // Reset input to allow re-uploading the same file if needed
-        event.target.value = '';
+        var cloudData = null;
+        if (typeof window.loadProgress === 'function') {
+            try {
+                cloudData = await window.loadProgress('fill_it');
+            } catch (e) {
+                cloudData = null;
+            }
+        }
+
+        if (cloudData) {
+            if (cloudData.theme) {
+                var hasLocalTheme = false;
+                try {
+                    hasLocalTheme = Boolean(localStorage.getItem(THEME_KEY) || localStorage.getItem('theme_hub'));
+                } catch (e) {}
+                if (!hasLocalTheme) {
+                    var isDark = cloudData.theme === 'dark';
+                    document.documentElement.classList.toggle('dark', isDark);
+                    try { localStorage.setItem(THEME_KEY, isDark ? 'dark' : 'light'); } catch (e) {}
+                    syncThemeIcon();
+                }
+            }
+            if (Array.isArray(cloudData.questions)) {
+                state.questions = cloudData.questions.map(migrateOldQuestion).filter(Boolean);
+                persistLocalQuestions();
+            }
+            if (cloudData.score !== undefined) {
+                state.score = parseInt(cloudData.score, 10) || 0;
+            }
+        }
+
+        if (state.questions.length === 0) {
+            try {
+                var savedQ = localStorage.getItem(QUESTIONS_KEY);
+                if (savedQ) {
+                    var parsedQ = JSON.parse(savedQ);
+                    if (Array.isArray(parsedQ)) {
+                        state.questions = parsedQ.map(migrateOldQuestion).filter(Boolean);
+                    }
+                }
+            } catch (e) {
+                state.questions = [];
+            }
+
+            if (state.questions.length === 0) {
+                state.questions = buildDefaultQuestions();
+                persistLocalQuestions();
+            }
+
+            try {
+                var savedScore = localStorage.getItem(SCORE_KEY);
+                if (savedScore !== null) {
+                    state.score = parseInt(savedScore, 10) || 0;
+                }
+            } catch (e) {
+                // ignore
+            }
+        }
+
+        updateScoreUI();
+        rebuildOrderQueue(false);
+        renderQuestionAtIndex(state.orderQueue[0] || 0);
+    }
+
+    window.App = {
+        init: init,
+        toggleDarkMode: toggleDarkMode,
+        toggleWordBank: toggleWordBank,
+        toggleOrderMode: toggleOrderMode,
+        prevQuestion: prevQuestion,
+        nextQuestion: nextQuestion,
+        checkAnswer: checkAnswer,
+        giveLetterHint: giveLetterHint,
+        revealAnswers: revealAnswers,
+        openManageModal: openManageModal,
+        closeManageModal: closeManageModal,
+        updateRowText: updateRowText,
+        toggleTokenBlank: toggleTokenBlank,
+        updateTokenClue: updateTokenClue,
+        addNewRow: addNewRow,
+        deleteRow: deleteRow,
+        saveAllQuestions: saveAllQuestions,
+        promptResetData: promptResetData,
+        exportJSON: exportJSON,
+        importJSON: importJSON,
+        closeRoundCompleteModal: closeRoundCompleteModal,
+        cancelConfirm: cancelConfirm,
+        executeConfirm: executeConfirm,
+        _getState: function () { return state; }
     };
-    reader.readAsText(file);
-}
 
-
-// --- Utilities ---
-
-function toggleDarkMode() {
-    const html = document.documentElement;
-    html.classList.toggle('dark');
-    const isDark = html.classList.contains('dark');
-    localStorage.setItem('theme_fill-it', isDark ? 'dark' : 'light');
-    updateThemeIcon(isDark);
-    syncToCloud();
-}
-
-function updateThemeIcon(isDark) {
-    const btnIcon = document.getElementById('theme-icon');
-    if (btnIcon) btnIcon.setAttribute('data-lucide', isDark ? 'sun' : 'moon');
-    lucide.createIcons();
-}
-
-let syncTimeout = null;
-function syncToCloud() {
-    if (syncTimeout) clearTimeout(syncTimeout);
-    syncTimeout = setTimeout(() => {
-        saveProgress('fill_it', {
-            questions: questions,
-            score: score,
-            theme: document.documentElement.classList.contains('dark') ? 'dark' : 'light'
-        });
-    }, 1500);
-}
-
-// Initialize on load
-window.onload = initGame;
-
-let checkTimeout = null;
-
-// Listen for input changes to trigger auto-check
-document.addEventListener('input', function (e) {
-    if (e.target.classList.contains('answer-input')) {
-        if (checkTimeout) clearTimeout(checkTimeout);
-        checkTimeout = setTimeout(() => {
-            checkAnswer();
-        }, 500);
-    }
-});
-
-// Listen for "Enter" key on game inputs to check immediately
-document.addEventListener('keypress', function (e) {
-    if (e.key === 'Enter') {
-        if (e.target.classList.contains('answer-input')) {
-            if (checkTimeout) clearTimeout(checkTimeout);
-            checkAnswer();
-        }
-    }
-});
+    document.addEventListener('DOMContentLoaded', function () {
+        init();
+    });
+})();

@@ -1,748 +1,324 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
-    <!-- Supabase Auth -->
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.105.4"></script>
-    <script src="/supabase.js"></script>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Spell It</title>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Spell It | KlassKit</title>
     <link rel="icon" type="image/x-icon" href="../../../media/icon.ico" />
     <link rel="icon" type="image/webp" href="../../../media/icon.webp" />
-    
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Nunito:wght@400;600;700&display=swap" rel="stylesheet">
-    
-    <script src="https://unpkg.com/lucide@1.16.0"></script>
-    <script src="../../../components/input-modal.js"></script>
-    
-    <link rel="stylesheet" href="../../../css/tailwind.generated.css" />
-    
-    <style>
-        /* Grid Pattern Background */
-        body {
-            background-color: #f8fafc;
-            background-image: 
-                linear-gradient(to right, rgba(30, 41, 59, 0.05) 2px, transparent 2px),
-                linear-gradient(to bottom, rgba(30, 41, 59, 0.05) 2px, transparent 2px);
-            background-size: 40px 40px;
-        }
-        
-        .dark body {
-            background-color: #0f172a;
-            background-image: 
-                linear-gradient(to right, rgba(255, 255, 255, 0.03) 2px, transparent 2px),
-                linear-gradient(to bottom, rgba(255, 255, 255, 0.03) 2px, transparent 2px);
-        }
 
-        /* Neo-brutalist interaction classes */
-        .btn-brutal {
-            transition: transform 0.1s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.1s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-        .btn-brutal:hover {
-            transform: translateY(-2px) rotate(1deg);
-        }
-        .btn-brutal:active {
-            transform: translateY(4px);
-            box-shadow: 0px 0px 0px 0px rgba(30, 41, 59, 1) !important;
-        }
-        .dark .btn-brutal:active {
-            box-shadow: 0px 0px 0px 0px rgba(148, 163, 184, 1) !important;
-        }
+    <!-- Early Synchronous Dark Mode & Hub Color-Theme Sync -->
+    <script>
+        (function () {
+            function readStored(key) {
+                try {
+                    var raw = localStorage.getItem(key);
+                    if (raw == null) return null;
+                    try { return JSON.parse(raw); } catch (e) { return raw; }
+                } catch (e) { return null; }
+            }
+            function syncTheme(changedKey) {
+                var isDark;
+                if (changedKey === 'theme_hub') {
+                    var hubVal = readStored('theme_hub');
+                    isDark = hubVal ? hubVal === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
+                } else {
+                    var toolTheme = readStored('theme_spell-the-word') || readStored('theme') || readStored('klasskit-theme');
+                    var hubTheme = readStored('theme_hub');
+                    isDark = toolTheme
+                        ? toolTheme === 'dark'
+                        : hubTheme
+                            ? hubTheme === 'dark'
+                            : window.matchMedia('(prefers-color-scheme: dark)').matches;
+                }
+                document.documentElement.classList.toggle('dark', isDark);
 
-        /* Custom Animations */
-        @keyframes popIn {
-            0% { transform: scale(0.5); opacity: 0; }
-            70% { transform: scale(1.1); opacity: 1; }
-            100% { transform: scale(1); opacity: 1; }
-        }
-        .animate-pop {
-            animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
-        }
+                var colorTheme = readStored('klasskit_colorTheme');
+                if (colorTheme && colorTheme !== 'classic') {
+                    document.documentElement.setAttribute('data-theme', colorTheme);
+                } else {
+                    document.documentElement.removeAttribute('data-theme');
+                }
+            }
+            syncTheme();
+            window.addEventListener('storage', function (e) {
+                if (
+                    e.key === 'theme_hub' ||
+                    e.key === 'theme_spell-the-word' ||
+                    e.key === 'theme' ||
+                    e.key === 'klasskit-theme' ||
+                    e.key === 'klasskit_colorTheme'
+                ) {
+                    syncTheme(e.key);
+                }
+            });
+        })();
+    </script>
 
-        @keyframes shake {
-            0%, 100% { transform: translateX(0); }
-            20%, 60% { transform: translateX(-12px); }
-            40%, 80% { transform: translateX(12px); }
-        }
-        .animate-shake {
-            animation: shake 0.4s ease-in-out;
-        }
-    </style>
-    <link rel="stylesheet" href="../../../css/base.css" />
-    <link rel="stylesheet" href="../../../css/components.css" />
-  
-  <script defer src="/js/analytics.js"></script>
+    <!-- Core Typography: Fredoka (Headings) + Nunito (Body) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet" />
+
+    <!-- Stylesheets (?v=2) -->
+    <link rel="stylesheet" href="../../../css/tailwind.generated.css?v=2" />
+    <link rel="stylesheet" href="../../../css/base.css?v=2" />
+    <link rel="stylesheet" href="../../../css/components.css?v=2" />
+    <link rel="stylesheet" href="./style.css?v=2" />
+
+    <!-- Deferred Runtime Scripts -->
+    <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.105.4"></script>
+    <script defer src="/supabase.js"></script>
+    <script defer src="https://unpkg.com/lucide@1.16.0"></script>
+    <script defer src="./script.js?v=2"></script>
+    <script defer src="/js/analytics.js"></script>
 </head>
-<body class="font-body text-dark dark:text-white min-h-screen flex flex-col transition-colors duration-300 overflow-x-hidden">
 
-    <div class="fixed top-4 right-4 flex gap-3 z-20">
-        <button id="btn-open-player" title="Open Student View"
-            class="btn-brutal p-2 md:p-3 rounded-xl border-4 border-dark flex items-center justify-center"
-            style="background:#16a34a;color:#fff;box-shadow:3px 3px 0 #14532d;">
-            <i data-lucide="monitor" class="w-5 h-5 md:w-6 md:h-6 stroke-[3]"></i>
-        </button>
-        <button onclick="toggleReachMode()" class="btn-brutal bg-pink text-dark p-2 md:p-3 rounded-xl border-4 border-dark shadow-brutal dark:shadow-brutal_dark dark:border-slate-400 flex items-center justify-center group" aria-label="Toggle Reach Mode">
-            <i data-lucide="arrow-down" id="reach-icon" class="w-5 h-5 md:w-6 md:h-6 stroke-[3] transition-transform group-hover:scale-110"></i>
-        </button>
-        <button onclick="openSettings()" class="btn-brutal bg-blue text-white p-2 md:p-3 rounded-xl border-4 border-dark shadow-brutal dark:shadow-brutal_dark dark:border-slate-400 flex items-center justify-center group" aria-label="Settings">
-            <i data-lucide="settings" class="w-5 h-5 md:w-6 md:h-6 stroke-[3] transition-transform group-hover:rotate-45"></i>
-        </button>
-        <button onclick="toggleDarkMode()" class="btn-brutal bg-orange text-white p-2 md:p-3 rounded-xl border-4 border-dark shadow-brutal dark:shadow-brutal_dark dark:border-slate-400 flex items-center justify-center group" aria-label="Toggle Dark Mode">
-            <i data-lucide="moon" id="theme-icon" class="w-5 h-5 md:w-6 md:h-6 stroke-[3] transition-transform group-hover:-rotate-12"></i>
-        </button>
-    </div>
+<body class="h-screen w-screen overflow-hidden font-body text-dark dark:text-slate-100 flex flex-col">
 
-    <div id="main-wrapper" class="flex flex-col flex-grow w-full items-center justify-center p-4 md:p-8 transition-all duration-500 ease-in-out">
-        
-        <div id="game-board" class="w-11/12 max-w-6xl bg-white dark:bg-slate-800 border-4 border-dark dark:border-slate-400 rounded-3xl shadow-brutal dark:shadow-brutal_dark p-6 md:p-10 flex flex-col items-center gap-6 md:gap-8 relative transition-transform">
-            
-            <div class="w-full flex flex-col items-center mt-2 relative">
-                <div id="progress-badge" class="md:absolute md:left-0 md:top-2 bg-pink text-dark font-heading font-bold px-4 py-2 rounded-xl border-4 border-dark shadow-brutal dark:shadow-brutal_dark dark:border-slate-400 mb-2 md:mb-0 transform -rotate-2 text-sm md:text-base">
-                    Word 1 of 3
+    <!-- TOP GLASSMORPHIC NAVIGATION BAR -->
+    <header id="topBar" class="glass-topbar sticky top-0 z-40 px-3 sm:px-5 py-2.5 flex-none">
+        <div class="max-w-6xl mx-auto w-full flex flex-wrap items-center justify-between gap-2.5">
+            <!-- Brand + Status Pills -->
+            <div class="flex items-center gap-2.5 min-w-0">
+                <div class="w-10 h-10 rounded-xl bg-green text-white border-2 border-dark dark:border-slate-500 shadow-hard-sm flex items-center justify-center flex-shrink-0">
+                    <i data-lucide="spell-check" class="w-5 h-5"></i>
                 </div>
-
-                <div class="flex flex-col md:flex-row items-center gap-4 z-10">
-                    <h1 class="font-heading text-4xl md:text-5xl font-bold text-center text-blue tracking-wide drop-shadow-sm">
+                <div class="min-w-0">
+                    <h1 class="font-heading text-lg sm:text-xl font-bold uppercase tracking-tight leading-none text-dark dark:text-white truncate">
                         Spell It
                     </h1>
-                    <button onclick="playTargetWordAudio()" class="btn-brutal bg-blue text-white p-3 md:p-4 rounded-2xl border-4 border-dark shadow-brutal dark:shadow-brutal_dark dark:border-slate-400 flex items-center justify-center hover:bg-blue/90" aria-label="Listen to word">
-                        <i data-lucide="play" class="w-6 h-6 md:w-8 md:h-8 stroke-[3] ml-1"></i>
-                    </button>
+                    <p class="text-[11px] font-extrabold uppercase tracking-widest text-slate-500 dark:text-slate-400 truncate mt-0.5">
+                        Phonics Spelling Arena
+                    </p>
                 </div>
-            </div>
-            
-            <div class="w-full bg-chalk dark:bg-slate-900 rounded-2xl p-6 md:p-8 border-4 border-dark dark:border-slate-500 shadow-brutal_inset dark:shadow-brutal_inset_dark flex items-center justify-center min-h-[140px]">
-                <div id="slots-container" class="flex flex-wrap gap-4 md:gap-6 justify-center">
-                    </div>
+
+                <span id="progressBadge" class="hidden sm:inline-flex sticker -rotate-2 bg-pink text-white px-3 py-1 rounded-xl text-xs uppercase ml-2">
+                    Word 1 of 3
+                </span>
+
+                <span id="streakBadge" class="hidden md:inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-white dark:bg-slate-800 border-2 border-dark dark:border-slate-500 shadow-hard-xs font-heading font-bold text-xs uppercase text-orange">
+                    <i data-lucide="flame" class="w-3.5 h-3.5"></i>
+                    <span id="streakCount">0</span>
+                </span>
             </div>
 
-            <div class="w-full bg-slate-100 dark:bg-slate-700 rounded-2xl p-6 md:p-8 border-4 border-dark/20 dark:border-slate-500/30 flex flex-col items-center relative overflow-hidden">
-                <div class="absolute top-0 left-0 w-full h-2 bg-dark/5 dark:bg-black/20"></div>
-                <p class="font-heading font-bold opacity-50 text-center mb-6 text-base md:text-lg uppercase tracking-widest text-dark dark:text-white">Letter Pool</p>
-                <div id="letters-container" class="flex flex-wrap gap-4 md:gap-6 justify-center min-h-[100px] z-10">
-                    </div>
-            </div>
-            
-        </div>
-    </div>
+            <!-- Action Controls -->
+            <div class="flex items-center gap-2">
+                <button type="button" id="btnOpenPlayer" onclick="App.openStudentView()" title="Open Student View"
+                    class="btn-chunky bg-green text-white rounded-xl px-3 py-1.5 text-xs flex items-center gap-1.5">
+                    <i data-lucide="monitor" class="w-4 h-4"></i>
+                    <span class="hidden md:inline">Student View</span>
+                </button>
 
-    <div id="alert-modal" class="hidden fixed inset-0 bg-dark/60 backdrop-blur-md flex items-center justify-center z-50 p-4">
-        <div class="bg-chalk dark:bg-slate-800 border-4 border-dark dark:border-slate-400 rounded-3xl shadow-[8px_8px_0px_0px_rgba(30,41,59,1)] dark:shadow-[8px_8px_0px_0px_rgba(148,163,184,1)] p-8 md:p-10 max-w-md w-full text-center animate-pop">
-            <h2 id="alert-title" class="font-heading text-4xl md:text-5xl font-bold text-green mb-4 transform -rotate-2 inline-block">Awesome!</h2>
-            <p id="alert-message" class="text-xl md:text-2xl font-bold mb-8 md:mb-10 dark:text-white text-dark opacity-80">You spelled it right.</p>
-            <button id="alert-btn" onclick="handleAlertAction()" class="btn-brutal bg-green text-dark font-heading font-bold text-2xl md:text-3xl py-3 md:py-4 px-8 rounded-2xl border-4 border-dark shadow-brutal w-full focus:outline-none">
-                Next Word
-            </button>
-        </div>
-    </div>
+                <button type="button" id="reachModeBtn" onclick="App.toggleReachMode()" aria-label="Toggle Reach Mode" title="Reach Mode (bottom alignment)"
+                    class="btn-chunky bg-pink text-white rounded-xl w-9 h-9 p-0 flex-shrink-0">
+                    <span id="reachIconSlot" class="inline-flex items-center justify-center"><i data-lucide="arrow-down" class="w-4 h-4"></i></span>
+                </button>
 
-    <!-- Sets Manager Modal -->
-    <div id="settings-modal" class="hidden fixed inset-0 bg-dark/70 backdrop-blur-md flex items-center justify-center z-50 p-4">
-        <div class="bg-chalk dark:bg-slate-800 border-4 border-dark dark:border-slate-400 rounded-3xl shadow-[8px_8px_0px_0px_rgba(30,41,59,1)] dark:shadow-[8px_8px_0px_0px_rgba(148,163,184,1)] w-full max-w-2xl max-h-[90vh] flex flex-col animate-pop">
-            <!-- Header -->
-            <div class="flex items-center gap-3 p-6 border-b-4 border-dark dark:border-slate-600 shrink-0">
-                <div class="bg-blue text-white p-2 rounded-xl border-3 border-dark"><i data-lucide="layers" class="w-6 h-6 stroke-[3]"></i></div>
-                <div class="flex-1">
-                    <h2 class="font-heading text-2xl font-bold text-blue">Word Sets</h2>
-                    <p id="sm-active-label" class="text-xs font-bold text-slate-400 uppercase tracking-widest">No set loaded</p>
-                </div>
-                <button onclick="closeSettings()" class="btn-brutal bg-slate-200 dark:bg-slate-600 w-10 h-10 flex items-center justify-center rounded-xl border-4 border-dark">
-                    <i data-lucide="x" class="w-5 h-5 stroke-[3]"></i>
+                <button type="button" id="sfxToggleBtn" onclick="App.toggleSfx()" aria-label="Toggle sound effects"
+                    class="btn-chunky bg-white dark:bg-slate-800 text-dark dark:text-white rounded-xl w-9 h-9 p-0 flex-shrink-0">
+                    <span id="sfxIconSlot" class="inline-flex items-center justify-center"><i data-lucide="volume-2" class="w-4 h-4 text-green"></i></span>
+                </button>
+
+                <button type="button" id="settingsBtn" onclick="App.openSettings()" aria-label="Word sets manager"
+                    class="btn-chunky bg-blue text-white rounded-xl px-3 py-1.5 text-xs flex items-center gap-1.5">
+                    <i data-lucide="layers" class="w-4 h-4"></i>
+                    <span class="hidden sm:inline">Sets</span>
+                </button>
+
+                <button type="button" id="themeToggleBtn" onclick="App.toggleDarkMode()" aria-label="Toggle dark mode"
+                    class="btn-chunky bg-white dark:bg-slate-800 text-dark dark:text-white rounded-xl w-9 h-9 p-0 flex-shrink-0">
+                    <span id="themeToggleIconSlot" class="inline-flex items-center justify-center"><i data-lucide="moon" class="w-4 h-4"></i></span>
                 </button>
             </div>
-            <!-- Editor -->
-            <div class="p-5 border-b-4 border-dark dark:border-slate-600 shrink-0">
-                <div class="flex gap-2 mb-2">
-                    <input id="sm-set-name" type="text" placeholder="Set name…" class="flex-1 bg-white dark:bg-slate-700 border-4 border-dark dark:border-slate-500 rounded-xl px-4 py-2 font-heading text-base font-bold focus:outline-none focus:border-blue" />
-                    <button onclick="smSaveAsNew()" class="btn-brutal bg-green text-dark font-heading font-bold text-sm px-4 py-2 rounded-xl border-4 border-dark shadow-brutal flex items-center gap-1">
-                        <i data-lucide="plus" class="w-4 h-4 stroke-[3]"></i> SAVE AS NEW
+        </div>
+    </header>
+
+    <!-- MAIN SPELLING ARENA -->
+    <main id="mainWrapper" class="main-wrapper flex-1 min-h-0 overflow-y-auto p-3 sm:p-6">
+        <div id="gameBoard" class="glass-surface w-full max-w-5xl p-5 sm:p-8 flex flex-col items-center gap-5 sm:gap-6">
+
+            <!-- Word Prompt & Navigation Header -->
+            <div class="w-full flex flex-wrap items-center justify-between gap-3">
+                <div class="flex items-center gap-2 sm:hidden">
+                    <span id="mobileProgressBadge" class="sticker bg-pink text-white px-2.5 py-1 rounded-xl text-xs uppercase">1 / 3</span>
+                </div>
+
+                <div class="flex items-center gap-2.5 mx-auto">
+                    <button type="button" id="prevWordBtn" onclick="App.prevWord()" aria-label="Previous word"
+                        class="btn-chunky bg-white dark:bg-slate-800 text-dark dark:text-white rounded-xl w-10 h-10 p-0">
+                        <i data-lucide="chevron-left" class="w-5 h-5"></i>
                     </button>
-                    <button onclick="smSaveCurrent()" class="btn-brutal bg-blue text-white font-heading font-bold text-sm px-4 py-2 rounded-xl border-4 border-dark shadow-brutal flex items-center gap-1">
-                        <i data-lucide="save" class="w-4 h-4 stroke-[3]"></i> UPDATE
+
+                    <button type="button" id="listenBtn" onclick="App.playTargetWordAudio()"
+                        class="btn-chunky bg-blue text-white rounded-2xl px-5 py-2.5 text-base sm:text-lg flex items-center gap-2">
+                        <i data-lucide="volume-2" class="w-5 h-5"></i>
+                        <span>Hear Word</span>
+                    </button>
+
+                    <button type="button" id="nextWordBtn" onclick="App.nextWord()" aria-label="Next word"
+                        class="btn-chunky bg-white dark:bg-slate-800 text-dark dark:text-white rounded-xl w-10 h-10 p-0">
+                        <i data-lucide="chevron-right" class="w-5 h-5"></i>
                     </button>
                 </div>
-                <textarea id="words-input" rows="3" class="w-full bg-white dark:bg-slate-700 border-4 border-dark dark:border-slate-400 rounded-2xl p-4 font-heading text-lg uppercase font-bold text-left focus:outline-none focus:border-pink transition-colors resize-none shadow-brutal_inset dark:shadow-brutal_inset_dark" placeholder="e.g. ENGLISH, KLASSKIT, CODING"></textarea>
-                <button onclick="smPlayCurrent()" class="mt-2 btn-brutal bg-pink text-dark font-heading font-bold text-base w-full py-2.5 rounded-xl border-4 border-dark shadow-brutal flex items-center justify-center gap-2">
-                    <i data-lucide="play" class="w-5 h-5 stroke-[3] ml-1"></i> PLAY THIS LIST NOW
+            </div>
+
+            <!-- Answer Slots Tray -->
+            <div class="w-full bg-slate-50/90 dark:bg-slate-900/75 rounded-2xl p-5 sm:p-7 border-3 border-dark dark:border-slate-500 shadow-inner-hard flex items-center justify-center min-h-[120px]">
+                <div id="slotsContainer" class="flex flex-wrap gap-2.5 sm:gap-4 justify-center"></div>
+            </div>
+
+            <!-- Letter Pool Tray -->
+            <div class="w-full bg-slate-100/90 dark:bg-slate-800/80 rounded-2xl p-4 sm:p-6 border-2 border-dark dark:border-slate-500 flex flex-col items-center gap-4">
+                <div class="w-full flex flex-wrap items-center justify-between gap-2">
+                    <span class="font-heading font-bold text-xs uppercase tracking-widest text-slate-500 dark:text-slate-300">
+                        Letter Pool
+                    </span>
+
+                    <div id="poolControls" class="flex items-center gap-1.5">
+                        <button type="button" id="hintBtn" onclick="App.useHint()"
+                            class="btn-chunky bg-orange text-white rounded-xl px-3 py-1 text-xs flex items-center gap-1">
+                            <i data-lucide="lightbulb" class="w-3.5 h-3.5"></i>
+                            <span>Hint</span>
+                        </button>
+                        <button type="button" id="shuffleBtn" onclick="App.shufflePool()"
+                            class="btn-chunky bg-white dark:bg-slate-900 text-dark dark:text-white rounded-xl px-3 py-1 text-xs flex items-center gap-1">
+                            <i data-lucide="shuffle" class="w-3.5 h-3.5 text-blue"></i>
+                            <span class="hidden sm:inline">Shuffle</span>
+                        </button>
+                        <button type="button" id="clearSlotsBtn" onclick="App.clearSlots()"
+                            class="btn-chunky bg-white dark:bg-slate-900 text-dark dark:text-white rounded-xl px-3 py-1 text-xs flex items-center gap-1">
+                            <i data-lucide="eraser" class="w-3.5 h-3.5 text-pink"></i>
+                            <span class="hidden sm:inline">Clear</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div id="lettersContainer" class="flex flex-wrap gap-2.5 sm:gap-4 justify-center min-h-[82px]"></div>
+            </div>
+
+            <p id="keyboardHintLine" class="text-[11px] font-bold text-slate-500 dark:text-slate-400 text-center">
+                Tap tiles or type <kbd class="px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-700 border border-dark dark:border-slate-500 font-heading text-[10px]">A–Z</kbd> &amp; <kbd class="px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-700 border border-dark dark:border-slate-500 font-heading text-[10px]">Backspace</kbd> on your keyboard.
+            </p>
+        </div>
+    </main>
+
+    <!-- STUDENT VIEW FLOATING TOOLBAR (?player=1) -->
+    <div id="playerToolbar" class="is-hidden fixed bottom-4 left-1/2 -translate-x-1/2 z-50 glass-surface px-5 py-2.5 flex items-center gap-3">
+        <span class="sticker bg-green text-white px-2.5 py-0.5 rounded-lg text-[10px] uppercase">Student View</span>
+        <span id="playerConnStatus" class="text-xs font-extrabold uppercase text-slate-500 dark:text-slate-300 flex items-center gap-1.5">
+            <i data-lucide="refresh-cw" class="w-3.5 h-3.5 animate-spin text-blue"></i>
+            <span>Syncing...</span>
+        </span>
+        <span id="studentWordDisplay" class="font-heading text-sm font-bold text-dark dark:text-white">0 / 0</span>
+    </div>
+
+    <!-- WORD SETS MANAGER MODAL -->
+    <div id="settingsModal" class="modal-overlay" onclick="if (event.target === this) App.closeSettings()">
+        <div class="modal-card glass-surface w-full max-w-2xl max-h-[88vh] flex flex-col overflow-hidden">
+            <div class="p-4 sm:p-5 border-b-3 border-dark dark:border-slate-500 bg-white/70 dark:bg-slate-900/70 flex items-center justify-between gap-3 flex-none">
+                <div class="flex items-center gap-3 min-w-0">
+                    <div class="w-10 h-10 rounded-xl bg-blue text-white border-2 border-dark dark:border-slate-500 flex items-center justify-center flex-shrink-0">
+                        <i data-lucide="layers" class="w-5 h-5"></i>
+                    </div>
+                    <div class="min-w-0">
+                        <h2 class="font-heading text-xl sm:text-2xl font-bold uppercase text-dark dark:text-white">Word Sets</h2>
+                        <p id="smActiveLabel" class="text-[11px] font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-wider truncate">No saved set loaded</p>
+                    </div>
+                </div>
+                <button type="button" onclick="App.closeSettings()" aria-label="Close word sets modal"
+                    class="btn-chunky bg-white dark:bg-slate-800 text-dark dark:text-white rounded-xl w-9 h-9 p-0 flex-shrink-0">
+                    <i data-lucide="x" class="w-4 h-4"></i>
                 </button>
             </div>
-            <!-- Library -->
-            <div class="flex-1 min-h-0 overflow-y-auto p-5">
-                <div class="flex items-center justify-between mb-3">
-                    <p class="font-heading font-bold text-xs uppercase tracking-widest text-slate-400">Saved Sets</p>
-                    <select id="sm-sort" onchange="smRenderLibrary()" class="text-xs font-bold bg-white dark:bg-slate-700 border-2 border-dark rounded-lg px-2 py-1 focus:outline-none">
+
+            <div class="p-4 sm:p-5 border-b-3 border-dark dark:border-slate-500 space-y-3 flex-none">
+                <div class="flex flex-wrap gap-2">
+                    <input id="smSetName" type="text" placeholder="Set name (e.g. Grade 3 Animals)"
+                        class="flex-1 min-w-[160px] bg-white dark:bg-slate-900 border-2 border-dark dark:border-slate-500 rounded-xl px-3.5 py-2 font-body text-sm font-bold text-dark dark:text-white" />
+                    <button type="button" onclick="App.smSaveAsNew()"
+                        class="btn-chunky bg-green text-white rounded-xl px-3.5 py-2 text-xs flex items-center gap-1">
+                        <i data-lucide="plus" class="w-4 h-4"></i>
+                        <span>Save New</span>
+                    </button>
+                    <button type="button" onclick="App.smSaveCurrent()"
+                        class="btn-chunky bg-blue text-white rounded-xl px-3.5 py-2 text-xs flex items-center gap-1">
+                        <i data-lucide="save" class="w-4 h-4"></i>
+                        <span>Update</span>
+                    </button>
+                </div>
+
+                <textarea id="wordsInput" rows="3" placeholder="e.g. ENGLISH, KLASSKIT, CODING (comma or new line separated)"
+                    class="w-full bg-white dark:bg-slate-900 border-2 border-dark dark:border-slate-500 rounded-2xl p-3 font-heading text-base uppercase font-bold text-dark dark:text-white resize-y"></textarea>
+
+                <button type="button" onclick="App.smPlayCurrent()"
+                    class="btn-chunky bg-pink text-white rounded-xl py-2.5 px-5 text-sm w-full flex items-center justify-center gap-2">
+                    <i data-lucide="play" class="w-4 h-4"></i>
+                    <span>Play This List Now</span>
+                </button>
+            </div>
+
+            <div class="flex-1 min-h-0 overflow-y-auto p-4 sm:p-5 space-y-3">
+                <div class="flex items-center justify-between gap-2">
+                    <span class="font-heading font-bold text-xs uppercase tracking-widest text-slate-500 dark:text-slate-400">Saved Sets</span>
+                    <select id="smSort" onchange="App.smRenderLibrary()" aria-label="Sort saved sets"
+                        class="text-xs font-bold bg-white dark:bg-slate-800 text-dark dark:text-white border-2 border-dark dark:border-slate-500 rounded-xl px-2.5 py-1">
                         <option value="recent">Recent</option>
                         <option value="alpha">A–Z</option>
                         <option value="popular">Popular</option>
                     </select>
                 </div>
-                <div id="sm-library" class="flex flex-col gap-2"></div>
+                <div id="smLibrary" class="flex flex-col gap-2"></div>
             </div>
         </div>
     </div>
 
-    <script>
-        lucide.createIcons();
-
-        // Game State
-        let wordList = [];
-        let currentWordIndex = 0;
-        let targetWord = "";
-        let letterTiles = []; 
-        let placedLetters = []; 
-        let isReachMode = false;
-
-        // DOM Elements
-        const mainWrapper = document.getElementById('main-wrapper');
-        const gameBoard = document.getElementById('game-board');
-        const slotsContainer = document.getElementById('slots-container');
-        const lettersContainer = document.getElementById('letters-container');
-        const progressBadge = document.getElementById('progress-badge');
-        const settingsModal = document.getElementById('settings-modal');
-        const wordsInput = document.getElementById('words-input');
-        const reachIcon = document.getElementById('reach-icon');
-
-        // Natural Audio via Free Dictionary API
-        async function playTargetWordAudio() {
-            try {
-                const response = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${targetWord.toLowerCase()}`);
-                const data = await response.json();
-                
-                let audioUrl = "";
-                if (data[0] && data[0].phonetics) {
-                    for (let phonetic of data[0].phonetics) {
-                        if (phonetic.audio) {
-                            audioUrl = phonetic.audio;
-                            break;
-                        }
-                    }
-                }
-
-                if (audioUrl) {
-                    const audio = new Audio(audioUrl);
-                    audio.play();
-                }
-            } catch (error) {
-                console.log("Audio not found for word.");
-            }
-        }
-
-        async function loadPreferences() {
-            await requireAuth();
-
-            const savedState = await loadProgress('spell_word');
-            if (savedState) {
-                // Theme
-                if (savedState.theme === 'dark') {
-                    document.documentElement.classList.add('dark');
-                    document.getElementById('theme-icon').setAttribute('data-lucide', 'sun');
-                } else {
-                    document.documentElement.classList.remove('dark');
-                    document.getElementById('theme-icon').setAttribute('data-lucide', 'moon');
-                }
-
-                // Reach Mode
-                isReachMode = !!savedState.reachMode;
-                applyReachMode();
-
-                // Word List
-                if (savedState.wordList && savedState.wordList.length > 0) {
-                    wordList = savedState.wordList;
-                } else {
-                    wordList = ["ENGLISH", "KLASSKIT", "CODING"];
-                }
-            } else {
-                // Fallback to legacy localStorage for migration
-                if (localStorage.getItem('theme_spell-the-word') === 'dark') {
-                    document.documentElement.classList.add('dark');
-                    document.getElementById('theme-icon').setAttribute('data-lucide', 'sun');
-                }
-                
-                const savedReach = localStorage.getItem('spellingReachMode');
-                if (savedReach !== null) {
-                    isReachMode = savedReach === 'true';
-                }
-                
-                const savedWords = localStorage.getItem('spellingWordList');
-                if (savedWords) {
-                    wordList = JSON.parse(savedWords);
-                } else {
-                    wordList = ["ENGLISH", "KLASSKIT", "CODING"];
-                }
-                
-                applyReachMode();
-                // Trigger initial save to cloud
-                saveToCloud();
-            }
-            
-            lucide.createIcons();
-        }
-
-        // --- CLOUD PERSISTENCE ---
-        let saveTimeout;
-        function saveToCloud() {
-            if (saveTimeout) clearTimeout(saveTimeout);
-            saveTimeout = setTimeout(() => {
-                saveProgress('spell_word', {
-                    theme: document.documentElement.classList.contains('dark') ? 'dark' : 'light',
-                    reachMode: isReachMode,
-                    wordList: wordList
-                });
-            }, 1000);
-        }
-
-        // Initialize Game
-        async function initGame() {
-            await loadPreferences();
-            
-            if (wordList.length === 0) wordList = ["ENGLISH", "KLASSKIT", "CODING"];
-            
-            currentWordIndex = 0;
-            loadCurrentWord();
-        }
-
-        function loadCurrentWord() {
-            targetWord = wordList[currentWordIndex].toUpperCase();
-            progressBadge.textContent = `Word ${currentWordIndex + 1} of ${wordList.length}`;
-
-            let chars = targetWord.split('');
-            for (let i = chars.length - 1; i > 0; i--) {
-                const j = Math.floor(Math.random() * (i + 1));
-                [chars[i], chars[j]] = [chars[j], chars[i]];
-            }
-
-            letterTiles = chars.map((char, index) => ({
-                id: `tile-${index}`,
-                char: char,
-                isPlaced: false
-            }));
-
-            placedLetters = new Array(targetWord.length).fill(null);
-            renderBoard();
-        }
-
-        function renderBoard(animateTileId = null) {
-            slotsContainer.innerHTML = '';
-            setTimeout(() => broadcastState(), 0);
-            placedLetters.forEach((tileId, index) => {
-                const slotDiv = document.createElement('div');
-                slotDiv.className = `w-14 h-16 md:w-20 md:h-24 flex items-center justify-center border-4 rounded-2xl transition-all cursor-pointer bg-white dark:bg-slate-800 ${
-                    tileId ? 'border-transparent shadow-none' : 'border-dark/20 dark:border-slate-500 border-dashed hover:bg-dark/5 dark:hover:bg-slate-600/50'
-                }`;
-                slotDiv.onclick = () => handleSlotClick(index);
-
-                if (tileId) {
-                    const tile = letterTiles.find(t => t.id === tileId);
-                    const isAnimating = tileId === animateTileId;
-                    slotDiv.appendChild(createTileElement(tile, true, isAnimating));
-                }
-                slotsContainer.appendChild(slotDiv);
-            });
-
-            lettersContainer.innerHTML = '';
-            letterTiles.forEach(tile => {
-                if (!tile.isPlaced) {
-                    const isAnimating = tile.id === animateTileId;
-                    lettersContainer.appendChild(createTileElement(tile, false, isAnimating));
-                }
-            });
-        }
-
-        function createTileElement(tile, inSlot, shouldAnimate) {
-            const btn = document.createElement('button');
-            btn.className = `btn-brutal w-14 h-16 md:w-20 md:h-24 font-heading text-4xl md:text-5xl font-bold flex items-center justify-center border-4 border-dark rounded-2xl shadow-brutal dark:shadow-brutal_dark dark:border-slate-400 ${
-                inSlot ? 'bg-orange text-dark hover:bg-orange/90' : 'bg-pink text-dark hover:bg-pink/90'
-            } ${shouldAnimate ? 'animate-pop' : ''}`;
-            
-            btn.textContent = tile.char;
-            
-            if (!inSlot) {
-                btn.onclick = () => handleLetterClick(tile.id);
-            }
-            return btn;
-        }
-
-        // Mechanics
-        function handleLetterClick(tileId) {
-            const emptyIndex = placedLetters.indexOf(null);
-            if (emptyIndex !== -1) {
-                const tile = letterTiles.find(t => t.id === tileId);
-                
-                placedLetters[emptyIndex] = tileId;
-                tile.isPlaced = true;
-                renderBoard(tileId); 
-                checkWin();
-            }
-        }
-
-        function handleSlotClick(slotIndex) {
-            const tileId = placedLetters[slotIndex];
-            if (tileId) {
-                placedLetters[slotIndex] = null;
-                const tile = letterTiles.find(t => t.id === tileId);
-                tile.isPlaced = false;
-                renderBoard(tileId); 
-            }
-        }
-
-        function checkWin() {
-            if (placedLetters.includes(null)) return; 
-
-            let spelledWord = placedLetters.map(id => letterTiles.find(t => t.id === id).char).join('');
-            
-            if (spelledWord === targetWord) {
-                if (currentWordIndex < wordList.length - 1) {
-                    setTimeout(() => showAlert("Awesome!", "You spelled it right!", true, "next"), 400);
-                } else {
-                    setTimeout(() => showAlert("Level Complete!", "You spelled all the words perfectly!", true, "finish"), 400);
-                }
-            } else {
-                gameBoard.classList.remove('animate-shake');
-                void gameBoard.offsetWidth; 
-                gameBoard.classList.add('animate-shake');
-                
-                setTimeout(() => showAlert("Oops!", "That's not quite right. Try again!", false, "close"), 600);
-            }
-        }
-
-        // Keyboard Support
-        document.addEventListener('keydown', (e) => {
-            const universalModal = document.getElementById('universalInputModal');
-            const universalOpen = universalModal && !universalModal.classList.contains('hidden');
-            if (universalOpen || !settingsModal.classList.contains('hidden')) {
-                return;
-            }
-
-            const key = e.key.toUpperCase();
-            
-            if (key === 'BACKSPACE') {
-                for (let i = placedLetters.length - 1; i >= 0; i--) {
-                    if (placedLetters[i] !== null) {
-                        handleSlotClick(i);
-                        break;
-                    }
-                }
-                return;
-            }
-
-            if (/^[A-Z]$/.test(key)) {
-                const targetTile = letterTiles.find(t => !t.isPlaced && t.char === key);
-                if (targetTile) {
-                    handleLetterClick(targetTile.id);
-                }
-            }
-        });
-
-        // Modals - using universal input modal
-        async function showAlert(title, message, isSuccess, actionType) {
-            const confirmText = actionType === "next" ? "Next Word" : actionType === "finish" ? "Play Again" : actionType === "close" ? "OK" : "Try Again";
-            const iconColor = isSuccess ? "green" : "pink";
-            const icon = isSuccess ? "check-circle" : "alert-circle";
-
-            await showAlertModal(message, { title: title, icon: icon, iconColor: iconColor, confirmText: confirmText });
-
-            // Handle action after alert is closed
-            if (actionType === "next") {
-                currentWordIndex++;
-                loadCurrentWord();
-            } else if (actionType === "finish") {
-                initGame();
-            }
-        }
-
-        function handleAlertAction() {
-            // Kept for compatibility, actions now handled in showAlert
-        }
-
-        function openSettings() {
-            wordsInput.value = wordList.join(', ');
-            const nameInput = document.getElementById('sm-set-name');
-            if (nameInput) nameInput.value = smState.activeId ? (smState.activeName || '') : '';
-            smUpdateActiveLabel();
-            smRenderLibrary();
-            settingsModal.classList.remove('hidden');
-            lucide.createIcons();
-        }
-
-        function closeSettings() {
-            settingsModal.classList.add('hidden');
-        }
-
-        // ── Sets Manager ──
-        const smState = { activeId: null, activeName: null, db: null };
-
-        async function smOpenDB() {
-            if (smState.db) return smState.db;
-            return new Promise((res, rej) => {
-                const req = indexedDB.open('spell_sets_db', 1);
-                req.onupgradeneeded = e => {
-                    const db = e.target.result;
-                    if (!db.objectStoreNames.contains('sets')) {
-                        db.createObjectStore('sets', { keyPath: 'id', autoIncrement: true });
-                    }
-                };
-                req.onsuccess = e => { smState.db = e.target.result; res(smState.db); };
-                req.onerror = e => rej(e);
-            });
-        }
-
-        async function smGetAll() {
-            const db = await smOpenDB();
-            return new Promise((res, rej) => {
-                const tx = db.transaction('sets', 'readonly');
-                const req = tx.objectStore('sets').getAll();
-                req.onsuccess = () => res(req.result || []);
-                req.onerror = e => rej(e);
-            });
-        }
-
-        async function smPut(set) {
-            const db = await smOpenDB();
-            return new Promise((res, rej) => {
-                const tx = db.transaction('sets', 'readwrite');
-                const req = tx.objectStore('sets').put(set);
-                req.onsuccess = () => res(req.result);
-                req.onerror = e => rej(e);
-            });
-        }
-
-        async function smDelete(id) {
-            const db = await smOpenDB();
-            return new Promise((res, rej) => {
-                const tx = db.transaction('sets', 'readwrite');
-                const req = tx.objectStore('sets').delete(id);
-                req.onsuccess = () => res();
-                req.onerror = e => rej(e);
-            });
-        }
-
-        function smParseWords() {
-            return (wordsInput.value || '').split(',')
-                .map(w => w.trim().toUpperCase().replace(/[^A-Z]/g, ''))
-                .filter(w => w.length > 0);
-        }
-
-        async function smSaveAsNew() {
-            const name = document.getElementById('sm-set-name').value.trim() || 'Untitled Set';
-            const words = smParseWords();
-            if (!words.length) { await showAlert('No Words', 'Enter at least one word.', false, 'close'); return; }
-            const now = Date.now();
-            const id = await smPut({ name, text: wordsInput.value, createdAt: now, lastUsed: now, usageCount: 0 });
-            smState.activeId = id;
-            smState.activeName = name;
-            smUpdateActiveLabel();
-            smRenderLibrary();
-            await showAlert('Saved!', `"${name}" saved to library.`, true, 'close');
-        }
-
-        async function smSaveCurrent() {
-            const words = smParseWords();
-            if (!words.length) { await showAlert('No Words', 'Enter at least one word.', false, 'close'); return; }
-            if (!smState.activeId) { await smSaveAsNew(); return; }
-            const name = document.getElementById('sm-set-name').value.trim() || smState.activeName;
-            await smPut({ id: smState.activeId, name, text: wordsInput.value, lastUsed: Date.now(), usageCount: 0 });
-            smState.activeName = name;
-            smUpdateActiveLabel();
-            smRenderLibrary();
-            await showAlert('Updated!', `"${name}" updated.`, true, 'close');
-        }
-
-        function smPlayCurrent() {
-            const words = smParseWords();
-            if (!words.length) { showAlert('No Words', 'Enter at least one word first.', false, 'close'); return; }
-            wordList = words;
-            saveToCloud();
-            closeSettings();
-            currentWordIndex = 0;
-            loadCurrentWord();
-            broadcastState({ immediate: true });
-        }
-
-        async function smLoadSet(set) {
-            smState.activeId = set.id;
-            smState.activeName = set.name;
-            wordsInput.value = set.text || '';
-            document.getElementById('sm-set-name').value = set.name;
-            smUpdateActiveLabel();
-            set.usageCount = (set.usageCount || 0) + 1;
-            set.lastUsed = Date.now();
-            await smPut(set);
-            smRenderLibrary();
-        }
-
-        async function smDeleteSet(id, name) {
-            if (!confirm(`Delete "${name}"?`)) return;
-            await smDelete(id);
-            if (smState.activeId === id) { smState.activeId = null; smState.activeName = null; smUpdateActiveLabel(); }
-            smRenderLibrary();
-        }
-
-        function smUpdateActiveLabel() {
-            const el = document.getElementById('sm-active-label');
-            if (el) el.textContent = smState.activeId ? `Editing: ${smState.activeName}` : 'No set loaded';
-        }
-
-        let _smSetsCache = [];
-
-        async function smRenderLibrary() {
-            const container = document.getElementById('sm-library');
-            if (!container) return;
-            let sets = await smGetAll();
-            const sort = document.getElementById('sm-sort')?.value || 'recent';
-            if (sort === 'recent') sets.sort((a, b) => (b.lastUsed || 0) - (a.lastUsed || 0));
-            else if (sort === 'alpha') sets.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
-            else if (sort === 'popular') sets.sort((a, b) => (b.usageCount || 0) - (a.usageCount || 0));
-            _smSetsCache = sets;
-
-            if (!sets.length) {
-                container.innerHTML = `<p class="text-center text-slate-400 font-bold py-6">No saved sets yet.</p>`;
-                return;
-            }
-            container.innerHTML = sets.map(s => {
-                const isActive = s.id === smState.activeId;
-                const words = (s.text || '').split(',').map(w => w.trim()).filter(Boolean);
-                return `<div class="flex items-center gap-3 p-3 rounded-2xl border-4 ${isActive ? 'border-blue bg-blue/10' : 'border-dark/20 dark:border-slate-600 bg-white dark:bg-slate-700'} cursor-pointer sm-load-row" data-sm-id="${s.id}">
-                    <div class="flex-1 min-w-0 pointer-events-none">
-                        <p class="font-heading font-bold text-base ${isActive ? 'text-blue' : 'text-dark dark:text-white'} flex items-center gap-2">${s.name}${isActive ? ' <span class="text-[10px] bg-blue text-white px-2 py-0.5 rounded-full uppercase tracking-widest">Active</span>' : ''}</p>
-                        <p class="text-xs text-slate-400 font-bold mt-0.5">${words.length} word${words.length !== 1 ? 's' : ''} · Used ${s.usageCount || 0}×</p>
-                    </div>
-                    <button class="sm-del-btn btn-brutal bg-pink/10 hover:bg-pink text-pink hover:text-dark w-8 h-8 flex items-center justify-center rounded-lg border-2 border-pink/40 hover:border-pink shrink-0" data-sm-del="${s.id}">
-                        <i data-lucide="trash-2" class="w-4 h-4 stroke-[2.5] pointer-events-none"></i>
-                    </button>
-                </div>`;
-            }).join('');
-            lucide.createIcons();
-            container.querySelectorAll('.sm-load-row').forEach(row => {
-                row.addEventListener('click', async (e) => {
-                    if (e.target.closest('.sm-del-btn')) return;
-                    const id = parseInt(row.dataset.smId);
-                    const set = _smSetsCache.find(s => s.id === id);
-                    if (set) await smLoadSet(set);
-                });
-            });
-            container.querySelectorAll('.sm-del-btn').forEach(btn => {
-                btn.addEventListener('click', async (e) => {
-                    e.stopPropagation();
-                    const id = parseInt(btn.dataset.smDel);
-                    const set = _smSetsCache.find(s => s.id === id);
-                    if (set) await smDeleteSet(set.id, set.name);
-                });
-            });
-        }
-
-        // legacy compat — old saveWords still used in old code path
-        async function saveWords() { await smSaveCurrent(); }
-        // --- REACH MODE & THEME FUNCTIONS ---
-
-function applyReachMode() {
-    // This moves the game board to the bottom of the screen for easier thumb reach
-    if (isReachMode) {
-        mainWrapper.classList.remove('justify-center');
-        mainWrapper.classList.add('justify-end', 'pb-12');
-        reachIcon.setAttribute('data-lucide', 'arrow-up');
-    } else {
-        mainWrapper.classList.remove('justify-end', 'pb-12');
-        mainWrapper.classList.add('justify-center');
-        reachIcon.setAttribute('data-lucide', 'arrow-down');
-    }
-    lucide.createIcons();
-}
-
-function toggleReachMode() {
-    isReachMode = !isReachMode;
-    applyReachMode();
-    saveToCloud();
-}
-
-function toggleDarkMode() {
-    document.documentElement.classList.toggle('dark');
-    const themeIcon = document.getElementById('theme-icon');
-    
-    if (document.documentElement.classList.contains('dark')) {
-        themeIcon.setAttribute('data-lucide', 'sun');
-    } else {
-        themeIcon.setAttribute('data-lucide', 'moon');
-    }
-    
-    lucide.createIcons();
-    saveToCloud();
-}
-
-        // ── Broadcast System ──
-        const IS_PLAYER_WINDOW = new URLSearchParams(location.search).has('player');
-        const bc = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('spell-the-word-sync') : null;
-        let _bcThrottle = null, _bcLastTime = 0;
-
-        function broadcastState(options = {}) {
-            if (!bc || IS_PLAYER_WINDOW) return;
-            const now = performance.now();
-            const minInterval = options.immediate ? 0 : 80;
-            if (_bcThrottle) clearTimeout(_bcThrottle);
-            const go = () => { _bcLastTime = performance.now(); _performBroadcast(); };
-            if (now - _bcLastTime >= minInterval) go();
-            else _bcThrottle = setTimeout(go, minInterval - (now - _bcLastTime));
-        }
-        function broadcastFullState() { broadcastState({ immediate: true }); }
-
-        function _performBroadcast() {
-            bc.postMessage({
-                type: 'state-update',
-                slotsHTML: document.getElementById('slots-container')?.innerHTML || '',
-                lettersHTML: document.getElementById('letters-container')?.innerHTML || '',
-                progressText: progressBadge?.textContent || '',
-                targetWord,
-                currentWordIndex,
-                totalWords: wordList.length,
-            });
-        }
-
-        if (bc && IS_PLAYER_WINDOW) {
-            bc.onmessage = ({ data }) => {
-                if (data.type !== 'state-update') return;
-                if (window._playerRetryInterval) { clearInterval(window._playerRetryInterval); window._playerRetryInterval = null; }
-                window._playerLoadingEl?.remove(); window._playerLoadingEl = null;
-
-                const sc = document.getElementById('slots-container');
-                if (sc) { sc.innerHTML = data.slotsHTML; sc.querySelectorAll('button,div').forEach(el => { el.onclick = null; el.style.pointerEvents = 'none'; }); }
-                const lc = document.getElementById('letters-container');
-                if (lc) { lc.innerHTML = data.lettersHTML; lc.querySelectorAll('button').forEach(el => { el.onclick = null; el.disabled = true; el.style.opacity = '0.7'; }); }
-                if (progressBadge) progressBadge.textContent = data.progressText;
-
-                const sd = document.getElementById('student-word-display');
-                if (sd) sd.textContent = data.totalWords > 0 ? `${data.currentWordIndex + 1} / ${data.totalWords}` : '—';
-            };
-        }
-
-        // Boot
-        if (IS_PLAYER_WINDOW) {
-            document.title = 'Student View | Spell It';
-            document.getElementById('btn-open-player')?.style.setProperty('display', 'none');
-            document.querySelector('button[onclick="openSettings()"]')?.style.setProperty('display', 'none');
-            document.getElementById('player-toolbar')?.classList.remove('hidden');
-            lucide.createIcons();
-            const loadingEl = document.createElement('div');
-            loadingEl.className = 'fixed top-4 left-4 z-[9999] flex items-center gap-2 px-4 py-2.5 bg-white/95 border-2 border-dark rounded-full shadow-brutal';
-            loadingEl.innerHTML = `<svg class="w-4 h-4 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M12 2a10 10 0 1 0 10 10"/></svg><span class="font-bold text-xs text-slate-500 uppercase tracking-widest">Connecting...</span>`;
-            document.body.appendChild(loadingEl);
-            window._playerLoadingEl = loadingEl;
-            const ping = () => bc?.postMessage({ type: 'player-ready' });
-            ping(); window._playerRetryInterval = setInterval(ping, 2000);
-        } else {
-            initGame();
-            if (bc) bc.onmessage = (evt) => { if (evt.data?.type === 'player-ready') broadcastFullState(); };
-            document.getElementById('btn-open-player')?.addEventListener('click', () => {
-                window.open(location.pathname + '?player=1', 'spell-student', 'width=1280,height=800,menubar=no,toolbar=no,location=no,status=no');
-            });
-        }
-    </script>
-
-    <!-- Student Toolbar -->
-    <div id="player-toolbar" class="hidden fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 px-5 py-3 bg-white/95 dark:bg-slate-900/95 border-4 border-dark rounded-2xl shadow-brutal backdrop-blur-sm">
-        <span class="font-heading font-bold text-xs uppercase tracking-widest text-slate-400">Student View</span>
-        <div class="w-px h-5 bg-slate-300"></div>
-        <span id="student-word-display" class="font-mono text-sm font-bold text-dark dark:text-slate-200">— / —</span>
+    <!-- FEEDBACK MODAL (WORD SOLVED / TRY AGAIN) -->
+    <div id="feedbackModal" class="modal-overlay" onclick="if (event.target === this) App.handleFeedbackAction()">
+        <div class="modal-card glass-surface max-w-md w-full p-6 text-center">
+            <div id="feedbackIconSlot" class="w-16 h-16 rounded-2xl bg-green text-white border-3 border-dark dark:border-slate-500 shadow-hard-md mx-auto flex items-center justify-center mb-3">
+                <i data-lucide="circle-check" class="w-8 h-8"></i>
+            </div>
+            <span id="feedbackBadge" class="sticker -rotate-2 bg-orange text-white px-3 py-1 rounded-full text-xs uppercase mb-2">Well Done</span>
+            <h2 id="feedbackTitle" class="font-heading text-3xl font-bold uppercase text-dark dark:text-white mt-1 mb-2">Awesome!</h2>
+            <p id="feedbackMessage" class="text-sm font-bold text-slate-600 dark:text-slate-300 mb-6">You spelled it right.</p>
+            <button type="button" id="feedbackActionBtn" onclick="App.handleFeedbackAction()"
+                class="btn-chunky bg-green text-white rounded-xl px-6 py-3 text-base w-full">
+                Next Word
+            </button>
+        </div>
     </div>
+
+    <!-- REUSABLE CONFIRMATION MODAL -->
+    <div id="confirmModal" class="modal-overlay" onclick="if (event.target === this) App.cancelConfirm()">
+        <div class="modal-card glass-surface max-w-md w-full p-6 text-center">
+            <div class="w-14 h-14 rounded-2xl bg-pink text-white border-3 border-dark dark:border-slate-500 shadow-hard-sm mx-auto flex items-center justify-center mb-3">
+                <i data-lucide="triangle-alert" class="w-7 h-7"></i>
+            </div>
+            <h2 id="confirmTitle" class="font-heading text-2xl font-bold uppercase text-dark dark:text-white mb-2">Delete Set?</h2>
+            <p id="confirmMessage" class="text-sm font-bold text-slate-600 dark:text-slate-300 mb-6">Are you sure?</p>
+            <div class="grid grid-cols-2 gap-3">
+                <button type="button" onclick="App.cancelConfirm()"
+                    class="btn-chunky bg-white dark:bg-slate-800 text-dark dark:text-white rounded-xl px-4 py-2.5 text-sm">
+                    Cancel
+                </button>
+                <button type="button" onclick="App.executeConfirm()"
+                    class="btn-chunky bg-pink text-white rounded-xl px-4 py-2.5 text-sm">
+                    Delete
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- FLOATING TOAST -->
+    <div id="toastBanner" role="status" aria-live="polite"
+        class="glass-surface bg-dark text-white px-4 py-2.5 rounded-xl flex items-center gap-2 text-xs sm:text-sm font-heading font-bold uppercase tracking-wide shadow-hard-md">
+        <span id="toastIconSlot" class="inline-flex items-center justify-center flex-shrink-0"><i data-lucide="info" class="w-4 h-4 text-blue"></i></span>
+        <span id="toastText">Notification</span>
+    </div>
+
 </body>
+
 </html>

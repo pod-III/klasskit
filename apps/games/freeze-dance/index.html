@@ -2,571 +2,343 @@
 <html lang="en">
 
 <head>
-    <!-- Supabase Auth -->
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.105.4"></script>
-    <script src="/supabase.js"></script>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Freeze Dance</title>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Freeze Dance | KlassKit</title>
     <link rel="icon" type="image/x-icon" href="../../../media/icon.ico" />
     <link rel="icon" type="image/webp" href="../../../media/icon.webp" />
 
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link
-        href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Nunito:wght@400;600;700;800&display=swap"
-        rel="stylesheet">
+    <!-- Early Synchronous Dark Mode & Hub Color-Theme Sync -->
+    <script>
+        (function () {
+            function readStored(key) {
+                try {
+                    var raw = localStorage.getItem(key);
+                    if (raw == null) return null;
+                    try { return JSON.parse(raw); } catch (e) { return raw; }
+                } catch (e) { return null; }
+            }
+            function syncTheme(changedKey) {
+                var isDark;
+                if (changedKey === 'theme_hub') {
+                    var hubVal = readStored('theme_hub');
+                    isDark = hubVal ? hubVal === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
+                } else {
+                    var toolTheme = readStored('theme_freeze-dance') || readStored('theme') || readStored('klasskit-theme');
+                    var hubTheme = readStored('theme_hub');
+                    isDark = toolTheme
+                        ? toolTheme === 'dark'
+                        : hubTheme
+                            ? hubTheme === 'dark'
+                            : window.matchMedia('(prefers-color-scheme: dark)').matches;
+                }
+                document.documentElement.classList.toggle('dark', isDark);
 
-    <script src="https://unpkg.com/lucide@1.16.0"></script>
+                var colorTheme = readStored('klasskit_colorTheme');
+                if (colorTheme && colorTheme !== 'classic') {
+                    document.documentElement.setAttribute('data-theme', colorTheme);
+                } else {
+                    document.documentElement.removeAttribute('data-theme');
+                }
+            }
+            syncTheme();
+            window.addEventListener('storage', function (e) {
+                if (
+                    e.key === 'theme_hub' ||
+                    e.key === 'theme_freeze-dance' ||
+                    e.key === 'theme' ||
+                    e.key === 'klasskit-theme' ||
+                    e.key === 'klasskit_colorTheme'
+                ) {
+                    syncTheme(e.key);
+                }
+            });
+        })();
+    </script>
 
-    <link rel="stylesheet" href="../../../css/tailwind.generated.css" />
+    <!-- Core Typography: Fredoka (Headings) + Nunito (Body) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet" />
 
-    <style>
-        /* GRAPH PAPER BACKGROUND */
-        body {
-            background-color: #f8fafc;
-            background-image:
-                linear-gradient(rgba(30, 41, 59, 0.05) 1px, transparent 1px),
-                linear-gradient(90deg, rgba(30, 41, 59, 0.05) 1px, transparent 1px);
-            background-size: 20px 20px;
-        }
+    <!-- Stylesheets (?v=2) -->
+    <link rel="stylesheet" href="../../../css/tailwind.generated.css?v=2" />
+    <link rel="stylesheet" href="../../../css/base.css?v=2" />
+    <link rel="stylesheet" href="../../../css/components.css?v=2" />
+    <link rel="stylesheet" href="./style.css?v=2" />
 
-        /* UTILITIES */
-        body::-webkit-scrollbar {
-            display: none;
-        }
-
-        .no-scrollbar::-webkit-scrollbar {
-            display: none;
-        }
-
-        /* Smooth Transition for Game Stage */
-        .stage-transition {
-            transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-
-        /* Animation Delays */
-        .delay-100 {
-            animation-delay: 100ms;
-        }
-
-        .delay-200 {
-            animation-delay: 200ms;
-        }
-
-        /* Number Input Reset */
-        input[type=number]::-webkit-inner-spin-button,
-        input[type=number]::-webkit-outer-spin-button {
-            -webkit-appearance: none;
-            margin: 0;
-        }
-
-        input[type=number] {
-            -moz-appearance: textfield;
-        }
-    </style>
-    <link rel="stylesheet" href="../../../css/base.css" />
-    <link rel="stylesheet" href="../../../css/components.css" />
-  
-  <script defer src="/js/analytics.js"></script>
+    <!-- Deferred Runtime Scripts -->
+    <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.105.4"></script>
+    <script defer src="/supabase.js"></script>
+    <script defer src="https://unpkg.com/lucide@1.16.0"></script>
+    <script defer src="./script.js?v=2"></script>
+    <script defer src="/js/analytics.js"></script>
 </head>
 
-<body class="h-screen w-screen overflow-hidden text-kkdark font-nunito flex flex-col">
+<body class="h-screen w-screen overflow-hidden font-body text-dark dark:text-slate-100 flex flex-col">
 
-    <header id="app-header"
-        class="bg-white border-b-4 border-kkdark px-6 py-4 flex justify-between items-center z-50 transition-transform duration-500 shadow-sm">
-        <div class="flex items-center gap-3">
-            <div
-                class="bg-kkblue text-white p-2 rounded-lg border-2 border-kkdark shadow-neo-sm transform hover:rotate-12 transition-transform">
-                <i data-lucide="music" class="w-6 h-6"></i>
+    <!-- TOP GLASSMORPHIC NAVIGATION BAR -->
+    <header id="appHeader" class="glass-topbar sticky top-0 z-40 px-3 sm:px-5 py-2.5 flex-none">
+        <div class="max-w-7xl mx-auto w-full flex flex-wrap items-center justify-between gap-2.5">
+            <!-- Brand -->
+            <div class="flex items-center gap-2.5 min-w-0">
+                <div class="w-10 h-10 rounded-xl bg-blue text-white border-2 border-dark dark:border-slate-500 shadow-hard-sm flex items-center justify-center flex-shrink-0">
+                    <i data-lucide="music" class="w-5 h-5"></i>
+                </div>
+                <div class="min-w-0">
+                    <h1 class="font-heading text-lg sm:text-xl font-bold uppercase tracking-tight leading-none text-dark dark:text-white truncate">
+                        Freeze Dance
+                    </h1>
+                    <p class="text-[11px] font-extrabold uppercase tracking-widest text-slate-500 dark:text-slate-400 truncate mt-0.5">
+                        Classroom Movement Studio
+                    </p>
+                </div>
             </div>
-            <h1 class="font-fredoka text-2xl font-bold tracking-wide">Freeze<span class="text-kkpink">Dance</span></h1>
-        </div>
-        <div class="hidden md:flex gap-2">
-            <div
-                class="font-bold bg-kkchalk border-2 border-kkdark px-4 py-1 rounded-full text-slate-500 text-xs uppercase shadow-neo-sm">
-                <i data-lucide="settings" class="w-3 h-3 inline mr-1"></i> Custom Timing
+
+            <!-- Controls -->
+            <div class="flex items-center gap-2">
+                <div class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white dark:bg-slate-800 border-2 border-dark dark:border-slate-500 shadow-hard-sm font-heading font-bold text-xs uppercase text-dark dark:text-white">
+                    <i data-lucide="snowflake" class="w-4 h-4 text-pink"></i>
+                    <span id="roundBadge">Round 0</span>
+                </div>
+
+                <button type="button" id="sfxToggleBtn" onclick="App.toggleSfx()" aria-label="Toggle sound effects"
+                    class="btn-chunky bg-white dark:bg-slate-800 text-dark dark:text-white rounded-xl px-3 py-1.5 text-xs flex items-center gap-1.5">
+                    <span id="sfxIconSlot" class="inline-flex items-center justify-center"><i data-lucide="volume-2" class="w-4 h-4 text-green"></i></span>
+                    <span id="sfxLabel" class="hidden sm:inline">SFX: ON</span>
+                </button>
+
+                <button type="button" id="themeToggleBtn" onclick="App.toggleTheme()" aria-label="Toggle dark mode"
+                    class="btn-chunky bg-white dark:bg-slate-800 text-dark dark:text-white rounded-xl w-9 h-9 p-0 flex-shrink-0">
+                    <span id="themeToggleIconSlot" class="inline-flex items-center justify-center"><i data-lucide="moon" class="w-4 h-4"></i></span>
+                </button>
             </div>
         </div>
     </header>
 
-    <main class="flex-1 flex gap-6 p-6 max-w-7xl mx-auto w-full h-full relative">
+    <!-- MAIN STUDIO WORKSPACE -->
+    <main class="flex-1 min-h-0 max-w-7xl mx-auto w-full flex flex-col lg:flex-row gap-4 p-3 sm:p-5 overflow-y-auto lg:overflow-hidden">
 
-        <aside id="panel-controls"
-            class="w-96 bg-white border-4 border-kkdark rounded-2xl shadow-neo flex flex-col transition-all duration-500 z-40 overflow-hidden">
-
-            <div class="p-5 border-b-2 border-slate-100 bg-slate-50 flex justify-between items-center">
-                <h2 class="font-fredoka text-xl font-bold flex items-center gap-2 text-kkdark">
-                    <i data-lucide="sliders-horizontal" class="w-5 h-5 text-kkorange"></i> Controls
+        <!-- LEFT: SETUP CONTROLS SIDEBAR -->
+        <aside id="panelControls" class="glass-surface w-full lg:w-[390px] flex flex-col lg:min-h-0 flex-shrink-0 overflow-hidden">
+            <div class="px-4 py-3 border-b-2 border-slate-200 dark:border-slate-700 flex items-center justify-between flex-none">
+                <h2 class="font-heading text-lg font-bold uppercase text-dark dark:text-white flex items-center gap-2">
+                    <i data-lucide="sliders-horizontal" class="w-4 h-4 text-orange"></i>
+                    <span>Game Controls</span>
                 </h2>
-                <div
-                    class="text-[10px] font-bold text-kkgreen bg-green-100 px-2 py-1 rounded-full border border-kkgreen">
-                    Auto-Saved
-                </div>
+                <span class="sticker bg-green text-white px-2.5 py-0.5 rounded-full text-[10px] uppercase">Auto-Saved</span>
             </div>
 
-            <div class="p-5 overflow-y-auto space-y-6 flex-1 no-scrollbar">
+            <div class="p-4 overflow-y-auto space-y-4 flex-1">
+                <!-- 1. Music Source -->
+                <div class="bg-white/80 dark:bg-slate-800/80 border-2 border-dark dark:border-slate-500 rounded-2xl p-3.5 space-y-3">
+                    <div class="flex items-center justify-between gap-2">
+                        <span class="text-xs font-heading font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300">1. Music Source</span>
+                        <span id="sourceStatusHint" class="text-[11px] font-extrabold text-green uppercase">Ready</span>
+                    </div>
 
-                <div class="group">
-                    <label class="font-black text-slate-400 text-xs uppercase mb-2 block tracking-wider">1. Music
-                        Source</label>
-                    <div class="relative">
-                        <input type="file" id="file-input" accept="audio/*,video/*"
-                            class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10">
-                        <div
-                            class="w-full bg-kkchalk group-hover:bg-slate-100 text-kkdark font-fredoka font-bold py-3 px-4 rounded-xl border-2 border-dashed border-kkdark transition-all flex justify-center items-center gap-2 shadow-sm">
-                            <i data-lucide="upload-cloud" class="w-5 h-5 text-kkblue"></i>
-                            <span id="file-label">Upload Video/Audio</span>
-                        </div>
-                    </div>
-                    <div id="file-meta" class="hidden mt-2 flex justify-between items-center px-1">
-                        <span id="file-name-display" class="text-xs font-bold text-kkgreen truncate max-w-[200px]">Song
-                            Name</span>
-                        <span id="file-duration-display"
-                            class="text-[10px] font-bold bg-slate-200 text-slate-500 px-2 py-0.5 rounded">0:00</span>
-                    </div>
-                </div>
-
-                <div class="bg-blue-50/50 p-3 rounded-xl border-2 border-blue-100">
-                    <label class="font-black text-kkblue text-xs uppercase mb-2 block tracking-wider">2. Dance Interval
-                        (Sec)</label>
-                    <div class="flex gap-2">
-                        <div class="flex-1">
-                            <span class="text-[10px] font-bold text-slate-400 block mb-1">MIN</span>
-                            <input type="number" id="dance-min" value="10" min="5" max="60"
-                                onchange="game.saveSettings()"
-                                class="w-full text-center font-fredoka text-lg font-bold bg-white border-2 border-kkdark rounded-lg py-1.5 focus:outline-none focus:ring-2 focus:ring-kkblue shadow-sm">
-                        </div>
-                        <div class="flex-1">
-                            <span class="text-[10px] font-bold text-slate-400 block mb-1">MAX</span>
-                            <input type="number" id="dance-max" value="25" min="5" max="120"
-                                onchange="game.saveSettings()"
-                                class="w-full text-center font-fredoka text-lg font-bold bg-white border-2 border-kkdark rounded-lg py-1.5 focus:outline-none focus:ring-2 focus:ring-kkblue shadow-sm">
-                        </div>
-                    </div>
-                </div>
-
-                <div class="bg-pink-50/50 p-3 rounded-xl border-2 border-pink-100 grid grid-cols-2 gap-3">
-                    <div class="col-span-2">
-                        <label class="font-black text-kkpink text-xs uppercase block tracking-wider">3. Freeze Time
-                            (Sec)</label>
-                    </div>
-                    <div>
-                        <span class="text-[10px] font-bold text-slate-400 block mb-1">MIN FREEZE</span>
-                        <input type="number" id="freeze-min" value="3" min="1" max="10" onchange="game.saveSettings()"
-                            class="w-full text-center font-fredoka text-lg font-bold bg-white border-2 border-kkdark rounded-lg py-1.5 focus:outline-none focus:ring-2 focus:ring-kkpink shadow-sm">
-                    </div>
-                    <div>
-                        <span class="text-[10px] font-bold text-slate-400 block mb-1">MAX FREEZE</span>
-                        <input type="number" id="freeze-max" value="6" min="1" max="15" onchange="game.saveSettings()"
-                            class="w-full text-center font-fredoka text-lg font-bold bg-white border-2 border-kkdark rounded-lg py-1.5 focus:outline-none focus:ring-2 focus:ring-kkpink shadow-sm">
-                    </div>
-                    <div class="col-span-2 pt-2 border-t border-pink-200 mt-1">
-                        <div class="flex justify-between items-center">
-                            <span class="text-[10px] font-bold text-slate-500 uppercase">Warning Time (Sec)</span>
-                            <input type="number" id="warning-time" value="4" min="0" max="10"
-                                onchange="game.saveSettings()"
-                                class="w-16 text-center font-fredoka text-sm font-bold bg-white border-2 border-kkdark rounded-lg py-1 focus:outline-none focus:ring-2 focus:ring-kkorange shadow-sm">
-                        </div>
-                    </div>
-                </div>
-
-                <div class="bg-kkchalk/50 p-3 rounded-xl border-2 border-kkdark/20">
-                    <label class="font-black text-slate-500 text-xs uppercase mb-2 block tracking-wider">4. Student
-                        Spotlight</label>
-                    <div class="flex gap-2 mb-3">
-                        <input type="text" id="student-input" placeholder="Name + Enter"
-                            class="w-full px-3 py-2 rounded-lg border-2 border-kkdark font-bold text-sm focus:outline-none focus:ring-2 focus:ring-kkgreen transition-all shadow-neo-sm"
-                            onkeypress="game.handleInput(event)">
-                        <button onclick="game.addStudent()"
-                            class="bg-kkgreen text-white p-2 rounded-lg border-2 border-kkdark shadow-neo-sm active:translate-y-1 active:shadow-none transition-transform">
-                            <i data-lucide="plus" class="w-5 h-5"></i>
+                    <div class="grid grid-cols-2 gap-1.5">
+                        <button type="button" id="srcBuiltInBtn" onclick="App.setAudioSource('builtin')"
+                            class="source-pill is-active px-2.5 py-2 flex items-center justify-center gap-1.5 bg-white dark:bg-slate-900 text-dark dark:text-white">
+                            <i data-lucide="music" class="w-3.5 h-3.5"></i>
+                            <span>Built-In Beat</span>
+                        </button>
+                        <button type="button" id="srcUploadBtn" onclick="App.setAudioSource('upload')"
+                            class="source-pill px-2.5 py-2 flex items-center justify-center gap-1.5 bg-white dark:bg-slate-900 text-dark dark:text-white">
+                            <i data-lucide="upload" class="w-3.5 h-3.5"></i>
+                            <span>Custom File</span>
                         </button>
                     </div>
 
-                    <div id="student-list" class="flex flex-wrap gap-2 max-h-24 overflow-y-auto content-start pr-1">
+                    <div id="uploadZone" class="is-hidden space-y-2">
+                        <label for="fileInput" class="block relative cursor-pointer">
+                            <input type="file" id="fileInput" accept="audio/*,video/*" onchange="App.handleFileUpload(event)"
+                                class="sr-only" />
+                            <span class="w-full rounded-xl border-2 border-dashed border-dark dark:border-slate-400 bg-slate-50 dark:bg-slate-900 py-3 px-4 flex items-center justify-center gap-2 text-sm font-heading font-bold uppercase text-dark dark:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+                                <i data-lucide="upload" class="w-4 h-4 text-blue"></i>
+                                <span id="fileLabel">Upload Audio or Video</span>
+                            </span>
+                        </label>
+
+                        <div id="fileMeta" class="is-hidden flex items-center justify-between gap-2 px-2 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-600">
+                            <span id="fileNameDisplay" class="text-xs font-extrabold text-green truncate">Song Name</span>
+                            <span id="fileDurationDisplay" class="text-[11px] font-heading font-bold bg-white dark:bg-slate-800 px-2 py-0.5 rounded-md border border-slate-300 dark:border-slate-600">0:00</span>
+                        </div>
+
+                        <button type="button" id="showVideoToggle" onclick="App.toggleShowVideo()"
+                            class="is-hidden w-full btn-chunky bg-white dark:bg-slate-900 text-dark dark:text-white rounded-xl px-3 py-1.5 text-xs flex items-center justify-center gap-1.5">
+                            <span id="showVideoIconSlot" class="inline-flex items-center justify-center"><i data-lucide="video" class="w-3.5 h-3.5 text-blue"></i></span>
+                            <span id="showVideoLabel">Video Backdrop: OFF</span>
+                        </button>
                     </div>
                 </div>
 
+                <!-- 2. Dance Interval -->
+                <div class="bg-blue/10 dark:bg-slate-800/80 border-2 border-dark dark:border-slate-500 rounded-2xl p-3.5 space-y-2">
+                    <span class="text-xs font-heading font-bold uppercase tracking-wider text-blue block">2. Dance Interval (Sec)</span>
+                    <div class="grid grid-cols-2 gap-2.5">
+                        <div>
+                            <label for="danceMin" class="text-[10px] font-extrabold uppercase text-slate-500 dark:text-slate-400 block mb-1">Min</label>
+                            <input type="number" id="danceMin" value="10" min="5" max="60" onchange="App.saveSettings()"
+                                class="w-full text-center font-heading text-lg font-bold bg-white dark:bg-slate-900 text-dark dark:text-white border-2 border-dark dark:border-slate-500 rounded-xl py-1.5" />
+                        </div>
+                        <div>
+                            <label for="danceMax" class="text-[10px] font-extrabold uppercase text-slate-500 dark:text-slate-400 block mb-1">Max</label>
+                            <input type="number" id="danceMax" value="25" min="5" max="120" onchange="App.saveSettings()"
+                                class="w-full text-center font-heading text-lg font-bold bg-white dark:bg-slate-900 text-dark dark:text-white border-2 border-dark dark:border-slate-500 rounded-xl py-1.5" />
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 3. Freeze & Warning Timers -->
+                <div class="bg-pink/10 dark:bg-slate-800/80 border-2 border-dark dark:border-slate-500 rounded-2xl p-3.5 space-y-2.5">
+                    <span class="text-xs font-heading font-bold uppercase tracking-wider text-pink block">3. Freeze &amp; Warning (Sec)</span>
+                    <div class="grid grid-cols-3 gap-2">
+                        <div>
+                            <label for="freezeMin" class="text-[10px] font-extrabold uppercase text-slate-500 dark:text-slate-400 block mb-1">Min Freeze</label>
+                            <input type="number" id="freezeMin" value="3" min="1" max="15" onchange="App.saveSettings()"
+                                class="w-full text-center font-heading text-base font-bold bg-white dark:bg-slate-900 text-dark dark:text-white border-2 border-dark dark:border-slate-500 rounded-xl py-1.5" />
+                        </div>
+                        <div>
+                            <label for="freezeMax" class="text-[10px] font-extrabold uppercase text-slate-500 dark:text-slate-400 block mb-1">Max Freeze</label>
+                            <input type="number" id="freezeMax" value="6" min="1" max="20" onchange="App.saveSettings()"
+                                class="w-full text-center font-heading text-base font-bold bg-white dark:bg-slate-900 text-dark dark:text-white border-2 border-dark dark:border-slate-500 rounded-xl py-1.5" />
+                        </div>
+                        <div>
+                            <label for="warningTime" class="text-[10px] font-extrabold uppercase text-slate-500 dark:text-slate-400 block mb-1">Warning</label>
+                            <input type="number" id="warningTime" value="4" min="0" max="10" onchange="App.saveSettings()"
+                                class="w-full text-center font-heading text-base font-bold bg-white dark:bg-slate-900 text-dark dark:text-white border-2 border-dark dark:border-slate-500 rounded-xl py-1.5" />
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 4. Student Spotlight Roster -->
+                <div class="bg-white/80 dark:bg-slate-800/80 border-2 border-dark dark:border-slate-500 rounded-2xl p-3.5 space-y-2.5">
+                    <div class="flex items-center justify-between gap-2">
+                        <span class="text-xs font-heading font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300 flex items-center gap-1.5">
+                            <i data-lucide="users" class="w-3.5 h-3.5 text-green"></i>
+                            <span>4. Student Spotlight</span>
+                        </span>
+                        <button type="button" id="clearStudentsBtn" onclick="App.promptClearStudents()"
+                            class="text-[11px] font-heading font-bold uppercase text-pink hover:underline rounded-md px-1">
+                            Clear
+                        </button>
+                    </div>
+
+                    <div class="flex gap-2">
+                        <input type="text" id="studentInput" placeholder="Name or comma list + Enter"
+                            onkeydown="App.handleStudentKeydown(event)"
+                            class="flex-1 px-3 py-2 rounded-xl border-2 border-dark dark:border-slate-500 bg-slate-50 dark:bg-slate-900 text-dark dark:text-white font-bold text-xs placeholder:text-slate-400" />
+                        <button type="button" onclick="App.addStudent()" aria-label="Add student"
+                            class="btn-chunky bg-green text-white rounded-xl px-3 py-2 flex items-center justify-center">
+                            <i data-lucide="plus" class="w-4 h-4"></i>
+                        </button>
+                    </div>
+
+                    <div id="studentList" class="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto"></div>
+                </div>
             </div>
 
-            <div class="p-5 mt-auto border-t-2 border-slate-100 bg-white">
-                <button id="btn-start" onclick="game.toggle()" disabled
-                    class="w-full bg-slate-200 text-slate-400 font-fredoka font-bold py-4 rounded-xl border-2 border-kkdark shadow-none transition-all flex justify-center items-center gap-2 text-lg cursor-not-allowed">
-                    <i data-lucide="play-circle"></i> Waiting for media...
+            <div class="p-4 border-t-2 border-slate-200 dark:border-slate-700 bg-white/70 dark:bg-slate-900/70 flex-none">
+                <button type="button" id="btnStart" onclick="App.toggle()"
+                    class="btn-chunky bg-green text-white rounded-2xl py-3.5 px-5 text-lg w-full flex items-center justify-center gap-2">
+                    <span id="btnStartIconSlot" class="inline-flex items-center justify-center"><i data-lucide="play" class="w-5 h-5"></i></span>
+                    <span id="btnStartLabel">Start Freeze Dance</span>
                 </button>
+                <p class="text-[11px] font-bold text-center text-slate-500 dark:text-slate-400 mt-2">
+                    Press <kbd class="px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-700 border border-dark dark:border-slate-500 font-heading text-[10px]">Space</kbd> during play to trigger instant Freeze / Dance.
+                </p>
             </div>
         </aside>
 
-        <section id="panel-game"
-            class="flex-1 bg-white border-4 border-kkdark rounded-2xl shadow-neo relative overflow-hidden flex flex-col items-center justify-center p-4 stage-transition">
+        <!-- RIGHT: STAGE PANEL (BECOMES IMMERSIVE FULL-VIEW WHEN RUNNING) -->
+        <section id="panelGame" class="stage-panel stage-idle flex-1 min-h-[300px] flex flex-col items-center justify-center p-6 text-center">
+            <div class="stage-dots" aria-hidden="true"></div>
+            <video id="mediaPlayer" playsinline loop class="stage-video is-hidden"></video>
 
-            <video id="media-player" playsinline class="hidden"></video>
+            <!-- Floating Immersive Top-Right HUD -->
+            <div id="immersiveStageHud" class="is-hidden absolute top-4 right-4 z-20 flex items-center gap-2">
+                <span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/95 text-dark border-2 border-dark shadow-hard-sm font-heading font-bold text-xs uppercase">
+                    <i data-lucide="snowflake" class="w-3.5 h-3.5 text-pink"></i>
+                    <span id="immersiveRoundText">Round 0</span>
+                </span>
+                <button type="button" id="immersiveSfxBtn" onclick="App.toggleSfx()" aria-label="Toggle sound effects during game"
+                    class="btn-chunky bg-white text-dark rounded-xl w-9 h-9 p-0">
+                    <span id="immersiveSfxIconSlot" class="inline-flex items-center justify-center"><i data-lucide="volume-2" class="w-4 h-4 text-green"></i></span>
+                </button>
+            </div>
 
-            <div class="text-center z-10 relative w-full flex flex-col items-center">
-                <div id="status-emoji" class="text-8xl mb-4 filter drop-shadow-md transition-transform duration-300">👋
+            <div class="relative z-10 flex flex-col items-center max-w-3xl w-full">
+                <!-- Beat Equalizer Bars (Dance Phase Only) -->
+                <div id="beatVisualizer" class="is-hidden flex items-end justify-center gap-2 h-9 mb-4" aria-hidden="true">
+                    <span class="eq-bar"></span>
+                    <span class="eq-bar"></span>
+                    <span class="eq-bar"></span>
+                    <span class="eq-bar"></span>
+                    <span class="eq-bar"></span>
                 </div>
-                <h2 id="status-text"
-                    class="font-fredoka text-6xl md:text-8xl font-black tracking-tighter text-kkdark uppercase drop-shadow-sm transition-all duration-200 leading-none">
-                    HELLO!
+
+                <!-- Hero Stage Icon -->
+                <div id="stageIconSlot" class="stage-icon-badge bg-white text-dark mb-5">
+                    <i data-lucide="hand" class="w-12 h-12 text-blue"></i>
+                </div>
+
+                <h2 id="statusText" class="font-heading text-5xl sm:text-7xl md:text-8xl font-bold uppercase tracking-tight leading-none">
+                    Ready!
                 </h2>
-                <p id="sub-text"
-                    class="text-xl font-bold text-slate-400 mt-6 bg-white/80 px-4 py-1 rounded-full backdrop-blur-sm border-2 border-transparent transition-all">
-                    Upload a file to begin
+
+                <p id="subText" class="mt-5 px-5 py-2 rounded-full bg-white/95 text-dark border-2 border-dark shadow-hard-sm font-heading font-bold text-base sm:text-xl uppercase tracking-wide">
+                    Built-in beat armed — press Start to dance!
                 </p>
 
-                <div id="spotlight-container"
-                    class="mt-8 flex flex-col gap-4 items-center min-h-[120px] justify-center perspective-1000">
-                </div>
+                <!-- Spotlight Picks -->
+                <div id="spotlightContainer" class="mt-7 flex flex-wrap gap-3 items-center justify-center min-h-[76px]"></div>
             </div>
 
-            <button onclick="game.stop()" id="btn-stop-float"
-                class="absolute bottom-12 bg-kkpink text-white font-fredoka font-bold py-3 px-10 rounded-full border-4 border-white shadow-lg transform translate-y-60 transition-transform duration-500 hover:scale-105 active:scale-95 flex items-center gap-2 z-50">
-                <i data-lucide="square" class="fill-current"></i> STOP GAME
-            </button>
-
-            <div
-                class="absolute inset-0 opacity-10 pointer-events-none bg-[radial-gradient(#1e293b_2px,transparent_2px)] [background-size:24px_24px]">
+            <!-- Immersive Play Controls Dock -->
+            <div id="immersiveControls" class="is-hidden relative z-20 mt-6 flex flex-wrap items-center justify-center gap-3">
+                <button type="button" id="btnManualToggle" onclick="App.manualOverride()"
+                    class="btn-chunky bg-white text-dark rounded-2xl px-5 py-3 text-sm sm:text-base flex items-center gap-2">
+                    <span id="manualToggleIconSlot" class="inline-flex items-center justify-center"><i data-lucide="snowflake" class="w-5 h-5 text-pink"></i></span>
+                    <span id="manualToggleLabel">Instant Freeze (Space)</span>
+                </button>
+                <button type="button" id="btnStopFloat" onclick="App.stop()"
+                    class="btn-chunky bg-dark text-white rounded-2xl px-6 py-3 text-sm sm:text-base flex items-center gap-2">
+                    <i data-lucide="square" class="w-4 h-4"></i>
+                    <span>Stop Game</span>
+                </button>
             </div>
         </section>
-
     </main>
 
-    <script>
-        class FreezeDanceGame {
-            constructor() {
-                this.state = {
-                    isRunning: false,
-                    isFrozen: false,
-                    students: [],
-                    timer: null
-                };
+    <!-- REUSABLE CONFIRMATION MODAL -->
+    <div id="confirmModal" class="modal-overlay" onclick="if (event.target === this) App.cancelConfirm()">
+        <div class="modal-card glass-surface max-w-md w-full p-6 text-center">
+            <div class="w-14 h-14 rounded-2xl bg-pink text-white border-3 border-dark dark:border-slate-500 shadow-hard-sm mx-auto flex items-center justify-center mb-3">
+                <i data-lucide="triangle-alert" class="w-7 h-7"></i>
+            </div>
+            <h2 id="confirmTitle" class="font-heading text-2xl font-bold uppercase text-dark dark:text-white mb-2">Confirm</h2>
+            <p id="confirmMessage" class="text-sm font-bold text-slate-600 dark:text-slate-300 mb-6">Are you sure?</p>
+            <div class="grid grid-cols-2 gap-3">
+                <button type="button" onclick="App.cancelConfirm()"
+                    class="btn-chunky bg-white dark:bg-slate-800 text-dark dark:text-white rounded-xl px-4 py-2.5 text-sm">
+                    Cancel
+                </button>
+                <button type="button" onclick="App.executeConfirm()"
+                    class="btn-chunky bg-pink text-white rounded-xl px-4 py-2.5 text-sm">
+                    Clear All
+                </button>
+            </div>
+        </div>
+    </div>
 
-                // DOM Elements Maps
-                this.els = {
-                    fileInput: document.getElementById('file-input'),
-                    fileLabel: document.getElementById('file-label'),
-                    fileMeta: document.getElementById('file-meta'),
-                    fileName: document.getElementById('file-name-display'),
+    <!-- FLOATING TOAST -->
+    <div id="toastBanner" role="status" aria-live="polite"
+        class="glass-surface bg-dark text-white px-4 py-2.5 rounded-xl flex items-center gap-2 text-xs sm:text-sm font-heading font-bold uppercase tracking-wide shadow-hard-md">
+        <span id="toastIconSlot" class="inline-flex items-center justify-center flex-shrink-0"><i data-lucide="info" class="w-4 h-4 text-blue"></i></span>
+        <span id="toastText">Notification</span>
+    </div>
 
-                    player: document.getElementById('media-player'),
-                    startBtn: document.getElementById('btn-start'),
-                    stopBtn: document.getElementById('btn-stop-float'),
-
-                    controls: document.getElementById('panel-controls'),
-                    gamePanel: document.getElementById('panel-game'),
-                    header: document.getElementById('app-header'),
-
-                    emoji: document.getElementById('status-emoji'),
-                    mainText: document.getElementById('status-text'),
-                    subText: document.getElementById('sub-text'),
-                    spotlight: document.getElementById('spotlight-container'),
-
-                    studentInput: document.getElementById('student-input'),
-                    studentList: document.getElementById('student-list'),
-
-                    inputs: {
-                        danceMin: document.getElementById('dance-min'),
-                        danceMax: document.getElementById('dance-max'),
-                        freezeMin: document.getElementById('freeze-min'),
-                        freezeMax: document.getElementById('freeze-max'),
-                        warning: document.getElementById('warning-time')
-                    }
-                };
-
-                this.initListeners();
-            }
-
-            async init() {
-                await requireAuth();
-
-                const cloudData = await loadProgress('freeze_dance');
-                if (cloudData) {
-                    if (cloudData.danceMin) this.els.inputs.danceMin.value = cloudData.danceMin;
-                    if (cloudData.danceMax) this.els.inputs.danceMax.value = cloudData.danceMax;
-                    if (cloudData.freezeMin) this.els.inputs.freezeMin.value = cloudData.freezeMin;
-                    if (cloudData.freezeMax) this.els.inputs.freezeMax.value = cloudData.freezeMax;
-                    if (cloudData.warning) this.els.inputs.warning.value = cloudData.warning;
-                    if (cloudData.students) {
-                        this.state.students = cloudData.students;
-                    }
-                    // Sync to local storage
-                    this.saveSettings(true); // pass true to skip re-syncing to cloud immediately
-                } else {
-                    this.loadSettings();
-                }
-
-                this.renderStudents();
-            }
-
-            /* --- LOCAL STORAGE PERSISTENCE --- */
-            saveSettings(skipCloud = false) {
-                const settings = {
-                    danceMin: this.els.inputs.danceMin.value,
-                    danceMax: this.els.inputs.danceMax.value,
-                    freezeMin: this.els.inputs.freezeMin.value,
-                    freezeMax: this.els.inputs.freezeMax.value,
-                    warning: this.els.inputs.warning.value,
-                    students: this.state.students
-                };
-                localStorage.setItem('freezeDanceSettings', JSON.stringify(settings));
-                if (!skipCloud) this.syncToCloud(settings);
-            }
-
-            syncToCloud(settings) {
-                if (this.syncTimeout) clearTimeout(this.syncTimeout);
-                this.syncTimeout = setTimeout(() => {
-                    saveProgress('freeze_dance', settings);
-                }, 1500);
-            }
-
-            loadSettings() {
-                const saved = localStorage.getItem('freezeDanceSettings');
-                if (saved) {
-                    const settings = JSON.parse(saved);
-                    if (settings.danceMin) this.els.inputs.danceMin.value = settings.danceMin;
-                    if (settings.danceMax) this.els.inputs.danceMax.value = settings.danceMax;
-                    if (settings.freezeMin) this.els.inputs.freezeMin.value = settings.freezeMin;
-                    if (settings.freezeMax) this.els.inputs.freezeMax.value = settings.freezeMax;
-                    if (settings.warning) this.els.inputs.warning.value = settings.warning;
-                    if (settings.students) {
-                        this.state.students = settings.students;
-                        this.renderStudents();
-                    }
-                } else {
-                    this.renderStudents(); // render empty state
-                }
-            }
-
-            /* --- INITIALIZATION --- */
-            initListeners() {
-                this.els.fileInput.addEventListener('change', (e) => this.handleFileUpload(e));
-
-                document.addEventListener('keydown', (e) => {
-                    if (e.code === 'Space' && this.els.player.src && document.activeElement !== this.els.studentInput) {
-                        e.preventDefault();
-                        if (!this.state.isRunning) this.toggle();
-                        else this.manualOverride();
-                    }
-                });
-            }
-
-            /* --- UI MANAGMENT --- */
-            handleFileUpload(e) {
-                const file = e.target.files[0];
-                if (!file) return;
-
-                this.els.player.src = URL.createObjectURL(file);
-                this.els.player.load();
-
-                this.els.fileLabel.innerText = "Change Source";
-                this.els.fileName.innerText = file.name;
-                this.els.fileMeta.classList.remove('hidden');
-
-                this.els.startBtn.disabled = false;
-                this.els.startBtn.classList.remove('bg-slate-200', 'text-slate-400', 'cursor-not-allowed', 'shadow-none');
-                this.els.startBtn.classList.add('bg-kkgreen', 'text-white', 'hover:bg-green-400', 'shadow-neo', 'active:translate-y-1', 'active:shadow-none');
-                this.els.startBtn.innerHTML = '<i data-lucide="play" class="fill-current"></i> START GAME';
-                lucide.createIcons();
-
-                this.els.mainText.innerText = "READY?";
-                this.els.subText.innerText = "Press Start to begin!";
-            }
-
-            /* --- STUDENT MANAGEMENT --- */
-            handleInput(e) { if (e.key === 'Enter') this.addStudent(); }
-
-            addStudent() {
-                const val = this.els.studentInput.value.trim();
-                if (!val) return;
-                this.state.students.push(val);
-                this.els.studentInput.value = '';
-                this.renderStudents();
-                this.saveSettings();
-            }
-
-            removeStudent(index) {
-                this.state.students.splice(index, 1);
-                this.renderStudents();
-                this.saveSettings();
-            }
-
-            renderStudents() {
-                this.els.studentList.innerHTML = '';
-                if (this.state.students.length === 0) {
-                    this.els.studentList.innerHTML = '<div class="text-xs text-slate-400 font-bold w-full text-center py-4 border-2 border-dashed border-slate-300 rounded-lg">Roster is empty</div>';
-                    return;
-                }
-
-                this.state.students.forEach((name, i) => {
-                    const tag = document.createElement('div');
-                    tag.className = "bg-white border-2 border-kkdark px-3 py-1 rounded-full text-xs font-bold flex items-center gap-2 shadow-sm animate-pop-in hover:bg-slate-50";
-                    tag.innerHTML = `
-                        ${name}
-                        <button onclick="game.removeStudent(${i})" class="text-kkpink hover:bg-kkpink hover:text-white rounded-full p-0.5 transition-colors">
-                            <i data-lucide="x" class="w-3 h-3"></i>
-                        </button>`;
-                    this.els.studentList.appendChild(tag);
-                });
-                lucide.createIcons();
-            }
-
-            /* --- GAME ENGINE --- */
-            toggle() {
-                if (this.state.isRunning) this.stop();
-                else this.start();
-            }
-
-            start() {
-                if (!this.els.player.src) return;
-                this.state.isRunning = true;
-
-                // Enter Immersive Mode
-                this.els.controls.style.marginLeft = "-25rem";
-                this.els.header.style.transform = "translateY(-150%)";
-
-                this.els.gamePanel.classList.remove('border-4', 'rounded-2xl');
-                this.els.gamePanel.classList.add('fixed', 'inset-0', 'z-50', 'rounded-none');
-
-                this.els.stopBtn.style.transform = "translateY(0)";
-
-                this.runDance();
-            }
-
-            stop() {
-                this.state.isRunning = false;
-                clearTimeout(this.state.timer);
-                this.els.player.pause();
-
-                // Exit Immersive Mode
-                this.els.controls.style.marginLeft = "0";
-                this.els.header.style.transform = "translateY(0)";
-
-                this.els.gamePanel.classList.add('border-4', 'rounded-2xl');
-                this.els.gamePanel.classList.remove('fixed', 'inset-0', 'z-50', 'rounded-none', 'bg-kkgreen', 'bg-kkpink', 'bg-kkorange');
-                this.els.gamePanel.classList.add('bg-white');
-
-                this.els.stopBtn.style.transform = "translateY(150px)";
-
-                this.els.emoji.innerText = "😌";
-                this.els.mainText.innerText = "PAUSED";
-                this.els.mainText.className = "font-fredoka text-6xl md:text-8xl font-black tracking-tighter text-kkdark uppercase drop-shadow-sm transition-all duration-200 leading-none";
-
-                this.els.subText.innerText = "Good Game!";
-                this.els.subText.className = "text-xl font-bold text-slate-400 mt-6 bg-white/80 px-4 py-1 rounded-full border-2 border-transparent transition-all";
-
-                this.els.spotlight.innerHTML = "";
-                this.els.startBtn.innerHTML = '<i data-lucide="rotate-ccw"></i> RESUME GAME';
-                lucide.createIcons();
-            }
-
-            /* --- LOGIC TIMERS --- */
-            getVal(id) {
-                return parseInt(this.els.inputs[id].value) || 0;
-            }
-
-            runDance() {
-                if (!this.state.isRunning) return;
-                this.state.isFrozen = false;
-
-                this.els.gamePanel.className = "fixed inset-0 z-50 rounded-none stage-transition bg-kkgreen flex flex-col items-center justify-center p-4";
-                this.els.emoji.innerText = "💃";
-                this.els.mainText.innerText = "DANCE!";
-                this.els.mainText.classList.add('text-white', 'drop-shadow-lg');
-                this.els.mainText.classList.remove('text-kkdark');
-
-                this.els.subText.innerText = "Keep moving!";
-                this.els.subText.className = "text-xl font-bold text-kkgreen mt-6 bg-white px-6 py-2 rounded-full shadow-neo-sm border-2 border-kkdark";
-
-                this.els.spotlight.innerHTML = "";
-                this.els.player.play();
-
-                // Calculate random dance duration
-                const minSec = this.getVal('danceMin');
-                const maxSec = Math.max(minSec, this.getVal('danceMax')); // Fallback to min if max is lower
-
-                const minMs = minSec * 1000;
-                const maxMs = maxSec * 1000;
-                let nextStopMs = Math.floor(Math.random() * (maxMs - minMs + 1) + minMs);
-
-                const warningMs = this.getVal('warning') * 1000;
-
-                // Fire warning phase if students exist and time allows
-                if (this.state.students.length > 0 && warningMs > 0 && nextStopMs > warningMs + 2000) {
-                    this.state.timer = setTimeout(() => this.runWarning(), nextStopMs - warningMs);
-                } else {
-                    this.state.timer = setTimeout(() => this.runFreeze(null), nextStopMs);
-                }
-            }
-
-            runWarning() {
-                if (!this.state.isRunning) return;
-
-                this.els.gamePanel.className = "fixed inset-0 z-50 rounded-none stage-transition bg-kkorange flex flex-col items-center justify-center p-4";
-                this.els.emoji.innerText = "⚠️";
-                this.els.mainText.innerText = "GET READY...";
-                this.els.subText.innerText = "Someone is about to freeze!";
-                this.els.subText.className = "text-xl font-bold text-kkorange mt-6 bg-white px-6 py-2 rounded-full shadow-neo-sm border-2 border-kkdark";
-
-                const count = Math.min(this.state.students.length, 3);
-                const numToPick = Math.floor(Math.random() * count) + 1;
-
-                const shuffled = [...this.state.students].sort(() => 0.5 - Math.random());
-                const picked = shuffled.slice(0, numToPick);
-
-                this.els.spotlight.innerHTML = "";
-                picked.forEach((name, i) => {
-                    const delayClass = i === 1 ? 'delay-100' : (i === 2 ? 'delay-200' : '');
-                    const rot = (Math.random() * 6) - 3;
-
-                    const card = document.createElement('div');
-                    card.className = `bg-white border-4 border-kkdark px-10 py-4 rounded-2xl shadow-neo transform animate-pop-in ${delayClass}`;
-                    card.style.transform = `rotate(${rot}deg)`;
-                    card.innerHTML = `<span class="text-4xl md:text-5xl font-black text-kkblue font-fredoka tracking-wide">${name}</span>`;
-
-                    this.els.spotlight.appendChild(card);
-                });
-
-                const warningMs = this.getVal('warning') * 1000;
-                this.state.timer = setTimeout(() => this.runFreeze(picked), warningMs);
-            }
-
-            runFreeze(victims) {
-                if (!this.state.isRunning) return;
-                this.state.isFrozen = true;
-
-                this.els.gamePanel.className = "fixed inset-0 z-50 rounded-none stage-transition bg-kkpink flex flex-col items-center justify-center p-4";
-                this.els.emoji.innerText = "🥶";
-                this.els.mainText.innerText = "FREEZE!";
-
-                if (victims && victims.length > 0) {
-                    const names = victims.join(" & ");
-                    this.els.subText.innerText = `${names} must freeze!`;
-                } else {
-                    this.els.subText.innerText = "Don't move a muscle!";
-                }
-                this.els.subText.className = "text-xl font-bold text-kkpink mt-6 bg-white px-6 py-2 rounded-full shadow-neo-sm border-2 border-kkdark";
-
-                this.els.player.pause();
-
-                const minSec = this.getVal('freezeMin');
-                const maxSec = Math.max(minSec, this.getVal('freezeMax'));
-                const freezeMs = Math.floor(Math.random() * ((maxSec - minSec) + 1) + minSec) * 1000;
-
-                this.state.timer = setTimeout(() => this.runDance(), freezeMs);
-            }
-
-            manualOverride() {
-                clearTimeout(this.state.timer);
-                if (this.state.isFrozen) this.runDance();
-                else this.runFreeze();
-            }
-        }
-
-        const game = new FreezeDanceGame();
-        game.init();
-        lucide.createIcons();
-    </script>
 </body>
 
 </html>
