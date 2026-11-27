@@ -183,12 +183,12 @@ function updateServiceWorker(newVersion, dryRun) {
     if (!fs.existsSync(swPath)) return;
 
     const sw = fs.readFileSync(swPath, 'utf8');
-    const updated = sw.replace(/(CACHE_NAME\s*=\s*['"]klasskit-v)(\d+\.\d+\.\d+)(['"])/g, `$1${newVersion}$3`);
+    const updated = sw.replace(/(CACHE_NAME\s*=\s*['"]klasskit-v)(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)(['"])/g, `$1${newVersion}$3`);
 
     if (sw !== updated) {
         if (!dryRun) fs.writeFileSync(swPath, updated, 'utf8');
         console.log(`✅ sw.js: CACHE_NAME updated to klasskit-v${newVersion}`);
-    } else if (sw.includes(`klasskit-v${newVersion}`)) {
+    } else if (/CACHE_NAME\s*=\s*['"]klasskit-v\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?['"]/.test(sw)) {
         console.log(`ℹ️ sw.js: CACHE_NAME already at klasskit-v${newVersion}`);
     } else {
         console.warn('⚠️ sw.js: CACHE_NAME constant not found.');
