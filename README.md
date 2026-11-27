@@ -1,11 +1,11 @@
 # 🍎 KlassKit: The Ultimate Classroom Command Center
 
 ![Version](https://img.shields.io/badge/version-1.8.8-blue?style=for-the-badge)
-![Activities](https://img.shields.io/badge/activities-76%20Active-green?style=for-the-badge)
+![Activities](https://img.shields.io/badge/activities-80%20Active-green?style=for-the-badge)
 ![Status](https://img.shields.io/badge/status-Active%20Development-orange?style=for-the-badge)
 ![Aesthetic](https://img.shields.io/badge/aesthetic-Soft%20Brutalism-pink?style=for-the-badge)
 
-KlassKit is a curated, **no-build ecosystem of 76 active interactive tools, printables, and classroom games** (plus 17 modules in active development) built for ELT and modern classrooms. Tailored for students aged 3–18, it turns any browser into a fast, zero-installation teaching dashboard optimized for classroom projectors and 1366×768 Chromebooks.
+KlassKit is a curated, **no-build ecosystem of 80 active interactive tools, printables, and classroom games** (plus 0 modules in active development) built for ELT and modern classrooms. Tailored for students aged 3–18, it turns any browser into a fast, zero-installation teaching dashboard optimized for classroom projectors and 1366×768 Chromebooks.
 
 > **Explore the Hub:** [klasskit.fun](https://klasskit.fun)
 
@@ -79,7 +79,7 @@ Educational software should be as joyful as it is reliable. KlassKit follows a c
 
 ## 🧩 The KlassKit Library
 
-The catalog in `games.json` organizes **76 active modules** into five core zones, plus **17 Work in Progress** modules:
+The catalog in `games.json` organizes **80 active modules** into five core zones, plus **0 Work in Progress** modules:
 
 ### 🖨️ Printables (18)
 *Ready-to-print A4 worksheets, handouts, flashcards, and classroom puzzles.*
@@ -105,7 +105,7 @@ The catalog in `games.json` organizes **76 active modules** into five core zones
 | **Maze Maker** | Word Path & Wall Maze Handout Generator |
 | **Labyrinth Quest** | Point-Hunting Classroom Maze & Prompt Maker |
 
-### 🧰 Teaching Tools (17)
+### 🧰 Teaching Tools (21)
 *Essential utilities for real-time classroom management and live instruction.*
 
 | Tool | Description |
@@ -113,7 +113,9 @@ The catalog in `games.json` organizes **76 active modules** into five core zones
 | **Activity Bank** | 140+ Curated Activities, Lesson Flow Builder & Live Teach Mode |
 | **Class Tally** | Positive Engagement Tracker |
 | **Clock** | Precision Time Management |
+| **Detective Game** | Narrative Deduction Game |
 | **Notes** | Smart Pedagogical Journal |
+| **Observation Form** | Classroom Observation Form |
 | **Poster Studio** | Creative Poster Lab |
 | **Scoreboard** | High-Visibility Score Hub |
 | **Scrambler** | Spelling Scramble Studio |
@@ -122,7 +124,9 @@ The catalog in `games.json` organizes **76 active modules** into five core zones
 | **Speedy Slides** | Rapid Slide Generator |
 | **Spin Wheel** | Premium Randomizer Wheel |
 | **Task Assigner** | Smart Responsibility Assigner |
+| **Teacher Library** | Teacher’s Resource Library |
 | **Team Picker** | Instant Group Generator |
+| **Tense Diver** | Grammar Tense Exploration |
 | **Tracer Whiteboard** | Interactive Handwriting & Shape Tracing Studio |
 | **Whiteboard** | Infinite Canvas for Ideas |
 | **Word List** | Precision Word Selector |
@@ -187,28 +191,8 @@ The catalog in `games.json` organizes **76 active modules** into five core zones
 | **My Class** | Advanced Classroom Manager |
 | **My Admin** | Strategic Admin & Planning Hub |
 
-### 🚧 Work in Progress (17)
-*Early-access prototypes and tools currently being refined or rebuilt.*
-
-| App | Description |
-|:--- |:--- |
-| **Class Sheet** | Visual Classroom Data Sheet |
-| **Classroom Visualizer** | Next-Gen Classroom Visualizer |
-| **Cookbook** | Culinary Lesson Planner |
-| **Detective Game** | Narrative Deduction Game |
-| **Downtime Screen** | Smart Transition Manager |
-| **Labeling Blitz** | Extreme Labeling Game |
-| **Media Studio** | Classroom Media Studio |
-| **Neo-Messenger** | Smart Classroom Messaging |
-| **Observation Form** | Classroom Observation Form |
-| **Poster Display** | High-Impact Visual Gallery |
-| **Random Card Shuffle** | Random Card Shuffler |
-| **Report Helper** | Full Report Comment Architect |
-| **Sentence Hangman** | Sentence Hangman Game |
-| **Skill Tracker** | Student Skill Tracker |
-| **Teacher Library** | Teacher's Resource Library |
-| **Tense Diver** | Grammar Tense Exploration |
-| **Update Helper** | Progress Update Comment Studio & Student Tracker |
+### 🚧 Work in Progress (0)
+*No active WIP prototypes at this time.*
 
 ---
 
@@ -232,7 +216,7 @@ klasskit/
 ├── hub.html                # Main activity hub & workspace shell
 ├── login.html              # Authentication gateway (OAuth, Email, Sandbox)
 ├── 404.html                # Custom fallback page
-├── games.json              # Central catalog registry (93 entries, 76 active)
+├── games.json              # Central catalog registry (80 entries, 80 active)
 ├── manifest.json           # PWA manifest
 ├── sw.js                   # Service Worker for offline caching
 ├── supabase.js             # Supabase client, auth helpers, and role guards
@@ -245,11 +229,10 @@ klasskit/
 │
 ├── apps/                   # Self-contained activity modules
 │   ├── printables/         # A4 printable generators & word puzzle makers (18)
-│   ├── tools/              # Live teaching tools & classroom utilities (17)
+│   ├── tools/              # Live teaching tools & classroom utilities (21)
 │   ├── games/              # Interactive classroom games (33)
 │   ├── workshop/           # Text, image, & lesson parser utilities (3)
-│   ├── my-space/           # Teacher productivity suite (5, Pro/Admin)
-│   └── wip/                # Early-access prototypes & rebuilds (17)
+│   └── my-space/           # Teacher productivity suite (5, Pro/Admin)
 │
 ├── components/             # Shared UI modules (app-bootstrap, bulk-import-modal, input-modal, media-manager)
 ├── css/                    # Global stylesheets (tailwind.input, tailwind.generated, base, components, home, side-panel)

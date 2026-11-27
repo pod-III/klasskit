@@ -2786,7 +2786,7 @@ const CommentsManager = {
 
   async loadComments() {
     try {
-      const resp = await fetch('../../wip/pu-helper/comments.json');
+      const resp = await fetch('./data/pu-comments.json');
       if (!resp.ok) throw new Error('Network response was not ok');
       this.hopefulPhrases = await resp.json();
     } catch (e) {
@@ -3059,7 +3059,7 @@ const ReportManager = {
 
   async fetchComments() {
     try {
-      const response = await fetch('../../wip/report-helper/comments.json');
+      const response = await fetch('./data/report-comments.json');
       if (!response.ok) throw new Error('Network error');
       this.commentBank = await response.json();
       this.initEmptyState();
