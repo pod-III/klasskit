@@ -1,6 +1,6 @@
 # 🍎 KlassKit: The Ultimate Classroom Command Center
 
-![Version](https://img.shields.io/badge/version-1.8.8-blue?style=for-the-badge)
+![Version](https://img.shields.io/badge/version-1.9.1-blue?style=for-the-badge)
 ![Activities](https://img.shields.io/badge/activities-80%20Active-green?style=for-the-badge)
 ![Status](https://img.shields.io/badge/status-Active%20Development-orange?style=for-the-badge)
 ![Aesthetic](https://img.shields.io/badge/aesthetic-Soft%20Brutalism-pink?style=for-the-badge)
@@ -288,7 +288,7 @@ npx playwright test
 Use the built-in version bumper to keep version numbers synchronized across `games.json`, `README.md`, `sw.js`, and `package.json`:
 
 ```bash
-node bump.js 1.8.8
+node bump.js 1.9.1
 ```
 
 ### Contributing a New Activity
@@ -303,4 +303,4 @@ node bump.js 1.8.8
 Built with ❤️ by **Fahrul Ahyan**.
 KlassKit is a passion project dedicated to teachers everywhere. It is, and always will be, **100% Free**.
 
-*Current Version: 1.8.8 — Active Development.*
+*Current Version: 1.9.1 — Active Development.*

@@ -1,5 +1,5 @@
 // Bump version whenever sw.js changes
-const CACHE_NAME = 'klasskit-v1.8.8';
+const CACHE_NAME = 'klasskit-v1.9.1';
 
 // 1. Pre-cache Core Assets (Static)
 // Note: Use clean paths or keep consistent with how your app navigates
