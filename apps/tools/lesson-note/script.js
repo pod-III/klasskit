@@ -145,7 +145,9 @@
             deleted: Boolean(raw.deleted),
             updatedAt,
             sortOrder: (typeof raw.sortOrder === 'number' && Number.isFinite(raw.sortOrder)) ? raw.sortOrder : null,
-            needsCloudFetch: Boolean(raw.needsCloudFetch)
+            needsCloudFetch: Boolean(raw.needsCloudFetch),
+            localOnly: Boolean(raw.localOnly),
+            pendingBodySync: Boolean(raw.pendingBodySync)
         };
     }
 
@@ -321,24 +323,29 @@
             });
         },
 
-        async deleteNote(id) {
+        async deleteNoteLocal(id) {
             const dbConn = await this.open();
-            if (dbConn) {
-                await new Promise((resolve, reject) => {
-                    const tx = dbConn.transaction(STORES.NOTES, 'readwrite');
-                    tx.objectStore(STORES.NOTES).delete(id);
-                    tx.oncomplete = () => resolve();
-                    tx.onerror = (e) => reject(e.target?.error || new Error('deleteNote failed'));
-                });
-            }
+            if (!dbConn) return;
+            await new Promise((resolve, reject) => {
+                const tx = dbConn.transaction(STORES.NOTES, 'readwrite');
+                tx.objectStore(STORES.NOTES).delete(id);
+                tx.oncomplete = () => resolve();
+                tx.onerror = (e) => reject(e.target?.error || new Error('deleteNoteLocal failed'));
+            });
+        },
 
-            // Fire-and-forget cloud delete if authenticated
+        async deleteNote(id) {
+            await this.deleteNoteLocal(id);
+
+            // Cloud delete if authenticated (awaited so caller knows it completed or logged)
             try {
                 if (typeof getCloudUser === 'function' && typeof db !== 'undefined') {
                     const user = await getCloudUser();
                     if (user && !user.is_sandbox) {
-                        Promise.resolve(db.from('notes').delete().eq('id', id).eq('user_id', user.id))
-                            .catch((e) => console.warn('Cloud note delete skipped:', e));
+                        const { error } = await db.from('notes').delete().eq('id', id).eq('user_id', user.id);
+                        if (error) {
+                            console.warn('Cloud note delete failed:', error);
+                        }
                         if (typeof window.deleteFolder === 'function') {
                             Promise.resolve(window.deleteFolder(`${user.id}/lesson_note/${id}`))
                                 .catch((e) => console.warn('Cloud folder delete skipped:', e));
@@ -386,7 +393,9 @@
                             deleted: Boolean(note.deleted),
                             updatedAt: note.updatedAt || Date.now(),
                             sortOrder: note.sortOrder ?? null,
-                            needsCloudFetch: false
+                            needsCloudFetch: false,
+                            localOnly: false,
+                            pendingBodySync: false
                         });
                         if (meta) entries.push(meta);
                     }
@@ -543,6 +552,9 @@
         _quotaWarned: false,
         _bufferTimer: null,
         _cloudStatusResetTimer: null,
+        _cloudSyncPromise: null,
+        _cloudSyncQueuedForce: false,
+        _lastCloudSyncAt: 0,
         _debouncedSave: null,
         _debouncedOutline: null,
         _debouncedListRender: null,
@@ -612,6 +624,21 @@
             this.saveIndexMirror();
             this.saveFoldersMirror();
 
+            // Reconcile cloud metadata BEFORE picking/creating the initial note so cloud moves/deletes win
+            let syncedAtBoot = false;
+            try {
+                const isOnline = typeof navigator === 'undefined' || navigator.onLine !== false;
+                if (isOnline && typeof getCloudUser === 'function') {
+                    const cloudUser = await getCloudUser();
+                    if (cloudUser && !cloudUser.is_sandbox) {
+                        await this.syncCloudMetadataInBackground({ force: true, isBoot: true });
+                        syncedAtBoot = true;
+                    }
+                }
+            } catch (e) {
+                console.warn('Boot cloud sync skipped:', e);
+            }
+
             const savedUi = this.readUiState();
             if (savedUi && savedUi.mode === 'buffer' && this.bufferNotes.length > 0) {
                 this.mode = 'buffer';
@@ -632,10 +659,12 @@
 
             this.renderNotesList();
 
-            // Phase 3: Deferred background maintenance & metadata-only cloud sync
+            // Phase 3: Deferred background maintenance & metadata-only cloud sync if skipped at boot
             setTimeout(() => {
                 this.purgeExpiredTrash();
-                this.syncCloudMetadataInBackground();
+                if (!syncedAtBoot) {
+                    this.syncCloudMetadataInBackground();
+                }
             }, 60);
 
             if (!this._bufferTimer) {
@@ -966,10 +995,13 @@
                         this.flushPendingSave();
                     } else {
                         this.refreshBufferCountdowns();
+                        this.syncCloudMetadataInBackground();
                     }
                 });
             }
 
+            window.addEventListener('focus', () => this.syncCloudMetadataInBackground());
+            window.addEventListener('online', () => this.syncCloudMetadataInBackground({ force: true }));
             window.addEventListener('beforeunload', () => this.flushPendingSave());
 
             window.addEventListener('storage', (e) => {
@@ -1265,7 +1297,9 @@
                 deleted: note.deleted !== undefined ? Boolean(note.deleted) : Boolean(existing?.deleted),
                 updatedAt: note.updatedAt ?? existing?.updatedAt ?? Date.now(),
                 sortOrder: note.sortOrder !== undefined ? note.sortOrder : (existing?.sortOrder ?? null),
-                needsCloudFetch: extras.needsCloudFetch !== undefined ? extras.needsCloudFetch : Boolean(existing?.needsCloudFetch)
+                needsCloudFetch: extras.needsCloudFetch !== undefined ? extras.needsCloudFetch : Boolean(existing?.needsCloudFetch),
+                localOnly: extras.localOnly !== undefined ? extras.localOnly : Boolean(existing?.localOnly),
+                pendingBodySync: extras.pendingBodySync !== undefined ? extras.pendingBodySync : Boolean(existing?.pendingBodySync)
             });
             if (idx !== -1) this.noteIndex.splice(idx, 1);
             this.noteIndex.unshift(entry);
@@ -1528,13 +1562,13 @@
                 sortOrder: null
             };
 
-            this.upsertNoteIndexEntry(newNote, { preview: '', needsCloudFetch: false });
+            this.upsertNoteIndexEntry(newNote, { preview: '', needsCloudFetch: false, localOnly: true, pendingBodySync: false });
             this.cacheNoteBody(newNote);
             await LessonDB.putNote(newNote);
             await this.persistIndex();
 
             await this.loadNote(newNote.id, { skipFlush: true });
-            this.syncSingleNoteToCloud(newNote);
+            this.syncSingleNoteToCloud(newNote, { isCreate: true });
 
             if (!options.skipMobileClose && typeof window !== 'undefined' && window.innerWidth < 768) {
                 this.toggleSidebar(false);
@@ -1556,15 +1590,17 @@
             if (meta.deleted && this.mode !== 'trash') {
                 const confirmed = await this.showModal('Restore Note?', 'This note is in the Trash. Would you like to restore it?', 'Restore Note', 'refresh-ccw');
                 if (!confirmed) return;
+                const now = Date.now();
                 meta.deleted = false;
-                meta.updatedAt = Date.now();
-                const full = (await this.ensureFullNote(id)) || { ...meta, content: '' };
-                full.deleted = false;
-                full.updatedAt = meta.updatedAt;
-                await LessonDB.putNote(full);
-                this.cacheNoteBody(full);
+                meta.updatedAt = now;
+                await this.updateLocalNoteMetadata(id, { deleted: false, updatedAt: now });
                 await this.persistIndex();
-                this.syncSingleNoteToCloud(full);
+                if (meta.localOnly) {
+                    const localFull = (await LessonDB.getNote(id)) || { ...meta, content: '' };
+                    this.syncSingleNoteToCloud(localFull, { isCreate: true });
+                } else {
+                    this.syncBatchMetadataToCloud([id], { deleted: false, updated_at: now });
+                }
             } else if (!meta.deleted && this.mode === 'trash') {
                 this.mode = 'notes';
             }
@@ -1612,6 +1648,20 @@
             }
             if (loadingEl) loadingEl.classList.add('is-hidden');
 
+            // If ensureFullNote discovered the note was permanently deleted in cloud and pruned it
+            if (!fullNote && !this.noteIndex.some((n) => n.id === id)) {
+                this.hasDirtyEdits = false;
+                this.currentNoteId = null;
+                this.showToast('Note was deleted on another device', 'info');
+                const fallback = this.noteIndex.find((n) => (this.mode === 'trash' ? n.deleted : !n.deleted));
+                if (fallback) {
+                    await this.loadNote(fallback.id, { skipFlush: true });
+                } else {
+                    this.showEmptyEditorState(this.mode === 'trash' ? 'trash' : 'notes');
+                }
+                return;
+            }
+
             if (fullNote) {
                 meta.title = fullNote.title || meta.title || '';
                 meta.preview = extractPreview(fullNote.content, 90);
@@ -1642,8 +1692,9 @@
             }
 
             if (meta && meta.needsCloudFetch) {
-                const cloudNote = await this.fetchSingleNoteFromCloud(id);
-                if (cloudNote) {
+                const res = await this.fetchSingleNoteFromCloud(id);
+                if (res.status === 'ok' && res.note) {
+                    const cloudNote = res.note;
                     await LessonDB.putNote(cloudNote);
                     this.cacheNoteBody(cloudNote);
                     meta.title = cloudNote.title || '';
@@ -1652,8 +1703,18 @@
                     meta.folderId = cloudNote.folderId || null;
                     meta.deleted = Boolean(cloudNote.deleted);
                     meta.needsCloudFetch = false;
+                    meta.localOnly = false;
                     await this.persistIndex();
                     return cloudNote;
+                }
+                if (res.status === 'not_found' && !meta.localOnly) {
+                    await this.removeNoteLocally(id);
+                    await this.persistIndex();
+                    this.renderNotesList();
+                    this.updateHeaderAndModeUI();
+                    this.refreshFileManagerIfOpen();
+                    this.updateCacheStatusLabel();
+                    return null;
                 }
             }
 
@@ -2218,11 +2279,11 @@
             this.saveBufferNotesLocal();
             this.activeBufferId = this.bufferNotes[0]?.id || null;
 
-            this.upsertNoteIndexEntry(newNote, { needsCloudFetch: false });
+            this.upsertNoteIndexEntry(newNote, { needsCloudFetch: false, localOnly: true, pendingBodySync: false });
             this.cacheNoteBody(newNote);
             await LessonDB.putNote(newNote);
             await this.persistIndex();
-            this.syncSingleNoteToCloud(newNote);
+            this.syncSingleNoteToCloud(newNote, { isCreate: true });
 
             this.mode = 'notes';
             await this.loadNote(newNote.id, { skipFlush: true });
@@ -2310,18 +2371,19 @@
             if (!confirmed) return;
 
             const now = Date.now();
-            const full = await this.ensureFullNote(noteId);
             meta.deleted = true;
             meta.updatedAt = now;
+            meta.pendingBodySync = false;
 
-            if (full) {
-                full.deleted = true;
-                full.updatedAt = now;
-                this.cacheNoteBody(full);
-                await LessonDB.putNote(full);
-                this.syncSingleNoteToCloud(full);
-            }
+            await this.updateLocalNoteMetadata(noteId, { deleted: true, updatedAt: now });
             await this.persistIndex();
+
+            if (meta.localOnly) {
+                const localFull = (await LessonDB.getNote(noteId)) || { ...meta, content: '' };
+                this.syncSingleNoteToCloud(localFull, { isCreate: true });
+            } else {
+                this.syncBatchMetadataToCloud([noteId], { deleted: true, updated_at: now });
+            }
 
             if (noteId === this.currentNoteId) {
                 const nextNote = this.noteIndex.find((n) => !n.deleted);
@@ -2339,17 +2401,19 @@
             const meta = this.noteIndex.find((n) => n.id === this.currentNoteId);
             if (!meta) return;
 
+            const now = Date.now();
             meta.deleted = false;
-            meta.updatedAt = Date.now();
-            const full = await this.ensureFullNote(meta.id);
-            if (full) {
-                full.deleted = false;
-                full.updatedAt = meta.updatedAt;
-                this.cacheNoteBody(full);
-                await LessonDB.putNote(full);
-                this.syncSingleNoteToCloud(full);
-            }
+            meta.updatedAt = now;
+
+            await this.updateLocalNoteMetadata(meta.id, { deleted: false, updatedAt: now });
             await this.persistIndex();
+
+            if (meta.localOnly) {
+                const localFull = (await LessonDB.getNote(meta.id)) || { ...meta, content: '' };
+                this.syncSingleNoteToCloud(localFull, { isCreate: true });
+            } else {
+                this.syncBatchMetadataToCloud([meta.id], { deleted: false, updated_at: now });
+            }
 
             const nextTrash = this.noteIndex.find((n) => n.deleted);
             if (nextTrash) {
@@ -2470,27 +2534,156 @@
             this.safeCreateIcons(badge);
         },
 
-        async syncSingleNoteToCloud(note) {
-            if (!note || !note.id || typeof getCloudUser !== 'function' || typeof db === 'undefined') return;
+        async updateLocalNoteMetadata(id, patch) {
+            if (!id || !patch) return;
+            const cached = this.noteBodyCache.get(id);
+            if (cached) {
+                if (patch.folderId !== undefined) cached.folderId = patch.folderId;
+                if (patch.deleted !== undefined) cached.deleted = Boolean(patch.deleted);
+                if (patch.title !== undefined) cached.title = patch.title;
+                if (patch.updatedAt !== undefined) cached.updatedAt = patch.updatedAt;
+            }
+            const localNote = await LessonDB.getNote(id);
+            if (localNote) {
+                if (patch.folderId !== undefined) localNote.folderId = patch.folderId;
+                if (patch.deleted !== undefined) localNote.deleted = Boolean(patch.deleted);
+                if (patch.title !== undefined) localNote.title = patch.title;
+                if (patch.updatedAt !== undefined) localNote.updatedAt = patch.updatedAt;
+                await LessonDB.putNote(localNote);
+            }
+        },
+
+        async removeNoteLocally(id) {
+            if (!id) return;
+            this.noteIndex = this.noteIndex.filter((n) => n.id !== id);
+            this.noteBodyCache.delete(id);
+            this.fmState?.selectedNoteIds?.delete(id);
+            await LessonDB.deleteNoteLocal(id);
+        },
+
+        async fetchAllCloudNoteMeta(userId) {
+            const pageSize = 1000;
+            const allRows = [];
+            let from = 0;
+            while (true) {
+                const { data, error } = await db.from('notes')
+                    .select('id, title, folder_id, deleted, updated_at')
+                    .eq('user_id', userId)
+                    .order('updated_at', { ascending: false })
+                    .range(from, from + pageSize - 1);
+                if (error) throw error;
+                const rows = Array.isArray(data) ? data : [];
+                allRows.push(...rows);
+                if (rows.length < pageSize) break;
+                from += pageSize;
+            }
+            return allRows;
+        },
+
+        async refreshFoldersFromCloud() {
+            if (typeof getCloudUser !== 'function' || typeof db === 'undefined') return false;
+            if (typeof navigator !== 'undefined' && navigator.onLine === false) return false;
             try {
                 const user = await getCloudUser();
-                if (!user || user.is_sandbox) return;
+                if (!user || user.is_sandbox) return false;
+                const { data, error } = await db.from('note_folders')
+                    .select('folders')
+                    .eq('user_id', user.id)
+                    .maybeSingle();
+                if (error || !data || !Array.isArray(data.folders)) return false;
+
+                const collapsedMap = new Map(this.folders.map((f) => [f.id, Boolean(f.collapsed)]));
+                const merged = sanitizeFoldersList(data.folders).map((f) => ({
+                    ...f,
+                    collapsed: collapsedMap.has(f.id) ? collapsedMap.get(f.id) : Boolean(f.collapsed)
+                }));
+                this.folders = merged;
+                this.saveFoldersMirror();
+                await LessonDB.putSetting(SETTINGS_KEYS.FOLDERS, this.folders);
+                return true;
+            } catch (e) {
+                console.warn('Folder cloud refresh skipped:', e);
+                return false;
+            }
+        },
+
+        async syncSingleNoteToCloud(note, options = {}) {
+            if (!note || !note.id || typeof getCloudUser !== 'function' || typeof db === 'undefined') return false;
+            const meta = this.noteIndex.find((n) => n.id === note.id);
+            const shouldUpsert = Boolean(options.isCreate || meta?.localOnly);
+            try {
+                const user = await getCloudUser();
+                if (!user || user.is_sandbox) return false;
 
                 this.setSyncBadge('Syncing...', 'loader-circle', 'text-blue animate-spin');
-                await db.from('notes').upsert({
-                    id: note.id,
-                    user_id: user.id,
-                    title: note.title || '',
-                    content: note.content || '',
-                    folder_id: note.folderId || null,
-                    deleted: Boolean(note.deleted),
-                    updated_at: note.updatedAt
-                }, { onConflict: 'id,user_id' });
 
-                this.setSyncBadge('Cloud Synced', 'cloud', 'text-green');
+                if (shouldUpsert) {
+                    const { error } = await db.from('notes').upsert({
+                        id: note.id,
+                        user_id: user.id,
+                        title: note.title || '',
+                        content: note.content || '',
+                        folder_id: note.folderId || null,
+                        deleted: Boolean(note.deleted),
+                        updated_at: note.updatedAt
+                    }, { onConflict: 'id,user_id' });
+                    if (error) throw error;
+
+                    if (meta) {
+                        meta.localOnly = false;
+                        meta.pendingBodySync = false;
+                        await this.persistIndex();
+                    }
+                    this.setSyncBadge('Cloud Synced', 'cloud', 'text-green');
+                    return true;
+                }
+
+                // Existing note body/title save: NEVER overwrite folder_id or deleted from stale local state
+                const { data, error } = await db.from('notes')
+                    .update({
+                        title: note.title || '',
+                        content: note.content || '',
+                        updated_at: note.updatedAt
+                    })
+                    .eq('id', note.id)
+                    .eq('user_id', user.id)
+                    .eq('deleted', false)
+                    .select('id, folder_id, deleted, updated_at');
+
+                if (error) throw error;
+
+                if (Array.isArray(data) && data.length > 0) {
+                    if (meta) {
+                        meta.pendingBodySync = false;
+                        const cloudFolderId = data[0].folder_id ? String(data[0].folder_id) : null;
+                        if ((meta.folderId || null) !== cloudFolderId) {
+                            meta.folderId = cloudFolderId;
+                            await this.updateLocalNoteMetadata(note.id, { folderId: cloudFolderId });
+                            this.renderNotesList();
+                            this.refreshFileManagerIfOpen();
+                        }
+                        await this.persistIndex();
+                    }
+                    this.setSyncBadge('Cloud Synced', 'cloud', 'text-green');
+                    return true;
+                }
+
+                // 0 rows matched: note was trashed or permanently deleted on another device — do NOT resurrect it
+                if (meta) {
+                    meta.pendingBodySync = false;
+                    await this.persistIndex();
+                }
+                this.syncCloudMetadataInBackground({ force: true });
+                return false;
             } catch (e) {
-                console.warn('Single-note cloud upsert skipped:', e);
+                console.warn('Single-note cloud sync skipped:', e);
+                if (meta) {
+                    if (shouldUpsert) meta.localOnly = true;
+                    else meta.pendingBodySync = true;
+                    await this.persistIndex();
+                }
                 this.setSyncBadge('Local Saved', 'cloud-off', 'text-orange');
+                return false;
             }
         },
 
@@ -2503,12 +2696,14 @@
                 this.setSyncBadge('Syncing...', 'loader-circle', 'text-blue animate-spin');
                 const table = db.from('notes');
                 if (table && typeof table.update === 'function') {
-                    const q = table.update(patch);
-                    if (q && typeof q.in === 'function') {
-                        const qIn = q.in('id', ids);
-                        if (qIn && typeof qIn.eq === 'function') {
-                            await qIn.eq('user_id', user.id);
-                        }
+                    const { data, error } = await table
+                        .update(patch)
+                        .in('id', ids)
+                        .eq('user_id', user.id)
+                        .select('id');
+                    if (error) throw error;
+                    if (Array.isArray(data) && data.length < ids.length) {
+                        this.syncCloudMetadataInBackground({ force: true });
                     }
                 }
                 this.setSyncBadge('Cloud Synced', 'cloud', 'text-green');
@@ -2523,109 +2718,250 @@
             try {
                 const user = await getCloudUser();
                 if (!user || user.is_sandbox) return;
-                await db.from('note_folders').upsert({
+                const { error } = await db.from('note_folders').upsert({
                     user_id: user.id,
                     folders: this.folders
                 }, { onConflict: 'user_id' });
+                if (error) throw error;
             } catch (e) {
                 console.warn('Folder cloud sync skipped:', e);
             }
         },
 
-        async syncCloudMetadataInBackground() {
-            if (typeof getCloudUser !== 'function' || typeof db === 'undefined') {
-                this.setSyncBadge('Local Mode', 'hard-drive', 'text-blue');
+        async syncCloudMetadataInBackground(options = {}) {
+            if (!options.force && this._lastCloudSyncAt && (Date.now() - this._lastCloudSyncAt) < 5000) {
                 return;
             }
-            try {
-                const user = await getCloudUser();
-                if (!user || user.is_sandbox) {
+            if (this._cloudSyncPromise) {
+                if (options.force) this._cloudSyncQueuedForce = true;
+                return this._cloudSyncPromise;
+            }
+
+            const run = (async () => {
+                if (typeof getCloudUser !== 'function' || typeof db === 'undefined') {
                     this.setSyncBadge('Local Mode', 'hard-drive', 'text-blue');
                     return;
                 }
-
-                this.setSyncBadge('Syncing Meta...', 'loader-circle', 'text-blue animate-spin');
-
-                const [notesRes, foldersRes] = await Promise.all([
-                    db.from('notes')
-                        .select('id, title, folder_id, deleted, updated_at')
-                        .eq('user_id', user.id)
-                        .order('updated_at', { ascending: false }),
-                    db.from('note_folders')
-                        .select('folders')
-                        .eq('user_id', user.id)
-                        .maybeSingle()
-                ]);
-
-                if (notesRes && notesRes.error) throw notesRes.error;
-
-                let indexChanged = false;
-                const cloudRows = Array.isArray(notesRes?.data) ? notesRes.data : [];
-
-                cloudRows.forEach((cn) => {
-                    if (!cn || !cn.id) return;
-                    const cnId = String(cn.id);
-                    const cnUpdated = Number(cn.updated_at) || Date.now();
-                    const existing = this.noteIndex.find((m) => m.id === cnId);
-
-                    if (!existing) {
-                        this.noteIndex.push(sanitizeIndexEntry({
-                            id: cnId,
-                            title: cn.title || '',
-                            preview: '',
-                            folderId: cn.folder_id ? String(cn.folder_id) : null,
-                            deleted: Boolean(cn.deleted),
-                            updatedAt: cnUpdated,
-                            sortOrder: null,
-                            needsCloudFetch: true
-                        }));
-                        indexChanged = true;
-                    } else if (cnUpdated > (existing.updatedAt || 0)) {
-                        existing.title = cn.title || '';
-                        existing.folderId = cn.folder_id ? String(cn.folder_id) : null;
-                        existing.deleted = Boolean(cn.deleted);
-                        existing.updatedAt = cnUpdated;
-                        existing.needsCloudFetch = true;
-                        this.noteBodyCache.delete(cnId);
-                        indexChanged = true;
+                if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+                    this.setSyncBadge('Offline Ready', 'cloud-off', 'text-orange');
+                    return;
+                }
+                try {
+                    const user = await getCloudUser();
+                    if (!user || user.is_sandbox) {
+                        this.setSyncBadge('Local Mode', 'hard-drive', 'text-blue');
+                        return;
                     }
-                });
 
-                if (foldersRes?.data?.folders && Array.isArray(foldersRes.data.folders)) {
-                    this.folders = sanitizeFoldersList(foldersRes.data.folders);
-                    this.saveFoldersMirror();
-                    await LessonDB.putSetting(SETTINGS_KEYS.FOLDERS, this.folders);
-                    indexChanged = true;
-                }
+                    this.setSyncBadge('Syncing Meta...', 'loader-circle', 'text-blue animate-spin');
 
-                if (indexChanged) {
-                    this.noteIndex.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
-                    await this.persistIndex();
-                    this.renderNotesList();
-                    this.updateHeaderAndModeUI();
-                    this.refreshFileManagerIfOpen();
-                }
+                    const [cloudRows, foldersRes] = await Promise.all([
+                        this.fetchAllCloudNoteMeta(user.id),
+                        db.from('note_folders')
+                            .select('folders')
+                            .eq('user_id', user.id)
+                            .maybeSingle()
+                    ]);
 
-                // If active open note received a newer cloud version and has no local unsaved edits, fetch just that 1 note
-                if (this.mode !== 'buffer' && this.currentNoteId && !this.hasDirtyEdits) {
-                    const activeMeta = this.noteIndex.find((m) => m.id === this.currentNoteId);
-                    if (activeMeta && activeMeta.needsCloudFetch) {
-                        await this.loadNote(activeMeta.id, { skipFlush: true });
+                    let indexChanged = false;
+
+                    // 1. Reconcile folders (cloud wins, preserving local collapsed state)
+                    if (foldersRes && !foldersRes.error) {
+                        if (foldersRes.data && Array.isArray(foldersRes.data.folders)) {
+                            const collapsedMap = new Map(this.folders.map((f) => [f.id, Boolean(f.collapsed)]));
+                            const nextFolders = sanitizeFoldersList(foldersRes.data.folders).map((f) => ({
+                                ...f,
+                                collapsed: collapsedMap.has(f.id) ? collapsedMap.get(f.id) : Boolean(f.collapsed)
+                            }));
+                            if (JSON.stringify(nextFolders) !== JSON.stringify(this.folders)) {
+                                this.folders = nextFolders;
+                                this.saveFoldersMirror();
+                                await LessonDB.putSetting(SETTINGS_KEYS.FOLDERS, this.folders);
+                                indexChanged = true;
+                            }
+                        } else if (foldersRes.data === null && this.folders.length > 0) {
+                            await this.saveFoldersToCloud();
+                        }
                     }
-                }
 
-                this.setSyncBadge('Cloud Synced', 'cloud', 'text-green');
-            } catch (e) {
-                console.warn('Metadata cloud sync failed cleanly:', e);
-                this.setSyncBadge('Offline Ready', 'cloud-off', 'text-orange');
+                    // 2. Reconcile cloud notes against local index (cloud folder/delete state always wins)
+                    const cloudMap = new Map();
+                    const pendingBodyRetries = [];
+                    let activeNotePruned = false;
+                    let activeNoteMovedToTrash = false;
+                    let activeNoteRestored = false;
+
+                    for (const cn of cloudRows) {
+                        if (!cn || !cn.id) continue;
+                        const cnId = String(cn.id);
+                        const cnTitle = typeof cn.title === 'string' ? cn.title : '';
+                        const cnFolderId = cn.folder_id ? String(cn.folder_id) : null;
+                        const cnDeleted = Boolean(cn.deleted);
+                        const cnUpdated = Number(cn.updated_at) || Date.now();
+                        cloudMap.set(cnId, { id: cnId, title: cnTitle, folderId: cnFolderId, deleted: cnDeleted, updatedAt: cnUpdated });
+
+                        const existing = this.noteIndex.find((m) => m.id === cnId);
+                        if (!existing) {
+                            this.noteIndex.push(sanitizeIndexEntry({
+                                id: cnId,
+                                title: cnTitle,
+                                preview: '',
+                                folderId: cnFolderId,
+                                deleted: cnDeleted,
+                                updatedAt: cnUpdated,
+                                sortOrder: null,
+                                needsCloudFetch: true,
+                                localOnly: false,
+                                pendingBodySync: false
+                            }));
+                            indexChanged = true;
+                            continue;
+                        }
+
+                        if (existing.localOnly) {
+                            existing.localOnly = false;
+                            indexChanged = true;
+                        }
+
+                        // Folder state: cloud always wins regardless of updatedAt
+                        if ((existing.folderId || null) !== cnFolderId) {
+                            existing.folderId = cnFolderId;
+                            await this.updateLocalNoteMetadata(cnId, { folderId: cnFolderId });
+                            indexChanged = true;
+                        }
+
+                        // Trash state: cloud always wins regardless of updatedAt
+                        if (Boolean(existing.deleted) !== cnDeleted) {
+                            if (cnId === this.currentNoteId && cnDeleted && !existing.deleted) {
+                                activeNoteMovedToTrash = true;
+                            } else if (cnId === this.currentNoteId && !cnDeleted && existing.deleted) {
+                                activeNoteRestored = true;
+                            }
+                            existing.deleted = cnDeleted;
+                            if (cnDeleted) existing.pendingBodySync = false;
+                            await this.updateLocalNoteMetadata(cnId, { deleted: cnDeleted });
+                            indexChanged = true;
+                        }
+
+                        // Title & Body state
+                        if (existing.pendingBodySync && !cnDeleted) {
+                            if (cnUpdated > (existing.updatedAt || 0)) {
+                                existing.title = cnTitle;
+                                existing.updatedAt = cnUpdated;
+                                existing.pendingBodySync = false;
+                                existing.needsCloudFetch = true;
+                                this.noteBodyCache.delete(cnId);
+                                await this.updateLocalNoteMetadata(cnId, { title: cnTitle, updatedAt: cnUpdated });
+                                indexChanged = true;
+                            } else if (!(this.hasDirtyEdits && this.currentNoteId === cnId)) {
+                                pendingBodyRetries.push(cnId);
+                            }
+                        } else if (cnUpdated !== (existing.updatedAt || 0) || (existing.title || '') !== cnTitle) {
+                            const isActivelyEditing = Boolean(this.hasDirtyEdits && this.currentNoteId === cnId && !cnDeleted);
+                            if (!isActivelyEditing) {
+                                existing.title = cnTitle;
+                                existing.updatedAt = cnUpdated;
+                                existing.needsCloudFetch = true;
+                                this.noteBodyCache.delete(cnId);
+                                await this.updateLocalNoteMetadata(cnId, { title: cnTitle, updatedAt: cnUpdated });
+                                indexChanged = true;
+                            }
+                        }
+                    }
+
+                    // 3. Prune local notes missing from cloud (except genuine offline-created localOnly notes)
+                    for (const meta of [...this.noteIndex]) {
+                        if (cloudMap.has(meta.id)) continue;
+                        if (meta.localOnly === true) {
+                            const localFull = this.noteBodyCache.get(meta.id) || (await LessonDB.getNote(meta.id));
+                            if (localFull) {
+                                await this.syncSingleNoteToCloud(localFull, { isCreate: true });
+                            } else {
+                                meta.localOnly = false;
+                                await this.removeNoteLocally(meta.id);
+                                indexChanged = true;
+                            }
+                        } else {
+                            if (meta.id === this.currentNoteId) activeNotePruned = true;
+                            await this.removeNoteLocally(meta.id);
+                            indexChanged = true;
+                        }
+                    }
+
+                    for (const retryId of pendingBodyRetries) {
+                        const localFull = this.noteBodyCache.get(retryId) || (await LessonDB.getNote(retryId));
+                        if (localFull && !localFull.deleted) {
+                            await this.syncSingleNoteToCloud(localFull, { isCreate: false });
+                        }
+                    }
+
+                    if (indexChanged) {
+                        this.noteIndex.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+                        await this.persistIndex();
+                        this.renderNotesList();
+                        this.updateHeaderAndModeUI();
+                        this.refreshFileManagerIfOpen();
+                        this.updateCacheStatusLabel();
+                    }
+
+                    // 4. Reconcile currently open note if it was deleted/trashed/restored/updated on another device
+                    if (!options.isBoot && this.mode !== 'buffer' && this.currentNoteId) {
+                        if (activeNotePruned) {
+                            this.hasDirtyEdits = false;
+                            this.currentNoteId = null;
+                            const fallback = this.noteIndex.find((n) => (this.mode === 'trash' ? n.deleted : !n.deleted));
+                            if (fallback) {
+                                await this.loadNote(fallback.id, { skipFlush: true });
+                            } else {
+                                this.showEmptyEditorState(this.mode === 'trash' ? 'trash' : 'notes');
+                            }
+                            this.showToast('Active note was deleted on another device', 'info');
+                        } else if (activeNoteMovedToTrash && this.mode === 'notes') {
+                            this.hasDirtyEdits = false;
+                            const fallback = this.noteIndex.find((n) => !n.deleted);
+                            if (fallback) {
+                                await this.loadNote(fallback.id, { skipFlush: true });
+                            } else {
+                                this.currentNoteId = null;
+                                this.showEmptyEditorState('notes');
+                            }
+                            this.showToast('Note was moved to Trash on another device', 'info');
+                        } else if (activeNoteRestored && this.mode === 'trash') {
+                            this.mode = 'notes';
+                            await this.loadNote(this.currentNoteId, { skipFlush: true });
+                        } else {
+                            const activeMeta = this.noteIndex.find((m) => m.id === this.currentNoteId);
+                            if (activeMeta && activeMeta.needsCloudFetch && !this.hasDirtyEdits) {
+                                await this.loadNote(activeMeta.id, { skipFlush: true });
+                            }
+                        }
+                    }
+
+                    this._lastCloudSyncAt = Date.now();
+                    this.setSyncBadge('Cloud Synced', 'cloud', 'text-green');
+                } catch (e) {
+                    console.warn('Metadata cloud sync failed cleanly:', e);
+                    this.setSyncBadge('Offline Ready', 'cloud-off', 'text-orange');
+                }
+            })();
+
+            this._cloudSyncPromise = run;
+            try {
+                await run;
+            } finally {
+                this._cloudSyncPromise = null;
+                if (this._cloudSyncQueuedForce) {
+                    this._cloudSyncQueuedForce = false;
+                    this.syncCloudMetadataInBackground({ force: true });
+                }
             }
         },
 
         async fetchSingleNoteFromCloud(id) {
-            if (typeof getCloudUser !== 'function' || typeof db === 'undefined') return null;
+            if (typeof getCloudUser !== 'function' || typeof db === 'undefined') return { status: 'error' };
             try {
                 const user = await getCloudUser();
-                if (!user || user.is_sandbox) return null;
+                if (!user || user.is_sandbox) return { status: 'error' };
 
                 const { data, error } = await db
                     .from('notes')
@@ -2634,18 +2970,22 @@
                     .eq('user_id', user.id)
                     .maybeSingle();
 
-                if (error || !data) return null;
+                if (error) return { status: 'error' };
+                if (!data) return { status: 'not_found' };
                 return {
-                    id: String(data.id),
-                    title: data.title || '',
-                    content: data.content || '',
-                    folderId: data.folder_id ? String(data.folder_id) : null,
-                    deleted: Boolean(data.deleted),
-                    updatedAt: Number(data.updated_at) || Date.now()
+                    status: 'ok',
+                    note: {
+                        id: String(data.id),
+                        title: data.title || '',
+                        content: data.content || '',
+                        folderId: data.folder_id ? String(data.folder_id) : null,
+                        deleted: Boolean(data.deleted),
+                        updatedAt: Number(data.updated_at) || Date.now()
+                    }
                 };
             } catch (e) {
                 console.warn('Single-note cloud fetch failed:', e);
-                return null;
+                return { status: 'error' };
             }
         },
 
@@ -3120,7 +3460,11 @@
                 const targetMeta = this.noteIndex.find((n) => n.id === targetNoteId);
                 if (!dragMeta || !targetMeta) return;
 
-                dragMeta.folderId = targetMeta.folderId || null;
+                const prevFolderId = dragMeta.folderId || null;
+                const nextFolderId = targetMeta.folderId || null;
+                const folderChanged = prevFolderId !== nextFolderId;
+                dragMeta.folderId = nextFolderId;
+
                 const rect = noteEl.getBoundingClientRect();
                 const insertBefore = e.clientY < (rect.top + rect.height / 2);
 
@@ -3129,14 +3473,19 @@
                 const insertIdx = insertBefore ? targetIdx : targetIdx + 1;
                 newOrder.splice(Math.min(insertIdx, newOrder.length), 0, dragMeta);
 
+                const now = Date.now();
                 for (let i = 0; i < newOrder.length; i++) {
                     newOrder[i].sortOrder = i;
-                    newOrder[i].updatedAt = Date.now();
+                    if (newOrder[i].id === dragMeta.id && folderChanged) {
+                        newOrder[i].updatedAt = now;
+                    }
                     const full = await LessonDB.getNote(newOrder[i].id);
                     if (full) {
                         full.folderId = newOrder[i].folderId;
                         full.sortOrder = i;
-                        full.updatedAt = newOrder[i].updatedAt;
+                        if (newOrder[i].id === dragMeta.id && folderChanged) {
+                            full.updatedAt = now;
+                        }
                         await LessonDB.putNote(full);
                     }
                 }
@@ -3149,6 +3498,14 @@
                 }
 
                 await this.persistIndex();
+                if (folderChanged) {
+                    if (dragMeta.localOnly) {
+                        const localFull = (await LessonDB.getNote(dragMeta.id)) || { ...dragMeta, content: '' };
+                        this.syncSingleNoteToCloud(localFull, { isCreate: true });
+                    } else {
+                        this.syncBatchMetadataToCloud([dragMeta.id], { folder_id: nextFolderId, updated_at: now });
+                    }
+                }
                 this.renderNotesList();
                 this.showToast('Notes reordered', 'success');
             });
@@ -3166,6 +3523,7 @@
         async createFolder() {
             const name = await this.showPrompt('New Folder', 'Organize your notes into a workspace folder', 'folder-plus');
             if (!name || !name.trim()) return;
+            await this.refreshFoldersFromCloud();
             const color = FOLDER_COLORS[this.folders.length % FOLDER_COLORS.length].hex;
             this.folders.push({ id: `folder_${Date.now()}`, name: name.trim().slice(0, 80), color, collapsed: false });
             await this.saveFolders();
@@ -3179,7 +3537,15 @@
             if (!folder) return;
             const newName = await this.showPrompt('Rename Folder', 'Enter a new folder name', 'pencil', folder.name);
             if (!newName || !newName.trim()) return;
-            folder.name = newName.trim().slice(0, 80);
+            await this.refreshFoldersFromCloud();
+            const freshFolder = this.folders.find((f) => f.id === id);
+            if (!freshFolder) {
+                this.renderNotesList();
+                this.refreshFileManagerIfOpen();
+                this.showToast('Folder was deleted on another device', 'info');
+                return;
+            }
+            freshFolder.name = newName.trim().slice(0, 80);
             await this.saveFolders();
             this.renderNotesList();
             this.refreshFileManagerIfOpen();
@@ -3187,8 +3553,13 @@
         },
 
         async changeFolderColor(id) {
+            await this.refreshFoldersFromCloud();
             const folder = this.folders.find((f) => f.id === id);
-            if (!folder) return;
+            if (!folder) {
+                this.renderNotesList();
+                this.refreshFileManagerIfOpen();
+                return;
+            }
             const cur = FOLDER_COLORS.findIndex((c) => c.hex === folder.color);
             folder.color = FOLDER_COLORS[(cur + 1) % FOLDER_COLORS.length].hex;
             await this.saveFolders();
@@ -3208,6 +3579,9 @@
             );
             if (!confirmed) return;
 
+            await this.refreshFoldersFromCloud();
+            const freshFolder = this.folders.find((f) => f.id === id);
+
             const allInFolder = this.noteIndex.filter((n) => n.folderId === id);
             const now = Date.now();
             const updatedIds = [];
@@ -3215,18 +3589,8 @@
             for (const meta of allInFolder) {
                 meta.folderId = null;
                 meta.updatedAt = now;
-                updatedIds.push(meta.id);
-                const cached = this.noteBodyCache.get(meta.id);
-                if (cached) {
-                    cached.folderId = null;
-                    cached.updatedAt = now;
-                }
-                const full = await LessonDB.getNote(meta.id);
-                if (full) {
-                    full.folderId = null;
-                    full.updatedAt = now;
-                    await LessonDB.putNote(full);
-                }
+                if (!meta.localOnly) updatedIds.push(meta.id);
+                await this.updateLocalNoteMetadata(meta.id, { folderId: null, updatedAt: now });
             }
 
             this.folders = this.folders.filter((f) => f.id !== id);
@@ -3245,23 +3609,24 @@
             }
             this.renderNotesList();
             this.refreshFileManagerIfOpen();
-            this.showToast(`Deleted folder "${folder.name}"`, 'info');
+            this.showToast(`Deleted folder "${(freshFolder || folder).name}"`, 'info');
         },
 
         async moveNoteToFolder(noteId, folderId) {
             const meta = this.noteIndex.find((n) => n.id === noteId);
             if (!meta) return;
-            meta.folderId = folderId || null;
-            meta.updatedAt = Date.now();
-            const full = await this.ensureFullNote(noteId);
-            if (full) {
-                full.folderId = meta.folderId;
-                full.updatedAt = meta.updatedAt;
-                this.cacheNoteBody(full);
-                await LessonDB.putNote(full);
-                this.syncSingleNoteToCloud(full);
-            }
+            const nextFolderId = folderId || null;
+            const now = Date.now();
+            meta.folderId = nextFolderId;
+            meta.updatedAt = now;
+            await this.updateLocalNoteMetadata(noteId, { folderId: nextFolderId, updatedAt: now });
             await this.persistIndex();
+            if (meta.localOnly) {
+                const localFull = (await LessonDB.getNote(noteId)) || { ...meta, content: '' };
+                this.syncSingleNoteToCloud(localFull, { isCreate: true });
+            } else {
+                this.syncBatchMetadataToCloud([noteId], { folder_id: nextFolderId, updated_at: now });
+            }
             this.renderNotesList();
             this.refreshFileManagerIfOpen();
         },
@@ -4859,10 +5224,10 @@
                     folderId: safeFolderId,
                     sortOrder: null
                 };
-                this.upsertNoteIndexEntry(newNote, { needsCloudFetch: false });
+                this.upsertNoteIndexEntry(newNote, { needsCloudFetch: false, localOnly: true, pendingBodySync: false });
                 this.cacheNoteBody(newNote);
                 await LessonDB.putNote(newNote);
-                this.syncSingleNoteToCloud(newNote);
+                this.syncSingleNoteToCloud(newNote, { isCreate: true });
             }
 
             this.bufferNotes = this.bufferNotes.filter((b) => !promoteSet.has(b.id));
@@ -4905,6 +5270,7 @@
             );
             if (!confirmed) return;
 
+            await this.refreshFoldersFromCloud();
             const now = Date.now();
             const updatedIds = [];
 
@@ -4973,6 +5339,7 @@
             );
             if (!ok) return;
 
+            await this.refreshFoldersFromCloud();
             const now = Date.now();
             const trashSet = new Set(noteTargets);
             const unfiledIds = [];
@@ -5373,14 +5740,19 @@
                     this.noteBodyCache.clear();
                     this.noteIndex = [];
 
-                    // Fire-and-forget cloud cleanup for replaced notes in one batched check
                     if (oldIds.length && typeof getCloudUser === 'function' && typeof db !== 'undefined') {
-                        getCloudUser().then((user) => {
-                            if (!user || user.is_sandbox) return;
-                            oldIds.forEach((oldId) => {
-                                Promise.resolve(db.from('notes').delete().eq('id', oldId).eq('user_id', user.id)).catch(() => { });
-                            });
-                        }).catch(() => { });
+                        try {
+                            const user = await getCloudUser();
+                            if (user && !user.is_sandbox) {
+                                for (let i = 0; i < oldIds.length; i += 100) {
+                                    const chunk = oldIds.slice(i, i + 100);
+                                    const { error } = await db.from('notes').delete().in('id', chunk).eq('user_id', user.id);
+                                    if (error) console.warn('Cloud import cleanup chunk failed:', error);
+                                }
+                            }
+                        } catch (cleanupErr) {
+                            console.warn('Cloud import cleanup skipped:', cleanupErr);
+                        }
                     }
 
                     if (!Array.isArray(parsed) && Array.isArray(parsed.folders)) {
@@ -5394,6 +5766,7 @@
                         this.saveBufferNotesLocal();
                     }
 
+                    const importedRecords = [];
                     for (const rawNote of incomingNotes) {
                         if (!rawNote || typeof rawNote !== 'object') continue;
                         let content = sanitizeNoteHtml(rawNote.content || '');
@@ -5419,10 +5792,14 @@
                         };
 
                         await LessonDB.putNote(cleanNote);
-                        this.upsertNoteIndexEntry(cleanNote, { needsCloudFetch: false });
+                        this.upsertNoteIndexEntry(cleanNote, { needsCloudFetch: false, localOnly: true, pendingBodySync: false });
+                        importedRecords.push(cleanNote);
                     }
 
                     await this.persistIndex();
+                    for (const rec of importedRecords) {
+                        await this.syncSingleNoteToCloud(rec, { isCreate: true });
+                    }
                     this.mode = 'notes';
                     const first = this.noteIndex.find((n) => !n.deleted);
                     if (first) await this.loadNote(first.id, { skipFlush: true });
