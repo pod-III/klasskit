@@ -97,7 +97,7 @@ const GameModal = {
     const contentEl = document.getElementById('info-content');
 
     if (iconEl) {
-      iconEl.className = `w-24 h-24 rounded-2xl border-4 border-dark dark:border-slate-500 flex items-center justify-center text-white shadow-hard dark:shadow-neon shrink-0 ${bgClass}`;
+      iconEl.className = `w-24 h-24 rounded-2xl border-4 border-line flex items-center justify-center text-white shadow-hard dark:shadow-neon shrink-0 ${bgClass}`;
       iconEl.innerHTML = `<i data-lucide="${game.icon}" class="w-12 h-12"></i>`;
     }
     if (titleEl) titleEl.textContent = game.title.toUpperCase();
@@ -256,7 +256,7 @@ const App = {
   _listenersAttached: false,
 
   async init() {
-    await requireAuth();
+    const authUser = await requireAuth();
     try {
       FloatingTooltip.init();
       Theme.load();
@@ -280,9 +280,9 @@ const App = {
       // Store top-level metadata for footer
       if (data.version) State.metadata = { ...(State.metadata || {}), version: data.version, lastUpdated: data.lastUpdated };
 
+      await initAuthIndicator(authUser, profile, { skipGridRefresh: true });
       if (typeof HubSettings !== 'undefined') HubSettings.applyAll({ render: false });
       ViewMode.init();
-      GameGrid.render();
       PinnedGames.render();
       Hero.init();
       Footer.render();
@@ -627,6 +627,7 @@ const App = {
       toggleSound: () => AudioEngine.toggle(),
       openGame: (param) => GameModal.open(param),
       toggleNotifications: () => Announcements.togglePanel(),
+      viewAnnouncement: (param) => Announcements.viewDetail(param),
       returnToHome: () => TabManager.returnToHome(),
       closeAllTabs: () => TabManager.confirmCloseAllTabs(),
       confirmDelete: () => TabManager.closeAllTabsConfirmed(),
@@ -866,7 +867,7 @@ function initDisplayNameEditor() {
 }
 
 // --- AUTH INDICATOR ---
-async function initAuthIndicator() {
+async function initAuthIndicator(resolvedUser = null, resolvedProfile = null, { skipGridRefresh = false } = {}) {
   const signInLink = document.getElementById('auth-signin-link');
   const loggedInDiv = document.getElementById('auth-logged-in');
   const usernameEl = document.getElementById('auth-username');
@@ -876,7 +877,7 @@ async function initAuthIndicator() {
 
   if (!signInLink || !loggedInDiv) return;
 
-  const user = await getUser();
+  const user = resolvedUser || await getUser();
   if (user) {
     if (user.is_sandbox) {
       signInLink.classList.remove('hidden');
@@ -886,7 +887,7 @@ async function initAuthIndicator() {
       if (editNameBtn) {
         editNameBtn.disabled = true;
         editNameBtn.title = 'Offline Sandbox Mode';
-        editNameBtn.classList.remove('hover:bg-slate-200', 'dark:hover:bg-slate-700');
+        editNameBtn.classList.remove('hover:bg-surface-muted');
         editNameBtn.classList.add('cursor-default');
       }
       if (usernameEl) {
@@ -903,17 +904,15 @@ async function initAuthIndicator() {
     if (editNameBtn) {
       editNameBtn.disabled = false;
       editNameBtn.title = 'Edit display name';
-      editNameBtn.classList.add('hover:bg-slate-200', 'dark:hover:bg-slate-700');
+      editNameBtn.classList.add('hover:bg-surface-muted');
       editNameBtn.classList.remove('cursor-default');
     }
 
     const displayName = user.user_metadata?.display_name || user.email?.split('@')[0] || 'User';
-    if (usernameEl) usernameEl.textContent = displayName;
-
-    // Reuse cached/deduplicated profile lookup instead of firing a duplicate profiles query
-    const profile = await getUserProfile();
-    console.log('[HubAuth] RAW PROFILE DATA:', profile);
-    console.log('[HubAuth] FINAL DETECTED ROLE:', profile?.role);
+    const profile = resolvedProfile !== null ? resolvedProfile : await getUserProfile();
+    if (usernameEl && (!profile?.display_name || !usernameEl.textContent)) {
+      usernameEl.textContent = profile?.display_name || displayName;
+    }
 
     // Sync role into State.userProfile for consistent privilege checks across the app
     if (profile?.role && State.userProfile) {
@@ -923,21 +922,20 @@ async function initAuthIndicator() {
       State.userProfile = profile;
     }
 
-    // Re-render UI to reflect any privilege changes
-    UI.applyProStyles();
-    Hero.updateStats();
-    Hero.updateContinueBtn();
-    PinnedGames.render();
-    RecentGames.render();
-    ViewManager.renderAllGrids();
+    if (!skipGridRefresh) {
+      UI.applyProStyles();
+      Hero.updateStats();
+      Hero.updateContinueBtn();
+      PinnedGames.render();
+      RecentGames.render();
+      ViewManager.renderAllGrids();
+    }
 
     if (profile?.role === 'admin') {
-      console.log("[HubAuth] Success! Admin access granted.");
       const adminLink = document.getElementById('auth-admin-link');
       if (adminLink) adminLink.classList.remove('hidden');
     }
   } else {
-    console.log("is user")
     signInLink.classList.remove('hidden');
     loggedInDiv.classList.add('hidden');
   }
@@ -946,12 +944,10 @@ async function initAuthIndicator() {
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', () => {
     App.init();
-    initAuthIndicator();
     initDisplayNameEditor();
   });
 } else {
   App.init();
-  initAuthIndicator();
   initDisplayNameEditor();
 }
 // --- MOBILE UI HELPERS ---

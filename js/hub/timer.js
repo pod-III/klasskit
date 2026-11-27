@@ -84,15 +84,7 @@ const Timer = {
     if (visible) this.show();
 
     // Restore position
-    const pos = Storage.get(CONFIG.storageKeys.timerPosition);
-    if (pos && typeof pos.x === 'number' && typeof pos.y === 'number') {
-      timer.style.left = `${pos.x}px`;
-      timer.style.top = `${pos.y}px`;
-      timer.style.right = 'auto';
-      timer.style.bottom = 'auto';
-      timer.style.transform = 'none';
-    }
-    // If no saved position, CSS centers it via top:50%; left:50%; transform:translate(-50%,-50%)
+    this.applySavedPosition();
 
     // Restore duration or set default 5 min
     const savedDuration = Storage.get(CONFIG.storageKeys.timerDuration);
@@ -100,6 +92,36 @@ const Timer = {
 
     this.bindEvents();
     Utils.refreshIcons(timer);
+  },
+
+  getContainerRect() {
+    const container = document.getElementById('tab-content-area') || this.el?.offsetParent || document.body;
+    return container.getBoundingClientRect();
+  },
+
+  applySavedPosition() {
+    if (!this.el) return;
+    const pos = Storage.get(CONFIG.storageKeys.timerPosition);
+    if (pos && typeof pos.x === 'number' && typeof pos.y === 'number') {
+      const cRect = this.getContainerRect();
+      const elWidth = this.el.offsetWidth || 260;
+      const elHeight = this.el.offsetHeight || 280;
+      const maxX = Math.max(0, cRect.width - elWidth);
+      const maxY = Math.max(0, cRect.height - elHeight);
+      const x = Math.max(0, Math.min(pos.x, maxX));
+      const y = Math.max(0, Math.min(pos.y, maxY));
+      this.el.style.left = `${x}px`;
+      this.el.style.top = `${y}px`;
+      this.el.style.right = 'auto';
+      this.el.style.bottom = 'auto';
+      this.el.style.transform = 'none';
+    } else {
+      this.el.style.left = '50%';
+      this.el.style.top = '50%';
+      this.el.style.right = 'auto';
+      this.el.style.bottom = 'auto';
+      this.el.style.transform = 'translate(-50%, -50%)';
+    }
   },
 
   bindEvents() {
@@ -167,12 +189,26 @@ const Timer = {
           this.drag.rafId = null;
         }
         this.el.classList.remove('timer-dragging');
+        const cRect = this.getContainerRect();
         const rect = this.el.getBoundingClientRect();
-        Storage.set(CONFIG.storageKeys.timerPosition, { x: rect.left, y: rect.top });
+        const maxX = Math.max(0, cRect.width - rect.width);
+        const maxY = Math.max(0, cRect.height - rect.height);
+        const relX = Math.max(0, Math.min(Math.round(rect.left - cRect.left), maxX));
+        const relY = Math.max(0, Math.min(Math.round(rect.top - cRect.top), maxY));
+        Storage.set(CONFIG.storageKeys.timerPosition, { x: relX, y: relY });
       }
     };
     handle.addEventListener('pointerup', endDrag);
     handle.addEventListener('pointercancel', endDrag);
+
+    if (!this._resizeBound) {
+      this._resizeBound = true;
+      window.addEventListener('resize', () => {
+        if (this.el && !this.el.classList.contains('hidden')) {
+          this.applySavedPosition();
+        }
+      });
+    }
 
     // --- Preset buttons ---
     this.el.querySelectorAll('.timer-preset-btn:not(.timer-custom-btn):not(.timer-set-btn)').forEach(btn => {
@@ -261,8 +297,8 @@ const Timer = {
 
   show() {
     if (!this.el) this.init();
-    this.el.classList.remove('hidden');
-    this.el.classList.add('animate-pop-in');
+    this.el.classList.remove('hidden', 'animate-pop-in');
+    this.applySavedPosition();
     Storage.set(CONFIG.storageKeys.timerVisible, true);
     Utils.refreshIcons(this.el);
   },
@@ -370,6 +406,7 @@ const Timer = {
   },
 
   playAlarm() {
+    if (typeof AudioEngine !== 'undefined' && AudioEngine.muted) return;
     try {
       const ctx = new (window.AudioContext || window.webkitAudioContext)();
       const playBeep = (time, freq, dur) => {
@@ -392,6 +429,9 @@ const Timer = {
       playBeep(now + 0.9, 880, 0.15);
       playBeep(now + 1.1, 880, 0.15);
       playBeep(now + 1.3, 1100, 0.3);
+      setTimeout(() => {
+        ctx.close().catch(() => {});
+      }, 2200);
     } catch (e) {
       // Silently fail if audio context not available
     }

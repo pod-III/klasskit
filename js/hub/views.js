@@ -183,10 +183,11 @@ const GameGrid = {
         ? "<ul class='list-disc pl-5 space-y-2'><li>Adjust settings using the on-screen controls.</li><li>Use fullscreen mode for better visibility.</li></ul>"
         : "<ul class='list-disc pl-5 space-y-2'><li>Follow the on-screen prompts to start.</li><li>Customize words in setup if available.</li></ul>";
     }
-    if (typeof game.guide === 'object' && game.guide.steps) {
-      return `<ul class='list-disc pl-5 space-y-2'>${game.guide.steps.map(s => `<li>${s}</li>`).join('')}</ul>`;
+    if (typeof game.guide === 'object' && Array.isArray(game.guide.steps)) {
+      const shortIntro = game.guide.short ? `<p class="mb-3 font-bold text-ink">${this.escapeHtml(game.guide.short)}</p>` : '';
+      return `${shortIntro}<ul class='list-disc pl-5 space-y-2'>${game.guide.steps.map(s => `<li>${this.escapeHtml(s)}</li>`).join('')}</ul>`;
     }
-    return game.guide;
+    return `<p>${this.escapeHtml(game.guide)}</p>`;
   },
 
   shouldDisableTilt() {
@@ -503,13 +504,13 @@ const ViewManager = {
       <section id="recent-section" class="mb-8 hidden">
         <div class="flex items-center justify-between mb-3 px-2">
           <div class="flex items-center gap-3">
-            <div class="w-9 h-9 bg-blue text-white rounded-xl border-2 border-dark flex items-center justify-center shadow-hard-sm">
+            <div class="w-9 h-9 bg-blue text-white rounded-xl border-2 border-line flex items-center justify-center shadow-hard-sm">
               <i data-lucide="clock" class="w-4 h-4"></i>
             </div>
-            <h3 class="text-xl font-heading font-black text-dark dark:text-white uppercase tracking-tight">Recently Used</h3>
+            <h3 class="text-xl font-heading font-black text-ink uppercase tracking-tight">Recently Used</h3>
           </div>
           <div class="flex items-center gap-2">
-            <button data-action="clearRecent" class="px-3 py-1.5 text-xs font-bold text-slate-500 hover:text-red-500 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors" title="Clear recent">
+            <button data-action="clearRecent" class="px-3 py-1.5 text-xs font-bold text-ink-muted hover:text-red-500 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors" title="Clear recent">
               Clear
             </button>
             <button id="recent-toggle-btn" data-action="toggleRecentCollapse" class="p-1.5 rounded-lg border-2 border-line bg-card text-ink hover:bg-surface-muted transition-colors" aria-label="Toggle Recent List">
@@ -526,10 +527,10 @@ const ViewManager = {
       <section id="pinned-section" class="mb-10 hidden">
         <div class="flex items-center justify-between mb-4 px-2">
           <div class="flex items-center gap-3">
-            <div class="w-10 h-10 bg-pink text-white rounded-xl border-2 border-dark flex items-center justify-center shadow-hard-sm">
+            <div class="w-10 h-10 bg-pink text-white rounded-xl border-2 border-line flex items-center justify-center shadow-hard-sm">
               <i data-lucide="pin" class="w-5 h-5"></i>
             </div>
-            <h3 class="text-2xl font-heading font-black text-dark dark:text-white uppercase tracking-tight">Pinned Activities</h3>
+            <h3 class="text-2xl font-heading font-black text-ink uppercase tracking-tight">Pinned Activities</h3>
             <span id="pinned-count-badge" class="section-header-badge">0</span>
           </div>
         </div>
@@ -542,7 +543,7 @@ const ViewManager = {
       <!-- Grid Header & Smart Toolbar -->
       <div class="library-toolbar flex flex-col xl:flex-row xl:items-center justify-between gap-4 mb-6">
         <div class="flex items-center gap-3">
-          <h3 class="text-2xl font-heading font-black text-dark dark:text-white uppercase tracking-tight">${gridHeadings[category] || category + 's'}</h3>
+          <h3 class="text-2xl font-heading font-black text-ink uppercase tracking-tight">${gridHeadings[category] || category + 's'}</h3>
           <span id="grid-count-${viewId}" class="section-header-badge">0</span>
         </div>
 
@@ -701,7 +702,7 @@ const ViewManager = {
         const scopeLabel = categoryNames[category] || category;
         const safeTerm = escapeHtml(searchTerm);
         const searchAllBtn = category !== 'all'
-          ? `<button data-action="filterGames" data-param="all" class="px-3 py-1.5 rounded-lg bg-blue text-white text-xs font-bold border-2 border-dark hover:brightness-110 transition-all">Search All Activities</button>`
+          ? `<button data-action="filterGames" data-param="all" class="px-3 py-1.5 rounded-lg bg-blue text-white text-xs font-bold border-2 border-line hover:brightness-110 transition-all">Search All Activities</button>`
           : '';
         bannerEl.innerHTML = `
           <div class="flex flex-wrap items-center justify-between gap-3 px-4 py-3 rounded-2xl bg-card border-[3px] border-line shadow-hard-sm">
@@ -1000,10 +1001,10 @@ const MySpace = {
   },
 
   updateFullscreenIcon(isFs) {
-    const icon = document.getElementById('myspace-fs-icon');
-    if (icon) {
-      icon.setAttribute('data-lucide', isFs ? 'minimize-2' : 'maximize');
-      Utils.refreshIcons(icon.parentElement);
+    const btn = document.getElementById('myspace-fullscreen-btn') || document.getElementById('myspace-fs-icon')?.parentElement;
+    if (btn) {
+      btn.innerHTML = `<i id="myspace-fs-icon" data-lucide="${isFs ? 'minimize-2' : 'maximize'}" class="w-5 h-5 text-blue"></i>`;
+      Utils.refreshIcons(btn);
     }
   },
 

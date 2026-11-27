@@ -14,6 +14,7 @@ let userRoleFilter = 'all'
 let notesStatusFilter = 'all'
 let tasksStatusFilter = 'all'
 let studioTypeFilter = 'all'
+let auditSourceFilter = 'all'
 let lastViewModalCopyText = ''
 let charts = {}
 let chartDaysWindow = 14
@@ -50,6 +51,7 @@ let pagination = {
     progress: 1,
     notes: 1,
     cloud: 1,
+    logs: 1,
     schedule: 1,
     classes: 1,
     classesUnits: 1,
@@ -59,9 +61,19 @@ let pagination = {
     lastFilteredCounts: {}
 }
 const PAGE_SIZE = 25
+const LOGS_PAGE_SIZE = 50
 let settingsTimeout = null
 let searchTimeout = null
 let _missingRpcWarned = false
+
+const adminRpcCapabilities = {
+    dashboardTz: true,
+    auditSourceFilter: true,
+    userDetailTz: true
+}
+let _lastRenderedSummaryRef = null
+let _chartsThemeDirty = false
+let _catalogLoadPromise = null
 
 // ── CANONICAL TOOL KEY MAPPING ──
 const RAW_TOOL_TO_CATALOG_ID = {
@@ -251,8 +263,56 @@ const RAW_TOOL_TO_CATALOG_ID = {
     'poster': 'poster'
 }
 
+// ── THEME CONTROLS ──
+function getLocalTzOffsetMin() {
+    return new Date().getTimezoneOffset()
+}
+
+function syncAdminThemeUI() {
+    const isDark = document.documentElement.classList.contains('dark')
+    const btn = document.getElementById('theme-toggle')
+    if (btn) btn.setAttribute('aria-pressed', String(isDark))
+
+    const lightBtn = document.getElementById('setting-theme-light')
+    const darkBtn = document.getElementById('setting-theme-dark')
+    if (lightBtn) lightBtn.classList.toggle('active', !isDark)
+    if (darkBtn) darkBtn.classList.toggle('active', isDark)
+}
+
+function setAdminTheme(mode) {
+    const isDark = mode === 'dark'
+    document.documentElement.classList.toggle('dark', isDark)
+    localStorage.setItem('theme_hub', JSON.stringify(isDark ? 'dark' : 'light'))
+    syncAdminThemeUI()
+    if (typeof refreshAdminChartsTheme === 'function') refreshAdminChartsTheme()
+}
+
+function toggleAdminTheme() {
+    const isDark = !document.documentElement.classList.contains('dark')
+    setAdminTheme(isDark ? 'dark' : 'light')
+}
+
+window.addEventListener('storage', (e) => {
+    if (e.key === 'theme_hub' || e.key === 'klasskit_colorTheme') {
+        if (window.KlassKitTheme && typeof window.KlassKitTheme.applyMode === 'function') {
+            window.KlassKitTheme.applyMode()
+            if (typeof window.KlassKitTheme.applyColorTheme === 'function') {
+                window.KlassKitTheme.applyColorTheme()
+            }
+        } else {
+            try {
+                const t = JSON.parse(localStorage.getItem('theme_hub'))
+                document.documentElement.classList.toggle('dark', t === 'dark')
+            } catch (_) {}
+        }
+        syncAdminThemeUI()
+        if (typeof refreshAdminChartsTheme === 'function') refreshAdminChartsTheme()
+    }
+})
+
 // ── INIT ──
 async function init() {
+    loadGamesCatalog()
     const { user, profile } = await requireAdmin()
     const name = profile.display_name || user.email?.split('@')[0] || 'Admin'
     document.getElementById('adminName').textContent = name
@@ -262,6 +322,7 @@ async function init() {
         overlay.style.opacity = '0'
         setTimeout(() => overlay.remove(), 400)
     }
+    syncAdminThemeUI()
     lucide.createIcons()
     loadSettings({ fetchExclusions: false })
     await fetchData()
@@ -283,12 +344,12 @@ function getValidExcludedUserIds() {
     })
 }
 
-async function callAdminRpc(fnName, params = {}) {
+async function callAdminRpc(fnName, params = {}, { silent = false } = {}) {
     const { data, error } = await db.rpc(fnName, params)
     if (error) {
-        console.error(`[AdminRPC] ${fnName} failed:`, error)
+        if (!silent) console.error(`[AdminRPC] ${fnName} failed:`, error)
         const isMissing = error.code === '42883' || error.code === 'PGRST202' || String(error.message || '').includes('Could not find the function')
-        if (isMissing && !_missingRpcWarned) {
+        if (!silent && isMissing && !_missingRpcWarned) {
             _missingRpcWarned = true
             showToast('Admin RPC missing — run supabase/sql/phase3_admin_rpcs.sql in SQL Editor', 'error')
         }
@@ -297,51 +358,77 @@ async function callAdminRpc(fnName, params = {}) {
     return { data, error: null }
 }
 
-async function loadGamesCatalog() {
-    if (catalogLoaded) return
-    try {
-        const gamesRes = await fetch('../games.json')
-        const gamesData = await gamesRes.json()
-        allGamesCatalog = gamesData.games || []
-        const catDisplayNames = {
-            'myspace': 'My Space',
-            'tool': 'Tools',
-            'printable': 'Printables',
-            'workshop': 'Workshop',
-            'game': 'Games',
-            'under-construction': 'Tools'
+function loadGamesCatalog() {
+    if (catalogLoaded) return Promise.resolve()
+    if (_catalogLoadPromise) return _catalogLoadPromise
+    _catalogLoadPromise = (async () => {
+        try {
+            const gamesRes = await fetch('../games.json')
+            if (!gamesRes.ok) throw new Error(`HTTP ${gamesRes.status}`)
+            const gamesData = await gamesRes.json()
+            allGamesCatalog = gamesData.games || []
+            const catDisplayNames = {
+                'myspace': 'My Space',
+                'tool': 'Tools',
+                'printable': 'Printables',
+                'workshop': 'Workshop',
+                'game': 'Games',
+                'under-construction': 'Tools'
+            }
+            const toolCategoryMap = {}
+            const toolTitleMap = {}
+            const toolIconMap = {}
+            allGamesCatalog.forEach(g => {
+                const cat = g.id === 'lessonnotes' ? 'My Space' : (catDisplayNames[g.category] || 'Tools')
+                toolCategoryMap[g.id] = cat
+                toolTitleMap[g.id] = g.title
+                toolIconMap[g.id] = g.icon || 'box'
+            })
+            window.toolCategoryMap = toolCategoryMap
+            window.toolTitleMap = toolTitleMap
+            window.toolIconMap = toolIconMap
+            catalogLoaded = true
+        } catch (e) {
+            console.warn('[Admin] Failed to load games.json:', e)
+            _catalogLoadPromise = null
         }
-        const toolCategoryMap = {}
-        const toolTitleMap = {}
-        const toolIconMap = {}
-        allGamesCatalog.forEach(g => {
-            const cat = g.id === 'lessonnotes' ? 'My Space' : (catDisplayNames[g.category] || 'Tools')
-            toolCategoryMap[g.id] = cat
-            toolTitleMap[g.id] = g.title
-            toolIconMap[g.id] = g.icon || 'box'
-        })
-        window.toolCategoryMap = toolCategoryMap
-        window.toolTitleMap = toolTitleMap
-        window.toolIconMap = toolIconMap
-        catalogLoaded = true
-    } catch (e) {
-        console.warn('[Admin] Failed to load games.json:', e)
-    }
+    })()
+    return _catalogLoadPromise
 }
 
 async function loadDashboardSummary() {
     const seq = ++reqSeq.dashboard
     const excludedIds = getValidExcludedUserIds()
-    const { data, error } = await callAdminRpc('admin_dashboard_summary', {
+    const catalogPromise = loadGamesCatalog()
+
+    const baseParams = {
         p_excluded_ids: excludedIds,
-        p_days: chartDaysWindow || 14,
-        p_tz_offset_min: new Date().getTimezoneOffset()
-    })
+        p_days: chartDaysWindow || 14
+    }
+    let data = null
+    let error = null
+
+    if (adminRpcCapabilities.dashboardTz) {
+        ;({ data, error } = await callAdminRpc('admin_dashboard_summary', {
+            ...baseParams,
+            p_tz_offset_min: getLocalTzOffsetMin()
+        }, { silent: true }))
+
+        if (error?.code === 'PGRST202') {
+            adminRpcCapabilities.dashboardTz = false
+            ;({ data, error } = await callAdminRpc('admin_dashboard_summary', baseParams))
+        } else if (error) {
+            console.error('[AdminRPC] admin_dashboard_summary failed:', error)
+        }
+    } else {
+        ;({ data, error } = await callAdminRpc('admin_dashboard_summary', baseParams))
+    }
 
     if (seq !== reqSeq.dashboard) return false
     if (error || !data) {
         healthyTablesCount = 0
-        updateStats()
+        await catalogPromise
+        updateStats({ force: true })
         return false
     }
 
@@ -362,6 +449,7 @@ async function loadDashboardSummary() {
         })
     }
 
+    await catalogPromise
     updateStats()
     if (typeof populateToolFilter === 'function') {
         populateToolFilter(data.distinct_tool_keys || [])
@@ -389,7 +477,7 @@ async function refreshCurrentView() {
 async function fetchData() {
     document.querySelectorAll('.refreshIcon').forEach(i => i.classList.add('animate-spin'))
     try {
-        await loadGamesCatalog()
+        loadGamesCatalog()
         const ok = await loadDashboardSummary()
         await refreshCurrentView()
 
@@ -442,11 +530,10 @@ function showToast(msg, type = 'success') {
     const container = document.getElementById('toast-container')
     if (!container) return
     const toast = document.createElement('div')
-    toast.className = `neo p-4 min-w-[240px] flex items-center gap-3 animate-slide-in pointer-events-auto bg-slate-800 border-2 ${type === 'success' ? 'border-green/40 text-green' : 'border-pink/40 text-pink'}`
-    toast.style.boxShadow = '4px 4px 0 #000'
+    toast.className = `neo p-4 min-w-[240px] flex items-center gap-3 animate-slide-in pointer-events-auto bg-card border-2 ${type === 'success' ? 'border-green text-green' : 'border-pink text-pink'}`
     toast.innerHTML = `
-        <i data-lucide="${type === 'success' ? 'check-circle' : 'alert-circle'}" class="w-5 h-5"></i>
-        <span class="text-sm font-bold">${escapeHtml(msg)}</span>
+        <i data-lucide="${type === 'success' ? 'check-circle' : 'alert-circle'}" class="w-5 h-5 shrink-0"></i>
+        <span class="text-sm font-bold text-ink">${escapeHtml(msg)}</span>
     `
     container.appendChild(toast)
     lucide.createIcons({ root: toast })
@@ -534,7 +621,11 @@ function setTopToolsMode(mode) {
     const btnAll = document.getElementById('topToolsBtnAll')
     if (btnWeek) btnWeek.classList.toggle('active', mode === 'week')
     if (btnAll) btnAll.classList.toggle('active', mode === 'all')
-    updateStats()
+    if (typeof renderTopToolsCard === 'function' && dashboardSummary) {
+        renderTopToolsCard(dashboardSummary)
+    } else {
+        updateStats({ force: true })
+    }
 }
 
 function setToolsChartMetric(metric) {
@@ -543,7 +634,11 @@ function setToolsChartMetric(metric) {
     const btnUsers = document.getElementById('toolsMetricUsers')
     if (btnSaves) btnSaves.classList.toggle('active', metric === 'saves')
     if (btnUsers) btnUsers.classList.toggle('active', metric === 'users')
-    updateStats()
+    if (typeof renderToolsPerformanceSection === 'function' && dashboardSummary) {
+        renderToolsPerformanceSection(dashboardSummary)
+    } else {
+        updateStats({ force: true })
+    }
 }
 
 function countStudentsInClassRow(cls) {

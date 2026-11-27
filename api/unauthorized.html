@@ -182,7 +182,7 @@
           }
 
           if (secondaryCta) {
-            secondaryCta.href = '../login.html';
+            secondaryCta.href = '../login.html?switch=1';
             secondaryCta.innerHTML = '<i data-lucide="user-round" class="w-4 h-4 text-orange" aria-hidden="true"></i><span>Switch Account</span>';
           }
 
@@ -190,6 +190,20 @@
         }
       } catch (err) {
         console.warn('[Unauthorized] Unable to inspect session:', err);
+      }
+    });
+
+    window.addEventListener('storage', (e) => {
+      if (e.key === 'theme_hub' || e.key === 'color_theme') {
+        if (typeof window.__applyKlassKitTheme === 'function') {
+          window.__applyKlassKitTheme();
+        } else {
+          try {
+            const t = JSON.parse(localStorage.getItem('theme_hub'));
+            document.documentElement.classList.toggle('dark', t === 'dark');
+          } catch (_) {}
+        }
+        syncThemeToggleState();
       }
     });
 

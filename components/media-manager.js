@@ -29,6 +29,15 @@ const MediaManager = {
     cancelSelectBtn: null,
     selectionCount: null,
     selectionActions: null,
+
+    escapeHtml(str) {
+        return String(str ?? '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    },
     
     KNOWN_DB_NAMES: [
         { name: 'PosterStudioDB', label: 'Poster Studio', store: 'imgs' },
@@ -93,7 +102,7 @@ const MediaManager = {
             }
 
             const btn = this.refreshBtn;
-            const icon = btn.querySelector('i');
+            const icon = btn.querySelector('i, svg');
             if (icon) icon.classList.add('animate-spin');
             btn.disabled = true;
 
@@ -261,13 +270,13 @@ const MediaManager = {
             error: 'bg-red-500'
         }[type] || 'bg-green';
 
-        toast.className = `${bg} text-white px-6 py-3 rounded-2xl border-[3px] border-dark shadow-[4px_4px_0px_0px_#0f172a] font-bold text-sm pointer-events-auto transition-all duration-300 translate-y-10 opacity-0 flex items-center gap-2`;
+        toast.className = `${bg} text-white px-6 py-3 rounded-2xl border-[3px] border-line shadow-hard font-bold text-sm pointer-events-auto transition-all duration-300 translate-y-10 opacity-0 flex items-center gap-2`;
         
         const icons = { success: 'check', error: 'alert-circle', warning: 'alert-triangle', info: 'info' };
-        toast.innerHTML = `<i data-lucide="${icons[type] || 'info'}" class="w-4 h-4"></i> <span>${message}</span>`;
+        toast.innerHTML = `<i data-lucide="${icons[type] || 'info'}" class="w-4 h-4"></i> <span>${this.escapeHtml(message)}</span>`;
         
         container.appendChild(toast);
-        if (window.lucide) lucide.createIcons({ nodes: [toast] });
+        if (window.lucide) lucide.createIcons({ root: toast });
         
         setTimeout(() => toast.classList.remove('translate-y-10', 'opacity-0'), 10);
         setTimeout(() => {
@@ -295,7 +304,7 @@ const MediaManager = {
         if (!user) return;
 
         this.grid.className = 'h-full overflow-y-auto p-6 flex flex-col gap-8 custom-scrollbar';
-        this.breadcrumbs.innerHTML = '<span class="text-dark dark:text-white font-bold">All Cloud Media (Grouped by Tool/Set)</span>';
+        this.breadcrumbs.innerHTML = '<span class="text-ink font-bold">All Cloud Media (Grouped by Tool/Set)</span>';
 
         let allFiles = (typeof listUserMediaFiles === 'function')
             ? await listUserMediaFiles()
@@ -379,6 +388,7 @@ const MediaManager = {
         card.className = "media-card bg-card rounded-2xl border-[3px] border-line p-3 flex flex-col gap-2 relative group shadow-hard hover:-translate-y-1 hover:shadow-hard-lg transition-all duration-200 cursor-pointer";
         card.dataset.path = file.fullPath;
 
+        const safeName = this.escapeHtml(file.name);
         card.innerHTML = `
             <div class="media-card-check absolute top-2 left-2 z-30 hidden">
                 <div class="w-6 h-6 rounded-lg bg-card border-2 border-line flex items-center justify-center shadow-hard transition-all">
@@ -389,7 +399,7 @@ const MediaManager = {
                 <div class="absolute inset-0 flex items-center justify-center"><i data-lucide="image" class="w-8 h-8 text-slate-300"></i></div>
                 <img class="w-full h-full object-cover relative z-10 opacity-0 transition-opacity duration-300" />
             </div>
-            <div class="text-center font-bold text-xs text-ink-muted truncate w-full px-2" title="${file.name}">${file.name}</div>
+            <div class="text-center font-bold text-xs text-ink-muted truncate w-full px-2" title="${safeName}">${safeName}</div>
 
             <div class="media-card-actions absolute -top-3 -right-3 flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition-all z-20">
                 <button class="download-btn w-10 h-10 bg-blue text-white rounded-xl border-3 border-line shadow-hard hover:bg-blue-600 transition-all flex items-center justify-center hover:scale-110 btn-chunky" title="Download Image">
@@ -486,7 +496,7 @@ const MediaManager = {
     // ---------------------------------------------------------
     async loadSandboxData() {
         this.grid.className = 'h-full overflow-y-auto p-6 flex flex-col gap-8 custom-scrollbar';
-        this.breadcrumbs.innerHTML = '<span class="text-dark dark:text-white font-bold">All Local Media (Grouped by Tool)</span>';
+        this.breadcrumbs.innerHTML = '<span class="text-ink font-bold">All Local Media (Grouped by Tool)</span>';
 
         const groups = [];
 
@@ -589,6 +599,7 @@ const MediaManager = {
         const uid = `${dbInfo.name}::${item.key}`;
         card.dataset.uid = uid;
 
+        const safeKey = this.escapeHtml(item.key);
         card.innerHTML = `
             <div class="media-card-check absolute top-2 left-2 z-30 hidden">
                 <div class="w-6 h-6 rounded-lg bg-card border-2 border-line flex items-center justify-center shadow-hard transition-all">
@@ -596,9 +607,9 @@ const MediaManager = {
                 </div>
             </div>
             <div class="flex-1 flex items-center justify-center bg-surface-muted rounded-xl border-2 border-line-muted aspect-square overflow-hidden relative">
-                <img src="${srcUrl}" class="w-full h-full object-cover relative z-10" />
+                <img src="${this.escapeHtml(srcUrl)}" class="w-full h-full object-cover relative z-10" />
             </div>
-            <div class="text-center font-bold text-[10px] text-ink-muted truncate w-full px-2" title="${item.key}">${item.key}</div>
+            <div class="text-center font-bold text-[10px] text-ink-muted truncate w-full px-2" title="${safeKey}">${safeKey}</div>
 
             <div class="media-card-actions absolute -top-3 -right-3 flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition-all z-20">
                 <button class="download-btn w-10 h-10 bg-blue text-white rounded-xl border-3 border-line shadow-hard hover:bg-blue-600 transition-all flex items-center justify-center hover:scale-110 btn-chunky" title="Download Image">
@@ -700,7 +711,8 @@ const MediaManager = {
         // Clear all selection visuals
         document.querySelectorAll('.media-card').forEach(card => {
             card.classList.remove('ring-2', 'ring-blue', 'border-blue');
-            const checkIcon = card.querySelector('.media-card-check i');
+            card.classList.add('border-line');
+            const checkIcon = card.querySelector('.media-card-check svg, .media-card-check i');
             if (checkIcon) checkIcon.classList.add('hidden');
         });
 
@@ -774,10 +786,10 @@ const MediaManager = {
         if (checkIcon) checkIcon.classList.toggle('hidden', !checked);
         if (checked) {
             checkbox.classList.add('ring-2', 'ring-blue', 'border-blue');
-            checkbox.classList.remove('border-dark');
+            checkbox.classList.remove('border-line');
         } else {
             checkbox.classList.remove('ring-2', 'ring-blue', 'border-blue');
-            checkbox.classList.add('border-dark');
+            checkbox.classList.add('border-line');
         }
 
         this.updateSelectionUI();
@@ -799,10 +811,10 @@ const MediaManager = {
 
         if (isChecked) {
             checkbox.classList.add('ring-2', 'ring-blue', 'border-blue');
-            checkbox.classList.remove('border-dark');
+            checkbox.classList.remove('border-line');
         } else {
             checkbox.classList.remove('ring-2', 'ring-blue', 'border-blue');
-            checkbox.classList.add('border-dark');
+            checkbox.classList.add('border-line');
         }
     },
 
@@ -814,10 +826,10 @@ const MediaManager = {
         }
         if (isSelected) {
             card.classList.add('ring-2', 'ring-blue', 'border-blue');
-            card.classList.remove('border-dark');
+            card.classList.remove('border-line');
         } else {
             card.classList.remove('ring-2', 'ring-blue', 'border-blue');
-            card.classList.add('border-dark');
+            card.classList.add('border-line');
         }
     },
 
@@ -1130,7 +1142,7 @@ const MediaManager = {
             this.grid.appendChild(section);
         }
 
-        lucide.createIcons();
+        if (window.lucide) lucide.createIcons({ root: this.grid });
 
         // Re-apply selection mode if active (e.g., after filter/sort)
         if (this.selectionMode) {
@@ -1186,7 +1198,7 @@ const MediaManager = {
                 <div class="w-10 h-10 bg-blue text-white rounded-xl border-3 border-line flex items-center justify-center shadow-hard-sm">
                     <i data-lucide="folder" class="w-5 h-5"></i>
                 </div>
-                <h3 class="font-heading font-black text-2xl text-ink tracking-tight uppercase">${title}</h3>
+                <h3 class="font-heading font-black text-2xl text-ink tracking-tight uppercase">${this.escapeHtml(title)}</h3>
             </div>
             <div class="media-section-check hidden cursor-pointer select-none" title="Select folder">
                 <div class="section-check-box w-8 h-8 rounded-lg bg-card border-2 border-line flex items-center justify-center shadow-hard transition-all">
@@ -1224,6 +1236,10 @@ const MediaManager = {
 };
 
 // Initialize when DOM is ready
-document.addEventListener('DOMContentLoaded', () => {
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => {
+        MediaManager.init();
+    });
+} else {
     MediaManager.init();
-});
+}

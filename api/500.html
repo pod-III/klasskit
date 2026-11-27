@@ -189,6 +189,19 @@
 
     window.addEventListener('online', updateNetworkStatus);
     window.addEventListener('offline', updateNetworkStatus);
+    window.addEventListener('storage', (e) => {
+      if (e.key === 'theme_hub' || e.key === 'color_theme') {
+        if (typeof window.__applyKlassKitTheme === 'function') {
+          window.__applyKlassKitTheme();
+        } else {
+          try {
+            const t = JSON.parse(localStorage.getItem('theme_hub'));
+            document.documentElement.classList.toggle('dark', t === 'dark');
+          } catch (_) {}
+        }
+        syncThemeToggleState();
+      }
+    });
 
     refreshIcons();
     syncThemeToggleState();

@@ -2,42 +2,65 @@
 
 let exclusionSearchTimeout = null
 
+function getStoredAdminSettings() {
+    try {
+        const saved = localStorage.getItem('kk_admin_settings')
+        return saved ? JSON.parse(saved) : {}
+    } catch (e) {
+        console.error('[Admin] Failed to parse saved settings:', e)
+        return {}
+    }
+}
+
+function syncDefaultChartDaysUI(days) {
+    ;[7, 14, 30, 90].forEach(d => {
+        const dashBtn = document.getElementById(`range-${d}`)
+        if (dashBtn) dashBtn.classList.toggle('active', d === days)
+        const settingBtn = document.getElementById(`setting-range-${d}`)
+        if (settingBtn) settingBtn.classList.toggle('active', d === days)
+    })
+}
+
+function setDefaultChartDays(days) {
+    const valid = [7, 14, 30].includes(Number(days)) ? Number(days) : 14
+    chartDaysWindow = valid
+    syncDefaultChartDaysUI(valid)
+    saveSettings({ refreshExclusions: false })
+}
+
 // ── SETTINGS ──
 function debouncedSaveSettings() {
     clearTimeout(settingsTimeout)
-    settingsTimeout = setTimeout(saveSettings, 500)
+    settingsTimeout = setTimeout(() => saveSettings({ refreshExclusions: false }), 500)
 }
 
-async function saveSettings() {
+async function saveSettings({ refreshExclusions = false } = {}) {
+    const prev = getStoredAdminSettings()
+    const exclEl = document.getElementById('setting-excluded-ids')
     const settings = {
-        maintenance: document.getElementById('setting-maintenance').checked,
-        sync: document.getElementById('setting-sync').checked,
-        announcement: document.getElementById('setting-announcement').value,
-        excluded_ids: document.getElementById('setting-excluded-ids').value
+        defaultChartDays: chartDaysWindow || prev.defaultChartDays || 14,
+        excluded_ids: exclEl ? exclEl.value : (prev.excluded_ids || '')
     }
     localStorage.setItem('kk_admin_settings', JSON.stringify(settings))
+    _lastRenderedSummaryRef = null
     await loadDashboardSummary()
-    await refreshCurrentView()
-    console.log('[Admin] Settings saved:', settings)
+    if (currentView !== 'settings' || refreshExclusions) {
+        await refreshCurrentView()
+    }
 }
 
 function loadSettings({ fetchExclusions = true } = {}) {
-    const saved = localStorage.getItem('kk_admin_settings')
-    if (saved) {
-        try {
-            const settings = JSON.parse(saved)
-            const maint = document.getElementById('setting-maintenance')
-            const sync = document.getElementById('setting-sync')
-            const ann = document.getElementById('setting-announcement')
-            const excl = document.getElementById('setting-excluded-ids')
-            if (maint) maint.checked = settings.maintenance || false
-            if (sync) sync.checked = settings.sync !== false
-            if (ann) ann.value = settings.announcement || ''
-            if (excl) excl.value = settings.excluded_ids || ''
-        } catch (e) {
-            console.error('[Admin] Failed to parse saved settings:', e)
-        }
+    const settings = getStoredAdminSettings()
+    const savedDays = Number(settings.defaultChartDays)
+    if ([7, 14, 30].includes(savedDays)) {
+        chartDaysWindow = savedDays
     }
+    syncDefaultChartDaysUI(chartDaysWindow || 14)
+
+    const excl = document.getElementById('setting-excluded-ids')
+    if (excl) excl.value = settings.excluded_ids || ''
+
+    if (typeof syncAdminThemeUI === 'function') syncAdminThemeUI()
     if (fetchExclusions) {
         renderExcludedUserPicker()
     }
@@ -77,21 +100,21 @@ async function renderExcludedUserPicker() {
 
     // Render chips across ALL excluded IDs (even when filtered out of search list)
     if (!rawExcluded.length) {
-        chips.innerHTML = '<span class="text-xs text-slate-600 italic">No users excluded</span>'
+        chips.innerHTML = '<span class="text-xs text-ink-muted italic">No users excluded</span>'
     } else {
         chips.innerHTML = rawExcluded.map(id => {
             const p = selectedMap[id] || allProfiles[id]
             const name = p?.display_name || id.slice(0, 8)
             return `<div class="inline-flex items-center gap-2 px-3 py-1 bg-pink/10 border border-pink/30 rounded-full text-xs text-pink font-bold animate-pop-in">
                 ${escapeHtml(name)}
-                <button onclick="removeExcludedUser('${escapeJsAttr(id)}')" class="hover:text-white transition-colors" title="Remove"><i data-lucide="x" class="w-3 h-3"></i></button>
+                <button onclick="removeExcludedUser('${escapeJsAttr(id)}')" class="hover:text-ink transition-colors" title="Remove"><i data-lucide="x" class="w-3 h-3"></i></button>
             </div>`
         }).join('')
         lucide.createIcons({ root: chips })
     }
 
     if (!matchedProfiles.length) {
-        list.innerHTML = '<div class="text-xs text-slate-600 italic p-3 text-center">No matching users found</div>'
+        list.innerHTML = '<div class="text-xs text-ink-muted italic p-3 text-center">No matching users found</div>'
         return
     }
 
@@ -100,11 +123,11 @@ async function renderExcludedUserPicker() {
         const name = profile.display_name || 'Unknown'
         const initial = name[0]?.toUpperCase() || '?'
         const isExcluded = excludedSet.has(profile.id)
-        return `<label class="exclusion-item flex items-center gap-3 p-2 hover:bg-slate-800/50 rounded-xl cursor-pointer transition-colors ${isExcluded ? 'bg-pink/5' : ''}">
-            <input type="checkbox" value="${escapeHtml(profile.id)}" ${isExcluded ? 'checked' : ''} onchange="updateExcludedUsers()" class="w-4 h-4 rounded border-slate-600 bg-slate-800 cursor-pointer exclusion-checkbox">
+        return `<label class="exclusion-item flex items-center gap-3 p-2 hover:bg-surface-muted rounded-xl cursor-pointer transition-colors ${isExcluded ? 'bg-pink/5' : ''}">
+            <input type="checkbox" value="${escapeHtml(profile.id)}" ${isExcluded ? 'checked' : ''} onchange="updateExcludedUsers()" class="w-4 h-4 rounded cursor-pointer exclusion-checkbox">
             <div class="w-7 h-7 rounded-lg bg-blue/20 border-2 border-blue/30 flex items-center justify-center text-blue text-xs font-heading flex-shrink-0">${escapeHtml(initial)}</div>
-            <span class="text-sm text-white font-bold">${escapeHtml(name)}</span>
-            <span class="text-[10px] text-slate-600 font-mono ml-auto">${escapeHtml(profile.id.slice(0, 8))}...</span>
+            <span class="text-sm text-ink font-bold">${escapeHtml(name)}</span>
+            <span class="text-[10px] text-ink-muted font-mono ml-auto">${escapeHtml(profile.id.slice(0, 8))}...</span>
         </label>`
     }).join('')
 }
@@ -119,7 +142,7 @@ function updateExcludedUsers() {
     })
     const textarea = document.getElementById('setting-excluded-ids')
     if (textarea) textarea.value = Array.from(excludedSet).join(', ')
-    saveSettings()
+    saveSettings({ refreshExclusions: true })
 }
 
 function removeExcludedUser(id) {
@@ -127,7 +150,7 @@ function removeExcludedUser(id) {
     if (!textarea) return
     const current = getExcludedUserIds().filter(x => x !== id)
     textarea.value = current.join(', ')
-    saveSettings()
+    saveSettings({ refreshExclusions: true })
 }
 
 function filterExclusionList() {
@@ -214,8 +237,8 @@ function setView(view) {
         const btn = document.getElementById('nav-' + v)
         if (btn) {
             btn.classList.toggle('active', v === view)
-            btn.classList.toggle('text-slate-400', v !== view)
-            btn.classList.toggle('text-slate-300', v === view)
+            btn.classList.toggle('text-ink-muted', v !== view)
+            btn.classList.toggle('text-ink', v === view)
         }
     })
     currentView = view

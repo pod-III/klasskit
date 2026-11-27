@@ -1,12 +1,12 @@
 // Bump version whenever sw.js changes
-const CACHE_NAME = 'klasskit-v1.8.7';
+const CACHE_NAME = 'klasskit-v1.8.7-r3';
 
 // 1. Pre-cache Core Assets (Static)
 // Note: Use clean paths or keep consistent with how your app navigates
 const PRE_CACHE_ASSETS = [
   './',
   './index.html',
-  './hub',
+  './hub.html',
   './login.html',
   './404.html',
   './admin/index.html',
@@ -18,6 +18,7 @@ const PRE_CACHE_ASSETS = [
   './admin/js/settings.js',
   './admin/js/cloud.js',
   './js/theme-init.js',
+  './js/analytics.js',
   './js/hub/core.js',
   './js/hub/ui.js',
   './js/hub/views.js',
@@ -58,7 +59,9 @@ const PRE_CACHE_ASSETS = [
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(PRE_CACHE_ASSETS))
+    caches.open(CACHE_NAME).then((cache) =>
+      Promise.allSettled(PRE_CACHE_ASSETS.map((asset) => cache.add(asset)))
+    )
   );
   self.skipWaiting();
 });
@@ -88,10 +91,29 @@ self.addEventListener('fetch', (event) => {
   if (request.mode === 'navigate') {
     event.respondWith(
       fetch(request)
-        .then((networkResponse) => {
+        .then(async (networkResponse) => {
           if (networkResponse && networkResponse.ok && !networkResponse.redirected) {
             const copy = networkResponse.clone();
             caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
+            return networkResponse;
+          }
+          if (networkResponse && networkResponse.status === 404) {
+            const ct = networkResponse.headers.get('content-type') || '';
+            if (ct.includes('text/html')) {
+              const html = await networkResponse.clone().text();
+              if (html.includes('klasskit-404')) {
+                return networkResponse;
+              }
+            }
+            const cache = await caches.open(CACHE_NAME);
+            const cached404 = await cache.match('./404.html');
+            if (cached404) {
+              return new Response(cached404.body, {
+                status: 404,
+                statusText: 'Not Found',
+                headers: { 'Content-Type': 'text/html; charset=utf-8' }
+              });
+            }
           }
           return networkResponse;
         })
@@ -99,7 +121,7 @@ self.addEventListener('fetch', (event) => {
           const cache = await caches.open(CACHE_NAME);
           return (
             (await cache.match(request)) ||
-            (await cache.match('./hub')) ||
+            (await cache.match('./hub.html')) ||
             (await cache.match('./index.html')) ||
             (await cache.match('./404.html')) ||
             new Response('Offline', { status: 503, statusText: 'Service Unavailable' })

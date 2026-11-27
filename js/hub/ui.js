@@ -244,11 +244,11 @@ const UI = {
 
     toast.innerHTML = `
       <i data-lucide="${iconMap[type] || 'info'}" class="w-5 h-5" aria-hidden="true"></i>
-      <span>${message}</span>
+      <span>${Utils.escapeHtml(message)}</span>
     `;
 
     document.body.appendChild(toast);
-    Utils.refreshIcons();
+    Utils.refreshIcons(toast);
 
     setTimeout(() => toast.classList.add('show'), 10);
 
@@ -495,6 +495,14 @@ const StorageManager = {
 const Announcements = {
   list: [],
 
+  TYPE_STYLES: {
+    info:    { icon: 'info',           text: 'text-blue',   bg: 'bg-blue',   softBox: 'bg-blue/10 text-blue border-blue/20' },
+    update:  { icon: 'sparkles',       text: 'text-green',  bg: 'bg-green',  softBox: 'bg-green/10 text-green border-green/20' },
+    feature: { icon: 'sparkles',       text: 'text-green',  bg: 'bg-green',  softBox: 'bg-green/10 text-green border-green/20' },
+    alert:   { icon: 'alert-triangle', text: 'text-orange', bg: 'bg-orange', softBox: 'bg-orange/10 text-orange border-orange/20' },
+    warning: { icon: 'alert-triangle', text: 'text-pink',   bg: 'bg-pink',   softBox: 'bg-pink/10 text-pink border-pink/20' }
+  },
+
   async init() {
     await this.fetch();
     this.render();
@@ -545,34 +553,31 @@ const Announcements = {
 
     listEl.innerHTML = this.list.map((ann, i) => {
       const date = new Date(ann.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
-      const typeColors = {
-        info: 'blue',
-        update: 'green',
-        alert: 'orange'
-      };
-      const color = typeColors[ann.type] || 'blue';
-      const icon = ann.type === 'alert' ? 'alert-triangle' : (ann.type === 'update' ? 'sparkles' : 'info');
+      const style = this.TYPE_STYLES[ann.type] || this.TYPE_STYLES.info;
+      const safeId = Utils.escapeHtml(ann.id);
+      const safeType = Utils.escapeHtml(ann.type);
+      const safeTitle = Utils.escapeHtml(ann.title);
 
       return `
-        <div onclick="Announcements.viewDetail('${ann.id}')" role="button" tabindex="0"
+        <div data-action="viewAnnouncement" data-param="${safeId}" role="button" tabindex="0"
           class="ann-card bg-card p-4 rounded-xl border-2 border-line shadow-sm hover:border-blue dark:hover:border-blue transition-all cursor-pointer group animate-pop-in" 
           style="animation-delay: ${i * 0.1}s">
           
           <div class="flex items-start justify-between mb-2">
             <div class="flex items-center gap-2">
-              <div class="w-7 h-7 rounded-lg bg-${color}/10 text-${color} flex items-center justify-center border-2 border-${color}/20">
-                <i data-lucide="${icon}" class="w-3.5 h-3.5" aria-hidden="true"></i>
+              <div class="w-7 h-7 rounded-lg ${style.softBox} flex items-center justify-center border-2">
+                <i data-lucide="${style.icon}" class="w-3.5 h-3.5" aria-hidden="true"></i>
               </div>
               <div>
-                <span class="text-[9px] font-black text-${color} uppercase tracking-widest">${ann.type}</span>
-                <div class="text-[9px] font-bold text-slate-400 uppercase tracking-widest">${date}</div>
+                <span class="text-[9px] font-black ${style.text} uppercase tracking-widest">${safeType}</span>
+                <div class="text-[9px] font-bold text-ink-muted uppercase tracking-widest">${date}</div>
               </div>
             </div>
-            <i data-lucide="chevron-right" class="w-4 h-4 text-slate-300 group-hover:text-blue transition-colors" aria-hidden="true"></i>
+            <i data-lucide="chevron-right" class="w-4 h-4 text-ink-muted opacity-50 group-hover:text-blue group-hover:opacity-100 transition-all" aria-hidden="true"></i>
           </div>
           
-          <h4 class="text-base font-heading font-black text-dark dark:text-white mb-1.5 leading-tight group-hover:text-blue transition-colors">${ann.title}</h4>
-          <p class="text-xs text-slate-600 dark:text-slate-400 leading-relaxed font-body font-semibold line-clamp-2">${this.formatText(ann.content).replace(/<br>/g, ' ')}</p>
+          <h4 class="text-base font-heading font-black text-ink mb-1.5 leading-tight group-hover:text-blue transition-colors">${safeTitle}</h4>
+          <p class="text-xs text-ink-muted leading-relaxed font-body font-semibold line-clamp-2">${this.formatText(ann.content).replace(/<br>/g, ' ')}</p>
         </div>
       `;
     }).join('');
@@ -612,7 +617,7 @@ const Announcements = {
 
     if (this.list.length === 0) {
       listEl.innerHTML = `
-        <div class="text-center py-12 text-slate-400 font-bold">
+        <div class="text-center py-12 text-ink-muted font-bold">
           <i data-lucide="bell-off" class="w-12 h-12 mx-auto mb-3 opacity-30" aria-hidden="true"></i>
           <p>No notifications yet.</p>
         </div>
@@ -625,18 +630,16 @@ const Announcements = {
 
     listEl.innerHTML = this.list.map((ann, i) => {
       const date = new Date(ann.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
-      const typeColors = {
-        info: 'blue',
-        update: 'green',
-        alert: 'orange'
-      };
-      const color = typeColors[ann.type] || 'blue';
+      const style = this.TYPE_STYLES[ann.type] || this.TYPE_STYLES.info;
       const isUnread = new Date(ann.created_at).getTime() > lastRead;
       const statusIcon = isUnread ? 'mail' : 'mail-open';
-      const statusColor = isUnread ? 'text-blue' : 'text-slate-400';
+      const statusColor = isUnread ? 'text-blue' : 'text-ink-muted';
+      const safeId = Utils.escapeHtml(ann.id);
+      const safeType = Utils.escapeHtml(ann.type);
+      const safeTitle = Utils.escapeHtml(ann.title);
 
       return `
-        <div onclick="Announcements.viewDetail('${ann.id}')" role="button" tabindex="0"
+        <div data-action="viewAnnouncement" data-param="${safeId}" role="button" tabindex="0"
           class="p-5 bg-card rounded-2xl border-2 border-line hover:border-blue dark:hover:border-blue transition-all cursor-pointer group animate-pop-in relative overflow-hidden shadow-sm hover:shadow-md"
           style="animation-delay: ${i * 0.05}s">
           
@@ -645,13 +648,13 @@ const Announcements = {
           <div class="flex items-start justify-between mb-3">
             <div class="flex items-center gap-2">
               <i data-lucide="${statusIcon}" class="w-4 h-4 ${statusColor}" aria-hidden="true"></i>
-              <span class="text-[10px] font-black uppercase tracking-widest text-slate-500">${ann.type}</span>
+              <span class="text-[10px] font-black uppercase tracking-widest ${style.text}">${safeType}</span>
             </div>
-            <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">${date}</span>
+            <span class="text-[10px] font-bold text-ink-muted uppercase tracking-widest">${date}</span>
           </div>
           
-          <h4 class="text-lg font-heading font-black text-dark dark:text-white mb-2 group-hover:text-blue transition-colors leading-tight">${ann.title}</h4>
-          <p class="text-sm text-slate-600 dark:text-slate-400 leading-relaxed font-semibold line-clamp-2">${this.formatText(ann.content).replace(/<br>/g, ' ')}</p>
+          <h4 class="text-lg font-heading font-black text-ink mb-2 group-hover:text-blue transition-colors leading-tight">${safeTitle}</h4>
+          <p class="text-sm text-ink-muted leading-relaxed font-semibold line-clamp-2">${this.formatText(ann.content).replace(/<br>/g, ' ')}</p>
           
           <div class="mt-4 flex items-center gap-1 text-[10px] font-black text-blue uppercase tracking-widest opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 transition-opacity">
             <span>Read More</span>
@@ -664,7 +667,7 @@ const Announcements = {
   },
 
   viewDetail(annId) {
-    const ann = this.list.find(a => a.id === annId);
+    const ann = this.list.find(a => String(a.id) === String(annId));
     if (!ann) return;
 
     AudioEngine.click();
@@ -674,7 +677,7 @@ const Announcements = {
     const typeEl = document.getElementById('ann-detail-type');
     const dateEl = document.getElementById('ann-detail-date');
     const contentEl = document.getElementById('ann-detail-content');
-    const iconEl = document.getElementById('ann-detail-icon');
+    const iconBgEl = document.getElementById('ann-detail-icon-bg');
     const headerEl = document.getElementById('ann-detail-header');
     
     if (titleEl) titleEl.textContent = ann.title;
@@ -684,17 +687,13 @@ const Announcements = {
     });
     if (contentEl) contentEl.innerHTML = this.formatText(ann.content);
     
-    // Set type icon and header color
-    const typeConfigs = {
-      info: { icon: 'info', color: 'bg-blue' },
-      update: { icon: 'sparkles', color: 'bg-green' },
-      alert: { icon: 'alert-triangle', color: 'bg-orange' }
-    };
-    const config = typeConfigs[ann.type] || typeConfigs.info;
+    const config = this.TYPE_STYLES[ann.type] || this.TYPE_STYLES.info;
     
-    if (iconEl) iconEl.setAttribute('data-lucide', config.icon);
+    if (iconBgEl) {
+      iconBgEl.innerHTML = `<i id="ann-detail-icon" data-lucide="${config.icon}" class="w-5 h-5 sm:w-6 sm:h-6" aria-hidden="true"></i>`;
+    }
     if (headerEl) {
-      headerEl.className = headerEl.className.replace(/bg-(blue|green|orange)/g, config.color);
+      headerEl.className = headerEl.className.replace(/\bbg-(blue|green|orange|pink)\b/g, config.bg);
     }
     
     Utils.refreshIcons(headerEl);
@@ -735,9 +734,9 @@ const Announcements = {
 
   formatText(text) {
     if (!text) return '';
-    return text
-      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-      .replace(/\*(.*?)\*/g, '<em>$1</em>')
+    return Utils.escapeHtml(text)
+      .replace(/\*\*(.*?)\*\*/g, '<strong class="font-extrabold text-ink">$1</strong>')
+      .replace(/\*(.*?)\*/g, '<em class="italic">$1</em>')
       .replace(/\n/g, '<br>');
   }
 };
@@ -802,19 +801,23 @@ const RecentGames = {
     container.classList.toggle('hidden', collapsed);
     if (collapsed) return;
 
-    container.innerHTML = visibleGames.map(game => `
-        <button data-action="openGame" data-param="${game.id}"
+    container.innerHTML = visibleGames.map(game => {
+      const safeId = Utils.escapeHtml(game.id);
+      const safeTitle = Utils.escapeHtml(game.title);
+      return `
+        <button data-action="openGame" data-param="${safeId}"
           class="recent-pill bg-card flex items-center gap-2 px-2 py-1.5 rounded-xl shrink-0 min-w-[120px] group hover:bg-surface-muted border-2 border-line shadow-hard-sm animate-pop-in"
-          aria-label="Resume ${game.title}">
+          aria-label="Resume ${safeTitle}">
           <div class="w-8 h-8 rounded-lg ${Utils.getColorClass(game.color)} flex items-center justify-center text-white border-2 border-line shadow-sm">
-            <i data-lucide="${game.icon}" class="w-4 h-4"></i>
+            <i data-lucide="${Utils.escapeHtml(game.icon)}" class="w-4 h-4"></i>
           </div>
           <div class="text-left">
-            <div class="text-[10px] font-black text-ink truncate w-20 leading-tight">${game.title}</div>
-            <div class="text-[8px] text-slate-400 font-black uppercase tracking-tighter">RESUME</div>
+            <div class="text-[10px] font-black text-ink truncate w-20 leading-tight">${safeTitle}</div>
+            <div class="text-[8px] text-ink-muted font-black uppercase tracking-tighter">RESUME</div>
           </div>
         </button>
-      `).join('');
+      `;
+    }).join('');
     Utils.refreshIcons(container);
   }
 };
@@ -996,21 +999,25 @@ const HistoryManager = {
       return;
     }
 
-    container.innerHTML = filtered.map(({ game, timeStr }) => `
+    container.innerHTML = filtered.map(({ game, timeStr }) => {
+      const safeId = Utils.escapeHtml(game.id);
+      const safeTitle = Utils.escapeHtml(game.title);
+      const safeCat = Utils.escapeHtml(game.category);
+      return `
       <div class="card p-3 flex items-center justify-between gap-3 bg-card border-2 border-line rounded-xl shadow-hard-sm hover:translate-y-[-2px] transition-all group cursor-pointer"
-           role="button" tabindex="0" data-game-id="${game.id}" aria-label="Open ${game.title} (${this.formatTimeAgo(timeStr)})"
-           onclick="HistoryManager.togglePanel(false, false); GameModal.open('${game.id}')">
+           role="button" tabindex="0" data-game-id="${safeId}" aria-label="Open ${safeTitle} (${this.formatTimeAgo(timeStr)})"
+           onclick="HistoryManager.togglePanel(false, false); GameModal.open('${safeId}')">
         <div class="flex items-center gap-3 min-w-0">
           <div class="w-10 h-10 rounded-xl ${Utils.getColorClass(game.color)} flex items-center justify-center text-white border-2 border-line shadow-sm shrink-0 group-hover:scale-110 transition-transform">
-            <i data-lucide="${game.icon}" class="w-5 h-5" aria-hidden="true"></i>
+            <i data-lucide="${Utils.escapeHtml(game.icon)}" class="w-5 h-5" aria-hidden="true"></i>
           </div>
           <div class="min-w-0 text-left">
             <div class="flex items-center gap-1.5">
-              <h4 class="font-heading font-bold text-sm text-ink truncate group-hover:text-blue transition-colors">${game.title}</h4>
+              <h4 class="font-heading font-bold text-sm text-ink truncate group-hover:text-blue transition-colors">${safeTitle}</h4>
               ${game.pro ? '<span class="pro-badge px-1.5 py-0.5 bg-gradient-to-r from-orange to-pink text-[8px] font-black text-white rounded shadow-sm shrink-0">PRO</span>' : ''}
               ${game.new ? '<span class="new-badge px-1.5 py-0.5 bg-gradient-to-r from-green to-blue text-[8px] font-black text-white rounded shadow-sm shrink-0">NEW</span>' : ''}
             </div>
-            <p class="text-[10px] font-bold text-ink-muted uppercase tracking-wider">${game.category}</p>
+            <p class="text-[10px] font-bold text-ink-muted uppercase tracking-wider">${safeCat}</p>
           </div>
         </div>
         <div class="shrink-0 text-right">
@@ -1019,7 +1026,8 @@ const HistoryManager = {
           </span>
         </div>
       </div>
-    `).join('');
+    `;
+    }).join('');
 
     Utils.refreshIcons(container);
   }
@@ -1075,23 +1083,25 @@ const PinnedGames = {
     const categoryLabels = { tool: 'Tool', printable: 'Printable', game: 'Game', workshop: 'Workshop', myspace: 'My Space', 'under-construction': 'WIP' };
 
     container.innerHTML = visibleGames.map(game => {
-      const catLabel = categoryLabels[game.category] || game.category;
+      const catLabel = Utils.escapeHtml(categoryLabels[game.category] || game.category);
+      const safeId = Utils.escapeHtml(game.id);
+      const safeTitle = Utils.escapeHtml(game.title);
       return `
         <article class="pinned-card group relative bg-card rounded-2xl border-3 border-line shadow-hard-sm hover:shadow-hard hover:-translate-y-1 active:translate-y-[2px] active:shadow-none cursor-pointer transition-all duration-200 animate-pop-in overflow-hidden"
-          data-action="openGame" data-param="${game.id}" role="button" tabindex="0" aria-label="Open ${game.title}">
+          data-action="openGame" data-param="${safeId}" role="button" tabindex="0" aria-label="Open ${safeTitle}">
           <div class="flex items-center gap-3 p-3">
             <div class="w-10 h-10 rounded-xl ${Utils.getColorClass(game.color)} flex items-center justify-center text-white border-2 border-line shadow-sm shrink-0">
-              <i data-lucide="${game.icon}" class="w-5 h-5" aria-hidden="true"></i>
+              <i data-lucide="${Utils.escapeHtml(game.icon)}" class="w-5 h-5" aria-hidden="true"></i>
             </div>
             <div class="flex-1 min-w-0">
               <div class="flex items-center gap-1.5 min-w-0">
-                <div class="text-sm font-black text-ink truncate leading-tight">${game.title}</div>
+                <div class="text-sm font-black text-ink truncate leading-tight">${safeTitle}</div>
                 ${game.pro ? '<span class="pro-badge px-1.5 py-0.5 bg-gradient-to-r from-orange to-pink text-[8px] font-black text-white rounded shadow-sm shrink-0">PRO</span>' : ''}
                 ${game.new ? '<span class="new-badge px-1.5 py-0.5 bg-gradient-to-r from-green to-blue text-[8px] font-black text-white rounded shadow-sm shrink-0">NEW</span>' : ''}
               </div>
-              <div class="text-[10px] text-slate-400 font-bold uppercase tracking-wider truncate">${catLabel}</div>
+              <div class="text-[10px] text-ink-muted font-bold uppercase tracking-wider truncate">${catLabel}</div>
             </div>
-            <button data-action="togglePin" data-param="${game.id}" class="p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/30 hover:text-red-500 text-slate-400 dark:text-slate-500 transition-all opacity-80 md:opacity-0 md:group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100 shrink-0" title="Unpin" aria-label="Unpin ${game.title}">
+            <button data-action="togglePin" data-param="${safeId}" class="p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/30 hover:text-red-500 text-ink-muted transition-all opacity-80 md:opacity-0 md:group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100 shrink-0" title="Unpin" aria-label="Unpin ${safeTitle}">
               <i data-lucide="pin-off" class="w-3.5 h-3.5" aria-hidden="true"></i>
             </button>
           </div>

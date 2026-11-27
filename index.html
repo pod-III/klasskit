@@ -126,6 +126,7 @@
 </head>
 
 <body class="min-h-screen flex flex-col p-0 pb-6 selection:bg-pink selection:text-white overflow-x-hidden">
+  <a href="#main-content" class="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-[100] btn-chunky bg-blue text-white px-4 py-2 rounded-xl font-heading text-sm border-3 border-line shadow-hard-sm">Skip to main content</a>
 
   <!-- FULL-WIDTH STICKY GLASS HEADER -->
   <nav aria-label="Primary Navigation"
@@ -141,12 +142,12 @@
         </span>
         <span
           class="hidden sm:inline-flex -rotate-2 px-2.5 py-0.5 rounded-full bg-pink/10 dark:bg-pink/15 text-pink-700 dark:text-pink-300 border-2 border-pink/30 text-[10px] font-extrabold uppercase tracking-wider">
-          70+ Tools
+          75+ Tools
         </span>
       </div>
 
       <div class="flex items-center gap-2.5">
-        <a href="./login.html"
+        <a id="nav-auth-link" href="./login.html"
           class="btn-chunky px-4 py-2 sm:px-5 sm:py-2.5 rounded-xl bg-card/90 text-ink font-heading font-bold text-sm sm:text-base uppercase tracking-wider inline-flex items-center gap-2">
           <i data-lucide="log-in" class="w-4 h-4 sm:w-5 sm:h-5 text-blue" aria-hidden="true"></i>
           <span>Sign In</span>
@@ -160,7 +161,7 @@
     </div>
   </nav>
 
-  <main class="w-full flex-1 flex flex-col">
+  <main id="main-content" class="w-full flex-1 flex flex-col">
     <!-- COMPACT HERO -->
     <header class="w-full max-w-5xl mx-auto px-4 sm:px-6 pt-6 sm:pt-8 text-center animate-pop-in">
       <h1 class="font-heading font-bold text-3xl sm:text-4xl md:text-5xl text-ink uppercase tracking-tight leading-tight">
@@ -168,7 +169,7 @@
       </h1>
 
       <p class="text-sm sm:text-base font-bold text-ink-muted max-w-2xl mx-auto mt-2">
-        70+ interactive classroom games, management tools, and printables — free, ad-free, and projector ready.
+        75+ interactive classroom games, management tools, and printables — free, ad-free, and projector ready.
       </p>
 
       <div class="flex flex-wrap justify-center gap-2 mt-3.5">
@@ -591,7 +592,41 @@
       syncThemeToggleState();
     }
 
+    window.addEventListener('storage', (e) => {
+      if (e.key === 'theme_hub' || e.key === 'color_theme') {
+        if (typeof window.__applyKlassKitTheme === 'function') {
+          window.__applyKlassKitTheme();
+        } else {
+          try {
+            const t = JSON.parse(localStorage.getItem('theme_hub'));
+            document.documentElement.classList.toggle('dark', t === 'dark');
+          } catch (_) {}
+        }
+        syncThemeToggleState();
+      }
+    });
+
+    function hasLocalCloudSession() {
+      if (localStorage.getItem('kk_current_user_id')) return true;
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && k.startsWith('sb-') && k.endsWith('-auth-token')) {
+          try {
+            const val = JSON.parse(localStorage.getItem(k));
+            if (val && (val.access_token || val.currentSession?.access_token)) return true;
+          } catch (_) {}
+        }
+      }
+      return false;
+    }
+
     window.addEventListener('DOMContentLoaded', () => {
+      const navAuthLink = document.getElementById('nav-auth-link');
+      if (navAuthLink && hasLocalCloudSession()) {
+        navAuthLink.href = './hub.html';
+        navAuthLink.innerHTML = '<i data-lucide="cloud" class="w-4 h-4 sm:w-5 sm:h-5 text-green" aria-hidden="true"></i><span>Cloud Ready</span>';
+      }
+
       if (window.lucide && typeof window.lucide.createIcons === 'function') {
         window.lucide.createIcons();
       }

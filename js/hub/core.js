@@ -40,6 +40,15 @@ const CONFIG = {
 
 // --- UTILITIES ---
 const Utils = {
+  escapeHtml(str) {
+    return String(str ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  },
+
   debounce(fn, delay) {
     let timer;
     return function (...args) {
@@ -77,7 +86,7 @@ const Utils = {
       } else {
         containers.forEach(c => {
           if (c && typeof c.querySelectorAll === 'function') {
-            window.lucide.createIcons({ nodes: c.querySelectorAll('[data-lucide]') });
+            window.lucide.createIcons({ root: c });
           }
         });
       }

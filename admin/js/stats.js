@@ -1,6 +1,45 @@
 // KlassKit Admin — Dashboard Stats, Charts & Insights (RPC-backed)
 
-function updateStats() {
+function renderTopToolsCard(summary) {
+    const topToolsList = document.getElementById('topToolsList')
+    const topToolsTitle = document.getElementById('topToolsTitle')
+    if (!topToolsList || !summary) return
+
+    const allToolStats = Array.isArray(summary.tool_stats) ? summary.tool_stats : []
+    const weekTools = Array.isArray(summary.top_tools_week) ? summary.top_tools_week : []
+    const isFallback = topToolsMode === 'week' && weekTools.length === 0 && allToolStats.length > 0
+    const sourceList = (topToolsMode === 'week' && !isFallback) ? weekTools : allToolStats
+
+    if (topToolsTitle) {
+        topToolsTitle.textContent = (topToolsMode === 'all' || isFallback)
+            ? (isFallback ? 'Top Tools Overall (No 7D Saves)' : 'Top Tools All-Time')
+            : 'Top Tools This Week (7D)'
+    }
+
+    const sliced = sourceList.slice(0, 4)
+    if (sliced.length === 0) {
+        topToolsList.innerHTML = '<div class="text-center py-6 text-ink-muted font-bold text-xs">No activity yet</div>'
+        return
+    }
+    topToolsList.innerHTML = sliced.map(info => {
+        const meta = getToolMeta(info.canonical_tool)
+        return `
+            <div class="flex items-center justify-between p-2 bg-surface-muted/70 rounded-xl border border-line-muted">
+                <span class="text-xs text-ink font-bold flex items-center gap-2 truncate pr-2">
+                    <i data-lucide="${meta.icon}" class="w-3.5 h-3.5 flex-shrink-0" style="color: ${meta.color}"></i>
+                    <span class="truncate">${escapeHtml(meta.name)}</span>
+                </span>
+                <div class="flex items-center gap-2 flex-shrink-0">
+                    <span class="text-[10px] text-ink-muted font-mono">${Number(info.users) || 0}u</span>
+                    <span class="text-xs font-bold text-ink font-mono bg-card px-2 py-0.5 rounded-lg border border-line-muted">${Number(info.saves) || 0}</span>
+                </div>
+            </div>
+        `
+    }).join('')
+    lucide.createIcons({ root: topToolsList })
+}
+
+function updateStats({ force = false } = {}) {
     const excludedIds = getExcludedUserIds()
 
     // Exclusion banner
@@ -15,6 +54,13 @@ function updateStats() {
 
     const summary = dashboardSummary
     if (!summary) return
+
+    if (!force && summary === _lastRenderedSummaryRef && !_chartsThemeDirty && charts.activity) {
+        Object.values(charts).forEach(ch => {
+            if (ch && typeof ch.resize === 'function') ch.resize()
+        })
+        return
+    }
 
     const community = summary.community || {}
     const engagement = summary.engagement || {}
@@ -63,12 +109,14 @@ function updateStats() {
     const allToolStats = Array.isArray(summary.tool_stats) ? summary.tool_stats : []
     const adoptedCanonicalTools = new Set(allToolStats.map(t => resolveCanonicalToolId(t.canonical_tool)))
     const activeCatalogGames = allGamesCatalog.filter(g => g.category !== 'under-construction' && g.id !== 'myspace-home')
-    const catalogTotalCount = activeCatalogGames.length || 59
+    const catalogTotalCount = activeCatalogGames.length || 71
 
     setElText('statRows', totalInteractions.toLocaleString())
     setElText('statAvgPerTeacher', `~${avgSavesPerTeacher} / active user`)
     setElText('statToolSavesCount', progressSaveCount.toLocaleString())
     setElText('statDbRecordsCount', dbRecordsCount.toLocaleString())
+    setElText('statTabOpensCount', engagement.tab_opens !== undefined ? Number(engagement.tab_opens).toLocaleString() : '—')
+    setElText('statSessionsCount', engagement.session_logs !== undefined ? Number(engagement.session_logs).toLocaleString() : '—')
     setElText('statTools', `${adoptedCanonicalTools.size} / ${catalogTotalCount} tools`)
 
     // 3. Cloud Sync & Storage Health
@@ -120,201 +168,45 @@ function updateStats() {
     setElText('statWorkshopSub', `${lessonParserCount} parser · ${dndTotalCount} RPG/VTT`)
 
     // 5. Render Top Tools Card (7D vs All Time)
-    const topToolsList = document.getElementById('topToolsList')
-    const topToolsTitle = document.getElementById('topToolsTitle')
-    if (topToolsList) {
-        const weekTools = Array.isArray(summary.top_tools_week) ? summary.top_tools_week : []
-        const isFallback = topToolsMode === 'week' && weekTools.length === 0 && allToolStats.length > 0
-        const sourceList = (topToolsMode === 'week' && !isFallback) ? weekTools : allToolStats
+    renderTopToolsCard(summary)
 
-        if (topToolsTitle) {
-            topToolsTitle.textContent = (topToolsMode === 'all' || isFallback)
-                ? (isFallback ? 'Top Tools Overall (No 7D Saves)' : 'Top Tools All-Time')
-                : 'Top Tools This Week (7D)'
-        }
-
-        const sliced = sourceList.slice(0, 4)
-        if (sliced.length === 0) {
-            topToolsList.innerHTML = '<div class="text-center py-6 text-slate-500 font-bold text-xs">No activity yet</div>'
-        } else {
-            topToolsList.innerHTML = sliced.map(info => {
-                const meta = getToolMeta(info.canonical_tool)
-                return `
-                    <div class="flex items-center justify-between p-2 bg-slate-900/60 rounded-xl border border-slate-700/40">
-                        <span class="text-xs text-slate-200 font-bold flex items-center gap-2 truncate pr-2">
-                            <i data-lucide="${meta.icon}" class="w-3.5 h-3.5 flex-shrink-0" style="color: ${meta.color}"></i>
-                            <span class="truncate">${escapeHtml(meta.name)}</span>
-                        </span>
-                        <div class="flex items-center gap-2 flex-shrink-0">
-                            <span class="text-[10px] text-slate-400 font-mono">${Number(info.users) || 0}u</span>
-                            <span class="text-xs font-bold text-white font-mono bg-slate-800 px-2 py-0.5 rounded-lg border border-slate-700">${Number(info.saves) || 0}</span>
-                        </div>
-                    </div>
-                `
-            }).join('')
-            lucide.createIcons({ root: topToolsList })
-        }
-    }
-
-    updateCharts(summary)
+    updateCharts(summary, { animate: !_chartsThemeDirty })
     renderDashboardInsights(summary, adoptedCanonicalTools)
+    _lastRenderedSummaryRef = summary
+    _chartsThemeDirty = false
 }
 
-function updateCharts(summary) {
-    const ctxActivity = document.getElementById('activityChart')?.getContext('2d')
-    const ctxCategory = document.getElementById('categoryChart')?.getContext('2d')
-    const ctxTools = document.getElementById('toolsChart')?.getContext('2d')
-    const ctxActiveUsers = document.getElementById('activeUsersChart')?.getContext('2d')
+function getAdminChartColors() {
+    const isDark = document.documentElement.classList.contains('dark')
+    return {
+        isDark,
+        tickColor: isDark ? '#94a3b8' : '#475569',
+        yLabelColor: isDark ? '#f8fafc' : '#0f172a',
+        gridColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(15,23,42,0.08)',
+        pointBg: isDark ? '#020617' : '#ffffff',
+        barBorder: isDark ? '#020617' : '#334155',
+        doughnutBorder: isDark ? '#0f172a' : '#ffffff',
+        centerText: isDark ? '#ffffff' : '#0f172a',
+        centerSubText: isDark ? '#94a3b8' : '#64748b',
+        tooltipBg: isDark ? 'rgba(15, 23, 42, 0.94)' : 'rgba(255, 255, 255, 0.96)',
+        tooltipTitle: isDark ? '#ffffff' : '#0f172a',
+        tooltipBody: isDark ? '#cbd5e1' : '#334155',
+        tooltipBorder: isDark ? '#475569' : '#334155'
+    }
+}
 
-    if (!ctxActivity || !ctxCategory || !ctxTools || !ctxActiveUsers) return
+function refreshAdminChartsTheme() {
+    if (currentView !== 'dashboard') {
+        _chartsThemeDirty = true
+        return
+    }
+    if (typeof dashboardSummary !== 'undefined' && dashboardSummary) {
+        updateCharts(dashboardSummary, { animate: false, skipBreakdown: true })
+        _chartsThemeDirty = false
+    }
+}
 
-    const days = chartDaysWindow || 14
-    const series = Array.isArray(summary.daily_series) ? summary.daily_series : []
-    const activityLabels = series.map(pt =>
-        new Date(`${pt.date}T12:00:00`).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
-    )
-    const activityData = series.map(pt => Number(pt.actions) || 0)
-    const dauData = series.map(pt => Number(pt.active_users) || 0)
-
-    const windowTotalActions = activityData.reduce((a, b) => a + b, 0)
-    const maxActivity = activityData.length ? Math.max(0, ...activityData) : 0
-    const maxActivityIdx = activityData.indexOf(maxActivity)
-    const peakActivityLabel = maxActivity > 0 ? `${maxActivity} (${activityLabels[maxActivityIdx]})` : '0'
-
-    const maxDau = dauData.length ? Math.max(0, ...dauData) : 0
-    const avgDau = (dauData.reduce((a, b) => a + b, 0) / (days || 1)).toFixed(1)
-
-    const activitySummaryEl = document.getElementById('activitySummaryText')
-    if (activitySummaryEl) activitySummaryEl.textContent = `${windowTotalActions.toLocaleString()} actions in the last ${days} days`
-    const activityPeakEl = document.getElementById('activityPeakChip')
-    if (activityPeakEl) activityPeakEl.textContent = `Peak: ${peakActivityLabel}`
-    const dauPeakEl = document.getElementById('dauPeakChip')
-    if (dauPeakEl) dauPeakEl.textContent = `Peak DAU: ${maxDau}`
-    const dauAvgEl = document.getElementById('dauAvgChip')
-    if (dauAvgEl) dauAvgEl.textContent = `Avg: ${avgDau} / day`
-
-    const blueGradient = ctxActivity.createLinearGradient(0, 0, 0, ctxActivity.canvas.clientHeight || 250)
-    blueGradient.addColorStop(0, 'rgba(30, 167, 253, 0.35)')
-    blueGradient.addColorStop(1, 'rgba(30, 167, 253, 0.0)')
-
-    const greenGradient = ctxActiveUsers.createLinearGradient(0, 0, 0, ctxActiveUsers.canvas.clientHeight || 250)
-    greenGradient.addColorStop(0, 'rgba(0, 208, 99, 0.8)')
-    greenGradient.addColorStop(1, 'rgba(0, 208, 99, 0.2)')
-
-    if (charts.activity) charts.activity.destroy()
-    charts.activity = new Chart(ctxActivity, {
-        type: 'line',
-        data: {
-            labels: activityLabels,
-            datasets: [{
-                label: 'Interactions',
-                data: activityData,
-                borderColor: '#1ea7fd',
-                backgroundColor: blueGradient,
-                fill: true,
-                tension: 0.35,
-                borderWidth: 4,
-                pointRadius: days > 30 ? 2 : 5,
-                pointBackgroundColor: '#020617',
-                pointBorderColor: '#1ea7fd',
-                pointBorderWidth: days > 30 ? 2 : 3,
-                pointHoverRadius: 8,
-                pointHoverBackgroundColor: '#1ea7fd',
-                pointHoverBorderColor: '#020617',
-                pointHoverBorderWidth: 3
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            interaction: { intersect: false, mode: 'index' },
-            plugins: {
-                legend: { display: false },
-                tooltip: {
-                    backgroundColor: 'rgba(15, 23, 42, 0.92)',
-                    borderColor: 'rgba(30, 167, 253, 0.5)',
-                    borderWidth: 2,
-                    titleFont: { family: 'Fredoka', size: 14, weight: '700' },
-                    bodyFont: { family: 'Nunito', size: 12, weight: '700' },
-                    titleColor: '#fff',
-                    bodyColor: '#cbd5e1',
-                    padding: 12,
-                    cornerRadius: 12,
-                    displayColors: false,
-                    callbacks: {
-                        label: (context) => ` ${context.parsed.y} Interactions`
-                    }
-                }
-            },
-            scales: {
-                y: {
-                    beginAtZero: true,
-                    grid: { color: 'rgba(255,255,255,0.06)', borderDash: [5, 5] },
-                    ticks: { color: '#94a3b8', font: { family: 'Nunito', weight: '700' }, precision: 0 }
-                },
-                x: {
-                    grid: { display: false },
-                    ticks: { color: '#94a3b8', font: { family: 'Nunito', weight: '700' }, maxTicksLimit: 14 }
-                }
-            }
-        }
-    })
-
-    if (charts.activeUsers) charts.activeUsers.destroy()
-    charts.activeUsers = new Chart(ctxActiveUsers, {
-        type: 'bar',
-        data: {
-            labels: activityLabels,
-            datasets: [{
-                label: 'Active Users',
-                data: dauData,
-                backgroundColor: greenGradient,
-                borderColor: '#020617',
-                borderWidth: 2,
-                borderRadius: 6
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: { display: false },
-                tooltip: {
-                    backgroundColor: 'rgba(15, 23, 42, 0.92)',
-                    borderColor: 'rgba(0, 208, 99, 0.5)',
-                    borderWidth: 2,
-                    titleFont: { family: 'Fredoka', size: 14, weight: '700' },
-                    bodyFont: { family: 'Nunito', size: 12, weight: '700' },
-                    titleColor: '#fff',
-                    bodyColor: '#cbd5e1',
-                    padding: 12,
-                    cornerRadius: 12,
-                    displayColors: false,
-                    callbacks: {
-                        label: (context) => ` ${context.parsed.y} Unique Teachers`
-                    }
-                }
-            },
-            scales: {
-                y: {
-                    beginAtZero: true,
-                    grid: { color: 'rgba(255,255,255,0.06)', borderDash: [5, 5] },
-                    ticks: {
-                        color: '#94a3b8',
-                        font: { family: 'Nunito', weight: '700' },
-                        stepSize: 1,
-                        precision: 0
-                    }
-                },
-                x: {
-                    grid: { display: false },
-                    ticks: { color: '#94a3b8', font: { family: 'Nunito', weight: '700' }, maxTicksLimit: 14 }
-                }
-            }
-        }
-    })
-
-    // 2. Canonical Tool Aggregation & Category Distribution
+function computeCanonicalToolStats(summary) {
     const canonicalStats = {}
     const categories = {
         'My Space': { count: 0, color: '#ff7e33' },
@@ -323,7 +215,7 @@ function updateCharts(summary) {
         'Games': { count: 0, color: '#00d063' }
     }
 
-    ;(summary.tool_stats || []).forEach(row => {
+    ;(summary?.tool_stats || []).forEach(row => {
         const meta = getToolMeta(row.canonical_tool)
         const saves = Number(row.saves) || 0
         const users = Number(row.users) || 0
@@ -340,20 +232,258 @@ function updateCharts(summary) {
         }
     })
 
+    const allToolsStats = Object.values(canonicalStats).sort((a, b) => {
+        if (toolsChartMetric === 'users') {
+            return (b.users - a.users) || (b.saves - a.saves)
+        }
+        return (b.saves - a.saves) || (b.users - a.users)
+    })
+
+    return { canonicalStats, allToolsStats, categories }
+}
+
+function updateCharts(summary, { animate = true, skipBreakdown = false } = {}) {
+    const ctxActivity = document.getElementById('activityChart')?.getContext('2d')
+    const ctxCategory = document.getElementById('categoryChart')?.getContext('2d')
+    const ctxTools = document.getElementById('toolsChart')?.getContext('2d')
+    const ctxActiveUsers = document.getElementById('activeUsersChart')?.getContext('2d')
+
+    if (!ctxActivity || !ctxCategory || !ctxTools || !ctxActiveUsers) return
+
+    const c = getAdminChartColors()
+    const animConfig = animate ? { duration: 250 } : false
+    const days = chartDaysWindow || 14
+    const series = Array.isArray(summary.daily_series) ? summary.daily_series : []
+    const activityLabels = series.map(pt =>
+        new Date(`${pt.date}T12:00:00`).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+    )
+    const activityData = series.map(pt => Number(pt.actions) || 0)
+    const hasPhase6Series = series.some(pt => pt.saves !== undefined && pt.logs !== undefined)
+    const savesSeries = series.map(pt => Number(pt.saves) || 0)
+    const logsSeries = series.map(pt => Number(pt.logs) || 0)
+    const dauData = series.map(pt => Number(pt.active_users) || 0)
+
+    const windowTotalActions = activityData.reduce((a, b) => a + b, 0)
+    const maxActivity = activityData.length ? Math.max(0, ...activityData) : 0
+    const maxActivityIdx = activityData.indexOf(maxActivity)
+    const peakActivityLabel = maxActivity > 0 ? `${maxActivity} (${activityLabels[maxActivityIdx]})` : '0'
+
+    const maxDau = dauData.length ? Math.max(0, ...dauData) : 0
+    const avgDau = (dauData.reduce((a, b) => a + b, 0) / (days || 1)).toFixed(1)
+
+    const activitySummaryEl = document.getElementById('activitySummaryText')
+    if (activitySummaryEl) {
+        if (hasPhase6Series) {
+            const totalSavesW = savesSeries.reduce((a, b) => a + b, 0)
+            const totalLogsW = logsSeries.reduce((a, b) => a + b, 0)
+            activitySummaryEl.textContent = `${windowTotalActions.toLocaleString()} actions (${totalSavesW.toLocaleString()} saves · ${totalLogsW.toLocaleString()} logs) in last ${days} days`
+        } else {
+            activitySummaryEl.textContent = `${windowTotalActions.toLocaleString()} actions in the last ${days} days`
+        }
+    }
+    const activityPeakEl = document.getElementById('activityPeakChip')
+    if (activityPeakEl) activityPeakEl.textContent = `Peak: ${peakActivityLabel}`
+    const dauPeakEl = document.getElementById('dauPeakChip')
+    if (dauPeakEl) dauPeakEl.textContent = `Peak DAU: ${maxDau}`
+    const dauAvgEl = document.getElementById('dauAvgChip')
+    if (dauAvgEl) dauAvgEl.textContent = `Avg: ${avgDau} / day`
+
+    const blueGradient = ctxActivity.createLinearGradient(0, 0, 0, ctxActivity.canvas.clientHeight || 250)
+    blueGradient.addColorStop(0, 'rgba(30, 167, 253, 0.35)')
+    blueGradient.addColorStop(1, 'rgba(30, 167, 253, 0.0)')
+
+    const orangeGradient = ctxActivity.createLinearGradient(0, 0, 0, ctxActivity.canvas.clientHeight || 250)
+    orangeGradient.addColorStop(0, 'rgba(255, 126, 51, 0.22)')
+    orangeGradient.addColorStop(1, 'rgba(255, 126, 51, 0.0)')
+
+    const greenGradient = ctxActiveUsers.createLinearGradient(0, 0, 0, ctxActiveUsers.canvas.clientHeight || 250)
+    greenGradient.addColorStop(0, 'rgba(0, 208, 99, 0.85)')
+    greenGradient.addColorStop(1, 'rgba(0, 208, 99, 0.25)')
+
+    const activityDatasets = hasPhase6Series
+        ? [
+            {
+                label: 'Saves',
+                data: savesSeries,
+                borderColor: '#1ea7fd',
+                backgroundColor: blueGradient,
+                fill: true,
+                tension: 0.35,
+                borderWidth: 3.5,
+                pointRadius: days > 30 ? 2 : 4,
+                pointBackgroundColor: c.pointBg,
+                pointBorderColor: '#1ea7fd',
+                pointBorderWidth: days > 30 ? 2 : 3,
+                pointHoverRadius: 7,
+                pointHoverBackgroundColor: '#1ea7fd',
+                pointHoverBorderColor: c.pointBg,
+                pointHoverBorderWidth: 3
+            },
+            {
+                label: 'Logs (Opens & Sessions)',
+                data: logsSeries,
+                borderColor: '#ff7e33',
+                backgroundColor: orangeGradient,
+                fill: true,
+                tension: 0.35,
+                borderWidth: 3,
+                borderDash: [5, 4],
+                pointRadius: days > 30 ? 1.5 : 3.5,
+                pointBackgroundColor: c.pointBg,
+                pointBorderColor: '#ff7e33',
+                pointBorderWidth: 2,
+                pointHoverRadius: 6,
+                pointHoverBackgroundColor: '#ff7e33',
+                pointHoverBorderColor: c.pointBg,
+                pointHoverBorderWidth: 2
+            }
+        ]
+        : [{
+            label: 'Interactions',
+            data: activityData,
+            borderColor: '#1ea7fd',
+            backgroundColor: blueGradient,
+            fill: true,
+            tension: 0.35,
+            borderWidth: 4,
+            pointRadius: days > 30 ? 2 : 5,
+            pointBackgroundColor: c.pointBg,
+            pointBorderColor: '#1ea7fd',
+            pointBorderWidth: days > 30 ? 2 : 3,
+            pointHoverRadius: 8,
+            pointHoverBackgroundColor: '#1ea7fd',
+            pointHoverBorderColor: c.pointBg,
+            pointHoverBorderWidth: 3
+        }]
+
+    if (charts.activity) charts.activity.destroy()
+    charts.activity = new Chart(ctxActivity, {
+        type: 'line',
+        data: {
+            labels: activityLabels,
+            datasets: activityDatasets
+        },
+        options: {
+            animation: animConfig,
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: { intersect: false, mode: 'index' },
+            plugins: {
+                legend: {
+                    display: hasPhase6Series,
+                    position: 'top',
+                    align: 'end',
+                    labels: {
+                        color: c.tickColor,
+                        font: { family: 'Nunito', weight: 'bold', size: 11 },
+                        boxWidth: 10,
+                        usePointStyle: true
+                    }
+                },
+                tooltip: {
+                    backgroundColor: c.tooltipBg,
+                    borderColor: 'rgba(30, 167, 253, 0.6)',
+                    borderWidth: 2,
+                    titleFont: { family: 'Fredoka', size: 14, weight: '700' },
+                    bodyFont: { family: 'Nunito', size: 12, weight: '700' },
+                    titleColor: c.tooltipTitle,
+                    bodyColor: c.tooltipBody,
+                    padding: 12,
+                    cornerRadius: 12,
+                    displayColors: hasPhase6Series,
+                    callbacks: {
+                        label: (context) => ` ${context.dataset.label}: ${context.parsed.y}`
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    grid: { color: c.gridColor, borderDash: [5, 5] },
+                    ticks: { color: c.tickColor, font: { family: 'Nunito', weight: '700' }, precision: 0 }
+                },
+                x: {
+                    grid: { display: false },
+                    ticks: { color: c.tickColor, font: { family: 'Nunito', weight: '700' }, maxTicksLimit: 14 }
+                }
+            }
+        }
+    })
+
+    if (charts.activeUsers) charts.activeUsers.destroy()
+    charts.activeUsers = new Chart(ctxActiveUsers, {
+        type: 'bar',
+        data: {
+            labels: activityLabels,
+            datasets: [{
+                label: 'Active Users',
+                data: dauData,
+                backgroundColor: greenGradient,
+                borderColor: c.barBorder,
+                borderWidth: 2,
+                borderRadius: 6
+            }]
+        },
+        options: {
+            animation: animConfig,
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    backgroundColor: c.tooltipBg,
+                    borderColor: 'rgba(0, 208, 99, 0.6)',
+                    borderWidth: 2,
+                    titleFont: { family: 'Fredoka', size: 14, weight: '700' },
+                    bodyFont: { family: 'Nunito', size: 12, weight: '700' },
+                    titleColor: c.tooltipTitle,
+                    bodyColor: c.tooltipBody,
+                    padding: 12,
+                    cornerRadius: 12,
+                    displayColors: false,
+                    callbacks: {
+                        label: (context) => ` ${context.parsed.y} Unique Teachers`
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    grid: { color: c.gridColor, borderDash: [5, 5] },
+                    ticks: {
+                        color: c.tickColor,
+                        font: { family: 'Nunito', weight: '700' },
+                        stepSize: 1,
+                        precision: 0
+                    }
+                },
+                x: {
+                    grid: { display: false },
+                    ticks: { color: c.tickColor, font: { family: 'Nunito', weight: '700' }, maxTicksLimit: 14 }
+                }
+            }
+        }
+    })
+
+    // 2. Canonical Tool Aggregation & Category Distribution
+    const precomputed = computeCanonicalToolStats(summary)
+    const { categories } = precomputed
+
     if (charts.category) charts.category.destroy()
     charts.category = new Chart(ctxCategory, {
         type: 'doughnut',
         data: {
             labels: Object.keys(categories),
             datasets: [{
-                data: Object.values(categories).map(c => c.count),
-                backgroundColor: Object.values(categories).map(c => c.color),
+                data: Object.values(categories).map(cat => cat.count),
+                backgroundColor: Object.values(categories).map(cat => cat.color),
                 borderWidth: 3,
-                borderColor: '#0f172a',
+                borderColor: c.doughnutBorder,
                 hoverOffset: 12
             }]
         },
         options: {
+            animation: animConfig,
             responsive: true,
             maintainAspectRatio: false,
             cutout: '76%',
@@ -361,7 +491,7 @@ function updateCharts(summary) {
                 legend: {
                     position: 'bottom',
                     labels: {
-                        color: '#94a3b8',
+                        color: c.tickColor,
                         font: { family: 'Nunito', weight: 'bold', size: 11 },
                         padding: 15,
                         usePointStyle: true,
@@ -369,13 +499,13 @@ function updateCharts(summary) {
                     }
                 },
                 tooltip: {
-                    backgroundColor: 'rgba(15, 23, 42, 0.92)',
-                    borderColor: '#475569',
+                    backgroundColor: c.tooltipBg,
+                    borderColor: c.tooltipBorder,
                     borderWidth: 2,
                     titleFont: { family: 'Fredoka', size: 14, weight: '700' },
                     bodyFont: { family: 'Nunito', size: 12, weight: '700' },
-                    titleColor: '#fff',
-                    bodyColor: '#cbd5e1',
+                    titleColor: c.tooltipTitle,
+                    bodyColor: c.tooltipBody,
                     padding: 12,
                     cornerRadius: 12,
                     displayColors: true,
@@ -396,24 +526,27 @@ function updateCharts(summary) {
                 ctx.font = '700 28px Fredoka'
                 ctx.textAlign = 'center'
                 ctx.textBaseline = 'middle'
-                ctx.fillStyle = '#fff'
+                ctx.fillStyle = c.centerText
                 ctx.fillText(total.toLocaleString(), centerX, centerY - 8)
 
                 ctx.font = '800 10px Nunito'
-                ctx.fillStyle = '#94a3b8'
+                ctx.fillStyle = c.centerSubText
                 ctx.fillText('TOTAL ACTIONS', centerX, centerY + 16)
                 ctx.restore()
             }
         }]
     })
 
-    // 3. Top Performing Tools Bar Chart (by saves OR by unique teachers)
-    const allToolsStats = Object.values(canonicalStats).sort((a, b) => {
-        if (toolsChartMetric === 'users') {
-            return (b.users - a.users) || (b.saves - a.saves)
-        }
-        return (b.saves - a.saves) || (b.users - a.users)
-    })
+    renderToolsPerformanceSection(summary, { animate, skipBreakdown, chartColors: c, precomputed })
+}
+
+function renderToolsPerformanceSection(summary, { animate = true, skipBreakdown = false, chartColors = null, precomputed = null } = {}) {
+    const ctxTools = document.getElementById('toolsChart')?.getContext('2d')
+    if (!ctxTools || !summary) return
+
+    const c = chartColors || getAdminChartColors()
+    const animConfig = animate ? { duration: 250 } : false
+    const { allToolsStats } = precomputed || computeCanonicalToolStats(summary)
     const top10Tools = allToolsStats.slice(0, 10)
 
     if (charts.tools) charts.tools.destroy()
@@ -425,26 +558,27 @@ function updateCharts(summary) {
                 label: toolsChartMetric === 'users' ? 'Unique Teachers' : 'Total Saves',
                 data: top10Tools.map(t => toolsChartMetric === 'users' ? t.users : t.saves),
                 backgroundColor: top10Tools.map(t => t.meta.color),
-                borderColor: '#020617',
+                borderColor: c.barBorder,
                 borderWidth: 2,
                 borderRadius: 6,
                 barThickness: 18
             }]
         },
         options: {
+            animation: animConfig,
             indexAxis: 'y',
             responsive: true,
             maintainAspectRatio: false,
             plugins: {
                 legend: { display: false },
                 tooltip: {
-                    backgroundColor: 'rgba(15, 23, 42, 0.92)',
-                    borderColor: 'rgba(255, 126, 51, 0.5)',
+                    backgroundColor: c.tooltipBg,
+                    borderColor: 'rgba(255, 126, 51, 0.6)',
                     borderWidth: 2,
                     titleFont: { family: 'Fredoka', size: 14, weight: '700' },
                     bodyFont: { family: 'Nunito', size: 12, weight: '700' },
-                    titleColor: '#fff',
-                    bodyColor: '#cbd5e1',
+                    titleColor: c.tooltipTitle,
+                    bodyColor: c.tooltipBody,
                     padding: 12,
                     cornerRadius: 12,
                     callbacks: {
@@ -459,13 +593,13 @@ function updateCharts(summary) {
             scales: {
                 x: {
                     beginAtZero: true,
-                    grid: { color: 'rgba(255,255,255,0.06)', borderDash: [5, 5] },
-                    ticks: { color: '#94a3b8', font: { family: 'Nunito', weight: '700' }, precision: 0 }
+                    grid: { color: c.gridColor, borderDash: [5, 5] },
+                    ticks: { color: c.tickColor, font: { family: 'Nunito', weight: '700' }, precision: 0 }
                 },
                 y: {
                     grid: { display: false },
                     ticks: {
-                        color: '#fff',
+                        color: c.yLabelColor,
                         font: { family: 'Fredoka', weight: '700', size: 11 }
                     }
                 }
@@ -473,7 +607,8 @@ function updateCharts(summary) {
         }
     })
 
-    // 4. Full Tool Breakdown List
+    if (skipBreakdown) return
+
     const breakdownEl = document.getElementById('toolBreakdown')
     const breakdownCountChip = document.getElementById('breakdownCountChip')
     if (breakdownCountChip) breakdownCountChip.textContent = `${allToolsStats.length} active`
@@ -484,21 +619,21 @@ function updateCharts(summary) {
             : 1
 
         if (allToolsStats.length === 0) {
-            breakdownEl.innerHTML = '<div class="text-center py-8 text-slate-500 font-bold text-xs">No tool activity recorded</div>'
+            breakdownEl.innerHTML = '<div class="text-center py-8 text-ink-muted font-bold text-xs">No tool activity recorded</div>'
         } else {
             breakdownEl.innerHTML = allToolsStats.map(item => {
                 const metricVal = toolsChartMetric === 'users' ? item.users : item.saves
                 const percent = Math.max(4, Math.round((metricVal / maxVal) * 100))
                 return `
-                    <div class="group p-2.5 bg-slate-900/40 hover:bg-slate-700/30 border border-slate-700/40 rounded-xl transition-colors cursor-default">
+                    <div class="group p-2.5 bg-surface-muted/70 hover:bg-surface-muted border border-line-muted rounded-xl transition-colors cursor-default">
                         <div class="flex items-center justify-between text-xs mb-1.5 gap-2">
                             <div class="flex items-center gap-2 min-w-0">
                                 <i data-lucide="${item.meta.icon}" class="w-3.5 h-3.5 flex-shrink-0" style="color: ${item.meta.color}"></i>
-                                <span class="font-bold text-white truncate">${escapeHtml(item.meta.name)}</span>
+                                <span class="font-bold text-ink truncate">${escapeHtml(item.meta.name)}</span>
                             </div>
-                            <span class="text-slate-400 font-mono font-bold text-[10px] flex-shrink-0">${item.saves} saves · ${item.users}u</span>
+                            <span class="text-ink-muted font-mono font-bold text-[10px] flex-shrink-0">${item.saves} saves · ${item.users}u</span>
                         </div>
-                        <div class="h-2 bg-slate-950 border border-slate-800 rounded-full overflow-hidden p-[1px]">
+                        <div class="h-2 bg-canvas border border-line-muted rounded-full overflow-hidden p-[1px]">
                             <div class="h-full rounded-full transition-all duration-700" style="width: ${percent}%; background: ${item.meta.color}"></div>
                         </div>
                     </div>`
@@ -514,32 +649,37 @@ function renderDashboardInsights(summary, adoptedCanonicalTools) {
     if (topTeachersEl) {
         const rankedTeachers = Array.isArray(summary.top_teachers) ? summary.top_teachers : []
         if (!rankedTeachers.length) {
-            topTeachersEl.innerHTML = '<div class="text-center py-8 text-slate-500 font-bold text-xs">No active teachers yet</div>'
+            topTeachersEl.innerHTML = '<div class="text-center py-8 text-ink-muted font-bold text-xs">No active teachers yet</div>'
         } else {
             topTeachersEl.innerHTML = rankedTeachers.map((u, idx) => {
                 const name = u.display_name || String(u.user_id || '').slice(0, 8)
                 const role = u.role || 'user'
                 const latestTs = parseTimestampMs(u.latest_ts)
+                const hasBreakdown = u.total_logs !== undefined || u.total_activity !== undefined
+                const totalScore = Number(u.total_activity ?? u.saves) || 0
+                const savesCount = Number(u.saves) || 0
+                const logsCount = Number(u.total_logs) || 0
+                const activeDays = Number(u.active_days) || 0
                 const roleBadge = role === 'admin'
-                    ? '<span class="px-1.5 py-0.5 rounded bg-pink/20 text-pink text-[9px] font-black uppercase">Admin</span>'
+                    ? '<span class="px-1.5 py-0.5 rounded bg-pink/15 text-pink text-[9px] font-black uppercase">Admin</span>'
                     : role === 'pro'
-                        ? '<span class="px-1.5 py-0.5 rounded bg-orange/20 text-orange text-[9px] font-black uppercase">⭐ Pro</span>'
+                        ? '<span class="px-1.5 py-0.5 rounded bg-orange/15 text-orange text-[9px] font-black uppercase">⭐ Pro</span>'
                         : ''
                 return `
-                    <div onclick="viewUser('${escapeJsAttr(u.user_id)}')" class="flex items-center justify-between p-2.5 bg-slate-900/60 hover:bg-slate-900 border border-slate-700/50 hover:border-blue/50 rounded-xl cursor-pointer transition-all">
+                    <div onclick="viewUser('${escapeJsAttr(u.user_id)}')" class="flex items-center justify-between p-2.5 bg-surface-muted/70 hover:bg-surface-muted border border-line-muted hover:border-blue rounded-xl cursor-pointer transition-all">
                         <div class="flex items-center gap-3 min-w-0">
                             <div class="w-7 h-7 rounded-lg bg-blue/15 border border-blue/40 flex items-center justify-center font-heading text-xs text-blue flex-shrink-0">#${idx + 1}</div>
                             <div class="min-w-0">
                                 <div class="flex items-center gap-1.5">
-                                    <span class="font-bold text-white text-xs truncate">${escapeHtml(name)}</span>
+                                    <span class="font-bold text-ink text-xs truncate">${escapeHtml(name)}</span>
                                     ${roleBadge}
                                 </div>
-                                <div class="text-[10px] text-slate-400 font-mono">${Number(u.tool_count) || 0} tools · ${formatRelativeTime(latestTs)}</div>
+                                <div class="text-[10px] text-ink-muted font-mono">${Number(u.tool_count) || 0} tools${hasBreakdown && activeDays > 0 ? ` · ${activeDays}d` : ''} · ${formatRelativeTime(latestTs)}</div>
                             </div>
                         </div>
                         <div class="text-right flex-shrink-0 ml-2">
-                            <div class="font-heading text-sm text-white">${Number(u.saves) || 0}</div>
-                            <div class="text-[9px] text-slate-500 uppercase font-bold">records</div>
+                            <div class="font-heading text-sm text-ink">${totalScore}</div>
+                            <div class="text-[9px] text-ink-muted font-mono font-bold">${hasBreakdown ? `${savesCount}S · ${logsCount}L` : 'records'}</div>
                         </div>
                     </div>
                 `
@@ -552,24 +692,24 @@ function renderDashboardInsights(summary, adoptedCanonicalTools) {
     if (recentFeedEl) {
         const recent = Array.isArray(summary.recent_activity) ? summary.recent_activity : []
         if (!recent.length) {
-            recentFeedEl.innerHTML = '<div class="text-center py-8 text-slate-500 font-bold text-xs">No recent activity</div>'
+            recentFeedEl.innerHTML = '<div class="text-center py-8 text-ink-muted font-bold text-xs">No recent activity</div>'
         } else {
             recentFeedEl.innerHTML = recent.map(ev => {
                 const name = ev.display_name || String(ev.user_id || '').slice(0, 8)
                 const meta = getToolMeta(ev.canonical_tool || ev.tool_key)
                 const tsMs = parseTimestampMs(ev.event_ts)
                 return `
-                    <div onclick="viewUser('${escapeJsAttr(ev.user_id)}')" class="flex items-center justify-between p-2.5 bg-slate-900/60 hover:bg-slate-900 border border-slate-700/50 hover:border-green/50 rounded-xl cursor-pointer transition-all gap-2">
+                    <div onclick="viewUser('${escapeJsAttr(ev.user_id)}')" class="flex items-center justify-between p-2.5 bg-surface-muted/70 hover:bg-surface-muted border border-line-muted hover:border-green rounded-xl cursor-pointer transition-all gap-2">
                         <div class="flex items-center gap-2.5 min-w-0">
                             <div class="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0" style="background:${meta.color}20; border:1px solid ${meta.color}50">
                                 <i data-lucide="${meta.icon}" class="w-3.5 h-3.5" style="color:${meta.color}"></i>
                             </div>
                             <div class="min-w-0">
-                                <div class="text-xs font-bold text-white truncate">${escapeHtml(name)} <span class="text-slate-400 font-normal">→</span> <span style="color:${meta.color}">${escapeHtml(meta.name)}</span></div>
-                                <div class="text-[10px] text-slate-400 truncate font-mono">${escapeHtml(String(ev.action_type || 'Save').replace(/_/g, ' '))}: ${escapeHtml(String(ev.label || '').slice(0, 32))}</div>
+                                <div class="text-xs font-bold text-ink truncate">${escapeHtml(name)} <span class="text-ink-muted font-normal">→</span> <span style="color:${meta.color}">${escapeHtml(meta.name)}</span></div>
+                                <div class="text-[10px] text-ink-muted truncate font-mono">${escapeHtml(String(ev.action_type || 'Save').replace(/_/g, ' '))}: ${escapeHtml(String(ev.label || '').slice(0, 32))}</div>
                             </div>
                         </div>
-                        <span class="text-[10px] font-mono text-slate-400 whitespace-nowrap flex-shrink-0">${formatRelativeTime(tsMs)}</span>
+                        <span class="text-[10px] font-mono text-ink-muted whitespace-nowrap flex-shrink-0">${formatRelativeTime(tsMs)}</span>
                     </div>
                 `
             }).join('')
@@ -608,10 +748,10 @@ function renderDashboardInsights(summary, adoptedCanonicalTools) {
                 return `
                     <div>
                         <div class="flex justify-between text-xs mb-1">
-                            <span class="font-bold text-slate-300">${cg.label}</span>
-                            <span class="font-mono text-slate-400 text-[11px]">${used} / ${items.length} (${pct}%)</span>
+                            <span class="font-bold text-ink">${cg.label}</span>
+                            <span class="font-mono text-ink-muted text-[11px]">${used} / ${items.length} (${pct}%)</span>
                         </div>
-                        <div class="h-2 bg-slate-950 border border-slate-800 rounded-full overflow-hidden p-[1px]">
+                        <div class="h-2 bg-canvas border border-line-muted rounded-full overflow-hidden p-[1px]">
                             <div class="h-full rounded-full transition-all duration-700" style="width:${pct}%; background:${cg.color}"></div>
                         </div>
                     </div>
@@ -624,7 +764,7 @@ function renderDashboardInsights(summary, adoptedCanonicalTools) {
                 dormantListEl.innerHTML = '<span class="text-xs text-green font-bold">🎉 100% of catalog tools have been used!</span>'
             } else {
                 dormantListEl.innerHTML = dormantTools.map(g => `
-                    <span class="px-2 py-0.5 rounded-lg bg-slate-900 border border-slate-700 text-[10px] font-bold text-slate-400">${escapeHtml(g.title)}</span>
+                    <span class="px-2 py-0.5 rounded-lg bg-surface-muted border border-line-muted text-[10px] font-bold text-ink-muted">${escapeHtml(g.title)}</span>
                 `).join('')
             }
         }

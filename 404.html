@@ -4,42 +4,39 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="klasskit-404" content="1">
     <title>404 Not Found | KlassKit</title>
-    <link rel="icon" type="image/x-icon" href="./media/icon.ico" />
-    <link rel="icon" type="image/webp" href="./media/icon.webp" />
-    <link rel="apple-touch-icon" href="./media/icon-180.png" />
-    <link rel="manifest" href="./manifest.json">
+    <script>
+        (function () {
+            var base = document.createElement('base');
+            if (window.location.protocol === 'file:') {
+                base.href = './';
+            } else if (window.location.pathname.endsWith('/404.html')) {
+                base.href = window.location.pathname.slice(0, -'404.html'.length) || '/';
+            } else {
+                base.href = '/';
+            }
+            document.head.appendChild(base);
+        })();
+    </script>
+    <link rel="icon" type="image/x-icon" href="media/icon.ico" />
+    <link rel="icon" type="image/webp" href="media/icon.webp" />
+    <link rel="apple-touch-icon" href="media/icon-180.png" />
+    <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#1ea7fd">
-
-    <script src="https://unpkg.com/lucide@1.16.0"></script>
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@700&family=Nunito:wght@400;600;700;800&display=swap"
         rel="stylesheet">
 
-    <link rel="stylesheet" href="./css/tailwind.generated.css">
-    <link rel="stylesheet" href="./css/base.css">
-    <link rel="stylesheet" href="./css/components.css">
+    <link rel="stylesheet" href="css/tailwind.generated.css">
+    <link rel="stylesheet" href="css/base.css">
+    <link rel="stylesheet" href="css/api.css">
     <script src="js/theme-init.js"></script>
+    <script src="https://unpkg.com/lucide@1.16.0" defer></script>
     <style>
         /* Animations */
-        @keyframes pop-in {
-            0% {
-                opacity: 0;
-                transform: scale(0.9) translateY(10px);
-            }
-
-            100% {
-                opacity: 1;
-                transform: scale(1) translateY(0);
-            }
-        }
-
-        .animate-pop-in {
-            animation: pop-in 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
-        }
-
         @keyframes float {
             0% { transform: translateY(0px) rotate(-3deg); }
             50% { transform: translateY(-10px) rotate(3deg); }
@@ -50,10 +47,19 @@
             animation: float 4s ease-in-out infinite;
         }
     </style>
-  <script defer src="/js/analytics.js"></script>
+    <script defer src="js/analytics.js"></script>
 </head>
 
 <body class="min-h-screen flex items-center justify-center p-4">
+
+    <!-- Theme Toggle -->
+    <div class="fixed top-4 right-4 sm:top-6 sm:right-6 z-50">
+        <button id="theme-toggle" type="button" onclick="toggleTheme()" aria-label="Toggle dark mode" aria-pressed="false"
+            class="btn-chunky w-11 h-11 rounded-2xl bg-card text-ink dark:text-yellow-400 border-3 border-line shadow-hard-sm dark:shadow-hard-sm-dark flex items-center justify-center">
+            <i data-lucide="moon" class="w-5 h-5 dark:hidden"></i>
+            <i data-lucide="sun" class="w-5 h-5 hidden dark:block"></i>
+        </button>
+    </div>
 
     <div class="glass-card w-full max-w-md p-10 rounded-3xl animate-pop-in text-center">
         <div class="relative mb-10">
@@ -63,7 +69,7 @@
             <div class="absolute bottom-0 -right-4 w-8 h-8 bg-orange rounded-full animate-bounce" style="animation-delay: 0.5s"></div>
             
             <div class="w-24 h-24 bg-blue rounded-3xl border-4 border-line flex items-center justify-center mx-auto animate-float shadow-hard">
-                <i data-lucide="file-question" class="w-12 h-12 text-white"></i>
+                <i data-lucide="compass" class="w-12 h-12 text-white" aria-hidden="true"></i>
             </div>
         </div>
 
@@ -76,18 +82,34 @@
         </p>
 
         <div class="mt-10 space-y-4">
-            <a href="./hub.html" class="btn-chunky w-full py-4 rounded-2xl bg-green text-white font-heading text-xl uppercase tracking-wide flex items-center justify-center gap-3">
+            <a href="hub.html" class="btn-chunky w-full py-4 rounded-2xl bg-green text-white font-heading text-xl uppercase tracking-wide flex items-center justify-center gap-3">
                 <span>Back to Hub</span> <i data-lucide="layout-dashboard" class="w-6 h-6"></i>
             </a>
             
-            <a href="./index.html?home=1" class="inline-flex items-center text-sm font-black text-ink-muted hover:text-ink uppercase tracking-tighter transition-colors py-2">
+            <a href="index.html?home=1" class="inline-flex items-center text-sm font-black text-ink-muted hover:text-ink uppercase tracking-tighter transition-colors py-2">
                 <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i> Return Home
             </a>
         </div>
     </div>
 
     <script>
-        lucide.createIcons();
+        function syncThemeToggleState() {
+            var btn = document.getElementById('theme-toggle');
+            if (btn) {
+                btn.setAttribute('aria-pressed', String(document.documentElement.classList.contains('dark')));
+            }
+        }
+
+        function toggleTheme() {
+            const isDark = document.documentElement.classList.toggle('dark');
+            localStorage.setItem('theme_hub', JSON.stringify(isDark ? 'dark' : 'light'));
+            syncThemeToggleState();
+        }
+
+        document.addEventListener('DOMContentLoaded', function () {
+            syncThemeToggleState();
+            if (window.lucide) window.lucide.createIcons();
+        });
     </script>
 </body>
 

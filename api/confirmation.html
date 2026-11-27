@@ -117,6 +117,20 @@
       syncThemeToggleState();
     }
 
+    window.addEventListener('storage', (e) => {
+      if (e.key === 'theme_hub' || e.key === 'color_theme') {
+        if (typeof window.__applyKlassKitTheme === 'function') {
+          window.__applyKlassKitTheme();
+        } else {
+          try {
+            const t = JSON.parse(localStorage.getItem('theme_hub'));
+            document.documentElement.classList.toggle('dark', t === 'dark');
+          } catch (_) {}
+        }
+        syncThemeToggleState();
+      }
+    });
+
     function setPersonalWelcome(name) {
       const cleanName = String(name || '').trim();
       const welcomeEl = document.getElementById('welcome-msg');
@@ -127,7 +141,7 @@
       welcomeEl.appendChild(document.createTextNode('Hey '));
 
       const strong = document.createElement('strong');
-      strong.className = 'text-dark dark:text-white';
+      strong.className = 'text-ink';
       strong.textContent = cleanName;
       welcomeEl.appendChild(strong);
 
@@ -237,6 +251,8 @@
       const accessToken = hashParams.get('access_token') || searchParams.get('access_token');
       const refreshToken = hashParams.get('refresh_token') || searchParams.get('refresh_token');
       const code = searchParams.get('code');
+      const tokenHash = searchParams.get('token_hash');
+      const otpType = searchParams.get('type') || 'signup';
 
       try {
         if (typeof db === 'undefined') {
@@ -247,6 +263,7 @@
 
         const { data: { session: existing } } = await db.auth.getSession();
         let activeSession = existing || null;
+        let verifiedUser = activeSession?.user || null;
 
         if (!activeSession && accessToken && refreshToken) {
           const { data, error } = await db.auth.setSession({
@@ -259,6 +276,7 @@
             return;
           }
           activeSession = data?.session || null;
+          verifiedUser = data?.user || activeSession?.user || null;
         } else if (!activeSession && code && typeof db.auth.exchangeCodeForSession === 'function') {
           const { data, error } = await db.auth.exchangeCodeForSession(code);
           if (error) {
@@ -267,6 +285,19 @@
             return;
           }
           activeSession = data?.session || null;
+          verifiedUser = data?.user || activeSession?.user || null;
+        } else if (!activeSession && tokenHash && typeof db.auth.verifyOtp === 'function') {
+          const { data, error } = await db.auth.verifyOtp({
+            token_hash: tokenHash,
+            type: otpType
+          });
+          if (error) {
+            showErrorState(error.message || 'Invalid or expired verification token. Please sign in again.');
+            scrubAuthUrl();
+            return;
+          }
+          activeSession = data?.session || null;
+          verifiedUser = data?.user || activeSession?.user || null;
         }
 
         if (activeSession) {
@@ -279,6 +310,11 @@
           }
           const secondaryCta = document.getElementById('secondary-cta');
           if (secondaryCta) secondaryCta.classList.add('hidden');
+        } else if (verifiedUser) {
+          setSessionStatus('success', 'Email verified! Sign in below to open the Hub.');
+          if (!personalized && verifiedUser.user_metadata?.display_name) {
+            setPersonalWelcome(verifiedUser.user_metadata.display_name);
+          }
         } else {
           setSessionStatus('info', 'Sign in with your verified email to open the Hub.');
         }

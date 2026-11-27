@@ -24,6 +24,7 @@
   <link rel="stylesheet" href="css/tailwind.generated.css">
   <link rel="stylesheet" href="css/base.css">
   <link rel="stylesheet" href="css/components.css">
+  <link rel="stylesheet" href="css/api.css">
 
   <script src="js/theme-init.js"></script>
 
@@ -83,36 +84,6 @@
       }
     }
 
-    /* Auth Inputs (0,0,1/0,0,2 beats Preflight while yielding to Tailwind 0,1,0 pl-12/pr-12) */
-    input:where(.auth-input) {
-      background: var(--surface-card);
-      color: var(--text-primary);
-      border: 3px solid var(--border-primary);
-      border-radius: 9999px;
-      padding: 0.9rem 1.25rem;
-      font-weight: 700;
-      font-size: 1rem;
-      line-height: 1.5;
-      width: 100%;
-      outline: none;
-      transition: border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease, background-color 0.18s ease;
-    }
-
-    html:where(.dark) input:where(.auth-input) {
-      background: rgb(var(--bg-primary-rgb) / 0.85);
-      color: var(--text-primary);
-      border-color: var(--border-primary);
-    }
-
-    .auth-input::placeholder {
-      color: var(--text-tertiary);
-      font-weight: 600;
-    }
-
-    .dark .auth-input::placeholder {
-      color: var(--text-tertiary);
-    }
-
     /* Scoped Panel Focus Accents */
     #content-signin {
       --focus-accent: var(--color-blue, #1ea7fd);
@@ -127,57 +98,6 @@
     #content-forgot {
       --focus-accent: var(--color-orange, #ff7e33);
       --focus-shadow: rgb(var(--color-orange-rgb) / 0.25);
-    }
-
-    .auth-input:focus {
-      border-color: var(--focus-accent, var(--color-blue, #1ea7fd));
-      transform: translateY(-1px);
-      box-shadow: 0 4px 0 var(--focus-shadow, rgb(var(--color-blue-rgb) / 0.25));
-    }
-
-    .input-wrap:focus-within .input-icon {
-      color: var(--focus-accent, var(--color-blue, #1ea7fd));
-    }
-
-    /* Password Match Feedback */
-    .auth-input.input-match,
-    .dark .auth-input.input-match {
-      border-color: var(--color-green, #00d063);
-      box-shadow: 0 4px 0 rgb(var(--color-green-rgb) / 0.25);
-    }
-
-    .auth-input.input-mismatch,
-    .dark .auth-input.input-mismatch {
-      border-color: var(--color-pink, #ff4785);
-      box-shadow: 0 4px 0 rgb(var(--color-pink-rgb) / 0.25);
-    }
-
-    /* Browser Autofill Styling */
-    .auth-input:-webkit-autofill,
-    .auth-input:-webkit-autofill:hover {
-      -webkit-text-fill-color: var(--text-primary);
-      -webkit-box-shadow: 0 0 0 1000px var(--surface-card) inset;
-      caret-color: var(--text-primary);
-      transition: background-color 5000s ease-in-out 0s;
-    }
-
-    .auth-input:-webkit-autofill:focus {
-      -webkit-text-fill-color: var(--text-primary);
-      -webkit-box-shadow: 0 0 0 1000px var(--surface-card) inset, 0 4px 0 var(--focus-shadow, rgb(var(--color-blue-rgb) / 0.25));
-      caret-color: var(--text-primary);
-    }
-
-    .dark .auth-input:-webkit-autofill,
-    .dark .auth-input:-webkit-autofill:hover {
-      -webkit-text-fill-color: var(--text-primary);
-      -webkit-box-shadow: 0 0 0 1000px var(--bg-primary) inset;
-      caret-color: var(--text-primary);
-    }
-
-    .dark .auth-input:-webkit-autofill:focus {
-      -webkit-text-fill-color: var(--text-primary);
-      -webkit-box-shadow: 0 0 0 1000px var(--bg-primary) inset, 0 4px 0 var(--focus-shadow, rgb(var(--color-blue-rgb) / 0.25));
-      caret-color: var(--text-primary);
     }
 
     /* Segmented Tabs (display left to Tailwind flex/hidden) */
@@ -248,31 +168,9 @@
       box-shadow: 0 3px 0 var(--shadow-color);
     }
 
-    .tab-btn:focus-visible,
-    .pw-toggle:focus-visible,
-    .link-focus:focus-visible {
+    .tab-btn:focus-visible {
       outline: 3px solid var(--color-blue, #1ea7fd);
       outline-offset: 2px;
-    }
-
-    .link-focus:focus-visible {
-      border-radius: 0.5rem;
-    }
-
-    /* Animations */
-    @keyframes pop-in {
-      0% {
-        opacity: 0;
-        transform: scale(0.92) translateY(10px);
-      }
-      100% {
-        opacity: 1;
-        transform: scale(1) translateY(0);
-      }
-    }
-
-    .animate-pop-in {
-      animation: pop-in 0.38s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
     }
 
     .tab-content {
@@ -344,6 +242,25 @@
       </p>
     </div>
 
+    <div id="active-session-banner" class="hidden mb-5 p-3.5 rounded-2xl border-[3px] border-green bg-green/10 dark:bg-green/15 text-left space-y-2.5 animate-pop-in">
+      <div class="flex items-center gap-2 text-xs font-extrabold text-ink">
+        <i data-lucide="cloud" class="w-4 h-4 text-green shrink-0" aria-hidden="true"></i>
+        <span class="truncate">Signed in as <span id="active-session-email" class="text-green-700 dark:text-green-300"></span></span>
+      </div>
+      <div class="flex gap-2">
+        <a href="./hub.html" onclick="handleContinueSession()"
+          class="btn-chunky flex-1 py-2 px-3 rounded-xl bg-green text-slate-950 font-heading font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-1.5">
+          <i data-lucide="layout-dashboard" class="w-3.5 h-3.5" aria-hidden="true"></i>
+          <span>Continue to Hub</span>
+        </a>
+        <button type="button" onclick="handleSwitchAccount()"
+          class="btn-chunky py-2 px-3 rounded-xl bg-card text-ink font-heading font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-1.5">
+          <i data-lucide="log-out" class="w-3.5 h-3.5 text-orange" aria-hidden="true"></i>
+          <span>Switch</span>
+        </button>
+      </div>
+    </div>
+
     <div id="auth-tabs" role="tablist" aria-label="Authentication mode" class="auth-tabs-track flex gap-1.5 p-1.5 rounded-2xl mb-6">
       <button type="button" id="tab-signin" role="tab" aria-selected="true" aria-controls="content-signin"
         class="tab-btn active" onclick="switchTab('signin')">
@@ -360,25 +277,25 @@
     <div id="content-signin" role="tabpanel" aria-labelledby="tab-signin" class="tab-content active">
       <form class="space-y-4" novalidate onsubmit="event.preventDefault(); handleSignIn();">
         <div class="space-y-1.5">
-          <label for="signin-email" class="block text-xs font-extrabold text-dark dark:text-slate-300 ml-1 uppercase tracking-wider">
+          <label for="signin-email" class="block text-xs font-extrabold text-ink ml-1 uppercase tracking-wider">
             Email Address
           </label>
           <div class="relative input-wrap">
-            <i data-lucide="mail" class="input-icon pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 transition-colors" aria-hidden="true"></i>
+            <i data-lucide="mail" class="input-icon pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-ink-muted transition-colors" aria-hidden="true"></i>
             <input type="email" id="signin-email" autocomplete="email" class="auth-input pl-12" placeholder="teacher@school.edu" required>
           </div>
         </div>
 
         <div class="space-y-1.5">
-          <label for="signin-password" class="block text-xs font-extrabold text-dark dark:text-slate-300 ml-1 uppercase tracking-wider">
+          <label for="signin-password" class="block text-xs font-extrabold text-ink ml-1 uppercase tracking-wider">
             Password
           </label>
           <div class="relative input-wrap">
-            <i data-lucide="lock" class="input-icon pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 transition-colors" aria-hidden="true"></i>
+            <i data-lucide="lock" class="input-icon pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-ink-muted transition-colors" aria-hidden="true"></i>
             <input type="password" id="signin-password" autocomplete="current-password" class="auth-input pl-12 pr-12" placeholder="••••••••" required>
             <button type="button" onclick="togglePasswordVisibility('signin-password', this)"
               aria-label="Show password" aria-pressed="false"
-              class="pw-toggle absolute right-3 top-1/2 -translate-y-1/2 w-9 h-9 flex items-center justify-center rounded-full text-slate-400 hover:text-blue dark:hover:text-blue transition-colors">
+              class="pw-toggle absolute right-3 top-1/2 -translate-y-1/2 w-9 h-9 flex items-center justify-center rounded-full text-ink-muted hover:text-blue dark:hover:text-blue transition-colors">
               <i data-lucide="eye-off" class="w-5 h-5" aria-hidden="true"></i>
             </button>
           </div>
@@ -405,21 +322,21 @@
     <div id="content-signup" role="tabpanel" aria-labelledby="tab-signup" class="tab-content">
       <form class="space-y-4" novalidate onsubmit="event.preventDefault(); handleSignUp();">
         <div class="space-y-1.5">
-          <label for="signup-displayname" class="block text-xs font-extrabold text-dark dark:text-slate-300 ml-1 uppercase tracking-wider">
+          <label for="signup-displayname" class="block text-xs font-extrabold text-ink ml-1 uppercase tracking-wider">
             Display Name
           </label>
           <div class="relative input-wrap">
-            <i data-lucide="user" class="input-icon pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 transition-colors" aria-hidden="true"></i>
+            <i data-lucide="user" class="input-icon pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-ink-muted transition-colors" aria-hidden="true"></i>
             <input type="text" id="signup-displayname" autocomplete="name" class="auth-input pl-12" placeholder="Professor Awesome" required>
           </div>
         </div>
 
         <div class="space-y-1.5">
-          <label for="signup-email" class="block text-xs font-extrabold text-dark dark:text-slate-300 ml-1 uppercase tracking-wider">
+          <label for="signup-email" class="block text-xs font-extrabold text-ink ml-1 uppercase tracking-wider">
             Email Address
           </label>
           <div class="relative input-wrap">
-            <i data-lucide="mail" class="input-icon pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 transition-colors" aria-hidden="true"></i>
+            <i data-lucide="mail" class="input-icon pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-ink-muted transition-colors" aria-hidden="true"></i>
             <input type="email" id="signup-email" autocomplete="email" class="auth-input pl-12" placeholder="teacher@school.edu" required>
           </div>
         </div>
@@ -427,32 +344,32 @@
         <div class="space-y-2">
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-3">
             <div class="space-y-1.5">
-              <label for="signup-password" class="block text-xs font-extrabold text-dark dark:text-slate-300 ml-1 uppercase tracking-wider">
+              <label for="signup-password" class="block text-xs font-extrabold text-ink ml-1 uppercase tracking-wider">
                 Password
               </label>
               <div class="relative input-wrap">
-                <i data-lucide="lock" class="input-icon pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 transition-colors" aria-hidden="true"></i>
+                <i data-lucide="lock" class="input-icon pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-ink-muted transition-colors" aria-hidden="true"></i>
                 <input type="password" id="signup-password" autocomplete="new-password" class="auth-input pl-12 pr-12" placeholder="••••••••" required
                   minlength="6" oninput="checkPasswordMatch()">
                 <button type="button" onclick="togglePasswordVisibility('signup-password', this)"
                   aria-label="Show password" aria-pressed="false"
-                  class="pw-toggle absolute right-3 top-1/2 -translate-y-1/2 w-9 h-9 flex items-center justify-center rounded-full text-slate-400 hover:text-green dark:hover:text-green transition-colors">
+                  class="pw-toggle absolute right-3 top-1/2 -translate-y-1/2 w-9 h-9 flex items-center justify-center rounded-full text-ink-muted hover:text-green dark:hover:text-green transition-colors">
                   <i data-lucide="eye-off" class="w-5 h-5" aria-hidden="true"></i>
                 </button>
               </div>
             </div>
 
             <div class="space-y-1.5">
-              <label for="signup-confirm" class="block text-xs font-extrabold text-dark dark:text-slate-300 ml-1 uppercase tracking-wider">
+              <label for="signup-confirm" class="block text-xs font-extrabold text-ink ml-1 uppercase tracking-wider">
                 Confirm
               </label>
               <div class="relative input-wrap">
-                <i data-lucide="shield-check" class="input-icon pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 transition-colors" aria-hidden="true"></i>
+                <i data-lucide="shield-check" class="input-icon pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-ink-muted transition-colors" aria-hidden="true"></i>
                 <input type="password" id="signup-confirm" autocomplete="new-password" class="auth-input pl-12 pr-12" placeholder="••••••••" required
                   minlength="6" oninput="checkPasswordMatch()">
                 <button type="button" onclick="togglePasswordVisibility('signup-confirm', this)"
                   aria-label="Show password" aria-pressed="false"
-                  class="pw-toggle absolute right-3 top-1/2 -translate-y-1/2 w-9 h-9 flex items-center justify-center rounded-full text-slate-400 hover:text-green dark:hover:text-green transition-colors">
+                  class="pw-toggle absolute right-3 top-1/2 -translate-y-1/2 w-9 h-9 flex items-center justify-center rounded-full text-ink-muted hover:text-green dark:hover:text-green transition-colors">
                   <i data-lucide="eye-off" class="w-5 h-5" aria-hidden="true"></i>
                 </button>
               </div>
@@ -476,24 +393,24 @@
     <div id="content-forgot" role="tabpanel" class="tab-content">
       <div class="flex items-center justify-between mb-3">
         <button type="button" onclick="switchTab('signin')"
-          class="link-focus inline-flex items-center gap-1.5 text-xs font-extrabold text-slate-500 dark:text-slate-400 hover:text-dark dark:hover:text-white uppercase tracking-wide transition-colors">
+          class="link-focus inline-flex items-center gap-1.5 text-xs font-extrabold text-ink-muted hover:text-ink uppercase tracking-wide transition-colors">
           <i data-lucide="arrow-left" class="w-3.5 h-3.5" aria-hidden="true"></i>
           <span>Back to Sign In</span>
         </button>
       </div>
       <div class="mb-4">
-        <h2 class="font-heading text-xl font-bold text-dark dark:text-white uppercase tracking-tight">Reset Password</h2>
-        <p class="text-xs sm:text-sm font-semibold text-slate-500 dark:text-slate-400 mt-1">
+        <h2 class="font-heading text-xl font-bold text-ink uppercase tracking-tight">Reset Password</h2>
+        <p class="text-xs sm:text-sm font-semibold text-ink-muted mt-1">
           Enter your email address and we'll send a password reset link.
         </p>
       </div>
       <form class="space-y-4" novalidate onsubmit="event.preventDefault(); handleForgotPassword();">
         <div class="space-y-1.5">
-          <label for="forgot-email" class="block text-xs font-extrabold text-dark dark:text-slate-300 ml-1 uppercase tracking-wider">
+          <label for="forgot-email" class="block text-xs font-extrabold text-ink ml-1 uppercase tracking-wider">
             Reset Email
           </label>
           <div class="relative input-wrap">
-            <i data-lucide="mail" class="input-icon pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 transition-colors" aria-hidden="true"></i>
+            <i data-lucide="mail" class="input-icon pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-ink-muted transition-colors" aria-hidden="true"></i>
             <input type="email" id="forgot-email" autocomplete="email" class="auth-input pl-12" placeholder="teacher@school.edu" required>
           </div>
         </div>
@@ -561,7 +478,7 @@
       if (!confirm.value) {
         confirm.classList.remove('input-match', 'input-mismatch');
         if (pass.value.length > 0 && pass.value.length < 6) {
-          msg.className = 'flex items-center gap-1.5 text-xs font-extrabold ml-1 text-slate-600 dark:text-slate-300';
+          msg.className = 'flex items-center gap-1.5 text-xs font-extrabold ml-1 text-ink-muted';
           if (msg.dataset.state !== 'hint') {
             msg.dataset.state = 'hint';
             msg.innerHTML = '<i data-lucide="alert-circle" class="w-3.5 h-3.5 shrink-0" aria-hidden="true"></i><span>Use at least 6 characters</span>';
@@ -696,6 +613,20 @@
       refreshIcons();
     }
 
+    function consumeSafeAfterLoginRedirect() {
+      const raw = localStorage.getItem('after_login');
+      localStorage.removeItem('after_login');
+      if (!raw) return './hub.html';
+      try {
+        const u = new URL(raw, window.location.origin);
+        if (u.origin !== window.location.origin) return './hub.html';
+        if (u.pathname.endsWith('/login.html')) return './hub.html';
+        return u.pathname + u.search + u.hash;
+      } catch (_) {
+        return './hub.html';
+      }
+    }
+
     async function handleSignIn() {
       const email = document.getElementById('signin-email').value.trim();
       const pass = document.getElementById('signin-password').value;
@@ -724,13 +655,31 @@
           localStorage.setItem('kk_mode', 'cloud');
         }
 
-        const dest = localStorage.getItem('after_login') || '/hub.html';
-        localStorage.removeItem('after_login');
-        window.location.href = dest;
+        window.location.href = consumeSafeAfterLoginRedirect();
       } catch (err) {
         setLoading(btn, false, "Let's Go!");
         showMessage('signin-message', humanizeError(err), true);
       }
+    }
+
+    function handleContinueSession() {
+      localStorage.setItem('kk_mode', 'cloud');
+    }
+
+    async function handleSwitchAccount() {
+      try {
+        if (typeof teardownCloudSession === 'function') {
+          await teardownCloudSession({ redirectUrl: null });
+        } else if (typeof db !== 'undefined' && db?.auth) {
+          await db.auth.signOut({ scope: 'local' });
+        }
+      } catch (err) {
+        console.warn('[Login] Switch account cleanup error:', err);
+      }
+      const banner = document.getElementById('active-session-banner');
+      if (banner) banner.classList.add('hidden');
+      const emailInput = document.getElementById('signin-email');
+      if (emailInput) emailInput.focus();
     }
 
     function handleBackToHome() {
@@ -759,10 +708,20 @@
         if (typeof signUp !== 'function') {
           throw new Error('Authentication service unavailable. Please refresh and try again.');
         }
-        const { error } = await signUp(email, pass, displayName);
+        const { data, error } = await signUp(email, pass, displayName);
         setLoading(btn, false, 'Create Account');
 
         if (error) return showMessage('signup-message', humanizeError(error), true);
+
+        if (data?.session?.user) {
+          if (typeof prepareCloudSession === 'function') {
+            await prepareCloudSession(data.session.user);
+          } else {
+            localStorage.setItem('kk_mode', 'cloud');
+          }
+          window.location.href = consumeSafeAfterLoginRedirect();
+          return;
+        }
 
         showMessage('signup-message', 'Check your email for a link!', false);
       } catch (err) {
@@ -795,6 +754,40 @@
         showMessage('forgot-message', humanizeError(err), true);
       }
     }
+
+    window.addEventListener('storage', (e) => {
+      if (e.key === 'theme_hub' || e.key === 'color_theme') {
+        if (typeof window.__applyKlassKitTheme === 'function') {
+          window.__applyKlassKitTheme();
+        } else {
+          try {
+            const t = JSON.parse(localStorage.getItem('theme_hub'));
+            document.documentElement.classList.toggle('dark', t === 'dark');
+          } catch (_) {}
+        }
+        syncThemeToggleState();
+      }
+    });
+
+    window.addEventListener('load', async () => {
+      try {
+        if (typeof db !== 'undefined' && db?.auth) {
+          const { data } = await db.auth.getSession();
+          const user = data?.session?.user;
+          if (user) {
+            const banner = document.getElementById('active-session-banner');
+            const emailEl = document.getElementById('active-session-email');
+            if (emailEl) emailEl.textContent = user.email || 'Active Teacher';
+            if (banner) {
+              banner.classList.remove('hidden');
+              refreshIcons();
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('[Login] Session inspection error:', err);
+      }
+    });
 
     refreshIcons();
     syncThemeToggleState();

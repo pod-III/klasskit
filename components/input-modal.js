@@ -86,7 +86,7 @@
                     box-shadow: none;
                 }
             </style>
-            <div id="universalInputModal" class="hidden fixed inset-0 z-[500] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-pop font-body">
+            <div id="universalInputModal" class="hidden fixed inset-0 z-[500] flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-md animate-pop font-body">
                 <div class="kk-input-card max-w-sm w-full p-6 flex flex-col items-center rounded-2xl">
                     <div id="inputModalIconWrapper" class="w-16 h-16 rounded-2xl bg-[#ff4785]/10 border-[3px] border-[#ff4785]/30 flex items-center justify-center mb-4">
                         <i id="inputModalIcon" data-lucide="edit-3" class="w-8 h-8 text-[#ff4785]"></i>
@@ -173,7 +173,6 @@
         const input = document.getElementById('inputModalField');
         const confirmBtn = document.getElementById('inputModalConfirm');
         const cancelBtn = document.getElementById('inputModalCancel');
-        const icon = document.getElementById('inputModalIcon');
         const iconWrapper = document.getElementById('inputModalIconWrapper');
 
         // Set content
@@ -190,10 +189,6 @@
             cancelBtn.textContent = options.cancelText || 'Cancel';
         }
 
-        // Set icon
-        const iconName = options.icon || 'edit-3';
-        icon.setAttribute('data-lucide', iconName);
-
         // Set icon color - map to KlassKit colors
         const colorMap = {
             'blue': '#1ea7fd',
@@ -204,25 +199,28 @@
             'purple': '#8b5cf6'
         };
         const color = colorMap[options.iconColor] || colorMap['pink'];
-        icon.style.color = color;
-        iconWrapper.style.backgroundColor = color + '15'; // 10% opacity
-        iconWrapper.style.borderColor = color + '40'; // 25% opacity
+        const iconName = options.icon || 'edit-3';
 
-        // Refresh icons if lucide is available
-        if (window.lucide) {
-            try {
-                lucide.createIcons();
-                // After icons are created, the <i> might be replaced with SVG
-                // So we need to find the new icon element and update its styles
-                const newIcon = iconWrapper.querySelector('svg, i');
-                if (newIcon) {
-                    newIcon.style.width = '2rem';
-                    newIcon.style.height = '2rem';
-                    newIcon.style.color = color;
+        if (iconWrapper) {
+            iconWrapper.style.backgroundColor = color + '15'; // ~10% opacity
+            iconWrapper.style.borderColor = color + '40'; // ~25% opacity
+            iconWrapper.innerHTML = `<i id="inputModalIcon" class="w-8 h-8"></i>`;
+            const freshIcon = iconWrapper.querySelector('#inputModalIcon');
+            freshIcon.setAttribute('data-lucide', iconName);
+            freshIcon.style.color = color;
+
+            if (window.lucide && typeof window.lucide.createIcons === 'function') {
+                try {
+                    window.lucide.createIcons({ root: iconWrapper });
+                    const renderedIcon = iconWrapper.querySelector('svg, i');
+                    if (renderedIcon) {
+                        renderedIcon.style.width = '2rem';
+                        renderedIcon.style.height = '2rem';
+                        renderedIcon.style.color = color;
+                    }
+                } catch (error) {
+                    console.warn('Failed to create Lucide icons:', error);
                 }
-            } catch (error) {
-                console.warn('Failed to create Lucide icons:', error);
-                // Fallback: keep the original <i> element with styles
             }
         }
 
